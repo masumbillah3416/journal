@@ -199,6 +199,37 @@ Rules: virtualize the gallery grid past 100 tiles. Debounce or `requestAnimation
 - Validate at the boundary, then trust the type inside.
 - Never log secrets, tokens, OTP codes, or full email addresses.
 
+### 7.1 Repository content never leaves this machine without explicit approval
+
+**Repository content is never sent to an external or third-party service.** Content
+means all of it: source, configuration, schema, migrations, data, seed content,
+diagrams, and excerpts of any of them. Services means all of them: rendering and
+diagram services, online validators and linters, formatters, paste and gist sites,
+translation services, search engines, LLM APIs — anything that receives the bytes over
+a network to somebody else's machine. The only exception is content the repository
+owner has been asked about and has explicitly approved sending, for that specific
+purpose, in that specific request.
+
+**Why.** Sending content to an external service publishes it. It may be logged, cached,
+indexed, retained after the request, or used as training data, and it may stay
+retrievable long after anything was "deleted" — the service's retention is not ours to
+know or to revoke. Whether this repository's content becomes public is the owner's
+decision to make, and taking it on their behalf is not a shortcut, it is a disclosure.
+The cost is asymmetric: asking costs one question, and getting it wrong cannot be
+undone.
+
+**When the local tool is missing, the verification is UNRESOLVED.** This is the case the
+rule exists for. If a diagram cannot be rendered, a schema cannot be validated, or a
+format cannot be checked because the tool for it is not installed here, the correct
+outcome is to report that check as unresolved and say which tool would settle it. It is
+never to route the content through an online equivalent to get a green tick. An
+unresolved check is honest and costs a follow-up; a check bought by publishing the
+repository is a §0.4 violation dressed as diligence, and the disclosure is permanent.
+
+This is not advisory and it is not scoped to one phase. It was written after repository
+content was sent to a public diagram-rendering service during Phase 0 to validate a
+Mermaid diagram, without asking.
+
 ---
 
 ## 8 · Git workflow
