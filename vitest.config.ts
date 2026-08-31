@@ -29,14 +29,14 @@
  * sub-second) rather than any correctness risk.
  *
  * This config's own coverage pass only ever executes the `unit` project (the
- * pre-commit gate is Docker-free), so `postgres-queue.ts` and its contract
- * suite/fixtures - reachable only from an `*.integration.test.ts` file - are
- * excluded here rather than counted as 0%-covered against thresholds they
- * have no way to meet from this run. They are not left ungated: a SEPARATE
- * coverage pass, `vitest.integration.config.ts` (run via
- * `npm run test:integration:coverage`, chained into `npm run verify:full`),
- * runs the same integration tests with `--coverage` scoped to exactly these
- * files, with its own thresholds. See docs/testing.md.
+ * pre-commit gate is Docker-free), so `postgres-queue.ts`, `migrate.ts` and
+ * the queue contract suite/fixtures - reachable only from an
+ * `*.integration.test.ts` file - are excluded here rather than counted as
+ * 0%-covered against thresholds they have no way to meet from this run. They
+ * are not left ungated: a SEPARATE coverage pass, `vitest.integration.config.ts`
+ * (run via `npm run test:integration:coverage`, chained into
+ * `npm run verify:full`), runs the same integration tests with `--coverage`
+ * scoped to exactly these files, with its own thresholds. See docs/testing.md.
  * Depends on: vitest/config.
  */
 import { defineConfig } from 'vitest/config'
@@ -95,6 +95,14 @@ export default defineConfig({
         'apps/web/lib/adapters/postgres-queue.ts',
         'apps/web/lib/adapters/contract/queue-contract.ts',
         'apps/web/lib/adapters/contract/queue-fixtures.ts',
+        // migrate.ts (runMigrateDown/runMigrateUp) is imported only by
+        // testPayload.ts and collections.integration.test.ts, neither of
+        // which the unit project ever runs, so it is gated instead by
+        // vitest.integration.config.ts - same reasoning as the queue files
+        // above. It previously carried a whole-module `c8 ignore` here
+        // instead of this exclude, which hid it from coverage everywhere,
+        // not just this Docker-free pass - see migrate.ts's own header.
+        'apps/web/lib/migrate.ts',
         // seed.ts and seed-data.ts are reachable only from
         // seed.integration.test.ts (they need a real Payload/Postgres), so
         // they are gated by vitest.integration.config.ts instead - same

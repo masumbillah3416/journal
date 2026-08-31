@@ -25,10 +25,19 @@
  * needs a real Payload/Postgres. `apps/web/lib/testPayload.ts` joins it for
  * the same reason as those two, plus one more: `vitest.config.ts`'s own
  * coverage `include` broadly covers `apps/web/lib/**`, and testPayload.ts is
- * large enough (unlike the small migrate.ts/queue.ts it sits beside) that
- * leaving it at 0% there pulled that bucket's aggregate below its own 95%
- * threshold - so it is excluded there and regated here, same as the queue
- * files.
+ * large enough (unlike the small migrate.ts it sits beside) that leaving it
+ * at 0% there pulled that bucket's aggregate below its own 95% threshold -
+ * so it is excluded there and regated here, same as the queue files.
+ *
+ * `apps/web/lib/migrate.ts` (`runMigrateDown`/`runMigrateUp`) joins this file
+ * for the same reason as the queue files: it is reachable only from
+ * `testPayload.ts`'s self-bootstrap and `collections.integration.test.ts`'s
+ * "runs down and up again" case, both integration-only. It previously
+ * carried a whole-module `c8 ignore` instead of an exclude-and-regate, which
+ * suppressed it from every coverage run rather than moving it to the one
+ * that can actually see it - see migrate.ts's own header. Both functions are
+ * simple wrappers with no branches of their own, so 100% here is the honest,
+ * fully-achieved number, not a rounded-up one.
  *
  * `DATABASE_URL` points at `diary_test`, a separate database from `.env`'s
  * `diary` - never the developer's own dev data - for the same reason as
@@ -67,6 +76,7 @@ export default defineConfig({
         'apps/web/scripts/seed.ts',
         'apps/web/scripts/seed-data.ts',
         'apps/web/lib/testPayload.ts',
+        'apps/web/lib/migrate.ts',
       ],
       thresholds: {
         // postgres-queue.ts's two error-catch branches (an unexpected DB
@@ -106,6 +116,13 @@ export default defineConfig({
         // bounds for a fixed 5-element tuple), and brandOrThrow's error
         // branch (Payload never hands back an empty id).
         'apps/web/scripts/seed.ts': { lines: 100, branches: 83, functions: 100 },
+        // migrate.ts: both functions are two-line wrappers with no branches
+        // of their own - runMigrateDown() and runMigrateUp() are each called
+        // at least once (collections.integration.test.ts's "runs down and up
+        // again" case, plus testPayload.ts's self-bootstrap calling
+        // runMigrateUp()), so every line, branch and function is genuinely
+        // exercised.
+        'apps/web/lib/migrate.ts': { lines: 100, branches: 100, functions: 100 },
       },
     },
   },

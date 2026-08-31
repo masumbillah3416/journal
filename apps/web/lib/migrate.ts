@@ -6,12 +6,17 @@
  * migration runs up, down, and up again against a seeded database). Depends
  * on the Payload instance from `./payload.js`.
  *
- * Exercised only by `collections/collections.integration.test.ts` against the
- * real Docker Postgres — these two functions have no branches of their own to
+ * Exercised by `collections/collections.integration.test.ts`'s "runs down and
+ * up again" case and by `testPayload.ts`'s self-bootstrap, both against real
+ * Docker Postgres — these two functions have no branches of their own to
  * unit-test in isolation, and a mock proving "this calls the thing it calls"
  * would not add confidence the integration suite doesn't already provide.
+ * This module is never imported by the unit project (see vitest.config.ts,
+ * which excludes it from that pass's coverage `include` for exactly this
+ * reason), so it carries no `c8 ignore` — it is measured for real by
+ * `vitest.integration.config.ts` instead, at the honest 100% both functions
+ * actually achieve there (see that file's thresholds and docs/testing.md).
  */
-/* c8 ignore start -- exercised by collections.integration.test.ts's "runs down and up again" case against real Postgres; this module is never imported by the unit project (see vitest.config.ts), so v8 reports it as wholly unexecuted rather than partially. */
 import { getPayload } from './payload.js'
 
 /** Rolls the most recently applied migration back. */
@@ -25,5 +30,3 @@ export const runMigrateUp = async (): Promise<void> => {
   const payload = await getPayload()
   await payload.db.migrate()
 }
-
-/* c8 ignore stop */

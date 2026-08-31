@@ -126,27 +126,32 @@ An uncovered line outside `packages/domain` requires a
   `npm run verify:full` / `npm run test:integration`.
 - **Coverage for integration-only code:** `npm run verify`'s coverage pass only ever
   executes the `unit` project, so `postgres-queue.ts`, `queue-contract.ts`,
-  `queue-fixtures.ts`, `seed.ts`, `seed-data.ts` and `testPayload.ts` — reachable
-  exclusively from an `*.integration.test.ts` — are excluded from `vitest.config.ts`'s
-  coverage `include` rather than counted as 0%-covered there. They are gated instead by
-  a second, dedicated pass, `vitest.integration.config.ts`, run via
+  `queue-fixtures.ts`, `seed.ts`, `seed-data.ts`, `testPayload.ts` and `migrate.ts` —
+  reachable exclusively from an `*.integration.test.ts` — are excluded from
+  `vitest.config.ts`'s coverage `include` rather than counted as 0%-covered there. They
+  are gated instead by a second, dedicated pass, `vitest.integration.config.ts`, run via
   `npm run test:integration:coverage` (chained into `npm run verify:full`) — it runs the
-  same integration test files with `--coverage` scoped to just those six files.
+  same integration test files with `--coverage` scoped to just those seven files.
   Thresholds are set per-file to what is genuinely achieved, not aspirational:
-  `queue-contract.ts`, `queue-fixtures.ts` and `seed-data.ts` (a pure data literal) are
-  100% lines/branches/functions; `postgres-queue.ts` and `testPayload.ts` are both 93%
-  lines, 75% branches, 100% functions — the former's two uncovered branches are
-  `enqueue()`'s and `claim()`'s error-`catch` paths for an unexpected database failure,
-  which have no organic trigger without mocking the module under test (CLAUDE.md §2.3:
-  "no mocking what we own") or deliberately corrupting the test database; the latter's
-  are `ensureDatabaseExists()`'s `CREATE DATABASE` branch, which only runs the very first
-  time any integration test ever executes against a given Postgres volume (every run
-  after that finds `diary_test` already exists). `claim()`'s safety-critical
-  `SELECT ... FOR UPDATE SKIP LOCKED` line itself executes on every call regardless of
-  outcome, so it is fully exercised by both the smoke test and the blocking regression
-  test above. `seed.ts` is 100% lines/functions, 83% branches — the uncovered branches
-  are defensive guards with no organic trigger from the ten real journeys' own data (an
-  unrecognised `dates` format, an id branding failure that can't happen for an id
+  `queue-contract.ts`, `queue-fixtures.ts`, `seed-data.ts` (a pure data literal) and
+  `migrate.ts` are 100% lines/branches/functions — `migrate.ts`'s `runMigrateDown` and
+  `runMigrateUp` are two-line wrappers with no branches of their own, exercised by
+  `collections.integration.test.ts`'s "runs down and up again" case and by
+  `testPayload.ts`'s self-bootstrap, so 100% is fully achieved rather than left unknown
+  behind the whole-module `c8 ignore` it previously carried (see `migrate.ts`'s own
+  header). `postgres-queue.ts` and `testPayload.ts` are both 93% lines, 75% branches,
+  100% functions — the former's two
+  uncovered branches are `enqueue()`'s and `claim()`'s error-`catch` paths for an
+  unexpected database failure, which have no organic trigger without mocking the module
+  under test (CLAUDE.md §2.3: "no mocking what we own") or deliberately corrupting the
+  test database; the latter's are `ensureDatabaseExists()`'s `CREATE DATABASE` branch,
+  which only runs the very first time any integration test ever executes against a given
+  Postgres volume (every run after that finds `diary_test` already exists). `claim()`'s
+  safety-critical `SELECT ... FOR UPDATE SKIP LOCKED` line itself executes on every call
+  regardless of outcome, so it is fully exercised by both the smoke test and the blocking
+  regression test above. `seed.ts` is 100% lines/functions, 83% branches — the uncovered
+  branches are defensive guards with no organic trigger from the ten real journeys' own
+  data (an unrecognised `dates` format, an id branding failure that can't happen for an id
   Payload itself just generated, an out-of-bounds accent-tint index that can't happen for
   a fixed 5-element tuple); see `seed.ts`'s own `c8 ignore` comments and
   `vitest.integration.config.ts`'s threshold comment for the full list.
