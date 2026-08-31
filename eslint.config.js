@@ -37,5 +37,13 @@ export default tseslint.config(
     extends: [...tseslint.configs.strictTypeChecked],
     languageOptions: { parserOptions: { projectService: true } },
   },
+  {
+    // The console mailer is the one legitimate writer to stdout (its dev-only
+    // terminal preview of the OTP code, and the masked line every send
+    // produces) - a targeted override for this single file, not a weakening
+    // of the global rule, so `console.log` anywhere else is still caught.
+    files: ['apps/web/lib/adapters/console-mailer.ts'],
+    rules: { 'no-console': 'off' },
+  },
   { ignores: ['**/dist/**', '**/.next/**', 'handoff/**', 'coverage/**'] },
 )
