@@ -285,17 +285,36 @@ Defect reports are committed. They are the record of what was covered, and what 
 
 ## 11 · Commands
 
+Every one of these runs from the repository root. The four marked *(→ apps/web)* are
+root passthroughs to the `apps/web` workspace script of the same name, so a new
+contributor never has to know where the Payload CLI lives.
+
 ```
-npm run dev            # Next + Payload against local Postgres
-npm run verify         # typecheck + lint + unit + integration + coverage gates  <- pre-commit
-npm run test           # unit + integration, watch mode
-npm run test:e2e       # Playwright
-npm run test:e2e:headed # Playwright, visible browser — the engine for QA sweeps
-npm run test:visual    # visual regression
-npm run test:a11y      # accessibility
-npm run test:perf      # Lighthouse CI budgets
-npm run db:migrate     # run migrations
-npm run db:seed        # seed from the handoff prototype content
+npm run dev              # Next + Payload against local Postgres  (→ apps/web)
+npm run verify           # typecheck + lint + unit tests + unit coverage gates  <- pre-commit
+npm run verify:full      # verify, plus the integration suite and its own coverage gate  <- CI
+npm run test             # every Vitest project, watch mode
+npm run test:unit        # the unit project once, with coverage
+npm run test:integration # the integration project once — needs the Docker Postgres
+npm run test:e2e         # Playwright
+npm run test:e2e:headed  # Playwright, visible browser — the engine for QA sweeps
+npm run test:visual      # visual regression
+npm run test:a11y        # accessibility
+npm run test:perf        # Lighthouse CI budgets
+npm run db:migrate       # apply every pending migration  (→ apps/web)
+npm run db:migrate:down  # roll the most recent batch back  (→ apps/web)
+npm run db:seed          # seed from the handoff prototype content  (→ apps/web)
 ```
 
-`npm run verify` is the gate. It runs in the pre-commit hook and in CI, and it must pass before any completion claim.
+**There are two gates, deliberately, and they are not the same gate.**
+
+`npm run verify` is the pre-commit gate, run by the Husky hook. It is **typecheck, lint
+and the unit project only** — no integration tests, no Docker. That is a decision, not
+an oversight: a pre-commit gate that fails whenever a developer's Postgres container is
+down trains its author to reach for `--no-verify`, which §8.2 forbids outright. A gate
+has to be one a developer can always pass honestly.
+
+`npm run verify:full` is the CI gate. It is `verify` plus the integration suite and the
+separate coverage pass that gates the integration-only files (`vitest.integration.config.ts`).
+It needs a running Postgres. **It is what must pass before any completion claim**, and
+what a branch is merged on — `verify` alone is not evidence that the work is done.

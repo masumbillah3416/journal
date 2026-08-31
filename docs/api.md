@@ -22,11 +22,115 @@ updating its row in the same commit that changes the code (`CLAUDE.md` §1.3).
 
 ## Phase 0 status
 
-No routes and no server actions exist in `apps/web` yet — `apps/web` itself has not been
-scaffolded; this task is documentation only. The design spec (§8) names the two public
-paths the diary will serve once Phase 1 builds routing; they are documented below as
-**planned**, using only what the spec already specifies, so that Phase 1's
-implementation has a contract to build against rather than inventing one mid-phase.
+`apps/web` is scaffolded, and four route handlers exist today — all of them Payload's
+own, mounted under the `(payload)` route group and documented in the next section.
+No route or server action written *for the diary* exists yet; those arrive with Phase 1
+routing and are listed further down as **planned**, using only what the design spec (§8)
+already specifies, so Phase 1 has a contract to build against rather than inventing one
+mid-phase.
+
+## Payload-owned routes (live today)
+
+These four are not hand-written handlers — each re-exports a handler from
+`@payloadcms/next`, so their behaviour is Payload's, not ours. They are documented here
+anyway, in full, because they are real, reachable HTTP surface: `CLAUDE.md` §1.2 asks
+this document for *every* route, and an exposure surface nobody wrote down is an
+exposure surface nobody reviews.
+
+**Authorization, for all of them.** None of these routes carries its own auth check.
+Every one runs Payload's collection- and global-level access control on the operation it
+performs. No collection in `apps/web/collections/` declares `access` except `jobs` and
+`otpChallenges` (both `() => false` on read/create/update — server-only, reachable only
+through the Local API); every other collection and global therefore inherits Payload's
+default access, `({ req: { user } }) => Boolean(user)` — **signed in, or refused**.
+Sign-in itself is `users`' auth collection, whose login/refresh/logout operations are
+public by construction. Phase 2 and Phase 4 tighten these per `docs/security.md`; until
+they do, "signed-in" is the whole policy, and it is enforced by Payload rather than by
+anything in this repository.
+
+**`admin.disable` does not gate these routes.** `payload.config.ts` sets
+`admin.disable: process.env.NODE_ENV === 'production'`, which disables Payload's *admin
+panel* only. Payload's own type documentation is explicit that the way to disable the
+REST and GraphQL endpoints is to delete the `app/(payload)/api` directory, not to set
+this flag. `/api/**` and `/api/graphql` therefore stay live in production and are
+governed solely by the access control above. The playground is the one exception, and
+for a different reason — see its row.
+
+### `ALL /api/<...slug>`
+
+- **Path:** `apps/web/app/(payload)/api/[...slug]/route.ts`.
+- **Method:** `GET`, `POST`, `PATCH`, `PUT`, `DELETE`, `OPTIONS` — Payload's REST API,
+  mounted at `routes.api`'s default `/api`.
+- **Input:** Payload's REST conventions: the collection or global slug and document id
+  in the path, its query language (`where`, `depth`, `limit`, `sort`, `locale`) in the
+  query string, and a document body on writes. Validation is Payload's own field
+  validation, derived from `apps/web/collections/*` and `apps/web/globals/*`; there is
+  no Zod schema at this boundary because no code of ours sits at it.
+- **Output:** Payload's REST envelopes — `{ docs, totalDocs, page, ... }` for a list,
+  the document for a read, `{ message, doc }` for a write.
+- **Errors:** `400` on validation failure, `401` when unauthenticated,
+  `403` when access control refuses, `404` for an unknown collection/global/document,
+  `500` on an unhandled failure.
+- **Auth requirement:** signed in, for every collection and global — see the paragraph
+  above. `jobs` and `otpChallenges` refuse every request through this route regardless
+  of who is signed in.
+
+### `POST /api/graphql`
+
+- **Path:** `apps/web/app/(payload)/api/graphql/route.ts`.
+- **Method:** `POST`.
+- **Input:** a GraphQL request body (`{ query, variables, operationName }`) against the
+  schema Payload generates from the same collections and globals.
+- **Output:** a GraphQL response (`{ data, errors }`).
+- **Errors:** returned in the response's `errors` array rather than as status codes —
+  including the authorization refusals, which surface as `FORBIDDEN`/`UNAUTHORIZED`
+  extensions on a `200`.
+- **Auth requirement:** identical to the REST route — the same access control runs, on
+  the same operations. A GraphQL query is not a way around it.
+
+### `GET /api/graphql-playground`
+
+- **Path:** `apps/web/app/(payload)/api/graphql-playground/route.ts`.
+- **Method:** `GET`.
+- **Input:** none.
+- **Output:** the GraphQL Playground HTML page, configured with
+  `request.credentials: 'include'` so it sends the caller's Payload session cookie.
+- **Errors:** `404 Route Not Found` when it is disabled (see below).
+- **Auth requirement:** **none on the route itself.** The page is served unauthenticated
+  to anyone who can reach it; it is a *schema browser and request console*, and the
+  queries a visitor fires from it run under that visitor's own session, so it grants no
+  data an unauthenticated caller could not already request against `/api/graphql`. What
+  it does expose without a session is the full shape of the schema.
+- **Where it is exposed:** Payload serves the playground unconditionally whenever
+  `NODE_ENV !== 'production'`, and in production only if both `graphQL.disable` and
+  `graphQL.disablePlaygroundInProduction` are false. `disablePlaygroundInProduction`
+  defaults to `true` (Payload's own config defaults) and this repository does not
+  override it, so **the playground returns 404 in production and is fully open in
+  development** — including on any non-production deployment (a preview build, a
+  staging environment) that is reachable from outside a developer's machine. Phase 2
+  should either delete this route or set `graphQL.disable` explicitly rather than rely
+  on a default this repository has never stated; recorded here so the decision is a
+  decision.
+
+### `GET /cms/<...segments>` (and its 404 view)
+
+- **Path:** `apps/web/app/(payload)/cms/[[...segments]]/page.tsx`, with
+  `not-found.tsx` for unmatched segments and `app/(payload)/layout.tsx` wrapping both.
+- **Method:** `GET` (a React Server Component route; its mutations travel as Next.js
+  server-function calls through the `serverFunction` handler in that layout).
+- **Input:** `segments` — the admin screen path (`collections/journeys`, an id, `login`,
+  …) — plus that screen's query string.
+- **Output:** Payload's generated admin UI. `routes.admin` is `/cms`, not `/admin`, so
+  it never collides with the bespoke panel Phase 4 builds at `/admin`.
+- **Errors:** Payload's own 404 view for an unmatched segment; the login screen (rather
+  than an error) for an unauthenticated visitor.
+- **Auth requirement:** signed in, enforced by Payload's admin views; every operation
+  reached from it also re-runs the collection access control described above.
+- **Where it is exposed:** this is the one route `admin.disable` does gate —
+  `payload.config.ts` sets it to `process.env.NODE_ENV === 'production'`, so the panel
+  is development-only. That flag is deprecated upstream; the durable form of the same
+  guarantee is deleting this route directory in production, which is Phase 4's job once
+  the bespoke panel replaces it.
 
 ## Planned routes (Phase 1)
 

@@ -2,11 +2,8 @@
 
 Local setup, migrations, seeding, deploy, rollback, secret rotation, and — because
 `SECURITY.md` is explicit that an untested backup is a hypothesis — a restore drill.
-Commands are the target command surface from `CLAUDE.md` §11; those not yet implemented
-are marked **(not yet implemented)** and the command that will exist is given so this
-document does not need rewriting when it lands, per `CLAUDE.md` §1.3 (a stale document is
-worse than none; the alternative here — inventing behaviour for a command that doesn't
-exist — would be worse still).
+Every command in this document exists and runs today. Read it mid-incident and trust it:
+nothing here is aspirational.
 
 ## Local setup
 
@@ -14,32 +11,34 @@ exist — would be worse still).
 git clone <repo-url>
 cd travel-diary
 npm install
-cp .env.example .env   # fill in local values once it exists (not yet implemented)
+cp .env.example .env   # then fill in local values
 npm run verify
 ```
 
 `npm install` also installs the Husky pre-commit hook (`npm run prepare`), which runs
 `npm run verify` before every commit — see `.husky/`.
 
-Prerequisites: Node.js 22+, npm 10+, Docker (for local Postgres, used by integration and
-end-to-end tests once they exist).
+Prerequisites: Node.js 22+, npm 10+, Docker (for local Postgres, used by the integration
+and end-to-end suites).
 
 ## Migrations
 
-**(not yet implemented)** — `npm run db:migrate` is documented as target command surface
-in `CLAUDE.md` §11; it lands with the first migration in a later Phase 0 task ("all
-collections and the first migration," design spec §4). Once it exists:
+`npm run db:migrate` applies every pending migration; `npm run db:migrate:down` rolls
+the most recent batch back. Both run from the repository root and pass through to
+`apps/web`, where the Payload CLI and `apps/web/migrations/` live.
 
 - Every migration is reversible and tested in both directions (`CLAUDE.md` §7,
-  `docs/testing.md` §9 — the migration test suite).
-- Soft delete (`deletedAt` on journeys, `versions: { drafts: true }`) ships in the first
-  migration, not retrofitted — both are painful to add after journeys already have rows
-  (`DATA_MODEL.md`, "Four notes worth heeding").
+  `docs/testing.md` §9 — the migration test suite), by a test that rolls the schema back
+  to zero and re-applies it, then asserts a journey's own field values round-trip
+  through it.
+- Soft delete (`deletedAt` on journeys, `versions: { drafts: true }`) shipped in the
+  first migration, not retrofitted — both are painful to add after journeys already have
+  rows (`DATA_MODEL.md`, "Four notes worth heeding").
 - Run locally against the Docker Postgres instance before it is ever run against Neon.
 
 ## Seeding
 
-`npm run db:seed -w apps/web` seeds the prototype's ten journeys and their thirty pages
+`npm run db:seed` seeds the prototype's ten journeys and their thirty pages
 (three per journey) with placeholder imagery — a real `media` upload per photo slot,
 rasterised from the same striped-SVG placeholder the handoff prototypes use, not real
 photographs, so seeding never depends on the media pipeline (Phase 3) being built yet.
@@ -77,8 +76,10 @@ All provider credentials live in each platform's own secret store, never in the 
 - **App:** redeploy the previous Vercel deployment (Vercel keeps prior deployments
   addressable; promote the last-known-good one).
 - **Database:** migrations are required to run reversibly (`CLAUDE.md` §7) specifically
-  so a bad migration can be rolled back with `db:migrate down` **(not yet implemented)**
-  rather than restored from backup — restore is the last resort, not the first response.
+  so a bad migration can be rolled back with `npm run db:migrate:down` rather than
+  restored from backup — restore is the last resort, not the first response. Note what
+  that command does: Payload rolls back the whole **most recent batch**, which is every
+  migration the last `npm run db:migrate` applied together, not one file.
 - **Content:** Payload's `versions: { drafts: true }` on `journeys` and `pages` backs the
   admin's Publish screen restore feature (design spec §4, Phase 4) — an author-facing
   rollback for content mistakes that never needs an engineer.

@@ -146,7 +146,7 @@ From design spec §5.1:
 
 | Migration | What it does |
 |---|---|
-| `20260831_154311_initial` | Creates all six collections and three globals above, with `deletedAt` (indexed) and `versions: { drafts: true }` on `journeys` and `pages` from the start — both are painful to retrofit onto a collection with existing rows, per the note above. Verified reversible: `runMigrateDown` then `runMigrateUp` restore the schema without loss. |
+| `20260831_154311_initial` | Creates all six collections and three globals above, with `deletedAt` (indexed) on `journeys` and `versions: { drafts: true }` on `journeys` and `pages` from the start — both are painful to retrofit onto a collection with existing rows, per the note above. `pages` deliberately has drafts but no `deleted_at`: a page is not independently trashed, it is deleted with the journey that owns it, which matches `DATA_MODEL.md`'s own schema and rule 4 above. Verified reversible: `runMigrateDown` then `runMigrateUp` restore the schema without loss. |
 | `20260831_161951_add_jobs` | Creates the `jobs` table (Task 9) backing the Postgres `QueuePort` adapter, and the `payload_locked_documents_rels.jobs_id` column/FK Payload adds for its own admin document-locking feature. Verified reversible; see the statement-order note below. |
 
 Generated with `npm run db:migrate:create -w apps/web -- <name>`, applied with
