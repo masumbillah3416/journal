@@ -1,0 +1,2346 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin" />
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;background:#f4eddc;overflow:hidden;-webkit-font-smoothing:antialiased}
+*{scrollbar-width:thin;scrollbar-color:#736247 transparent}
+*::-webkit-scrollbar{width:9px;height:9px}
+*::-webkit-scrollbar-thumb{background:rgba(120,98,60,.32);border-radius:9px;border:3px solid transparent;background-clip:content-box}
+*::-webkit-scrollbar-track{background:transparent}
+a{color:oklch(0.50 0.13 32);text-decoration:none}
+a:hover{color:oklch(0.42 0.13 32)}
+button{font:inherit;color:inherit}
+input,textarea,select{font:inherit;color:inherit}
+input:focus,textarea:focus,select:focus{outline:2px solid rgba(163,68,52,.45);outline-offset:1px}
+</style>
+</helmet>
+
+<div style="position:fixed;inset:0;display:flex;font-family:'EB Garamond',Georgia,serif;color:#33403c;background:radial-gradient(120% 90% at 0% 0%,#f8f2e2,rgba(248,242,226,0) 60%),linear-gradient(180deg,#f4eddc,#efe7d3)">
+
+<aside style="width:238px;flex:none;display:flex;flex-direction:column;min-height:0;padding:20px 0 16px 18px;background:linear-gradient(180deg,#3b332a,#2c251e);box-shadow:inset -1px 0 0 rgba(0,0,0,.2)">
+<div style="flex:none;padding:0 18px 18px 4px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.3em;text-transform:uppercase;color:rgba(243,231,205,.72)">Wanderings</div>
+<div style="font-family:Caveat,cursive;font-size:38px;line-height:1;color:#f6ecd6;margin-top:1px">The back room</div>
+</div>
+<div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:0">
+<sc-for list="{{ nav }}" as="n" hint-placeholder-count="9">
+<button onClick="{{ n.go }}" style="{{ n.style }}">
+<div style="{{ n.bar }}"></div>
+<div style="flex:1;min-width:0;text-align:left">
+<div style="{{ n.label }}">{{ n.name }}</div>
+<div style="{{ n.sub }}">{{ n.subtitle }}</div>
+</div>
+<div style="{{ n.count }}">{{ n.badge }}</div>
+</button>
+</sc-for>
+</div>
+<div style="flex:none;padding:12px 18px 0 4px;margin-top:12px;border-top:1px solid rgba(238,220,180,.16)">
+<button onClick="{{ goProfile }}" style="{{ profileBtn }}">
+<div style="{{ avatarChip }}"></div>
+<div style="flex:1;min-width:0;text-align:left">
+<div style="font-family:'EB Garamond',serif;font-size:16px;line-height:1.3;color:#f6ecd6;overflow-x:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ownerName }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(243,231,205,.74)">Your account</div>
+</div>
+<div style="font-family:'Courier Prime',monospace;font-size:14px;color:rgba(243,231,205,.74);flex:none">&#8250;</div>
+</button>
+<div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding-left:3px">
+<div style="flex:1;min-width:0;font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.1em;color:rgba(243,231,205,.72);overflow-x:hidden;text-overflow:ellipsis;white-space:nowrap">Last published {{ lastPublished }}</div>
+<a href="./Travel Diary Login.dc.html" style="flex:none;color:rgba(243,231,205,.72);font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#f6ecd6">Sign out</a>
+</div>
+</div>
+</aside>
+
+<main style="flex:1;min-width:0;display:flex;flex-direction:column">
+
+<header style="flex:none;display:flex;align-items:flex-end;flex-wrap:wrap;gap:20px;padding:20px 30px 15px;border-bottom:1px solid rgba(120,98,60,.22)">
+<div style="flex:1 1 230px;min-width:230px">
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:#736247">{{ crumb }}</div>
+<div style="font-family:Caveat,cursive;font-size:48px;line-height:1;color:#33403c;margin-top:1px">{{ title }}</div>
+</div>
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:12px;flex:none;padding-bottom:5px;margin-left:auto">
+<div style="{{ savedChip }}">{{ savedLabel }}</div>
+<div style="{{ hdrChip }}">
+<div style="width:7px;height:7px;background:#a34434;transform:rotate(45deg)"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#a34434">{{ pendingLabel }}</div>
+</div>
+<button onClick="{{ goPublish }}" style="{{ hdrPreview }}" style-hover="background:#4a4232;color:#fdf8ec">Preview draft</button>
+<button onClick="{{ goPublish }}" style="border:1.5px solid #a34434;background:#a34434;color:#fdf8ec;padding:9px 19px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase" style-hover="background:#8c3327;border-color:#8c3327">Publish</button>
+</div>
+</header>
+
+<div data-content="1" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:24px 30px 44px">
+
+<sc-if value="{{ isDash }}" hint-placeholder-val="{{ true }}">
+<div data-screen-label="Admin · Overview" style="display:flex;flex-direction:column;gap:20px;max-width:1320px">
+
+<div style="{{ statGrid }}">
+<sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+<div style="position:relative;background:#fffdf6;border-radius:3px;padding:18px 20px 17px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 10px 24px -20px rgba(60,44,20,.55)">
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#736247">{{ s.label }}</div>
+<div style="font-family:Caveat,cursive;font-size:52px;line-height:1;color:#33403c;margin-top:3px">{{ s.value }}</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15px;color:#736247;margin-top:2px">{{ s.note }}</div>
+<div style="{{ s.tick }}"></div>
+</div>
+</sc-for>
+</div>
+
+<div style="{{ dashMain }}">
+
+<div style="position:relative;min-width:0;background:#fffdf6;border-radius:3px;padding:20px 22px 18px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<sc-if value="{{ tape }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;top:-12px;left:34px;width:112px;height:26px;transform:rotate(-2.5deg);opacity:.72;background:repeating-linear-gradient(120deg,rgba(196,150,120,.8) 0 7px,rgba(196,150,120,.38) 7px 14px);clip-path:polygon(0 9%,5% 0,100% 5%,96% 98%,4% 100%)"></div>
+</sc-if>
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1;color:#33403c">Waiting to go out</div>
+<div style="flex:1"></div>
+<button onClick="{{ goPublish }}" style="border:none;background:transparent;color:#a34434;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase" style-hover="color:#8c3327">Review all</button>
+</div>
+<div style="display:flex;flex-direction:column">
+<sc-for list="{{ pending }}" as="c" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:14px;padding:13px 0;border-bottom:1px dotted rgba(120,98,60,.3)">
+<div style="{{ c.chip }}">{{ c.kind }}</div>
+<div style="flex:1;min-width:0">
+<div style="font-family:'EB Garamond',serif;font-size:17px;color:#33403c">{{ c.what }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.12em;color:#736247;margin-top:2px">{{ c.where }}</div>
+</div>
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.1em;color:#736247;flex:none">{{ c.when }}</div>
+<button style="border:none;background:transparent;color:#736247;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;flex:none" style-hover="color:#a34434">Revert</button>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+<div style="background:#fffdf6;border-radius:3px;padding:20px 22px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#736247">The book, live</div>
+<div style="display:flex;gap:16px;margin-top:14px">
+<div style="{{ coverChip }}">
+<div style="{{ chipTitleStyle }}">{{ bookTitle }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:7px;letter-spacing:.24em;color:rgba(238,220,180,.7);margin-top:6px">2025 — 2026</div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:7px">
+<div style="font-family:'EB Garamond',serif;font-size:17px;color:#33403c">{{ bookSummary }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.1em;color:#736247">Published {{ lastPublished }}</div>
+<div style="flex:1"></div>
+<div style="display:flex;gap:9px;flex-wrap:wrap">
+<button style="border:1.5px solid #4a4232;background:transparent;color:#4a4232;padding:7px 14px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase" style-hover="background:#4a4232;color:#fdf8ec">Open live</button>
+<button style="border:1.5px solid rgba(120,98,60,.4);background:transparent;color:#736247;padding:7px 14px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase" style-hover="color:#4a4232;border-color:#4a4232">Copy link</button>
+</div>
+</div>
+</div>
+</div>
+
+<div style="background:#fffdf6;border-radius:3px;padding:20px 22px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#a34434">Needs a look</div>
+<div style="display:flex;flex-direction:column;gap:11px;margin-top:12px">
+<sc-for list="{{ attention }}" as="a" hint-placeholder-count="3">
+<div style="display:flex;gap:11px;align-items:flex-start">
+<div style="width:8px;height:8px;margin-top:8px;flex:none;background:#a34434;transform:rotate(45deg)"></div>
+<div style="flex:1;min-width:0">
+<div style="font-family:'EB Garamond',serif;font-size:16.5px;line-height:1.35;color:#4a4232;text-wrap:pretty">{{ a.text }}</div>
+<button onClick="{{ a.go }}" style="border:none;background:transparent;padding:0;color:#a34434;cursor:pointer;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;margin-top:3px" style-hover="color:#8c3327">{{ a.action }}</button>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</div>
+
+<div style="background:#fffdf6;border-radius:3px;padding:20px 22px 8px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1;color:#33403c;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px">Lately</div>
+<div style="{{ twoCol }}">
+<sc-for list="{{ activity }}" as="a" hint-placeholder-count="6">
+<div style="display:flex;align-items:baseline;gap:13px;padding:11px 0;border-bottom:1px dotted rgba(120,98,60,.28)">
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.1em;color:#736247;width:82px;flex:none">{{ a.when }}</div>
+<div style="flex:1;min-width:0;font-family:'EB Garamond',serif;font-size:16.5px;color:#4a4232">{{ a.what }}</div>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isJourneys }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Admin · Journeys" style="display:flex;flex-direction:column;gap:16px;max-width:1320px">
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+<input type="text" placeholder="Search journeys, places, dates" style="flex:1;min-width:220px;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:10px 14px;border-radius:2px;font-family:'EB Garamond',serif;font-size:16px;color:#33403c" />
+<div style="display:flex;gap:7px">
+<sc-for list="{{ jFilters }}" as="f" hint-placeholder-count="4">
+<button onClick="{{ f.go }}" style="{{ f.style }}">{{ f.label }}</button>
+</sc-for>
+</div>
+<button onClick="{{ openNew }}" style="border:1.5px solid #a34434;background:#a34434;color:#fdf8ec;padding:10px 18px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;flex:none" style-hover="background:#8c3327;border-color:#8c3327">New journey</button>
+</div>
+
+<sc-if value="{{ newOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:relative;background:#fffdf6;border-radius:3px;padding:20px 22px 22px;box-shadow:0 0 0 1.5px rgba(163,68,52,.32),0 14px 30px -22px rgba(60,44,20,.55)">
+<sc-if value="{{ tape }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;top:-12px;left:40px;width:118px;height:26px;transform:rotate(-2deg);opacity:.72;background:repeating-linear-gradient(120deg,rgba(163,68,52,.5) 0 7px,rgba(163,68,52,.25) 7px 14px);clip-path:polygon(0 9%,5% 0,100% 5%,96% 98%,4% 100%)"></div>
+</sc-if>
+<div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:12px;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px;margin-bottom:15px">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1.15;color:#33403c">A new journey</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15.5px;color:#736247">three pages are created — notes, then two of frames</div>
+</div>
+<div style="{{ newGrid }}">
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Where</div>
+<input type="text" value="{{ njName }}" onChange="{{ setNjName }}" placeholder="Kyoto" style="width:100%;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:9px 12px;border-radius:2px;font-family:Caveat,cursive;font-size:26px;color:#33403c" />
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Country</div>
+<input type="text" value="{{ njPlace }}" onChange="{{ setNjPlace }}" placeholder="Japan" style="width:100%;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:12px;border-radius:2px;font-family:'EB Garamond',serif;font-size:16px;color:#33403c" />
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Dates</div>
+<input type="text" value="{{ njDates }}" onChange="{{ setNjDates }}" placeholder="28 Oct – 6 Nov 2026" style="width:100%;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:12px;border-radius:2px;font-family:'Courier Prime',monospace;font-size:13px;color:#33403c" />
+</div>
+</div>
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:17px">
+<button onClick="{{ createJourney }}" style="border:1.5px solid #a34434;background:#a34434;color:#fdf8ec;padding:10px 19px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase" style-hover="background:#8c3327;border-color:#8c3327">Create journey</button>
+<button onClick="{{ closeNew }}" style="border:1.5px solid rgba(120,98,60,.4);background:transparent;color:#736247;padding:10px 17px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase" style-hover="color:#4a4232;border-color:#4a4232">Cancel</button>
+<div style="flex:1 1 200px"></div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15.5px;color:#736247">Starts as a draft — no bookmark until you publish.</div>
+</div>
+</div>
+</sc-if>
+
+<div style="background:#fffdf6;border-radius:3px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55);overflow:hidden">
+<div style="{{ jHead }}">
+<div></div><div>Journey</div><div style="{{ colDates }}">Dates</div><div style="{{ colPages }}">Pages</div><div style="{{ colMedia }}">Media</div><div>Status</div><div style="{{ colEdited }}">Edited</div><div></div>
+</div>
+<sc-for list="{{ journeyRows }}" as="j" hint-placeholder-count="10">
+<div style="{{ j.wrap }}">
+<div style="{{ j.row }}">
+<div style="{{ j.thumb }}"></div>
+<div style="min-width:0">
+<div style="font-family:Caveat,cursive;font-size:30px;line-height:1;color:#33403c">{{ j.name }}</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15px;color:#736247">{{ j.place }}</div>
+</div>
+<div style="{{ cellDates }}">{{ j.dates }}</div>
+<div style="{{ cellPages }}">{{ j.pages }}</div>
+<div style="{{ cellMedia }}">{{ j.media }}</div>
+<div><span style="{{ j.pill }}">{{ j.status }}</span></div>
+<div style="{{ cellEdited }}">{{ j.edited }}</div>
+<div style="display:flex;gap:10px;justify-content:flex-end">
+<button onClick="{{ j.edit }}" style="border:none;background:transparent;padding:0;color:#a34434;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#8c3327">Edit</button>
+<button onClick="{{ j.gallery }}" style="border:none;background:transparent;padding:0;color:#736247;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#4a4232">Gallery</button>
+<button onClick="{{ j.menu }}" title="More" style="{{ j.menuBtn }}" style-hover="color:#a34434">&#8943;</button>
+</div>
+</div>
+<sc-if value="{{ j.open }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:14px;padding:10px 20px 13px;background:rgba(163,68,52,.05);box-shadow:inset 0 1px 0 rgba(120,98,60,.16)">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#736247">{{ j.name }}</div>
+<div style="flex:1 1 60px"></div>
+<button onClick="{{ j.dupe }}" style="{{ j.rowAct }}" style-hover="color:#a34434">Duplicate</button>
+<button onClick="{{ j.archive }}" style="{{ j.rowAct }}" style-hover="color:#a34434">{{ j.archiveLabel }}</button>
+<button onClick="{{ j.del }}" style="{{ j.rowDanger }}" style-hover="background:#a34434;color:#fdf8ec">Move to trash</button>
+</div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isEditor }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Admin · Journey editor" style="{{ editorGrid }}">
+
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:#736247;padding-left:2px">Pages in {{ curJourney }}</div>
+<sc-for list="{{ pageCards }}" as="p" hint-placeholder-count="3">
+<div style="{{ p.wrap }}">
+<button onClick="{{ p.go }}" style="{{ p.style }}">
+<div style="{{ p.preview }}"></div>
+<div style="flex:1;min-width:0;text-align:left">
+<div style="font-family:Caveat,cursive;font-size:24px;line-height:1.3;color:#33403c">{{ p.name }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#736247">{{ p.meta }}</div>
+</div>
+</button>
+<div style="{{ p.tools }}">
+<button onClick="{{ p.up }}" title="Move up" style="{{ p.toolBtn }}" style-hover="color:#a34434">&#8593;</button>
+<button onClick="{{ p.down }}" title="Move down" style="{{ p.toolBtn }}" style-hover="color:#a34434">&#8595;</button>
+<div style="flex:1"></div>
+<button onClick="{{ p.dupe }}" title="Duplicate page" style="{{ p.toolBtn }}" style-hover="color:#a34434">Copy</button>
+<button onClick="{{ p.del }}" title="Delete page" style="{{ p.toolBtn }}" style-hover="color:#a34434">Delete</button>
+</div>
+</div>
+</sc-for>
+<div style="margin-top:6px;padding:13px 13px 14px;border:1.5px dashed rgba(120,98,60,.38);border-radius:3px">
+<div style="display:flex;align-items:baseline;gap:8px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247">Layout</div>
+<div style="flex:1"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:9px;letter-spacing:.1em;color:#a34434">{{ activeLayout }}</div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px">
+<sc-for list="{{ layouts }}" as="l" hint-placeholder-count="4">
+<button onClick="{{ l.pick }}" title="{{ l.name }}" style="{{ l.card }}" style-hover="box-shadow:inset 0 0 0 1.5px #a34434">
+<div style="{{ l.glyph }}">
+<sc-for list="{{ l.cells }}" as="c" hint-placeholder-count="3">
+<div style="{{ c.style }}"></div>
+</sc-for>
+</div>
+<div style="{{ l.nameStyle }}">{{ l.name }}</div>
+</button>
+</sc-for>
+</div>
+<button onClick="{{ onAddPage }}" style="width:100%;margin-top:10px;border:1.5px solid rgba(120,98,60,.4);background:transparent;color:#736247;padding:8px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase" style-hover="border-color:#a34434;color:#a34434">+ Add page with this layout</button>
+</div>
+</div>
+
+<div style="position:relative;background:#fffdf6;border-radius:3px;padding:24px 26px 26px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 14px 30px -24px rgba(60,44,20,.55)">
+<div style="display:flex;align-items:flex-end;gap:14px;border-bottom:1.5px solid rgba(90,70,40,.22);padding-bottom:13px;margin-bottom:18px">
+<div style="flex:1;min-width:0">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:#736247">Editing</div>
+<div style="font-family:Caveat,cursive;font-size:40px;line-height:1;color:#33403c">{{ curPageName }}</div>
+</div>
+<button style="border:1.5px solid rgba(120,98,60,.4);background:transparent;color:#736247;padding:8px 15px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase" style-hover="color:#4a4232;border-color:#4a4232">Preview page</button>
+<button style="border:1.5px solid #a34434;background:#a34434;color:#fdf8ec;padding:8px 17px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase" style-hover="background:#8c3327;border-color:#8c3327">Save draft</button>
+</div>
+
+<sc-if value="{{ editNotes }}" hint-placeholder-val="{{ true }}">
+<div style="{{ fieldGrid }}">
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Location</div>
+<input type="text" value="{{ fName }}" onChange="{{ setName }}" style="width:100%;box-sizing:border-box;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:9px 12px;border-radius:2px;font-family:Caveat,cursive;font-size:26px;color:#33403c" />
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Dates</div>
+<input type="text" value="{{ fDates }}" onChange="{{ setDates }}" style="width:100%;box-sizing:border-box;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:12px;border-radius:2px;font-family:'Courier Prime',monospace;font-size:13px;color:#33403c" />
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Weather</div>
+<input type="text" value="{{ fWeather }}" onChange="{{ setWeather }}" style="width:100%;box-sizing:border-box;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:12px;border-radius:2px;font-family:'Courier Prime',monospace;font-size:12px;letter-spacing:.06em;color:#33403c" />
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Mood</div>
+<input type="text" value="{{ fMood }}" onChange="{{ setMood }}" style="width:100%;box-sizing:border-box;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:12px;border-radius:2px;font-family:'Courier Prime',monospace;font-size:12px;letter-spacing:.06em;color:#33403c" />
+</div>
+</div>
+
+<div style="{{ bodyGrid }}">
+<div style="min-width:0">
+<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:9px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247">Highlights</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:14px;color:#736247">four maximum — they set the page rhythm</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ highlights }}" as="h" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:10px">
+<div style="font-family:'Courier Prime',monospace;font-size:12px;color:#736247;cursor:grab;flex:none;letter-spacing:-.1em">::</div>
+<input type="text" value="{{ h.text }}" onChange="{{ h.change }}" style="flex:1;min-width:0;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.3);padding:4px 2px;font-family:Caveat,cursive;font-size:25px;color:#33403c" />
+<button onClick="{{ h.remove }}" style="border:none;background:transparent;color:#736247;cursor:pointer;font-size:16px;line-height:1;flex:none;padding:0 4px" style-hover="color:#a34434">&#215;</button>
+</div>
+</sc-for>
+</div>
+<button onClick="{{ addHighlight }}" style="margin-top:10px;border:1.5px dashed rgba(120,98,60,.4);background:transparent;color:#736247;padding:7px 14px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase" style-hover="border-color:#a34434;color:#a34434">Add highlight</button>
+
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin:22px 0 6px">The note</div>
+<textarea rows="4" value="{{ fNote }}" onChange="{{ setNote }}" style="width:100%;box-sizing:border-box;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:12px 13px;border-radius:2px;font-family:'EB Garamond',serif;font-size:17px;line-height:1.55;color:#4a4232;resize:vertical"></textarea>
+
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin:20px 0 8px">Tally</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px 14px">
+<sc-for list="{{ tally }}" as="t" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:9px">
+<input type="text" value="{{ t.k }}" onChange="{{ t.changeK }}" style="flex:1;min-width:0;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.3);padding:3px 2px;font-family:'EB Garamond',serif;font-size:16px;color:#4a4232" />
+<input type="text" value="{{ t.v }}" onChange="{{ t.changeV }}" style="width:74px;flex:none;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.3);padding:3px 2px;font-family:Caveat,cursive;font-size:24px;color:#33403c;text-align:right" />
+</div>
+</sc-for>
+</div>
+
+<div style="height:1px;background:rgba(120,98,60,.22);margin:22px 0 16px"></div>
+<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:11px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247">Page furniture</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:14px;color:#736247">the marks that make it look kept, not typed</div>
+</div>
+
+<div style="margin-bottom:14px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Sign-off &mdash; bottom right, in your hand</div>
+<input type="text" value="{{ fSignoff }}" onChange="{{ setSignoff }}" style="width:100%;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.3);padding:4px 2px;font-family:Caveat,cursive;font-size:25px;color:#736247" />
+</div>
+
+<div style="{{ furnitureGrid }}">
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:6px">Weather glyph</div>
+<div style="display:flex;gap:7px">
+<sc-for list="{{ glyphs }}" as="g" hint-placeholder-count="3">
+<button onClick="{{ g.pick }}" title="{{ g.name }}" style="{{ g.style }}">
+<div style="{{ g.mark }}"></div>
+<div style="{{ g.label }}">{{ g.name }}</div>
+</button>
+</sc-for>
+</div>
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:6px">Postage stamp</div>
+<div style="display:flex;align-items:stretch;gap:9px">
+<div style="{{ stampFace }}">
+<div style="font-family:'Courier Prime',monospace;font-size:6.5px;letter-spacing:.14em;color:#f4ecd9">{{ stampTop }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:13px;font-weight:700;color:#fff">{{ stampVal }}</div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:7px">
+<input type="text" value="{{ stampTop }}" onChange="{{ setStampTop }}" placeholder="NIPPON" style="width:100%;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.3);padding:3px 2px;font-family:'Courier Prime',monospace;font-size:12px;letter-spacing:.1em;color:#33403c" />
+<input type="text" value="{{ stampVal }}" onChange="{{ setStampVal }}" placeholder="120" style="width:100%;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.3);padding:3px 2px;font-family:'Courier Prime',monospace;font-size:14px;color:#33403c" />
+</div>
+</div>
+</div>
+</div>
+
+<div style="{{ furnitureGrid }}">
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:6px">Accent &mdash; bookmark tab and stamp</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<sc-for list="{{ accents }}" as="a" hint-placeholder-count="5">
+<button onClick="{{ a.pick }}" title="{{ a.name }}" style="{{ a.style }}"></button>
+</sc-for>
+</div>
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:6px">Gallery address</div>
+<div style="display:flex;align-items:center;gap:2px">
+<div style="font-family:'Courier Prime',monospace;font-size:12px;color:#736247;flex:none">/gallery/</div>
+<input type="text" value="{{ fSlug }}" onChange="{{ setSlug }}" style="flex:1;min-width:0;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.3);padding:3px 2px;font-family:'Courier Prime',monospace;font-size:12px;color:#33403c" />
+</div>
+</div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+<sc-for list="{{ slots }}" as="s" hint-placeholder-count="2">
+<div>
+<div style="display:flex;align-items:baseline;gap:9px;margin-bottom:6px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247">{{ s.label }}</div>
+<div style="flex:1"></div>
+<div style="{{ s.badge }}">{{ s.badgeText }}</div>
+</div>
+<div onClick="{{ s.setFocal }}" title="Click to set the focal point" style="{{ s.thumb }}">
+<div style="{{ s.reticle }}"></div>
+</div>
+<div style="display:flex;align-items:center;gap:10px;margin-top:7px">
+<button style="border:1.5px solid rgba(120,98,60,.4);background:transparent;color:#736247;padding:6px 12px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#4a4232;border-color:#4a4232">Replace</button>
+<button style="border:none;background:transparent;color:#736247;cursor:pointer;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#a34434">Clear</button>
+<div style="flex:1"></div>
+<div style="{{ s.focalPill }}">{{ s.focalLabel }}</div>
+</div>
+<input type="text" value="{{ s.caption }}" onChange="{{ s.change }}" placeholder="Caption, in your hand" style="width:100%;box-sizing:border-box;margin-top:8px;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.3);padding:4px 2px;font-family:Caveat,cursive;font-size:23px;color:#33403c" />
+<input type="text" value="{{ s.alt }}" onChange="{{ s.changeAlt }}" placeholder="Alt text — what a screen reader says" style="width:100%;box-sizing:border-box;margin-top:7px;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.3);padding:4px 2px;font-family:'EB Garamond',serif;font-size:14.5px;color:#4a4232" />
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ editFrames }}" hint-placeholder-val="{{ false }}">
+<div style="{{ framesGrid }}">
+<sc-for list="{{ frameSlots }}" as="s" hint-placeholder-count="4">
+<div style="display:flex;flex-direction:column">
+<div style="display:flex;align-items:baseline;gap:9px;margin-bottom:6px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247">{{ s.label }}</div>
+<div style="flex:1"></div>
+<div style="{{ s.badge }}">{{ s.badgeText }}</div>
+</div>
+<div onClick="{{ s.setFocal }}" title="Click to set the focal point" style="{{ s.thumb }}">
+<div style="{{ s.reticle }}"></div>
+</div>
+<input type="text" value="{{ s.caption }}" onChange="{{ s.change }}" placeholder="Caption, in your hand" style="width:100%;box-sizing:border-box;margin-top:8px;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.3);padding:4px 2px;font-family:Caveat,cursive;font-size:23px;color:#33403c" />
+<input type="text" value="{{ s.alt }}" onChange="{{ s.changeAlt }}" placeholder="Alt text" style="width:100%;box-sizing:border-box;margin-top:7px;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.3);padding:4px 2px;font-family:'EB Garamond',serif;font-size:14.5px;color:#4a4232" />
+<div style="display:flex;align-items:center;gap:10px;margin-top:7px">
+<button style="border:1.5px solid rgba(120,98,60,.4);background:transparent;color:#736247;padding:6px 12px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#4a4232;border-color:#4a4232">Replace</button>
+<div style="flex:1"></div>
+<div style="{{ s.focalPill }}">{{ s.focalLabel }}</div>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+
+<div style="{{ poolStyle }}">
+<div style="display:flex;align-items:baseline;gap:8px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:#736247">Journey pool</div>
+<div style="flex:1"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.1em;color:#a34434">{{ poolLabel }}</div>
+</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:14.5px;line-height:1.4;color:#736247;text-wrap:pretty">Tick a frame to place it in the book. Everything else stays in the gallery.</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:432px;overflow-y:auto;padding-right:2px">
+<sc-for list="{{ pool }}" as="m" hint-placeholder-count="10">
+<button onClick="{{ m.toggle }}" style="{{ m.style }}">
+<div style="{{ m.thumb }}"></div>
+<div style="{{ m.tick }}">{{ m.tickMark }}</div>
+<sc-if value="{{ m.isClip }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;right:4px;bottom:4px;font-family:'Courier Prime',monospace;font-size:8px;letter-spacing:.06em;color:#fbf6e9;background:rgba(26,22,17,.72);padding:1px 4px">{{ m.dur }}</div>
+</sc-if>
+</button>
+</sc-for>
+</div>
+<button style="border:1.5px dashed rgba(120,98,60,.42);background:transparent;color:#736247;padding:11px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase" style-hover="border-color:#a34434;color:#a34434">Drop files or browse</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isMedia }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Admin · Media" style="display:flex;flex-direction:column;gap:16px;max-width:1440px">
+<div style="position:relative;border:2px dashed rgba(120,98,60,.4);border-radius:4px;padding:26px 24px;display:flex;align-items:center;flex-wrap:wrap;gap:22px;background:rgba(255,253,246,.6)">
+<div style="width:70px;height:70px;flex:none;border-radius:50%;box-shadow:inset 0 0 0 1.5px rgba(163,68,52,.45);display:flex;align-items:center;justify-content:center">
+<div style="width:20px;height:20px;background:#a34434;transform:rotate(45deg)"></div>
+</div>
+<div style="flex:1 1 300px;min-width:300px">
+<div style="font-family:Caveat,cursive;font-size:34px;line-height:1.1;color:#33403c">Drop photographs and clips here</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:16px;color:#736247;margin-top:3px">JPEG, PNG, HEIC, MP4 and MOV. Clips loop silently wherever they land — no extra step.</div>
+</div>
+<select value="{{ jSel }}" onChange="{{ onPickJourney }}" style="flex:none;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:10px 13px;border-radius:2px;font-family:'Courier Prime',monospace;font-size:11px;color:#33403c">
+<sc-for list="{{ journeyOptions }}" as="o" hint-placeholder-count="10">
+<option value="{{ o.id }}">Add to &mdash; {{ o.name }}</option>
+</sc-for>
+</select>
+<button style="flex:none;border:1.5px solid #a34434;background:#a34434;color:#fdf8ec;padding:10px 20px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase" style-hover="background:#8c3327;border-color:#8c3327">Browse</button>
+</div>
+
+<div style="background:#fffdf6;border-radius:3px;padding:15px 20px;box-shadow:0 0 0 1px rgba(120,98,60,.16)">
+<div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:12px;margin-bottom:11px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:#736247">Uploading &mdash; 2 of 34</div>
+<div style="flex:1 1 20px"></div>
+<div style="display:flex;align-items:center;gap:8px;padding:4px 10px;border-radius:2px;background:rgba(132,88,37,.1);box-shadow:inset 0 0 0 1px rgba(132,88,37,.4)">
+<div style="width:7px;height:7px;flex:none;background:#845825;transform:rotate(45deg)"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:#845825">3 look like duplicates &mdash; skipped</div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:9px">
+<sc-for list="{{ uploads }}" as="u" hint-placeholder-count="2">
+<div style="display:flex;align-items:center;gap:14px">
+<div style="font-family:'Courier Prime',monospace;font-size:11px;color:#4a4232;width:230px;flex:none;overflow-x:hidden;text-overflow:ellipsis;white-space:nowrap">{{ u.name }}</div>
+<div style="flex:1;height:3px;background:rgba(120,98,60,.18);position:relative"><div style="{{ u.bar }}"></div></div>
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;color:#736247;width:78px;text-align:right;flex:none">{{ u.state }}</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap">
+<input type="text" value="{{ mQuery }}" onChange="{{ setMQuery }}" placeholder="Search file names" style="flex:1 1 200px;min-width:180px;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:9px 13px;border-radius:2px;font-family:'Courier Prime',monospace;font-size:12px;color:#33403c" />
+<div style="display:flex;gap:7px;flex-wrap:wrap">
+<sc-for list="{{ mFilters }}" as="f" hint-placeholder-count="5">
+<button onClick="{{ f.go }}" style="{{ f.style }}">{{ f.label }}</button>
+</sc-for>
+</div>
+<div style="flex:1"></div>
+<div style="{{ bulkBar }}">
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#a34434">{{ selectedLabel }}</div>
+<button style="border:none;background:transparent;color:#4a4232;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#a34434">Add to book</button>
+<button style="border:none;background:transparent;color:#4a4232;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#a34434">Caption</button>
+<button style="border:none;background:transparent;color:#4a4232;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#a34434">Move</button>
+<button onClick="{{ clearSel }}" style="border:none;background:transparent;color:#736247;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#4a4232">Clear</button>
+</div>
+</div>
+
+<div style="{{ mediaGrid }}">
+<sc-for list="{{ mediaItems }}" as="m" hint-placeholder-count="12">
+<div style="display:flex;flex-direction:column;gap:6px">
+<button onClick="{{ m.toggle }}" style="{{ m.style }}">
+<div style="{{ m.thumb }}"></div>
+<div style="{{ m.tick }}">{{ m.tickMark }}</div>
+<sc-if value="{{ m.inBook }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;left:6px;bottom:6px;font-family:'Courier Prime',monospace;font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:#fdf8ec;background:rgba(163,68,52,.9);padding:2px 6px">In book</div>
+</sc-if>
+<sc-if value="{{ m.isClip }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;right:6px;bottom:6px;font-family:'Courier Prime',monospace;font-size:8.5px;letter-spacing:.06em;color:#fbf6e9;background:rgba(26,22,17,.75);padding:2px 6px">{{ m.dur }}</div>
+</sc-if>
+</button>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.04em;color:#736247;white-space:nowrap;overflow-x:hidden;text-overflow:ellipsis">{{ m.file }}</div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isGallery }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Admin · Galleries" style="{{ galleryLayout }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+<select value="{{ jSel }}" onChange="{{ onPickJourney }}" style="background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:10px 13px;border-radius:2px;font-family:'Courier Prime',monospace;font-size:11.5px;color:#33403c">
+<sc-for list="{{ journeyOptions }}" as="o" hint-placeholder-count="10">
+<option value="{{ o.id }}">{{ o.label }}</option>
+</sc-for>
+</select>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:16px;color:#736247">Drag to reorder. The first frame is the gallery cover.</div>
+<div style="flex:1"></div>
+<button onClick="{{ onGalSort }}" style="{{ galSortBtn }}" style-hover="color:#4a4232;border-color:#4a4232">{{ galSortLabel }}</button>
+<button onClick="{{ onCaptionAll }}" style="{{ captionAllBtn }}" style-hover="color:#4a4232;border-color:#4a4232">Caption all</button>
+</div>
+
+<sc-if value="{{ bulkOpen }}" hint-placeholder-val="{{ false }}">
+<div style="background:#fffdf6;border-radius:3px;padding:18px 20px 20px;box-shadow:0 0 0 1.5px rgba(163,68,52,.3),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:12px;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px;margin-bottom:14px">
+<div style="font-family:Caveat,cursive;font-size:30px;line-height:1.15;color:#33403c">Caption what is still blank</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15px;color:#736247">{{ blankLabel }}</div>
+<div style="flex:1 1 40px"></div>
+<button onClick="{{ closeBulk }}" style="border:none;background:transparent;padding:0;color:#736247;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#a34434">Close</button>
+</div>
+<div style="display:flex;flex-direction:column;gap:9px;max-height:250px;overflow-y:auto;padding-right:2px">
+<sc-for list="{{ blankFrames }}" as="b" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:11px">
+<div style="{{ b.thumb }}"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.06em;color:#736247;width:112px;flex:none;overflow-x:hidden;text-overflow:ellipsis;white-space:nowrap">{{ b.file }}</div>
+<input type="text" defaultValue="" placeholder="{{ b.hint }}" style="flex:1;min-width:0;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.3);padding:4px 2px;font-family:Caveat,cursive;font-size:21px;color:#33403c" />
+</div>
+</sc-for>
+</div>
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:11px;margin-top:15px">
+<button onClick="{{ applyBulk }}" style="border:1.5px solid #a34434;background:#a34434;color:#fdf8ec;padding:9px 18px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase" style-hover="background:#8c3327;border-color:#8c3327">Apply captions</button>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15px;color:#736247">Anything left empty keeps its file name for now.</div>
+</div>
+</div>
+</sc-if>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:12px;background:#fffdf6;border-radius:3px;padding:16px;box-shadow:0 0 0 1px rgba(120,98,60,.16)">
+<sc-for list="{{ galleryItems }}" as="g" hint-placeholder-count="12">
+<button onClick="{{ g.pick }}" style="{{ g.style }}">
+<div style="{{ g.thumb }}"></div>
+<div style="position:absolute;left:5px;top:5px;font-family:'Courier Prime',monospace;font-size:8.5px;letter-spacing:.1em;color:#5f5340;background:rgba(255,253,246,.85);padding:1px 5px">{{ g.num }}</div>
+<sc-if value="{{ g.hidden }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;background:rgba(44,37,30,.5);pointer-events:none"></div>
+<div style="position:absolute;left:5px;bottom:5px;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#f6ecd6;background:rgba(44,37,30,.92);padding:2px 6px">Hidden</div>
+</sc-if>
+<sc-if value="{{ g.isCover }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;right:5px;top:5px;font-family:'Courier Prime',monospace;font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:#fdf8ec;background:rgba(163,68,52,.92);padding:1px 5px">Cover</div>
+</sc-if>
+</button>
+</sc-for>
+</div>
+</div>
+
+<div style="background:#fffdf6;border-radius:3px;padding:18px 20px 20px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55);display:flex;flex-direction:column;gap:13px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:#736247">Selected frame</div>
+<div style="{{ pickedThumb }}"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.04em;color:#736247">{{ pickedFile }}</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Caption</div>
+<input type="text" value="{{ capValue }}" onChange="{{ setCap }}" style="width:100%;box-sizing:border-box;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.32);padding:4px 2px;font-family:Caveat,cursive;font-size:25px;color:#33403c" />
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Alt text</div>
+<textarea rows="2" style="width:100%;box-sizing:border-box;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:9px 11px;border-radius:2px;font-family:'EB Garamond',serif;font-size:15.5px;line-height:1.45;color:#4a4232;resize:vertical">A narrow alley at dusk, shopfront lights just coming on.</textarea>
+</div>
+
+<sc-if value="{{ pickedIsClip }}" hint-placeholder-val="{{ false }}">
+<div style="border-top:1px dotted rgba(120,98,60,.3);padding-top:13px">
+<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:7px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247">Poster frame</div>
+<div style="flex:1"></div>
+<div style="{{ posterState }}">{{ posterLabel }}</div>
+</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:14.5px;line-height:1.4;color:#736247;margin-bottom:9px;text-wrap:pretty">This clip loops on the page. The poster is what shows until it can play.</div>
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px">
+<sc-for list="{{ posterStrip }}" as="p" hint-placeholder-count="4">
+<button onClick="{{ p.pick }}" title="{{ p.at }}" style="{{ p.style }}">
+<div style="{{ p.thumb }}"></div>
+<div style="{{ p.label }}">{{ p.at }}</div>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+<div style="display:flex;flex-direction:column;gap:9px;border-top:1px dotted rgba(120,98,60,.3);padding-top:12px">
+<sc-for list="{{ frameToggles }}" as="t" hint-placeholder-count="3">
+<button onClick="{{ t.go }}" style="display:flex;align-items:center;gap:11px;width:100%;background:transparent;border:none;padding:0;cursor:pointer;text-align:left">
+<div style="{{ t.knob }}"><div style="{{ t.dot }}"></div></div>
+<div style="flex:1;min-width:0;font-family:'EB Garamond',serif;font-size:16px;color:#4a4232">{{ t.label }}</div>
+</button>
+</sc-for>
+</div>
+<button onClick="{{ onSaveFrame }}" style="border:1.5px solid #a34434;background:#a34434;color:#fdf8ec;padding:9px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase" style-hover="background:#8c3327;border-color:#8c3327">Save frame</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isBook }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Admin · Book and bookmarks" style="{{ bookLayout }}">
+<div style="background:#fffdf6;border-radius:3px;padding:18px 20px 20px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="display:flex;align-items:baseline;gap:12px;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px;margin-bottom:6px">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1;color:#33403c">Bookmark order</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15.5px;color:#736247">this is also the order of the book</div>
+</div>
+<sc-for list="{{ bookmarks }}" as="b" hint-placeholder-count="13">
+<div style="display:flex;align-items:center;gap:13px;padding:10px 0;border-bottom:1px dotted rgba(120,98,60,.28)">
+<div style="font-family:'Courier Prime',monospace;font-size:12px;color:#736247;cursor:grab;flex:none;letter-spacing:-.1em">::</div>
+<div style="{{ b.dot }}"></div>
+<div style="flex:1;min-width:0">
+<div style="font-family:Caveat,cursive;font-size:26px;line-height:1.05;color:#33403c">{{ b.name }}</div>
+</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15px;color:#736247;flex:none">{{ b.sub }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.06em;color:#736247;width:66px;text-align:right;flex:none">p. {{ b.page }}</div>
+<div style="display:flex;gap:3px;flex:none">
+<button onClick="{{ b.up }}" title="Move up" style="width:26px;height:26px;border:1px solid rgba(120,98,60,.34);background:transparent;color:#736247;border-radius:2px;cursor:pointer;font-size:12px;line-height:1" style-hover="border-color:#a34434;color:#a34434">&#8593;</button>
+<button onClick="{{ b.down }}" title="Move down" style="width:26px;height:26px;border:1px solid rgba(120,98,60,.34);background:transparent;color:#736247;border-radius:2px;cursor:pointer;font-size:12px;line-height:1" style-hover="border-color:#a34434;color:#a34434">&#8595;</button>
+</div>
+</div>
+</sc-for>
+</div>
+
+<div style="background:#fffdf6;border-radius:3px;padding:18px 20px 20px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55);display:flex;flex-direction:column;gap:16px">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1;color:#33403c;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px">Book settings</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Contents page note</div>
+<textarea rows="2" style="width:100%;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:9px 11px;border-radius:2px;font-family:'EB Garamond',serif;font-size:15.5px;line-height:1.45;color:#4a4232;resize:vertical">Each journey runs three pages — notes, then two spreads of frames. The rest lives in the galleries.</textarea>
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:6px">Journey order</div>
+<div style="display:flex;gap:7px;flex-wrap:wrap">
+<sc-for list="{{ orderModes }}" as="o" hint-placeholder-count="3">
+<button onClick="{{ o.pick }}" style="{{ o.style }}">{{ o.label }}</button>
+</sc-for>
+</div>
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Cover cloth</div>
+<div style="display:flex;gap:9px;flex-wrap:wrap">
+<sc-for list="{{ cloths }}" as="c" hint-placeholder-count="4">
+<button onClick="{{ c.go }}" style="{{ c.style }}"></button>
+</sc-for>
+</div>
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Page turn</div>
+<input type="range" min="400" max="1600" step="50" value="{{ flipMs }}" onChange="{{ setFlipMs }}" style="width:100%;accent-color:#a34434" />
+<div style="display:flex;justify-content:space-between;font-family:'Courier Prime',monospace;font-size:10px;color:#736247;margin-top:2px"><span>brisk</span><span>{{ flipLabel }}</span><span>languid</span></div>
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Gallery thumbnail</div>
+<input type="range" min="140" max="300" step="10" value="{{ thumbPx }}" onChange="{{ setThumbPx }}" style="width:100%;accent-color:#a34434" />
+<div style="display:flex;justify-content:space-between;font-family:'Courier Prime',monospace;font-size:10px;color:#736247;margin-top:2px"><span>dense</span><span>{{ thumbLabel }}</span><span>generous</span></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px;border-top:1px dotted rgba(120,98,60,.3);padding-top:14px">
+<sc-for list="{{ bookToggles }}" as="t" hint-placeholder-count="3">
+<button onClick="{{ t.go }}" style="display:flex;align-items:center;gap:11px;width:100%;background:transparent;border:none;padding:0;cursor:pointer;text-align:left">
+<div style="{{ t.knob }}"><div style="{{ t.dot }}"></div></div>
+<div style="flex:1;min-width:0">
+<div style="font-family:'EB Garamond',serif;font-size:16px;color:#4a4232">{{ t.label }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.08em;color:#736247;margin-top:1px">{{ t.hint }}</div>
+</div>
+</button>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isCover }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Admin · Cover and About" style="{{ coverLayout }}">
+
+<div style="background:#fffdf6;border-radius:3px;padding:20px 22px 22px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1;color:#33403c;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px;margin-bottom:16px">The cover</div>
+<div style="{{ coverInner }}">
+<div style="{{ coverPreview }}">
+<div style="position:absolute;inset:9px;border:1px solid rgba(232,210,161,.4)"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:6.5px;letter-spacing:.3em;text-transform:uppercase;color:rgba(238,220,180,.66)">Travel Diary</div>
+<div style="{{ coverTitleStyle }}">{{ bookTitle }}</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:10px;color:rgba(240,225,192,.75);margin-top:6px;text-align:center">field notes and other scraps</div>
+<div style="font-family:'Courier Prime',monospace;font-size:7px;letter-spacing:.24em;text-transform:uppercase;color:rgba(238,220,180,.66);margin-top:14px">Kept by {{ ownerName }}</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px">
+<sc-for list="{{ coverFields }}" as="f" hint-placeholder-count="4">
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">{{ f.label }}</div>
+<input type="text" defaultValue="{{ f.value }}" style="{{ f.input }}" />
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+
+<div style="background:#fffdf6;border-radius:3px;padding:20px 22px 22px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1;color:#33403c;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px;margin-bottom:16px">About page</div>
+<div style="{{ aboutInner }}">
+<div>
+<div style="{{ portraitThumb }}"></div>
+<button style="width:100%;margin-top:8px;border:1.5px solid rgba(120,98,60,.4);background:transparent;color:#736247;padding:6px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#4a4232;border-color:#4a4232">Replace</button>
+</div>
+<div style="display:flex;flex-direction:column;gap:13px">
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Opening paragraph</div>
+<textarea rows="3" style="width:100%;box-sizing:border-box;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:10px 12px;border-radius:2px;font-family:'EB Garamond',serif;font-size:16px;line-height:1.5;color:#4a4232;resize:vertical">This is a paper habit that ended up on a screen. I keep one page of notes per journey, then paste in whatever frames survive the edit.</textarea>
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Second paragraph</div>
+<textarea rows="3" style="width:100%;box-sizing:border-box;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:10px 12px;border-radius:2px;font-family:'EB Garamond',serif;font-size:16px;line-height:1.5;color:#4a4232;resize:vertical">Nothing here is a recommendation. The notes are written the same evening, badly, and left that way on purpose.</textarea>
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:6px">Kit</div>
+<div style="display:flex;flex-direction:column;gap:7px">
+<sc-for list="{{ kit }}" as="k" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:9px">
+<div style="font-family:'Courier Prime',monospace;font-size:11px;color:#736247;cursor:grab;flex:none;letter-spacing:-.1em">::</div>
+<input type="text" defaultValue="{{ k.text }}" style="flex:1;min-width:0;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.3);padding:3px 2px;font-family:'EB Garamond',serif;font-size:16px;color:#4a4232" />
+</div>
+</sc-for>
+</div>
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Reply-to address</div>
+<input type="text" defaultValue="hello@wanderings.travel" style="width:100%;box-sizing:border-box;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.32);padding:4px 2px;font-family:Caveat,cursive;font-size:26px;color:#a34434" />
+</div>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isPublish }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Admin · Publish" style="{{ publishLayout }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="position:relative;background:#fffdf6;border-radius:3px;padding:22px 24px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55);display:flex;align-items:center;flex-wrap:wrap;gap:22px">
+<sc-if value="{{ tape }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;top:-12px;right:44px;width:106px;height:26px;transform:rotate(3deg);opacity:.7;background:repeating-linear-gradient(120deg,rgba(163,68,52,.55) 0 7px,rgba(163,68,52,.28) 7px 14px);clip-path:polygon(0 8%,5% 0,100% 5%,96% 98%,4% 100%)"></div>
+</sc-if>
+<div style="flex:1 1 280px;min-width:280px">
+<div style="font-family:Caveat,cursive;font-size:40px;line-height:1.1;color:#33403c">{{ pendingHeadline }}</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:16.5px;color:#736247;margin-top:3px">Nothing below is visible to readers until you publish.</div>
+</div>
+<button style="flex:none;border:1.5px solid #4a4232;background:transparent;color:#4a4232;padding:11px 19px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase" style-hover="background:#4a4232;color:#fdf8ec">Preview draft</button>
+<button style="{{ publishNowBtn }}" style-hover="background:#8c3327;border-color:#8c3327">{{ publishNowLabel }}</button>
+</div>
+
+<div style="background:#fffdf6;border-radius:3px;padding:18px 22px 6px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:12px;padding-bottom:9px;border-bottom:1px solid rgba(120,98,60,.22)">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:#736247">Changes in this draft</div>
+<div style="flex:1 1 30px"></div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15px;color:#736247">tick what goes out</div>
+</div>
+<sc-for list="{{ pending }}" as="c" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:14px;padding:13px 0;border-bottom:1px dotted rgba(120,98,60,.28)">
+<button onClick="{{ c.toggle }}" title="Include in this publish" style="{{ c.box }}">{{ c.tick }}</button>
+<div style="{{ c.chip }}">{{ c.kind }}</div>
+<div style="flex:1;min-width:0">
+<div style="{{ c.text }}">{{ c.what }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.12em;color:#736247;margin-top:2px">{{ c.where }} · {{ c.when }}</div>
+</div>
+<button style="border:none;background:transparent;color:#736247;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;flex:none" style-hover="color:#a34434">Revert</button>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="background:#fffdf6;border-radius:3px;padding:18px 22px 20px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1;color:#33403c;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px;margin-bottom:4px">Editions</div>
+<sc-for list="{{ versions }}" as="v" hint-placeholder-count="6">
+<div style="display:flex;gap:13px;padding:13px 0;border-bottom:1px dotted rgba(120,98,60,.28)">
+<div style="{{ v.mark }}"></div>
+<div style="flex:1;min-width:0">
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.1em;color:#736247">{{ v.when }}</div>
+<div style="font-family:'EB Garamond',serif;font-size:16.5px;line-height:1.35;color:#4a4232;margin-top:2px;text-wrap:pretty">{{ v.what }}</div>
+<div style="display:flex;gap:14px;margin-top:5px">
+<button style="border:none;background:transparent;padding:0;color:#a34434;cursor:pointer;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#8c3327">View</button>
+<button style="border:none;background:transparent;padding:0;color:#736247;cursor:pointer;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#4a4232">Restore</button>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Admin · Settings" style="{{ settingsLayout }}">
+<div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+<div style="background:#fffdf6;border-radius:3px;padding:20px 22px 22px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1;color:#33403c;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px;margin-bottom:15px">The site</div>
+<div style="display:flex;flex-direction:column;gap:13px">
+<sc-for list="{{ siteFields }}" as="f" hint-placeholder-count="4">
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">{{ f.label }}</div>
+<input type="text" defaultValue="{{ f.value }}" style="width:100%;box-sizing:border-box;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:10px 12px;border-radius:2px;font-family:'EB Garamond',serif;font-size:16px;color:#33403c" />
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:14px;color:#736247;margin-top:4px">{{ f.hint }}</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="background:#fffdf6;border-radius:3px;padding:20px 22px 22px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1;color:#33403c;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px;margin-bottom:15px">Your material</div>
+<div style="font-family:'EB Garamond',serif;font-size:16.5px;line-height:1.5;color:#4a4232;margin-bottom:14px;text-wrap:pretty">Originals are kept at full resolution. Exports include every photograph, clip, note and caption as plain files and JSON.</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap">
+<button style="border:1.5px solid #4a4232;background:transparent;color:#4a4232;padding:9px 17px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase" style-hover="background:#4a4232;color:#fdf8ec">Export everything</button>
+<button style="border:1.5px solid rgba(120,98,60,.4);background:transparent;color:#736247;padding:9px 17px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase" style-hover="color:#4a4232;border-color:#4a4232">Import a backup</button>
+</div>
+<div style="margin-top:16px;padding-top:14px;border-top:1px dotted rgba(120,98,60,.3)">
+<div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:9px;margin-bottom:7px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247">Space used</div>
+<div style="flex:1 1 20px"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.06em;color:#4a4232">{{ quotaLabel }}</div>
+</div>
+<div style="height:7px;background:rgba(120,98,60,.16);border-radius:4px;overflow:hidden;display:flex">
+<div style="{{ quotaPhotos }}"></div>
+<div style="{{ quotaClips }}"></div>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:8px">
+<sc-for list="{{ quotaKeys }}" as="k" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:6px">
+<div style="{{ k.swatch }}"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:#736247">{{ k.label }}</div>
+</div>
+</sc-for>
+</div>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.08em;color:#736247;margin-top:11px">Last backup 29 Aug 2026</div>
+</div>
+</div>
+</div>
+
+<div style="background:#fffdf6;border-radius:3px;padding:20px 22px 22px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55);display:flex;flex-direction:column;gap:16px">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1;color:#33403c;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px">Readers</div>
+<div style="display:flex;flex-direction:column;gap:13px">
+<sc-for list="{{ siteToggles }}" as="t" hint-placeholder-count="5">
+<button onClick="{{ t.go }}" style="display:flex;align-items:flex-start;gap:12px;width:100%;background:transparent;border:none;padding:0;cursor:pointer;text-align:left">
+<div style="{{ t.knob }}"><div style="{{ t.dot }}"></div></div>
+<div style="flex:1;min-width:0">
+<div style="font-family:'EB Garamond',serif;font-size:16.5px;color:#4a4232">{{ t.label }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.06em;color:#736247;margin-top:2px">{{ t.hint }}</div>
+</div>
+</button>
+</sc-for>
+</div>
+<div style="border-top:1px dotted rgba(120,98,60,.3);padding-top:14px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#a34434;margin-bottom:7px">Careful now</div>
+<div style="font-family:'EB Garamond',serif;font-size:16px;line-height:1.45;color:#4a4232;margin-bottom:11px">Taking the book offline leaves a plain notice at the address. Nothing is deleted.</div>
+<button style="border:1.5px solid #a34434;background:transparent;color:#a34434;padding:9px 17px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase" style-hover="background:#a34434;color:#fdf8ec">Take the book offline</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isTrash }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Admin · Trash" style="display:flex;flex-direction:column;gap:16px;max-width:1000px">
+<div style="background:#fffdf6;border-radius:3px;padding:20px 22px 20px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:12px;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1.15;color:#33403c">Kept for thirty days</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15.5px;color:#736247">nothing here is gone until you say so</div>
+<div style="flex:1 1 40px"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#736247">{{ trashCount }}</div>
+</div>
+<sc-if value="{{ trashEmpty }}" hint-placeholder-val="{{ true }}">
+<div style="padding:34px 0 30px;text-align:center">
+<div style="font-family:Caveat,cursive;font-size:34px;line-height:1.2;color:#736247">Nothing thrown away</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:16px;color:#736247;margin-top:4px">Journeys you move to the trash wait here before they go for good.</div>
+</div>
+</sc-if>
+<sc-for list="{{ trashItems }}" as="t" hint-placeholder-count="2">
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:14px;padding:13px 0;border-bottom:1px dotted rgba(120,98,60,.28)">
+<div style="{{ t.thumb }}"></div>
+<div style="flex:1 1 180px;min-width:0">
+<div style="font-family:Caveat,cursive;font-size:27px;line-height:1.15;color:#33403c">{{ t.name }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.1em;color:#736247;margin-top:1px">{{ t.detail }}</div>
+</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15px;color:#736247;flex:none">{{ t.expires }}</div>
+<button onClick="{{ t.restore }}" style="flex:none;border:1.5px solid #4a4232;background:transparent;color:#4a4232;padding:7px 15px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase" style-hover="background:#4a4232;color:#fdf8ec">Put back</button>
+<button onClick="{{ t.purge }}" style="flex:none;border:1.5px solid rgba(163,68,52,.5);background:transparent;color:#a34434;padding:7px 15px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase" style-hover="background:#a34434;color:#fdf8ec">Delete for good</button>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isProfile }}" hint-placeholder-val="{{ false }}">
+<div data-screen-label="Admin · Account" style="{{ profileLayout }}">
+
+<div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+<div style="background:#fffdf6;border-radius:3px;padding:20px 22px 22px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1.15;color:#33403c;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px;margin-bottom:16px">Who is keeping this</div>
+<div style="{{ acctInner }}">
+<div>
+<div style="{{ avatar }}"></div>
+<button style="width:100%;margin-top:8px;border:1.5px solid rgba(120,98,60,.4);background:transparent;color:#736247;padding:6px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#4a4232;border-color:#4a4232">Replace</button>
+</div>
+<div style="display:flex;flex-direction:column;gap:13px;min-width:0">
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Name on the cover</div>
+<input type="text" defaultValue="{{ ownerName }}" style="width:100%;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:9px 12px;border-radius:2px;font-family:Caveat,cursive;font-size:26px;color:#33403c" />
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Sign-off used on pages</div>
+<input type="text" defaultValue="back sooner than planned" style="width:100%;background:transparent;border:none;border-bottom:1px solid rgba(120,98,60,.32);padding:4px 2px;font-family:Caveat,cursive;font-size:24px;color:#736247" />
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Time zone</div>
+<select style="width:100%;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:10px 12px;border-radius:2px;font-family:'Courier Prime',monospace;font-size:12px;color:#33403c">
+<option>Europe / Lisbon — dates written as 12 – 24 March</option>
+<option>Europe / London</option>
+<option>Asia / Tokyo</option>
+</select>
+</div>
+</div>
+</div>
+</div>
+
+<div style="background:#fffdf6;border-radius:3px;padding:20px 22px 22px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1.15;color:#33403c;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px;margin-bottom:15px">Tell me when</div>
+<div style="display:flex;flex-direction:column;gap:13px">
+<sc-for list="{{ acctToggles }}" as="t" hint-placeholder-count="2">
+<button onClick="{{ t.go }}" style="display:flex;align-items:flex-start;gap:12px;width:100%;background:transparent;border:none;padding:0;cursor:pointer;text-align:left">
+<div style="{{ t.knob }}"><div style="{{ t.dot }}"></div></div>
+<div style="flex:1;min-width:0">
+<div style="font-family:'EB Garamond',serif;font-size:16.5px;color:#4a4232">{{ t.label }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.06em;color:#736247;margin-top:2px">{{ t.hint }}</div>
+</div>
+</button>
+</sc-for>
+</div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+<div style="background:#fffdf6;border-radius:3px;padding:20px 22px 22px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1.15;color:#33403c;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px;margin-bottom:15px">Getting in</div>
+<div style="display:flex;flex-direction:column;gap:13px">
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Email you sign in with</div>
+<input type="text" defaultValue="hello@wanderings.travel" style="width:100%;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:10px 12px;border-radius:2px;font-family:'EB Garamond',serif;font-size:16px;color:#33403c" />
+</div>
+<div style="{{ pwGrid }}">
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Current password</div>
+<input type="password" defaultValue="............" style="width:100%;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:10px 12px;border-radius:2px;font-family:'Courier Prime',monospace;font-size:13px;color:#33403c" />
+</div>
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">New password</div>
+<input type="password" placeholder="at least twelve characters" style="width:100%;background:#fffdf6;border:none;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3);padding:10px 12px;border-radius:2px;font-family:'Courier Prime',monospace;font-size:13px;color:#33403c" />
+</div>
+</div>
+<button onClick="{{ toggle2fa }}" style="display:flex;align-items:flex-start;gap:12px;width:100%;background:transparent;border:none;padding:2px 0 0;cursor:pointer;text-align:left">
+<div style="{{ twofaKnob }}"><div style="{{ twofaDot }}"></div></div>
+<div style="flex:1;min-width:0">
+<div style="font-family:'EB Garamond',serif;font-size:16.5px;color:#4a4232">One-time code at sign-in</div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.06em;color:#736247;margin-top:2px">{{ otpHint }}</div>
+</div>
+</button>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:3px">
+<button style="border:1.5px solid #a34434;background:#a34434;color:#fdf8ec;padding:9px 18px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase" style-hover="background:#8c3327;border-color:#8c3327">Save changes</button>
+</div>
+</div>
+</div>
+
+<div style="background:#fffdf6;border-radius:3px;padding:20px 22px 20px;box-shadow:0 0 0 1px rgba(120,98,60,.16),0 12px 26px -22px rgba(60,44,20,.55)">
+<div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:12px;border-bottom:1px solid rgba(120,98,60,.22);padding-bottom:11px">
+<div style="font-family:Caveat,cursive;font-size:32px;line-height:1.15;color:#33403c">Where you are signed in</div>
+</div>
+<sc-for list="{{ sessions }}" as="v" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:12px 0;border-bottom:1px dotted rgba(120,98,60,.28)">
+<div style="{{ v.mark }}"></div>
+<div style="flex:1 1 170px;min-width:0">
+<div style="font-family:'EB Garamond',serif;font-size:16.5px;color:#33403c">{{ v.device }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.1em;color:#736247;margin-top:2px">{{ v.where }} · {{ v.when }}</div>
+</div>
+<button style="border:none;background:transparent;color:#736247;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;flex:none" style-hover="color:#a34434">{{ v.action }}</button>
+</div>
+</sc-for>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:15px">
+<button style="border:1.5px solid #4a4232;background:transparent;color:#4a4232;padding:9px 17px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase" style-hover="background:#4a4232;color:#fdf8ec">Sign out everywhere</button>
+<button style="border:1.5px solid #a34434;background:transparent;color:#a34434;padding:9px 17px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase" style-hover="background:#a34434;color:#fdf8ec">Sign out</button>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;ownerName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;M. Alvarez&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;bookTitle&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Wanderings&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;tape&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Chrome&quot;},&quot;compactRows&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Chrome&quot;},&quot;mediaColumns&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:6,&quot;min&quot;:3,&quot;max&quot;:8,&quot;step&quot;:1,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Chrome&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'dashboard',
+    w: 0,
+    journey: 'tokyo',
+    page: 'notes',
+    jFilter: 'All',
+    mFilter: 'Everything',
+    sel: [],
+    inBook: {},
+    picked: 4,
+    bookmarks: null,
+    cloth: '#2f4a47',
+    on: ['cover', 'tape', 'counter', 'ribbon', 'downloads', 'share', 'right', 'notifyPublish', 'twofa'],
+    newOpen: false, njName: '', njPlace: '', njDates: '', extra: [],
+    flipMs: 900, thumbPx: 200, capDraft: null, capFor: -1,
+    deleted: [], purged: [], statusOverride: {}, rowMenu: null, pagesBy: {}, layoutFor: {},
+    content: {}, accent: null,
+    mQuery: '', orderMode: 'As arranged', savedAt: 'a moment ago', outgoing: null,
+    galSort: 'manual', bulkOpen: false, poster: {}, captioned: []
+  };
+  data = this.build();
+
+  ph(label, w, h, pal) {
+    const fs = Math.max(9, Math.round(Math.min(w, h) / 9));
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">'
+      + '<defs><pattern id="p" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">'
+      + '<rect width="14" height="14" fill="' + pal[0] + '"/><rect width="6" height="14" fill="' + pal[1] + '"/></pattern></defs>'
+      + '<rect width="' + w + '" height="' + h + '" fill="url(#p)"/>'
+      + '<rect x="0" y="' + (h / 2 - fs * 1.5) + '" width="' + w + '" height="' + (fs * 3) + '" fill="' + pal[0] + '" opacity="0.92"/>'
+      + '<text x="' + (w / 2) + '" y="' + (h / 2) + '" text-anchor="middle" dominant-baseline="central" '
+      + 'font-family="ui-monospace, Menlo, monospace" font-size="' + fs + '" letter-spacing="1" fill="' + pal[2] + '">' + label + '</text></svg>';
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+
+  componentWillMount() {
+    try {
+      const v = window.localStorage.getItem('om-diary-otp');
+      if (v === '0' || v === '1') {
+        const has = this.state.on.indexOf('twofa') >= 0;
+        const want = v === '1';
+        if (has !== want) {
+          this.setState({ on: want ? this.state.on.concat(['twofa']) : this.state.on.filter(x => x !== 'twofa') });
+        }
+      }
+    } catch (err) { /* storage blocked */ }
+  }
+
+  build() {
+    const PAL = {
+      teal: ['#e4eae9', '#ccdad8', '#5f736f'],
+      warm: ['#f3e7d8', '#e5d4be', '#87715a'],
+      cool: ['#e5e9f0', '#d1d8e4', '#6a768a'],
+      clay: ['#f3e1d7', '#e5cdbe', '#8a6a59']
+    };
+    const pals = [PAL.teal, PAL.warm, PAL.cool, PAL.clay];
+    const journeys = [
+      ['tokyo', 'Tokyo', 'Japan', '12 – 24 Mar 2025', 3, 45, 7, 'Edited', '2 hours ago',
+        'CLEAR 14C', 'WIDE EYED', 'sun', 'NIPPON', '120', 'twelve days, one corner of it',
+        ['First train at 05:40 — an empty carriage and a pink sky', 'Standing ramen in Shinjuku, best of the trip', 'Got lost in Yanaka for two hours on purpose', 'Rain on the last night; bought a clear umbrella'],
+        'Tokyo is loud in a way that never quite becomes noise. I kept a running list of small sounds — the chime at every crossing, the shopkeeper greeting nobody in particular, rain landing on cheap plastic.',
+        [['Days', '12'], ['Kilometres walked', '147'], ['Rolls shot', '9'], ['Bowls of ramen', '11']],
+        ['Crossing at Shibuya, second attempt, still blurred', 'Ticket stub, Yamanote line'],
+        ['Vending machine at 6am, Nakameguro', 'The cat that runs the bookshop', 'Train seats, upholstered like a sofa', 'Yanaka, the long slope down']],
+      ['lisbon', 'Lisbon', 'Portugal', '3 – 14 Sep 2025', 3, 40, 6, 'Published', '6 days ago',
+        'HAZY 27C', 'UNHURRIED', 'haze', 'PORTUGAL', '85', 'nineteen tarts, no regrets',
+        ['Tram 28 at seven, before the queue', 'Custard tart count: nineteen', 'Sunset at Graca — the terrace went quiet at once'],
+        'Every street in Lisbon is either up or down. I stopped planning routes on the third day and followed whichever hill looked kinder.',
+        [['Days', '11'], ['Hills climbed', 'plenty'], ['Rolls shot', '6'], ['Custard tarts', '19']],
+        ['Alfama, from a step I sat on for an hour', 'Tram ticket, punched twice'],
+        ['Tiles, replaced badly, better for it', 'Laundry as civic architecture', 'Tram 28, empty, briefly', 'River light at the end of Rua Augusta']],
+      ['patagonia', 'Patagonia', 'Chile', '8 – 19 Jan 2026', 3, 53, 8, 'Published', '3 weeks ago',
+        'GALE 4C', 'HUMBLED', 'wind', 'CHILE', '600', 'eleven clear minutes',
+        ['Wind strong enough to take the map out of my hands', 'Four layers, still cold, still grinning', 'Saw the towers clear for eleven minutes'],
+        'We waited two days for weather. On the third morning the cloud lifted like a curtain and the whole camp stood there doing nothing at all.',
+        [['Days', '11'], ['Kilometres walked', '198'], ['Rolls shot', '8'], ['Clear minutes', '11']],
+        ['The towers, minute three of eleven', 'Park permit, rain-warped'],
+        ['Camp at first light, everything damp', 'Lenticular cloud, showing off', 'Boots, retired', 'Wind on the water, all afternoon']],
+      ['marrakech', 'Marrakech', 'Morocco', '2 – 11 May 2026', 3, 33, 5, 'Edited', 'yesterday',
+        'DRY 33C', 'OVERWHELMED', 'sun', 'MAROC', '9.00', 'the map was wrong by evening',
+        ['Mint tea poured from an absurd height, twice', 'Learned to say "just looking" in three languages', 'Rooftop at dusk — swifts over the whole medina'],
+        'The medina rearranges itself the moment you stop watching. I drew a map on the back of a receipt and it was wrong by evening.',
+        [['Days', '9'], ['Wrong turns', 'uncounted'], ['Rolls shot', '5'], ['Glasses of tea', '23']],
+        ['The souk at four, when the light gets in', 'Receipt, with the wrong map on it'],
+        ['Dye pots, still wet', 'Door, studded, enormous', 'Tea, poured from a great height', 'Courtyard, shade, twenty degrees cooler']],
+      ['reykjavik', 'Reykjavik', 'Iceland', '4 – 11 Jun 2025', 3, 38, 6, 'Published', '2 months ago',
+        'WIND 9C', 'SLEEPLESS', 'wind', 'ISLAND', '160', 'back sooner than planned',
+        ['Sun still up at midnight and nobody going home', 'Swam outdoors in the rain, twice', 'Bought a jumper I will never wear at home'],
+        'The light never really left. I stopped checking the time on the third day and ate whenever I was hungry, which turned out to be constantly.',
+        [['Days', '8'], ['Kilometres walked', '61'], ['Rolls shot', '5'], ['Midnight swims', '4']],
+        ['Harbour at low tide', 'Pool token, still damp'],
+        ['Corrugated houses, repainted', 'Pool steam at midnight', 'The road out of town', 'Light at one in the morning']],
+      ['kyoto', 'Kyoto', 'Japan', '28 Oct – 6 Nov 2025', 3, 61, 10, 'Published', '5 weeks ago',
+        'CRISP 12C', 'QUIET', 'sun', 'NIPPON', '84', 'I would go again tomorrow',
+        ['Temple at opening time, entirely empty', 'Followed a cat down an alley, no regrets', 'Maple leaves on a bicycle seat'],
+        'Kyoto asks you to slow down and then punishes you for hurrying. I walked the same river path four evenings running and it was different every time.',
+        [['Days', '10'], ['Kilometres walked', '96'], ['Rolls shot', '7'], ['Temples', '14']],
+        ['River path, evening', 'Temple ticket, embossed'],
+        ['Gate, weathered', 'Moss, immaculate', 'Bicycle under maples', 'The same path, fourth evening']],
+      ['hanoi', 'Hanoi', 'Vietnam', '13 – 21 Feb 2026', 3, 54, 9, 'Draft', '4 days ago',
+        'HUMID 24C', 'ALIVE', 'haze', 'VIET NAM', '25', 'the notebook got wet',
+        ['Breakfast on a plastic stool, four inches off the ground', 'Crossing the road is a negotiation, not a dash', 'Coffee with egg in it, and it works'],
+        'Everything happens on the pavement here — cooking, haircuts, card games, sleeping. The road is for the motorbikes and the pavement is for living.',
+        [['Days', '9'], ['Kilometres walked', '54'], ['Rolls shot', '6'], ['Bowls of pho', '14']],
+        ['Plastic stools at dawn', 'Coffee receipt, illegible'],
+        ['Wires, uncountable', 'Market at six', 'Old quarter, wet', 'Egg coffee, second cup']],
+      ['porto', 'Porto', 'Portugal', '9 – 15 Apr 2025', 3, 33, 5, 'Published', '3 months ago',
+        'MILD 19C', 'CONTENT', 'sun', 'PORTUGAL', '75', 'all of it, again',
+        ['Bridge at sunset, everyone facing the same way', 'Bookshop queue: forty minutes, worth twelve', 'Ate standing up on three separate occasions'],
+        'A city built on a slope and entirely comfortable about it. I found one cafe I liked and went back every morning.',
+        [['Days', '6'], ['Kilometres walked', '41'], ['Rolls shot', '4'], ['Coffees', '19']],
+        ['The bridge, from below', 'Bookshop ticket, redeemable'],
+        ['Azulejo wall', 'Port lodge, cool and dark', 'Steep street, late sun', 'The same cafe, sixth morning']],
+      ['bergen', 'Bergen', 'Norway', '17 – 23 Jul 2025', 3, 29, 4, 'Published', '7 weeks ago',
+        'RAIN 14C', 'DAMP', 'wind', 'NORGE', '39', 'shorter than it should have been',
+        ['It rained for five days and nobody mentioned it', 'Funicular up, walked down, regretted the shoes', 'Fish soup that ruined all other fish soup'],
+        'Bergen has made peace with the weather in a way I found genuinely instructive. Waterproofs on, out you go, no comment.',
+        [['Days', '7'], ['Kilometres walked', '48'], ['Rolls shot', '3'], ['Rainy days', '5']],
+        ['Wharf, wooden and leaning', 'Funicular stub, soaked through'],
+        ['Rain on the fjord', 'Fish market, early', 'The hill, from the top', 'Waterproofs drying, all of them']],
+      ['seville', 'Seville', 'Spain', '2 – 9 May 2025', 3, 50, 8, 'Published', '2 months ago',
+        'HOT 34C', 'MELTING', 'sun', 'ESPANA', '1.40', 'still thinking about it',
+        ['Nothing at all happens between two and five', 'Orange trees everywhere, oranges inedible', 'Flamenco in a room of thirty people'],
+        'The heat organises the day for you. Out early, hidden at noon, out again at nine when the whole city appears at once.',
+        [['Days', '8'], ['Kilometres walked', '52'], ['Rolls shot', '6'], ['Siestas', '7']],
+        ['Courtyard, shaded', 'Flamenco ticket, thirty seats'],
+        ['Tiles and shadow', 'Rooftops at nine', 'Orange tree, bitter fruit', 'Two until five, nothing at all']]
+    ].map((r, i) => ({
+      id: r[0], name: r[1], place: r[2], dates: r[3], pages: r[4], photos: r[5], clips: r[6],
+      status: r[7], edited: r[8], weather: r[9], mood: r[10], glyph: r[11],
+      stampTop: r[12], stampVal: r[13], signoff: r[14], highlights: r[15], note: r[16],
+      tally: r[17], slotCaps: r[18], frameCaps: r[19],
+      pal: pals[i % 4], tint: ['#3d817e', '#a06b3e', '#5a72a8', '#a15a4e'][i % 4]
+    }));
+    journeys.forEach(j => {
+      const code = j.name.toUpperCase().replace(/[^A-Z]/g, '');
+      j.code = code;
+      j.thumbSrc = this.ph(code, 240, 240, j.pal);
+      j.heroSrc = this.ph(code + ' HERO', 520, 340, j.pal);
+      j.stripSrc = this.ph(code + ' EPHEMERA', 520, 240, j.pal);
+    });
+
+    const caps = ['Alley near Yanaka, dusk', 'Signage, layered four deep', 'Corner shop, fluorescent', 'Bicycle, patiently parked',
+      'Rooftop rain', 'Commuters, from the mezzanine', 'A very small shrine', 'Steam from a window',
+      'Crossing, second attempt', 'Vending machine at six', 'Train seats like a sofa', 'Plastic food, immaculate'];
+    const pool = Array.from({ length: 14 }, (_, i) => {
+      const clip = i % 5 === 3;
+      const num = String(i + 1).padStart(2, '0');
+      return {
+        id: 't' + String(i + 1).padStart(2, '0'), num: num,
+        file: 'TOKYO_' + num + (clip ? '.mp4' : '.jpg'),
+        cap: caps[i % caps.length], isClip: clip, dur: '0:' + String(18 + i * 3).padStart(2, '0'),
+        src: this.ph('TOKYO ' + (clip ? 'CLIP ' : '') + num, 300, 300, PAL.teal)
+      };
+    });
+
+    const media = Array.from({ length: 24 }, (_, i) => {
+      const j = journeys[i % 10];
+      const clip = i % 6 === 4;
+      const num = String(i + 1).padStart(3, '0');
+      return {
+        id: 'm' + num, isClip: clip, dur: '0:' + String(21 + i * 2).padStart(2, '0'),
+        file: j.name.toUpperCase().slice(0, 6) + '_' + num + (clip ? '.mov' : '.jpg'),
+        src: this.ph(j.name.toUpperCase() + ' ' + num, 320, 320, j.pal)
+      };
+    });
+
+    const gallery = Array.from({ length: 21 }, (_, i) => ({
+      id: 'g' + i, num: String(i + 1).padStart(3, '0'),
+      cap: caps[i % caps.length],
+      file: 'TOKYO_' + String(i + 1).padStart(3, '0') + '.jpg',
+      src: this.ph('TOKYO ' + String(i + 1).padStart(3, '0'), 300, 300, PAL.teal)
+    }));
+
+    const bookmarks = [{ name: 'Cover', sub: 'the front', page: 1, tint: '#8a7a5f' }, { name: 'Contents', sub: 'index', page: 2, tint: '#8a7a5f' }]
+      .concat(journeys.map((j, i) => ({ name: j.name, sub: j.place, page: 3 + i * 3, tint: j.tint })))
+      .concat([{ name: 'About', sub: 'colophon', page: 33, tint: '#8a7a5f' }]);
+
+    return {
+      journeys: journeys, pool: pool, media: media, gallery: gallery, bookmarks: bookmarks,
+      portrait: this.ph('PORTRAIT', 280, 350, ['#efe9dc', '#e0d8c6', '#7d715c']),
+      avatar: this.ph('YOU', 240, 240, ['#efe9dc', '#e0d8c6', '#7d715c']),
+      hero: this.ph('TOKYO HERO', 520, 340, PAL.teal),
+      ephemera: this.ph('TOKYO EPHEMERA', 520, 240, PAL.teal)
+    };
+  }
+
+  go(screen) { this.setState({ screen: screen, rowMenu: null }); }
+
+  setFocal(j, slotKey, e) {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const x = Math.round(Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100)));
+    const y = Math.round(Math.min(100, Math.max(0, ((e.clientY - r.top) / r.height) * 100)));
+    this.put(j, 'focal.' + slotKey, x + ' ' + y);
+  }
+
+  focalOf(j, slotKey) { return this.val(j, 'focal.' + slotKey, '50 50'); }
+
+  focalBits(j, slotKey) {
+    const parts = this.focalOf(j, slotKey).split(' ');
+    const x = Number(parts[0]), y = Number(parts[1]);
+    const set = this.state.content[j.id + '.focal.' + slotKey] !== undefined;
+    return {
+      pos: x + '% ' + y + '%',
+      set: set,
+      focalLabel: set ? 'focus ' + x + '% ' + y + '%' : 'centred — click to focus',
+      focalPill: {
+        fontFamily: "'Courier Prime', monospace", fontSize: '9px', letterSpacing: '.12em',
+        textTransform: 'uppercase', padding: '3px 7px', borderRadius: '2px',
+        color: set ? '#2f6b68' : '#736247',
+        boxShadow: 'inset 0 0 0 1px ' + (set ? 'rgba(47,107,104,.4)' : 'rgba(120,98,60,.3)')
+      },
+      reticle: {
+        position: 'absolute', left: x + '%', top: y + '%', width: '26px', height: '26px',
+        marginLeft: '-13px', marginTop: '-13px', borderRadius: '50%', pointerEvents: 'none',
+        boxShadow: '0 0 0 1.5px #fdf8ec, 0 0 0 3px rgba(163,68,52,.85), 0 1px 4px rgba(0,0,0,.4)',
+        opacity: set ? 1 : .55
+      }
+    };
+  }
+
+  val(j, field, fallback) {
+    const v = this.state.content[j.id + '.' + field];
+    return v === undefined ? fallback : v;
+  }
+
+  put(j, field, value) {
+    const c = Object.assign({}, this.state.content);
+    c[j.id + '.' + field] = value;
+    this.setState({ content: c, savedAt: 'just now' });
+  }
+
+  bind(j, field, fallback) {
+    return { value: this.val(j, field, fallback), onChange: e => this.put(j, field, e.target.value) };
+  }
+
+  jour() {
+    const list = this.state.extra.concat(this.data.journeys);
+    return list.find(x => x.id === this.state.journey) || list[0];
+  }
+
+  pagesOf(j) {
+    return this.state.pagesBy[j.id] || [
+      { id: 'notes', name: 'Notes', meta: 'header, highlights, note', type: 'notes' },
+      { id: 'framesA', name: 'Frames I', meta: 'three frames', type: 'frames' },
+      { id: 'framesB', name: 'Frames II', meta: 'four frames', type: 'frames' }
+    ];
+  }
+
+  setPages(j, list, extra) {
+    const by = Object.assign({}, this.state.pagesBy);
+    by[j.id] = list;
+    this.setState(Object.assign({ pagesBy: by, savedAt: 'just now' }, extra || {}));
+  }
+
+  movePage(i, d) {
+    const j = this.jour();
+    const list = this.pagesOf(j).slice();
+    const to = i + d;
+    if (to < 0 || to >= list.length) return;
+    list.splice(to, 0, list.splice(i, 1)[0]);
+    this.setPages(j, list);
+  }
+
+  dupePage(i) {
+    const j = this.jour();
+    const list = this.pagesOf(j).slice();
+    const src = list[i];
+    list.splice(i + 1, 0, { id: src.id + '-c' + Date.now(), name: src.name + ' (copy)', meta: src.meta, type: src.type });
+    this.setPages(j, list);
+  }
+
+  delPage(i) {
+    const j = this.jour();
+    const list = this.pagesOf(j);
+    if (list.length <= 1) return;
+    const next = list.filter((p, k) => k !== i);
+    const sel = this.state.page === list[i].id ? next[Math.max(0, i - 1)].id : this.state.page;
+    this.setPages(j, next, { page: sel });
+  }
+
+  addPage(layout) {
+    const j = this.jour();
+    const list = this.pagesOf(j).slice();
+    const id = 'p' + Date.now();
+    list.push({ id: id, name: 'Frames ' + (list.filter(p => p.type === 'frames').length + 1), meta: String(layout).toLowerCase(), type: 'frames' });
+    const lf = Object.assign({}, this.state.layoutFor);
+    lf[j.id + '.' + id] = layout;
+    this.setState({ layoutFor: lf });
+    this.setPages(j, list, { page: id });
+  }
+
+  poolOf(j) {
+    if (!this._p) this._p = {};
+    if (!this._p[j.id]) {
+      const caps = (j.frameCaps || []).concat(j.slotCaps || []);
+      this._p[j.id] = Array.from({ length: 14 }, (_, i) => {
+        const clip = i % 5 === 3;
+        const num = String(i + 1).padStart(2, '0');
+        return {
+          id: j.id + '-p' + num, num: num, clip: clip,
+          dur: '0:' + String(18 + i * 3).padStart(2, '0'),
+          cap: caps[i % Math.max(1, caps.length)] || 'Untitled',
+          defaultIn: i < 8 && i % 2 === 0,
+          src: this.ph(j.code + (clip ? ' CLIP ' : ' ') + num, 300, 300, j.pal)
+        };
+      });
+    }
+    return this._p[j.id];
+  }
+
+  galleryOf(j) {
+    if (!this._g) this._g = {};
+    if (!this._g[j.id]) {
+      const caps = ['Doorway, morning', 'Signage, layered four deep', 'Corner shop, fluorescent', 'Bicycle, patiently parked',
+        'Rooftop rain', 'Commuters, from the mezzanine', 'A very small shrine', 'Steam from a window',
+        'The long way back', 'Window seat', 'Light through a gap', 'The last evening'];
+      const code = j.name.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 8) || 'FRAME';
+      const n = Math.min(24, Math.max(9, (j.photos || 0) + (j.clips || 0)));
+      this._g[j.id] = Array.from({ length: n }, (_, i) => {
+        const num = String(i + 1).padStart(3, '0');
+        const clip = i % 6 === 4;
+        return {
+          id: j.id + '-g' + num, num: num, clip: clip, blank: i % 5 === 2,
+          cap: caps[i % caps.length],
+          file: code + '_' + num + (clip ? '.mp4' : '.jpg'),
+          taken: 1740000000000 - ((i * 7919) % 97) * 86400000,
+          src: this.ph(code + (clip ? ' CLIP ' : ' ') + num, 300, 300, j.pal)
+        };
+      });
+    }
+    return this._g[j.id];
+  }
+
+  pickPosters(id) {
+    const j = this.data.journeys.find(x => x.id === id) || this.data.journeys[0];
+    const need = this.galleryOf(j).find(g => g.clip && !this.state.poster[g.id]);
+    this.setState({
+      screen: 'gallery', journey: j.id, bulkOpen: false, rowMenu: null,
+      picked: need ? need.id : null, capDraft: null, capFor: -1
+    });
+  }
+
+  dupeJourney(j) {
+    const i = this.state.extra.length;
+    const copy = Object.assign({}, j, {
+      id: 'j' + Date.now(), name: j.name + ' (copy)', status: 'Draft', edited: 'just now'
+    });
+    this.setState({ extra: [copy].concat(this.state.extra), rowMenu: null, savedAt: 'just now' });
+  }
+
+  archiveJourney(j) {
+    const o = Object.assign({}, this.state.statusOverride);
+    o[j.id] = j.status === 'Archived' ? 'Draft' : 'Archived';
+    this.setState({ statusOverride: o, rowMenu: null, savedAt: 'just now' });
+  }
+
+  trashJourney(j) {
+    this.setState({ deleted: this.state.deleted.concat([j.id]), rowMenu: null, savedAt: 'just now' });
+  }
+
+  createJourney() {
+    const pals = [['#e4eae9', '#ccdad8', '#5f736f'], ['#f3e7d8', '#e5d4be', '#87715a'], ['#e5e9f0', '#d1d8e4', '#6a768a'], ['#f3e1d7', '#e5cdbe', '#8a6a59']];
+    const i = this.state.extra.length;
+    const pal = pals[i % 4];
+    const name = (this.state.njName || '').trim() || 'Untitled journey';
+    const j = {
+      id: 'j' + Date.now(), name: name,
+      place: (this.state.njPlace || '').trim() || 'Somewhere',
+      dates: (this.state.njDates || '').trim() || 'dates to come',
+      pages: 3, photos: 0, clips: 0, status: 'Draft', edited: 'just now',
+      pal: pal, tint: ['#3d817e', '#a06b3e', '#5a72a8', '#a15a4e'][i % 4],
+      thumbSrc: this.ph(name.toUpperCase().slice(0, 10), 240, 240, pal)
+    };
+    this.setState({ extra: [j].concat(this.state.extra), newOpen: false, njName: '', njPlace: '', njDates: '' });
+  }
+
+  toggleSel(id) {
+    const s = this.state.sel;
+    this.setState({ sel: s.indexOf(id) >= 0 ? s.filter(x => x !== id) : s.concat([id]) });
+  }
+  inBook(m) {
+    const v = this.state.inBook[m.id];
+    return v === undefined ? !!m.defaultIn : v;
+  }
+
+  toggleBook(m) {
+    const next = Object.assign({}, this.state.inBook);
+    next[m.id] = !this.inBook(m);
+    this.setState({ inBook: next, savedAt: 'just now' });
+  }
+  flip(key) {
+    const list = this.state.on;
+    const next = list.indexOf(key) >= 0 ? list.filter(x => x !== key) : list.concat([key]);
+    if (key === 'twofa') {
+      try { window.localStorage.setItem('om-diary-otp', next.indexOf('twofa') >= 0 ? '1' : '0'); } catch (err) { /* storage blocked */ }
+    }
+    this.setState({ on: next });
+  }
+  move(i, d) {
+    const list = (this.state.bookmarks || this.data.bookmarks).slice();
+    const to = i + d;
+    if (to < 0 || to >= list.length) return;
+    const item = list.splice(i, 1)[0];
+    list.splice(to, 0, item);
+    this.setState({ bookmarks: list });
+  }
+
+  componentDidMount() {
+    this._m = () => {
+      const el = document.querySelector('[data-content]');
+      if (el && el.clientWidth && Math.abs((this.state.w || 0) - el.clientWidth) > 4) this.setState({ w: el.clientWidth });
+    };
+    window.addEventListener('resize', this._m);
+    if (window.ResizeObserver) { this._ro = new ResizeObserver(this._m); this._ro.observe(document.body); }
+    [0, 60, 300].forEach(t => setTimeout(this._m, t));
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('resize', this._m);
+    if (this._ro) this._ro.disconnect();
+  }
+
+  card(extra) {
+    return Object.assign({
+      background: '#fffdf6', borderRadius: '3px',
+      boxShadow: '0 0 0 1px rgba(120,98,60,.16), 0 12px 26px -22px rgba(60,44,20,.55)'
+    }, extra || {});
+  }
+  thumb(src, h, extra) {
+    return Object.assign({
+      width: '100%', height: h, borderRadius: '2px',
+      backgroundImage: 'url("' + src + '")', backgroundSize: 'cover', backgroundPosition: 'center',
+      boxShadow: 'inset 0 0 0 1px rgba(120,98,60,.2)'
+    }, extra || {});
+  }
+  chipStyle(tone) {
+    const c = { added: '#2f6b68', edited: '#845825', removed: '#98392b', order: '#4a5f92' }[tone] || '#6b5d46';
+    return {
+      fontFamily: "'Courier Prime', monospace", fontSize: '9px', letterSpacing: '.16em', textTransform: 'uppercase',
+      color: c, boxShadow: 'inset 0 0 0 1px ' + c + '55', padding: '4px 8px', borderRadius: '2px', flex: 'none', width: '64px', textAlign: 'center'
+    };
+  }
+  pillStyle(status) {
+    const c = { Published: '#2f6b68', Edited: '#845825', Draft: '#6b5d46' }[status] || '#6b5d46';
+    return {
+      fontFamily: "'Courier Prime', monospace", fontSize: '9.5px', letterSpacing: '.14em', textTransform: 'uppercase',
+      color: c, boxShadow: 'inset 0 0 0 1px ' + c + '55', padding: '4px 9px', borderRadius: '2px'
+    };
+  }
+  knob(on) {
+    return {
+      width: '34px', height: '19px', flex: 'none', borderRadius: '19px', position: 'relative',
+      background: on ? '#a34434' : 'rgba(120,98,60,.22)',
+      boxShadow: on ? 'none' : 'inset 0 0 0 1px rgba(120,98,60,.3)', transition: 'background 160ms ease'
+    };
+  }
+  knobDot(on) {
+    return {
+      position: 'absolute', top: '2.5px', left: on ? '17px' : '2.5px', width: '14px', height: '14px',
+      borderRadius: '50%', background: '#fffdf6', boxShadow: '0 1px 2px rgba(60,44,20,.35)', transition: 'left 160ms ease'
+    };
+  }
+  filterStyle(on) {
+    return {
+      border: 'none', background: on ? '#4a4232' : 'transparent', color: on ? '#fdf8ec' : '#736247',
+      boxShadow: on ? 'none' : 'inset 0 0 0 1px rgba(120,98,60,.32)',
+      padding: '8px 14px', borderRadius: '2px', cursor: 'pointer',
+      fontFamily: "'Courier Prime', monospace", fontSize: '10px', letterSpacing: '.14em', textTransform: 'uppercase'
+    };
+  }
+
+  renderVals() {
+    const s = this.state, d = this.data;
+    const tape = this.props.tape ?? true;
+    const compact = this.props.compactRows ?? false;
+    const cols = this.props.mediaColumns ?? 6;
+    const w = s.w || 1200;
+    const mode = w >= 1180 ? 'wide' : (w >= 860 ? 'mid' : 'narrow');
+    const two = (a, b) => ({
+      display: 'grid', gap: '20px', alignItems: 'start', maxWidth: '1440px',
+      gridTemplateColumns: mode === 'wide' ? a : (mode === 'mid' ? b : 'minmax(0,1fr)')
+    });
+    const showDates = w >= 1000, showPages = w >= 720, showMedia = w >= 880, showEdited = w >= 800;
+    const jCols = ['48px', 'minmax(0,1.7fr)']
+      .concat(showDates ? ['minmax(0,1.15fr)'] : [])
+      .concat(showPages ? ['52px'] : [])
+      .concat(showMedia ? ['minmax(0,1fr)'] : [])
+      .concat(['96px'])
+      .concat(showEdited ? ['minmax(0,94px)'] : [])
+      .concat(['minmax(0,104px)']).join(' ');
+    const cell = (show, extra) => Object.assign({
+      display: show ? 'block' : 'none', minWidth: 0, overflowX: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+    }, extra || {});
+    const mono = (size, colour, ls) => ({ fontFamily: "'Courier Prime', monospace", fontSize: size, letterSpacing: ls || '.06em', color: colour });
+
+    const titles = {
+      dashboard: ['The desk', 'Overview'],
+      journeys: ['Journeys', 'Ten entries · 33 pages'],
+      editor: ['Journey editor', 'Journeys / Tokyo'],
+      media: ['Media', 'Library and upload'],
+      gallery: ['Galleries', 'Order, captions, covers'],
+      book: ['The book', 'Bookmarks and settings'],
+      cover: ['Front matter', 'Cover and About'],
+      publish: ['Publish', 'Draft and editions'],
+      settings: ['Settings', 'Site and readers'],
+      profile: ['Your account', 'Signed in as ' + (this.props.ownerName ?? 'M. Alvarez')],
+      trash: ['Trash', 'Recently removed']
+    };
+    const live = s.extra.concat(d.journeys).filter(j => s.purged.indexOf(j.id) < 0);
+    const all = live
+      .filter(j => s.deleted.indexOf(j.id) < 0)
+      .map(j => (s.statusOverride[j.id] ? Object.assign({}, j, { status: s.statusOverride[j.id] }) : j));
+    const binned = live.filter(j => s.deleted.indexOf(j.id) >= 0);
+    const jCount = all.length;
+    titles.journeys = ['Journeys', jCount + ' entries · ' + (3 + jCount * 3) + ' pages'];
+    const navDef = [
+      ['dashboard', 'Overview', 'at a glance', '#a34434', ''],
+      ['journeys', 'Journeys', jCount + ' entries', '#3d817e', String(jCount)],
+      ['editor', 'Journey editor', 'Tokyo', '#3d817e', ''],
+      ['media', 'Media', 'library & upload', '#a06b3e', '580'],
+      ['gallery', 'Galleries', 'order & captions', '#a06b3e', ''],
+      ['book', 'Book & bookmarks', 'order, settings', '#5a72a8', '13'],
+      ['cover', 'Cover & About', 'front matter', '#5a72a8', ''],
+      ['publish', 'Publish', 'draft & editions', '#a34434', '4'],
+      ['settings', 'Settings', 'site & readers', '#a15a4e', ''],
+      ['trash', 'Trash', 'kept 30 days', '#736247', s.deleted.length ? String(s.deleted.length) : '']
+    ];
+    const nav = navDef.map(n => {
+      const on = s.screen === n[0];
+      return {
+        key: n[0], name: n[1], subtitle: n[2], badge: n[4],
+        go: () => this.go(n[0]),
+        style: {
+          display: 'flex', alignItems: 'center', gap: '10px', width: '100%', flex: 'none',
+          padding: '9px 12px 9px 0', border: 'none', cursor: 'pointer', textAlign: 'left',
+          borderRadius: '0 5px 5px 0',
+          background: on ? '#fbf6e9' : 'rgba(246,236,214,.05)',
+          boxShadow: on ? '0 3px 12px -5px rgba(0,0,0,.5)' : 'none',
+          transform: on ? 'translateX(-4px)' : 'none',
+          transition: 'background 160ms ease, transform 160ms ease'
+        },
+        bar: { width: '5px', alignSelf: 'stretch', flex: 'none', background: n[3], opacity: on ? 1 : .55, borderRadius: '0 2px 2px 0' },
+        label: { fontFamily: 'Caveat, cursive', fontSize: '23px', lineHeight: 1.3, color: on ? '#2f3b38' : 'rgba(246,236,214,.86)', whiteSpace: 'nowrap', overflowX: 'hidden', textOverflow: 'ellipsis' },
+        sub: { fontFamily: "'Courier Prime', monospace", fontSize: '10px', letterSpacing: '.13em', textTransform: 'uppercase', color: on ? '#736247' : 'rgba(243,231,205,.72)', whiteSpace: 'nowrap', overflowX: 'hidden', textOverflow: 'ellipsis' },
+        count: { fontFamily: "'Courier Prime', monospace", fontSize: '10.5px', letterSpacing: '.08em', color: on ? '#a34434' : 'rgba(243,231,205,.72)', flex: 'none' }
+      };
+    });
+
+    const pending = [
+      { key: 'p1', kind: 'edited', tone: 'edited', what: 'Note rewritten on the Tokyo entry', where: 'Tokyo · notes', when: '2h ago' },
+      { key: 'p2', kind: 'added', tone: 'added', what: 'Four frames placed in the book', where: 'Tokyo · frames I', when: '2h ago' },
+      { key: 'p3', kind: 'added', tone: 'added', what: '34 photographs and 3 clips uploaded', where: 'Marrakech · gallery', when: 'yesterday' },
+      { key: 'p4', kind: 'order', tone: 'order', what: 'Hanoi moved above Porto', where: 'Bookmarks', when: 'yesterday' }
+    ].map(c => {
+      const on = s.outgoing === null || s.outgoing.indexOf(c.key) >= 0;
+      return Object.assign({}, c, {
+        chip: this.chipStyle(c.tone),
+        included: on,
+        tick: on ? '\u2713' : '',
+        text: {
+          fontFamily: "'EB Garamond', serif", fontSize: '17px',
+          color: on ? '#33403c' : '#8f836d',
+          textDecoration: on ? 'none' : 'line-through'
+        },
+        box: {
+          width: '21px', height: '21px', flex: 'none', borderRadius: '2px', cursor: 'pointer',
+          border: 'none', fontSize: '12px', lineHeight: 1,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: on ? '#a34434' : '#fffdf6',
+          color: on ? '#fdf8ec' : 'transparent',
+          boxShadow: 'inset 0 0 0 1px ' + (on ? '#a34434' : 'rgba(120,98,60,.4)')
+        },
+        toggle: () => {
+          const all4 = ['p1', 'p2', 'p3', 'p4'];
+          const cur4 = s.outgoing === null ? all4.slice() : s.outgoing.slice();
+          const next = cur4.indexOf(c.key) >= 0 ? cur4.filter(x => x !== c.key) : cur4.concat([c.key]);
+          this.setState({ outgoing: next });
+        }
+      });
+    });
+
+    const stats = [
+      { key: 's1', label: 'Journeys', value: '10', note: 'one in draft', tone: '#3d817e' },
+      { key: 's2', label: 'Pages', value: '33', note: 'cover, index, about', tone: '#5a72a8' },
+      { key: 's3', label: 'Photographs', value: '512', note: '96 placed in the book', tone: '#a06b3e' },
+      { key: 's4', label: 'Clips', value: '68', note: '9 loop on a page', tone: '#a34434' }
+    ].map(x => Object.assign({}, x, {
+      tick: { position: 'absolute', left: 0, top: '14px', bottom: '14px', width: '3px', background: x.tone, opacity: .8 }
+    }));
+
+    const jRows = all.filter(j => s.jFilter === 'All' || j.status === s.jFilter).map(j => ({
+      key: j.id, name: j.name, place: j.place, dates: j.dates,
+      pages: String(this.pagesOf(j).length), media: j.photos + ' · ' + j.clips + ' clips',
+      status: j.status, edited: j.edited, pill: this.pillStyle(j.status),
+      edit: () => this.setState({ screen: 'editor', journey: j.id, page: 'notes', rowMenu: null }),
+      gallery: () => this.setState({ screen: 'gallery', journey: j.id, rowMenu: null }),
+      wrap: {},
+      open: s.rowMenu === j.id,
+      menu: () => this.setState({ rowMenu: s.rowMenu === j.id ? null : j.id }),
+      menuBtn: {
+        border: 'none', background: 'transparent', padding: '0 2px', cursor: 'pointer',
+        color: s.rowMenu === j.id ? '#a34434' : '#736247', fontSize: '16px', lineHeight: 1
+      },
+      rowAct: {
+        border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', color: '#4a4232',
+        fontFamily: "'Courier Prime', monospace", fontSize: '10px', letterSpacing: '.14em', textTransform: 'uppercase'
+      },
+      rowDanger: {
+        border: '1px solid rgba(163,68,52,.5)', background: 'transparent', color: '#a34434',
+        padding: '6px 12px', borderRadius: '2px', cursor: 'pointer',
+        fontFamily: "'Courier Prime', monospace", fontSize: '10px', letterSpacing: '.14em', textTransform: 'uppercase'
+      },
+      archiveLabel: j.status === 'Archived' ? 'Unarchive' : 'Archive',
+      dupe: () => this.dupeJourney(j),
+      archive: () => this.archiveJourney(j),
+      del: () => this.trashJourney(j),
+      thumb: { width: '44px', height: '44px', borderRadius: '2px', backgroundImage: 'url("' + j.thumbSrc + '")', backgroundSize: 'cover', boxShadow: 'inset 0 0 0 1px rgba(120,98,60,.22)' },
+      row: {
+        display: 'grid', gridTemplateColumns: jCols, gap: '12px',
+        alignItems: 'center', padding: (compact ? '8px' : '13px') + ' 20px',
+        borderBottom: '1px dotted rgba(120,98,60,.26)'
+      }
+    }));
+
+    const cur = all.find(j => j.id === s.journey) || all[0];
+    const pageDefs = this.pagesOf(cur);
+    const curPage = pageDefs.find(p => p.id === s.page) || pageDefs[0];
+    const toolBtn = {
+      border: 'none', background: 'transparent', padding: '2px 3px', cursor: 'pointer', color: '#736247',
+      fontFamily: "'Courier Prime', monospace", fontSize: '9px', letterSpacing: '.1em', textTransform: 'uppercase'
+    };
+    const pageCards = pageDefs.map((p, i) => {
+      const on = curPage.id === p.id;
+      return {
+        key: p.id, name: p.name, meta: p.meta,
+        go: () => this.setState({ page: p.id }),
+        wrap: { display: 'flex', flexDirection: 'column' },
+        tools: {
+          display: on ? 'flex' : 'none', alignItems: 'center', gap: '4px',
+          padding: '5px 7px 0'
+        },
+        toolBtn: toolBtn,
+        up: () => this.movePage(i, -1),
+        down: () => this.movePage(i, 1),
+        dupe: () => this.dupePage(i),
+        del: () => this.delPage(i),
+        style: {
+          display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '9px 11px',
+          background: on ? '#fffdf6' : 'rgba(255,253,246,.5)', border: 'none', cursor: 'pointer',
+          borderRadius: '3px', textAlign: 'left',
+          boxShadow: on ? 'inset 0 0 0 1.5px #a34434, 0 8px 18px -14px rgba(60,44,20,.6)' : 'inset 0 0 0 1px rgba(120,98,60,.2)'
+        },
+        preview: {
+          width: '30px', height: '38px', flex: 'none', borderRadius: '1px',
+          background: 'linear-gradient(180deg,#fbf6e9,#f2ead6)',
+          boxShadow: 'inset 0 0 0 1px rgba(120,98,60,.3)'
+        }
+      };
+    });
+
+    const bar = 'rgba(120,98,60,.34)';
+    const glyph = (name, cols, rows, cells) => ({
+      key: name, name: name,
+      glyph: { height: '30px', display: 'grid', gap: '2px', gridTemplateColumns: cols, gridTemplateRows: rows },
+      cells: cells.map((c, i) => ({
+        key: name + i,
+        style: Object.assign({ gridArea: c[0], background: bar, borderRadius: '1px' }, c[1] || {})
+      }))
+    });
+    const layouts = [
+      glyph('Three up', '1.45fr 1fr', '1fr 1fr', [['1 / 1 / 3 / 2'], ['1 / 2 / 2 / 3'], ['2 / 2 / 3 / 3']]),
+      glyph('Four up', '1fr 1fr', '1fr 1fr', [['1 / 1 / 2 / 2'], ['1 / 2 / 2 / 3'], ['2 / 1 / 3 / 2'], ['2 / 2 / 3 / 3']]),
+      glyph('Full bleed', '1fr', '1fr', [['1 / 1 / 2 / 2']]),
+      glyph('Text spread', '1fr 1fr', '1fr 1fr 1fr', [
+        ['1 / 1 / 2 / 2', { height: '3px', alignSelf: 'center' }],
+        ['2 / 1 / 3 / 2', { height: '3px', alignSelf: 'center' }],
+        ['3 / 1 / 4 / 2', { height: '3px', alignSelf: 'center', width: '70%' }],
+        ['1 / 2 / 4 / 3']
+      ])
+    ];
+    const activeLayout = s.layoutFor[cur.id + '.' + curPage.id] || (curPage.type === 'notes' ? 'Text spread' : 'Three up');
+    layouts.forEach(l => {
+      const on = l.name === activeLayout;
+      l.pick = () => {
+        const lf = Object.assign({}, s.layoutFor); lf[cur.id + '.' + curPage.id] = l.name;
+        this.setState({ layoutFor: lf, savedAt: 'just now' });
+      };
+      l.card = {
+        display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'stretch', padding: '7px',
+        background: on ? 'rgba(163,68,52,.07)' : '#fffdf6', border: 'none', borderRadius: '2px', cursor: 'pointer',
+        boxShadow: 'inset 0 0 0 ' + (on ? '1.5px #a34434' : '1px rgba(120,98,60,.24)')
+      };
+      l.nameStyle = {
+        fontFamily: "'Courier Prime', monospace", fontSize: '8px', letterSpacing: '.1em',
+        textTransform: 'uppercase', textAlign: 'left', color: on ? '#a34434' : '#736247'
+      };
+      l.cells.forEach(c => { if (on) c.style = Object.assign({}, c.style, { background: 'rgba(163,68,52,.5)' }); });
+    });
+
+    const hlList = this.val(cur, 'highlights', cur.highlights);
+    const highlights = hlList.map((t, i) => ({
+      key: 'h' + i, text: t,
+      change: e => { const n = hlList.slice(); n[i] = e.target.value; this.put(cur, 'highlights', n); },
+      remove: () => { if (hlList.length > 1) this.put(cur, 'highlights', hlList.filter((x, k) => k !== i)); }
+    }));
+    const tlList = this.val(cur, 'tally', cur.tally);
+    const tally = tlList.map((t, i) => ({
+      key: 't' + i, k: t[0], v: t[1],
+      changeK: e => { const n = tlList.map(x => x.slice()); n[i][0] = e.target.value; this.put(cur, 'tally', n); },
+      changeV: e => { const n = tlList.map(x => x.slice()); n[i][1] = e.target.value; this.put(cur, 'tally', n); }
+    }));
+    const curAccent = this.val(cur, 'accent', cur.tint);
+    const curGlyph = this.val(cur, 'glyph', cur.glyph);
+    const slotCapList = this.val(cur, 'slotCaps', cur.slotCaps);
+    const frameCapList = this.val(cur, 'frameCaps', cur.frameCaps);
+
+    const motionBadge = on => ({
+      fontFamily: "'Courier Prime', monospace", fontSize: '8.5px', letterSpacing: '.14em', textTransform: 'uppercase',
+      color: on ? '#a34434' : '#736247', boxShadow: 'inset 0 0 0 1px ' + (on ? 'rgba(163,68,52,.4)' : 'rgba(120,98,60,.3)'),
+      padding: '3px 7px', borderRadius: '2px'
+    });
+
+    const slots = [
+      { key: 'hero', label: 'Hero photograph', badgeText: 'Loops', on: true, src: cur.heroSrc, h: '186px', hint: 'clip detected — plays on loop', idx: 0 },
+      { key: 'eph', label: 'Pasted ephemera', badgeText: 'Still', on: false, src: cur.stripSrc, h: '124px', hint: 'fills the column', idx: 1 }
+    ].map(x => {
+      const fb = this.focalBits(cur, x.key);
+      return Object.assign({}, x, fb, {
+        badge: motionBadge(x.on),
+        thumb: Object.assign(this.thumb(x.src, x.h), { position: 'relative', cursor: 'crosshair', backgroundPosition: fb.pos }),
+        caption: slotCapList[x.idx] || '',
+        change: e => { const n = slotCapList.slice(); n[x.idx] = e.target.value; this.put(cur, 'slotCaps', n); },
+        alt: this.val(cur, 'alt.' + x.key, ''),
+        changeAlt: e => this.put(cur, 'alt.' + x.key, e.target.value),
+        setFocal: e => this.setFocal(cur, x.key, e)
+      });
+    });
+
+    const frameSlots = ['A', 'B', 'C', 'D'].map((n, i) => {
+      const sk = curPage.id + '-f' + n;
+      const fb = this.focalBits(cur, sk);
+      return Object.assign({
+        key: 'f' + n, label: 'Frame ' + n,
+        badgeText: i === 1 ? 'Loops' : 'Still',
+        badge: motionBadge(i === 1),
+        caption: frameCapList[i] || '',
+        change: e => { const m = frameCapList.slice(); m[i] = e.target.value; this.put(cur, 'frameCaps', m); },
+        alt: this.val(cur, 'alt.' + sk, ''),
+        changeAlt: e => this.put(cur, 'alt.' + sk, e.target.value),
+        setFocal: e => this.setFocal(cur, sk, e),
+        thumb: Object.assign(this.thumb(this.ph(cur.code + ' ' + n, 420, 300, cur.pal), '152px'), { position: 'relative', cursor: 'crosshair', backgroundPosition: fb.pos })
+      }, fb);
+    });
+
+    const curPool = this.poolOf(cur);
+    const inBookCount = curPool.filter(m => this.inBook(m)).length;
+    const poolItems = curPool.map(m => {
+      const on = this.inBook(m);
+      return {
+        key: m.id, isClip: m.clip, dur: m.dur,
+        toggle: () => this.toggleBook(m),
+        style: {
+          position: 'relative', padding: 0, border: 'none', cursor: 'pointer', borderRadius: '2px',
+          background: 'transparent', overflow: 'hidden',
+          boxShadow: on ? '0 0 0 2px #a34434' : '0 0 0 1px rgba(120,98,60,.24)'
+        },
+        thumb: { width: '100%', aspectRatio: '1 / 1', backgroundImage: 'url("' + m.src + '")', backgroundSize: 'cover', backgroundPosition: 'center', display: 'block' },
+        tick: {
+          position: 'absolute', left: '4px', top: '4px', width: '17px', height: '17px', borderRadius: '2px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: on ? '#a34434' : 'rgba(255,253,246,.86)',
+          color: on ? '#fdf8ec' : 'transparent', fontSize: '11px', lineHeight: 1,
+          boxShadow: 'inset 0 0 0 1px rgba(120,98,60,.3)'
+        },
+        tickMark: '\u2713'
+      };
+    });
+
+    const mFilterDef = ['Everything', 'Stills', 'Clips', 'In the book', 'Unused'];
+    const mediaItems = d.media
+      .filter(m => !s.mQuery || m.file.toLowerCase().indexOf(s.mQuery.toLowerCase()) >= 0)
+      .filter(m => s.mFilter === 'Everything' || (s.mFilter === 'Stills' && !m.isClip) || (s.mFilter === 'Clips' && m.isClip)
+        || (s.mFilter === 'In the book' && ['m001', 'm004', 'm007', 'm011', 'm016'].indexOf(m.id) >= 0)
+        || (s.mFilter === 'Unused' && ['m001', 'm004', 'm007', 'm011', 'm016'].indexOf(m.id) < 0))
+      .map(m => {
+        const on = s.sel.indexOf(m.id) >= 0;
+        const inBook = ['m001', 'm004', 'm007', 'm011', 'm016'].indexOf(m.id) >= 0;
+        return {
+          key: m.id, file: m.file, isClip: m.isClip, dur: m.dur, inBook: inBook,
+          toggle: () => this.toggleSel(m.id),
+          style: {
+            position: 'relative', padding: 0, border: 'none', cursor: 'pointer', borderRadius: '2px',
+            background: 'transparent', overflow: 'hidden',
+            boxShadow: on ? '0 0 0 2.5px #a34434' : '0 0 0 1px rgba(120,98,60,.22)'
+          },
+          thumb: { width: '100%', aspectRatio: '1 / 1', backgroundImage: 'url("' + m.src + '")', backgroundSize: 'cover', backgroundPosition: 'center', display: 'block' },
+          tick: {
+            position: 'absolute', left: '6px', top: '6px', width: '19px', height: '19px', borderRadius: '2px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: on ? '#a34434' : 'rgba(255,253,246,.86)',
+            color: on ? '#fdf8ec' : 'transparent', fontSize: '12px', lineHeight: 1,
+            boxShadow: 'inset 0 0 0 1px rgba(120,98,60,.3)'
+          },
+          tickMark: '\u2713'
+        };
+      });
+
+    const gAll = this.galleryOf(cur);
+    const gOrdered = s.galSort === 'date' ? gAll.slice().sort((a, b) => a.taken - b.taken) : gAll;
+    const picked = gAll.find(g => g.id === s.picked) || gAll[0];
+    const blanks = gAll.filter(g => g.blank && s.captioned.indexOf(g.id) < 0);
+    const galleryItems = gOrdered.map((g, i) => ({
+      key: g.id, num: g.num, isCover: i === 0, hidden: i === 7 || i === 15,
+      pick: () => this.setState({ picked: g.id, capDraft: null, capFor: -1 }),
+      isClip: g.clip,
+      style: {
+        position: 'relative', padding: 0, border: 'none', cursor: 'pointer', borderRadius: '2px',
+        background: 'transparent', overflow: 'hidden',
+        boxShadow: i === s.picked ? '0 0 0 2.5px #a34434' : '0 0 0 1px rgba(120,98,60,.22)'
+      },
+      thumb: { width: '100%', aspectRatio: '1 / 1', backgroundImage: 'url("' + g.src + '")', backgroundSize: 'cover', backgroundPosition: 'center', display: 'block' }
+    }));
+
+    const bmList = s.bookmarks || d.bookmarks;
+    const bookmarks = bmList.map((b, i) => ({
+      key: b.name + i, name: b.name, sub: b.sub, page: b.page,
+      up: () => this.move(i, -1), down: () => this.move(i, 1),
+      dot: { width: '9px', height: '9px', flex: 'none', background: b.tint, transform: 'rotate(45deg)' }
+    }));
+
+    const mkToggle = (key, label, hint) => {
+      const isOn = s.on.indexOf(key) >= 0;
+      return { key: key, label: label, hint: hint, go: () => this.flip(key), knob: this.knob(isOn), dot: this.knobDot(isOn) };
+    };
+
+    const bookTitleText = String(this.props.bookTitle ?? 'Wanderings');
+    // Caveat runs about .40em per character, so size the title to the box it sits in
+    const fitTitle = (avail, max, extra) => Object.assign({
+      fontFamily: 'Caveat, cursive',
+      fontSize: Math.max(11, Math.min(max, Math.floor(0.9 * avail / (Math.max(1, bookTitleText.length) * 0.4)))) + 'px',
+      lineHeight: 1.3, color: '#f6ecd6', textAlign: 'center',
+      maxWidth: '100%', overflowX: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+    }, extra || {});
+
+    const inputStyle = {
+      width: '100%', boxSizing: 'border-box', background: '#fffdf6', border: 'none',
+      boxShadow: 'inset 0 0 0 1px rgba(120,98,60,.3)', padding: '10px 12px', borderRadius: '2px',
+      fontFamily: "'EB Garamond', serif", fontSize: '16px', color: '#33403c'
+    };
+
+    const L = {
+      hdrChip: {
+        display: w >= 900 ? 'flex' : 'none', alignItems: 'center', gap: '8px', padding: '7px 13px',
+        background: 'rgba(163,68,52,.09)', boxShadow: 'inset 0 0 0 1px rgba(163,68,52,.32)', borderRadius: '2px'
+      },
+      hdrPreview: {
+        display: w >= 780 ? 'inline-block' : 'none', border: '1.5px solid #4a4232', background: 'transparent',
+        color: '#4a4232', padding: '9px 17px', borderRadius: '2px', cursor: 'pointer',
+        fontFamily: "'Courier Prime', monospace", fontSize: '11px', letterSpacing: '.18em', textTransform: 'uppercase'
+      },
+      statGrid: { display: 'grid', gap: '16px', gridTemplateColumns: w >= 820 ? 'repeat(4, minmax(0,1fr))' : 'repeat(2, minmax(0,1fr))' },
+      dashMain: two('1.35fr minmax(0,1fr)', 'minmax(0,1fr)'),
+      twoCol: { display: 'grid', gap: '0 40px', gridTemplateColumns: mode === 'wide' ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)' },
+      jHead: Object.assign({
+        display: 'grid', gridTemplateColumns: jCols, gap: '12px', alignItems: 'center', padding: '12px 20px',
+        background: 'rgba(120,98,60,.07)', borderBottom: '1px solid rgba(120,98,60,.2)', textTransform: 'uppercase'
+      }, mono('9.5px', '#736247', '.2em')),
+      colDates: cell(showDates), colPages: cell(showPages), colMedia: cell(showMedia), colEdited: cell(showEdited),
+      cellDates: cell(showDates, mono('11px', '#4a4232')),
+      cellPages: cell(showPages, mono('13px', '#4a4232', '0')),
+      cellMedia: cell(showMedia, mono('11px', '#4a4232')),
+      cellEdited: cell(showEdited, mono('10.5px', '#736247')),
+      editorGrid: {
+        display: 'grid', gap: '18px', alignItems: 'start', maxWidth: '1440px',
+        gridTemplateColumns: mode === 'wide' ? '184px minmax(0,1fr) 250px' : (mode === 'mid' ? '168px minmax(0,1fr)' : 'minmax(0,1fr)')
+      },
+      poolStyle: {
+        display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0,
+        background: '#fffdf6', borderRadius: '3px', padding: '16px 16px 18px',
+        boxShadow: '0 0 0 1px rgba(120,98,60,.16), 0 12px 26px -22px rgba(60,44,20,.55)',
+        gridColumn: mode === 'wide' ? 'auto' : '1 / -1'
+      },
+      fieldGrid: {
+        display: 'grid', gap: '14px', marginBottom: '20px',
+        gridTemplateColumns: w >= 900 ? 'minmax(0,1fr) minmax(0,1fr) minmax(0,132px) minmax(0,132px)' : 'minmax(0,1fr) minmax(0,1fr)'
+      },
+      bodyGrid: { display: 'grid', gap: '26px', alignItems: 'start', gridTemplateColumns: w >= 1020 ? '1.15fr minmax(0,.85fr)' : 'minmax(0,1fr)' },
+      framesGrid: { display: 'grid', gap: '18px', gridTemplateColumns: 'repeat(auto-fit, minmax(196px, 1fr))' },
+      galleryLayout: two('minmax(0,1fr) 286px', 'minmax(0,1fr) 258px'),
+      bookLayout: two('minmax(0,1fr) 340px', 'minmax(0,1fr)'),
+      coverLayout: two('minmax(0,1fr) minmax(0,1fr)', 'minmax(0,1fr)'),
+      coverInner: { display: 'grid', gap: '20px', alignItems: 'start', gridTemplateColumns: w >= 980 ? '172px minmax(0,1fr)' : 'minmax(0,1fr)' },
+      aboutInner: { display: 'grid', gap: '18px', alignItems: 'start', gridTemplateColumns: w >= 980 ? '140px minmax(0,1fr)' : 'minmax(0,1fr)' },
+      publishLayout: two('minmax(0,1fr) 360px', 'minmax(0,1fr)'),
+      settingsLayout: two('minmax(0,1fr) minmax(0,1fr)', 'minmax(0,1fr)')
+    };
+
+    return Object.assign(L, {
+      nav: nav, tape: tape,
+      ownerName: this.props.ownerName ?? 'M. Alvarez',
+      bookTitle: this.props.bookTitle ?? 'Wanderings',
+      coverTitleStyle: fitTitle(144, 36, { marginTop: '6px' }),
+      chipTitleStyle: fitTitle(62, 19, {}),
+      lastPublished: '26 Aug 2026',
+      crumb: titles[s.screen][1],
+      title: titles[s.screen][0],
+      pendingLabel: pending.length + ' unpublished',
+      pendingHeadline: pending.length + ' changes waiting',
+      publishNowLabel: pending.filter(c => c.included).length === pending.length
+        ? 'Publish all ' + pending.length
+        : 'Publish ' + pending.filter(c => c.included).length + ' of ' + pending.length,
+      publishNowBtn: {
+        flex: 'none', padding: '11px 24px', borderRadius: '2px', cursor: 'pointer',
+        fontFamily: "'Courier Prime', monospace", fontSize: '11px', letterSpacing: '.18em', textTransform: 'uppercase',
+        border: '1.5px solid ' + (pending.some(c => c.included) ? '#a34434' : 'rgba(120,98,60,.35)'),
+        background: pending.some(c => c.included) ? '#a34434' : 'transparent',
+        color: pending.some(c => c.included) ? '#fdf8ec' : '#8f836d'
+      },
+      quotaLabel: '41.2 GB of 100 GB',
+      quotaPhotos: { width: '29%', background: '#2f6b68' },
+      quotaClips: { width: '12.2%', background: '#845825' },
+      quotaKeys: [
+        { key: 'q1', label: 'Photographs 29 GB', swatch: { width: '9px', height: '9px', flex: 'none', background: '#2f6b68', transform: 'rotate(45deg)' } },
+        { key: 'q2', label: 'Clips 12.2 GB', swatch: { width: '9px', height: '9px', flex: 'none', background: '#845825', transform: 'rotate(45deg)' } },
+        { key: 'q3', label: 'Free 58.8 GB', swatch: { width: '9px', height: '9px', flex: 'none', background: 'rgba(120,98,60,.22)', transform: 'rotate(45deg)' } }
+      ],
+      goPublish: () => this.go('publish'),
+      newOpen: s.newOpen,
+      openNew: () => this.setState({ newOpen: !s.newOpen }),
+      closeNew: () => this.setState({ newOpen: false, njName: '', njPlace: '', njDates: '' }),
+      createJourney: () => this.createJourney(),
+      njName: s.njName, njPlace: s.njPlace, njDates: s.njDates,
+      setNjName: e => this.setState({ njName: e.target.value }),
+      setNjPlace: e => this.setState({ njPlace: e.target.value }),
+      setNjDates: e => this.setState({ njDates: e.target.value }),
+      newGrid: { display: 'grid', gap: '14px', gridTemplateColumns: w >= 820 ? 'minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)' },
+
+      isDash: s.screen === 'dashboard',
+      isJourneys: s.screen === 'journeys',
+      isEditor: s.screen === 'editor',
+      isMedia: s.screen === 'media',
+      isGallery: s.screen === 'gallery',
+      isBook: s.screen === 'book',
+      isCover: s.screen === 'cover',
+      isPublish: s.screen === 'publish',
+      isSettings: s.screen === 'settings',
+      isProfile: s.screen === 'profile',
+      goProfile: () => this.go('profile'),
+      profileBtn: {
+        display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '8px 10px',
+        border: 'none', borderRadius: '4px', cursor: 'pointer', textAlign: 'left',
+        background: 'rgba(246,236,214,.07)',
+        boxShadow: s.screen === 'profile' ? 'inset 0 0 0 1.5px rgba(184,88,70,.9)' : 'inset 0 0 0 1px rgba(238,220,180,.2)',
+        transition: 'box-shadow 160ms ease'
+      },
+      avatarChip: {
+        width: '34px', height: '34px', flex: 'none', borderRadius: '50%',
+        backgroundImage: 'url("' + d.avatar + '")', backgroundSize: 'cover', backgroundPosition: 'center',
+        boxShadow: 'inset 0 0 0 1px rgba(238,220,180,.35)'
+      },
+      avatar: this.thumb(d.avatar, '132px', { borderRadius: '2px' }),
+      profileLayout: two('minmax(0,1fr) minmax(0,1fr)', 'minmax(0,1fr)'),
+      acctInner: { display: 'grid', gap: '18px', alignItems: 'start', gridTemplateColumns: w >= 980 ? '132px minmax(0,1fr)' : 'minmax(0,1fr)' },
+      pwGrid: { display: 'grid', gap: '13px', gridTemplateColumns: w >= 900 ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)' },
+      acctToggles: [
+        mkToggle('notifyPublish', 'A note when a publish finishes', 'so you know the edition went out'),
+        mkToggle('notifyDigest', 'Weekly summary of reader visits', 'counts only, no tracking')
+      ],
+      toggle2fa: () => this.flip('twofa'),
+      twofaKnob: this.knob(s.on.indexOf('twofa') >= 0),
+      twofaDot: this.knobDot(s.on.indexOf('twofa') >= 0),
+      otpHint: s.on.indexOf('twofa') >= 0
+        ? 'six digits sent to the email above, then five minutes to use them'
+        : 'off — your password alone signs you in',
+      sessions: [
+        { key: 'v1', device: 'This browser — macOS', where: 'Lisbon', when: 'active now', action: 'Current' },
+        { key: 'v2', device: 'iPad', where: 'Lisbon', when: '2 days ago', action: 'Revoke' },
+        { key: 'v3', device: 'Phone — iOS', where: 'Porto', when: '3 weeks ago', action: 'Revoke' }
+      ].map((v, i) => Object.assign({}, v, {
+        mark: {
+          width: '9px', height: '9px', flex: 'none', transform: 'rotate(45deg)',
+          background: i === 0 ? '#2f6b68' : 'transparent',
+          boxShadow: i === 0 ? 'none' : 'inset 0 0 0 1px rgba(120,98,60,.5)'
+        }
+      })),
+
+      stats: stats,
+      pending: pending,
+      bookSummary: '33 pages · 13 bookmarks · 4 galleries open',
+      coverChip: {
+        width: '78px', height: '104px', flex: 'none', borderRadius: '2px 4px 4px 2px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '10px 8px',
+        background: 'linear-gradient(160deg,' + s.cloth + ',rgba(0,0,0,.3))',
+        boxShadow: '0 8px 18px -12px rgba(60,44,20,.7), inset 0 0 0 1px rgba(232,210,161,.28)'
+      },
+      attention: [
+        { key: 'a1', text: 'Three clips in the Marrakech gallery have no poster frame chosen.', action: 'Pick posters', go: () => this.pickPosters('marrakech') },
+        { key: 'a2', text: 'Bergen has twelve uncaptioned frames in its gallery.', action: 'Caption them', go: () => this.setState({ screen: 'gallery', journey: 'bergen', bulkOpen: true, rowMenu: null }) },
+        { key: 'a3', text: 'Hanoi is still a draft and has no bookmark in the book.', action: 'Open the journey', go: () => this.setState({ screen: 'editor', journey: 'hanoi' }) }
+      ],
+      activity: [
+        { key: 'v1', when: '2h ago', what: 'Rewrote the Tokyo note' },
+        { key: 'v2', when: '2h ago', what: 'Placed four Tokyo frames in the book' },
+        { key: 'v3', when: 'yesterday', what: 'Uploaded 37 files to Marrakech' },
+        { key: 'v4', when: 'yesterday', what: 'Reordered bookmarks' },
+        { key: 'v5', when: '4 days ago', what: 'Created the Hanoi journey' },
+        { key: 'v6', when: '6 days ago', what: 'Published edition 14' }
+      ],
+
+      furnitureGrid: { display: 'grid', gap: '14px 18px', gridTemplateColumns: w >= 1020 ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)', marginBottom: '14px' },
+      fName: this.val(cur, 'name', cur.name),
+      setName: e => this.put(cur, 'name', e.target.value),
+      fDates: this.val(cur, 'dates', cur.dates),
+      setDates: e => this.put(cur, 'dates', e.target.value),
+      fWeather: this.val(cur, 'weather', cur.weather),
+      setWeather: e => this.put(cur, 'weather', e.target.value),
+      fMood: this.val(cur, 'mood', cur.mood),
+      setMood: e => this.put(cur, 'mood', e.target.value),
+      fNote: this.val(cur, 'note', cur.note),
+      setNote: e => this.put(cur, 'note', e.target.value),
+      fSignoff: this.val(cur, 'signoff', cur.signoff),
+      setSignoff: e => this.put(cur, 'signoff', e.target.value),
+      fSlug: this.val(cur, 'slug', cur.id),
+      setSlug: e => this.put(cur, 'slug', e.target.value),
+      addHighlight: () => { if (hlList.length < 4) this.put(cur, 'highlights', hlList.concat(['A new line'])); },
+      glyphs: [
+        ['sun', 'Clear', { width: '14px', height: '14px', borderRadius: '50%', background: '#a34434' }],
+        ['haze', 'Haze', { width: '14px', height: '14px', borderRadius: '50%', background: '#a34434', opacity: .45 }],
+        ['wind', 'Wind', { width: '18px', height: '3px', background: '#a34434', boxShadow: '0 6px 0 -1px #a34434, 0 -6px 0 -1px #a34434' }]
+      ].map(g => {
+        const on = curGlyph === g[0];
+        return {
+          key: g[0], name: g[1], mark: g[2],
+          pick: () => this.put(cur, 'glyph', g[0]),
+          style: {
+            flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center',
+            justifyContent: 'center', gap: '7px', padding: '13px 6px', height: '74px',
+            background: on ? 'rgba(163,68,52,.07)' : '#fffdf6', border: 'none', borderRadius: '2px', cursor: 'pointer',
+            boxShadow: 'inset 0 0 0 ' + (on ? '1.5px #a34434' : '1px rgba(120,98,60,.28)')
+          },
+          label: {
+            fontFamily: "'Courier Prime', monospace", fontSize: '8.5px', letterSpacing: '.14em',
+            textTransform: 'uppercase', color: on ? '#a34434' : '#736247'
+          }
+        };
+      }),
+      stampTop: this.val(cur, 'stampTop', cur.stampTop),
+      stampVal: this.val(cur, 'stampVal', cur.stampVal),
+      setStampTop: e => this.put(cur, 'stampTop', e.target.value),
+      setStampVal: e => this.put(cur, 'stampVal', e.target.value),
+      stampFace: {
+        width: '52px', height: '64px', flex: 'none', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px',
+        background: 'linear-gradient(170deg,' + curAccent + ',rgba(0,0,0,.25))',
+        boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.25)'
+      },
+      accents: [
+        ['#3d817e', 'Pine'], ['#a06b3e', 'Tobacco'], ['#5a72a8', 'Slate blue'],
+        ['#a15a4e', 'Terracotta'], ['#736247', 'Bark']
+      ].map(a => ({
+        key: a[0], name: a[1],
+        pick: () => this.put(cur, 'accent', a[0]),
+        style: {
+          width: '38px', height: '38px', flex: 'none', borderRadius: '2px', border: 'none', cursor: 'pointer',
+          background: 'linear-gradient(160deg,' + a[0] + ',rgba(0,0,0,.22))',
+          boxShadow: curAccent === a[0] ? '0 0 0 2.5px #a34434' : 'inset 0 0 0 1px rgba(120,98,60,.3)'
+        }
+      })),
+
+      mQuery: s.mQuery,
+      setMQuery: e => this.setState({ mQuery: e.target.value }),
+
+      orderModes: ['As arranged', 'Newest first', 'Oldest first'].map(o => ({
+        key: o, label: o, pick: () => this.setState({ orderMode: o, savedAt: 'just now' }),
+        style: this.filterStyle(s.orderMode === o)
+      })),
+
+      savedLabel: 'Saved ' + s.savedAt,
+      savedChip: {
+        display: w >= 1040 ? 'block' : 'none', padding: '7px 12px', borderRadius: '2px',
+        background: 'rgba(47,107,104,.08)', boxShadow: 'inset 0 0 0 1px rgba(47,107,104,.3)',
+        fontFamily: "'Courier Prime', monospace", fontSize: '10.5px', letterSpacing: '.14em',
+        textTransform: 'uppercase', color: '#2f6b68'
+      },
+
+      isTrash: s.screen === 'trash',
+      trashEmpty: binned.length === 0,
+      trashCount: binned.length ? binned.length + ' waiting' : 'empty',
+      trashItems: binned.map(j => ({
+        key: j.id, name: j.name,
+        detail: j.place + ' · 3 pages · ' + j.photos + ' photographs',
+        expires: 'goes for good in 30 days',
+        thumb: { width: '46px', height: '46px', flex: 'none', borderRadius: '2px', backgroundImage: 'url("' + j.thumbSrc + '")', backgroundSize: 'cover', boxShadow: 'inset 0 0 0 1px rgba(120,98,60,.22)' },
+        restore: () => this.setState({ deleted: s.deleted.filter(x => x !== j.id), savedAt: 'just now' }),
+        purge: () => this.setState({ deleted: s.deleted.filter(x => x !== j.id), purged: s.purged.concat([j.id]), savedAt: 'just now' })
+      })),
+
+      jFilters: ['All', 'Published', 'Edited', 'Draft', 'Archived'].map(f => ({
+        key: f, label: f, go: () => this.setState({ jFilter: f }), style: this.filterStyle(s.jFilter === f)
+      })),
+      journeyRows: jRows,
+
+      curJourney: cur.name,
+      curPageName: curPage.name,
+      pageCards: pageCards,
+      layouts: layouts,
+      editNotes: curPage.type === 'notes',
+      editFrames: curPage.type !== 'notes',
+      activeLayout: activeLayout,
+      onAddPage: () => this.addPage(activeLayout),
+      highlights: highlights,
+      tally: tally,
+      slots: slots,
+      frameSlots: frameSlots,
+      pool: poolItems,
+      poolLabel: inBookCount + ' of ' + curPool.length + ' in the book',
+
+      uploads: [
+        { key: 'u1', name: 'MARRAKECH_0118.jpg', pct: 74, state: '74%' },
+        { key: 'u2', name: 'MARRAKECH_0119.mov', pct: 31, state: '31%' }
+      ].map(u => Object.assign({}, u, {
+        bar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: u.pct + '%', background: '#a34434' }
+      })),
+      mFilters: mFilterDef.map(f => ({
+        key: f, label: f, go: () => this.setState({ mFilter: f }), style: this.filterStyle(s.mFilter === f)
+      })),
+      mediaItems: mediaItems,
+      mediaGrid: { display: 'grid', gap: '14px', gridTemplateColumns: 'repeat(auto-fill, minmax(' + Math.round(1120 / cols) + 'px, 1fr))' },
+      selectedLabel: s.sel.length + ' selected',
+      clearSel: () => this.setState({ sel: [] }),
+      bulkBar: {
+        display: s.sel.length ? 'flex' : 'none', alignItems: 'center', gap: '16px',
+        padding: '9px 16px', borderRadius: '2px', background: 'rgba(163,68,52,.08)',
+        boxShadow: 'inset 0 0 0 1px rgba(163,68,52,.3)'
+      },
+
+      galleryItems: galleryItems,
+      pickedThumb: this.thumb(picked.src, '150px'),
+      pickedFile: picked.clip
+        ? picked.file.replace('.jpg', '.mp4') + ' · 1920 × 1080 · loops silently'
+        : picked.file + ' · 4032 × 3024 · 6.1 MB',
+      pickedIsClip: !!picked.clip,
+      posterLabel: s.poster[picked.id] ? 'set at ' + s.poster[picked.id] : 'first frame',
+      posterState: {
+        fontFamily: "'Courier Prime', monospace", fontSize: '9px', letterSpacing: '.12em',
+        textTransform: 'uppercase', padding: '3px 7px', borderRadius: '2px',
+        color: s.poster[picked.id] ? '#2f6b68' : '#845825',
+        boxShadow: 'inset 0 0 0 1px ' + (s.poster[picked.id] ? 'rgba(47,107,104,.4)' : 'rgba(132,88,37,.45)')
+      },
+      posterStrip: ['0:00', '0:04', '0:11', '0:19'].map((at, k) => {
+        const on = (s.poster[picked.id] || '0:00') === at;
+        return {
+          key: 'pf' + k, at: at,
+          pick: () => {
+            const p = Object.assign({}, s.poster); p[picked.id] = at;
+            this.setState({ poster: p, savedAt: 'just now' });
+          },
+          style: {
+            display: 'flex', flexDirection: 'column', gap: '4px', padding: '4px',
+            background: on ? 'rgba(163,68,52,.07)' : '#fffdf6', border: 'none', borderRadius: '2px', cursor: 'pointer',
+            boxShadow: 'inset 0 0 0 ' + (on ? '1.5px #a34434' : '1px rgba(120,98,60,.26)')
+          },
+          thumb: {
+            width: '100%', aspectRatio: '1 / 1', borderRadius: '1px',
+            backgroundImage: 'url("' + this.ph(String(k + 1), 160, 160, cur.pal) + '")',
+            backgroundSize: 'cover', backgroundPosition: 'center'
+          },
+          label: {
+            fontFamily: "'Courier Prime', monospace", fontSize: '8.5px', letterSpacing: '.08em',
+            textAlign: 'center', color: on ? '#a34434' : '#736247'
+          }
+        };
+      }),
+      jSel: cur.id,
+      journeyOptions: all.map(x => ({
+        key: x.id, id: x.id, name: x.name,
+        label: x.name + ' — ' + ((x.photos || 0) + (x.clips || 0)) + ' frames'
+      })),
+      onPickJourney: e => this.setState({ journey: e.target.value, page: 'notes', picked: null, capDraft: null, capFor: -1, bulkOpen: false }),
+      onGalSort: () => this.setState({ galSort: s.galSort === 'date' ? 'manual' : 'date', savedAt: 'just now' }),
+      galSortLabel: s.galSort === 'date' ? 'By date \u2713' : 'Sort by date',
+      galSortBtn: {
+        border: '1.5px solid ' + (s.galSort === 'date' ? '#a34434' : 'rgba(120,98,60,.4)'),
+        background: 'transparent', color: s.galSort === 'date' ? '#a34434' : '#736247',
+        padding: '8px 15px', borderRadius: '2px', cursor: 'pointer',
+        fontFamily: "'Courier Prime', monospace", fontSize: '10px', letterSpacing: '.16em', textTransform: 'uppercase'
+      },
+      onCaptionAll: () => this.setState({ bulkOpen: !s.bulkOpen }),
+      closeBulk: () => this.setState({ bulkOpen: false }),
+      captionAllBtn: {
+        border: '1.5px solid ' + (s.bulkOpen ? '#a34434' : 'rgba(120,98,60,.4)'),
+        background: 'transparent', color: s.bulkOpen ? '#a34434' : '#736247',
+        padding: '8px 15px', borderRadius: '2px', cursor: 'pointer',
+        fontFamily: "'Courier Prime', monospace", fontSize: '10px', letterSpacing: '.16em', textTransform: 'uppercase'
+      },
+      bulkOpen: s.bulkOpen,
+      blankLabel: blanks.length ? blanks.length + ' frames have no caption' : 'every frame is captioned',
+      blankFrames: blanks.map(g => ({
+        key: g.id, file: g.file, hint: g.cap,
+        thumb: { width: '38px', height: '38px', flex: 'none', borderRadius: '2px', backgroundImage: 'url("' + g.src + '")', backgroundSize: 'cover', boxShadow: 'inset 0 0 0 1px rgba(120,98,60,.22)' }
+      })),
+      applyBulk: () => this.setState({
+        captioned: s.captioned.concat(blanks.map(g => g.id)),
+        bulkOpen: false, savedAt: 'just now'
+      }),
+      onSaveFrame: () => this.setState({
+        capFor: -1, capDraft: null,
+        captioned: s.captioned.indexOf(picked.id) >= 0 ? s.captioned : s.captioned.concat([picked.id]),
+        savedAt: 'just now'
+      }),
+      pickedCap: picked.cap,
+      capValue: (s.capFor === picked.id && s.capDraft !== null) ? s.capDraft : picked.cap,
+      setCap: e => this.setState({ capDraft: e.target.value, capFor: picked.id }),
+      flipMs: s.flipMs, flipLabel: s.flipMs + ' ms',
+      setFlipMs: e => this.setState({ flipMs: Number(e.target.value) }),
+      thumbPx: s.thumbPx, thumbLabel: s.thumbPx + ' px',
+      setThumbPx: e => this.setState({ thumbPx: Number(e.target.value) }),
+      frameToggles: [
+        mkToggle('hidden', 'Hidden from the gallery', ''),
+        mkToggle('cover', 'Use as gallery cover', ''),
+        mkToggle('book', 'Also place in the book', '')
+      ],
+
+      bookmarks: bookmarks,
+      cloths: ['#2f4a47', '#7a3b32', '#3d4257', '#5c4a2b'].map(c => ({
+        key: c, go: () => this.setState({ cloth: c }),
+        style: {
+          width: '44px', height: '44px', borderRadius: '2px', cursor: 'pointer', border: 'none',
+          background: 'linear-gradient(160deg,' + c + ',rgba(0,0,0,.3))',
+          boxShadow: s.cloth === c ? '0 0 0 2.5px #a34434' : 'inset 0 0 0 1px rgba(120,98,60,.3)'
+        }
+      })),
+      bookToggles: [
+        mkToggle('tape', 'Tape, stamps and stickers', 'decorations on every page'),
+        mkToggle('ribbon', 'Ribbon bookmark', 'hangs from the spine'),
+        mkToggle('counter', 'Page counter', 'shown under the book')
+      ],
+
+      coverPreview: {
+        position: 'relative', width: '172px', height: '224px', borderRadius: '2px 5px 5px 2px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px 14px',
+        background: 'linear-gradient(160deg,' + s.cloth + ',rgba(0,0,0,.3))',
+        boxShadow: '0 14px 28px -18px rgba(60,44,20,.8), inset 0 0 0 1px rgba(232,210,161,.25)'
+      },
+      coverFields: [
+        { key: 'c1', label: 'Title', value: this.props.bookTitle ?? 'Wanderings', input: Object.assign({}, inputStyle, { fontFamily: 'Caveat, cursive', fontSize: '30px' }) },
+        { key: 'c2', label: 'Subtitle', value: 'field notes, photographs and other scraps', input: inputStyle },
+        { key: 'c3', label: 'Kept by', value: this.props.ownerName ?? 'M. Alvarez', input: inputStyle },
+        { key: 'c4', label: 'Years shown', value: '2025 — 2026', input: Object.assign({}, inputStyle, { fontFamily: "'Courier Prime', monospace", fontSize: '13px' }) }
+      ],
+      portraitThumb: this.thumb(d.portrait, '176px'),
+      kit: ['35mm rangefinder, one lens', 'Pocket notebook, blue ink', 'Roll of washi tape, always'].map((t, i) => ({ key: 'k' + i, text: t })),
+
+      versions: [
+        { key: 'e1', when: '26 Aug 2026 · 19:04', what: 'Edition 14 — Patagonia gallery recaptioned, cover cloth changed' },
+        { key: 'e2', when: '19 Aug 2026 · 08:22', what: 'Edition 13 — Seville added, bookmarks reordered' },
+        { key: 'e3', when: '2 Aug 2026 · 21:40', what: 'Edition 12 — 61 frames added to Kyoto' },
+        { key: 'e4', when: '14 Jul 2026 · 12:11', what: 'Edition 11 — About page rewritten' },
+        { key: 'e5', when: '28 Jun 2026 · 17:55', what: 'Edition 10 — Bergen and Porto published' },
+        { key: 'e6', when: '3 Jun 2026 · 09:30', what: 'Edition 9 — first version with galleries' }
+      ].map((v, i) => Object.assign({}, v, {
+        mark: {
+          width: '9px', height: '9px', flex: 'none', marginTop: '7px', transform: 'rotate(45deg)',
+          background: i === 0 ? '#a34434' : 'transparent',
+          boxShadow: i === 0 ? 'none' : 'inset 0 0 0 1px rgba(120,98,60,.5)'
+        }
+      })),
+
+      siteFields: [
+        { key: 'f1', label: 'Site name', value: 'Wanderings', hint: 'shown in the browser tab and on shared links' },
+        { key: 'f2', label: 'Address', value: 'wanderings.travel', hint: 'certificate renews automatically' },
+        { key: 'f3', label: 'Description', value: 'A paper travel diary that ended up on a screen.', hint: 'used by search engines and link previews' },
+        { key: 'f4', label: 'Reply-to address', value: 'hello@wanderings.travel', hint: 'the address printed on the About page' }
+      ],
+      siteToggles: [
+        mkToggle('downloads', 'Allow downloads', 'readers can save a full-size frame'),
+        mkToggle('share', 'Share buttons', 'link sharing from the lightbox'),
+        mkToggle('index', 'Let search engines index galleries', 'the book itself is always indexed'),
+        mkToggle('password', 'Password the whole book', 'one shared password, no accounts'),
+        mkToggle('right', 'Keep the page-turn on touch', 'swipe as well as tap on tablets')
+      ]
+    });
+  }
+}
+</script>
+</body>
+</html>

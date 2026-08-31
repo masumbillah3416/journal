@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin" />
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+html,body{margin:0;padding:0;height:100%;background:#ffffff;overflow:hidden;-webkit-font-smoothing:antialiased}
+*{scrollbar-width:none;-ms-overflow-style:none}
+*::-webkit-scrollbar{width:0;height:0;display:none}
+a{color:oklch(0.50 0.13 32);text-decoration:none}
+a:hover{color:oklch(0.42 0.13 32)}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+
+<div style="position:fixed;inset:0;background:#ffffff;overflow:hidden;font-family:'EB Garamond',Georgia,serif;color:#2e2823">
+
+<sc-if value="{{ showDesk }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;inset:0;display:flex;flex-direction:column">
+
+<div style="flex:1;min-height:0;display:flex;gap:12px;padding:18px 16px 4px 18px">
+
+<div data-book-area="1" style="flex:1;min-width:0;position:relative;display:flex;align-items:center;justify-content:center">
+<div style="{{ fit }}">
+<div style="position:absolute;inset:0;border-radius:7px 16px 16px 7px;background:linear-gradient(180deg,#40382e 0%,#332c24 55%,#2b241d 100%);box-shadow:0 28px 64px -26px rgba(48,38,24,.55),0 1px 0 rgba(0,0,0,.08),inset 0 0 0 1px rgba(255,255,255,.06)"></div>
+<div style="position:absolute;left:0;top:0;bottom:0;width:36px;border-radius:7px 0 0 7px;background:linear-gradient(90deg,#241e18 0%,#3b332a 48%,#2a231c 100%);box-shadow:inset -3px 0 8px rgba(0,0,0,.4)"></div>
+<div style="position:absolute;left:9px;top:22px;bottom:22px;width:0;border-left:1px dashed rgba(226,201,150,.28)"></div>
+<div style="position:absolute;left:27px;top:22px;bottom:22px;width:0;border-left:1px dashed rgba(226,201,150,.28)"></div>
+<div style="position:absolute;right:7px;top:26px;bottom:26px;width:11px;border-radius:0 4px 4px 0;background:repeating-linear-gradient(90deg,#f2ebda 0 2px,#d9cdb4 2px 3px);box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+
+<div style="position:absolute;left:36px;right:18px;top:14px;bottom:14px;perspective:2800px;perspective-origin:35% 50%">
+<sc-for list="{{ pages }}" as="pg" hint-placeholder-count="1">
+<div style="{{ pg.wrap }}" data-screen-label="{{ pg.label }}">
+
+<div style="{{ pg.face }}">
+
+<sc-if value="{{ pg.isCover }}" hint-placeholder-val="{{ true }}">
+<div style="{{ pg.coverBg }}">
+<div style="position:absolute;inset:22px;border:1px solid rgba(232,210,161,.42);border-radius:3px"></div>
+<div style="position:absolute;inset:29px;border:2.5px solid rgba(232,210,161,.22);border-radius:2px"></div>
+<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:70px;text-align:center">
+<div style="font-family:'Courier Prime',monospace;font-size:12px;letter-spacing:.42em;text-transform:uppercase;color:rgba(238,220,180,.72)">Travel Diary</div>
+<div style="width:64px;height:1px;background:rgba(232,210,161,.5);margin:16px 0 8px"></div>
+<div style="font-family:Caveat,cursive;font-size:124px;line-height:.9;color:#f6ecd6;text-shadow:0 2px 0 rgba(0,0,0,.22)">{{ bookTitle }}</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:22px;color:rgba(240,225,192,.78);margin-top:12px;max-width:520px">field notes, photographs and other scraps</div>
+<div style="width:64px;height:1px;background:rgba(232,210,161,.5);margin:22px 0 14px"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:12.5px;letter-spacing:.3em;text-transform:uppercase;color:rgba(238,220,180,.72)">Kept by {{ ownerName }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:12.5px;letter-spacing:.3em;color:rgba(238,220,180,.5);margin-top:8px">2025 — 2026</div>
+</div>
+<sc-if value="{{ deco }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;top:52px;left:-26px;width:190px;height:36px;transform:rotate(-7deg);opacity:.72;background:repeating-linear-gradient(122deg,rgba(226,201,150,.85) 0 8px,rgba(226,201,150,.45) 8px 16px);clip-path:polygon(0 8%,4% 0,100% 4%,97% 96%,3% 100%)"></div>
+<div style="position:absolute;bottom:32px;right:32px;transform:rotate(4deg);padding:5px;border-radius:2px;background:radial-gradient(circle 3.6px at 50% 50%,#fbf6e9 92%,rgba(251,246,233,0) 95%) 0 0/9px 9px,#fbf6e9;filter:drop-shadow(0 3px 5px rgba(0,0,0,.35))">
+<div style="width:104px;height:126px;background:linear-gradient(180deg,#e9dcc0,#dccfae);display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:9px 8px;box-shadow:inset 0 0 0 1px rgba(120,98,60,.3)">
+<div style="font-family:'Courier Prime',monospace;font-size:8.5px;letter-spacing:.2em;color:#6b5a3c">POSTA AEREA</div>
+<div style="width:72px;height:60px;background:repeating-linear-gradient(45deg,#cdbd97 0 6px,#c0ae86 6px 12px);box-shadow:inset 0 0 0 1px rgba(107,90,60,.4)"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:15px;font-weight:700;color:#7a3b32">VOL · I</div>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ pg.isContents }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:grid;grid-template-rows:auto 1fr auto;padding:34px 46px 26px 52px;gap:20px">
+<div style="display:flex;align-items:flex-end;gap:22px;border-bottom:1.5px solid rgba(90,70,40,.22);padding-bottom:16px">
+<div style="flex:1;min-width:0">
+<div style="font-family:'Courier Prime',monospace;font-size:11.5px;letter-spacing:.28em;text-transform:uppercase;color:#7a6b52">Index</div>
+<div style="font-family:Caveat,cursive;font-size:70px;line-height:.92;color:#33403c;margin-top:2px">Contents</div>
+</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:18px;color:#6f6247;text-align:right;max-width:280px;text-wrap:pretty">Each journey runs three pages — notes, then two spreads of frames. The rest lives in the galleries.</div>
+</div>
+<div style="{{ contentsGrid }}">
+<sc-for list="{{ contents }}" as="e" hint-placeholder-count="5">
+<div onClick="{{ e.go }}" style="display:flex;align-items:center;gap:20px;cursor:pointer;border-bottom:1px dotted rgba(120,98,60,.28)">
+<div style="font-family:'Courier Prime',monospace;font-size:13px;letter-spacing:.14em;color:#a34434;width:30px;flex:none">{{ e.num }}</div>
+<div style="flex:none;min-width:0">
+<div style="{{ e.nameStyle }}">{{ e.name }}</div>
+</div>
+<div style="{{ e.metaStyle }}">{{ e.meta }}</div>
+<div style="flex:1;height:0;border-bottom:1px dotted rgba(120,98,60,.5);margin:0 4px;transform:translateY(6px)"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:14px;letter-spacing:.12em;color:#5f5340;flex:none">p. {{ e.page }}</div>
+</div>
+</sc-for>
+</div>
+<div style="display:flex;align-items:center;gap:14px;border-top:1.5px solid rgba(90,70,40,.18);padding-top:14px">
+<div style="font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#7a6b52">Tabs on the right jump anywhere · arrows or the page edge turn a leaf</div>
+<div style="flex:1"></div>
+<div style="font-family:Caveat,cursive;font-size:26px;color:#a34434;transform:rotate(-3deg)">{{ totalLabel }}</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ pg.isNotes }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:grid;grid-template-rows:auto 1fr auto;padding:32px 44px 24px 52px;gap:18px">
+<div style="display:flex;align-items:flex-end;gap:20px;border-bottom:1.5px solid rgba(90,70,40,.22);padding-bottom:14px">
+<div style="flex:1;min-width:0">
+<div style="font-family:'Courier Prime',monospace;font-size:11.5px;letter-spacing:.26em;text-transform:uppercase;color:#7a6b52">{{ pg.dates }}</div>
+<div style="font-family:Caveat,cursive;font-size:66px;line-height:.94;color:#33403c;margin-top:2px">{{ pg.name }}</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:19px;color:#6f6247;margin-top:3px">{{ pg.place }}</div>
+</div>
+<div style="display:flex;gap:12px;align-items:flex-end;flex:none">
+<div style="width:98px;height:98px;border-radius:50%;border:1.5px solid rgba(163,68,52,.55);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;transform:rotate(-6deg);color:#a34434;background:rgba(163,68,52,.05)">
+<div style="{{ pg.wIcon }}"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.08em;text-align:center;line-height:1.25;padding:0 9px">{{ pg.weather }}</div>
+</div>
+<div style="width:98px;height:98px;border-radius:50%;border:1.5px dashed rgba(72,92,88,.5);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;transform:rotate(5deg);color:#455c58">
+<div style="width:13px;height:13px;background:#455c58;transform:rotate(45deg)"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.08em;text-align:center;line-height:1.25;padding:0 9px">{{ pg.mood }}</div>
+</div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:1.06fr .94fr;gap:36px;min-height:0">
+<div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:#7a6b52">Highlights</div>
+<div style="flex:0 0 auto;display:flex;flex-direction:column;gap:13px">
+<sc-for list="{{ pg.highlights }}" as="h" hint-placeholder-count="3">
+<div style="display:flex;gap:13px;align-items:flex-start">
+<div style="width:9px;height:9px;margin-top:12px;flex:none;background:#a34434;transform:rotate(45deg)"></div>
+<div style="font-family:Caveat,cursive;font-size:30px;line-height:1.24;color:#33403c">{{ h }}</div>
+</div>
+</sc-for>
+</div>
+<div style="flex:none">
+<div style="width:52px;height:1.5px;background:rgba(90,70,40,.3);margin-bottom:12px"></div>
+<p style="margin:0;font-family:'EB Garamond',serif;font-size:18.5px;line-height:1.6;color:#4a4232;text-wrap:pretty">{{ pg.note }}</p>
+</div>
+<div role="img" aria-label="Pasted ephemera" style="{{ pg.strip }}">
+<sc-if value="{{ deco }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;top:-11px;left:36%;width:96px;height:24px;transform:rotate(-2deg);opacity:.7;background:repeating-linear-gradient(120deg,rgba(196,150,120,.8) 0 6px,rgba(196,150,120,.4) 6px 12px);clip-path:polygon(0 10%,6% 0,100% 6%,95% 97%,5% 100%)"></div>
+</sc-if>
+</div>
+<div style="flex:0 0 auto;display:flex;align-items:stretch;padding:11px 14px 13px;background:#fffdf6;transform:rotate(-.5deg);box-shadow:0 10px 22px -14px rgba(60,44,20,.5),0 0 0 1px rgba(120,98,60,.14)">
+<sc-for list="{{ pg.ledger }}" as="l" hint-placeholder-count="4">
+<div style="flex:1;min-width:0;padding:0 11px;border-left:1px dotted rgba(120,98,60,.4)">
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#6f6144;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ l.k }}</div>
+<div style="font-family:Caveat,cursive;font-size:29px;line-height:1.06;color:#33403c;margin-top:1px;white-space:nowrap">{{ l.v }}</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="position:relative;display:flex;flex-direction:column;min-height:0;padding-top:12px">
+<div style="position:relative;flex:1;min-height:0;display:flex;flex-direction:column;background:#fffdf6;padding:11px 11px 0;border-radius:2px;transform:rotate(-1.1deg);box-shadow:0 14px 30px -16px rgba(60,44,20,.55),0 0 0 1px rgba(120,98,60,.12)">
+<div role="img" aria-label="{{ pg.hero.cap }}" style="{{ pg.hero.box }}"><sc-if value="{{ pg.hero.hasVideo }}" hint-placeholder-val="{{ false }}"><video src="{{ pg.hero.videoSrc }}" poster="{{ pg.hero.src }}" preload="none" autoPlay="{{ true }}" muted="{{ true }}" loop="{{ true }}" playsInline="{{ true }}" onCanPlay="{{ startLoop }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"></video></sc-if></div>
+<div style="font-family:Caveat,cursive;font-size:25px;line-height:1.2;color:#4a4232;padding:9px 4px 11px">{{ pg.hero.cap }}</div>
+<sc-if value="{{ deco }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;top:-15px;left:24%;width:132px;height:31px;transform:rotate(-3deg);opacity:.72;background:repeating-linear-gradient(120deg,rgba(120,150,145,.75) 0 7px,rgba(120,150,145,.38) 7px 14px);clip-path:polygon(0 10%,5% 0,100% 6%,96% 97%,4% 100%)"></div>
+</sc-if>
+</div>
+<sc-if value="{{ deco }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;bottom:-6px;right:-12px;transform:rotate(7deg);padding:4px;border-radius:2px;background:radial-gradient(circle 3px at 50% 50%,#fffdf6 92%,rgba(255,253,246,0) 95%) 0 0/7.5px 7.5px,#fffdf6;filter:drop-shadow(0 3px 4px rgba(60,44,20,.3))">
+<div style="{{ pg.stampFace }}">
+<div style="font-family:'Courier Prime',monospace;font-size:7.5px;letter-spacing:.16em;color:#f4ecd9">{{ pg.stampTop }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:16px;font-weight:700;color:#fff">{{ pg.stampVal }}</div>
+</div>
+</div>
+</sc-if>
+</div>
+</div>
+
+<div style="display:flex;align-items:center;gap:18px;border-top:1.5px solid rgba(90,70,40,.18);padding-top:13px">
+<button onClick="{{ pg.onGallery }}" style="display:inline-flex;align-items:center;gap:10px;border:1.5px solid #a34434;background:rgba(163,68,52,.07);color:#a34434;padding:9px 18px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase" style-hover="background:#a34434;color:#fdf8ec">See full gallery <span style="font-size:15px">&#8594;</span></button>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:17px;color:#7a6b50">{{ pg.countLabel }}</div>
+<div style="flex:1"></div>
+<div style="font-family:Caveat,cursive;font-size:27px;color:#8a7a5f;transform:rotate(-2deg)">{{ pg.signoff }}</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ pg.isPhotosA }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:grid;grid-template-rows:auto 1fr;padding:30px 44px 30px 52px;gap:16px">
+<div style="display:flex;align-items:baseline;gap:16px;border-bottom:1.5px solid rgba(90,70,40,.2);padding-bottom:11px">
+<div style="font-family:Caveat,cursive;font-size:40px;line-height:1;color:#33403c">{{ pg.name }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:#7a6b52">{{ pg.frameLabel }}</div>
+<div style="flex:1"></div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:17px;color:#7a6b50">{{ pg.dates }}</div>
+</div>
+<div style="display:grid;grid-template-columns:1.5fr 1fr;grid-template-rows:1fr 1fr;gap:22px 24px;min-height:0">
+<div style="grid-column:1;grid-row:1 / span 2;position:relative;display:flex;flex-direction:column;min-height:0;background:#fffdf6;padding:12px 12px 0;transform:rotate(-.7deg);box-shadow:0 16px 34px -18px rgba(60,44,20,.55),0 0 0 1px rgba(120,98,60,.12)">
+<div role="img" aria-label="{{ pg.p1.cap }}" style="{{ pg.p1.box }}"><sc-if value="{{ pg.p1.hasVideo }}" hint-placeholder-val="{{ false }}"><video src="{{ pg.p1.videoSrc }}" poster="{{ pg.p1.src }}" preload="none" autoPlay="{{ true }}" muted="{{ true }}" loop="{{ true }}" playsInline="{{ true }}" onCanPlay="{{ startLoop }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"></video></sc-if></div>
+<div style="font-family:Caveat,cursive;font-size:26px;line-height:1.2;color:#4a4232;padding:10px 4px 12px">{{ pg.p1.cap }}</div>
+<sc-if value="{{ deco }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;top:-14px;right:22px;width:118px;height:29px;transform:rotate(4deg);opacity:.7;background:repeating-linear-gradient(120deg,rgba(196,150,120,.8) 0 7px,rgba(196,150,120,.4) 7px 14px);clip-path:polygon(0 8%,5% 0,100% 5%,96% 98%,4% 100%)"></div>
+</sc-if>
+</div>
+<div style="grid-column:2;grid-row:1;display:flex;flex-direction:column;min-height:0;background:#fffdf6;padding:10px 10px 0;transform:rotate(1deg);box-shadow:0 14px 28px -16px rgba(60,44,20,.5),0 0 0 1px rgba(120,98,60,.12)">
+<div role="img" aria-label="{{ pg.p2.cap }}" style="{{ pg.p2.box }}"><sc-if value="{{ pg.p2.hasVideo }}" hint-placeholder-val="{{ false }}"><video src="{{ pg.p2.videoSrc }}" poster="{{ pg.p2.src }}" preload="none" autoPlay="{{ true }}" muted="{{ true }}" loop="{{ true }}" playsInline="{{ true }}" onCanPlay="{{ startLoop }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"></video></sc-if></div>
+<div style="font-family:Caveat,cursive;font-size:23px;line-height:1.18;color:#4a4232;padding:8px 3px 10px">{{ pg.p2.cap }}</div>
+</div>
+<div style="grid-column:2;grid-row:2;display:flex;flex-direction:column;min-height:0;background:#fffdf6;padding:10px 10px 0;transform:rotate(-1.4deg);box-shadow:0 14px 28px -16px rgba(60,44,20,.5),0 0 0 1px rgba(120,98,60,.12)">
+<div role="img" aria-label="{{ pg.p3.cap }}" style="{{ pg.p3.box }}"><sc-if value="{{ pg.p3.hasVideo }}" hint-placeholder-val="{{ false }}"><video src="{{ pg.p3.videoSrc }}" poster="{{ pg.p3.src }}" preload="none" autoPlay="{{ true }}" muted="{{ true }}" loop="{{ true }}" playsInline="{{ true }}" onCanPlay="{{ startLoop }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"></video></sc-if></div>
+<div style="font-family:Caveat,cursive;font-size:23px;line-height:1.18;color:#4a4232;padding:8px 3px 10px">{{ pg.p3.cap }}</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ pg.isPhotosB }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:grid;grid-template-rows:auto 1fr auto;padding:30px 44px 24px 52px;gap:16px">
+<div style="display:flex;align-items:baseline;gap:16px;border-bottom:1.5px solid rgba(90,70,40,.2);padding-bottom:11px">
+<div style="font-family:Caveat,cursive;font-size:40px;line-height:1;color:#33403c">{{ pg.name }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:#7a6b52">{{ pg.frameLabel }}</div>
+<div style="flex:1"></div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:17px;color:#7a6b50">{{ pg.place }}</div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:20px 22px;min-height:0">
+<div style="grid-column:1;grid-row:1 / span 2;display:flex;flex-direction:column;min-height:0;background:#fffdf6;padding:11px 11px 0;transform:rotate(.8deg);box-shadow:0 14px 30px -16px rgba(60,44,20,.5),0 0 0 1px rgba(120,98,60,.12)">
+<div role="img" aria-label="{{ pg.p1.cap }}" style="{{ pg.p1.box }}"><sc-if value="{{ pg.p1.hasVideo }}" hint-placeholder-val="{{ false }}"><video src="{{ pg.p1.videoSrc }}" poster="{{ pg.p1.src }}" preload="none" autoPlay="{{ true }}" muted="{{ true }}" loop="{{ true }}" playsInline="{{ true }}" onCanPlay="{{ startLoop }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"></video></sc-if></div>
+<div style="font-family:Caveat,cursive;font-size:24px;line-height:1.18;color:#4a4232;padding:9px 3px 11px">{{ pg.p1.cap }}</div>
+</div>
+<div style="grid-column:2;grid-row:1;display:flex;flex-direction:column;min-height:0;background:#fffdf6;padding:10px 10px 0;transform:rotate(-1.2deg);box-shadow:0 13px 26px -15px rgba(60,44,20,.5),0 0 0 1px rgba(120,98,60,.12)">
+<div role="img" aria-label="{{ pg.p2.cap }}" style="{{ pg.p2.box }}"><sc-if value="{{ pg.p2.hasVideo }}" hint-placeholder-val="{{ false }}"><video src="{{ pg.p2.videoSrc }}" poster="{{ pg.p2.src }}" preload="none" autoPlay="{{ true }}" muted="{{ true }}" loop="{{ true }}" playsInline="{{ true }}" onCanPlay="{{ startLoop }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"></video></sc-if></div>
+<div style="font-family:Caveat,cursive;font-size:22px;line-height:1.16;color:#4a4232;padding:8px 3px 10px">{{ pg.p2.cap }}</div>
+</div>
+<div style="grid-column:3;grid-row:1;position:relative;display:flex;flex-direction:column;min-height:0;background:#fffdf6;padding:10px 10px 0;transform:rotate(1.5deg);box-shadow:0 13px 26px -15px rgba(60,44,20,.5),0 0 0 1px rgba(120,98,60,.12)">
+<div role="img" aria-label="{{ pg.p3.cap }}" style="{{ pg.p3.box }}"><sc-if value="{{ pg.p3.hasVideo }}" hint-placeholder-val="{{ false }}"><video src="{{ pg.p3.videoSrc }}" poster="{{ pg.p3.src }}" preload="none" autoPlay="{{ true }}" muted="{{ true }}" loop="{{ true }}" playsInline="{{ true }}" onCanPlay="{{ startLoop }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"></video></sc-if></div>
+<div style="font-family:Caveat,cursive;font-size:22px;line-height:1.16;color:#4a4232;padding:8px 3px 10px">{{ pg.p3.cap }}</div>
+<sc-if value="{{ deco }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;top:-13px;left:18px;width:110px;height:28px;transform:rotate(-5deg);opacity:.7;background:repeating-linear-gradient(120deg,rgba(150,160,190,.8) 0 7px,rgba(150,160,190,.4) 7px 14px);clip-path:polygon(0 9%,5% 0,100% 6%,96% 97%,4% 100%)"></div>
+</sc-if>
+</div>
+<div style="grid-column:2 / span 2;grid-row:2;display:flex;flex-direction:column;min-height:0;background:#fffdf6;padding:11px 11px 0;transform:rotate(-.5deg);box-shadow:0 14px 30px -16px rgba(60,44,20,.5),0 0 0 1px rgba(120,98,60,.12)">
+<div role="img" aria-label="{{ pg.p4.cap }}" style="{{ pg.p4.box }}"><sc-if value="{{ pg.p4.hasVideo }}" hint-placeholder-val="{{ false }}"><video src="{{ pg.p4.videoSrc }}" poster="{{ pg.p4.src }}" preload="none" autoPlay="{{ true }}" muted="{{ true }}" loop="{{ true }}" playsInline="{{ true }}" onCanPlay="{{ startLoop }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"></video></sc-if></div>
+<div style="font-family:Caveat,cursive;font-size:23px;line-height:1.18;color:#4a4232;padding:9px 3px 11px">{{ pg.p4.cap }}</div>
+</div>
+</div>
+<div style="display:flex;align-items:center;gap:18px;border-top:1.5px solid rgba(90,70,40,.18);padding-top:12px">
+<button onClick="{{ pg.onGallery }}" style="display:inline-flex;align-items:center;gap:10px;border:1.5px solid #a34434;background:rgba(163,68,52,.07);color:#a34434;padding:9px 18px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase" style-hover="background:#a34434;color:#fdf8ec">See full gallery <span style="font-size:15px">&#8594;</span></button>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:17px;color:#7a6b50">{{ pg.countLabel }}</div>
+<div style="flex:1"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:#7a6b52">Only a few frames live in the book</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ pg.isAbout }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:grid;grid-template-columns:.78fr 1.22fr;gap:44px;padding:36px 48px 32px 54px">
+<div style="display:flex;flex-direction:column;gap:22px;min-height:0">
+<div style="position:relative;flex:1;min-height:0;display:flex;flex-direction:column;background:#fffdf6;padding:12px 12px 0;transform:rotate(-1.6deg);box-shadow:0 16px 34px -18px rgba(60,44,20,.55),0 0 0 1px rgba(120,98,60,.12)">
+<div role="img" aria-label="Portrait placeholder" style="{{ portraitBox }}"></div>
+<div style="font-family:Caveat,cursive;font-size:25px;line-height:1.2;color:#4a4232;padding:9px 4px 11px">Somewhere with bad coffee and a good window</div>
+<sc-if value="{{ deco }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;top:-15px;left:-18px;width:120px;height:30px;transform:rotate(-9deg);opacity:.7;background:repeating-linear-gradient(120deg,rgba(163,68,52,.6) 0 7px,rgba(163,68,52,.3) 7px 14px);clip-path:polygon(0 9%,5% 0,100% 5%,96% 98%,4% 100%)"></div>
+</sc-if>
+</div>
+<div style="flex:none">
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:#7a6b52;margin-bottom:9px">Kit</div>
+<div style="display:flex;flex-direction:column;gap:5px;font-family:'EB Garamond',serif;font-size:17px;color:#4a4232">
+<div>35mm rangefinder, one lens</div>
+<div>Pocket notebook, blue ink</div>
+<div>Roll of washi tape, always</div>
+</div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;min-height:0">
+<div style="font-family:'Courier Prime',monospace;font-size:11.5px;letter-spacing:.28em;text-transform:uppercase;color:#7a6b52">Colophon</div>
+<div style="font-family:Caveat,cursive;font-size:70px;line-height:.94;color:#33403c;margin-top:2px">About</div>
+<div style="width:56px;height:1.5px;background:rgba(90,70,40,.3);margin:16px 0 18px"></div>
+<p style="margin:0 0 15px;font-family:'EB Garamond',serif;font-size:19px;line-height:1.64;color:#4a4232;text-wrap:pretty">This is a paper habit that ended up on a screen. I keep one page of notes per journey, then paste in whatever frames survive the edit. Everything else goes into the gallery behind each entry — sometimes a hundred photographs, most of them of doorways.</p>
+<p style="margin:0 0 15px;font-family:'EB Garamond',serif;font-size:19px;line-height:1.64;color:#4a4232;text-wrap:pretty">Nothing here is a recommendation. The notes are written the same evening, badly, and left that way on purpose. If a page looks crooked, that is the tape.</p>
+<div style="flex:1;min-height:12px"></div>
+<div style="display:flex;align-items:flex-end;gap:26px;border-top:1.5px solid rgba(90,70,40,.18);padding-top:16px">
+<div style="flex:1">
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:#7a6b52;margin-bottom:7px">Write to me</div>
+<div style="font-family:Caveat,cursive;font-size:32px;color:#a34434">hello@{{ handle }}.travel</div>
+</div>
+<sc-if value="{{ deco }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;gap:12px;align-items:flex-end">
+<sc-for list="{{ aboutStamps }}" as="s" hint-placeholder-count="3">
+<div style="{{ s.wrap }}">
+<div style="{{ s.face }}">
+<div style="font-family:'Courier Prime',monospace;font-size:7px;letter-spacing:.14em;color:#f4ecd9">{{ s.top }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:13px;font-weight:700;color:#fff">{{ s.val }}</div>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</div>
+</div>
+</sc-if>
+
+<div style="{{ pg.shade }}"></div>
+</div>
+
+<div style="{{ pg.back }}"></div>
+</div>
+</sc-for>
+
+<div onClick="{{ onNext }}" title="Turn the page" style="position:absolute;right:0;top:0;bottom:0;width:44px;z-index:900;cursor:pointer;border-radius:0 9px 9px 0" style-hover="background:linear-gradient(270deg,rgba(70,52,24,.14),rgba(70,52,24,0))"></div>
+<div onClick="{{ onPrev }}" title="Turn back" style="position:absolute;left:0;top:0;bottom:0;width:30px;z-index:900;cursor:pointer" style-hover="background:linear-gradient(90deg,rgba(70,52,24,.14),rgba(70,52,24,0))"></div>
+</div>
+
+<sc-if value="{{ deco }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;top:-7px;left:42px;width:22px;height:33%;z-index:400;pointer-events:none;background:linear-gradient(90deg,#8c2f28,#b6483c 45%,#8c2f28);clip-path:polygon(0 0,100% 0,100% 100%,50% 82%,0 100%);filter:drop-shadow(0 6px 8px rgba(40,20,12,.35))"></div>
+</sc-if>
+</div>
+</div>
+
+<div style="width:158px;flex:none;display:flex;flex-direction:column;min-height:0;padding-top:4px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:#7a6b52;padding:0 0 9px 6px;flex:none">Bookmarks</div>
+<div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-bottom:8px">
+<sc-for list="{{ tabs }}" as="t" hint-placeholder-count="7">
+<button onClick="{{ t.go }}" style="{{ t.style }}">
+<div style="{{ t.bar }}"></div>
+<div style="flex:1;min-width:0;text-align:left">
+<div style="{{ t.name }}">{{ t.label }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;opacity:.62;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.sub }}</div>
+</div>
+</button>
+</sc-for>
+</div>
+</div>
+</div>
+
+<div style="flex:none;height:58px;display:flex;align-items:center;justify-content:center;gap:20px;padding:0 20px">
+<button onClick="{{ onPrev }}" title="Previous page" style="{{ prevBtn }}">&#8592;</button>
+<div style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:210px">
+<div style="font-family:'Courier Prime',monospace;font-size:13px;letter-spacing:.28em;color:#4a4232">{{ counter }}</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:14px;color:#7a6b52;white-space:nowrap">{{ pageLabel }}</div>
+</div>
+<button onClick="{{ onNext }}" title="Next page" style="{{ nextBtn }}">&#8594;</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showMob }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(180deg,#fbf6e9,#f6efdd)">
+
+<div style="flex:none;display:flex;align-items:center;gap:12px;padding:14px 16px 12px;background:#3b332a">
+<button onClick="{{ mobDrawer }}" title="Journeys" style="width:44px;height:44px;flex:none;border:1px solid rgba(238,220,180,.34);background:transparent;border-radius:3px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px">
+<div style="width:17px;height:2px;background:#f6ecd6"></div>
+<div style="width:17px;height:2px;background:#f6ecd6"></div>
+<div style="width:17px;height:2px;background:#f6ecd6"></div>
+</button>
+<div style="flex:1;min-width:0">
+<div style="font-family:'Courier Prime',monospace;font-size:9px;letter-spacing:.26em;text-transform:uppercase;color:rgba(243,231,205,.75)">{{ bookTitle }}</div>
+<div style="font-family:Caveat,cursive;font-size:26px;line-height:1.24;color:#f6ecd6;overflow-x:hidden;text-overflow:ellipsis;white-space:nowrap">{{ mobLabel }}</div>
+</div>
+<div style="font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.14em;color:rgba(243,231,205,.75);flex:none">{{ counter }}</div>
+</div>
+
+<div data-mob-scroll="1" onTouchStart="{{ onTouchStart }}" onTouchEnd="{{ onTouchEnd }}" style="flex:1;min-height:0;overflow-y:auto;padding:20px 18px 30px">
+
+<sc-if value="{{ mob.isCover }}" hint-placeholder-val="{{ true }}">
+<div style="{{ mob.coverBox }}">
+<div style="position:absolute;inset:14px;border:1px solid rgba(232,210,161,.4)"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.36em;text-transform:uppercase;color:rgba(238,220,180,.75)">Travel Diary</div>
+<div style="width:44px;height:1px;background:rgba(232,210,161,.5);margin:14px 0 8px"></div>
+<div style="{{ mob.coverTitle }}">{{ bookTitle }}</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:16px;line-height:1.4;color:rgba(240,225,192,.8);margin-top:10px;text-align:center">field notes, photographs and other scraps</div>
+<div style="width:44px;height:1px;background:rgba(232,210,161,.5);margin:18px 0 10px"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:rgba(238,220,180,.75);text-align:center">Kept by {{ ownerName }}</div>
+</div>
+<button onClick="{{ onNext }}" style="width:100%;margin-top:20px;border:1.5px solid #a34434;background:#a34434;color:#fdf8ec;padding:15px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:11.5px;letter-spacing:.2em;text-transform:uppercase">Start reading</button>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15px;color:#7a6b52;text-align:center;margin-top:12px">Swipe left and right to turn the pages.</div>
+</sc-if>
+
+<sc-if value="{{ mob.isContents }}" hint-placeholder-val="{{ false }}">
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:#7a6b52">Index</div>
+<div style="font-family:Caveat,cursive;font-size:52px;line-height:1.12;color:#33403c">Contents</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:16.5px;line-height:1.45;color:#6f6247;margin:6px 0 16px;text-wrap:pretty">Each journey runs three pages &mdash; notes, then two spreads of frames. The rest lives in the galleries.</div>
+<sc-for list="{{ contents }}" as="e" hint-placeholder-count="5">
+<div onClick="{{ e.go }}" style="display:flex;align-items:center;gap:14px;padding:14px 2px;border-bottom:1px dotted rgba(120,98,60,.32);cursor:pointer">
+<div style="font-family:'Courier Prime',monospace;font-size:12px;letter-spacing:.12em;color:#a34434;flex:none;width:26px">{{ e.num }}</div>
+<div style="flex:1;min-width:0">
+<div style="font-family:Caveat,cursive;font-size:30px;line-height:1.2;color:#2f3b38">{{ e.name }}</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:14.5px;color:#7a6b50;overflow-x:hidden;text-overflow:ellipsis;white-space:nowrap">{{ e.meta }}</div>
+</div>
+<div style="font-family:'Courier Prime',monospace;font-size:12px;color:#5f5340;flex:none">p. {{ e.page }}</div>
+</div>
+</sc-for>
+</sc-if>
+
+<sc-if value="{{ mob.isJourney }}" hint-placeholder-val="{{ false }}">
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:#7a6b52">{{ mob.dates }}</div>
+<div style="font-family:Caveat,cursive;font-size:50px;line-height:1.1;color:#33403c">{{ mob.name }}</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:17px;color:#6f6247">{{ mob.place }}</div>
+
+<sc-if value="{{ mob.hasBadges }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;gap:10px;margin-top:14px">
+<div style="flex:1;display:flex;align-items:center;gap:9px;padding:11px 13px;border:1.5px solid rgba(163,68,52,.5);border-radius:3px;color:#a34434">
+<div style="{{ mob.wIcon }}"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.08em">{{ mob.weather }}</div>
+</div>
+<div style="flex:1;display:flex;align-items:center;gap:9px;padding:11px 13px;border:1.5px dashed rgba(72,92,88,.5);border-radius:3px;color:#455c58">
+<div style="width:11px;height:11px;flex:none;background:#455c58;transform:rotate(45deg)"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.08em">{{ mob.mood }}</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ mob.hasHighlights }}" hint-placeholder-val="{{ false }}">
+<div style="height:1px;background:rgba(90,70,40,.22);margin:20px 0 16px"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#7a6b52;margin-bottom:11px">Highlights</div>
+<sc-for list="{{ mob.highlights }}" as="h" hint-placeholder-count="3">
+<div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:11px">
+<div style="width:8px;height:8px;margin-top:11px;flex:none;background:#a34434;transform:rotate(45deg)"></div>
+<div style="font-family:Caveat,cursive;font-size:27px;line-height:1.3;color:#33403c">{{ h }}</div>
+</div>
+</sc-for>
+<p style="margin:16px 0 0;font-family:'EB Garamond',serif;font-size:18px;line-height:1.62;color:#4a4232;text-wrap:pretty">{{ mob.note }}</p>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-top:18px;padding:14px 15px;background:#fffdf6;box-shadow:0 0 0 1px rgba(120,98,60,.16)">
+<sc-for list="{{ mob.ledger }}" as="l" hint-placeholder-count="4">
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:#6f6144">{{ l.k }}</div>
+<div style="font-family:Caveat,cursive;font-size:27px;line-height:1.2;color:#33403c">{{ l.v }}</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<div style="height:1px;background:rgba(90,70,40,.22);margin:22px 0 18px"></div>
+<sc-for list="{{ mob.photos }}" as="p" hint-placeholder-count="3">
+<div style="background:#fffdf6;padding:10px 10px 0;margin-bottom:18px;box-shadow:0 10px 22px -16px rgba(60,44,20,.5),0 0 0 1px rgba(120,98,60,.14)">
+<div role="img" aria-label="{{ p.alt }}" style="{{ p.box }}">
+<sc-if value="{{ p.hasVideo }}" hint-placeholder-val="{{ false }}">
+<video src="{{ p.videoSrc }}" poster="{{ p.src }}" preload="none" autoPlay="{{ true }}" muted="{{ true }}" loop="{{ true }}" playsInline="{{ true }}" onCanPlay="{{ startLoop }}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"></video>
+</sc-if>
+</div>
+<div style="font-family:Caveat,cursive;font-size:24px;line-height:1.25;color:#4a4232;padding:9px 3px 12px">{{ p.cap }}</div>
+</div>
+</sc-for>
+
+<button onClick="{{ mob.onGallery }}" style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;border:1.5px solid #a34434;background:rgba(163,68,52,.07);color:#a34434;padding:15px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase">See full gallery <span style="font-size:15px">&#8594;</span></button>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15.5px;color:#7a6b50;text-align:center;margin-top:10px">{{ mob.countLabel }}</div>
+</sc-if>
+
+<sc-if value="{{ mob.isAbout }}" hint-placeholder-val="{{ false }}">
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:#7a6b52">Colophon</div>
+<div style="font-family:Caveat,cursive;font-size:52px;line-height:1.12;color:#33403c">About</div>
+<div style="background:#fffdf6;padding:10px 10px 0;margin:16px 0 18px;box-shadow:0 10px 22px -16px rgba(60,44,20,.5),0 0 0 1px rgba(120,98,60,.14)">
+<div role="img" aria-label="Portrait placeholder" style="{{ mob.portraitBox }}"></div>
+<div style="font-family:Caveat,cursive;font-size:23px;line-height:1.25;color:#4a4232;padding:9px 3px 12px">Somewhere with bad coffee and a good window</div>
+</div>
+<p style="margin:0 0 14px;font-family:'EB Garamond',serif;font-size:18px;line-height:1.62;color:#4a4232;text-wrap:pretty">This is a paper habit that ended up on a screen. I keep one page of notes per journey, then paste in whatever frames survive the edit. Everything else goes into the gallery behind each entry.</p>
+<p style="margin:0 0 18px;font-family:'EB Garamond',serif;font-size:18px;line-height:1.62;color:#4a4232;text-wrap:pretty">Nothing here is a recommendation. The notes are written the same evening, badly, and left that way on purpose.</p>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#7a6b52;margin-bottom:8px">Write to me</div>
+<div style="font-family:Caveat,cursive;font-size:30px;line-height:1.25;color:#a34434">hello@{{ handle }}.travel</div>
+</sc-if>
+
+</div>
+
+<div style="flex:none;display:flex;align-items:center;gap:12px;padding:10px 14px;background:#fbf6e9;border-top:1px solid rgba(120,98,60,.24)">
+<button onClick="{{ onPrev }}" title="Previous page" style="{{ mobPrev }}">&#8592;</button>
+<div style="flex:1;min-width:0;text-align:center;font-family:'EB Garamond',serif;font-style:italic;font-size:14.5px;color:#7a6b52;overflow-x:hidden;text-overflow:ellipsis;white-space:nowrap">{{ pageLabel }}</div>
+<button onClick="{{ onNext }}" title="Next page" style="{{ mobNext }}">&#8594;</button>
+</div>
+
+<sc-if value="{{ mobOpen }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ mobDrawer }}" style="position:absolute;inset:0;z-index:800;background:rgba(26,22,17,.5)"></div>
+<div style="position:absolute;left:0;top:0;bottom:0;z-index:810;width:82%;max-width:320px;background:#3b332a;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;gap:10px;padding:18px 16px 14px;border-bottom:1px solid rgba(238,220,180,.16)">
+<div style="flex:1;min-width:0;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:rgba(243,231,205,.75)">Bookmarks</div>
+<button onClick="{{ mobDrawer }}" title="Close" style="width:34px;height:34px;flex:none;border:1px solid rgba(238,220,180,.34);background:transparent;color:#f6ecd6;border-radius:3px;cursor:pointer;font-size:16px;line-height:1">&#215;</button>
+</div>
+<div style="flex:1;min-height:0;overflow-y:auto;padding:10px 0">
+<sc-for list="{{ mobTabs }}" as="t" hint-placeholder-count="7">
+<button onClick="{{ t.go }}" style="{{ t.style }}">
+<div style="{{ t.bar }}"></div>
+<div style="flex:1;min-width:0;text-align:left">
+<div style="{{ t.name }}">{{ t.label }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:rgba(243,231,205,.62);overflow-x:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.sub }}</div>
+</div>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ showGallery }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;background:#ffffff;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:flex-end;gap:22px;padding:26px 34px 16px;border-bottom:1px solid #ece4d4">
+<button onClick="{{ galBack }}" style="display:inline-flex;align-items:center;gap:9px;border:1.5px solid #4a4232;background:transparent;color:#4a4232;padding:9px 16px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:11.5px;letter-spacing:.18em;text-transform:uppercase" style-hover="background:#4a4232;color:#fdf8ec"><span style="font-size:15px">&#8592;</span> Back to the diary</button>
+<div style="flex:1;min-width:0">
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.26em;text-transform:uppercase;color:#7a6b52">Full gallery</div>
+<div style="display:flex;align-items:baseline;gap:14px">
+<div style="font-family:Caveat,cursive;font-size:52px;line-height:1;color:#33403c">{{ galTitle }}</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:18px;color:#7a6b50">{{ galMeta }}</div>
+</div>
+</div>
+<div style="font-family:'Courier Prime',monospace;font-size:12px;letter-spacing:.2em;color:#a34434;flex:none;padding-bottom:6px">{{ galCount }}</div>
+</div>
+<div style="flex:1;min-height:0;overflow-y:auto;padding:24px 34px 48px">
+<div style="{{ galGrid }}">
+<sc-for list="{{ galPhotos }}" as="g" hint-placeholder-count="12">
+<button onClick="{{ g.open }}" style="display:block;width:100%;padding:0;border:none;background:transparent;cursor:pointer;text-align:left" style-hover="opacity:.88">
+<div style="position:relative;width:100%;aspect-ratio:1/1;overflow:hidden;background:#f4efe3;box-shadow:0 0 0 1px rgba(120,98,60,.16)">
+<div role="img" aria-label="{{ g.cap }}" style="{{ g.box }}"></div>
+<div style="position:absolute;left:7px;top:7px;font-family:'Courier Prime',monospace;font-size:9px;letter-spacing:.14em;color:#5f5340;background:rgba(255,253,246,.82);padding:2px 6px">{{ g.num }}</div>
+<sc-if value="{{ g.vid }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+<div style="width:46px;height:46px;border-radius:50%;background:rgba(26,22,17,.58);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.35)">
+<div style="width:0;height:0;border-left:14px solid #fbf6e9;border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:4px"></div>
+</div>
+</div>
+<div style="position:absolute;right:7px;bottom:7px;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.12em;color:#fbf6e9;background:rgba(26,22,17,.72);padding:2px 6px">{{ g.dur }}</div>
+</sc-if>
+</div>
+<div style="font-family:'EB Garamond',serif;font-size:13.5px;line-height:1.35;color:#7a6b50;padding:7px 2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ g.cap }}</div>
+</button>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showLb }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;z-index:1000;background:rgba(26,22,17,.95);display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;gap:14px;padding:18px 24px">
+<div style="font-family:'Courier Prime',monospace;font-size:12px;letter-spacing:.24em;color:rgba(246,236,214,.7)">{{ lbCounter }}</div>
+<div style="flex:1"></div>
+<a href="{{ lbSrc }}" download="{{ lbFile }}" style="display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(246,236,214,.4);color:#f6ecd6;padding:8px 15px;border-radius:2px;font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase" style-hover="background:rgba(246,236,214,.14);color:#fff">Download</a>
+<button onClick="{{ lbShare }}" style="display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(246,236,214,.4);background:transparent;color:#f6ecd6;padding:8px 15px;border-radius:2px;cursor:pointer;font-family:'Courier Prime',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase" style-hover="background:rgba(246,236,214,.14)">Share</button>
+<button onClick="{{ lbClose }}" style="width:36px;height:36px;border:1px solid rgba(246,236,214,.4);background:transparent;color:#f6ecd6;border-radius:2px;cursor:pointer;font-size:18px;line-height:1" style-hover="background:rgba(246,236,214,.14)">&#215;</button>
+</div>
+<div style="flex:1;min-height:0;display:flex;align-items:center;gap:18px;padding:0 24px">
+<button onClick="{{ lbPrev }}" title="Previous image" style="width:52px;height:52px;flex:none;border:1px solid rgba(246,236,214,.35);background:transparent;color:#f6ecd6;border-radius:50%;cursor:pointer;font-size:20px" style-hover="background:rgba(246,236,214,.14)">&#8592;</button>
+<div style="flex:1;min-width:0;height:100%;display:flex;align-items:center;justify-content:center;padding:6px 0">
+<div role="img" aria-label="{{ lbCap }}" style="{{ lbBox }}"></div>
+</div>
+<button onClick="{{ lbNext }}" title="Next image" style="width:52px;height:52px;flex:none;border:1px solid rgba(246,236,214,.35);background:transparent;color:#f6ecd6;border-radius:50%;cursor:pointer;font-size:20px" style-hover="background:rgba(246,236,214,.14)">&#8594;</button>
+</div>
+<sc-if value="{{ lbIsVideo }}" hint-placeholder-val="{{ false }}">
+<div style="flex:none;display:flex;align-items:center;gap:16px;padding:14px 96px 0">
+<button onClick="{{ lbToggle }}" style="width:44px;height:44px;flex:none;border:1px solid rgba(246,236,214,.42);background:transparent;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:rgba(246,236,214,.16)">
+<sc-if value="{{ lbPlaying }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;gap:4px"><div style="width:4px;height:15px;background:#f6ecd6"></div><div style="width:4px;height:15px;background:#f6ecd6"></div></div>
+</sc-if>
+<sc-if value="{{ lbPaused }}" hint-placeholder-val="{{ true }}">
+<div style="width:0;height:0;border-left:13px solid #f6ecd6;border-top:8px solid transparent;border-bottom:8px solid transparent;margin-left:3px"></div>
+</sc-if>
+</button>
+<div style="flex:1;height:3px;background:rgba(246,236,214,.2);position:relative"><div style="{{ lbProgress }}"></div></div>
+<div style="font-family:'Courier Prime',monospace;font-size:11.5px;letter-spacing:.1em;color:rgba(246,236,214,.72);flex:none">{{ lbTime }}</div>
+</div>
+</sc-if>
+<div style="flex:none;padding:16px 96px 26px;text-align:center">
+<div style="font-family:Caveat,cursive;font-size:28px;line-height:1.25;color:#f6ecd6">{{ lbCap }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:rgba(246,236,214,.45);margin-top:5px">{{ lbMeta }}</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showToast }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;left:50%;bottom:34px;transform:translateX(-50%);z-index:1200;background:#33403c;color:#f6ecd6;padding:11px 20px;border-radius:2px;font-family:'Courier Prime',monospace;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;box-shadow:0 14px 30px -14px rgba(0,0,0,.6)">{{ toast }}</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;bookTitle&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Wanderings&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Cover&quot;},&quot;ownerName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;M. Alvarez&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Cover&quot;},&quot;coverCloth&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#2f4a47&quot;,&quot;options&quot;:[&quot;#2f4a47&quot;,&quot;#7a3b32&quot;,&quot;#3d4257&quot;,&quot;#5c4a2b&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Cover&quot;},&quot;flipDuration&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:900,&quot;min&quot;:400,&quot;max&quot;:1600,&quot;step&quot;:50,&quot;unit&quot;:&quot;ms&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Book&quot;},&quot;decorations&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Book&quot;},&quot;mobileBreakpoint&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:860,&quot;min&quot;:600,&quot;max&quot;:1400,&quot;step&quot;:20,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Book&quot;},&quot;thumbSize&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:200,&quot;min&quot;:140,&quot;max&quot;:300,&quot;step&quot;:10,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Gallery&quot;}}">
+class Component extends DCLogic {
+  state = { index: 0, flip: null, view: 'diary', gid: null, lb: -1, toast: '', scale: 1, playing: false, t: 0, vw: 0, mobOpen: false };
+  BOOK_W = 1300;
+  BOOK_H = 860;
+  data = this.buildData();
+  _gcache = {};
+
+  ph(label, w, h, pal) {
+    const fs = Math.max(11, Math.round(Math.min(w, h) / 26));
+    const bandH = Math.round(fs * 3.2);
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">'
+      + '<defs><pattern id="p" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">'
+      + '<rect width="18" height="18" fill="' + pal[0] + '"/><rect width="8" height="18" fill="' + pal[1] + '"/></pattern></defs>'
+      + '<rect width="' + w + '" height="' + h + '" fill="url(#p)"/>'
+      + '<rect x="0" y="' + (h / 2 - bandH / 2) + '" width="' + w + '" height="' + bandH + '" fill="' + pal[0] + '" opacity="0.93"/>'
+      + '<text x="' + (w / 2) + '" y="' + (h / 2) + '" text-anchor="middle" dominant-baseline="central" '
+      + 'font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="' + fs + '" letter-spacing="' + (fs / 7) + '" fill="' + pal[2] + '">'
+      + label + '</text></svg>';
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+
+  buildData() {
+    const P = {
+      tokyo: ['#e4eae9', '#ccdad8', '#5f736f'],
+      lisbon: ['#f3e7d8', '#e5d4be', '#87715a'],
+      patagonia: ['#e5e9f0', '#d1d8e4', '#6a768a'],
+      marrakech: ['#f3e1d7', '#e5cdbe', '#8a6a59']
+    };
+    const journeys = [
+      {
+        id: 'tokyo', name: 'Tokyo', place: 'Japan', code: 'TOKYO', tint: '#3d817e',
+        dates: '12 – 24 March 2025', weather: 'CLEAR 14C', mood: 'WIDE EYED', wIcon: 'sun',
+        stampTop: 'NIPPON', stampVal: '120', signoff: 'twelve days, one corner of it',
+        count: 52,
+        highlights: [
+          'First train at 05:40 — an empty carriage and a pink sky',
+          'Standing ramen in Shinjuku, best eight hundred yen of the trip',
+          'Got lost in Yanaka for two hours entirely on purpose',
+          'Rain on the last night; bought a clear umbrella, kept it'
+        ],
+        note: 'Tokyo is loud in a way that never quite becomes noise. I kept a running list of small sounds — the chime at every crossing, the shopkeeper greeting nobody in particular, rain landing on cheap plastic. Twelve days and I still only walked a corner of it.',
+        hero: { cap: 'Crossing at Shibuya, second attempt, still blurred' },
+        pageA: [
+          { cap: 'Vending machine at 6am, Nakameguro' },
+          { cap: 'The cat that runs the bookshop' },
+          { cap: 'Train seats, upholstered like a sofa' }
+        ],
+        pageB: [
+          { cap: 'Yanaka, the long slope down' },
+          { cap: 'Plastic food, immaculate' },
+          { cap: 'Kettle, ryokan, first morning' },
+          { cap: 'Last night, the clear umbrella and everything behind it' }
+        ],
+        caps: ['Alley near Yanaka, dusk', 'Signage, layered four deep', 'Corner shop, fluorescent', 'Bicycle, patiently parked', 'Rooftop rain', 'Commuters, from the mezzanine', 'A very small shrine', 'Steam from a window']
+      },
+      {
+        id: 'lisbon', name: 'Lisbon', place: 'Portugal', code: 'LISBON', tint: '#a06b3e',
+        dates: '3 – 14 September 2025', weather: 'HAZY 27C', mood: 'UNHURRIED', wIcon: 'haze',
+        stampTop: 'PORTUGAL', stampVal: '85', signoff: 'nineteen tarts, no regrets',
+        count: 46,
+        highlights: [
+          'Tram 28 at seven, before the queue and the pickpockets',
+          'Custard tart count: nineteen. Peak: four in one sitting',
+          'Sunset at Graca — the whole terrace went quiet at once'
+        ],
+        note: 'Every street in Lisbon is either up or down. I stopped planning routes on the third day and just followed whichever hill looked kinder, which is how I found the tile shop, the wrong bus, and the best view I have ever had for two euros.',
+        hero: { cap: 'Alfama, from a step I sat on for an hour' },
+        pageA: [
+          { cap: 'Tiles, replaced badly, better for it' },
+          { cap: 'Laundry as civic architecture' },
+          { cap: 'Tram 28, empty, briefly' }
+        ],
+        pageB: [
+          { cap: 'The tart, third of the day' },
+          { cap: 'Graca terrace, ten minutes before' },
+          { cap: 'Funicular, mid-groan' },
+          { cap: 'River light at the end of Rua Augusta' }
+        ],
+        caps: ['Tiled facade, Alfama', 'Steps, endless', 'Tram wire geometry', 'Doorway, blue', 'Miradouro crowd', 'Fish counter, morning', 'Sardine tin pyramid', 'Late light on the river']
+      },
+      {
+        id: 'patagonia', name: 'Patagonia', place: 'Chile', code: 'PATAGONIA', tint: '#5a72a8',
+        dates: '8 – 19 January 2026', weather: 'GALE 4C', mood: 'HUMBLED', wIcon: 'wind',
+        stampTop: 'CHILE', stampVal: '600', signoff: 'eleven clear minutes',
+        count: 61,
+        highlights: [
+          'Wind strong enough to take the map out of my hands, twice',
+          'Four layers, still cold, still grinning like an idiot',
+          'Saw the towers clear for eleven minutes and nobody spoke'
+        ],
+        note: 'We waited two days for weather. On the third morning the cloud lifted like a curtain being pulled and the whole camp stood there doing nothing at all. Then everyone started making coffee at once, which is the Patagonian way of saying something.',
+        hero: { cap: 'The towers, minute three of eleven' },
+        pageA: [
+          { cap: 'Camp at first light, everything damp' },
+          { cap: 'Lenticular cloud, showing off' },
+          { cap: 'Boots, retired' }
+        ],
+        pageB: [
+          { cap: 'Guanaco, unbothered' },
+          { cap: 'Lake the colour of toothpaste' },
+          { cap: 'The trail sign nobody obeys' },
+          { cap: 'Wind on the water, all afternoon' }
+        ],
+        caps: ['Ridge line at dawn', 'Cloud over the saddle', 'Glacial melt, close', 'Refugio window', 'Trail marker, bent', 'Lake, impossible colour', 'Scree and shadow', 'Last light on the granite']
+      },
+      {
+        id: 'marrakech', name: 'Marrakech', place: 'Morocco', code: 'MARRAKECH', tint: '#a15a4e',
+        dates: '2 – 11 May 2026', weather: 'DRY 33C', mood: 'OVERWHELMED', wIcon: 'sun',
+        stampTop: 'MAROC', stampVal: '9.00', signoff: 'the map was wrong by evening',
+        count: 38,
+        highlights: [
+          'Mint tea poured from an absurd height, twice, for effect',
+          'Learned to say "just looking" in three languages, used it in none',
+          'Rooftop at dusk — swifts over the entire medina at once'
+        ],
+        note: 'The medina rearranges itself the moment you stop watching. I drew a map on the back of a receipt and it was wrong by evening. Best to give up early, take the fourth left, and let the smell of the tanneries do the orienting for you.',
+        hero: { cap: 'The souk at four, when the light gets in' },
+        pageA: [
+          { cap: 'Dye pots, still wet' },
+          { cap: 'Door, studded, enormous' },
+          { cap: 'Tea, poured from a great height' }
+        ],
+        pageB: [
+          { cap: 'Rooftop, swifts, dusk' },
+          { cap: 'Spice cones, engineered' },
+          { cap: 'Cat asleep on a carpet stack' },
+          { cap: 'Courtyard, shade, twenty degrees cooler' }
+        ],
+        caps: ['Souk corridor, light shaft', 'Tiles, geometric', 'Copper stall', 'Cat in the shade', 'Rooftop at dusk', 'Doorway detail', 'Baskets, stacked high', 'Lantern shop glow']
+      }
+    ];
+    // [name, place, dates, weather, mood, wIcon, stampTop, stampVal, photoCount, [days,km,rolls], [h1,h2,h3], note, [caps]]
+    const MORE = [
+      ['Reykjavik', 'Iceland', '4 – 11 June 2025', 'WIND 9C', 'SLEEPLESS', 'wind', 'ISLAND', '160', 44, [8, 61, 5],
+        ['Sun still up at midnight and nobody going home', 'Swam outdoors in the rain, twice', 'Bought a jumper I will never wear at home'],
+        'The light never really left. I stopped checking the time on the third day and ate whenever I was hungry, which turned out to be constantly.',
+        ['Harbour at low tide', 'Corrugated houses, repainted', 'Pool steam at midnight', 'The road out of town']],
+      ['Kyoto', 'Japan', '28 Oct – 6 Nov 2025', 'CRISP 12C', 'QUIET', 'sun', 'NIPPON', '84', 71, [10, 96, 7],
+        ['Temple at opening time, entirely empty', 'Followed a cat down an alley, no regrets', 'Maple leaves on a bicycle seat'],
+        'Kyoto asks you to slow down and then punishes you for hurrying. I walked the same river path four evenings running and it was different every time.',
+        ['River path, evening', 'Gate, weathered', 'Moss, immaculate', 'Bicycle under maples']],
+      ['Hanoi', 'Vietnam', '13 – 21 February 2026', 'HUMID 24C', 'ALIVE', 'haze', 'VIET NAM', '25', 63, [9, 54, 6],
+        ['Breakfast on a plastic stool, four inches off the ground', 'Crossing the road is a negotiation, not a dash', 'Coffee with egg in it, and it works'],
+        'Everything happens on the pavement here — cooking, haircuts, card games, sleeping. The road is for the motorbikes and the pavement is for living.',
+        ['Plastic stools at dawn', 'Wires, uncountable', 'Market at six', 'Old quarter, wet']],
+      ['Porto', 'Portugal', '9 – 15 April 2025', 'MILD 19C', 'CONTENT', 'sun', 'PORTUGAL', '75', 38, [6, 41, 4],
+        ['Bridge at sunset, everyone facing the same way', 'Bookshop queue: forty minutes, worth twelve', 'Ate standing up on three separate occasions'],
+        'A city built on a slope and entirely comfortable about it. I found one cafe I liked and went back every morning, which is not travelling but was very pleasant.',
+        ['The bridge, from below', 'Azulejo wall', 'Port lodge, cool and dark', 'Steep street, late sun']],
+      ['Bergen', 'Norway', '17 – 23 July 2025', 'RAIN 14C', 'DAMP', 'wind', 'NORGE', '39', 33, [7, 48, 3],
+        ['It rained for five days and nobody mentioned it', 'Funicular up, walked down, regretted the shoes', 'Fish soup that ruined all other fish soup'],
+        'Bergen has made peace with the weather in a way I found genuinely instructive. Waterproofs on, out you go, no comment.',
+        ['Wharf, wooden and leaning', 'Rain on the fjord', 'Fish market, early', 'The hill, from the top']],
+      ['Seville', 'Spain', '2 – 9 May 2025', 'HOT 34C', 'MELTING', 'sun', 'ESPANA', '1.40', 58, [8, 52, 6],
+        ['Nothing at all happens between two and five', 'Orange trees everywhere, oranges inedible', 'Flamenco in a room of thirty people'],
+        'The heat organises the day for you. Out early, hidden at noon, out again at nine when the whole city appears at once as if summoned.',
+        ['Courtyard, shaded', 'Tiles and shadow', 'Rooftops at nine', 'Orange tree, bitter fruit']],
+      ['Istanbul', 'Turkey', '11 – 20 September 2025', 'WARM 26C', 'DIZZY', 'haze', 'TURKIYE', '18', 96, [10, 88, 9],
+        ['Ferry between continents costs less than a coffee', 'Tea arrives before you have decided to want it', 'Got lost in a market the size of a town'],
+        'Two cities pretending to be one, with a ferry in between. I spent more time on the water than I meant to and would happily have spent more.',
+        ['Ferry wake, morning', 'Spice stall, loud', 'Rooftop, minarets', 'Cats, everywhere, unbothered']],
+      ['Copenhagen', 'Denmark', '20 – 26 June 2025', 'FAIR 21C', 'CALM', 'sun', 'DANMARK', '25', 41, [7, 74, 4],
+        ['Rented a bicycle and immediately understood the city', 'Swam in the harbour in the middle of town', 'Everything closes early and that is fine'],
+        'A city designed by people who have to live in it. Nothing shouts. I cycled everywhere for a week and never once felt in the way.',
+        ['Harbour swim', 'Bicycle rack, endless', 'Canal houses', 'Bakery window, morning']],
+      ['Cape Town', 'South Africa', '5 – 16 January 2026', 'CLEAR 28C', 'STUNNED', 'sun', 'RSA', '11', 88, [12, 103, 8],
+        ['Mountain in cloud all morning, clear by four', 'Penguins, genuinely, on a beach', 'Wind strong enough to lean on'],
+        'The mountain is always there in the corner of your eye, changing colour. I never got used to it and I do not think you are supposed to.',
+        ['The mountain, cloud lifting', 'Beach boulders', 'Vineyard road', 'Harbour, late light']],
+      ['Mexico City', 'Mexico', '3 – 14 November 2025', 'MILD 22C', 'GREEDY', 'haze', 'MEXICO', '15', 92, [11, 79, 9],
+        ['Ate at a stall with no name and one dish', 'Museum so large I gave up honourably', 'Sunday, and the whole road closed for bicycles'],
+        'Enormous and entirely unbothered by it. Every neighbourhood behaves like its own town, and the food gets better the smaller the place gets.',
+        ['Stall, one dish', 'Tiled facade', 'Park on Sunday', 'Market colour']],
+      ['Krakow', 'Poland', '14 – 19 December 2025', 'SNOW -3C', 'BUNDLED', 'wind', 'POLSKA', '4.50', 30, [5, 32, 3],
+        ['Market square in snow, entirely worth the cold', 'Soup in a bread bowl, twice in one day', 'Trumpet from the tower, on the hour'],
+        'Cold enough that every doorway is an invitation. I went inside a lot, which turned out to be the correct way to see the place.',
+        ['Square in snow', 'Doorway, warm light', 'Tower at dusk', 'Tram in the slush']],
+      ['Naples', 'Italy', '22 – 28 March 2025', 'FAIR 18C', 'RATTLED', 'sun', 'ITALIA', '1.15', 54, [6, 44, 5],
+        ['Pizza standing at a counter, folded, ninety seconds', 'Traffic operates on rules I never identified', 'Washing strung across every street'],
+        'Loud, filthy, wonderful. Nothing is restored and everything is in use. I have never eaten better for less money in my life.',
+        ['Alley, laundry above', 'Counter, folded pizza', 'Scooter blur', 'Bay from the hill']],
+      ['Tbilisi', 'Georgia', '8 – 16 October 2025', 'FINE 20C', 'CURIOUS', 'sun', 'SAKARTVELO', '2.50', 47, [8, 57, 5],
+        ['Sulphur baths, alarming and then excellent', 'Wine from a clay pot buried in the ground', 'Balconies held up by optimism'],
+        'A city halfway through several centuries at once. Crumbling next to glass next to concrete, and somehow it works.',
+        ['Wooden balcony', 'Bath house domes', 'Vineyard, clay pots', 'Old town at dusk']],
+      ['Dubrovnik', 'Croatia', '1 – 6 August 2025', 'HOT 31C', 'CROWDED', 'sun', 'HRVATSKA', '9', 36, [5, 29, 3],
+        ['Walked the walls at seven to beat the ships', 'Swam off the rocks outside the old town', 'Stone worn smooth by several million feet'],
+        'Beautiful and busy in equal measure. Early mornings and late evenings belong to the residents, and those were the hours worth having.',
+        ['Walls at seven', 'Rocks and swimmers', 'Stone street, polished', 'Harbour, evening']],
+      ['Bruges', 'Belgium', '25 – 29 November 2025', 'FOG 7C', 'HUSHED', 'haze', 'BELGIE', '1.20', 31, [4, 26, 3],
+        ['Fog on the canals until eleven every morning', 'Ate chips from paper in the rain', 'Bell tower, 366 steps, no lift'],
+        'A small place best seen in bad weather, when the coach parties thin out and the fog does most of the work for you.',
+        ['Canal in fog', 'Bell tower, above', 'Chips in paper', 'Brick and water']],
+      ['Valparaiso', 'Chile', '20 – 27 February 2026', 'BREEZY 21C', 'DELIGHTED', 'wind', 'CHILE', '450', 66, [8, 63, 6],
+        ['Funiculars older than my grandparents, still working', 'Every wall painted, most of them well', 'Got hopelessly lost on the hills, twice'],
+        'A city stacked on forty hills and painted top to bottom. There is no grid, no logic, and no bad view.',
+        ['Painted stair', 'Funicular, creaking', 'Corrugated hill', 'Port from above']],
+      ['Ljubljana', 'Slovenia', '12 – 17 May 2025', 'FRESH 20C', 'EASY', 'sun', 'SLOVENIJA', '1.10', 28, [5, 34, 3],
+        ['No cars in the centre and you notice within an hour', 'River, bridges, dragons on all of them', 'Market on a Saturday, everyone there'],
+        'Small enough to cross in twenty minutes and pleasant enough that I never wanted to. The kind of place you leave planning a return.',
+        ['River and bridge', 'Dragon, cast iron', 'Market stall', 'Castle hill path']],
+      ['Sarajevo', 'Bosnia', '3 – 10 September 2025', 'WARM 25C', 'SOBERED', 'sun', 'BOSNA', '3', 52, [7, 46, 5],
+        ['Mosque, cathedral and synagogue in four minutes on foot', 'Coffee ritual that cannot be hurried', 'Scars still visible on half the buildings'],
+        'A city that carries its history in plain view and gets on with the day anyway. The coffee takes an hour and it is meant to.',
+        ['Old quarter, copper', 'Coffee set, brass', 'Hillside houses', 'Bridge over the river']],
+      ['Tallinn', 'Estonia', '18 – 23 January 2026', 'SNOW -6C', 'CRISP', 'wind', 'EESTI', '1.90', 34, [5, 28, 3],
+        ['Old town under snow, almost too picturesque', 'Sauna, then snow, then sauna again', 'Dark by half past three'],
+        'Very cold and very organised. The medieval centre looks staged until you notice people actually live there, taking the bins out in the snow.',
+        ['Snow on the ramparts', 'Lantern and ice', 'Sauna window', 'Square at four, dark']],
+      ['Rotterdam', 'Netherlands', '7 – 12 April 2025', 'GREY 13C', 'SHARP', 'haze', 'NEDERLAND', '1.05', 42, [5, 51, 4],
+        ['Almost nothing here is old and that is the point', 'Cycled to the harbour and kept going', 'A building shaped like a horseshoe full of food'],
+        'Flattened and rebuilt, and it decided to be modern about it. After a week of old towns this felt like opening a window.',
+        ['Cube houses', 'Harbour crane', 'Market hall ceiling', 'Bridge, white and taut']],
+      ['Palermo', 'Italy', '29 May – 5 June 2025', 'HOT 30C', 'FED', 'sun', 'ITALIA', '2.40', 61, [8, 49, 6],
+        ['Street food for every meal for six days running', 'Baroque churches hidden behind scaffolding', 'Market that shouts at you in three languages'],
+        'Layered, chaotic and generous. Arab, Norman, Spanish and Italian all arguing on the same street corner, and the food is the result.',
+        ['Market, shouting', 'Church, gilt and dust', 'Balcony, crumbling', 'Fried things, paper cone']],
+      ['Bordeaux', 'France', '15 – 20 October 2025', 'MILD 17C', 'SETTLED', 'haze', 'FRANCE', '1.30', 37, [5, 38, 4],
+        ['Stone the colour of weak tea, everywhere', 'Cycled the river path until it stopped', 'Learned the difference between two vineyards, barely'],
+        'Handsome and unhurried. I did very little except walk, eat and sit by the water, which was exactly the intention.',
+        ['Water mirror', 'Stone facade, pale', 'Vineyard row', 'River path, evening']],
+      ['Galway', 'Ireland', '9 – 14 July 2025', 'SHOWERS 16C', 'WARMED', 'wind', 'EIRE', '1.40', 35, [5, 44, 4],
+        ['Music in a pub at four in the afternoon, unannounced', 'Four seasons before lunch, twice', 'Cliffs that make you stand well back'],
+        'Weather changed every twenty minutes and nobody adjusted their plans. The music started when it started and finished when it finished.',
+        ['Cliff edge, wind', 'Pub window, wet', 'Painted shopfronts', 'Bay under cloud']],
+      ['Ghent', 'Belgium', '21 – 25 March 2026', 'GREY 11C', 'PLEASED', 'haze', 'BELGIE', '1.20', 29, [4, 27, 3],
+        ['Bruges without the coaches, essentially', 'Castle in the middle of the city, casually', 'Ate a pot of stew the size of my head'],
+        'A student town with a medieval centre and no interest in performing for anyone. Quieter, cheaper and better than its famous neighbour.',
+        ['Castle wall', 'Canal, still', 'Bicycle and cobbles', 'Guild houses at dusk']],
+      ['Riga', 'Latvia', '6 – 11 August 2025', 'FAIR 22C', 'SURPRISED', 'sun', 'LATVIJA', '1.60', 40, [5, 39, 4],
+        ['A whole district of art nouveau, mostly empty of tourists', 'Market inside old zeppelin hangars', 'Black bread that could stop a door'],
+        'I came for two days and stayed for five. The ornament on the buildings is absurd in the best way — faces, masks, animals, all above eye level.',
+        ['Facade, faces above', 'Hangar market', 'Wooden suburb', 'River, wide and grey']],
+      ['Trieste', 'Italy', '18 – 24 April 2026', 'BORA 15C', 'BLOWN', 'wind', 'ITALIA', '1.15', 45, [6, 42, 4],
+        ['Wind with its own name and a rope to hold on to', 'Coffee ordered in a dialect I never mastered', 'Austro-Hungarian buildings on an Italian sea'],
+        'An in-between city that belongs to nobody in particular. Grand cafes, a hard wind, and a sea that looks like it belongs somewhere else.',
+        ['Grand cafe interior', 'Pier in the bora', 'Habsburg facade', 'Sea, hard blue']]
+    ];
+    const GC = ['Doorway, morning', 'The long way back', 'Window seat', 'A very ordinary street', 'Light through a gap', 'The last evening'];
+    const SO = ['back sooner than planned', 'I would go again tomorrow', 'the notebook got wet', 'all of it, again', 'shorter than it should have been', 'still thinking about it'];
+    const EX = [['Coffees', '21'], ['Wrong buses', '4'], ['Postcards sent', '7'], ['Rainy days', '3'], ['Early starts', '5'], ['Bookshops', '6']];
+    MORE.slice(0, 6).forEach((r, n) => {
+      const caps = r[12].concat(GC.slice(n % 3, n % 3 + 4));
+      journeys.push({
+        id: r[0].toLowerCase().replace(/[^a-z]/g, ''),
+        name: r[0], place: r[1], code: r[0].toUpperCase().replace(/[^A-Z]/g, ''),
+        dates: r[2], weather: r[3], mood: r[4], wIcon: r[5],
+        stampTop: r[6], stampVal: r[7], count: r[8],
+        signoff: SO[n % SO.length],
+        highlights: r[10], note: r[11], caps: caps,
+        tally: r[9], extra: EX[n % EX.length],
+        hero: { cap: caps[0] },
+        pageA: [{ cap: caps[1] }, { cap: caps[2] }, { cap: caps[3] }],
+        pageB: [{ cap: caps[4] }, { cap: caps[5] }, { cap: caps[6] }, { cap: caps[7] }]
+      });
+    });
+
+    const LED = {
+      tokyo: [{ k: 'Days', v: '12' }, { k: 'Kilometres walked', v: '147' }, { k: 'Rolls shot', v: '9' }, { k: 'Bowls of ramen', v: '11' }],
+      lisbon: [{ k: 'Days', v: '11' }, { k: 'Hills climbed', v: 'plenty' }, { k: 'Rolls shot', v: '6' }, { k: 'Custard tarts', v: '19' }],
+      patagonia: [{ k: 'Days', v: '11' }, { k: 'Kilometres walked', v: '198' }, { k: 'Rolls shot', v: '8' }, { k: 'Clear minutes', v: '11' }],
+      marrakech: [{ k: 'Days', v: '9' }, { k: 'Wrong turns', v: 'uncounted' }, { k: 'Rolls shot', v: '5' }, { k: 'Glasses of tea', v: '23' }]
+    };
+    const box = (src, focal) => ({ position: 'relative', overflow: 'hidden', width: '100%', flex: 1, minHeight: '80px', backgroundImage: 'url("' + src + '")', backgroundSize: 'cover', backgroundPosition: focal || 'center' });
+    // Slots that hold a looping clip instead of a still. Drop a file path into
+    // videoSrc (and flip hasVideo) and the slot autoplays, muted, on loop.
+    const MOTION = {
+      tokyo: { hero: true, A: [1], B: [3] },
+      lisbon: { A: [2], B: [0] },
+      patagonia: { hero: true, B: [3] },
+      marrakech: { A: [0], B: [1] }
+    };
+    const slot = (p, label, w, h, pal, motion) => {
+      p.motion = !!motion;
+      p.src = this.ph(label + (motion ? ' LOOP' : ''), w, h, pal);
+      // focal: '25% 30%' keeps a subject off-centre from being cropped out
+      p.box = box(p.src, p.focal);
+      p.videoSrc = null;
+      p.hasVideo = false;
+    };
+    const PALS = [P.tokyo, P.lisbon, P.patagonia, P.marrakech];
+    const TINTS = ['#3d817e', '#a06b3e', '#5a72a8', '#a15a4e'];
+    journeys.forEach((j, idx) => {
+      j.pal = P[j.id] || PALS[idx % 4];
+      j.tint = j.tint || TINTS[idx % 4];
+      if (!LED[j.id] && j.tally) {
+        LED[j.id] = [
+          { k: 'Days', v: String(j.tally[0]) },
+          { k: 'Kilometres walked', v: String(j.tally[1]) },
+          { k: 'Rolls shot', v: String(j.tally[2]) },
+          { k: j.extra[0], v: j.extra[1] }
+        ];
+      }
+      j.ledger = (LED[j.id] || []).map((l, i) => ({ key: j.id + 'l' + i, k: l.k, v: l.v }));
+      j.clips = Math.floor((j.count + 1) / 7);
+      j.photos = j.count - j.clips;
+      const stripSrc = this.ph(j.code + ' EPHEMERA', 1200, 560, j.pal);
+      j.stripStyle = {
+        position: 'relative', flex: 1, minHeight: '54px', width: '100%',
+        backgroundImage: 'url("' + stripSrc + '")', backgroundSize: 'cover', backgroundPosition: 'center',
+        transform: 'rotate(.5deg)', marginTop: '2px',
+        boxShadow: '0 0 0 7px #fffdf6, 0 0 0 8px rgba(120,98,60,.16), 0 12px 24px -16px rgba(60,44,20,.5)'
+      };
+      const m = MOTION[j.id] || { hero: idx % 3 === 0, A: [idx % 3], B: [(idx + 1) % 4] };
+      slot(j.hero, j.code + ' HERO', 1200, 900, j.pal, m.hero);
+      j.pageA.forEach((p, i) => slot(p, j.code + ' A' + (i + 1), 1000, 800, j.pal, (m.A || []).indexOf(i) >= 0));
+      j.pageB.forEach((p, i) => slot(p, j.code + ' B' + (i + 1), 1000, 800, j.pal, (m.B || []).indexOf(i) >= 0));
+    });
+    const portrait = this.ph('PORTRAIT', 700, 900, ['#efe9dc', '#e0d8c6', '#7d715c']);
+    return { journeys: journeys, portrait: portrait, portraitBox: box(portrait) };
+  }
+
+  mmss(s) {
+    const t = Math.max(0, Math.round(s));
+    return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+  }
+
+  toggleClip() {
+    const j = this.data.journeys.find(x => x.id === this.state.gid);
+    const g = j ? this.gallery(j)[this.state.lb] : null;
+    if (!g || !g.vid) return;
+    clearInterval(this._clip);
+    if (this.state.playing) { this.setState({ playing: false }); return; }
+    const from = this.state.t >= g.durSec ? 0 : this.state.t;
+    this.setState({ playing: true, t: from });
+    this._clip = setInterval(() => {
+      const nt = this.state.t + 0.2;
+      if (nt >= g.durSec) { clearInterval(this._clip); this.setState({ t: g.durSec, playing: false }); }
+      else this.setState({ t: nt });
+    }, 200);
+  }
+
+  gallery(j) {
+    if (!this._gcache[j.id]) {
+      this._gcache[j.id] = Array.from({ length: j.count }, (_, i) => {
+        const num = String(i + 1).padStart(3, '0');
+        const vid = i % 7 === 5;
+        const secs = 22 + (i * 13) % 137;
+        const src = this.ph(j.code + (vid ? ' CLIP ' : ' ') + num, 720, 720, j.pal);
+        return {
+          key: j.id + '-' + i, n: i,
+          num: num,
+          vid: vid, durSec: secs, dur: this.mmss(secs),
+          src: src,
+          box: { position: 'absolute', inset: 0, backgroundImage: 'url("' + src + '")', backgroundSize: 'cover', backgroundPosition: 'center' },
+          cap: j.caps[i % j.caps.length]
+        };
+      });
+    }
+    return this._gcache[j.id];
+  }
+
+  pageList() {
+    const out = [{ kind: 'cover', label: 'Cover' }, { kind: 'contents', label: 'Contents' }];
+    this.data.journeys.forEach(j => {
+      out.push({ kind: 'notes', j: j, label: j.name + ' · notes' });
+      out.push({ kind: 'photosA', j: j, label: j.name + ' · frames I' });
+      out.push({ kind: 'photosB', j: j, label: j.name + ' · frames II' });
+    });
+    out.push({ kind: 'about', label: 'About' });
+    return out;
+  }
+
+  dur() { return this.props.flipDuration ?? 900; }
+
+  startFlip(dir) {
+    if (this._busy || this.state.view !== 'diary') return;
+    const from = this.state.index;
+    const to = dir === 'next' ? from + 1 : from - 1;
+    if (to < 0 || to >= this.pageList().length) return;
+    const dur = this.dur();
+    this._busy = true;
+    clearTimeout(this._t1); clearTimeout(this._t2); clearTimeout(this._t3);
+    this.setState({ flip: { dir: dir, from: from, to: to, go: false, half: false } });
+    this._t1 = setTimeout(() => {
+      const f = this.state.flip;
+      if (f) this.setState({ flip: Object.assign({}, f, { go: true }) });
+    }, 30);
+    this._t2 = setTimeout(() => {
+      const f = this.state.flip;
+      if (f) this.setState({ flip: Object.assign({}, f, { half: true }) });
+    }, 30 + Math.round(dur / 2));
+    this._t3 = setTimeout(() => {
+      this._busy = false;
+      const f = this.state.flip;
+      if (f) { this.setState({ index: f.to, flip: null }); this.writeHash(f.to); }
+    }, 30 + dur + 40);
+  }
+
+  jump(target) {
+    if (this.state.view !== 'diary') return;
+    if (this.mobile()) {
+      this.setState({ index: target, mobOpen: false });
+      const el = document.querySelector('[data-mob-scroll]');
+      if (el) el.scrollTop = 0;
+      this.writeHash(target);
+      return;
+    }
+    if (this._busy) return;
+    const cur = this.state.index;
+    if (target === cur) return;
+    const dir = target > cur ? 'next' : 'prev';
+    const anchor = dir === 'next' ? target - 1 : target + 1;
+    this.setState({ index: anchor });
+    setTimeout(() => this.startFlip(dir), 30);
+  }
+
+  syncFromHash() {
+    const h = window.location.hash || '';
+    const g = h.match(/^#\/gallery\/([a-z0-9-]+)/i);
+    if (g) {
+      const j = this.data.journeys.find(x => x.id === g[1]);
+      if (j) { this.setState({ view: 'gallery', gid: j.id, lb: -1, mobOpen: false }); return; }
+    }
+    const p = h.match(/^#\/p\/(\d+)/);
+    const next = { view: 'diary', gid: null, lb: -1, mobOpen: false };
+    if (p) {
+      const i = Math.max(0, Math.min(this.pageList().length - 1, parseInt(p[1], 10) - 1));
+      if (i !== this.state.index) next.index = i;
+      next.flip = null;
+    }
+    this.setState(next);
+    setTimeout(() => this.measure(), 40);
+  }
+
+  measure() {
+    const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+    if (vw && vw !== this.state.vw) this.setState({ vw: vw });
+    const host = document.querySelector('[data-book-area]');
+    if (!host || !host.clientWidth) return;
+    const k = Math.min(host.clientWidth / this.BOOK_W, host.clientHeight / this.BOOK_H);
+    if (k > 0 && Math.abs(k - this.state.scale) > 0.002) this.setState({ scale: k });
+  }
+
+  mobile() { return (this.state.vw || 1200) < (this.props.mobileBreakpoint ?? 860); }
+
+  /* on a phone the page changes without the 3D turn */
+  step(dir) {
+    if (!this.mobile()) { this.startFlip(dir); return; }
+    const to = this.state.index + (dir === 'next' ? 1 : -1);
+    if (to < 0 || to >= this.pageList().length) return;
+    this.setState({ index: to, mobOpen: false });
+    const el = document.querySelector('[data-mob-scroll]');
+    if (el) el.scrollTop = 0;
+    this.writeHash(to);
+  }
+
+  writeHash(i) {
+    if (this._muteHash) return;
+    this._muteHash = true;
+    window.location.hash = '#/p/' + (i + 1);
+    setTimeout(() => { this._muteHash = false; }, 30);
+  }
+
+  onTouchStart(e) {
+    const t = e.touches && e.touches[0];
+    this._tx = t ? t.clientX : null;
+    this._ty = t ? t.clientY : null;
+  }
+
+  onTouchEnd(e) {
+    const t = e.changedTouches && e.changedTouches[0];
+    if (!t || this._tx === null) return;
+    const dx = t.clientX - this._tx;
+    const dy = t.clientY - this._ty;
+    this._tx = null;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    this.step(dx < 0 ? 'next' : 'prev');
+  }
+
+  componentDidMount() {
+    this._measure = () => this.measure();
+    window.addEventListener('resize', this._measure);
+    if (window.ResizeObserver) {
+      this._ro = new ResizeObserver(this._measure);
+      this._ro.observe(document.body);
+    }
+    [0, 60, 260, 900].forEach(t => setTimeout(this._measure, t));
+    this._onKey = e => {
+      if (this.state.lb >= 0) {
+        if (e.key === 'Escape') this.setState({ lb: -1 });
+        if (e.key === 'ArrowLeft') this.stepLb(-1);
+        if (e.key === 'ArrowRight') this.stepLb(1);
+        return;
+      }
+      if (this.state.view === 'gallery') { if (e.key === 'Escape') this.backToDiary(); return; }
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); this.step('next'); }
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); this.step('prev'); }
+    };
+    this._onHash = () => this.syncFromHash();
+    window.addEventListener('keydown', this._onKey);
+    window.addEventListener('hashchange', this._onHash);
+    this.syncFromHash();
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('keydown', this._onKey);
+    window.removeEventListener('hashchange', this._onHash);
+    window.removeEventListener('resize', this._measure);
+    if (this._ro) this._ro.disconnect();
+    clearInterval(this._clip);
+    clearTimeout(this._t1); clearTimeout(this._t2); clearTimeout(this._t3); clearTimeout(this._toastT);
+  }
+
+  openGallery(j) { window.location.hash = '#/gallery/' + j.id; }
+  backToDiary() { window.location.hash = '#/p/' + (this.state.index + 1); }
+
+  stepLb(d) {
+    const j = this.data.journeys.find(x => x.id === this.state.gid);
+    if (!j) return;
+    const g = this.gallery(j);
+    clearInterval(this._clip);
+    this.setState({ lb: (this.state.lb + d + g.length) % g.length, playing: false, t: 0 });
+  }
+
+  flash(msg) {
+    clearTimeout(this._toastT);
+    this.setState({ toast: msg });
+    this._toastT = setTimeout(() => this.setState({ toast: '' }), 2200);
+  }
+
+  share(photo, j) {
+    const text = photo.cap + ' — ' + j.name;
+    if (navigator.share) {
+      navigator.share({ title: j.name, text: text, url: window.location.href }).catch(() => {});
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(text + ' · ' + window.location.href)
+        .then(() => this.flash('Link copied')).catch(() => this.flash('Could not copy'));
+    } else { this.flash('Sharing unavailable'); }
+  }
+
+  wIconStyle(kind) {
+    if (kind === 'wind') return { width: '20px', height: '4px', background: '#a34434', boxShadow: '0 7px 0 -1px #a34434, 0 -7px 0 -1px #a34434' };
+    if (kind === 'haze') return { width: '16px', height: '16px', borderRadius: '50%', background: '#a34434', opacity: .45 };
+    return { width: '16px', height: '16px', borderRadius: '50%', background: '#a34434' };
+  }
+
+  renderVals() {
+    const s = this.state, d = this.data, dur = this.dur();
+    const deco = this.props.decorations ?? true;
+    const list = this.pageList();
+    const idx = s.index, flip = s.flip;
+    const flipIdx = flip ? (flip.dir === 'next' ? flip.from : flip.to) : -1;
+
+    const pages = list.map((p, i) => {
+      const base = i < idx ? -180 : 0;
+      const isFlip = i === flipIdx && !!flip;
+      let rot = base;
+      if (isFlip) {
+        const target = flip.dir === 'next' ? -180 : 0;
+        rot = flip.go ? target : (flip.dir === 'next' ? 0 : -180);
+      }
+      const z = isFlip ? 2000 : (i < idx ? i + 1 : 1000 - i);
+      const live = Math.abs(i - idx) <= 1 || (flip && (i === flip.from || i === flip.to));
+      const shadeOn = isFlip ? (flip.dir === 'next' ? flip.go : !flip.go) : false;
+      const half = !!(flip && flip.half);
+      let frontOp = 1, backOp = 0;
+      if (isFlip) {
+        if (flip.dir === 'next') { frontOp = half ? 0 : 1; backOp = half ? 1 : 0; }
+        else { frontOp = half ? 1 : 0; backOp = half ? 0 : 1; }
+      }
+      const seen = isFlip || i === idx || !!(flip && flip.dir === 'next' && i === flip.to);
+      const o = {
+        key: 'pg' + i,
+        label: p.label,
+        live: !!live,
+        isCover: p.kind === 'cover' && live,
+        isContents: p.kind === 'contents' && live,
+        isNotes: p.kind === 'notes' && live,
+        isPhotosA: p.kind === 'photosA' && live,
+        isPhotosB: p.kind === 'photosB' && live,
+        isAbout: p.kind === 'about' && live,
+        wrap: {
+          position: 'absolute', inset: 0, transformStyle: 'preserve-3d',
+          transformOrigin: 'left center', transform: 'rotateY(' + rot + 'deg)',
+          zIndex: z, willChange: 'transform',
+          visibility: seen ? 'visible' : 'hidden',
+          pointerEvents: (i === idx && !flip) ? 'auto' : 'none',
+          transition: isFlip ? 'transform ' + dur + 'ms cubic-bezier(.55,.06,.28,1)' : 'none'
+        },
+        face: {
+          position: 'absolute', inset: 0, borderRadius: '2px 9px 9px 2px', overflow: 'hidden', opacity: frontOp,
+          background: 'radial-gradient(130% 100% at 8% 0%,rgba(255,255,255,.85),rgba(255,255,255,0) 62%),linear-gradient(180deg,#fbf6e9 0%,#f7f0df 100%)',
+          boxShadow: 'inset 26px 0 30px -26px rgba(70,52,24,.42), inset -1px 0 0 rgba(120,98,60,.14), 0 10px 26px -18px rgba(60,44,20,.5)'
+        },
+        back: {
+          position: 'absolute', inset: 0, transform: 'rotateY(180deg)', borderRadius: '9px 2px 2px 9px',
+          opacity: backOp, pointerEvents: 'none', visibility: backOp ? 'visible' : 'hidden',
+          background: 'linear-gradient(270deg,#f8f1e0 0%,#f1e8d3 78%,#e6dbc2 100%)',
+          boxShadow: 'inset -22px 0 26px -22px rgba(70,52,24,.4)'
+        },
+        shade: {
+          position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: '2px 9px 9px 2px',
+          background: 'linear-gradient(270deg, rgba(44,32,16,.42) 0%, rgba(44,32,16,.14) 26%, rgba(44,32,16,0) 62%)',
+          opacity: shadeOn ? 1 : 0,
+          transition: isFlip ? 'opacity ' + dur + 'ms ease-in-out' : 'none'
+        },
+        coverBg: {
+          position: 'absolute', inset: 0,
+          background: 'repeating-linear-gradient(45deg, rgba(255,255,255,.035) 0 2px, rgba(0,0,0,.03) 2px 4px), linear-gradient(160deg, ' + (this.props.coverCloth ?? '#2f4a47') + ' 0%, rgba(0,0,0,.28) 130%)',
+          boxShadow: 'inset 0 0 90px rgba(0,0,0,.35)'
+        }
+      };
+      if (p.j) {
+        const j = p.j;
+        Object.assign(o, {
+          name: j.name, place: j.place, dates: j.dates, weather: j.weather, mood: j.mood,
+          highlights: j.highlights.slice(0, 4), note: j.note, hero: j.hero, signoff: j.signoff, ledger: j.ledger, strip: j.stripStyle,
+          countLabel: j.photos + ' photographs and ' + j.clips + ' clips in the gallery',
+          frameLabel: p.kind === 'photosA' ? 'Frames 01 – 03' : 'Frames 04 – 07',
+          stampTop: j.stampTop, stampVal: j.stampVal,
+          wIcon: this.wIconStyle(j.wIcon),
+          stampFace: {
+            width: '76px', height: '92px', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'space-between', padding: '7px 6px',
+            background: 'linear-gradient(170deg, ' + j.tint + ', rgba(0,0,0,.25))',
+            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.25)'
+          },
+          onGallery: () => this.openGallery(j)
+        });
+        const src = p.kind === 'photosA' ? j.pageA : j.pageB;
+        src.forEach((ph, k) => { o['p' + (k + 1)] = ph; });
+      }
+      return o;
+    });
+
+    const journeyStart = i => 2 + i * 3;
+    const contents = d.journeys.map((j, i) => ({
+      key: j.id, num: String(i + 1).padStart(2, '0'), name: j.name,
+      meta: j.place + ' · ' + j.dates, page: journeyStart(i) + 1,
+      go: () => this.jump(journeyStart(i))
+    }));
+    contents.push({
+      key: 'about', num: String(d.journeys.length + 1).padStart(2, '0'), name: 'About',
+      meta: 'colophon, kit, and where to write', page: list.length,
+      go: () => this.jump(list.length - 1)
+    });
+
+    const nCols = Math.max(1, Math.ceil(contents.length / 11));
+    const cRows = Math.ceil(contents.length / nCols);
+    const compact = nCols > 1;
+    contents.forEach(e => {
+      e.nameStyle = { fontFamily: 'Caveat, cursive', fontSize: compact ? '27px' : '36px', lineHeight: 1.05, color: '#2f3b38', whiteSpace: 'nowrap' };
+      e.metaStyle = compact
+        ? { display: 'none' }
+        : { fontFamily: "'EB Garamond', serif", fontStyle: 'italic', fontSize: '17px', color: '#7a6b50', whiteSpace: 'nowrap' };
+    });
+    const contentsGrid = {
+      display: 'grid', minHeight: 0, gridAutoFlow: 'column',
+      gridTemplateColumns: 'repeat(' + nCols + ', 1fr)',
+      gridTemplateRows: 'repeat(' + cRows + ', 1fr)',
+      columnGap: '34px'
+    };
+
+    const tabDef = [{ label: 'Cover', sub: 'the front', idx: 0, tint: '#8a7a5f' }, { label: 'Contents', sub: 'index', idx: 1, tint: '#8a7a5f' }]
+      .concat(d.journeys.map((j, i) => ({ label: j.name, sub: j.dates.split(' ').slice(-2).join(' '), idx: journeyStart(i), tint: j.tint, span: 3 })))
+      .concat([{ label: 'About', sub: 'colophon', idx: list.length - 1, tint: '#8a7a5f' }]);
+
+    const tabs = tabDef.map(t => {
+      const span = t.span || 1;
+      const active = idx >= t.idx && idx < t.idx + span;
+      return {
+        key: 'tab' + t.idx, label: t.label, sub: t.sub,
+        go: () => this.jump(t.idx),
+        style: {
+          display: 'flex', alignItems: 'center', gap: '9px', width: '100%',
+          padding: '9px 10px 9px 0', border: 'none', cursor: 'pointer', textAlign: 'left',
+          borderRadius: '0 6px 6px 0', flex: 'none',
+          background: active ? '#fbf6e9' : 'rgba(120,98,60,.07)',
+          boxShadow: active ? '0 3px 12px -5px rgba(60,44,20,.5), inset 0 0 0 1px rgba(120,98,60,.22)' : 'inset 0 0 0 1px rgba(120,98,60,.14)',
+          transform: active ? 'translateX(-6px)' : 'none',
+          transition: 'transform 180ms ease, background 180ms ease'
+        },
+        bar: { width: '6px', alignSelf: 'stretch', flex: 'none', background: t.tint, opacity: active ? 1 : .5, borderRadius: '0 2px 2px 0' },
+        name: {
+          fontFamily: 'Caveat, cursive', fontSize: '24px', lineHeight: 1.05,
+          color: active ? '#2f3b38' : '#7a6b50', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+        }
+      };
+    });
+
+    const navBtn = enabled => ({
+      width: '44px', height: '44px', borderRadius: '50%', cursor: enabled ? 'pointer' : 'default',
+      border: '1.5px solid ' + (enabled ? '#4a4232' : 'rgba(120,98,60,.25)'),
+      background: 'transparent', color: enabled ? '#4a4232' : 'rgba(120,98,60,.35)',
+      fontSize: '19px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center'
+    });
+
+    const mobile = this.mobile();
+    const cp = list[idx];
+    const mobBox = (src, focal) => ({
+      position: 'relative', overflow: 'hidden', width: '100%', aspectRatio: '4 / 3',
+      backgroundImage: 'url("' + src + '")', backgroundSize: 'cover', backgroundPosition: focal || 'center'
+    });
+    const shot = (p, alt) => ({
+      key: p.src, src: p.src, cap: p.cap, alt: alt || p.cap,
+      hasVideo: !!p.hasVideo, videoSrc: p.videoSrc, box: mobBox(p.src, p.focal)
+    });
+    const mj = cp && cp.j;
+    const mob = {
+      isCover: cp && cp.kind === 'cover',
+      isContents: cp && cp.kind === 'contents',
+      isAbout: cp && cp.kind === 'about',
+      isJourney: !!mj,
+      coverBox: {
+        position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', padding: '46px 26px', borderRadius: '3px', minHeight: '58vh',
+        background: 'repeating-linear-gradient(45deg, rgba(255,255,255,.035) 0 2px, rgba(0,0,0,.03) 2px 4px), linear-gradient(160deg, ' + (this.props.coverCloth ?? '#2f4a47') + ' 0%, rgba(0,0,0,.3) 130%)',
+        boxShadow: 'inset 0 0 70px rgba(0,0,0,.35), 0 16px 34px -22px rgba(48,38,24,.6)'
+      },
+      coverTitle: {
+        fontFamily: 'Caveat, cursive', lineHeight: 1.1, color: '#f6ecd6', textAlign: 'center',
+        fontSize: Math.max(38, Math.min(74, Math.floor(260 / (String(this.props.bookTitle ?? 'Wanderings').length * 0.4)))) + 'px',
+        textShadow: '0 2px 0 rgba(0,0,0,.22)'
+      },
+      portraitBox: mobBox(d.portrait),
+      name: mj ? mj.name : '', place: mj ? mj.place : '', dates: mj ? mj.dates : '',
+      weather: mj ? mj.weather : '', mood: mj ? mj.mood : '',
+      wIcon: mj ? this.wIconStyle(mj.wIcon) : {},
+      hasBadges: !!mj,
+      hasHighlights: !!(mj && cp.kind === 'notes'),
+      highlights: mj ? mj.highlights.slice(0, 4) : [],
+      note: mj ? mj.note : '',
+      ledger: mj ? mj.ledger : [],
+      countLabel: mj ? mj.photos + ' photographs and ' + mj.clips + ' clips in the gallery' : '',
+      onGallery: mj ? (() => this.openGallery(mj)) : (() => {}),
+      photos: !mj ? [] : (cp.kind === 'notes' ? [shot(mj.hero)] : (cp.kind === 'photosA' ? mj.pageA : mj.pageB).map(p => shot(p)))
+    };
+    const mobNav = enabled => ({
+      width: '52px', height: '52px', flex: 'none', borderRadius: '3px',
+      cursor: enabled ? 'pointer' : 'default',
+      border: '1.5px solid ' + (enabled ? '#4a4232' : 'rgba(120,98,60,.25)'),
+      background: 'transparent', color: enabled ? '#4a4232' : 'rgba(120,98,60,.38)',
+      fontSize: '20px', lineHeight: 1
+    });
+
+    const j = d.journeys.find(x => x.id === s.gid);
+    const gphotos = j ? this.gallery(j) : [];
+    const thumb = this.props.thumbSize ?? 200;
+    const lbOn = s.lb >= 0 && !!j && !!gphotos[s.lb];
+    const cur = lbOn ? gphotos[s.lb] : null;
+
+    return {
+      bookTitle: this.props.bookTitle ?? 'Wanderings',
+      ownerName: this.props.ownerName ?? 'M. Alvarez',
+      handle: 'wanderings',
+      deco: deco,
+      portrait: d.portrait,
+      portraitBox: d.portraitBox,
+      startLoop: e => { const v = e.target; v.muted = true; const p = v.play(); if (p && p.catch) p.catch(() => {}); },
+      aboutStamps: [
+        { key: 's1', top: 'NIPPON', val: '120', wrap: this.stampWrap(-6), face: this.miniFace('#3d817e') },
+        { key: 's2', top: 'CHILE', val: '600', wrap: this.stampWrap(4), face: this.miniFace('#5a72a8') },
+        { key: 's3', top: 'MAROC', val: '9.0', wrap: this.stampWrap(-2), face: this.miniFace('#a15a4e') }
+      ],
+      pages: pages,
+      contents: contents,
+      contentsGrid: contentsGrid,
+      fit: {
+        position: 'relative', flex: 'none',
+        width: this.BOOK_W + 'px', height: this.BOOK_H + 'px',
+        transform: 'scale(' + s.scale + ')', transformOrigin: 'center center'
+      },
+      tabs: tabs,
+      totalLabel: list.length + ' pages so far',
+      counter: String(idx + 1).padStart(2, '0') + ' / ' + String(list.length).padStart(2, '0'),
+      pageLabel: list[idx] ? list[idx].label : '',
+      onNext: () => this.step('next'),
+      onPrev: () => this.step('prev'),
+      prevBtn: navBtn(idx > 0),
+      nextBtn: navBtn(idx < list.length - 1),
+      showDiary: s.view === 'diary',
+      showDesk: s.view === 'diary' && !mobile,
+      showMob: s.view === 'diary' && mobile,
+      mobLabel: cp && cp.j ? cp.j.name : (cp ? cp.label : ''),
+      mobOpen: s.mobOpen,
+      mobDrawer: () => this.setState({ mobOpen: !s.mobOpen }),
+      onTouchStart: e => this.onTouchStart(e),
+      onTouchEnd: e => this.onTouchEnd(e),
+      mobPrev: mobNav(idx > 0),
+      mobNext: mobNav(idx < list.length - 1),
+      mob: mob,
+      mobTabs: tabDef.map(t => {
+        const span = t.span || 1;
+        const active = idx >= t.idx && idx < t.idx + span;
+        return {
+          key: 'mt' + t.idx, label: t.label, sub: t.sub,
+          go: () => this.jump(t.idx),
+          style: {
+            display: 'flex', alignItems: 'center', gap: '12px', width: '100%',
+            padding: '13px 16px 13px 0', border: 'none', cursor: 'pointer', textAlign: 'left',
+            background: active ? 'rgba(251,246,233,.12)' : 'transparent'
+          },
+          bar: { width: '5px', alignSelf: 'stretch', flex: 'none', background: t.tint, opacity: active ? 1 : .55, borderRadius: '0 2px 2px 0' },
+          name: {
+            fontFamily: 'Caveat, cursive', fontSize: '26px', lineHeight: 1.28,
+            color: active ? '#f6ecd6' : 'rgba(243,231,205,.86)',
+            overflowX: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+          }
+        };
+      }),
+      showGallery: s.view === 'gallery' && !!j,
+      galTitle: j ? j.name : '',
+      galMeta: j ? j.place + ' · ' + j.dates : '',
+      galCount: j ? j.photos + ' photos · ' + j.clips + ' clips' : '',
+      galBack: () => this.backToDiary(),
+      galGrid: {
+        display: 'grid', gap: '18px 16px',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(' + thumb + 'px, 1fr))'
+      },
+      galPhotos: gphotos.map(g => Object.assign({}, g, {
+        open: () => { clearInterval(this._clip); this.setState({ lb: g.n, playing: false, t: 0 }); }
+      })),
+      showLb: lbOn,
+      lbIsVideo: !!(cur && cur.vid),
+      lbPlaying: !!s.playing,
+      lbPaused: !s.playing,
+      lbToggle: () => this.toggleClip(),
+      lbTime: cur && cur.vid ? this.mmss(Math.min(s.t, cur.durSec)) + ' / ' + cur.dur : '',
+      lbProgress: {
+        position: 'absolute', left: 0, top: 0, bottom: 0,
+        width: (cur && cur.vid ? Math.min(100, (s.t / cur.durSec) * 100) : 0) + '%',
+        background: '#c9b48a'
+      },
+      lbSrc: cur ? cur.src : '',
+      lbBox: {
+        width: '100%', height: '100%',
+        backgroundImage: cur ? 'url("' + cur.src + '")' : 'none',
+        backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat'
+      },
+      lbCap: cur ? cur.cap : '',
+      lbFile: cur && j ? j.id + '-' + cur.num + '.svg' : 'photo.svg',
+      lbMeta: cur && j ? j.name + ' · ' + j.place + ' · ' + (cur.vid ? 'clip ' : 'frame ') + cur.num : '',
+      lbCounter: cur ? String(s.lb + 1).padStart(3, '0') + ' / ' + String(gphotos.length).padStart(3, '0') : '',
+      lbPrev: () => this.stepLb(-1),
+      lbNext: () => this.stepLb(1),
+      lbClose: () => { clearInterval(this._clip); this.setState({ lb: -1, playing: false, t: 0 }); },
+      lbShare: () => { if (cur && j) this.share(cur, j); },
+      showToast: !!s.toast,
+      toast: s.toast
+    };
+  }
+
+  stampWrap(deg) {
+    return {
+      transform: 'rotate(' + deg + 'deg)', padding: '3px', borderRadius: '2px',
+      background: 'radial-gradient(circle 2.6px at 50% 50%, #fbf6e9 92%, rgba(251,246,233,0) 95%) 0 0/6.5px 6.5px, #fbf6e9',
+      filter: 'drop-shadow(0 2px 3px rgba(60,44,20,.28))'
+    };
+  }
+  miniFace(tint) {
+    return {
+      width: '56px', height: '68px', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px',
+      background: 'linear-gradient(170deg, ' + tint + ', rgba(0,0,0,.25))',
+      boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.25)'
+    };
+  }
+}
+</script>
+</body>
+</html>

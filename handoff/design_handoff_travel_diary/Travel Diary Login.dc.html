@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="crossorigin" />
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;background:#f4eddc;overflow:hidden;-webkit-font-smoothing:antialiased}
+*{scrollbar-width:thin;scrollbar-color:rgba(120,98,60,.35) transparent}
+*::-webkit-scrollbar{width:9px;height:9px}
+*::-webkit-scrollbar-thumb{background:rgba(120,98,60,.32);border-radius:9px;border:3px solid transparent;background-clip:content-box}
+*::-webkit-scrollbar-track{background:transparent}
+a{color:oklch(0.50 0.13 32);text-decoration:none}
+a:hover{color:oklch(0.42 0.13 32)}
+button{font:inherit;color:inherit}
+input{font:inherit;color:inherit}
+input:focus{outline:2px solid rgba(163,68,52,.45);outline-offset:1px}
+@keyframes omShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+</style>
+</helmet>
+
+<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;font-family:'EB Garamond',Georgia,serif;color:#33403c;background:radial-gradient(120% 90% at 0% 0%,#f8f2e2,rgba(248,242,226,0) 60%),linear-gradient(180deg,#f4eddc,#efe7d3);overflow-y:auto">
+
+<div data-screen-label="Login" style="{{ shell }}">
+
+<sc-if value="{{ narrow }}" hint-placeholder-val="{{ false }}">
+<div style="{{ mastStyle }}">
+<div style="font-family:'Courier Prime',monospace;font-size:9px;letter-spacing:.34em;text-transform:uppercase;color:rgba(238,220,180,.75)">Travel Diary</div>
+<div style="{{ mastTitle }}">{{ bookTitle }}</div>
+<div style="font-family:'Courier Prime',monospace;font-size:9px;letter-spacing:.26em;text-transform:uppercase;color:rgba(238,220,180,.7);margin-top:4px">The back room</div>
+</div>
+</sc-if>
+
+<div style="{{ bookSide }}">
+<div style="position:absolute;left:0;top:0;bottom:0;width:26px;background:linear-gradient(90deg,#241e18,#3b332a 48%,#2a231c);box-shadow:inset -3px 0 8px rgba(0,0,0,.4)"></div>
+<div style="position:absolute;left:7px;top:26px;bottom:26px;border-left:1px dashed rgba(226,201,150,.28)"></div>
+<div style="position:absolute;left:19px;top:26px;bottom:26px;border-left:1px dashed rgba(226,201,150,.28)"></div>
+<div style="position:absolute;inset:26px 26px 26px 50px;border:1px solid rgba(232,210,161,.4)"></div>
+<div style="position:absolute;inset:33px 33px 33px 57px;border:2.5px solid rgba(232,210,161,.2)"></div>
+<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:56px 52px 56px 76px;text-align:center;gap:2px">
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.42em;text-transform:uppercase;color:rgba(238,220,180,.72)">Travel Diary</div>
+<div style="width:52px;height:1px;background:rgba(232,210,161,.5);margin:16px 0 6px"></div>
+<div style="{{ titleStyle }}">{{ bookTitle }}</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:17px;line-height:1.4;color:rgba(240,225,192,.78);margin-top:10px;max-width:280px">field notes, photographs and other scraps</div>
+<div style="width:52px;height:1px;background:rgba(232,210,161,.5);margin:20px 0 12px"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:10.5px;letter-spacing:.3em;text-transform:uppercase;color:rgba(238,220,180,.72)">The back room</div>
+</div>
+<div style="position:absolute;top:-6px;right:64px;width:20px;height:30%;background:linear-gradient(90deg,#8c2f28,#b6483c 45%,#8c2f28);clip-path:polygon(0 0,100% 0,100% 100%,50% 82%,0 100%);filter:drop-shadow(0 6px 8px rgba(40,20,12,.35))"></div>
+<div style="position:absolute;bottom:34px;right:32px;transform:rotate(4deg);padding:4px;background:radial-gradient(circle 3px at 50% 50%,#fbf6e9 92%,rgba(251,246,233,0) 95%) 0 0/7.5px 7.5px,#fbf6e9;filter:drop-shadow(0 3px 5px rgba(0,0,0,.35))">
+<div style="width:66px;height:80px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:7px 5px;background:linear-gradient(170deg,#3d817e,rgba(0,0,0,.25));box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)">
+<div style="font-family:'Courier Prime',monospace;font-size:6.5px;letter-spacing:.14em;color:#f4ecd9">PRIVATE</div>
+<div style="font-family:'Courier Prime',monospace;font-size:13px;font-weight:700;color:#fff">01</div>
+</div>
+</div>
+</div>
+
+<div style="{{ formSide }}">
+
+<sc-if value="{{ stepPassword }}" hint-placeholder-val="{{ true }}">
+<div style="{{ pane }}">
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:#736247">Sign in</div>
+<div style="font-family:Caveat,cursive;font-size:52px;line-height:1.1;color:#33403c;margin-top:1px">Welcome back</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:16.5px;line-height:1.45;color:#736247;margin-top:4px;text-wrap:pretty">The diary itself is open to everyone. This door is only for editing it.</div>
+
+<div style="height:1px;background:rgba(120,98,60,.22);margin:22px 0 20px"></div>
+
+<div style="display:flex;flex-direction:column;gap:15px">
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Email</div>
+<input type="text" value="{{ email }}" onChange="{{ setEmail }}" onKeyDown="{{ onKey }}" placeholder="hello@wanderings.travel" style="{{ field }}" />
+</div>
+<div>
+<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:5px">
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247">Password</div>
+<div style="flex:1"></div>
+<button onClick="{{ onForgot }}" style="border:none;background:transparent;padding:0;color:#a34434;cursor:pointer;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#8c3327">Forgotten</button>
+</div>
+<div style="position:relative">
+<input type="{{ pwType }}" value="{{ password }}" onChange="{{ setPassword }}" onKeyDown="{{ onKey }}" placeholder="your password" style="{{ pwField }}" />
+<button onClick="{{ togglePw }}" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:transparent;color:#736247;cursor:pointer;padding:6px 8px;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase" style-hover="color:#4a4232">{{ pwToggleLabel }}</button>
+</div>
+</div>
+
+<sc-if value="{{ hasError }}" hint-placeholder-val="{{ false }}">
+<div style="{{ errorBox }}">
+<div style="width:8px;height:8px;flex:none;margin-top:6px;background:#98392b;transform:rotate(45deg)"></div>
+<div style="flex:1;min-width:0;font-family:'EB Garamond',serif;font-size:15.5px;line-height:1.4;color:#8c3327;text-wrap:pretty">{{ error }}</div>
+</div>
+</sc-if>
+
+<button onClick="{{ onRemember }}" style="display:flex;align-items:center;gap:11px;width:100%;background:transparent;border:none;padding:2px 0;cursor:pointer;text-align:left">
+<div style="{{ rememberBox }}">{{ rememberTick }}</div>
+<div style="flex:1;min-width:0;font-family:'EB Garamond',serif;font-size:16px;color:#4a4232">Keep me signed in on this browser</div>
+</button>
+
+<button onClick="{{ onSubmit }}" style="{{ submitBtn }}">{{ submitLabel }}</button>
+</div>
+
+<div style="height:1px;background:rgba(120,98,60,.22);margin:22px 0 16px"></div>
+<div style="display:flex;align-items:center;gap:11px">
+<div style="{{ otpDot }}"></div>
+<div style="flex:1;min-width:0;font-family:'EB Garamond',serif;font-style:italic;font-size:15.5px;line-height:1.4;color:#736247;text-wrap:pretty">{{ otpNotice }}</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ stepOtp }}" hint-placeholder-val="{{ false }}">
+<div style="{{ pane }}">
+<button onClick="{{ onBack }}" style="display:inline-flex;align-items:center;gap:8px;border:none;background:transparent;padding:0;color:#736247;cursor:pointer;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:16px" style-hover="color:#a34434">&#8592; Back to password</button>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:#736247">Second step</div>
+<div style="font-family:Caveat,cursive;font-size:50px;line-height:1.1;color:#33403c;margin-top:1px">Check your email</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:16.5px;line-height:1.45;color:#736247;margin-top:4px;text-wrap:pretty">A six-digit code went to <span style="font-style:normal;color:#4a4232">{{ maskedEmail }}</span>. It expires in {{ countdown }}.</div>
+
+<div style="height:1px;background:rgba(120,98,60,.22);margin:22px 0 20px"></div>
+
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:8px">The code</div>
+<div style="display:flex;gap:9px">
+<sc-for list="{{ otpCells }}" as="c" hint-placeholder-count="6">
+<input type="text" value="{{ c.value }}" onChange="{{ c.change }}" onKeyDown="{{ c.press }}" onPaste="{{ c.paste }}" onFocus="{{ c.focus }}" inputMode="numeric" maxLength="1" ref="{{ c.ref }}" style="{{ c.style }}" />
+</sc-for>
+</div>
+
+<sc-if value="{{ hasError }}" hint-placeholder-val="{{ false }}">
+<div style="{{ errorBox }}">
+<div style="width:8px;height:8px;flex:none;margin-top:6px;background:#98392b;transform:rotate(45deg)"></div>
+<div style="flex:1;min-width:0;font-family:'EB Garamond',serif;font-size:15.5px;line-height:1.4;color:#8c3327;text-wrap:pretty">{{ error }}</div>
+</div>
+</sc-if>
+
+<button onClick="{{ onVerify }}" style="{{ verifyBtn }}">{{ verifyLabel }}</button>
+
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:16px">
+<button onClick="{{ onResend }}" style="{{ resendBtn }}">{{ resendLabel }}</button>
+<div style="flex:1"></div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:#736247">{{ attemptsLabel }}</div>
+</div>
+
+<div style="height:1px;background:rgba(120,98,60,.22);margin:20px 0 14px"></div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15px;line-height:1.4;color:#736247;text-wrap:pretty">Turn this step off under Account &rarr; Getting in, if you would rather sign in with a password alone.</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ stepReset }}" hint-placeholder-val="{{ false }}">
+<div style="{{ pane }}">
+<button onClick="{{ onBack }}" style="display:inline-flex;align-items:center;gap:8px;border:none;background:transparent;padding:0;color:#736247;cursor:pointer;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:16px" style-hover="color:#a34434">&#8592; Back to sign in</button>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:#736247">Forgotten</div>
+<div style="font-family:Caveat,cursive;font-size:50px;line-height:1.1;color:#33403c;margin-top:1px">{{ resetTitle }}</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:16.5px;line-height:1.45;color:#736247;margin-top:4px;text-wrap:pretty">{{ resetBody }}</div>
+
+<div style="height:1px;background:rgba(120,98,60,.22);margin:22px 0 20px"></div>
+
+<sc-if value="{{ resetPending }}" hint-placeholder-val="{{ true }}">
+<div>
+<div style="font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:#736247;margin-bottom:5px">Email</div>
+<input type="text" value="{{ email }}" onChange="{{ setEmail }}" placeholder="hello@wanderings.travel" style="{{ field }}" />
+</div>
+<sc-if value="{{ hasError }}" hint-placeholder-val="{{ false }}">
+<div style="{{ errorBox }}">
+<div style="width:8px;height:8px;flex:none;margin-top:6px;background:#98392b;transform:rotate(45deg)"></div>
+<div style="flex:1;min-width:0;font-family:'EB Garamond',serif;font-size:15.5px;line-height:1.4;color:#8c3327;text-wrap:pretty">{{ error }}</div>
+</div>
+</sc-if>
+<button onClick="{{ onSendReset }}" style="{{ resetBtn }}">{{ resetLabel }}</button>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:15px;line-height:1.4;color:#736247;margin-top:14px;text-wrap:pretty">The link works once and lasts an hour. Nothing about the diary changes until you use it.</div>
+</sc-if>
+
+<sc-if value="{{ resetSent }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:13px;padding:15px 16px;border-radius:2px;background:rgba(47,107,104,.07);box-shadow:inset 0 0 0 1px rgba(47,107,104,.32)">
+<div style="width:14px;height:14px;flex:none;background:#2f6b68;transform:rotate(45deg)"></div>
+<div style="flex:1;min-width:0;font-family:'EB Garamond',serif;font-size:16px;line-height:1.4;color:#2f5a4a;text-wrap:pretty">Sent. Check {{ maskedEmail }} &mdash; including the spam folder, where it usually is.</div>
+</div>
+<button onClick="{{ onBack }}" style="{{ resetBtn }}">Sign in with the new password</button>
+<button onClick="{{ onSendReset }}" style="{{ resendAgainBtn }}">Send it again</button>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ stepDone }}" hint-placeholder-val="{{ false }}">
+<div style="{{ pane }}">
+<div style="display:flex;align-items:center;justify-content:center;width:62px;height:62px;border-radius:50%;box-shadow:inset 0 0 0 1.5px rgba(47,107,104,.5);margin-bottom:18px">
+<div style="width:20px;height:20px;background:#2f6b68;transform:rotate(45deg)"></div>
+</div>
+<div style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:#736247">Signed in</div>
+<div style="font-family:Caveat,cursive;font-size:50px;line-height:1.1;color:#33403c;margin-top:1px">The back room is open</div>
+<div style="font-family:'EB Garamond',serif;font-style:italic;font-size:16.5px;line-height:1.45;color:#736247;margin-top:4px;text-wrap:pretty">Four changes are still unpublished from your last session.</div>
+<a href="./Travel Diary Admin.dc.html" style="{{ enterBtn }}">Open the admin panel</a>
+<a href="./Travel Diary.dc.html" style="{{ ghostBtn }}">View the diary instead</a>
+<button onClick="{{ onSignOut }}" style="border:none;background:transparent;padding:0;margin-top:18px;color:#736247;cursor:pointer;font-family:'Courier Prime',monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase" style-hover="color:#a34434">Sign out and start again</button>
+</div>
+</sc-if>
+
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:700},&quot;bookTitle&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Wanderings&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;otpEnabled&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Sign in&quot;},&quot;demoCode&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;123456&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Sign in&quot;},&quot;coverCloth&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#2f4a47&quot;,&quot;options&quot;:[&quot;#2f4a47&quot;,&quot;#7a3b32&quot;,&quot;#3d4257&quot;,&quot;#5c4a2b&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Sign in&quot;},&quot;showBookPanel&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Sign in&quot;},&quot;mobileBreakpoint&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:820,&quot;min&quot;:600,&quot;max&quot;:1200,&quot;step&quot;:20,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Sign in&quot;}}">
+class Component extends DCLogic {
+  state = {
+    step: 'password', email: 'hello@wanderings.travel', password: '', showPw: false,
+    remember: true, error: '', busy: false, otp: ['', '', '', '', '', ''],
+    attempts: 0, left: 300, resendIn: 0, shakeAt: 0, resetSent: false, vw: 0
+  };
+  refs = {};
+
+  componentDidMount() {
+    this._lastOtp = this.otpOn();
+    this._measure = () => {
+      const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+      if (vw && vw !== this.state.vw) this.setState({ vw: vw });
+    };
+    window.addEventListener('resize', this._measure);
+    if (window.ResizeObserver) { this._ro = new ResizeObserver(this._measure); this._ro.observe(document.body); }
+    [0, 60, 300].forEach(t => setTimeout(this._measure, t));
+    this._tick = setInterval(() => {
+      if (this.state.step !== 'otp') return;
+      const left = Math.max(0, this.state.left - 1);
+      const resendIn = Math.max(0, this.state.resendIn - 1);
+      if (left !== this.state.left || resendIn !== this.state.resendIn) this.setState({ left: left, resendIn: resendIn });
+    }, 1000);
+    this._sync = () => this.forceUpdate();
+    window.addEventListener('storage', this._sync);
+    window.addEventListener('focus', this._sync);
+    this._poll = setInterval(this._sync, 1500);
+  }
+  componentWillUnmount() {
+    window.removeEventListener('resize', this._measure);
+    if (this._ro) this._ro.disconnect();
+    clearInterval(this._tick); clearInterval(this._poll);
+    clearTimeout(this._tSubmit); clearTimeout(this._tVerify); clearTimeout(this._tReset);
+    window.removeEventListener('storage', this._sync);
+    window.removeEventListener('focus', this._sync);
+  }
+
+  mmss(n) { return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0'); }
+
+  otpOn() {
+    try {
+      const v = window.localStorage.getItem('om-diary-otp');
+      if (v === '0') return false;
+      if (v === '1') return true;
+    } catch (err) { /* storage blocked */ }
+    return this.props.otpEnabled ?? true;
+  }
+
+  componentDidUpdate() {
+    const on = this.otpOn();
+    if (this._lastOtp !== undefined && this._lastOtp !== on && this.state.step === 'otp' && !on) {
+      this.setState({ step: 'done', error: '' });
+    }
+    this._lastOtp = on;
+  }
+
+  submit() {
+    if (this.state.busy) return;
+    const email = this.state.email.trim();
+    if (!email || email.indexOf('@') < 0) { this.fail('That does not look like an email address.'); return; }
+    if (this.state.password.length < 4) { this.fail('Enter your password to carry on.'); return; }
+    this.setState({ busy: true, error: '' });
+    clearTimeout(this._tSubmit);
+    this._tSubmit = setTimeout(() => {
+      if (this.otpOn()) {
+        this.setState({ busy: false, step: 'otp', otp: ['', '', '', '', '', ''], left: 300, resendIn: 30, error: '', attempts: 0 });
+        setTimeout(() => { if (this.refs.o0) this.refs.o0.focus(); }, 60);
+      } else {
+        this.setState({ busy: false, step: 'done', error: '' });
+      }
+    }, 700);
+  }
+
+  fail(msg) { this.setState({ error: msg, shakeAt: Date.now() }); }
+
+  setCell(i, raw) {
+    const digits = String(raw).replace(/\D/g, '');
+    const next = this.state.otp.slice();
+    if (digits.length > 1) {
+      digits.slice(0, 6 - i).split('').forEach((ch, k) => { next[i + k] = ch; });
+      const land = Math.min(5, i + digits.length);
+      this.setState({ otp: next, error: '' });
+      setTimeout(() => { const el = this.refs['o' + land]; if (el) el.focus(); }, 20);
+      return;
+    }
+    next[i] = digits;
+    this.setState({ otp: next, error: '' });
+    if (digits && i < 5) setTimeout(() => { const el = this.refs['o' + (i + 1)]; if (el) el.focus(); }, 20);
+  }
+
+  cellKey(i, e) {
+    if (e.key === 'Backspace' && !this.state.otp[i] && i > 0) {
+      const el = this.refs['o' + (i - 1)];
+      if (el) el.focus();
+    }
+    if (e.key === 'ArrowLeft' && i > 0) { const el = this.refs['o' + (i - 1)]; if (el) el.focus(); }
+    if (e.key === 'ArrowRight' && i < 5) { const el = this.refs['o' + (i + 1)]; if (el) el.focus(); }
+    if (e.key === 'Enter') this.verify();
+  }
+
+  verify() {
+    if (this.state.busy) return;
+    const code = this.state.otp.join('');
+    if (code.length < 6) { this.fail('All six digits, then we can look.'); return; }
+    if (this.state.left <= 0) { this.fail('That code has expired. Send yourself a new one.'); return; }
+    this.setState({ busy: true, error: '' });
+    clearTimeout(this._tVerify);
+    this._tVerify = setTimeout(() => {
+      const expected = String(this.props.demoCode ?? '123456');
+      if (code === expected) {
+        this.setState({ busy: false, step: 'done', error: '' });
+      } else {
+        const n = this.state.attempts + 1;
+        this.setState({
+          busy: false, attempts: n, otp: ['', '', '', '', '', ''], shakeAt: Date.now(),
+          error: n >= 3 ? 'Three wrong codes. Send a new one, or go back and try the password again.' : 'That code is not right. ' + (3 - n) + ' attempts left.'
+        });
+        setTimeout(() => { if (this.refs.o0) this.refs.o0.focus(); }, 60);
+      }
+    }, 600);
+  }
+
+  resend() {
+    if (this.state.resendIn > 0) return;
+    this.setState({ otp: ['', '', '', '', '', ''], left: 300, resendIn: 30, attempts: 0, error: '' });
+    setTimeout(() => { if (this.refs.o0) this.refs.o0.focus(); }, 60);
+  }
+
+  masked() {
+    const e = this.state.email.trim();
+    const at = e.indexOf('@');
+    if (at < 2) return e;
+    return e.slice(0, 2) + '\u2022'.repeat(Math.max(3, at - 2)) + e.slice(at);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const title = String(this.props.bookTitle ?? 'Wanderings');
+    const vw = s.vw || (typeof window !== 'undefined' ? window.innerWidth : 0) || 1200;
+    const narrow = vw < (this.props.mobileBreakpoint ?? 1200);
+    const wide = (this.props.showBookPanel ?? true) && !narrow;
+    const shaking = Date.now() - s.shakeAt < 500;
+
+    const field = {
+      width: '100%', background: '#fffdf6', border: 'none',
+      boxShadow: 'inset 0 0 0 1px rgba(120,98,60,.32)', padding: '11px 13px', borderRadius: '2px',
+      fontFamily: "'EB Garamond', serif", fontSize: '17px', color: '#33403c'
+    };
+    const btn = (primary, extra) => Object.assign({
+      display: 'block', width: '100%', textAlign: 'center', padding: '13px', borderRadius: '2px',
+      cursor: 'pointer', fontFamily: "'Courier Prime', monospace", fontSize: '11.5px',
+      letterSpacing: '.2em', textTransform: 'uppercase',
+      border: '1.5px solid ' + (primary ? '#a34434' : '#4a4232'),
+      background: primary ? '#a34434' : 'transparent',
+      color: primary ? '#fdf8ec' : '#4a4232',
+      opacity: s.busy ? .6 : 1
+    }, extra || {});
+
+    return {
+      bookTitle: title,
+      narrow: narrow,
+      mastStyle: {
+        position: 'relative', padding: '22px 20px 20px', textAlign: 'center',
+        background: 'repeating-linear-gradient(45deg, rgba(255,255,255,.035) 0 2px, rgba(0,0,0,.03) 2px 4px), linear-gradient(160deg, ' + (this.props.coverCloth ?? '#2f4a47') + ' 0%, rgba(0,0,0,.3) 130%)',
+        boxShadow: 'inset 0 0 50px rgba(0,0,0,.3)'
+      },
+      mastTitle: {
+        fontFamily: 'Caveat, cursive', lineHeight: 1.2, color: '#f6ecd6', marginTop: '2px',
+        fontSize: Math.max(28, Math.min(44, Math.floor(190 / (Math.max(1, title.length) * 0.4)))) + 'px',
+        textShadow: '0 2px 0 rgba(0,0,0,.22)'
+      },
+      titleStyle: {
+        fontFamily: 'Caveat, cursive',
+        fontSize: Math.max(30, Math.min(84, Math.floor(300 / (Math.max(1, title.length) * 0.4)))) + 'px',
+        lineHeight: 1.16, color: '#f6ecd6', textShadow: '0 2px 0 rgba(0,0,0,.22)'
+      },
+      shell: {
+        display: 'grid', width: '100%', maxWidth: wide ? '1020px' : '470px',
+        gridTemplateColumns: wide ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)',
+        borderRadius: '4px', overflow: 'hidden', minHeight: narrow ? '0' : '592px',
+        boxShadow: '0 34px 70px -34px rgba(48,38,24,.55), 0 0 0 1px rgba(120,98,60,.18)',
+        animation: shaking ? 'omShake 420ms ease' : 'none'
+      },
+      bookSide: {
+        position: 'relative', display: wide ? 'block' : 'none', minHeight: '592px',
+        background: 'repeating-linear-gradient(45deg, rgba(255,255,255,.035) 0 2px, rgba(0,0,0,.03) 2px 4px), linear-gradient(160deg, ' + (this.props.coverCloth ?? '#2f4a47') + ' 0%, rgba(0,0,0,.3) 130%)',
+        boxShadow: 'inset 0 0 90px rgba(0,0,0,.35)'
+      },
+      formSide: { position: 'relative', background: '#fffdf6', display: 'flex', alignItems: 'center', minWidth: 0 },
+      pane: { width: '100%', padding: narrow ? '26px 20px 24px' : '40px 42px 38px', minWidth: 0 },
+
+      stepPassword: s.step === 'password',
+      stepOtp: s.step === 'otp',
+      stepDone: s.step === 'done',
+
+      email: s.email,
+      setEmail: e => this.setState({ email: e.target.value, error: '' }),
+      password: s.password,
+      setPassword: e => this.setState({ password: e.target.value, error: '' }),
+      pwType: s.showPw ? 'text' : 'password',
+      pwToggleLabel: s.showPw ? 'Hide' : 'Show',
+      togglePw: () => this.setState({ showPw: !s.showPw }),
+      field: field,
+      pwField: Object.assign({}, field, { paddingRight: '72px' }),
+      onKey: e => { if (e.key === 'Enter') this.submit(); },
+      onSubmit: () => this.submit(),
+      submitBtn: btn(true, { marginTop: '6px' }),
+      submitLabel: s.busy ? 'Checking\u2026' : 'Sign in',
+      onForgot: () => {
+        clearTimeout(this._tSubmit); clearTimeout(this._tVerify);
+        this.setState({ step: 'reset', error: '', busy: false, resetSent: false });
+      },
+      stepReset: s.step === 'reset',
+      resetPending: !s.resetSent,
+      resetSent: !!s.resetSent,
+      resetTitle: s.resetSent ? 'Check your email' : 'Send yourself a way back in',
+      resetBody: s.resetSent
+        ? 'A one-time link is on its way. Follow it and you can set a new password.'
+        : 'Tell me the address you sign in with and I will send a link that lets you set a new password.',
+      resetBtn: btn(true, { marginTop: '18px' }),
+      resendAgainBtn: btn(false, { marginTop: '10px' }),
+      resetLabel: s.busy ? 'Sending\u2026' : 'Send the link',
+      onSendReset: () => {
+        const e = (s.email || '').trim();
+        if (!e || e.indexOf('@') < 0) { this.fail('That does not look like an email address.'); return; }
+        this.setState({ busy: true, error: '' });
+        clearTimeout(this._tReset);
+        this._tReset = setTimeout(() => this.setState({ busy: false, resetSent: true }), 650);
+      },
+
+      remember: s.remember,
+      onRemember: () => this.setState({ remember: !s.remember }),
+      rememberTick: s.remember ? '\u2713' : '',
+      rememberBox: {
+        width: '21px', height: '21px', flex: 'none', borderRadius: '2px', fontSize: '13px', lineHeight: 1,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: s.remember ? '#a34434' : '#fffdf6',
+        color: s.remember ? '#fdf8ec' : 'transparent',
+        boxShadow: 'inset 0 0 0 1px ' + (s.remember ? '#a34434' : 'rgba(120,98,60,.4)')
+      },
+
+      hasError: !!s.error,
+      error: s.error,
+      errorBox: {
+        display: 'flex', gap: '10px', padding: '11px 13px', borderRadius: '2px',
+        background: 'rgba(152,57,43,.07)', boxShadow: 'inset 0 0 0 1px rgba(152,57,43,.32)'
+      },
+
+      otpDot: {
+        width: '9px', height: '9px', flex: 'none', transform: 'rotate(45deg)',
+        background: this.otpOn() ? '#a34434' : 'transparent',
+        boxShadow: this.otpOn() ? 'none' : 'inset 0 0 0 1px rgba(120,98,60,.5)'
+      },
+      otpNotice: this.otpOn()
+        ? 'A one-time code is asked for after your password. Turn it off under Account \u2192 Getting in.'
+        : 'The one-time code step is switched off, so your password alone will let you in.',
+
+      maskedEmail: this.masked(),
+      countdown: this.mmss(s.left),
+      otpCells: s.otp.map((v, i) => ({
+        key: 'cell' + i, value: v,
+        ref: el => { this.refs['o' + i] = el; },
+        change: e => this.setCell(i, e.target.value),
+        press: e => this.cellKey(i, e),
+        paste: e => {
+          e.preventDefault();
+          const t = ((e.clipboardData || window.clipboardData).getData('text') || '').replace(/\D/g, '');
+          if (t) this.setCell(t.length >= 6 ? 0 : i, t);
+        },
+        focus: e => { if (e.target.select) e.target.select(); },
+        style: {
+          width: '100%', minWidth: 0, textAlign: 'center', background: '#fffdf6', border: 'none',
+          padding: '13px 0', borderRadius: '2px',
+          fontFamily: "'Courier Prime', monospace", fontSize: '25px', color: '#33403c',
+          boxShadow: 'inset 0 0 0 ' + (v ? '1.5px #a34434' : '1px rgba(120,98,60,.34)')
+        }
+      })),
+      onVerify: () => this.verify(),
+      verifyBtn: btn(true, { marginTop: '18px' }),
+      verifyLabel: s.busy ? 'Checking\u2026' : 'Verify and sign in',
+      onBack: () => {
+        clearTimeout(this._tSubmit); clearTimeout(this._tVerify); clearTimeout(this._tReset);
+        this.setState({ step: 'password', error: '', busy: false, otp: ['', '', '', '', '', ''], resetSent: false });
+      },
+      onResend: () => this.resend(),
+      resendLabel: s.resendIn > 0 ? 'Send again in ' + s.resendIn + 's' : 'Send a new code',
+      resendBtn: {
+        border: 'none', background: 'transparent', padding: 0,
+        color: s.resendIn > 0 ? '#736247' : '#a34434',
+        cursor: s.resendIn > 0 ? 'default' : 'pointer',
+        fontFamily: "'Courier Prime', monospace", fontSize: '10px', letterSpacing: '.16em', textTransform: 'uppercase'
+      },
+      attemptsLabel: s.attempts ? s.attempts + ' of 3 tried' : 'Code 123456 in this mock-up',
+
+      enterBtn: btn(true, { marginTop: '26px', textDecoration: 'none' }),
+      ghostBtn: btn(false, { marginTop: '10px', textDecoration: 'none' }),
+      onSignOut: () => this.setState({ step: 'password', password: '', otp: ['', '', '', '', '', ''], error: '', attempts: 0 })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Environment and secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Test artefacts
+coverage/
+playwright-report/
+test-results/
+blob-report/
+*.lcov
+
+# Local media and database volumes
+media/
+uploads/
+.postgres-data/
+
+# Editor and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+# The handoff archive — the extracted folder is tracked instead
+*.zip
