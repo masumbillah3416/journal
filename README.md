@@ -77,12 +77,16 @@ See `docs/testing.md` for what each suite covers today versus once the public di
 
 ## The verify gate
 
-`npm run verify` is the gate: typecheck, lint (zero warnings), and unit tests with
-coverage thresholds enforced in `vitest.config.ts` (100% for `packages/domain/**`, 95%
-for `apps/web/lib/**`, 90% repository-wide). It runs in the pre-commit hook and must pass
-before any change is committed.
+`npm run verify` is the pre-commit gate: typecheck, lint (zero warnings), and the
+database-free tests with coverage thresholds enforced in `vitest.config.ts` (100% for
+`packages/domain/**`, 95% for `apps/web/lib/**`, 90% repository-wide). It runs in the
+pre-commit hook and must pass before any change is committed. It covers two Vitest
+projects: `unit` (pure, Node) and `unit-dom` (`*.test.tsx`, jsdom).
 
-Unit tests (no I/O, no database) run in `verify`. Integration tests — anything matching
-`*.integration.test.ts`, which require `DATABASE_URL` — run separately in
-`npm run verify:full`, which is what CI runs. This split keeps the pre-commit gate
-something a developer can always pass honestly, even with Docker down.
+Integration tests — anything matching `*.integration.test.ts`, which require
+`DATABASE_URL` — run separately in `npm run verify:full`, which is what CI runs and what
+a completion claim needs. That run carries its own coverage gate
+(`vitest.integration.config.ts`) over the code only a real Postgres can execute:
+collections, globals, `payload.config.ts`, the migrations, and the integration-only
+`lib`/`scripts` files. This split keeps the pre-commit gate something a developer can
+always pass honestly, even with Docker down.

@@ -75,7 +75,7 @@ Documentation is a deliverable, not an afterthought. **All of the following type
 | **Security** | Vitest + scripted probes | Rate limits, lockout, OTP single-use, SVG rejection, EXIF stripping, authorization on every mutation. |
 | **Migration** | Vitest | Every migration runs up, down, and up again against a seeded database. |
 
-### 2.1 Coverage gates — enforced in `vitest.config.ts`; CI fails below
+### 2.1 Coverage gates — enforced in `vitest.config.ts` and `vitest.integration.config.ts`; CI fails below
 
 | Layer | Lines | Branches | Functions |
 |---|---|---|---|
@@ -84,6 +84,8 @@ Documentation is a deliverable, not an afterthought. **All of the following type
 | Repository-wide | 90% | 90% | 90% |
 
 100% is required where it is meaningful — pure domain logic, where every branch is a real behaviour. It is *not* demanded of framework glue, where chasing the last percent produces tests that assert the framework rather than our code. Uncovered lines outside the domain layer require an `/* c8 ignore next -- <reason> */` with a real reason.
+
+**No file is in neither config's `include`.** A file no `include` matches is not reported as 0% — it is not reported at all, and an unmeasured file looks exactly like a fully-covered one. Two configs exist because no single Vitest run can execute everything: the Docker-free pass measures what it can run, and `vitest.integration.config.ts` measures what needs a real Postgres. A file unreachable from either gets one of two honest treatments, never silence: exclude-and-regate where some other pass can genuinely see it, or a `c8 ignore` carrying its reason where nothing can. Adding code in a new directory means adding that directory to an `include`, with a real threshold, in the same commit.
 
 ### 2.2 TDD cycle — mandatory
 

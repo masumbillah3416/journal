@@ -7,6 +7,15 @@
  *     Sets fixed dummy values for the three env vars `apps/web/lib/env.ts`
  *     validates at import time, so importing it never needs Docker or a real
  *     `.env` file — those values are never used to open a real connection here.
+ *   - unit-dom: React component tests, matched by `*.test.tsx`, in a jsdom
+ *     environment. A SEPARATE project rather than a wider glob on `unit`
+ *     because the environment differs: `unit`'s files are pure and run in
+ *     Node, and paying jsdom's setup cost for every one of them to
+ *     accommodate a handful of component tests is the wrong trade. Runs in
+ *     `npm run verify` alongside `unit` - `npm run test:unit` names both
+ *     projects, and adding a project without adding it there would leave its
+ *     files collected by nobody, which is the exact defect this project
+ *     exists to close.
  *   - integration: tests requiring DATABASE_URL, matched by `*.integration.test.ts`
  *     under `apps/web/lib/**`, `apps/web/collections/**` or `apps/web/scripts/**`
  *     (collection, migration and seed tests against the real Docker Postgres).
@@ -28,8 +37,8 @@
  * running them one at a time costs a little wall-clock time (it is still
  * sub-second) rather than any correctness risk.
  *
- * This config's own coverage pass only ever executes the `unit` project (the
- * pre-commit gate is Docker-free), so `postgres-queue.ts`, `migrate.ts` and
+ * This config's own coverage pass executes the `unit` and `unit-dom` projects
+ * (the pre-commit gate is Docker-free), so `postgres-queue.ts`, `migrate.ts` and
  * the queue contract suite/fixtures - reachable only from an
  * `*.integration.test.ts` file - are excluded here rather than counted as
  * 0%-covered against thresholds they have no way to meet from this run. They
@@ -53,6 +62,35 @@ export default defineConfig({
           name: 'unit',
           include: ['packages/*/src/**/*.test.ts', 'apps/web/lib/**/*.test.ts', 'apps/web/scripts/**/*.test.ts'],
           exclude: ['**/*.integration.test.ts', '**/node_modules/**'],
+          env: {
+            DATABASE_URL: 'postgres://unit-test:unused@localhost:5432/unit-test',
+            PAYLOAD_SECRET: 'unit-test-secret-value-not-used-for-real-auth',
+            MEDIA_ORIGIN: 'http://localhost:3000',
+          },
+        },
+      },
+      {
+        // The automatic JSX runtime, so a `.test.tsx` file does not need an
+        // `import React from 'react'` line that nothing in it references.
+        // Without it esbuild emits classic `React.createElement` calls and
+        // every component test dies with "React is not defined". It belongs
+        // on this project, not at the root: Vitest builds each project from
+        // its own inline config, so a root-level `esbuild` block does not
+        // reach them (verified - the failure above persisted until it moved
+        // here).
+        esbuild: { jsx: 'automatic' as const },
+        test: {
+          name: 'unit-dom',
+          // Until this project existed, no project's `include` matched
+          // `*.test.tsx` and no project set a DOM environment. A React
+          // component test would therefore have been collected by NOBODY -
+          // and a test collected by nobody does not fail, it silently is not
+          // there, so the run stays green and the report says nothing. Phase
+          // 1 lands the first components; this is here before them, with
+          // `apps/web/lib/react-harness.test.tsx` proving the harness runs.
+          include: ['packages/*/src/**/*.test.tsx', 'apps/web/**/*.test.tsx'],
+          exclude: ['**/node_modules/**', '**/.next/**'],
+          environment: 'jsdom',
           env: {
             DATABASE_URL: 'postgres://unit-test:unused@localhost:5432/unit-test',
             PAYLOAD_SECRET: 'unit-test-secret-value-not-used-for-real-auth',
@@ -85,9 +123,16 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
-      include: ['packages/*/src/**/*.ts', 'apps/web/lib/**/*.ts', 'apps/web/scripts/**/*.ts'],
+      include: [
+        'packages/*/src/**/*.ts',
+        'packages/*/src/**/*.tsx',
+        'apps/web/lib/**/*.ts',
+        'apps/web/lib/**/*.tsx',
+        'apps/web/scripts/**/*.ts',
+      ],
       exclude: [
         '**/*.test.ts',
+        '**/*.test.tsx',
         '**/*.d.ts',
         '**/index.ts',
         // Gated instead by vitest.integration.config.ts's dedicated pass -

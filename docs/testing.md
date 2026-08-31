@@ -8,22 +8,59 @@ see the **Status** column.
 
 ## Coverage gates
 
-Enforced in `vitest.config.ts`, checked by `npm run test:unit`'s `--coverage` flag and
-gating CI:
+Enforced by TWO configs, because no single Vitest run can execute everything:
 
-| Layer | Lines | Branches | Functions |
-|---|---|---|---|
-| `packages/domain/**` (pure logic) | 100% | 100% | 100% |
-| `apps/web/lib/**`, server actions | 95% | 95% | 95% |
-| Repository-wide | 90% | 90% | 90% |
+- **`vitest.config.ts`**, checked by `npm run test:unit`'s `--coverage` flag (the
+  Docker-free pre-commit pass). Covers `packages/*/src/**`, `apps/web/lib/**` and
+  `apps/web/scripts/**`, `.ts` and `.tsx` alike.
+
+  | Layer | Lines | Branches | Functions |
+  |---|---|---|---|
+  | `packages/domain/**` (pure logic) | 100% | 100% | 100% |
+  | `apps/web/lib/**`, server actions | 95% | 95% | 95% |
+  | Repository-wide | 90% | 90% | 90% |
+
+- **`vitest.integration.config.ts`**, checked by `npm run test:integration:coverage`.
+  Covers everything only a real Postgres can execute: the integration-only `lib` and
+  `scripts` files listed under Contract and Migration below, plus
+  `apps/web/collections/**`, `apps/web/globals/**`, `apps/web/payload.config.ts` and
+  `apps/web/migrations/**`, each gated per-file at what it genuinely measures.
+
+**Nothing is allowed to be in neither.** That is not a stylistic preference: a file no
+config's `include` matches is not reported as 0%, it is not reported at all, and a gap
+nobody can see is the failure mode this phase has already been bitten by. Collections,
+globals, `payload.config.ts` and the migrations were in exactly that position until they
+were added here — no exclusion, no reason, simply absent. They are gated at **100%
+across the board now**, while they are still declarative and the number costs nothing:
+Phase 2's access control and Phase 4's hooks land in `collections/`, and a threshold set
+after the code arrives is a threshold negotiated down to whatever that code happens to
+score.
+
+**`apps/web/app/**` is the one deliberate hole, and it is a Phase 1 requirement.** It
+holds four re-exports of Payload's own route handlers and the layout around them — no
+logic of ours, and nothing any current test can execute without a Next.js request
+context. A threshold against a directory with nothing measurable in it is theatre.
+Phase 1's server actions and `BookBundle` mappers are the first real code to land there;
+**the task that lands them adds `apps/web/app/**` to a coverage `include` with a real
+threshold in the same commit.**
 
 An uncovered line outside `packages/domain` requires a
-`/* c8 ignore next -- <reason> */` comment with a real reason (`CLAUDE.md` §2.1).
+`/* c8 ignore next -- <reason> */` comment with a real reason (`CLAUDE.md` §2.1). Where a
+whole file is unreachable from any test, the honest options are two, and which one
+applies depends on whether some *other* pass can see it: exclude-and-regate (as
+`seed.ts`, `seed-data.ts`, `testPayload.ts` and `migrate.ts` each get — excluded from the
+unit pass, genuinely measured by the integration pass), or an explicit `c8 ignore` with
+its reason at the point it applies. `apps/web/scripts/run-seed.ts` is the second kind and
+now says so in code rather than only in prose: its body is top-level `await` ending in
+`process.exit(0)`, so any test importing it would seed a real database and then kill its
+own worker — there is no pass that could measure it, and claiming an exclude-and-regate
+would claim a measurement nothing performs.
 
 ## The verify gates
 
-- **`npm run verify`** — `typecheck && lint && test:unit`. This is the pre-commit gate:
-  unit tests only, so a developer can always pass it honestly, even with Docker down.
+- **`npm run verify`** — `typecheck && lint && test:unit`, where `test:unit` runs the
+  `unit` **and** `unit-dom` projects with coverage. This is the pre-commit gate: no
+  database, so a developer can always pass it honestly, even with Docker down.
 - **`npm run verify:full`** — `verify` plus `test:integration:coverage` (which runs the
   same integration test files as `test:integration`, with `--coverage` scoped to the
   integration-only files named in the Contract and Migration sections below). This is
@@ -36,12 +73,36 @@ An uncovered line outside `packages/domain` requires a
 
 - **Tool:** Vitest.
 - **Scope:** pure functions, state machines, mappers, validators. No I/O.
-- **Status:** implemented. The `unit` Vitest project (`vitest.config.ts`) includes
-  `packages/*/src/**/*.test.ts`, `apps/web/lib/**/*.test.ts` and
-  `apps/web/scripts/**/*.test.ts`, excluding anything matching `*.integration.test.ts`.
-- **Run:** `npm run test:unit` (with coverage), or `npm run test` for watch mode across
-  both projects.
-- **Add one:** colocate `<name>.test.ts` next to `<name>.ts`. Follow the TDD cycle
+- **Status:** implemented, as TWO Vitest projects (`vitest.config.ts`):
+  - `unit` — `packages/*/src/**/*.test.ts`, `apps/web/lib/**/*.test.ts` and
+    `apps/web/scripts/**/*.test.ts`, excluding `*.integration.test.ts`. Node
+    environment; these files are pure.
+  - `unit-dom` — `packages/*/src/**/*.test.tsx` and `apps/web/**/*.test.tsx`, in a
+    **jsdom** environment, with esbuild's automatic JSX runtime so a component test
+    needs no `import React`. A separate project rather than a wider glob on `unit`
+    because the environment differs, and paying jsdom's setup cost for every pure test
+    to accommodate a handful of component tests is the wrong trade.
+
+  `unit-dom` exists *before* Phase 1's first component, on purpose. Until it did, no
+  project's `include` matched `*.test.tsx` and neither set a DOM environment — so the
+  first React component test would have been collected by nobody, and **a test collected
+  by nobody does not fail; it silently is not there and the run stays green**. That is
+  the worst member of the family this phase has already met twice (a migration that
+  looked real because dev-mode schema push had already built the schema; a concurrency
+  test that kept passing with its guarding clause deleted), because there is no red to
+  notice.
+
+  `apps/web/lib/react-harness.test.tsx` is the guard: it mounts a real React component
+  into a real `document` with `react-dom/client` and reads the text back out, which is
+  impossible to pass unless the file is being collected AND the environment is a DOM. It
+  is named here so that its disappearance from a run summary is noticeable. It is not a
+  placeholder and does not get deleted when real component tests arrive — it is the only
+  thing in the repository that asserts the harness exists independently of any component.
+- **Run:** `npm run test:unit` (both projects, with coverage), or `npm run test` for
+  watch mode across every project.
+- **Add one:** colocate `<name>.test.ts` next to `<name>.ts` — or `<name>.test.tsx` for
+  anything that renders, which the `unit-dom` project picks up automatically. Follow the
+  TDD cycle
   (`CLAUDE.md` §2.2): write the failing test, confirm it fails for the expected reason,
   write the minimum code to pass, refactor with the suite green. Time is always
   injected — never `Date.now()` inside logic under test (this is how `flipMachine`'s
@@ -56,7 +117,12 @@ An uncovered line outside `packages/domain` requires a
   `apps/web/scripts/**` and `packages/*/src/**` (no file matches that last pattern
   today — `packages/domain` and `packages/tokens` are pure, no I/O).
   `collections.integration.test.ts` (Task 6) exercises the schema
-  rules from `DATA_MODEL.md`; `seed.integration.test.ts` (Task 11) exercises
+  rules from `DATA_MODEL.md`, the migration reversibility case (§9 below), and the
+  access control on the two server-only collections — `jobs` and `otpChallenges` declare
+  `access: { read/create/update: () => false }`, and those predicates had no test at all
+  because Payload's Local API defaults to `overrideAccess: true` and so never ran them.
+  The four cases pass `overrideAccess: false`, which is what a REST or GraphQL request
+  does, and assert every one is refused; `seed.integration.test.ts` (Task 11) exercises
   `apps/web/scripts/seed.ts` against real `journeys`, `pages`, `media` rows and the
   `book`/`about` globals, including its idempotency (running it twice leaves the same
   ten journeys, not twenty) and the thirty-row page count (ten journeys × three — Cover,
@@ -156,14 +222,16 @@ An uncovered line outside `packages/domain` requires a
 - **Run:** unit-reachable contracts (`storage`, `mailer`) run under `npm run verify` like
   any other unit test; the `queue` contract, being integration-only, runs under
   `npm run verify:full` / `npm run test:integration`.
-- **Coverage for integration-only code:** `npm run verify`'s coverage pass only ever
-  executes the `unit` project, so `postgres-queue.ts`, `queue-contract.ts`,
-  `queue-fixtures.ts`, `seed.ts`, `seed-data.ts`, `testPayload.ts` and `migrate.ts` —
-  reachable exclusively from an `*.integration.test.ts` — are excluded from
-  `vitest.config.ts`'s coverage `include` rather than counted as 0%-covered there. They
-  are gated instead by a second, dedicated pass, `vitest.integration.config.ts`, run via
+- **Coverage for integration-only code:** `npm run verify`'s coverage pass runs without
+  a database, so `postgres-queue.ts`, `queue-contract.ts`, `queue-fixtures.ts`,
+  `seed.ts`, `seed-data.ts`, `testPayload.ts` and `migrate.ts` — reachable exclusively
+  from an `*.integration.test.ts` — are excluded from `vitest.config.ts`'s coverage
+  `include` rather than counted as 0%-covered there. They are gated instead by a second,
+  dedicated pass, `vitest.integration.config.ts`, run via
   `npm run test:integration:coverage` (chained into `npm run verify:full`) — it runs the
-  same integration test files with `--coverage` scoped to just those seven files.
+  same integration test files with `--coverage` scoped to those seven, plus
+  `apps/web/collections/**`, `apps/web/globals/**`, `apps/web/payload.config.ts` and
+  `apps/web/migrations/**` (all four at 100%; see Coverage gates above).
   Thresholds are set per-file to what is genuinely achieved, not aspirational:
   `queue-contract.ts`, `queue-fixtures.ts`, `seed-data.ts` (a pure data literal) and
   `migrate.ts` are 100% lines/branches/functions — see the Migration section below for

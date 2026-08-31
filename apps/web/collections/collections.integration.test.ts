@@ -4,7 +4,8 @@
  * Integration test (CLAUDE.md §2): exercises the structural rules from
  * DATA_MODEL.md that are painful to retrofit onto a collection with existing
  * rows — soft delete, drafts, the `highlights` cap and `tally`'s text values —
- * against a real Payload instance and a real Docker Postgres, not a mock.
+ * plus the two collections that declare access control, against a real
+ * Payload instance and a real Docker Postgres, not a mock.
  * Named `*.integration.test.ts` so it runs only under the `integration` Vitest
  * project (see vitest.config.ts), never in `npm run verify` (pre-commit).
  *
@@ -199,6 +200,60 @@ describe('collections', () => {
     })
 
     expect(created.tally?.[1]?.value).toBe('plenty')
+  })
+
+  // `jobs` and `otpChallenges` declare `access: { read/create/update: () =>
+  // false }` - they are server-only, reached through the Local API and never
+  // through the REST or GraphQL routes a client can call (docs/api.md). Those
+  // predicates had no test: Payload's Local API defaults to
+  // `overrideAccess: true`, so nothing in this suite ever ran them, and the
+  // one part of the schema with a deliberate access rule was the one part
+  // whose access rule was unmeasured. `overrideAccess: false` makes Payload
+  // enforce them, which is what a REST or GraphQL request does.
+  it('refuses to read jobs for an unauthenticated caller, because the queue is server-only', async () => {
+    const read = payload.find({ collection: 'jobs', overrideAccess: false })
+
+    await expect(read).rejects.toThrow()
+  })
+
+  it('refuses to write jobs for an unauthenticated caller, so a client cannot enqueue or re-status work', async () => {
+    const create = payload.create({
+      collection: 'jobs',
+      overrideAccess: false,
+      data: { kind: 'transcode', mediaId: 'test-media-access', status: 'queued' },
+    })
+    const update = payload.update({
+      collection: 'jobs',
+      id: '1',
+      overrideAccess: false,
+      data: { status: 'failed' },
+    })
+
+    await expect(create).rejects.toThrow()
+    await expect(update).rejects.toThrow()
+  })
+
+  it('refuses to read otpChallenges for an unauthenticated caller, because a code hash must never be enumerable', async () => {
+    const read = payload.find({ collection: 'otpChallenges', overrideAccess: false })
+
+    await expect(read).rejects.toThrow()
+  })
+
+  it('refuses to write otpChallenges for an unauthenticated caller, so nobody can mint or reset a challenge', async () => {
+    const create = payload.create({
+      collection: 'otpChallenges',
+      overrideAccess: false,
+      data: { user: 1, codeHash: 'never-stored-in-plaintext', expiresAt: new Date().toISOString() },
+    })
+    const update = payload.update({
+      collection: 'otpChallenges',
+      id: '1',
+      overrideAccess: false,
+      data: { attempts: 0 },
+    })
+
+    await expect(create).rejects.toThrow()
+    await expect(update).rejects.toThrow()
   })
 
   it('rebuilds every table a journey, its highlights and its tally need, after rolling all migrations back to zero and re-applying them', async () => {
