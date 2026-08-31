@@ -33,7 +33,19 @@ export default tseslint.config(
   // `apps/web/next.config.ts`, which *are* covered by apps/web's own tsconfig
   // and should get the same strict rules as the rest of that app's source.
   {
-    files: ['packages/**/*.ts', 'apps/**/*.ts', 'apps/**/*.tsx'],
+    // e2e/**/*.ts (Task 12) has its own tsconfig.json, so `projectService`
+    // resolves it by the same ancestor-directory walk it uses for
+    // packages/** and apps/** — the strict, type-aware tier is not limited
+    // to product code. `playwright.config.ts` deliberately stays out of
+    // this list: it lives at the repository root, which already has its own
+    // `tsconfig.json` (the composite build's reference-only "solution"
+    // file, with no `include`) — projectService finds that one first by the
+    // same directory walk and, finding the file not listed in it, refuses
+    // to fall back to e2e's sibling project. It is still typechecked (see
+    // e2e/tsconfig.json and the root `typecheck` script), just not by
+    // ESLint's type-aware rules — the same treatment `vitest.config.ts`
+    // already gets, for the same reason (see this file's own header).
+    files: ['packages/**/*.ts', 'apps/**/*.ts', 'apps/**/*.tsx', 'e2e/**/*.ts'],
     extends: [...tseslint.configs.strictTypeChecked],
     languageOptions: { parserOptions: { projectService: true } },
   },

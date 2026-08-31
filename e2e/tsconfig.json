@@ -1,0 +1,9 @@
+{
+  "//": "e2e/tsconfig.json — brings the browser test harness under the same strict compiler settings as the rest of the repo (../tsconfig.base.json), as a project typescript-eslint's `projectService` can discover for e2e/**/*.ts (Task 12) and as a third leg of the root `npm run typecheck` script (via `tsc -p e2e/tsconfig.json --noEmit`). Also covers ../playwright.config.ts for the typecheck step specifically — see that file and eslint.config.js for why it stays outside ESLint's own type-aware tier even though it is typechecked here, the same treatment vitest.config.ts already gets.",
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "noEmit": true
+  },
+  "include": ["**/*.ts", "../playwright.config.ts"]
+}

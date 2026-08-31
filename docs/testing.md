@@ -159,53 +159,130 @@ An uncovered line outside `packages/domain` requires a
 
 ### 4 · End-to-end
 
-- **Tool:** Playwright.
+- **Tool:** Playwright (`playwright.config.ts`, Task 12).
 - **Scope:** real journeys — page flip, bookmark jump, gallery, lightbox, mobile swipe,
   sign-in + OTP, upload round-trip.
-- **Status:** not yet implemented. `package.json` has no Playwright dependency yet;
-  `npm run test:e2e` and `npm run test:e2e:headed` are documented in `CLAUDE.md` §11 and
-  the root `README.md` as the target command surface, added once the app they exercise
-  exists (Phase 1 onward).
-- **Run (once added):** `npm run test:e2e` (headless); `npm run test:e2e:headed` for a
-  visible browser — this is also the engine the mandatory browser-QA-sweep skills use.
-- **Add one (once added):** one spec per real user journey; assert on the DOM reflecting
-  the state machine (e.g. `flipMachine`'s state), not on re-deriving the machine's logic
-  in the test.
+- **Status:** the harness is implemented; the journeys it will guard are not. The public
+  diary, the bespoke `/admin` panel and sign-in are all Phase 1+ — the only route this
+  app serves today is Payload's own admin at `/cms` (`apps/web/payload.config.ts`).
+  `e2e/smoke.spec.ts` is today's one real end-to-end test: it loads `/cms` and asserts
+  **zero** `console` (error level) and `pageerror` events, with both listeners attached
+  *before* `page.goto()`. This is deliberately the harness's centre of gravity, not an
+  afterthought — the handoff's own defect log (`CLAUDE.md` §10, `SCREENS.md`) is mostly
+  *silent* failures (a swallowed click, a missing derivative, a rejected autoplay
+  promise), none of which move a pixel, so visual or manual-only QA misses them
+  entirely. The test also waits `networkidle` and a fixed 500ms grace period after
+  `goto()` before asserting — a real hydration-time console error was observed (in this
+  task's own planted-failure proof, see below) landing *after* the `load` event, so
+  checking immediately on navigation would have produced a false negative on exactly the
+  class of defect this suite exists to catch.
+- **Three viewport projects** — `desktop` (1440×900), `mid` (1000×800), `mobile`
+  (390×844; `isMobile`/`hasTouch` set) — run every spec three times, once per breakpoint
+  named in the Task 12 brief. All three use Chromium, not a mix of engines: this
+  environment's Firefox/WebKit binaries are an unverified download, and are not needed
+  to catch the class of defect this harness targets today (console/pageerror,
+  axe violations, pixel drift). Cross-browser coverage is a candidate for a later phase,
+  not a Task 12 gap silently worked around — see `playwright.config.ts`'s header.
+- **Run:** `npm run test:e2e` (headless, runs `e2e/smoke.spec.ts`); `npm run
+  test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
+  `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
+  `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
+  (reused if already running), `npm run build && npm run start` in CI.
+- **Add one:** one spec per real user journey as each is built; assert on the DOM
+  reflecting the state machine (e.g. `flipMachine`'s state), not on re-deriving the
+  machine's logic in the test. Every new route gets its own `test()` in
+  `e2e/smoke.spec.ts` first — a route with no console-error coverage is a route this
+  suite is silently not protecting.
 
 ### 5 · Visual regression
 
-- **Tool:** Playwright snapshots.
+- **Tool:** Playwright snapshots (`toHaveScreenshot`, `maxDiffPixelRatio: 0.01` in
+  `playwright.config.ts` — the design is high-fidelity, so drift is a defect, not noise).
 - **Scope:** every page type and every admin screen, at each breakpoint. Drift from the
   high-fidelity design is treated as a defect.
-- **Status:** not yet implemented; depends on the Playwright infrastructure above.
-- **Run (once added):** `npm run test:visual`.
-- **Add one (once added):** one snapshot per page type per breakpoint listed in design
-  spec §8.2 (diary `<860px`; admin `≥1180`/`≥860`/narrow; login `<820`). The OTP-cell
-  collapse at 819px (design spec §11) is the canonical example of a defect this suite
-  type exists to catch.
+- **Status:** the mechanism is implemented and proven; the pages it will guard (every
+  diary page type, the bespoke admin) are Phase 1+. `e2e/visual.spec.ts` snapshots the
+  one screen that exists today — `/cms` — at all three breakpoints, using the exact
+  `toHaveScreenshot`/baseline-diff machinery the real pages will use later. Baselines are
+  committed at `e2e/visual.spec.ts-snapshots/*.png`; a snapshot suite with no baseline to
+  compare against protects nothing.
+- **A real, known gap — not run in CI today:** Playwright's screenshot baselines are
+  keyed by OS and font rendering (the committed files are suffixed `-win32.png`, matching
+  the developer machine that generated them). CI's `browser` job runs on Ubuntu; a
+  Windows-generated baseline will not match there regardless of whether the page
+  genuinely changed. The standard fix — running inside Playwright's own pinned Docker
+  image (`mcr.microsoft.com/playwright`) so baselines are generated and compared in one
+  consistent environment — was out of scope to stand up and verify end-to-end for Task
+  12 without an unverified multi-gigabyte image pull; `.github/workflows/ci.yml`'s
+  `browser` job documents this exclusion at the point it would otherwise run
+  `test:visual`. `npm run test:visual` is fully functional locally today (see the Task 12
+  report for a real pass/fail/pass proof) and is what `test:e2e:headed`-driven sweeps use
+  in the meantime.
+- **Run:** `npm run test:visual`. Update baselines deliberately with `npx playwright test
+  e2e/visual.spec.ts --update-snapshots` after confirming a diff is an intended change,
+  never reflexively to make a failure go away.
+- **Add one:** one snapshot per page type per breakpoint listed in design spec §8.2
+  (diary `<860px`; admin `≥1180`/`≥860`/narrow; login `<820`) as each page is built. The
+  OTP-cell collapse at 819px (design spec §11) is the canonical example of a defect this
+  suite type exists to catch.
 
 ### 6 · Accessibility
 
-- **Tool:** axe-core in Playwright.
+- **Tool:** axe-core in Playwright (`@axe-core/playwright`, `e2e/a11y.spec.ts`).
 - **Scope:** every route. Contrast ratios from the handoff's token table are asserted,
   not assumed (e.g. `ink-muted` must stay opaque — an alpha version measures below
   4.5:1, per the handoff's own note).
-- **Status:** not yet implemented; depends on the Playwright infrastructure above.
-- **Run (once added):** `npm run test:a11y`.
-- **Add one (once added):** run axe against every new route as it is added; assert zero
-  violations, not "no critical violations" — CLAUDE.md's non-negotiables draw no line
-  between severities.
+- **Status:** implemented for the one route that exists, `/cms`, asserting `results.
+  violations` is empty — zero violations, not "no critical violations"; CLAUDE.md's
+  non-negotiables draw no line between severities. Running axe against `/cms` today
+  surfaced two real findings that belong to Payload's own stock admin markup, not to any
+  code authored in this repository: `landmark-one-main` and `page-has-heading-one`, both
+  `impact: moderate`, both scoped to the bare `<html>` element. `/cms` is explicitly
+  "development scaffolding ... not the product" (`apps/web/payload.config.ts`'s own
+  header) and is disabled outright in production, so `e2e/a11y.spec.ts` disables exactly
+  these two rules by id — narrowly, with the finding and the reasoning recorded in the
+  test file's own header, not by loosening the top-level assertion. Any *other* violation,
+  on this route or any future one, still fails the suite. This exclusion is revisited the
+  moment `/cms` stops being the route under test — Phase 1's bespoke `/admin` replaces it.
+- **Run:** `npm run test:a11y`.
+- **Add one:** run axe against every new route as it is added; assert zero violations, and
+  only disable a specific rule id with the same standard of evidence as above (a named,
+  understood, vendor-owned finding) — never to make an inconvenient result disappear.
 
 ### 7 · Performance
 
-- **Tool:** Lighthouse CI + custom probes.
+- **Tool:** Lighthouse CI (`@lhci/cli`, `lighthouserc.json`) + custom probes (the custom
+  probes — 60fps flip measurement, N+1 query detection — are still not yet implemented;
+  they need the flip and data-fetching code these budgets describe).
 - **Scope:** the hard budgets in `CLAUDE.md` §6 — 60fps flip (only `transform`/`opacity`
   animated), diary route JS ≤180KB gzipped, admin ≤320KB, LCP ≤2.5s, CLS ≤0.1, INP
   ≤200ms, no N+1 queries, always a derivative tier never an original.
-- **Status:** not yet implemented; no Lighthouse CI config exists yet.
-- **Run (once added):** `npm run test:perf`.
-- **Add one (once added):** a budget per route, enforced in CI, not measured once and
-  forgotten. Measure before optimizing, and paste the measurement (`CLAUDE.md` §0.4).
+- **Status — configured correctly, cannot yet bind meaningfully.** `lighthouserc.json`
+  asserts `largest-contentful-paint` (≤2500ms) and `cumulative-layout-shift` (≤0.1)
+  against `http://localhost:3000/cms`, the only URL that exists. Running it for real
+  (`npm run test:perf`) produces an honest, reproducible **failure**:
+  `largest-contentful-paint` measured ~11.7s against a 2500ms budget. This is not this
+  repository's diary being slow — it is Lighthouse's default simulated-mobile-network
+  throttling applied to Payload's own heavy admin-panel JavaScript bundle, which the
+  180KB/320KB budgets were never written to describe. The budget is configured correctly
+  for the route it is meant to guard; it simply has no honest target to bind to until the
+  diary route exists in Phase 1. The thresholds were **not** loosened, and no
+  `/cms`-specific carve-out was added, to make this pass — an assertion that always passes
+  because nothing real is being measured would be actively misleading. `cumulative-layout-
+  shift` does pass against `/cms` today, which is a real (if narrow) signal.
+- **Not gated in CI:** `.github/workflows/ci.yml`'s `browser` job runs `test:perf` with
+  `continue-on-error: true` — informational, visible in every run's log, not a merge
+  blocker. Hard-gating a budget that cannot currently pass for a reason unrelated to code
+  quality would train reviewers to ignore this job's failures, which is the opposite of
+  what a performance gate is for. It becomes a real, hard-gated budget the moment the
+  diary route exists to point it at.
+- **Run:** `npm run test:perf`. Needs a system Chrome/Chromium install discoverable by
+  `chrome-launcher` (GitHub's `ubuntu-latest` runner image ships one; set `CHROME_PATH`
+  locally if none is found automatically).
+- **Add one:** a budget per route, enforced in CI, not measured once and forgotten.
+  Measure before optimizing, and paste the measurement (`CLAUDE.md` §0.4). Add the
+  diary route's URL to `lighthouserc.json`'s `collect.url` array the moment it exists,
+  and remove `continue-on-error` once its budgets pass for a real reason.
 
 ### 8 · Security
 

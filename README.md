@@ -63,9 +63,11 @@ npm run db:migrate:create -w apps/web # generate a new migration from schema cha
 npm run db:seed -w apps/web           # seed the ten prototype journeys and their pages
 ```
 
-Commands not yet implemented (`test:e2e`, `test:visual`, `test:a11y`, `test:perf`) are
-listed here as the target command surface from `CLAUDE.md` §11; they will be added as
-the app that needs them lands.
+`test:e2e`, `test:e2e:headed`, `test:visual` and `test:a11y` need Playwright's Chromium
+browser (`npx playwright install chromium`) and the app running (`playwright.config.ts`'s
+`webServer` starts it automatically). `test:perf` needs a system Chrome/Chromium install.
+See `docs/testing.md` for what each suite covers today versus once the public diary
+(Phase 1) exists to test against.
 
 ## The verify gate
 

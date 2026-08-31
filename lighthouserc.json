@@ -1,0 +1,21 @@
+{
+  "ci": {
+    "collect": {
+      "url": ["http://localhost:3000/cms"],
+      "numberOfRuns": 1,
+      "startServerCommand": "npm run build -w apps/web && npm run start -w apps/web -- --port 3000",
+      "startServerReadyPattern": "Ready in",
+      "startServerReadyTimeout": 180000
+    },
+    "assert": {
+      "assertions": {
+        "largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
+        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }]
+      }
+    },
+    "upload": {
+      "target": "filesystem",
+      "outputDir": "./lhci-reports"
+    }
+  }
+}

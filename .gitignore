@@ -22,6 +22,8 @@ playwright-report/
 test-results/
 blob-report/
 *.lcov
+.lighthouseci/
+lhci-reports/
 
 # Local media and database volumes
 media/
