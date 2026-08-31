@@ -68,34 +68,36 @@ box's native resolution.
 
 **Recorded as:** design spec §7.1.
 
-## 5 · Cover, Contents and About seeded as pages on the first journey
+## 5 · Cover, Contents and About — not a deviation; a corrected model
 
-**What changed:** `pages.kind` is `'notes' | 'frames'` and `pages.journey` is a required
-relationship (`apps/web/collections/pages.ts`) — there is no first-class way to store a
-page that belongs to the book as a whole rather than to one journey. The seed
-(`apps/web/scripts/seed.ts`) needs three such pages: the handoff's page-numbering scheme
-(`SCREENS.md` §2.5: "Cover, Contents and About span 1") and the seed test's own page
-arithmetic (3 global pages + 10 journeys × 3 = 33) both require exactly three rows that
-are not one of a journey's own Notes/Frames I/Frames II. The seed creates them as
-`kind: 'notes'` pages on the first seeded journey (Tokyo), with `order` 0–2 so they sort
-before every journey page (which start at `order: 3`), and titles `'Cover'`, `'Contents'`
-and `'About'`.
+**This entry used to record a real deviation and no longer does.** An earlier version of
+`apps/web/scripts/seed.ts` seeded Cover, Contents and About as three `pages` rows
+attached to the first journey (Tokyo), because `pages.kind` is `'notes' | 'frames'` and
+`pages.journey` is required — there is no first-class way to store a page belonging to
+the book as a whole. That was recorded here as a HANDOFF-DEVIATION.
 
-**Rationale:** `DATA_MODEL.md`'s own "globals" section models the Cover's real content
-(`title`, `subtitle`, `owner`, `coverCloth`, …) on the `book` global and About's
-(`portrait`, `paragraphs`, `kit`, …) on the `about` global, and Contents is listed under
-"Derived, not stored" — so, properly, none of the three belong in `pages` at all. Giving
-them a first-class home (a nullable `journey`, or a `kind` enum value of their own) is a
-schema change, and `postgresAdapter` is configured with `push: false` (Task 6): any
-schema change needs a generated migration, which this task's brief says should not be
-necessary. Attaching them to the first journey is the smallest change that satisfies the
-seed test against the _existing_ migrated schema, at the cost of `pages.find()` returning
-three rows whose `journey` relationship is not actually meaningful. A follow-up task
-should either add a dedicated `book-pages` collection or relax `pages.journey`/extend
-`pages.kind`, with a real migration, and move these three rows there.
+**Why the model was wrong, not just awkward:** `DATA_MODEL.md` already gives all three a
+proper home. Cover's fields (`title`, `subtitle`, `owner`, `coverCloth`, `yearsShown`) are
+the `book` global. About's fields (`portrait`, `portraitCaption`, `paragraphs`, `kit`,
+`replyTo`) are the `about` global. Contents is listed under "Derived, not stored" — it is
+generated from the ordered journey list at render time and needs no row whatsoever. None
+of the three wants a `slots` array, which is most of what a `pages` row actually is.
+Attaching them to Tokyo as a workaround produced three rows whose `journey` relationship
+was never meaningful, and would have made every future `pages.find({ where: { journey }
+})` responsible for remembering to exclude them — a permanent foot-gun, not a temporary
+one.
 
-**Recorded as:** `apps/web/scripts/seed.ts` (`// HANDOFF-DEVIATION` comment at the point
-the three pages are created); Task 11 of Phase 0.
+**The correction:** `seed()` now writes `bookGlobalSeed` and `aboutGlobalSeed` — verbatim
+prototype content, transcribed to the same standard as the ten journeys — to the `book`
+and `about` globals via `updateGlobal`, and creates zero `pages` rows for any of the
+three. The seed produces exactly thirty `pages` rows (ten journeys × three), asserted by
+`seed.integration.test.ts`. The handoff's "33 pages" describes the reading sequence —
+Cover + Contents + thirty journey pages + About — which Phase 1's `bookBundle` assembles
+by combining these thirty rows with the two globals and the derived Contents entries; it
+was never a `pages` row count, and no schema change was needed to get there.
+
+**Recorded as:** `apps/web/scripts/seed.ts`'s own header (the "CORRECTION" paragraph);
+Task 11 of Phase 0, review round 1, finding 1.
 
 ---
 

@@ -1,0 +1,11 @@
+-- 01-create-test-database.sql — creates the isolated integration-test database.
+--
+-- Runs automatically by Postgres's own docker-entrypoint-initdb.d mechanism,
+-- but ONLY the first time a container starts against an EMPTY data volume -
+-- it does nothing for the volume this repository already has checked out
+-- locally, which is why apps/web/lib/testPayload.ts also creates this
+-- database itself, on demand, the first time any integration test needs it
+-- (see that file's own header). This script exists so a fresh clone running
+-- `docker-compose up` for the first time gets `diary_test` immediately,
+-- without waiting on that runtime fallback.
+CREATE DATABASE diary_test;

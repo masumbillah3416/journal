@@ -52,11 +52,25 @@ An uncovered line outside `packages/domain` requires a
   `**/*.integration.test.ts` under `apps/web/lib/**`, `apps/web/collections/**` and
   `apps/web/scripts/**`. `collections.integration.test.ts` (Task 6) exercises the schema
   rules from `DATA_MODEL.md`; `seed.integration.test.ts` (Task 11) exercises
-  `apps/web/scripts/seed.ts` against real `journeys`, `pages` and `media` rows, including
-  its idempotency (running it twice leaves the same ten journeys, not twenty). Its own
-  `beforeAll` deletes the ten seeded journeys first, so the suite's coverage numbers (see
-  below) do not depend on whether a previous run, or `npm run db:seed` itself, already
-  seeded the same database.
+  `apps/web/scripts/seed.ts` against real `journeys`, `pages`, `media` rows and the
+  `book`/`about` globals, including its idempotency (running it twice leaves the same
+  ten journeys, not twenty) and the thirty-row page count (ten journeys × three — Cover,
+  Contents and About are globals/derived, not `pages` rows; see `docs/deviations.md` §5).
+  Its own `beforeAll` deletes the ten seeded journeys first, so the suite's coverage
+  numbers (see below) do not depend on whether a previous run, or `npm run db:seed`
+  itself, already seeded the same database.
+- **Isolation:** every integration test file calls `getTestPayload()`
+  (`apps/web/lib/testPayload.ts`), not `getPayload()` directly. `DATABASE_URL` for the
+  `integration` project (and `vitest.integration.config.ts`) points at `diary_test`, a
+  separate database on the same Postgres server as `.env`'s `diary` — never the
+  developer's own dev data. `getTestPayload()` creates `diary_test` on first use if it
+  does not exist yet and applies pending migrations, so it self-bootstraps regardless of
+  how tests are invoked. This exists because `seed.integration.test.ts`'s cleanup deletes
+  journeys by slug, and running that against the real dev database would delete a real
+  edited journey the moment its slug matched one of the ten (Task 10/11 review round 1,
+  finding 2). `diary_test` is not torn down between runs — persisting is the same
+  trade-off `diary` itself already makes; isolation, not a fresh database every time, is
+  the fix.
 - **Run:** `npm run test:integration` (requires `DATABASE_URL`), or `npm run verify:full`
   to run it alongside everything else.
 - **Add one:** name the file `<name>.integration.test.ts` so Vitest's project split picks
@@ -112,26 +126,30 @@ An uncovered line outside `packages/domain` requires a
   `npm run verify:full` / `npm run test:integration`.
 - **Coverage for integration-only code:** `npm run verify`'s coverage pass only ever
   executes the `unit` project, so `postgres-queue.ts`, `queue-contract.ts`,
-  `queue-fixtures.ts`, `seed.ts` and `seed-data.ts` — reachable exclusively from an
-  `*.integration.test.ts` — are excluded from `vitest.config.ts`'s coverage `include`
-  rather than counted as 0%-covered there. They are gated instead by a second, dedicated
-  pass, `vitest.integration.config.ts`, run via `npm run test:integration:coverage`
-  (chained into `npm run verify:full`) — it runs the same integration test files with
-  `--coverage` scoped to just those five files. Thresholds are set per-file to what is
-  genuinely achieved, not aspirational: `queue-contract.ts`, `queue-fixtures.ts` and
-  `seed-data.ts` (a pure data literal) are 100% lines/branches/functions;
-  `postgres-queue.ts` is 93% lines, 75% branches, 100% functions — its two uncovered
-  branches are `enqueue()`'s and `claim()`'s error-`catch` paths for an unexpected
-  database failure, which have no organic trigger without mocking the module under test
-  (CLAUDE.md §2.3: "no mocking what we own") or deliberately corrupting the test
-  database. `claim()`'s safety-critical `SELECT ... FOR UPDATE SKIP LOCKED` line itself
-  executes on every call regardless of outcome, so it is fully exercised by both the
-  smoke test and the blocking regression test above. `seed.ts` is 100% lines/functions,
-  80% branches — the uncovered branches are defensive guards with no organic trigger from
-  the ten real journeys' own data (an unrecognised `dates` format, an id branding failure
-  that can't happen for an id Payload itself just generated); see `seed.ts`'s own
-  `c8 ignore` comments and `vitest.integration.config.ts`'s threshold comment for the
-  full list.
+  `queue-fixtures.ts`, `seed.ts`, `seed-data.ts` and `testPayload.ts` — reachable
+  exclusively from an `*.integration.test.ts` — are excluded from `vitest.config.ts`'s
+  coverage `include` rather than counted as 0%-covered there. They are gated instead by
+  a second, dedicated pass, `vitest.integration.config.ts`, run via
+  `npm run test:integration:coverage` (chained into `npm run verify:full`) — it runs the
+  same integration test files with `--coverage` scoped to just those six files.
+  Thresholds are set per-file to what is genuinely achieved, not aspirational:
+  `queue-contract.ts`, `queue-fixtures.ts` and `seed-data.ts` (a pure data literal) are
+  100% lines/branches/functions; `postgres-queue.ts` and `testPayload.ts` are both 93%
+  lines, 75% branches, 100% functions — the former's two uncovered branches are
+  `enqueue()`'s and `claim()`'s error-`catch` paths for an unexpected database failure,
+  which have no organic trigger without mocking the module under test (CLAUDE.md §2.3:
+  "no mocking what we own") or deliberately corrupting the test database; the latter's
+  are `ensureDatabaseExists()`'s `CREATE DATABASE` branch, which only runs the very first
+  time any integration test ever executes against a given Postgres volume (every run
+  after that finds `diary_test` already exists). `claim()`'s safety-critical
+  `SELECT ... FOR UPDATE SKIP LOCKED` line itself executes on every call regardless of
+  outcome, so it is fully exercised by both the smoke test and the blocking regression
+  test above. `seed.ts` is 100% lines/functions, 83% branches — the uncovered branches
+  are defensive guards with no organic trigger from the ten real journeys' own data (an
+  unrecognised `dates` format, an id branding failure that can't happen for an id
+  Payload itself just generated, an out-of-bounds accent-tint index that can't happen for
+  a fixed 5-element tuple); see `seed.ts`'s own `c8 ignore` comments and
+  `vitest.integration.config.ts`'s threshold comment for the full list.
 - **Add one:** write `apps/web/lib/ports/<name>.ts` (the interface, plus any guard every
   adapter must share - see `validateStorageKey` above), then
   `apps/web/lib/adapters/contract/<name>-contract.ts` (the shared suite) before any

@@ -16,10 +16,16 @@
  * assertions count every row in the shared `journeys` collection and a
  * fixture left behind here would inflate that count in whichever file runs
  * second.
+ *
+ * Uses `getTestPayload()` (`apps/web/lib/testPayload.js`), not `getPayload()`
+ * directly: every integration test file connects to an isolated `diary_test`
+ * database, never the developer's own dev database (Task 10/11 review
+ * finding 2) - see that module's header.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { runMigrateDown, runMigrateUp } from '../lib/migrate.js'
 import { getPayload } from '../lib/payload.js'
+import { getTestPayload } from '../lib/testPayload.js'
 
 const FIXTURE_SLUGS = ['test-tokyo', 'test-bergen', 'test-lisbon']
 
@@ -27,7 +33,7 @@ describe('collections', () => {
   let payload: Awaited<ReturnType<typeof getPayload>>
 
   beforeAll(async () => {
-    payload = await getPayload()
+    payload = await getTestPayload()
   })
 
   afterAll(async () => {

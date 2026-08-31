@@ -9,6 +9,14 @@
 # `localhost:5432` were silently served by that service, not this container,
 # and failed auth against unrelated credentials. The container's own internal
 # port is untouched. See docs/deviations.md.
+#
+# `docker/initdb/*.sql` creates the isolated `diary_test` database integration
+# tests connect to (Task 10/11 review, round 1, finding 2) - never the same
+# database as `diary`, which `npm run dev` and `npm run db:seed` write real
+# content to. Postgres only runs these scripts against a brand-new, empty
+# volume; `apps/web/lib/testPayload.ts` creates `diary_test` itself on demand
+# for a volume (like this repository's own checked-out one) that predates
+# this script.
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,7 +25,9 @@ services:
       POSTGRES_PASSWORD: diary
       POSTGRES_DB: diary
     ports: ['5433:5432']
-    volumes: ['./.postgres-data:/var/lib/postgresql/data']
+    volumes:
+      - './.postgres-data:/var/lib/postgresql/data'
+      - './docker/initdb:/docker-entrypoint-initdb.d:ro'
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U diary']
       interval: 5s

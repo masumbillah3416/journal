@@ -10,7 +10,11 @@
  *   - integration: tests requiring DATABASE_URL, matched by `*.integration.test.ts`
  *     under `apps/web/lib/**`, `apps/web/collections/**` or `apps/web/scripts/**`
  *     (collection, migration and seed tests against the real Docker Postgres).
- *     Runs only in `npm run verify:full`.
+ *     Runs only in `npm run verify:full`. Its own `DATABASE_URL` points at
+ *     `diary_test`, a separate database from `.env`'s `diary` - never the
+ *     developer's own dev data - bootstrapped on demand by
+ *     `apps/web/lib/testPayload.ts`'s `getTestPayload()`, which every
+ *     integration test file calls instead of `getPayload()` directly.
  *
  * Root-level `fileParallelism: false`: the `integration` project's files
  * share one live database, and `collections.integration.test.ts` migrates
@@ -66,6 +70,15 @@ export default defineConfig({
             'apps/web/scripts/**/*.integration.test.ts',
           ],
           exclude: ['**/node_modules/**'],
+          env: {
+            // A separate database on the same Postgres server as `.env`'s
+            // real DATABASE_URL, never the developer's own dev database -
+            // see apps/web/lib/testPayload.ts's header (Task 10/11 review
+            // finding 2). Every integration test file calls `getTestPayload()`
+            // from that module, not `getPayload()` directly, so this value is
+            // what they actually connect to.
+            DATABASE_URL: 'postgres://diary:diary@localhost:5433/diary_test',
+          },
         },
       },
     ],
@@ -88,6 +101,17 @@ export default defineConfig({
         // reasoning as the queue files above.
         'apps/web/scripts/seed.ts',
         'apps/web/scripts/seed-data.ts',
+        // testPayload.ts (Task 10/11 review finding 2) is reachable only
+        // from an `*.integration.test.ts` file - it needs a real Postgres
+        // server to create diary_test against - so it is gated by
+        // vitest.integration.config.ts instead, same reasoning as the queue
+        // files above. Unlike migrate.ts and queue.ts (which stay
+        // ungated, tolerated at 0% in this file's repo-wide aggregate - see
+        // their own files), testPayload.ts is large enough to have pulled
+        // `apps/web/lib/**`'s aggregate below its 95% threshold here, so it
+        // needs the same explicit exclude-and-regate treatment as the queue
+        // files.
+        'apps/web/lib/testPayload.ts',
       ],
       thresholds: {
         // Repository-wide floor.

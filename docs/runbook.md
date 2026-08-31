@@ -39,10 +39,16 @@ collections and the first migration," design spec §4). Once it exists:
 
 ## Seeding
 
-**(not yet implemented)** — `npm run db:seed` is target command surface. Design spec
-Phase 0 calls for seeding "the prototype's 10 journeys / 33 pages with placeholder
-imagery" — the same placeholder SVG data-URIs the handoff prototypes use, not real
+`npm run db:seed -w apps/web` seeds the prototype's ten journeys and their thirty pages
+(three per journey) with placeholder imagery — a real `media` upload per photo slot,
+rasterised from the same striped-SVG placeholder the handoff prototypes use, not real
 photographs, so seeding never depends on the media pipeline (Phase 3) being built yet.
+It also writes the `book` and `about` globals' verbatim prototype content. It is
+idempotent (upserts by slug/title/label), so it is safe to run again after an admin edit
+— re-running restores the seeded fields on the ten known journeys without creating
+duplicates, and leaves anything else (new journeys, new pages) untouched. It writes to
+whatever `DATABASE_URL` names — the real dev/production database, never the isolated
+`diary_test` database the integration test suite uses (see `docs/testing.md`).
 
 ## Deploy
 

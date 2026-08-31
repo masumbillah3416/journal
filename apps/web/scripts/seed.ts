@@ -1,12 +1,12 @@
 /**
- * seed — idempotent seed of the ten prototype journeys and their thirty-three pages.
+ * seed — idempotent seed of the ten prototype journeys and their thirty pages.
  *
  * Factory pattern (CLAUDE.md §3.3, "Factory: test fixtures, seed data"): builds
  * `journeys`, `media` and `pages` documents from `seed-data.ts`'s typed
  * constant, upserting by a natural key (a journey's `slug`; a page's
  * `journey` + `title`; a media item's `journey` + the placeholder label
  * stashed in `alt`) so running it twice leaves the same ten journeys and
- * thirty-three pages, not twenty and sixty-six.
+ * thirty pages, not twenty and sixty.
  *
  * Every photo slot gets a real `media` document whose file is a PNG
  * rasterisation (via `sharp`, already a dependency of this app) of
@@ -15,13 +15,23 @@
  * only, and `pages.slots[].media` is a relationship to one, so a rasterised
  * upload is the only way to attach a placeholder without a schema change.
  *
- * HANDOFF-DEVIATION: `pages.kind` is `'notes' | 'frames'` and `pages.journey`
- * is required (apps/web/collections/pages.ts) — there is no first-class way
- * to store a page that belongs to the whole book rather than one journey.
- * The three global pages (Cover, Contents, About) are seeded as `kind:
- * 'notes'` pages on the first journey, ordered before every journey page.
- * See docs/deviations.md §5 for the full rationale and the schema change a
- * follow-up task should make instead.
+ * CORRECTION (Task 10/11 review, round 1, finding 1): an earlier version of
+ * this module seeded Cover, Contents and About as three `pages` rows on the
+ * first journey, calling it a HANDOFF-DEVIATION because `pages.journey` is
+ * required and there is no book-level home for a page in that collection.
+ * That model was wrong, not just awkward. DATA_MODEL.md already gives all
+ * three a home: Cover's fields (title, subtitle, owner, coverCloth, years)
+ * are the `book` global; About's (portrait, portraitCaption, paragraphs,
+ * kit, replyTo) are the `about` global; Contents is listed under "Derived,
+ * not stored" — generated from the ordered journey list, no row at all.
+ * None of the three wants a `slots` array, which is most of what a `pages`
+ * row is. `seed()` now writes `bookGlobalSeed`/`aboutGlobalSeed` (verbatim
+ * prototype content, same standard as the journeys) to those two globals via
+ * `updateGlobal`, and creates zero rows for any of the three. The reading
+ * sequence the handoff calls "33 pages" — Cover + Contents + 30 journey
+ * pages + About — is a derived view assembled by `bookBundle` in Phase 1,
+ * not a row count; see `docs/deviations.md` §5, now a correction rather than
+ * a deviation.
  *
  * Journeys and pages are created published (`_status: 'published'`), not
  * left as Payload's default draft, since Phase 1's rendering tests read this
@@ -30,7 +40,7 @@
  * Depends on: `payload` (the collections from Task 6), `sharp`,
  * `stripedPlaceholder` (Task 10), `journeyAccents` from `@travel-diary/tokens`,
  * `journeyId`/`pageId` from `@travel-diary/domain/ids` (Task 4), and
- * `journeySeeds` from `./seed-data.js`.
+ * `journeySeeds`/`bookGlobalSeed`/`aboutGlobalSeed` from `./seed-data.js`.
  */
 import type { Payload } from 'payload'
 import sharp from 'sharp'
@@ -39,7 +49,7 @@ import type { Result } from '@travel-diary/domain/result'
 import { journeyAccents } from '@travel-diary/tokens/colour'
 import type { Journey, Media, Page } from '../payload-types.js'
 import { stripedPlaceholder } from './placeholder.js'
-import { journeySeeds, type JourneySeed } from './seed-data.js'
+import { aboutGlobalSeed, bookGlobalSeed, journeySeeds, type JourneySeed } from './seed-data.js'
 
 /** Design-box dimensions for each slot role, lifted from the prototype (Task 11 brief). */
 const SLOT_SIZE = {
@@ -50,9 +60,6 @@ const SLOT_SIZE = {
 
 /** Every journey page comes in this fixed order: Notes, Frames I, Frames II. */
 const PAGE_TITLES = ['Notes', 'Frames I', 'Frames II'] as const
-
-/** The three pages that belong to the book as a whole, not to one journey. */
-const GLOBAL_PAGE_TITLES = ['Cover', 'Contents', 'About'] as const
 
 /**
  * Derives a journey's short uppercase code from its name, e.g. `'Tokyo'` ->
@@ -330,45 +337,69 @@ const upsertJourneyPage = async (
 }
 
 /**
- * Finds or creates one of the three book-wide pages (Cover, Contents, About).
- * See this module's own HANDOFF-DEVIATION note and docs/deviations.md §5:
- * these are seeded on `firstJourneyNumericId` because `pages.journey` is
- * required and there is no book-level home for them in the current schema.
+ * Finds or creates the `about` global's portrait media (labelled `PORTRAIT`,
+ * matching the prototype's own `this.ph('PORTRAIT', 700, 900, [...])`
+ * placeholder call), keyed by that label stashed in `alt` — the same natural
+ * key {@link upsertSlotMedia} uses for a journey's photo slots, but this
+ * media item belongs to no journey.
  * @param payload - The Payload instance.
- * @param firstJourneyNumericId - The first seeded journey's Payload id.
- * @param title - `'Cover'`, `'Contents'` or `'About'`.
- * @param order - The page's position in the book's overall reading order (0–2).
- * @returns The page's Payload id.
+ * @returns The `media` document's Payload id.
  */
-const upsertGlobalPage = async (
-  payload: Payload,
-  firstJourneyNumericId: Journey['id'],
-  title: (typeof GLOBAL_PAGE_TITLES)[number],
-  order: number,
-): Promise<Page['id']> => {
+const upsertPortraitMedia = async (payload: Payload): Promise<Media['id']> => {
+  const label = 'PORTRAIT'
   const existing = await payload.find({
-    collection: 'pages',
-    where: { and: [{ journey: { equals: firstJourneyNumericId } }, { title: { equals: title } }] },
+    collection: 'media',
+    where: { alt: { equals: label } },
     limit: 1,
   })
   const found = existing.docs[0]
-  // HANDOFF-DEVIATION: attached to the first journey rather than left
-  // journey-less, because `pages.journey` is required. See this module's
-  // header and docs/deviations.md §5.
-  const data = {
-    journey: firstJourneyNumericId,
-    kind: 'notes' as const,
-    title,
-    order,
-    slots: [],
-    _status: 'published' as const,
-  }
-  if (found) {
-    const updated = await payload.update({ collection: 'pages', id: found.id, data })
-    return updated.id
-  }
-  const created = await payload.create({ collection: 'pages', data })
+  if (found) return found.id
+
+  const png = await renderPlaceholderPng(label, '#7d715c', { width: 700, height: 900 })
+  const created = await payload.create({
+    collection: 'media',
+    data: { kind: 'still', caption: aboutGlobalSeed.portraitCaption, alt: label, order: 0 },
+    file: { data: png, mimetype: 'image/png', name: 'portrait.png', size: png.length },
+  })
   return created.id
+}
+
+/**
+ * Writes the `book` global's verbatim prototype content (Task 10/11 review
+ * finding 1) — Cover's fields belong here, not on a `pages` row.
+ * @param payload - The Payload instance.
+ */
+const upsertBookGlobal = async (payload: Payload): Promise<void> => {
+  await payload.updateGlobal({
+    slug: 'book',
+    data: {
+      title: bookGlobalSeed.title,
+      subtitle: bookGlobalSeed.subtitle,
+      owner: bookGlobalSeed.owner,
+      coverCloth: bookGlobalSeed.coverCloth,
+      yearsShown: bookGlobalSeed.yearsShown,
+      contentsNote: bookGlobalSeed.contentsNote,
+    },
+  })
+}
+
+/**
+ * Writes the `about` global's verbatim prototype content (Task 10/11 review
+ * finding 1) — About's fields belong here, not on a `pages` row.
+ * @param payload - The Payload instance.
+ */
+const upsertAboutGlobal = async (payload: Payload): Promise<void> => {
+  const portraitMediaId = await upsertPortraitMedia(payload)
+  await payload.updateGlobal({
+    slug: 'about',
+    data: {
+      portrait: portraitMediaId,
+      portraitCaption: aboutGlobalSeed.portraitCaption,
+      paragraphs: aboutGlobalSeed.paragraphs.map((text) => ({ text })),
+      kit: aboutGlobalSeed.kit.map((text) => ({ text })),
+      replyTo: aboutGlobalSeed.replyTo,
+    },
+  })
 }
 
 /**
@@ -415,19 +446,20 @@ const upsertJourney = async (payload: Payload, seedJourney: JourneySeed, accent:
 }
 
 /**
- * Seeds the ten journeys the prototype ships with, their thirty-three pages
- * (three per journey, plus the book's Cover, Contents and About), and every
- * photo slot's placeholder media. Upserts throughout, so calling this twice
- * leaves the same ten journeys and thirty-three pages.
+ * Seeds the ten journeys the prototype ships with, their thirty pages (three
+ * per journey), every photo slot's placeholder media, and the `book`/`about`
+ * globals' verbatim content. Upserts throughout, so calling this twice
+ * leaves the same ten journeys and thirty pages. Cover, Contents and About
+ * are not `pages` rows - see this module's own header, "CORRECTION" - so the
+ * reading sequence the handoff calls "33 pages" is not this function's
+ * output; it is a derived view `bookBundle` assembles in Phase 1 from these
+ * thirty rows plus the two globals this function also writes.
  * @param payload - The Payload instance to seed.
  */
 export const seed = async (payload: Payload): Promise<void> => {
-  let firstJourneyNumericId: Journey['id'] | undefined
-
   for (const [index, seedJourney] of journeySeeds.entries()) {
     const accent = accentFor(seedJourney, index)
     const journeyNumericId = await upsertJourney(payload, seedJourney, accent)
-    firstJourneyNumericId ??= journeyNumericId
     // Branded and discarded here deliberately: this is the seam where a bare
     // Payload id becomes this journey's JourneyId (see brandOrThrow's own
     // note). Nothing downstream in this module needs the branded value
@@ -457,7 +489,7 @@ export const seed = async (payload: Payload): Promise<void> => {
       accent,
     )
 
-    const baseOrder = GLOBAL_PAGE_TITLES.length + index * PAGE_TITLES.length
+    const baseOrder = index * PAGE_TITLES.length
     const notesPageId = await upsertJourneyPage(
       payload,
       journeyNumericId,
@@ -487,12 +519,6 @@ export const seed = async (payload: Payload): Promise<void> => {
     brandOrThrow(pageId(String(frameTwoPageId)))
   }
 
-  /* c8 ignore next -- journeySeeds is a non-empty literal in seed-data.ts, so
-   * the loop above always runs at least once and sets this. */
-  if (firstJourneyNumericId === undefined) return
-
-  for (const [index, title] of GLOBAL_PAGE_TITLES.entries()) {
-    const globalPageId = await upsertGlobalPage(payload, firstJourneyNumericId, title, index)
-    brandOrThrow(pageId(String(globalPageId)))
-  }
+  await upsertBookGlobal(payload)
+  await upsertAboutGlobal(payload)
 }

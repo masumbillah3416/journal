@@ -22,7 +22,19 @@
  *
  * `apps/web/scripts/seed.ts` and `seed-data.ts` (Task 11) join this file for
  * the same reason: `seed.integration.test.ts` is their only test, and it
- * needs a real Payload/Postgres.
+ * needs a real Payload/Postgres. `apps/web/lib/testPayload.ts` joins it for
+ * the same reason as those two, plus one more: `vitest.config.ts`'s own
+ * coverage `include` broadly covers `apps/web/lib/**`, and testPayload.ts is
+ * large enough (unlike the small migrate.ts/queue.ts it sits beside) that
+ * leaving it at 0% there pulled that bucket's aggregate below its own 95%
+ * threshold - so it is excluded there and regated here, same as the queue
+ * files.
+ *
+ * `DATABASE_URL` points at `diary_test`, a separate database from `.env`'s
+ * `diary` - never the developer's own dev data - for the same reason as
+ * `vitest.config.ts`'s `integration` project (see its header): every
+ * integration test file calls `apps/web/lib/testPayload.ts`'s
+ * `getTestPayload()`, not `getPayload()` directly.
  * Depends on: vitest/config.
  */
 import { defineConfig } from 'vitest/config'
@@ -37,6 +49,9 @@ export default defineConfig({
       'apps/web/scripts/**/*.integration.test.ts',
     ],
     exclude: ['**/node_modules/**'],
+    env: {
+      DATABASE_URL: 'postgres://diary:diary@localhost:5433/diary_test',
+    },
     // See vitest.config.ts's own header: these files share one live database,
     // and collections.integration.test.ts migrates the schema down and up as
     // part of its own test - concurrent files would race real DDL against
@@ -51,6 +66,7 @@ export default defineConfig({
         'apps/web/lib/adapters/contract/queue-fixtures.ts',
         'apps/web/scripts/seed.ts',
         'apps/web/scripts/seed-data.ts',
+        'apps/web/lib/testPayload.ts',
       ],
       thresholds: {
         // postgres-queue.ts's two error-catch branches (an unexpected DB
@@ -64,22 +80,32 @@ export default defineConfig({
         'apps/web/lib/adapters/postgres-queue.ts': { lines: 93, branches: 75, functions: 100 },
         'apps/web/lib/adapters/contract/queue-contract.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/adapters/contract/queue-fixtures.ts': { lines: 100, branches: 100, functions: 100 },
+        // testPayload.ts's ensureDatabaseExists() only takes its
+        // `CREATE DATABASE` branch the very first time any integration test
+        // ever runs against a given Postgres volume - every run after that
+        // finds `diary_test` already exists, which is the entire point of
+        // not tearing it down between runs (see this module's own header).
+        // 93% lines / 75% branches / 100% functions is what a repository
+        // that has already bootstrapped `diary_test` once genuinely
+        // measures, not what a first-ever run would.
+        'apps/web/lib/testPayload.ts': { lines: 93, branches: 75, functions: 100 },
         // seed-data.ts is a pure data literal - 100% by construction, every
         // call reads every field.
         'apps/web/scripts/seed-data.ts': { lines: 100, branches: 100, functions: 100 },
-        // seed.ts: 100% lines/functions. 80.48% branches is the real,
+        // seed.ts: 100% lines/functions. 83.72% branches is the real,
         // measured number: seed.integration.test.ts's own `beforeAll`
-        // deletes the ten journeys first, so the suite deterministically
-        // exercises both the create and the found-existing/update branch of
-        // every upsert regardless of what an earlier run (or `npm run
-        // db:seed` itself) left in the database. The remaining branches are
-        // defensive guards with no organic trigger from the ten real
-        // journeys' own data: parseStartsOn's two unrecognised-format
-        // fallbacks and its `?? null` (every real `dates` string parses to a
-        // real value), brandOrThrow's error branch (Payload never hands back
-        // an empty id), and `firstJourneyNumericId === undefined`
-        // (journeySeeds is never empty).
-        'apps/web/scripts/seed.ts': { lines: 100, branches: 80, functions: 100 },
+        // deletes the ten journeys (and the About portrait) first, so the
+        // suite deterministically exercises both the create and the
+        // found-existing/update branch of every upsert regardless of what an
+        // earlier run (or `npm run db:seed` itself) left in the database.
+        // The remaining branches are defensive guards with no organic
+        // trigger from the ten real journeys' own data: parseStartsOn's two
+        // unrecognised-format fallbacks and its `?? null` (every real
+        // `dates` string parses to a real value), accentFor's `??
+        // journeyAccents[0]` fallback (the round-robin index is always in
+        // bounds for a fixed 5-element tuple), and brandOrThrow's error
+        // branch (Payload never hands back an empty id).
+        'apps/web/scripts/seed.ts': { lines: 100, branches: 83, functions: 100 },
       },
     },
   },

@@ -31,9 +31,13 @@
  * `Promise.race` - proven to fail (not hang) when the clause is removed,
  * because claim()'s own `SELECT ... FOR UPDATE` would then block on the
  * held lock instead of skipping it.
+ *
+ * Uses `getTestPayload()` (`../testPayload.js`), not `getPayload()` directly:
+ * every integration test file connects to an isolated `diary_test` database,
+ * never the developer's own dev database (Task 10/11 review finding 2).
  */
 import { beforeAll, describe, expect, it } from 'vitest'
-import { getPayload } from '../payload.js'
+import { getTestPayload } from '../testPayload.js'
 import { createPostgresQueue } from './postgres-queue.js'
 import { queueContract } from './contract/queue-contract.js'
 import { aMediaId, jobRow } from './contract/queue-fixtures.js'
@@ -43,7 +47,7 @@ beforeAll(async () => {
   // Every job the contract itself enqueues is claimed within the same test
   // (moving it out of `status = 'queued'`), so this only matters for a stale
   // `queued` row left behind by an interrupted previous run.
-  const payload = await getPayload()
+  const payload = await getTestPayload()
   const stale = await payload.find({ collection: 'jobs', limit: 1000, depth: 0 })
   await Promise.all(stale.docs.map((doc) => payload.delete({ collection: 'jobs', id: doc.id })))
 })
@@ -80,7 +84,7 @@ describe('postgres queue, adapter-specific behaviour', () => {
   })
 
   it('claim() skips a row a concurrent transaction is holding, rather than blocking for it', async () => {
-    const payload = await getPayload()
+    const payload = await getTestPayload()
     const queue = createPostgresQueue()
     const enqueued = await queue.enqueue({ kind: 'transcode', mediaId: aMediaId() })
     if (!enqueued.ok) throw new Error('expected enqueue to succeed')
@@ -90,9 +94,7 @@ describe('postgres queue, adapter-specific behaviour', () => {
 
     try {
       await holder.query('BEGIN')
-      const held = await holder.query<{ id: number }>('SELECT id FROM jobs WHERE id = $1 FOR UPDATE', [
-        jobId,
-      ])
+      const held = await holder.query<{ id: number }>('SELECT id FROM jobs WHERE id = $1 FOR UPDATE', [jobId])
       // `holder` now locks the row, deliberately left open and uncommitted -
       // standing in for another worker that is mid-claim. The assertion
       // below drives the REAL `claim()`, not a hand-written copy of its SQL,

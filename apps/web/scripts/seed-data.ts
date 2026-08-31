@@ -20,6 +20,11 @@
  * six fall back to a round-robin over `packages/tokens`' `journeyAccents` in
  * `seed.ts`, per this task's brief — the prototype's own fallback cycles
  * through only four of the five tokens, which `seed.ts` does not reproduce.
+ *
+ * `bookGlobalSeed` and `aboutGlobalSeed` are the same treatment applied to
+ * the `book` and `about` globals (Task 10/11 review finding 1): their
+ * content is DATA_MODEL.md's own home for Cover's and About's fields, and
+ * `seed.ts` writes them there directly rather than as `pages` rows.
  * Depends on nothing.
  */
 
@@ -380,3 +385,62 @@ export const journeySeeds: readonly JourneySeed[] = [
     frameTwoCaptions: ['Window seat', 'A very ordinary street', 'Light through a gap', 'The last evening'],
   },
 ]
+
+/**
+ * The `book` global's content, transcribed verbatim from the Cover screen in
+ * `Travel Diary.dc.html` (the `bookTitle`/`ownerName`/`coverCloth` prop
+ * defaults, and the static text rendered around them: the subtitle line,
+ * the "2025 — 2026" years line, and the Contents screen's header note).
+ */
+export interface BookGlobalSeed {
+  /** The cover's title, e.g. `"Wanderings"`. */
+  readonly title: string
+  /** The italic line under the title. */
+  readonly subtitle: string
+  /** The name after "Kept by" on the cover. */
+  readonly owner: string
+  /** The cover cloth colour, one of `packages/tokens`' `coverCloths`. */
+  readonly coverCloth: string
+  /** The years line under "Kept by {owner}" on the cover. */
+  readonly yearsShown: string
+  /** The right-aligned italic note in the Contents page header. */
+  readonly contentsNote: string
+}
+
+/** The `book` global's seed content. */
+export const bookGlobalSeed: BookGlobalSeed = {
+  title: 'Wanderings',
+  subtitle: 'field notes, photographs and other scraps',
+  owner: 'M. Alvarez',
+  coverCloth: '#2f4a47',
+  yearsShown: '2025 — 2026',
+  contentsNote: 'Each journey runs three pages — notes, then two spreads of frames. The rest lives in the galleries.',
+}
+
+/**
+ * The `about` global's content, transcribed verbatim from the About screen
+ * in `Travel Diary.dc.html`: the portrait caption, the two biography
+ * paragraphs, the three packing-kit lines, and the reply-to address
+ * (`hello@{{ handle }}.travel` with `handle: 'wanderings'`).
+ */
+export interface AboutGlobalSeed {
+  /** Caption under the portrait mount. */
+  readonly portraitCaption: string
+  /** The two biography paragraphs, in order. */
+  readonly paragraphs: readonly string[]
+  /** The packing-kit list, in order. */
+  readonly kit: readonly string[]
+  /** The address a reader's reply is addressed to. */
+  readonly replyTo: string
+}
+
+/** The `about` global's seed content. */
+export const aboutGlobalSeed: AboutGlobalSeed = {
+  portraitCaption: 'Somewhere with bad coffee and a good window',
+  paragraphs: [
+    'This is a paper habit that ended up on a screen. I keep one page of notes per journey, then paste in whatever frames survive the edit. Everything else goes into the gallery behind each entry — sometimes a hundred photographs, most of them of doorways.',
+    'Nothing here is a recommendation. The notes are written the same evening, badly, and left that way on purpose. If a page looks crooked, that is the tape.',
+  ],
+  kit: ['35mm rangefinder, one lens', 'Pocket notebook, blue ink', 'Roll of washi tape, always'],
+  replyTo: 'hello@wanderings.travel',
+}

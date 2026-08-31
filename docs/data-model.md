@@ -177,15 +177,22 @@ repository root.
 
 `npm run db:seed -w apps/web` (`apps/web/scripts/run-seed.ts`, calling `seed()` from
 `apps/web/scripts/seed.ts`) creates the ten journeys the prototype ships with and their
-thirty-three pages (Notes, Frames I, Frames II per journey, plus the book's Cover,
-Contents and About), against this schema, without a migration. It upserts by a natural
-key (a journey's `slug`; a page's `journey` + `title`; a media item's `journey` + the
-placeholder label stashed in `alt`), so running it twice leaves the same ten journeys and
-thirty-three pages. Every journey's name, place, dates, weather, mood, sign-off,
-highlights, note and tally are transcribed verbatim from
+thirty pages (Notes, Frames I, Frames II per journey), against this schema, without a
+migration. It upserts by a natural key (a journey's `slug`; a page's `journey` +
+`title`; a media item's `journey` + the placeholder label stashed in `alt`), so running
+it twice leaves the same ten journeys and thirty pages. Every journey's name, place,
+dates, weather, mood, sign-off, highlights, note and tally are transcribed verbatim from
 `handoff/design_handoff_travel_diary/Travel Diary.dc.html`'s `journeys`/`MORE` arrays
 (`apps/web/scripts/seed-data.ts`); every photo slot's placeholder is a real `media`
-upload rasterised from `stripedPlaceholder`'s SVG (Task 10). Cover, Contents and About
-are seeded as `pages` rows on the first journey rather than left journey-less, because
-`pages.journey` is required and there is no book-level home for them in the schema above
-— see `docs/deviations.md` §5 for the full rationale.
+upload rasterised from `stripedPlaceholder`'s SVG (Task 10).
+
+Cover, Contents and About are **not** `pages` rows. Cover's fields live on the `book`
+global and About's on the `about` global — both are seeded with verbatim prototype
+content (`bookGlobalSeed`/`aboutGlobalSeed` in `seed-data.ts`) via `updateGlobal`, the
+same way the journeys are seeded via `create`/`update`. Contents needs no storage at
+all — `DATA_MODEL.md` lists it under "Derived, not stored", generated from the ordered
+journey list. The handoff's "33 pages" names the full reading sequence (Cover + Contents
++ thirty journey pages + About), which Phase 1's `bookBundle` assembles from these thirty
+rows and the two globals; it was never a `pages` row count. An earlier version of the
+seed got this wrong (three rows attached to the first journey as a workaround) — see
+`docs/deviations.md` §5, now a correction record rather than an active deviation.

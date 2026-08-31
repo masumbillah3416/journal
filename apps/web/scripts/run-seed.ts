@@ -24,5 +24,5 @@ import { seed } from './seed.js'
 const payload = await getPayload()
 await seed(payload)
 // eslint-disable-next-line no-console -- CLI feedback, not application logging.
-console.log('Seeded 10 journeys and 33 pages.')
+console.log('Seeded 10 journeys, 30 pages, and the book/about globals.')
 process.exit(0)
