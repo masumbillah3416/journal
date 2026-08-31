@@ -3,9 +3,40 @@ on: [push, pull_request]
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # Postgres 16, matching docker-compose.yml's image. Host port 5432 (not the
+    # local dev override of 5433) — that override exists only because a native
+    # Postgres already owns 5432 on this developer's machine; a GitHub-hosted
+    # runner has no such conflict, and 5432 is Postgres's own default port.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: diary
+          POSTGRES_PASSWORD: diary
+          POSTGRES_DB: diary
+        ports:
+          - 5432:5432
+        # The job waits for this before any step runs. Without it, `npm run
+        # db:migrate` or the integration suite could start against a Postgres
+        # that isn't accepting connections yet — an intermittent failure that
+        # trains people to hit re-run rather than a consistent, honest one.
+        options: >-
+          --health-cmd "pg_isready -U diary"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://diary:diary@localhost:5432/diary
+      # Throwaway CI-only value. Long enough to satisfy apps/web/lib/env.ts's
+      # parseEnv (>= 32 characters) — never used outside this workflow.
+      PAYLOAD_SECRET: ci-only-secret-value-never-used-outside-actions-32
+      MEDIA_ORIGIN: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      # Must precede the integration tests: they assert against real journeys/
+      # pages tables, which only exist once the first migration has run.
+      - run: npm run db:migrate -w apps/web
       - run: npm run verify:full

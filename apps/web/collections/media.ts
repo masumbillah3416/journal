@@ -3,9 +3,13 @@
  *
  * Transcribed verbatim from DATA_MODEL.md's `media` section. The `beforeChange`/
  * `afterChange` pipeline it documents (magic-byte sniffing, SVG rejection, EXIF
- * strip, re-encode, duplicate detection, clip transcode) depends on the storage
- * port and transcode queue built in later tasks and lands with them — this task
- * is schema only, per its own interface ("collections registered ... migrated").
+ * strip, re-encode, duplicate detection, clip transcode) is design spec Phase 3
+ * ("Media pipeline") work, not this task's — its exit criteria are "a still and
+ * a clip both survive a full round trip; EXIF verifiably absent; SVG verifiably
+ * rejected." This task is schema only, per its own interface ("collections
+ * registered ... migrated"). Two of those Phase 3 steps — EXIF stripping and
+ * SVG rejection — are security requirements (SECURITY.md), not just pipeline
+ * steps, so this pointer is load-bearing, not decorative.
  * Depends on: `payload`.
  */
 import type { CollectionConfig } from 'payload'
