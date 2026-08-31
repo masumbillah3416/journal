@@ -4,6 +4,9 @@
  * Splits tests into two Vitest projects so the pre-commit gate never depends on
  * infrastructure a developer might not have running locally:
  *   - unit: pure tests, no I/O, no database. Runs in `npm run verify` (pre-commit).
+ *     Sets fixed dummy values for the three env vars `apps/web/lib/env.ts`
+ *     validates at import time, so importing it never needs Docker or a real
+ *     `.env` file — those values are never used to open a real connection here.
  *   - integration: tests requiring DATABASE_URL, matched by `*.integration.test.ts`.
  *     Runs only in `npm run verify:full` (CI). None exist yet.
  * Depends on: vitest/config.
@@ -18,6 +21,11 @@ export default defineConfig({
           name: 'unit',
           include: ['packages/*/src/**/*.test.ts', 'apps/web/lib/**/*.test.ts'],
           exclude: ['**/*.integration.test.ts', '**/node_modules/**'],
+          env: {
+            DATABASE_URL: 'postgres://unit-test:unused@localhost:5432/unit-test',
+            PAYLOAD_SECRET: 'unit-test-secret-value-not-used-for-real-auth',
+            MEDIA_ORIGIN: 'http://localhost:3000',
+          },
         },
       },
       {

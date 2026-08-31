@@ -21,12 +21,14 @@ export default tseslint.config(
     },
   },
   // Type-aware strict rules — only for source files that live inside a tsconfig
-  // project (app and package code). Config files at any depth are intentionally
-  // excluded here (they still get the syntactic baseline above), because they
-  // aren't included in any tsconfig and projectService has nothing to attach them to.
+  // project (app and package code); `files` already confines this to `packages/`
+  // and `apps/`, so root-level tooling config (eslint.config.js, vitest.config.ts)
+  // is naturally excluded without needing a name-based `ignores` — a broad
+  // `**/*.config.ts` pattern would also catch `apps/web/payload.config.ts` and
+  // `apps/web/next.config.ts`, which *are* covered by apps/web's own tsconfig
+  // and should get the same strict rules as the rest of that app's source.
   {
-    files: ['packages/**/*.ts', 'apps/**/*.ts'],
-    ignores: ['**/*.config.ts', '**/*.config.js'],
+    files: ['packages/**/*.ts', 'apps/**/*.ts', 'apps/**/*.tsx'],
     extends: [...tseslint.configs.strictTypeChecked],
     languageOptions: { parserOptions: { projectService: true } },
   },

@@ -5,7 +5,7 @@
   "engines": { "node": ">=22" },
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "typecheck": "tsc --build --force",
+    "typecheck": "tsc --build --force && tsc -p apps/web --noEmit",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "test": "vitest",

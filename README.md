@@ -21,9 +21,15 @@ The source of truth for *what* to build is `handoff/design_handoff_travel_diary/
 git clone <repo-url>
 cd travel-diary
 npm install
-cp .env.example .env   # fill in local values once it exists
+cp .env.example .env   # fill in local values; validated by apps/web/lib/env.ts
+docker compose up -d   # local Postgres, for integration tests and `npm run dev`
 npm run verify
 ```
+
+`.env` lives at the repository root next to `.env.example`, even though `next dev` and
+the Payload CLI both run from `apps/web` (`-w apps/web`) — `apps/web/lib/env.ts` resolves
+the repo root itself rather than trusting the working directory, so one file backs all of
+`next dev`, the Payload CLI and the integration test suite.
 
 `npm install` also installs the Husky pre-commit hook (`npm run prepare`), which runs
 `npm run verify` before every commit.
@@ -32,14 +38,16 @@ npm run verify
 
 This is an npm-workspaces monorepo:
 
-- `apps/*` — deployable applications (the Next.js app, once added).
+- `apps/*` — deployable applications. `apps/web` is the Next.js app hosting Payload CMS
+  (its own admin UI at `/cms`; the bespoke admin panel from the design lands at `/admin`
+  in a later phase).
 - `packages/*` — shared libraries. `packages/domain` holds pure domain logic with no
   dependency on any app, and no dependency on I/O.
 
 ## Commands
 
 ```
-npm run dev            # Next + Payload against local Postgres
+npm run dev -w apps/web   # Next + Payload against local Postgres
 npm run verify         # typecheck + lint + unit + coverage gates  <- pre-commit
 npm run verify:full    # verify + integration tests               <- CI
 npm run test           # unit + integration, watch mode
@@ -50,13 +58,14 @@ npm run test:e2e:headed # Playwright, visible browser — the engine for QA swee
 npm run test:visual    # visual regression
 npm run test:a11y      # accessibility
 npm run test:perf      # Lighthouse CI budgets
-npm run db:migrate     # run migrations
+npm run db:migrate -w apps/web        # run migrations
+npm run db:migrate:create -w apps/web # generate a new migration from schema changes
 npm run db:seed        # seed from the handoff prototype content
 ```
 
-Commands not yet implemented (`dev`, `test:e2e`, `test:visual`, `test:a11y`, `test:perf`,
-`db:migrate`, `db:seed`) are listed here as the target command surface from `CLAUDE.md`
-§11; they will be added as the app that needs them lands.
+Commands not yet implemented (`test:e2e`, `test:visual`, `test:a11y`, `test:perf`,
+`db:seed`) are listed here as the target command surface from `CLAUDE.md` §11; they will
+be added as the app that needs them lands.
 
 ## The verify gate
 
