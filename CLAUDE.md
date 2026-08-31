@@ -163,6 +163,7 @@ A change is done only when **all** hold:
 - [ ] Performance budgets (§6) verified
 - [ ] Accessibility checks pass on touched routes
 - [ ] Handoff spec re-read and diffed against the implementation
+- [ ] **UI changes: a browser sweep has been run and its report committed (§10)**
 - [ ] Self-review of the diff, as a reviewer would
 - [ ] No `TODO`/`FIXME`/placeholder/commented-out code
 - [ ] Commits follow §8
@@ -263,13 +264,33 @@ Only after all three: report completion, plainly, with evidence. If something is
 
 ---
 
-## 10 · Commands
+## 10 · Browser QA
+
+Automated suites catch the regressions someone already anticipated. Driving the real app in a browser catches the rest. Both are required; neither substitutes for the other.
+
+Two project skills in `.claude/skills/` govern this, and they are **mandatory, not optional**:
+
+| Skill | Use it when |
+|---|---|
+| **`sweeping-for-browser-defects`** | Any UI phase is claimed complete, any screen needs verifying, or bugs need finding. Produces a triaged defect report at `docs/qa/YYYY-MM-DD-<area>-sweep.md` — a sweep that produces no file did not happen. |
+| **`fixing-browser-defects`** | Fixing *anything* observed in a browser. Enforces: reproduce, root-cause, **failing automated test first**, fix the cause, re-verify in the browser, fix the whole defect class. |
+
+**The rule that matters:** never patch a defect straight from a sweep. A fix without a test that failed first proves nothing and guards nothing — the test can never fail again, so it never catches the regression.
+
+Every sweep instruments `console`, `pageerror` and failed responses before walking a route. The handoff's own defect log is mostly *silent* failures — a swallowed click, a missing derivative, a rejected autoplay promise — none of which are visible in a screenshot.
+
+Defect reports are committed. They are the record of what was covered, and what was not.
+
+---
+
+## 11 · Commands
 
 ```
 npm run dev            # Next + Payload against local Postgres
 npm run verify         # typecheck + lint + unit + integration + coverage gates  <- pre-commit
 npm run test           # unit + integration, watch mode
 npm run test:e2e       # Playwright
+npm run test:e2e:headed # Playwright, visible browser — the engine for QA sweeps
 npm run test:visual    # visual regression
 npm run test:a11y      # accessibility
 npm run test:perf      # Lighthouse CI budgets
