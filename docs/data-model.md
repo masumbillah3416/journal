@@ -5,10 +5,11 @@ This document records the collections, the derived-vs-stored distinction, and th
 decisions layered on top of the handoff (design spec §5); it does not restate every
 field — see `DATA_MODEL.md` for the full Payload collection definitions.
 
-Collections are not yet implemented in code as of this task (they land in a later Phase
-0 task: "all collections and the first migration," design spec §4). This document
-describes the target schema they must match, and will gain migration history and file
-references once they exist (`CLAUDE.md` §1.2).
+Collections are implemented in `apps/web/collections/*.ts` and `apps/web/globals/*.ts`,
+registered in `apps/web/payload.config.ts`, and migrated by
+`apps/web/migrations/20260831_154311_initial.ts` — the first migration, run and verified
+reversible (down, then up again) by `apps/web/collections/collections.integration.test.ts`
+against a real Docker Postgres.
 
 ## Collections
 
@@ -24,13 +25,14 @@ author), `caption`, `alt`, `capturedAt` (from EXIF, retained after the EXIF stri
 `allowDownload`, `order`, `contentHash` (perceptual hash, indexed, for duplicate
 detection within a journey).
 
-A `beforeChange` hook runs, in order: sniff the real mime type from magic bytes (never
+A `beforeChange` hook will run, in order: sniff the real mime type from magic bytes (never
 the extension); reject SVG outright; read EXIF into `capturedAt` then strip all EXIF;
 re-encode stills via `sharp`; compute `contentHash` and flag a duplicate within the same
 journey; for clips, probe with `ffprobe`, transcode to H.264 MP4, extract a poster into
-`posterImage`. An `afterChange` hook clears `isCover` on the journey's other media when
-one item's `isCover` is set. This order is deliberate — later steps depend on earlier
-ones having run (design spec §9.2).
+`posterImage`. An `afterChange` hook will clear `isCover` on the journey's other media when
+one item's `isCover` is set. This order is deliberate — later steps depend on earlier ones
+having run (design spec §9.2). **Schema only lands in Phase 0** (this task); the hooks
+depend on the storage port (Task 7) and transcode queue (Task 9) and land with them.
 
 ### `journeys`
 
@@ -129,6 +131,21 @@ From design spec §5.1:
 
 ## Migration history
 
-None yet. The first migration (collections above, plus `deletedAt` and
-`versions: { drafts: true }` from the start) is a later Phase 0 task. This section will
-carry an entry per migration once they exist, per `CLAUDE.md` §1.2.
+| Migration | What it does |
+|---|---|
+| `20260831_154311_initial` | Creates all six collections and three globals above, with `deletedAt` (indexed) and `versions: { drafts: true }` on `journeys` and `pages` from the start — both are painful to retrofit onto a collection with existing rows, per the note above. Verified reversible: `runMigrateDown` then `runMigrateUp` restore the schema without loss. |
+
+Generated with `npm run db:migrate:create -w apps/web -- initial`, applied with
+`npm run db:migrate -w apps/web`. Payload's generator emits a plain (non-type-only) import
+of `MigrateUpArgs`/`MigrateDownArgs`, which are interfaces with no runtime export; Node's
+built-in TypeScript type-stripping does not elide this on its own (unlike esbuild/tsx), so
+the generated file fails to load until hand-split into a `import type { ... }` line. This
+is a one-line, mechanical fix to the generated file's import statement — the generated SQL
+itself is untouched, and it is expected to recur for every future migration generated
+against this Payload/Node combination until upstream fixes the generator template.
+
+`postgresAdapter` is configured with `push: false`, so this migration — not Payload's
+dev-mode schema "push" — is the only thing that ever changes the schema. `migrationDir` is
+resolved from `payload.config.ts`'s own file location rather than `process.cwd()`, since
+the Payload CLI runs from `apps/web` while Vitest's integration project runs from the
+repository root.

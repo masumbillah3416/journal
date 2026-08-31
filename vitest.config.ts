@@ -7,8 +7,9 @@
  *     Sets fixed dummy values for the three env vars `apps/web/lib/env.ts`
  *     validates at import time, so importing it never needs Docker or a real
  *     `.env` file — those values are never used to open a real connection here.
- *   - integration: tests requiring DATABASE_URL, matched by `*.integration.test.ts`.
- *     Runs only in `npm run verify:full` (CI). None exist yet.
+ *   - integration: tests requiring DATABASE_URL, matched by `*.integration.test.ts`
+ *     under `apps/web/lib/**` or `apps/web/collections/**` (collection and migration
+ *     tests against the real Docker Postgres). Runs only in `npm run verify:full`.
  * Depends on: vitest/config.
  */
 import { defineConfig } from 'vitest/config'
@@ -31,7 +32,11 @@ export default defineConfig({
       {
         test: {
           name: 'integration',
-          include: ['packages/*/src/**/*.integration.test.ts', 'apps/web/lib/**/*.integration.test.ts'],
+          include: [
+            'packages/*/src/**/*.integration.test.ts',
+            'apps/web/lib/**/*.integration.test.ts',
+            'apps/web/collections/**/*.integration.test.ts',
+          ],
           exclude: ['**/node_modules/**'],
         },
       },

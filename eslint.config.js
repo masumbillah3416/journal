@@ -18,6 +18,11 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-non-null-assertion': 'error',
       'no-console': 'error',
+      // A leading underscore is the conventional "deliberately unused" marker —
+      // needed for Payload-generated migrations, whose up/down signature
+      // destructures `payload`/`req` alongside `db` whether or not a given
+      // migration's SQL needs them.
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
   // Type-aware strict rules — only for source files that live inside a tsconfig
