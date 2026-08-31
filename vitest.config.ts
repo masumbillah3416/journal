@@ -22,6 +22,16 @@
  * both projects. The unit project's files have no shared external state, so
  * running them one at a time costs a little wall-clock time (it is still
  * sub-second) rather than any correctness risk.
+ *
+ * This config's own coverage pass only ever executes the `unit` project (the
+ * pre-commit gate is Docker-free), so `postgres-queue.ts` and its contract
+ * suite/fixtures - reachable only from an `*.integration.test.ts` file - are
+ * excluded here rather than counted as 0%-covered against thresholds they
+ * have no way to meet from this run. They are not left ungated: a SEPARATE
+ * coverage pass, `vitest.integration.config.ts` (run via
+ * `npm run test:integration:coverage`, chained into `npm run verify:full`),
+ * runs the same integration tests with `--coverage` scoped to exactly these
+ * files, with its own thresholds. See docs/testing.md.
  * Depends on: vitest/config.
  */
 import { defineConfig } from 'vitest/config'
@@ -61,7 +71,16 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov'],
       include: ['packages/*/src/**/*.ts', 'apps/web/lib/**/*.ts'],
-      exclude: ['**/*.test.ts', '**/*.d.ts', '**/index.ts'],
+      exclude: [
+        '**/*.test.ts',
+        '**/*.d.ts',
+        '**/index.ts',
+        // Gated instead by vitest.integration.config.ts's dedicated pass -
+        // see this file's own header and docs/testing.md.
+        'apps/web/lib/adapters/postgres-queue.ts',
+        'apps/web/lib/adapters/contract/queue-contract.ts',
+        'apps/web/lib/adapters/contract/queue-fixtures.ts',
+      ],
       thresholds: {
         // Repository-wide floor.
         lines: 90, branches: 90, functions: 90,

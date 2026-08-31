@@ -20,9 +20,10 @@
  * Exercised only by `postgres-queue.integration.test.ts` against the real
  * Docker Postgres - claim()'s locking clause has no meaning against a mock.
  * This module is never imported by the unit project (see vitest.config.ts),
- * so v8 reports it as wholly unexecuted here rather than partially.
+ * so it is gated by the dedicated `test:integration:coverage` pass
+ * (vitest.integration.config.ts) instead of the unit project's coverage run
+ * - see docs/testing.md.
  */
-/* c8 ignore start -- see module header: integration-only, real Postgres required */
 import type { Result } from '@travel-diary/domain/result'
 import { err, ok } from '@travel-diary/domain/result'
 import type { MediaId } from '@travel-diary/domain/ids'
@@ -100,4 +101,3 @@ export const createPostgresQueue = (): QueuePort => ({
     }
   },
 })
-/* c8 ignore stop */

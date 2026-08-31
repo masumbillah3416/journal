@@ -2,7 +2,7 @@
  * postgres-queue.integration.test.ts — wires the QueuePort contract to the
  * real Postgres-backed adapter, plus adapter-specific tests the generic
  * contract does not cover (complete(), the not-found error paths, and a
- * deterministic proof of the SKIP LOCKED mechanism itself).
+ * deterministic regression test for the SKIP LOCKED mechanism itself).
  *
  * Named `*.integration.test.ts` to match vitest.config.ts's integration
  * project glob (`apps/web/lib/**\/*.integration.test.ts`): `claim()`'s
@@ -16,15 +16,21 @@
  * reported exactly one claimant: the two round trips ran back-to-back, not
  * genuinely concurrently, so that shape of test can pass for the wrong
  * reason on a fast enough machine. The `queueContract`'s own
- * `Promise.all([queue.claim(), queue.claim()])` case below is kept (it is
- * the brief's specified assertion, exercises the real public API end to
- * end, and would still catch a regression on a slower or more loaded
- * database), but genuine, guaranteed simultaneity is proven separately by
- * 'a second transaction genuinely overlapping the first is made to skip the
- * locked row', which opens two raw connections and holds the first
- * transaction's lock open - uncommitted - while the second's identical
- * `SELECT ... FOR UPDATE SKIP LOCKED` runs, by construction rather than by
- * hoping two independent async calls race close enough in time.
+ * `Promise.all([queue.claim(), queue.claim()])` case is kept for that reason
+ * only as a smoke test (see its own name and comment in queue-contract.ts) -
+ * it is not a safety net.
+ *
+ * The real regression test is 'claim() skips a row a concurrent transaction
+ * is holding, rather than blocking for it' below. An earlier version of this
+ * test opened two raw connections and ran the exact same hand-written SQL on
+ * both - which proved Postgres implements SKIP LOCKED (never in question),
+ * not that claim() uses it; deleting the clause from postgres-queue.ts left
+ * that test passing. The version below drives the real `queue.claim()` call
+ * against a row a raw connection is already holding open and uncommitted,
+ * and asserts claim() returns `ok(null)` within a short timeout raced via
+ * `Promise.race` - proven to fail (not hang) when the clause is removed,
+ * because claim()'s own `SELECT ... FOR UPDATE` would then block on the
+ * held lock instead of skipping it.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
 import { getPayload } from '../payload.js'
@@ -73,7 +79,7 @@ describe('postgres queue, adapter-specific behaviour', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('a second transaction genuinely overlapping the first is made to skip the locked row', async () => {
+  it('claim() skips a row a concurrent transaction is holding, rather than blocking for it', async () => {
     const payload = await getPayload()
     const queue = createPostgresQueue()
     const enqueued = await queue.enqueue({ kind: 'transcode', mediaId: aMediaId() })
@@ -81,33 +87,38 @@ describe('postgres queue, adapter-specific behaviour', () => {
     const jobId = Number(enqueued.value)
 
     const holder = await payload.db.pool.connect()
-    const contender = await payload.db.pool.connect()
 
     try {
       await holder.query('BEGIN')
-      const held = await holder.query<{ id: number }>(
-        'SELECT id FROM jobs WHERE id = $1 FOR UPDATE SKIP LOCKED',
-        [jobId],
-      )
-      // Transaction A now holds the row's lock, deliberately left uncommitted
-      // - the overlap that follows is guaranteed by construction, not by
-      // racing two independent calls and hoping they land close in time.
+      const held = await holder.query<{ id: number }>('SELECT id FROM jobs WHERE id = $1 FOR UPDATE', [
+        jobId,
+      ])
+      // `holder` now locks the row, deliberately left open and uncommitted -
+      // standing in for another worker that is mid-claim. The assertion
+      // below drives the REAL `claim()`, not a hand-written copy of its SQL,
+      // so it actually protects the line it claims to.
       expect(held.rows).toHaveLength(1)
 
-      await contender.query('BEGIN')
-      const contended = await contender.query<{ id: number }>(
-        'SELECT id FROM jobs WHERE id = $1 FOR UPDATE SKIP LOCKED',
-        [jobId],
-      )
+      const TIMEOUT_MS = 1000
+      const timedOut = Symbol('claim() did not return before the timeout')
+      const raced = await Promise.race([
+        queue.claim(),
+        new Promise<typeof timedOut>((resolve) => {
+          setTimeout(() => {
+            resolve(timedOut)
+          }, TIMEOUT_MS)
+        }),
+      ])
 
-      // The row is locked by a still-open transaction, so SKIP LOCKED must
-      // make the second transaction see nothing rather than wait for it.
-      expect(contended.rows).toHaveLength(0)
-
-      await contender.query('ROLLBACK')
-      await holder.query('ROLLBACK')
+      // With `FOR UPDATE SKIP LOCKED`, claim() must see the row is locked and
+      // return ok(null) promptly. Without that clause, claim()'s own
+      // `SELECT ... FOR UPDATE` would block waiting for `holder`'s lock -
+      // which `holder` never releases within TIMEOUT_MS - so `raced` would
+      // still be the timeout sentinel and this assertion would fail with a
+      // clear diff instead of hanging the suite.
+      expect(raced).toEqual({ ok: true, value: null })
     } finally {
-      contender.release()
+      await holder.query('ROLLBACK')
       holder.release()
     }
   })

@@ -6,10 +6,10 @@
  *
  * Exercised only via `postgres-queue.integration.test.ts` against the real
  * Docker Postgres. Never imported by the unit project (see
- * vitest.config.ts), so v8 reports it as wholly unexecuted here rather than
- * partially.
+ * vitest.config.ts), so it is gated by the dedicated
+ * `test:integration:coverage` pass (vitest.integration.config.ts) instead of
+ * the unit project's coverage run - see docs/testing.md.
  */
-/* c8 ignore start -- see module header: integration-only, real Postgres required */
 import { mediaId, type MediaId } from '@travel-diary/domain/ids'
 import { getPayload } from '../../payload.js'
 
@@ -19,6 +19,7 @@ let counter = 0
 export const aMediaId = (): MediaId => {
   counter += 1
   const built = mediaId(`test-media-${String(counter)}`)
+  /* c8 ignore next -- mediaId() only rejects an empty/whitespace-only string; this factory never constructs one */
   if (!built.ok) throw new Error(built.error)
   return built.value
 }
@@ -29,4 +30,3 @@ export const jobRow = async (id: string): Promise<{ status: string; reason: stri
   const row = await payload.findByID({ collection: 'jobs', id })
   return { status: row.status, reason: row.reason ?? null }
 }
-/* c8 ignore stop */

@@ -85,16 +85,42 @@ An uncovered line outside `packages/domain` requires a
     concurrency case — two concurrent `claim()` calls must yield the job to exactly one
     caller — is why this suite is an *integration* test
     (`postgres-queue.integration.test.ts`, needing real Postgres): `claim()`'s
-    `SELECT ... FOR UPDATE SKIP LOCKED` has no meaning against a mock. That file also adds
-    a deterministic, adapter-specific proof alongside the contract's `Promise.all` case:
-    on a fast local Postgres, two full `claim()` round trips can complete back-to-back
-    rather than genuinely overlapping, so a second test opens two raw connections and
-    holds the first transaction's lock open — uncommitted — while the second's identical
-    `SELECT ... FOR UPDATE SKIP LOCKED` runs, proving the mechanism by construction
-    instead of by hoping two independent calls race close enough in time.
+    `SELECT ... FOR UPDATE SKIP LOCKED` has no meaning against a mock.
+
+    The contract's own `Promise.all([queue.claim(), queue.claim()])` case is a **smoke
+    test only**, named as one — on a fast local database two full `claim()` round trips
+    were measured to complete back-to-back rather than genuinely overlapping, so it still
+    passed 8/8 times with the locking clause deleted from the adapter. The real
+    regression test is `postgres-queue.integration.test.ts`'s 'claim() skips a row a
+    concurrent transaction is holding, rather than blocking for it': it opens a raw
+    connection, has it `SELECT ... FOR UPDATE` (no `SKIP LOCKED`) the job's row and leave
+    that transaction open and uncommitted, then calls the real `queue.claim()` and races
+    it against a short timeout via `Promise.race`. With the clause present, `claim()`
+    returns `ok(null)` promptly; without it, `claim()`'s own `SELECT` blocks on the held
+    lock and the assertion fails with a clear diff instead of hanging. An earlier version
+    of this test issued the same hand-written SQL on two raw connections without calling
+    `claim()` at all — which proved Postgres implements `SKIP LOCKED` (never in question),
+    not that the adapter uses it; that version was replaced after review because deleting
+    the clause from the adapter left it passing.
 - **Run:** unit-reachable contracts (`storage`, `mailer`) run under `npm run verify` like
   any other unit test; the `queue` contract, being integration-only, runs under
   `npm run verify:full` / `npm run test:integration`.
+- **Coverage for integration-only code:** `npm run verify`'s coverage pass only ever
+  executes the `unit` project, so `postgres-queue.ts`, `queue-contract.ts` and
+  `queue-fixtures.ts` — reachable exclusively from an `*.integration.test.ts` — are
+  excluded from `vitest.config.ts`'s coverage `include` rather than counted as
+  0%-covered there. They are gated instead by a second, dedicated pass,
+  `vitest.integration.config.ts`, run via `npm run test:integration:coverage` (chained
+  into `npm run verify:full`) — it runs the same integration test files with `--coverage`
+  scoped to just those three files. Thresholds are set per-file to what is genuinely
+  achieved, not aspirational: `queue-contract.ts` and `queue-fixtures.ts` are 100%
+  lines/branches/functions; `postgres-queue.ts` is 93% lines, 75% branches, 100%
+  functions — its two uncovered branches are `enqueue()`'s and `claim()`'s error-`catch`
+  paths for an unexpected database failure, which have no organic trigger without mocking
+  the module under test (CLAUDE.md §2.3: "no mocking what we own") or deliberately
+  corrupting the test database. `claim()`'s safety-critical `SELECT ... FOR UPDATE SKIP
+  LOCKED` line itself executes on every call regardless of outcome, so it is fully
+  exercised by both the smoke test and the blocking regression test above.
 - **Add one:** write `apps/web/lib/ports/<name>.ts` (the interface, plus any guard every
   adapter must share - see `validateStorageKey` above), then
   `apps/web/lib/adapters/contract/<name>-contract.ts` (the shared suite) before any
