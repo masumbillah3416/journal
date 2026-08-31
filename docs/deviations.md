@@ -58,7 +58,7 @@ most likely to trigger vestibular discomfort if forced on every reader.
 This project caps the result at 1.7× and centres the book within its container above
 that cap.
 
-**Rationale:** `README.md` itself lists this under *Known gaps*: at 3840 CSS px the book
+**Rationale:** `README.md` itself lists this under _Known gaps_: at 3840 CSS px the book
 would scale up ~2.4× while the bookmark rail and bottom bar sit outside the `transform`
 at fixed pixel sizes, so they look undersized next to a very large book. The handoff
 suggests capping at ~1.7× and centring, or scaling the chrome with it; this project takes
@@ -67,6 +67,35 @@ underlying problem on the image side — serving a sharp image at up to ~1.7× t
 box's native resolution.
 
 **Recorded as:** design spec §7.1.
+
+## 5 · Cover, Contents and About seeded as pages on the first journey
+
+**What changed:** `pages.kind` is `'notes' | 'frames'` and `pages.journey` is a required
+relationship (`apps/web/collections/pages.ts`) — there is no first-class way to store a
+page that belongs to the book as a whole rather than to one journey. The seed
+(`apps/web/scripts/seed.ts`) needs three such pages: the handoff's page-numbering scheme
+(`SCREENS.md` §2.5: "Cover, Contents and About span 1") and the seed test's own page
+arithmetic (3 global pages + 10 journeys × 3 = 33) both require exactly three rows that
+are not one of a journey's own Notes/Frames I/Frames II. The seed creates them as
+`kind: 'notes'` pages on the first seeded journey (Tokyo), with `order` 0–2 so they sort
+before every journey page (which start at `order: 3`), and titles `'Cover'`, `'Contents'`
+and `'About'`.
+
+**Rationale:** `DATA_MODEL.md`'s own "globals" section models the Cover's real content
+(`title`, `subtitle`, `owner`, `coverCloth`, …) on the `book` global and About's
+(`portrait`, `paragraphs`, `kit`, …) on the `about` global, and Contents is listed under
+"Derived, not stored" — so, properly, none of the three belong in `pages` at all. Giving
+them a first-class home (a nullable `journey`, or a `kind` enum value of their own) is a
+schema change, and `postgresAdapter` is configured with `push: false` (Task 6): any
+schema change needs a generated migration, which this task's brief says should not be
+necessary. Attaching them to the first journey is the smallest change that satisfies the
+seed test against the _existing_ migrated schema, at the cost of `pages.find()` returning
+three rows whose `journey` relationship is not actually meaningful. A follow-up task
+should either add a dedicated `book-pages` collection or relax `pages.journey`/extend
+`pages.kind`, with a real migration, and move these three rows there.
+
+**Recorded as:** `apps/web/scripts/seed.ts` (`// HANDOFF-DEVIATION` comment at the point
+the three pages are created); Task 11 of Phase 0.
 
 ---
 

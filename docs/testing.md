@@ -34,8 +34,8 @@ An uncovered line outside `packages/domain` requires a
 - **Tool:** Vitest.
 - **Scope:** pure functions, state machines, mappers, validators. No I/O.
 - **Status:** implemented. The `unit` Vitest project (`vitest.config.ts`) includes
-  `packages/*/src/**/*.test.ts` and `apps/web/lib/**/*.test.ts`, excluding anything
-  matching `*.integration.test.ts`.
+  `packages/*/src/**/*.test.ts`, `apps/web/lib/**/*.test.ts` and
+  `apps/web/scripts/**/*.test.ts`, excluding anything matching `*.integration.test.ts`.
 - **Run:** `npm run test:unit` (with coverage), or `npm run test` for watch mode across
   both projects.
 - **Add one:** colocate `<name>.test.ts` next to `<name>.ts`. Follow the TDD cycle
@@ -48,10 +48,15 @@ An uncovered line outside `packages/domain` requires a
 
 - **Tool:** Vitest + a real test Postgres.
 - **Scope:** collections, hooks, server actions, access control against a real database.
-- **Status:** the `integration` Vitest project exists in `vitest.config.ts`
-  (`**/*.integration.test.ts`, `passWithNoTests: true`) but no test files exist yet —
-  there are no collections or server actions to test against until a later Phase 0 task
-  adds them.
+- **Status:** implemented. The `integration` Vitest project (`vitest.config.ts`) includes
+  `**/*.integration.test.ts` under `apps/web/lib/**`, `apps/web/collections/**` and
+  `apps/web/scripts/**`. `collections.integration.test.ts` (Task 6) exercises the schema
+  rules from `DATA_MODEL.md`; `seed.integration.test.ts` (Task 11) exercises
+  `apps/web/scripts/seed.ts` against real `journeys`, `pages` and `media` rows, including
+  its idempotency (running it twice leaves the same ten journeys, not twenty). Its own
+  `beforeAll` deletes the ten seeded journeys first, so the suite's coverage numbers (see
+  below) do not depend on whether a previous run, or `npm run db:seed` itself, already
+  seeded the same database.
 - **Run:** `npm run test:integration` (requires `DATABASE_URL`), or `npm run verify:full`
   to run it alongside everything else.
 - **Add one:** name the file `<name>.integration.test.ts` so Vitest's project split picks
@@ -106,21 +111,27 @@ An uncovered line outside `packages/domain` requires a
   any other unit test; the `queue` contract, being integration-only, runs under
   `npm run verify:full` / `npm run test:integration`.
 - **Coverage for integration-only code:** `npm run verify`'s coverage pass only ever
-  executes the `unit` project, so `postgres-queue.ts`, `queue-contract.ts` and
-  `queue-fixtures.ts` — reachable exclusively from an `*.integration.test.ts` — are
-  excluded from `vitest.config.ts`'s coverage `include` rather than counted as
-  0%-covered there. They are gated instead by a second, dedicated pass,
-  `vitest.integration.config.ts`, run via `npm run test:integration:coverage` (chained
-  into `npm run verify:full`) — it runs the same integration test files with `--coverage`
-  scoped to just those three files. Thresholds are set per-file to what is genuinely
-  achieved, not aspirational: `queue-contract.ts` and `queue-fixtures.ts` are 100%
-  lines/branches/functions; `postgres-queue.ts` is 93% lines, 75% branches, 100%
-  functions — its two uncovered branches are `enqueue()`'s and `claim()`'s error-`catch`
-  paths for an unexpected database failure, which have no organic trigger without mocking
-  the module under test (CLAUDE.md §2.3: "no mocking what we own") or deliberately
-  corrupting the test database. `claim()`'s safety-critical `SELECT ... FOR UPDATE SKIP
-  LOCKED` line itself executes on every call regardless of outcome, so it is fully
-  exercised by both the smoke test and the blocking regression test above.
+  executes the `unit` project, so `postgres-queue.ts`, `queue-contract.ts`,
+  `queue-fixtures.ts`, `seed.ts` and `seed-data.ts` — reachable exclusively from an
+  `*.integration.test.ts` — are excluded from `vitest.config.ts`'s coverage `include`
+  rather than counted as 0%-covered there. They are gated instead by a second, dedicated
+  pass, `vitest.integration.config.ts`, run via `npm run test:integration:coverage`
+  (chained into `npm run verify:full`) — it runs the same integration test files with
+  `--coverage` scoped to just those five files. Thresholds are set per-file to what is
+  genuinely achieved, not aspirational: `queue-contract.ts`, `queue-fixtures.ts` and
+  `seed-data.ts` (a pure data literal) are 100% lines/branches/functions;
+  `postgres-queue.ts` is 93% lines, 75% branches, 100% functions — its two uncovered
+  branches are `enqueue()`'s and `claim()`'s error-`catch` paths for an unexpected
+  database failure, which have no organic trigger without mocking the module under test
+  (CLAUDE.md §2.3: "no mocking what we own") or deliberately corrupting the test
+  database. `claim()`'s safety-critical `SELECT ... FOR UPDATE SKIP LOCKED` line itself
+  executes on every call regardless of outcome, so it is fully exercised by both the
+  smoke test and the blocking regression test above. `seed.ts` is 100% lines/functions,
+  80% branches — the uncovered branches are defensive guards with no organic trigger from
+  the ten real journeys' own data (an unrecognised `dates` format, an id branding failure
+  that can't happen for an id Payload itself just generated); see `seed.ts`'s own
+  `c8 ignore` comments and `vitest.integration.config.ts`'s threshold comment for the
+  full list.
 - **Add one:** write `apps/web/lib/ports/<name>.ts` (the interface, plus any guard every
   adapter must share - see `validateStorageKey` above), then
   `apps/web/lib/adapters/contract/<name>-contract.ts` (the shared suite) before any

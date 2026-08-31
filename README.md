@@ -60,12 +60,12 @@ npm run test:a11y      # accessibility
 npm run test:perf      # Lighthouse CI budgets
 npm run db:migrate -w apps/web        # run migrations
 npm run db:migrate:create -w apps/web # generate a new migration from schema changes
-npm run db:seed        # seed from the handoff prototype content
+npm run db:seed -w apps/web           # seed the ten prototype journeys and their pages
 ```
 
-Commands not yet implemented (`test:e2e`, `test:visual`, `test:a11y`, `test:perf`,
-`db:seed`) are listed here as the target command surface from `CLAUDE.md` §11; they will
-be added as the app that needs them lands.
+Commands not yet implemented (`test:e2e`, `test:visual`, `test:a11y`, `test:perf`) are
+listed here as the target command surface from `CLAUDE.md` §11; they will be added as
+the app that needs them lands.
 
 ## The verify gate
 

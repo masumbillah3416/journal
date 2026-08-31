@@ -172,3 +172,20 @@ dev-mode schema "push" — is the only thing that ever changes the schema. `migr
 resolved from `payload.config.ts`'s own file location rather than `process.cwd()`, since
 the Payload CLI runs from `apps/web` while Vitest's integration project runs from the
 repository root.
+
+## Seed data
+
+`npm run db:seed -w apps/web` (`apps/web/scripts/run-seed.ts`, calling `seed()` from
+`apps/web/scripts/seed.ts`) creates the ten journeys the prototype ships with and their
+thirty-three pages (Notes, Frames I, Frames II per journey, plus the book's Cover,
+Contents and About), against this schema, without a migration. It upserts by a natural
+key (a journey's `slug`; a page's `journey` + `title`; a media item's `journey` + the
+placeholder label stashed in `alt`), so running it twice leaves the same ten journeys and
+thirty-three pages. Every journey's name, place, dates, weather, mood, sign-off,
+highlights, note and tally are transcribed verbatim from
+`handoff/design_handoff_travel_diary/Travel Diary.dc.html`'s `journeys`/`MORE` arrays
+(`apps/web/scripts/seed-data.ts`); every photo slot's placeholder is a real `media`
+upload rasterised from `stripedPlaceholder`'s SVG (Task 10). Cover, Contents and About
+are seeded as `pages` rows on the first journey rather than left journey-less, because
+`pages.journey` is required and there is no book-level home for them in the schema above
+— see `docs/deviations.md` §5 for the full rationale.

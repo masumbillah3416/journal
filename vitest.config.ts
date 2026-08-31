@@ -8,8 +8,9 @@
  *     validates at import time, so importing it never needs Docker or a real
  *     `.env` file — those values are never used to open a real connection here.
  *   - integration: tests requiring DATABASE_URL, matched by `*.integration.test.ts`
- *     under `apps/web/lib/**` or `apps/web/collections/**` (collection and migration
- *     tests against the real Docker Postgres). Runs only in `npm run verify:full`.
+ *     under `apps/web/lib/**`, `apps/web/collections/**` or `apps/web/scripts/**`
+ *     (collection, migration and seed tests against the real Docker Postgres).
+ *     Runs only in `npm run verify:full`.
  *
  * Root-level `fileParallelism: false`: the `integration` project's files
  * share one live database, and `collections.integration.test.ts` migrates
@@ -46,11 +47,7 @@ export default defineConfig({
       {
         test: {
           name: 'unit',
-          include: [
-            'packages/*/src/**/*.test.ts',
-            'apps/web/lib/**/*.test.ts',
-            'apps/web/scripts/**/*.test.ts',
-          ],
+          include: ['packages/*/src/**/*.test.ts', 'apps/web/lib/**/*.test.ts', 'apps/web/scripts/**/*.test.ts'],
           exclude: ['**/*.integration.test.ts', '**/node_modules/**'],
           env: {
             DATABASE_URL: 'postgres://unit-test:unused@localhost:5432/unit-test',
@@ -66,6 +63,7 @@ export default defineConfig({
             'packages/*/src/**/*.integration.test.ts',
             'apps/web/lib/**/*.integration.test.ts',
             'apps/web/collections/**/*.integration.test.ts',
+            'apps/web/scripts/**/*.integration.test.ts',
           ],
           exclude: ['**/node_modules/**'],
         },
@@ -84,16 +82,28 @@ export default defineConfig({
         'apps/web/lib/adapters/postgres-queue.ts',
         'apps/web/lib/adapters/contract/queue-contract.ts',
         'apps/web/lib/adapters/contract/queue-fixtures.ts',
+        // seed.ts and seed-data.ts are reachable only from
+        // seed.integration.test.ts (they need a real Payload/Postgres), so
+        // they are gated by vitest.integration.config.ts instead - same
+        // reasoning as the queue files above.
+        'apps/web/scripts/seed.ts',
+        'apps/web/scripts/seed-data.ts',
       ],
       thresholds: {
         // Repository-wide floor.
-        lines: 90, branches: 90, functions: 90,
+        lines: 90,
+        branches: 90,
+        functions: 90,
         // Pure logic: every branch is a real behaviour, so every branch is covered.
         'packages/domain/src/**/*.ts': {
-          lines: 100, branches: 100, functions: 100,
+          lines: 100,
+          branches: 100,
+          functions: 100,
         },
         'apps/web/lib/**/*.ts': {
-          lines: 95, branches: 95, functions: 95,
+          lines: 95,
+          branches: 95,
+          functions: 95,
         },
       },
     },

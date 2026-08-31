@@ -19,6 +19,10 @@
  * database failure mid-transaction, and enqueue() failing) have no organic
  * trigger without mocking the module under test, which CLAUDE.md §2.3
  * forbids ("no mocking what we own").
+ *
+ * `apps/web/scripts/seed.ts` and `seed-data.ts` (Task 11) join this file for
+ * the same reason: `seed.integration.test.ts` is their only test, and it
+ * needs a real Payload/Postgres.
  * Depends on: vitest/config.
  */
 import { defineConfig } from 'vitest/config'
@@ -30,6 +34,7 @@ export default defineConfig({
       'packages/*/src/**/*.integration.test.ts',
       'apps/web/lib/**/*.integration.test.ts',
       'apps/web/collections/**/*.integration.test.ts',
+      'apps/web/scripts/**/*.integration.test.ts',
     ],
     exclude: ['**/node_modules/**'],
     // See vitest.config.ts's own header: these files share one live database,
@@ -44,6 +49,8 @@ export default defineConfig({
         'apps/web/lib/adapters/postgres-queue.ts',
         'apps/web/lib/adapters/contract/queue-contract.ts',
         'apps/web/lib/adapters/contract/queue-fixtures.ts',
+        'apps/web/scripts/seed.ts',
+        'apps/web/scripts/seed-data.ts',
       ],
       thresholds: {
         // postgres-queue.ts's two error-catch branches (an unexpected DB
@@ -57,6 +64,22 @@ export default defineConfig({
         'apps/web/lib/adapters/postgres-queue.ts': { lines: 93, branches: 75, functions: 100 },
         'apps/web/lib/adapters/contract/queue-contract.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/adapters/contract/queue-fixtures.ts': { lines: 100, branches: 100, functions: 100 },
+        // seed-data.ts is a pure data literal - 100% by construction, every
+        // call reads every field.
+        'apps/web/scripts/seed-data.ts': { lines: 100, branches: 100, functions: 100 },
+        // seed.ts: 100% lines/functions. 80.48% branches is the real,
+        // measured number: seed.integration.test.ts's own `beforeAll`
+        // deletes the ten journeys first, so the suite deterministically
+        // exercises both the create and the found-existing/update branch of
+        // every upsert regardless of what an earlier run (or `npm run
+        // db:seed` itself) left in the database. The remaining branches are
+        // defensive guards with no organic trigger from the ten real
+        // journeys' own data: parseStartsOn's two unrecognised-format
+        // fallbacks and its `?? null` (every real `dates` string parses to a
+        // real value), brandOrThrow's error branch (Payload never hands back
+        // an empty id), and `firstJourneyNumericId === undefined`
+        // (journeySeeds is never empty).
+        'apps/web/scripts/seed.ts': { lines: 100, branches: 80, functions: 100 },
       },
     },
   },
