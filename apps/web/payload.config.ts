@@ -10,7 +10,9 @@
  * so Payload's stock admin is a development scaffolding tool here, not the product.
  *
  * Collections and globals (Task 6) are transcribed from DATA_MODEL.md in their
- * own modules and registered here.
+ * own modules and registered here. `jobs` (Task 9) is this repository's own
+ * addition, not part of DATA_MODEL.md - it backs the Postgres `QueuePort`
+ * adapter and must be registered here for the Local API to reach it at all.
  * Depends on: `@payloadcms/db-postgres`, `@payloadcms/richtext-lexical`, `payload`,
  * `sharp`, the validated `env` from `./lib/env.js`, `./collections/*`, `./globals/*`.
  */
@@ -26,6 +28,7 @@ import { Pages } from './collections/pages'
 import { Users } from './collections/users'
 import { OtpChallenges } from './collections/otpChallenges'
 import { Sessions } from './collections/sessions'
+import { Jobs } from './collections/jobs'
 import { About } from './globals/about'
 import { Book } from './globals/book'
 import { Site } from './globals/site'
@@ -48,7 +51,7 @@ export default buildConfig({
   // own generated admin binds to. The design's bespoke panel owns `/admin`,
   // so Payload's stock admin moves to `/cms` and the two never collide.
   routes: { admin: '/cms' },
-  collections: [Media, Journeys, Pages, Users, OtpChallenges, Sessions],
+  collections: [Media, Journeys, Pages, Users, OtpChallenges, Sessions, Jobs],
   globals: [Book, About, Site],
   editor: lexicalEditor(),
   secret: env.PAYLOAD_SECRET,

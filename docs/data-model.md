@@ -6,10 +6,10 @@ decisions layered on top of the handoff (design spec §5); it does not restate e
 field — see `DATA_MODEL.md` for the full Payload collection definitions.
 
 Collections are implemented in `apps/web/collections/*.ts` and `apps/web/globals/*.ts`,
-registered in `apps/web/payload.config.ts`, and migrated by
-`apps/web/migrations/20260831_154311_initial.ts` — the first migration, run and verified
-reversible (down, then up again) by `apps/web/collections/collections.integration.test.ts`
-against a real Docker Postgres.
+registered in `apps/web/payload.config.ts`, and migrated by the migrations in
+`apps/web/migrations/` — reversibility (down, then up again) of the latest batch is
+verified by `apps/web/collections/collections.integration.test.ts` against a real Docker
+Postgres.
 
 ## Collections
 
@@ -83,6 +83,19 @@ Backs the Account screen's "Where you are signed in" list. Without real rows her
 "Revoke" and "Sign out everywhere" are decorative. Fields: `user`, `tokenHash`, `device`,
 `location`, `createdAt`, `lastSeenAt`, `revokedAt`.
 
+### `jobs`
+
+Backs the Postgres-backed `QueuePort` adapter (`apps/web/lib/adapters/postgres-queue.ts`,
+Task 9): one row per background job, today only `kind: 'transcode'` after a clip upload.
+`access: { read: () => false, create: () => false, update: () => false }` - server-only,
+reached only through the adapter's Local API calls, matching `otpChallenges` and
+`sessions`. `mediaId` is a plain text field, not a `relationship` to `media`: a foreign
+key here would reject the branded ids the queue's own contract suite enqueues in
+isolation from a real media row. Fields: `kind` (`transcode`), `mediaId` (text),
+`status` (`queued` | `claimed` | `completed` | `failed`, indexed, defaults to `queued`),
+`reason` (why a job failed, surfaced on the admin's Media screen in a later phase),
+`claimedAt`.
+
 ## Globals
 
 - **`book`** — `title`, `subtitle`, `owner`, `coverCloth`, `yearsShown`, `contentsNote`,
@@ -134,8 +147,9 @@ From design spec §5.1:
 | Migration | What it does |
 |---|---|
 | `20260831_154311_initial` | Creates all six collections and three globals above, with `deletedAt` (indexed) and `versions: { drafts: true }` on `journeys` and `pages` from the start — both are painful to retrofit onto a collection with existing rows, per the note above. Verified reversible: `runMigrateDown` then `runMigrateUp` restore the schema without loss. |
+| `20260831_161951_add_jobs` | Creates the `jobs` table (Task 9) backing the Postgres `QueuePort` adapter, and the `payload_locked_documents_rels.jobs_id` column/FK Payload adds for its own admin document-locking feature. Verified reversible; see the statement-order note below. |
 
-Generated with `npm run db:migrate:create -w apps/web -- initial`, applied with
+Generated with `npm run db:migrate:create -w apps/web -- <name>`, applied with
 `npm run db:migrate -w apps/web`. Payload's generator emits a plain (non-type-only) import
 of `MigrateUpArgs`/`MigrateDownArgs`, which are interfaces with no runtime export; Node's
 built-in TypeScript type-stripping does not elide this on its own (unlike esbuild/tsx), so
@@ -143,6 +157,15 @@ the generated file fails to load until hand-split into a `import type { ... }` l
 is a one-line, mechanical fix to the generated file's import statement — the generated SQL
 itself is untouched, and it is expected to recur for every future migration generated
 against this Payload/Node combination until upstream fixes the generator template.
+
+`20260831_161951_add_jobs`'s generated `down()` needed a second, different hand-fix: as
+generated, it ran `DROP TABLE "jobs" CASCADE` before an explicit
+`ALTER TABLE ... DROP CONSTRAINT "payload_locked_documents_rels_jobs_fk"` — but the
+`CASCADE` had already dropped that same foreign key as a side effect, so the explicit
+drop then failed with "constraint ... does not exist". Reordered to drop the constraint
+(and its dependent index and column) before dropping the table it references, so the fix
+does not depend on `CASCADE`'s side-effect ordering. The generated SQL statements
+themselves are otherwise untouched.
 
 `postgresAdapter` is configured with `push: false`, so this migration — not Payload's
 dev-mode schema "push" — is the only thing that ever changes the schema. `migrationDir` is

@@ -64,16 +64,43 @@ An uncovered line outside `packages/domain` requires a
 
 - **Tool:** Vitest — one shared suite run against both the local and the production
   implementation of each adapter.
-- **Scope:** `storage`, `mailer`, `transcodeQueue` (design spec §6) — every port that
-  crosses into an external service.
-- **Status:** not yet implemented. Design spec Phase 0 calls for "storage / mailer /
-  queue adapters with their shared contract suite" as a deliverable; this lands in the
-  task that adds those adapters, not this documentation task. The naming and location
-  convention for contract test files will be established then, alongside the ports
-  themselves — inventing one now, ahead of the adapters it tests, would be guesswork.
-- **Run / add one:** to be documented here once the adapters land, in the same commit as
-  the adapters themselves (`CLAUDE.md` §1.3: documentation ships with the code it
-  describes).
+- **Scope:** `storage`, `mailer`, `queue` (design spec §6) — every port that crosses into
+  an external service.
+- **Status:** implemented for all three ports (Tasks 7-9). Each port lives in
+  `apps/web/lib/ports/<name>.ts`; each contract suite is a
+  `apps/web/lib/adapters/contract/<name>-contract.ts` module exporting a
+  `<name>Contract(name, makeAdapter)` function that registers one parameterised
+  `describe` block — written once, run unchanged against every adapter. Today's
+  adapters:
+  - `storage` → `apps/web/lib/adapters/local-storage.ts` (filesystem). Path traversal is
+    rejected by `validateStorageKey`, exported from the port itself, not the adapter — the
+    Cloudflare R2 adapter arriving in Phase 3 has no filesystem to protect, so the guard
+    has to live somewhere every adapter shares.
+  - `mailer` → `apps/web/lib/adapters/console-mailer.ts` (prints to the terminal). The
+    contract asserts the security requirement from `CLAUDE.md` §7 directly: `logLines`
+    (what actually reached the terminal) never contains a full email address (masked to
+    `m***@example.com`) or the message body, which carries the OTP code. Full messages
+    stay available to tests via a separate in-memory outbox, `sent`.
+  - `queue` → `apps/web/lib/adapters/postgres-queue.ts` (the `jobs` table, Task 9). The
+    concurrency case — two concurrent `claim()` calls must yield the job to exactly one
+    caller — is why this suite is an *integration* test
+    (`postgres-queue.integration.test.ts`, needing real Postgres): `claim()`'s
+    `SELECT ... FOR UPDATE SKIP LOCKED` has no meaning against a mock. That file also adds
+    a deterministic, adapter-specific proof alongside the contract's `Promise.all` case:
+    on a fast local Postgres, two full `claim()` round trips can complete back-to-back
+    rather than genuinely overlapping, so a second test opens two raw connections and
+    holds the first transaction's lock open — uncommitted — while the second's identical
+    `SELECT ... FOR UPDATE SKIP LOCKED` runs, proving the mechanism by construction
+    instead of by hoping two independent calls race close enough in time.
+- **Run:** unit-reachable contracts (`storage`, `mailer`) run under `npm run verify` like
+  any other unit test; the `queue` contract, being integration-only, runs under
+  `npm run verify:full` / `npm run test:integration`.
+- **Add one:** write `apps/web/lib/ports/<name>.ts` (the interface, plus any guard every
+  adapter must share - see `validateStorageKey` above), then
+  `apps/web/lib/adapters/contract/<name>-contract.ts` (the shared suite) before any
+  adapter exists, per TDD. Name the adapter's own test file
+  `<adapter>.test.ts` (or `.integration.test.ts` if it needs real infrastructure) and call
+  `<name>Contract('<adapter>', makeAdapter)` from it.
 
 ### 4 · End-to-end
 

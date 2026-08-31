@@ -10,12 +10,28 @@
  *   - integration: tests requiring DATABASE_URL, matched by `*.integration.test.ts`
  *     under `apps/web/lib/**` or `apps/web/collections/**` (collection and migration
  *     tests against the real Docker Postgres). Runs only in `npm run verify:full`.
+ *
+ * Root-level `fileParallelism: false`: the `integration` project's files
+ * share one live database, and `collections.integration.test.ts` migrates
+ * the schema down and back up as part of its own test - run concurrently
+ * with `postgres-queue.integration.test.ts`'s use of the `jobs` table, that
+ * produced a real, reproducible failure ("relation jobs does not exist")
+ * from the two files' workers overlapping. Setting `fileParallelism: false`
+ * inside the `integration` project's own `test` block did not stop the
+ * overlap in practice; only the top-level setting did, so it applies to
+ * both projects. The unit project's files have no shared external state, so
+ * running them one at a time costs a little wall-clock time (it is still
+ * sub-second) rather than any correctness risk.
  * Depends on: vitest/config.
  */
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
+    // See the module header: must be set here, at the root, not inside the
+    // `integration` project's own `test` block - a per-project setting did
+    // not prevent that project's files from running concurrently in practice.
+    fileParallelism: false,
     projects: [
       {
         test: {

@@ -73,6 +73,7 @@ export interface Config {
     users: User;
     otpChallenges: OtpChallenge;
     sessions: Session;
+    jobs: Job;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -86,6 +87,7 @@ export interface Config {
     users: UsersSelect<false> | UsersSelect<true>;
     otpChallenges: OtpChallengesSelect<false> | OtpChallengesSelect<true>;
     sessions: SessionsSelect<false> | SessionsSelect<true>;
+    jobs: JobsSelect<false> | JobsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -338,6 +340,20 @@ export interface Session {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "jobs".
+ */
+export interface Job {
+  id: number;
+  kind: 'transcode';
+  mediaId: string;
+  status: 'queued' | 'claimed' | 'completed' | 'failed';
+  reason?: string | null;
+  claimedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -383,6 +399,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'sessions';
         value: number | Session;
+      } | null)
+    | ({
+        relationTo: 'jobs';
+        value: number | Job;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -632,6 +652,19 @@ export interface SessionsSelect<T extends boolean = true> {
   location?: T;
   lastSeenAt?: T;
   revokedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "jobs_select".
+ */
+export interface JobsSelect<T extends boolean = true> {
+  kind?: T;
+  mediaId?: T;
+  status?: T;
+  reason?: T;
+  claimedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
