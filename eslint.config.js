@@ -1,17 +1,34 @@
+/**
+ * eslint.config.js — lint rules enforcing CLAUDE.md §3.1's non-negotiables.
+ *
+ * Two tiers: a syntactic baseline (no type information required) applies to every
+ * TypeScript file, including root tooling config files that sit outside any tsconfig
+ * project; the stricter type-aware ruleset applies only to app/package source, which
+ * `projectService` can actually resolve to a tsconfig. Depends on: typescript-eslint.
+ */
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  ...tseslint.configs.strictTypeChecked,
+  // Syntactic baseline — no type information needed, so it can parse every TS file
+  // including config files. The three CLAUDE.md §3.1 non-negotiables live here so
+  // they can never be silently dropped for a file that falls outside a tsconfig project.
+  ...tseslint.configs.recommended,
   {
-    languageOptions: { parserOptions: { projectService: true } },
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-non-null-assertion': 'error',
       'no-console': 'error',
     },
   },
-  // Root tooling config files aren't part of any tsconfig project, so typed-linting
-  // rules can't parse them (projectService has nothing to attach them to). They are
-  // config, not application code, so they're excluded rather than given a project.
-  { ignores: ['**/dist/**', '**/.next/**', 'handoff/**', 'coverage/**', '*.config.js', '*.config.ts'] },
+  // Type-aware strict rules — only for source files that live inside a tsconfig
+  // project (app and package code). Config files at any depth are intentionally
+  // excluded here (they still get the syntactic baseline above), because they
+  // aren't included in any tsconfig and projectService has nothing to attach them to.
+  {
+    files: ['packages/**/*.ts', 'apps/**/*.ts'],
+    ignores: ['**/*.config.ts', '**/*.config.js'],
+    extends: [...tseslint.configs.strictTypeChecked],
+    languageOptions: { parserOptions: { projectService: true } },
+  },
+  { ignores: ['**/dist/**', '**/.next/**', 'handoff/**', 'coverage/**'] },
 )
