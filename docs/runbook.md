@@ -94,6 +94,13 @@ All provider credentials live in each platform's own secret store, never in the 
 likely to matter: *"Not an attacker — losing 40GB of photographs... Test a restore. An
 untested backup is a hypothesis."* This section exists so that claim is never true here.
 
+**Phase:** the procedure below is written now, in Phase 0, so it exists before there is
+anything real to lose. A *demonstrated* drill — actually running it and recording a
+pass — is a **Phase 3 exit criterion**, per `docs/security.md`'s offsite-backup row:
+Phase 3 (the media pipeline) is the first phase where both Postgres and the media bucket
+hold real content, so it is the earliest point where running this drill proves anything
+rather than restoring an empty database and an empty bucket.
+
 **Backup shape** (per `docs/adr/0001-hosting-and-cost.md` and `SECURITY.md`):
 
 - A scheduled Postgres dump, offsite, to Backblaze B2 — a provider independent of Neon.

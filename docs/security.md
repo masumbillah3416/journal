@@ -16,6 +16,13 @@ requirement actually true — generation, comparison, rate limiting, revocation 
 Phase 2, which is what "Discharged in" tracks below. See the report accompanying this
 task for this observation as a noted inconsistency rather than a silent assumption.
 
+The offsite-backup row's phase (last row of the table) was not resolvable from the
+design spec alone — §4's phase plan never names a phase for it — and was settled by a
+controller ruling: Phase 3, because that is the first phase where both Postgres and the
+media bucket hold real content worth restoring. The restore procedure itself is written
+in `docs/runbook.md` starting in Phase 0; only the *demonstrated* drill is gated to
+Phase 3.
+
 | Requirement | Discharged by | Discharged in |
 |---|---|---|
 | OTP generated server-side with a CSPRNG | auth service, Phase 2 | Phase 2 |
@@ -40,7 +47,7 @@ task for this observation as a noted inconsistency rather than a silent assumpti
 | `passwordProtect` gates server-side | a client-side check leaves the content fetchable | Phase 1 (diary routing) |
 | `indexGalleries` respected | `robots.txt` **and** `X-Robots-Tag`, since pages are statically served | Phase 1 (gallery route) |
 | Secrets in the platform store | never in the repo; `.env` is gitignored | Phase 0 for repo hygiene (`.gitignore` already excludes `.env`, `.env.*`, keeping only `.env.example`) — moving real secrets into each provider's platform store happens as each provider is actually provisioned at deploy time, which is not pinned to a single phase in §4 |
-| Offsite backups of Postgres **and** the bucket, restore tested | scheduled dump to a different provider; restore drill in `docs/runbook.md` | Not assigned to a phase in design spec §4 — this is operational/deploy work, not an application feature, and the phase plan does not name a phase for it. It must exist before the app is trusted with real photographs; see the restore drill in `docs/runbook.md` |
+| Offsite backups of Postgres **and** the bucket, restore tested | scheduled dump to a different provider; restore drill in `docs/runbook.md` | Phase 3. The design spec's phase plan (§4) does not itself name a phase for this operational requirement; the procedure is documented now, in Phase 0 (`docs/runbook.md`), but Phase 3 is the first point at which both Postgres and the media bucket hold real content, so it is the earliest phase where a restore drill proves anything. A demonstrated (not merely written) drill is a Phase 3 exit criterion. |
 
 The last row is the one `SECURITY.md` says deserves more attention than everything above
 it: *"Not an attacker — losing 40GB of photographs. Automated offsite backups of

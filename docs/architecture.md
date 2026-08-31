@@ -61,13 +61,13 @@ domain package is not allowed to do.
 ```mermaid
 flowchart TB
   subgraph domain["packages/domain — pure, 100% coverage, no I/O, no framework"]
-    flipMachine["flipMachine\nreducer over {dir, from, to, go, half, busy}\ninjected clock"]
-    bookScale["bookScale\n(area) → number\nmin(w/1300, h/860), capped 1.7x"]
-    bookBundleDomain["bookBundle — mapping rules\npage numbers, 03/33 counter,\ncontents entries, bookmark spans"]
+    flipMachine["flipMachine<br/>reducer over {dir, from, to, go, half, busy}<br/>injected clock"]
+    bookScale["bookScale<br/>(area) to number<br/>min(w/1300, h/860), capped 1.7x"]
+    bookBundleDomain["bookBundle — mapping rules<br/>page numbers, 03/33 counter,<br/>contents entries, bookmark spans"]
   end
 
   subgraph webLib["apps/web/lib"]
-    bookBundleWeb["bookBundle — assembly\nPayload rows -> one BookBundle"]
+    bookBundleWeb["bookBundle — assembly<br/>Payload rows to one BookBundle"]
     storagePort["storage port"]
     mailerPort["mailer port"]
     queuePort["transcodeQueue port"]
@@ -79,12 +79,12 @@ flowchart TB
     consoleMail["console adapter"]
     resend["Resend"]
     pgQueue["Postgres job table"]
-    worker["Fly.io worker (sharp + ffmpeg)"]
+    worker["Fly.io worker: sharp + ffmpeg"]
   end
 
-  payload[("Payload collections\n(Postgres via Neon)")] --> bookBundleWeb
+  payload["Payload collections<br/>Postgres via Neon"] --> bookBundleWeb
   bookBundleDomain --> bookBundleWeb
-  bookBundleWeb --> diaryClient["Diary client\nscaling + flip"]
+  bookBundleWeb --> diaryClient["Diary client<br/>scaling + flip"]
   flipMachine --> diaryClient
   bookScale --> diaryClient
 
@@ -96,11 +96,17 @@ flowchart TB
   queuePort --> worker
 
   webLib -.->|depends on| domain
-  domain -.->|never imports from| webLib
 ```
 
-The dotted edges at the bottom of the diagram are the rule stated above, drawn: the
-dependency runs from `apps/web/lib` down into `packages/domain`, never back up.
+The dotted edge at the bottom of the diagram is half of the rule stated above, drawn:
+`apps/web/lib` depends on `packages/domain`. The reverse dependency — domain code
+importing from `apps/` — is not drawn at all, deliberately: an arrow reads as something
+that happens, and this is something that must never happen. Its prohibition is stated in
+prose above, not as a "never" edge that a skimming reader could mistake for a real one.
+
+The `payload` node above is drawn as a plain rectangle rather than a database-cylinder
+shape, because Mermaid's `[( )]` cylinder syntax nests awkwardly with a label that itself
+needs punctuation, and a rectangle renders identically across Mermaid versions.
 
 `storage`, `mailer` and `transcodeQueue` are the Ports & Adapters pattern named in
 `CLAUDE.md` §3.3: a local stand-in (disk, console log, a Postgres table polled directly)
