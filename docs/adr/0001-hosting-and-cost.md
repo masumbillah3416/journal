@@ -96,9 +96,16 @@ behind each can change without touching application code — see `docs/architect
   isolated Fly.io cost, so it cannot be used to state precisely what re-adding Fly.io
   alone would cost at paid-tier scale — re-verify Fly.io's current pricing when
   provisioning it, per this ADR's own re-verification caveat above.
-- **Adding the worker back** (per ADR 0004) means: provisioning a Fly.io app, deploying
+- **Adding the worker back** (per ADR 0004) means provisioning a Fly.io app, deploying
   the transcode worker container to it, and flipping `MEDIA_PIPELINE=worker`. No schema
   migration and no other provider change is needed — see ADR 0004's consequences.
+  Concretely, that adds back the *only* service in this stack that bills by default.
+  Auto-stopping (scale-to-zero) is the right shape for it regardless of price, not just
+  a cost optimization: a single author's uploads are bursty, not continuous, so the
+  machine is expected to spend most of its time stopped rather than idling on standby
+  waiting for the next upload. What it costs at that point is deliberately not restated
+  here — take the figure from Fly.io's own pricing page at the time this decision is
+  revisited, not from this document, per the re-verification caveat above.
 - **Storage is the only variable that scales meaningfully.** Traffic barely moves the
   bill, because the diary is statically rendered and R2 has no egress fee. Photography
   volume does: budget roughly **$0.60/month per additional 40GB** of media stored.

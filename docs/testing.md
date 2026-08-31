@@ -24,8 +24,11 @@ An uncovered line outside `packages/domain` requires a
 
 - **`npm run verify`** — `typecheck && lint && test:unit`. This is the pre-commit gate:
   unit tests only, so a developer can always pass it honestly, even with Docker down.
-- **`npm run verify:full`** — `verify` plus `test:integration`. This is what CI runs
-  (`.github/workflows/ci.yml`); it requires `DATABASE_URL` for a test Postgres.
+- **`npm run verify:full`** — `verify` plus `test:integration:coverage` (which runs the
+  same integration test files as `test:integration`, with `--coverage` scoped to the
+  integration-only files named in the Contract and Migration sections below). This is
+  what CI runs (`.github/workflows/ci.yml`); it requires `DATABASE_URL` for a test
+  Postgres.
 
 ## The nine suites
 
@@ -49,15 +52,17 @@ An uncovered line outside `packages/domain` requires a
 - **Tool:** Vitest + a real test Postgres.
 - **Scope:** collections, hooks, server actions, access control against a real database.
 - **Status:** implemented. The `integration` Vitest project (`vitest.config.ts`) includes
-  `**/*.integration.test.ts` under `apps/web/lib/**`, `apps/web/collections/**` and
-  `apps/web/scripts/**`. `collections.integration.test.ts` (Task 6) exercises the schema
+  `**/*.integration.test.ts` under `apps/web/lib/**`, `apps/web/collections/**`,
+  `apps/web/scripts/**` and `packages/*/src/**` (no file matches that last pattern
+  today — `packages/domain` and `packages/tokens` are pure, no I/O).
+  `collections.integration.test.ts` (Task 6) exercises the schema
   rules from `DATA_MODEL.md`; `seed.integration.test.ts` (Task 11) exercises
   `apps/web/scripts/seed.ts` against real `journeys`, `pages`, `media` rows and the
   `book`/`about` globals, including its idempotency (running it twice leaves the same
   ten journeys, not twenty) and the thirty-row page count (ten journeys × three — Cover,
   Contents and About are globals/derived, not `pages` rows; see `docs/deviations.md` §5).
   Its own `beforeAll` deletes the ten seeded journeys first, so the suite's coverage
-  numbers (see below) do not depend on whether a previous run, or `npm run db:seed`
+  numbers (see below) do not depend on whether a previous run, or `npm run db:seed -w apps/web`
   itself, already seeded the same database.
 - **Isolation:** every integration test file calls `getTestPayload()`
   (`apps/web/lib/testPayload.ts`), not `getPayload()` directly. `DATABASE_URL` for the
@@ -308,13 +313,39 @@ An uncovered line outside `packages/domain` requires a
 
 - **Tool:** Vitest.
 - **Scope:** every migration runs up, down, and up again against a seeded database.
-- **Status:** not yet implemented — no migrations exist yet; they are added together
-  with the collections in a later Phase 0 task (`npm run db:migrate` is documented as
-  target command surface in `CLAUDE.md` §11 and the root `README.md`).
-- **Run (once added):** included in `npm run test:integration`.
-- **Add one (once added):** for every migration file, a test that runs it up, down, and
-  up again against a seeded copy of the test database, asserting the schema and data are
-  correct after each step — not just that the commands exit zero.
+- **Status:** implemented. `apps/web/migrations/` holds two migrations:
+  `20260831_154311_initial` (every collection and global's schema) and
+  `20260831_161951_add_jobs` (the `jobs` table backing the `queue` port, Task 9).
+  `apps/web/lib/migrate.ts` wraps Payload's migration runner as `runMigrateUp` and
+  `runMigrateDown`. `collections.integration.test.ts`'s "runs down and up again without
+  loss" case calls both directly against the real test Postgres, asserting each resolves
+  without throwing and that a query still succeeds afterward.
+  `apps/web/lib/testPayload.ts`'s `getTestPayload()` also calls `runMigrateUp` once, on
+  self-bootstrap, to bring a fresh `diary_test` database up to date before any test runs
+  against it. `postgresAdapter` is configured with `push: false`
+  (`apps/web/payload.config.ts`), so these migrations — never Payload's dev-mode schema
+  "push" — are the only sanctioned way the schema changes (`docs/data-model.md`); an
+  earlier version of this task found `push` silently building the schema ahead of the
+  first real migration, which would have made the migration decorative rather than the
+  thing that actually built the tables.
+- **Coverage:** `migrate.ts` is reachable only from the integration-only callers above,
+  so `vitest.config.ts`'s Docker-free unit pass excludes it from coverage rather than
+  count it as 0%. It is gated instead by `vitest.integration.config.ts` at
+  **100% lines / 100% branches / 100% functions** — the real, measured number:
+  `runMigrateUp` and `runMigrateDown` are each two-line wrappers with no branches of
+  their own, and both are exercised by the tests named above. See the Contract section
+  above for the same exclude-and-regate treatment applied to the other integration-only
+  files.
+- **Run:** `npm run db:migrate -w apps/web` applies pending migrations;
+  `npm run db:migrate:down -w apps/web` rolls back the most recent batch;
+  `npm run db:migrate:create -w apps/web` generates a new migration from schema changes
+  (`README.md`'s Commands section). The reversibility test itself runs under
+  `npm run test:integration`, or `npm run verify:full`, which additionally gates
+  `migrate.ts`'s coverage via `npm run test:integration:coverage`.
+- **Add one:** for every new migration file, extend or add a case that runs it up, down,
+  and up again against a seeded copy of the test database — follow
+  `collections.integration.test.ts`'s existing case — asserting the schema and data are
+  correct after each step, not just that the commands exit zero.
 
 ## Test quality rules (apply to every suite above)
 

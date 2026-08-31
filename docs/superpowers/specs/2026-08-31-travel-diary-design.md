@@ -41,7 +41,7 @@ Scale: verified in the design at 30 journeys / 93 pages / 33 bookmarks; seeded a
 | App | Next.js 15 (App Router) with Payload CMS 3 in-process | Drafts, version history with restore, focal point and image-size generation each have dedicated screens in this design. Payload supplies all four. |
 | Database | Postgres — Docker locally, Neon in production | Content is relational: the Contents page and bookmark ordering want joins. |
 | Object storage | Cloudflare R2 — local disk adapter in development | Zero egress. 40GB of photography served from a metered origin is the single largest cost risk. |
-| Media processing | Dedicated worker container (Fly.io), `sharp` + `ffmpeg` | Transcoding does not fit serverless. |
+| Media processing | Dedicated worker container (Fly.io), `sharp` + `ffmpeg` — **deferred, no video clips for now** (`docs/adr/0004-media-pipeline-mode.md`); stills run `sharp` in-process on Vercel until it is re-enabled | Transcoding does not fit serverless. |
 | Queue | Postgres job table | One author, bursty uploads. A managed queue is unearned complexity. |
 | Mail | Resend — console adapter in development | OTP only; a handful of messages per month. |
 | Auth | Payload's own `users` auth + a custom OTP layer | See §2.1. |
