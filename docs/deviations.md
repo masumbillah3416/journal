@@ -99,6 +99,41 @@ was never a `pages` row count, and no schema change was needed to get there.
 **Recorded as:** `apps/web/scripts/seed.ts`'s own header (the "CORRECTION" paragraph);
 Task 11 of Phase 0, review round 1, finding 1.
 
+## 6 · Media pipeline mode: the Fly.io transcode worker is deferred
+
+**What changed:** the design spec (§2, §9, §13) and `docs/adr/0001-hosting-and-cost.md`
+originally assumed a dedicated Fly.io worker running `sharp` + `ffmpeg` from the start.
+A user decision made after those documents were written defers it: no video clips for
+now. Stills still get all five derivative tiers via `sharp` (unchanged from
+`docs/adr/0003-derivative-generation.md`), but in-process on Vercel rather than inside a
+separate worker container. A `MEDIA_PIPELINE` environment variable (`'inline' |
+'worker'`, Zod-validated, default `'inline'`) switches a new `MediaProcessor` port
+between an `inline` adapter (the still pipeline only, no worker) and a `worker` adapter
+(the still pipeline plus `ffmpeg` transcoding, on Fly.io) — the same Ports & Adapters
+shape already used for `storage`/`mailer`/`queue`.
+
+**Rationale:** this is not a departure from anything `handoff/design_handoff_travel_diary/`
+mandates — the handoff's own non-goals already describe clips as silent ~20-second loops,
+not a streaming feature, and never requires video to ship on day one. It is a departure
+from this project's own earlier planning documents, made because deferring video removes
+Fly.io — the one service in the stack that definitely bills regardless of usage — while
+the requirement that enabling video later be a single configuration change, not a
+rebuild, is satisfied for free: `apps/web/collections/media.ts`'s schema already carries
+full clip support (`kind: 'still' | 'clip'`, `posterAt`, `posterImage`, `durationSec`,
+and `video/mp4`/`video/quicktime` in `mimeTypes`), transcribed verbatim from
+`DATA_MODEL.md` by Task 6 before this deferral was decided, so no migration is needed to
+turn video on later. Both `MediaProcessor` adapters are required to pass the same
+contract suite in CI from day one, even though only `inline` ever deploys before video
+is re-enabled — a deferred path with no test rots invisibly, which this project has
+already been bitten by twice (a migration that looked real because Payload's dev-mode
+schema "push" had already built the schema before the migration ran, and a concurrency
+test that kept passing after an earlier version had its guarding mechanism deleted from
+the adapter under test).
+
+**Recorded as:** `docs/adr/0004-media-pipeline-mode.md`; `docs/adr/0001-hosting-and-cost.md`
+(revised cost consequences); `docs/adr/0003-derivative-generation.md` (revised, where the
+still pipeline runs); design spec §4, §9, §13.
+
 ---
 
 Everything else follows the handoff as written, including all copy. The voice is

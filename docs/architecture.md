@@ -15,7 +15,7 @@ apps/
     app/(auth)/signin/    password, OTP, reset
     app/(payload)/cms/    Payload's stock admin — dev only, disabled in production
     lib/                  repositories, server actions, adapters
-  transcoder/             Node + sharp + ffmpeg worker, queue consumer
+  transcoder/             Node + sharp + ffmpeg worker, queue consumer  → DEFERRED (ADR 0004)
 packages/
   domain/                 pure logic — no I/O, no framework. 100% coverage.
   tokens/                 handoff colour/type/geometry as CSS variables + typed TS
@@ -79,7 +79,7 @@ flowchart TB
     consoleMail["console adapter"]
     resend["Resend"]
     pgQueue["Postgres job table"]
-    worker["Fly.io worker: sharp + ffmpeg"]
+    worker["Fly.io worker: ffmpeg<br/>DEFERRED — ADR 0004"]
   end
 
   payload["Payload collections<br/>Postgres via Neon"] --> bookBundleWeb
@@ -114,6 +114,14 @@ during development, a cloud service in production (R2, Resend, the Fly.io worker
 consuming the same Postgres table), and one shared contract test suite run against both
 so the two implementations are provably interchangeable.
 
+**The Fly.io worker is deferred** (`docs/adr/0004-media-pipeline-mode.md`): no video
+clips for now, so nothing claims jobs from `pgQueue` in production yet. A fourth port,
+`MediaProcessor`, gets the same treatment when Phase 3 builds it: an `inline` adapter
+(the still-image pipeline, in-process on Vercel, bypassing the queue entirely) and a
+`worker` adapter (the still pipeline plus `ffmpeg`, via `pgQueue` and the Fly.io worker
+above) — both required to pass the same contract suite in CI, per ADR 0004, even though
+only `inline` deploys until video is turned back on.
+
 ## 3 · Data flow
 
 1. The author edits content in the admin (`apps/(admin)/admin`), which writes to Payload
@@ -126,9 +134,12 @@ so the two implementations are provably interchangeable.
    it never re-fetches page content mid-session — real paths (`/p/<n>`, `/gallery/<slug>`)
    are written on every turn so deep links stay indexable and shareable.
 5. Uploads go straight from the browser to R2 via a presigned URL (never through Vercel,
-   which caps request bodies at ~4.5MB); a job row is written to the Postgres queue
-   table; the Fly.io worker claims it, runs the `sharp`/`ffmpeg` pipeline, and marks the
-   media row `ready` or `failed`.
+   which caps request bodies at ~4.5MB); a server action creates the `media` row and
+   runs the `MediaProcessor` port's `inline` adapter in-process (the `sharp` still
+   pipeline — no queue, no worker, since video is deferred per ADR 0004), marking the
+   row `ready` or `failed`. Once video is re-enabled, a `worker`-mode upload instead
+   writes a job row to the Postgres queue table for the Fly.io worker to claim and run
+   the `sharp`/`ffmpeg` pipeline against.
 
 ## 4 · Why each seam exists
 

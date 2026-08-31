@@ -24,7 +24,6 @@ both steps a `sharp` call can perform.
 
 ## Decision
 
-The transcoder worker (`apps/transcoder`, Fly.io) runs `sharp` alongside `ffmpeg`.
 Per the upload pipeline order in design spec §9.2 and `DATA_MODEL.md`'s `media`
 `beforeChange` hook:
 
@@ -36,8 +35,25 @@ Per the upload pipeline order in design spec §9.2 and `DATA_MODEL.md`'s `media`
    `sharp`, at upload time, once.
 5. Compute a perceptual hash for duplicate detection within the same journey.
 
-No image transform vendor is used. Clips still use `ffmpeg`/`ffprobe` for transcoding,
-poster extraction and duration probing, unchanged.
+No image transform vendor is used — that reasoning is unchanged by anything below.
+
+**Update, `docs/adr/0004-media-pipeline-mode.md`:** where this pipeline runs changed
+after this ADR was first written. The user decided against video clips for now, so the
+Fly.io transcode worker this ADR originally assumed (`apps/transcoder`) is deferred.
+Steps 1–5 above run **in-process on Vercel** instead, as the `MediaProcessor` port's
+`inline` adapter — the same `sharp` calls, same five tiers, same order, just not inside
+a separate worker container. This still holds because none of steps 1–5 need `ffmpeg`
+or a long-running process: `sharp` fits comfortably inside a Vercel serverless
+function's time and memory limits, which is precisely why this ADR's original
+reasoning ("adding `sharp` is additive to a container already running for `ffmpeg`")
+never depended on video existing — it only assumed a worker would exist for some
+reason. With no `ffmpeg` work to justify that worker while video is off, `sharp`
+simply runs wherever the upload request is already being handled.
+
+Clips, when re-enabled, still use `ffmpeg`/`ffprobe` for transcoding, poster extraction
+and duration probing, unchanged — that code path is the `MediaProcessor` port's
+`worker` adapter, built and contract-tested from day one per ADR 0004 but not deployed
+until video is turned back on.
 
 ## Consequences
 
@@ -46,12 +62,18 @@ poster extraction and duration probing, unchanged.
 - Costs **~10GB of extra R2 storage for ~$0.15/month** (design spec §2.2) — five stored
   derivative tiers per still instead of on-the-fly transforms — which is materially
   cheaper than a transform vendor's request-based pricing at this scale.
-- Derivative generation is testable in the same worker contract suite as the rest of the
-  pipeline (magic-byte sniff, EXIF strip, transcode, poster extraction) rather than
-  mocked against an external service's API — one integration surface for the whole
-  upload pipeline, not two.
-- The worker owns more responsibility (image *and* video processing), which is the
-  correct trade for a single-author site: one container to deploy, monitor and pay for
-  attaching to Fly.io, instead of two moving parts (worker + transform vendor) for a
-  100-asset-per-journey, ~40GB-total workload.
-- Logged as deviation 2 in `docs/deviations.md` and in the design spec §2.2/§15.
+- Derivative generation is testable in the same `MediaProcessor` contract suite as the
+  rest of the pipeline (magic-byte sniff, EXIF strip, transcode, poster extraction)
+  rather than mocked against an external service's API — one integration surface for
+  the whole upload pipeline, not two, and the same suite runs against both the `inline`
+  and `worker` adapters (ADR 0004) so the still-image steps are proven identical
+  regardless of which one is bound.
+- Originally reasoned as "the worker owns more responsibility (image *and* video
+  processing)" — with the worker deferred (ADR 0004), the still pipeline instead runs
+  wherever the upload request is handled (Vercel, in-process), and only the *deferred*
+  video path would still add a Fly.io container. The underlying trade this ADR made —
+  one processing surface instead of two (a worker/pipeline plus a transform vendor) —
+  is unaffected; only which infrastructure hosts that one surface changed.
+- Logged as deviation 2 in `docs/deviations.md` and in the design spec §2.2/§15. The
+  in-process-on-Vercel update is logged as the pipeline-mode deviation in the same
+  file and in `docs/adr/0004-media-pipeline-mode.md`.

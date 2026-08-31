@@ -68,5 +68,9 @@ browser, the OTP on/off flag in `localStorage`, and the client-side three-attemp
 counter) — all three are the rows above whose fix is "server-side" and "Phase 2." Two
 upload risks are specific to a photo site: EXIF leaking the author's location, and an
 uploaded SVG being an HTML document that becomes stored XSS. Both are discharged by the
-worker pipeline (Phase 3): magic-byte sniffing and SVG rejection, then EXIF read-then-
-strip before storage, as detailed in `docs/data-model.md` and design spec §9.2.
+media pipeline (Phase 3): magic-byte sniffing and SVG rejection, then EXIF read-then-
+strip before storage, as detailed in `docs/data-model.md` and design spec §9.2. This runs
+via the `MediaProcessor` port's `inline` adapter, in-process on Vercel, not a separate
+Fly.io worker — the worker adapter is deferred until video is enabled
+(`docs/adr/0004-media-pipeline-mode.md`), and both adapters run the same steps for
+stills, so this discharge holds regardless of which one is bound.

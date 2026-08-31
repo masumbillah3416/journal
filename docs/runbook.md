@@ -60,7 +60,10 @@ Per `docs/adr/0001-hosting-and-cost.md`:
 - **Media:** Cloudflare R2, on its own custom domain — never proxied through a Vercel
   route or `next/image` (the cost trap and the security requirement are the same
   architecture; see the ADR).
-- **Transcoder worker:** Fly.io, auto-stopping between jobs.
+- **Transcoder worker:** Fly.io, auto-stopping between jobs — **deferred**, not
+  provisioned. No video clips at launch (`docs/adr/0004-media-pipeline-mode.md`); the
+  media pipeline runs entirely in-process on Vercel until `MEDIA_PIPELINE=worker` is
+  set and this worker is actually deployed alongside it.
 - **Mail:** Resend, for OTP only.
 - **Offsite backup:** Backblaze B2 — a provider independent of both Neon and R2, so a
   single provider's outage or account compromise cannot take out the primary data and

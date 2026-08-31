@@ -47,9 +47,15 @@ keep the running cost proportional to that scale.
 - **Neon** hosts Postgres — content is relational (journeys, pages, ordering, bookmarks).
 - **Cloudflare R2** holds all media, on its own custom domain, never behind a Vercel
   route or `next/image`.
-- **Fly.io** runs the transcoder worker (`sharp` + `ffmpeg`) in a container that
+- **Fly.io** would run the transcode worker (`ffmpeg`, for video) in a container that
   auto-stops between jobs — transcoding does not fit a serverless function's runtime
-  limits.
+  limits. **Deferred**, per a later user decision recorded in
+  `docs/adr/0004-media-pipeline-mode.md`: no video clips for now, so nothing in this
+  stack needs a worker at launch. `sharp` still generates all five still-image
+  derivative tiers (`docs/adr/0003-derivative-generation.md`), but in-process on
+  Vercel rather than inside a separate worker container. Enabling video later
+  provisions Fly.io and flips one environment variable — see ADR 0004 for the
+  mechanism and the revised consequences below for the cost this defers.
 - **Resend** sends OTP mail — a handful of messages per month, no marketing-mail
   features needed.
 - **Backblaze B2**, a *different* provider from both Neon and R2, receives offsite
@@ -71,12 +77,33 @@ behind each can change without touching application code — see `docs/architect
   from a separate origin so a stored-content bypass can't script against the admin, and
   so downloads go through a signed-URL handler rather than a bucket URL). Security and
   cost pull toward the same architecture; there is no tension to trade off.
-- **Expected steady state:** ≈$2–3/month while every provider's usage stays inside its
-  free tier; ≈$45/month once paid plans are needed (e.g. Neon's paid compute, Fly's
-  always-warm worker, R2 past its free allowance); plus ~$12/year for the domain.
+- **Expected steady state, revised:** with the Fly.io worker deferred (ADR 0004), the
+  app and its supporting services — Vercel Hobby, Neon, Cloudflare R2, Resend — all sit
+  inside their free tiers at this project's single-author scale, for a **$0/month**
+  steady state, plus ~$12/year for a domain (or $0 on a `*.vercel.app` subdomain).
+  Fly.io was the one service in the original stack that definitely billed regardless of
+  usage; removing it is what makes $0 viable where the original ≈$2–3/month estimate
+  below it was not. That original estimate is superseded for these four providers, not
+  reconciled line-by-line against it — this ADR does not have a breakdown of what made
+  up the original $2–3 figure precise enough to say which part of it moved to zero
+  beyond Fly.io. Backblaze B2's offsite-backup cost is **not** folded into the $0 figure
+  and is unaffected by this change — see the storage-scaling note below, which still
+  applies to it.
+- **Original figures, for reference:** ≈$2–3/month while every provider's usage stayed
+  inside its free tier; ≈$45/month once paid plans were needed (e.g. Neon's paid
+  compute, Fly's always-warm worker, R2 past its free allowance). That $45 figure was a
+  bundled estimate across multiple providers reaching paid tiers together, not an
+  isolated Fly.io cost, so it cannot be used to state precisely what re-adding Fly.io
+  alone would cost at paid-tier scale — re-verify Fly.io's current pricing when
+  provisioning it, per this ADR's own re-verification caveat above.
+- **Adding the worker back** (per ADR 0004) means: provisioning a Fly.io app, deploying
+  the transcode worker container to it, and flipping `MEDIA_PIPELINE=worker`. No schema
+  migration and no other provider change is needed — see ADR 0004's consequences.
 - **Storage is the only variable that scales meaningfully.** Traffic barely moves the
   bill, because the diary is statically rendered and R2 has no egress fee. Photography
   volume does: budget roughly **$0.60/month per additional 40GB** of media stored.
 - Because every external service sits behind a port and adapter (storage, mailer, queue),
   a pricing change or an outage at any one provider is a swap, not a rewrite — this is
   the mitigation the design spec's risk table (§14) records for "cloud pricing changes."
+  The same seam is what makes the media-pipeline mode switch (ADR 0004) a config change
+  rather than a rewrite.
