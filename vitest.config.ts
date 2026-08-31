@@ -46,7 +46,11 @@ export default defineConfig({
       {
         test: {
           name: 'unit',
-          include: ['packages/*/src/**/*.test.ts', 'apps/web/lib/**/*.test.ts'],
+          include: [
+            'packages/*/src/**/*.test.ts',
+            'apps/web/lib/**/*.test.ts',
+            'apps/web/scripts/**/*.test.ts',
+          ],
           exclude: ['**/*.integration.test.ts', '**/node_modules/**'],
           env: {
             DATABASE_URL: 'postgres://unit-test:unused@localhost:5432/unit-test',
@@ -70,7 +74,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
-      include: ['packages/*/src/**/*.ts', 'apps/web/lib/**/*.ts'],
+      include: ['packages/*/src/**/*.ts', 'apps/web/lib/**/*.ts', 'apps/web/scripts/**/*.ts'],
       exclude: [
         '**/*.test.ts',
         '**/*.d.ts',
