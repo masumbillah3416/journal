@@ -1,0 +1,144 @@
+/**
+ * tokens.css — CSS custom properties mirroring colour.ts, type.ts and geometry.ts.
+ *
+ * Single source of truth for consumers that need the tokens as CSS rather than
+ * TypeScript (page markup, admin styling). Every `--td-*` value here must match
+ * its counterpart in colour.ts exactly — see colour.test.ts for the accessibility
+ * assertions those values must keep satisfying.
+ * Depends on nothing.
+ */
+
+:root {
+  /* Colour — paper */
+  --td-paper-from: #fbf6e9;
+  --td-paper-to: #f7f0df;
+  --td-paper: #fbf6e9;
+  --td-paper-mount: #fffdf6;
+  --td-paper-back-from: #f8f1e0;
+  --td-paper-back-via: #f1e8d3;
+  --td-paper-back-to: #e6dbc2;
+
+  /* Colour — desk (admin background) */
+  --td-desk-highlight: #f8f2e2;
+  --td-desk-from: #f4eddc;
+  --td-desk-to: #efe7d3;
+
+  /* Colour — outer */
+  --td-outer: #ffffff;
+
+  /* Colour — book board */
+  --td-board-from: #40382e;
+  --td-board-via: #332c24;
+  --td-board-to: #2b241d;
+
+  /* Colour — spine */
+  --td-spine-from: #241e18;
+  --td-spine-via: #3b332a;
+  --td-spine-to: #2a231c;
+
+  /* Colour — admin nav rail */
+  --td-sidebar-from: #3b332a;
+  --td-sidebar-to: #2c251e;
+
+  /* Colour — ink */
+  --td-ink: #33403c;
+  --td-ink-body: #4a4232;
+  --td-ink-muted: #736247; /* opaque - never an alpha of rgba(120,98,60,...); see colour.test.ts */
+  --td-ink-diary-muted: #7a6b50;
+  --td-ink-diary-muted-italic: #6f6247;
+
+  /* Colour — accent */
+  --td-accent: #a34434;
+  --td-accent-hover: #8c3327;
+
+  /* Colour — cream */
+  --td-cream: #f6ecd6;
+  --td-cream-alt: #fdf8ec;
+  --td-cream-dim: rgba(243, 231, 205, 0.72); /* >=6:1 at the sidebar's lightest stop - do not lower */
+
+  /* Colour — ribbon bookmark */
+  --td-ribbon-from: #8c2f28;
+  --td-ribbon-via: #b6483c;
+  --td-ribbon-to: #8c2f28;
+
+  /* Colour — status pills */
+  --td-status-published: #2f6b68;
+  --td-status-edited: #845825;
+  --td-status-draft: #6b5d46;
+
+  /* Colour — hairlines */
+  --td-hairline-border-min: rgba(120, 98, 60, 0.14);
+  --td-hairline-border-max: rgba(120, 98, 60, 0.34);
+  --td-hairline-dotted-min: rgba(120, 98, 60, 0.26);
+  --td-hairline-dotted-max: rgba(120, 98, 60, 0.3);
+  --td-spine-stitch: rgba(226, 201, 150, 0.28);
+
+  /* Colour — cover cloth options (first is default) */
+  --td-cover-cloth-1: #2f4a47;
+  --td-cover-cloth-2: #7a3b32;
+  --td-cover-cloth-3: #3d4257;
+  --td-cover-cloth-4: #5c4a2b;
+
+  /* Colour — journey accent tints */
+  --td-journey-accent-1: #3d817e;
+  --td-journey-accent-2: #a06b3e;
+  --td-journey-accent-3: #5a72a8;
+  --td-journey-accent-4: #a15a4e;
+  --td-journey-accent-5: #736247;
+
+  /* Type — families */
+  --td-font-caveat: 'Caveat', cursive;
+  --td-font-garamond: 'EB Garamond', serif;
+  --td-font-courier: 'Courier Prime', monospace;
+
+  /* Type — diary page scale (px) */
+  --td-diary-cover-title: 124px;
+  --td-diary-journey-name: 66px;
+  --td-diary-contents: 70px;
+  --td-diary-section-head: 40px;
+  --td-diary-highlight: 30px;
+  --td-diary-photo-caption-min: 23px;
+  --td-diary-photo-caption-max: 26px;
+  --td-diary-note-size: 18.5px;
+  --td-diary-note-line-height: 1.64;
+  --td-diary-tally-value: 29px;
+  --td-diary-eyebrow-min: 10px;
+  --td-diary-eyebrow-max: 11.5px;
+
+  /* Type — admin scale (px) */
+  --td-admin-screen-title: 48px;
+  --td-admin-card-heading: 32px;
+  --td-admin-journey-row-name: 30px;
+  --td-admin-body-min: 16px;
+  --td-admin-body-max: 17px;
+  --td-admin-label-min: 9px;
+  --td-admin-label-max: 10.5px;
+
+  /* Type — letter spacing and minimums */
+  --td-letter-spacing-min: 0.14em;
+  --td-letter-spacing-max: 0.42em;
+  --td-min-admin-label: 9px;
+  --td-min-diary-body: 15px;
+  --td-min-hit-target: 44px;
+  --td-min-nav-button: 52px;
+
+  /* Geometry — design box */
+  --td-design-box-width: 1300px;
+  --td-design-box-height: 860px;
+  --td-max-scale: 1.7;
+
+  /* Geometry — radius */
+  --td-radius-control: 2px;
+  --td-radius-card: 3px;
+  --td-radius-page-face: 2px 9px 9px 2px;
+  --td-radius-book-board: 7px 16px 16px 7px;
+
+  /* Geometry — admin card padding range */
+  --td-admin-card-padding-min: 18px 20px 20px;
+  --td-admin-card-padding-max: 20px 22px 22px;
+
+  /* Geometry — grid gaps (px) */
+  --td-gap-admin-cards: 20px;
+  --td-gap-card-inner: 14px;
+  --td-gap-tile-grid: 12px;
+}
