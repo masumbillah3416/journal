@@ -6,17 +6,21 @@
  * requirements, not conveniences (CLAUDE.md §7: never log secrets, tokens,
  * OTP codes, or full email addresses) - a mailer that leaks either into its
  * log output must fail this suite regardless of which adapter it is.
- * Depends on: vitest, the MailerPort contract from ../../ports/mailer.js.
+ * Depends on: vitest, the TestableMailer contract from ../../ports/mailer.js.
  */
 import { describe, expect, it } from 'vitest'
-import type { MailerPort } from '../../ports/mailer.js'
+import type { TestableMailer } from '../../ports/mailer.js'
 
 /**
  * Registers the shared MailerPort contract as a `describe` block.
  * @param name - Identifies which adapter is under test, in the suite's title.
- * @param makeAdapter - Builds a fresh MailerPort for one test.
+ * @param makeAdapter - Builds a fresh {@link TestableMailer} for one test. It
+ *   is `TestableMailer`, not `MailerPort`, because these assertions read what
+ *   the adapter sent and logged - an observation obligation that belongs to
+ *   the adapters under test, not to the port every production adapter has to
+ *   implement. See `ports/mailer.ts`.
  */
-export const mailerContract = (name: string, makeAdapter: () => Promise<MailerPort>): void => {
+export const mailerContract = (name: string, makeAdapter: () => Promise<TestableMailer>): void => {
   describe(`MailerPort contract: ${name}`, () => {
     it('delivers the message to the outbox for tests to inspect', async () => {
       const mailer = await makeAdapter()

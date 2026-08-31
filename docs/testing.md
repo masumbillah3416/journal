@@ -93,9 +93,19 @@ An uncovered line outside `packages/domain` requires a
 - **Status:** implemented for all three ports (Tasks 7-9). Each port lives in
   `apps/web/lib/ports/<name>.ts`; each contract suite is a
   `apps/web/lib/adapters/contract/<name>-contract.ts` module exporting a
-  `<name>Contract(name, makeAdapter)` function that registers one parameterised
-  `describe` block — written once, run unchanged against every adapter. Today's
-  adapters:
+  `<name>Contract(name, makeAdapter, ...)` function that registers one parameterised
+  `describe` block — written once, run unchanged against every adapter.
+
+  **A contract suite imports its port's type and nothing else.** That is the property
+  that makes it reusable, and it is easy to lose: `queue-contract.ts` briefly imported a
+  `jobRow()` helper that called `getPayload()`, so the "reusable" queue suite could only
+  run somewhere Payload was available — a future worker-backed adapter would have had to
+  drag a CMS in to be contract-tested. It now takes a `readJobRow` probe from whichever
+  test wires it up, and the Payload-backed reader lives in
+  `postgres-queue.integration.test.ts` where the adapter it belongs to lives. Anything a
+  suite needs that is adapter-specific arrives as a parameter.
+
+  Today's adapters:
   - `storage` → `apps/web/lib/adapters/local-storage.ts` (filesystem). Path traversal is
     rejected by `validateStorageKey`, exported from the port itself, not the adapter — the
     Cloudflare R2 adapter arriving in Phase 3 has no filesystem to protect, so the guard
@@ -105,6 +115,23 @@ An uncovered line outside `packages/domain` requires a
     (what actually reached the terminal) never contains a full email address (masked to
     `m***@example.com`) or the message body, which carries the OTP code. Full messages
     stay available to tests via a separate in-memory outbox, `sent`.
+
+    `sent` and `logLines` are declared on `TestableMailer`, which extends `MailerPort`;
+    the port itself is `send()` alone. They were briefly on the port, which would have
+    obliged Phase 2's Resend adapter to retain every OTP message body in process memory,
+    unbounded, purely to satisfy a type that exists for tests. `StoragePort` and
+    `QueuePort` never had an equivalent; the split is what brings the three back into
+    line.
+
+    The contract is wired with `isDevelopment: false` **explicitly**. The console adapter
+    deliberately prints the code when `isDevelopment` is true, and letting that flag
+    default from `NODE_ENV` (as the wiring first did) made the §7 security assertion
+    depend on an ambient environment variable: green on CI, red for any developer whose
+    shell exported `NODE_ENV=development`, reporting a leak that was not one. Confirmed
+    by running the old wiring under `NODE_ENV=development`:
+    `× never records the message body, which carries the code → expected 'mail: sent
+    "Your code" to a***@b.com …' not to contain '123456'`. `CLAUDE.md` §2.3 requires
+    time and environment to be injected for exactly this reason.
   - `queue` → `apps/web/lib/adapters/postgres-queue.ts` (the `jobs` table, Task 9). The
     concurrency case — two concurrent `claim()` calls must yield the job to exactly one
     caller — is why this suite is an *integration* test
@@ -139,12 +166,10 @@ An uncovered line outside `packages/domain` requires a
   same integration test files with `--coverage` scoped to just those seven files.
   Thresholds are set per-file to what is genuinely achieved, not aspirational:
   `queue-contract.ts`, `queue-fixtures.ts`, `seed-data.ts` (a pure data literal) and
-  `migrate.ts` are 100% lines/branches/functions — `migrate.ts`'s `runMigrateDown` and
-  `runMigrateUp` are two-line wrappers with no branches of their own, exercised by
-  `collections.integration.test.ts`'s "runs down and up again" case and by
-  `testPayload.ts`'s self-bootstrap, so 100% is fully achieved rather than left unknown
-  behind the whole-module `c8 ignore` it previously carried (see `migrate.ts`'s own
-  header). `postgres-queue.ts` and `testPayload.ts` are both 93% lines, 75% branches,
+  `migrate.ts` are 100% lines/branches/functions — see the Migration section below for
+  what `migrate.ts` reaches that number with, so it is fully achieved rather than left
+  unknown behind the whole-module `c8 ignore` it previously carried (see `migrate.ts`'s
+  own header). `postgres-queue.ts` and `testPayload.ts` are both 93% lines, 75% branches,
   100% functions — the former's two
   uncovered branches are `enqueue()`'s and `claim()`'s error-`catch` paths for an
   unexpected database failure, which have no organic trigger without mocking the module

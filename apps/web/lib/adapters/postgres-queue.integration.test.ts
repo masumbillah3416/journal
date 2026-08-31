@@ -35,12 +35,31 @@
  * Uses `getTestPayload()` (`../testPayload.js`), not `getPayload()` directly:
  * every integration test file connects to an isolated `diary_test` database,
  * never the developer's own dev database (Task 10/11 review finding 2).
+ *
+ * `readJobRow` lives here, not in the contract suite's fixtures, and is passed
+ * in. Reading a job row back is a question only an adapter can answer - this
+ * one answers it with Payload's Local API because this adapter's jobs are a
+ * Payload collection. Keeping it here is what lets `queue-contract.ts` import
+ * nothing but its port's type, the way the storage and mailer contract suites
+ * already do, so a future worker-backed adapter can run the same suite
+ * without Payload.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
 import { getTestPayload } from '../testPayload.js'
 import { createPostgresQueue } from './postgres-queue.js'
 import { queueContract } from './contract/queue-contract.js'
-import { aMediaId, jobRow } from './contract/queue-fixtures.js'
+import { aMediaId } from './contract/queue-fixtures.js'
+
+/**
+ * Reads a job row back through Payload, to assert what the adapter persisted.
+ * @param id - The job row's id, as returned by `enqueue`/`claim`.
+ * @returns The row's status and failure reason.
+ */
+const readJobRow = async (id: string): Promise<{ status: string; reason: string | null }> => {
+  const payload = await getTestPayload()
+  const row = await payload.findByID({ collection: 'jobs', id })
+  return { status: row.status, reason: row.reason ?? null }
+}
 
 beforeAll(async () => {
   // The "empty queue" contract case needs a genuinely empty `jobs` table.
@@ -52,7 +71,7 @@ beforeAll(async () => {
   await Promise.all(stale.docs.map((doc) => payload.delete({ collection: 'jobs', id: doc.id })))
 })
 
-queueContract('postgres', () => Promise.resolve(createPostgresQueue()))
+queueContract('postgres', () => Promise.resolve(createPostgresQueue()), readJobRow)
 
 describe('postgres queue, adapter-specific behaviour', () => {
   it('marks a claimed job completed', async () => {
@@ -64,7 +83,7 @@ describe('postgres queue, adapter-specific behaviour', () => {
 
     await queue.complete(job.id)
 
-    expect(await jobRow(job.id)).toMatchObject({ status: 'completed' })
+    expect(await readJobRow(job.id)).toMatchObject({ status: 'completed' })
   })
 
   it('returns a failed Result rather than throwing when completing an unknown job', async () => {

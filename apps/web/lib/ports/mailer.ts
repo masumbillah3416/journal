@@ -10,6 +10,10 @@
  * full email addresses") is a requirement on every adapter this port ever
  * gets, not a quirk of the console adapter - masking written once here means
  * the Resend adapter gets the same guarantee for free.
+ *
+ * `MailerPort` is `send()` and nothing else. The observation members the
+ * contract suite reads live on `TestableMailer`, which extends it - see that
+ * interface for why the split matters rather than being tidiness.
  * Depends on: Result from `@travel-diary/domain/result`.
  */
 import type { Result } from '@travel-diary/domain/result'
@@ -30,6 +34,29 @@ export interface MailerPort {
    * @returns `ok` once accepted for delivery, or `err` naming why it was rejected.
    */
   send(message: SentMessage): Promise<Result<void, string>>
+}
+
+/**
+ * A {@link MailerPort} that also keeps everything it did, so the shared
+ * contract suite can assert on it.
+ *
+ * This is deliberately a SEPARATE interface rather than two more members on
+ * `MailerPort`, and the distinction is not cosmetic. `sent` retains every
+ * message body in process memory, and for the one email this project sends
+ * that body is the OTP code. Requiring it of the port would oblige every
+ * future adapter — the Resend adapter of Phase 2 included — to hold an
+ * unbounded, growing array of live one-time codes in the web process for the
+ * lifetime of that process, purely to satisfy a type that exists for tests.
+ * A port describes what production needs; test observation is an adapter's
+ * own affair. `StoragePort` and `QueuePort`, built in the same batch as this
+ * one, have no equivalent members — this interface is what brings the three
+ * back into line.
+ *
+ * `mailerContract` accepts this, so an adapter opts in by returning it. An
+ * adapter that cannot reasonably record its own output (a real SMTP or API
+ * client) implements `MailerPort` alone and is exercised by its own tests.
+ */
+export interface TestableMailer extends MailerPort {
   /** Full messages, for tests to read the code out of. Never printed. */
   readonly sent: readonly SentMessage[]
   /** Exactly what was written to the terminal — masked, and never carrying the body. */

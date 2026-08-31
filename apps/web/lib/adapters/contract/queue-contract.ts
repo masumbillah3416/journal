@@ -17,6 +17,14 @@
  * open. This case stays because it still exercises the real public API
  * end-to-end and would catch a regression on a slower or more loaded
  * database, but its name says what it actually is.
+ *
+ * The suite takes a `readJobRow` probe rather than importing one. It used to
+ * import `jobRow()` from ./queue-fixtures.js, which called `getPayload()` -
+ * so this "reusable" suite could only ever run somewhere Payload was
+ * available, unlike the storage and mailer suites, which import nothing but
+ * their port's type. A future worker-backed adapter would have had to drag a
+ * CMS in to be contract-tested. Injecting the probe puts the how-do-I-read-a
+ * -job-row question where it belongs: with the adapter's own test file.
  * Depends on: vitest, the QueuePort contract, ./queue-fixtures.js.
  *
  * Exercised only via `postgres-queue.integration.test.ts` against the real
@@ -26,14 +34,26 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { QueuePort } from '../../ports/queue.js'
-import { aMediaId, jobRow } from './queue-fixtures.js'
+import { aMediaId } from './queue-fixtures.js'
+
+/** Reads a persisted job row's observable state, however its adapter stores it. */
+export interface JobRowProbe {
+  (id: string): Promise<{ status: string; reason: string | null }>
+}
 
 /**
  * Registers the shared QueuePort contract as a `describe` block.
  * @param name - Identifies which adapter is under test, in the suite's title.
  * @param makeAdapter - Builds a QueuePort for one test.
+ * @param readJobRow - Reads back what the adapter actually persisted for a
+ *   job id. Supplied by the adapter's own test file so this suite stays
+ *   independent of any one storage technology - see the module header.
  */
-export const queueContract = (name: string, makeAdapter: () => Promise<QueuePort>): void => {
+export const queueContract = (
+  name: string,
+  makeAdapter: () => Promise<QueuePort>,
+  readJobRow: JobRowProbe,
+): void => {
   describe(`QueuePort contract: ${name}`, () => {
     it('smoke test: two concurrent claim() calls do not error, and usually yield only one job on this run (see module header - not a proof of single-claim semantics)', async () => {
       const queue = await makeAdapter()
@@ -62,7 +82,7 @@ export const queueContract = (name: string, makeAdapter: () => Promise<QueuePort
 
       await queue.fail(job.id, 'ffprobe found no video stream')
 
-      expect(await jobRow(job.id)).toMatchObject({ status: 'failed', reason: 'ffprobe found no video stream' })
+      expect(await readJobRow(job.id)).toMatchObject({ status: 'failed', reason: 'ffprobe found no video stream' })
     })
   })
 }

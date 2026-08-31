@@ -1,5 +1,5 @@
 /**
- * console-mailer — MailerPort adapter that prints to the terminal (Ports & Adapters).
+ * console-mailer — Mailer adapter that prints to the terminal (Ports & Adapters).
  *
  * Development stand-in for the Resend adapter of Phase 2. Keeps every full
  * message in an in-memory outbox (`sent`) so tests can read the OTP code out
@@ -8,18 +8,24 @@
  * lives (CLAUDE.md §7: never log secrets, tokens, OTP codes, or full email
  * addresses).
  *
- * The one exception is a single, explicit developer convenience: with
- * `isDevelopment` true (defaulting to `NODE_ENV === 'development'`), the
- * terminal line also includes the code, because a developer signing in
- * locally has no other delivery channel to read it from and their own
- * terminal is not a log a third party can see. This is the one legitimate
- * caller of `console.log` in this codebase - `eslint.config.js` carries a
- * targeted override naming this file, not a blanket disable, so `no-console`
- * still catches an accidental `console.log` anywhere else.
+ * HANDOFF-DEVIATION: the one exception is a single, explicit developer
+ * convenience: with `isDevelopment` true (defaulting to
+ * `NODE_ENV === 'development'`), the terminal line also includes the code,
+ * because a developer signing in locally has no other delivery channel to
+ * read it from and their own terminal is not a log a third party can see.
+ * It fails safe (production takes the masked branch without anyone opting
+ * out), it is narrow (the recipient is masked on BOTH branches), and it is
+ * the only one: `eslint.config.js` carries a targeted `no-console` override
+ * naming this file, not a blanket disable, so an accidental `console.log`
+ * anywhere else is still a lint failure. See docs/deviations.md §7.
+ *
+ * Returns a `TestableMailer`, not a bare `MailerPort`: `sent` and `logLines`
+ * are this adapter's own affair, not an obligation the port imposes on
+ * Phase 2's Resend adapter - see `ports/mailer.ts`.
  * Depends on: the Mailer port.
  */
 import { ok } from '@travel-diary/domain/result'
-import type { MailerPort, SentMessage } from '../ports/mailer.js'
+import type { SentMessage, TestableMailer } from '../ports/mailer.js'
 import { maskEmailAddress, validateEmailAddress } from '../ports/mailer.js'
 
 /** Options for {@link createConsoleMailer}. */
@@ -33,11 +39,14 @@ export interface ConsoleMailerOptions {
 }
 
 /**
- * Creates a MailerPort that logs a masked line to the terminal for every
- * send and records the full message in an in-memory outbox for tests.
+ * Creates a mailer that logs a masked line to the terminal for every send and
+ * records the full message in an in-memory outbox for tests.
  * @param options - See {@link ConsoleMailerOptions}.
+ * @returns A {@link TestableMailer} — this development stand-in is one of the
+ *   adapters that can safely keep what it sent; the port itself is `send()`
+ *   alone, so no production adapter inherits that obligation.
  */
-export const createConsoleMailer = (options: ConsoleMailerOptions = {}): MailerPort => {
+export const createConsoleMailer = (options: ConsoleMailerOptions = {}): TestableMailer => {
   const isDevelopment = options.isDevelopment ?? process.env.NODE_ENV === 'development'
   const sent: SentMessage[] = []
   const logLines: string[] = []
