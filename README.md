@@ -1,0 +1,71 @@
+# Travel Diary
+
+A personal travel blog styled as a physical custom diary: a public site the reader turns
+page by page with a realistic 3D page-flip, a bespoke admin panel for editing every
+journey, and a sign-in screen with an optional one-time-code step. Built on Payload CMS 3
+inside Next.js, on Postgres.
+
+The source of truth for *what* to build is `handoff/design_handoff_travel_diary/`
+(`README.md`, `SCREENS.md`, `DATA_MODEL.md`, `SECURITY.md`). The source of truth for
+*how* to build it is `CLAUDE.md`.
+
+## Prerequisites
+
+- Node.js 22+
+- npm 10+
+- Docker (for local Postgres, used by integration and end-to-end tests)
+
+## Setup
+
+```bash
+git clone <repo-url>
+cd travel-diary
+npm install
+cp .env.example .env   # fill in local values once it exists
+npm run verify
+```
+
+`npm install` also installs the Husky pre-commit hook (`npm run prepare`), which runs
+`npm run verify` before every commit.
+
+## Workspace layout
+
+This is an npm-workspaces monorepo:
+
+- `apps/*` — deployable applications (the Next.js app, once added).
+- `packages/*` — shared libraries. `packages/domain` holds pure domain logic with no
+  dependency on any app, and no dependency on I/O.
+
+## Commands
+
+```
+npm run dev            # Next + Payload against local Postgres
+npm run verify         # typecheck + lint + unit + coverage gates  <- pre-commit
+npm run verify:full    # verify + integration tests               <- CI
+npm run test           # unit + integration, watch mode
+npm run test:unit      # unit tests only, with coverage
+npm run test:integration # integration tests only (requires DATABASE_URL)
+npm run test:e2e       # Playwright
+npm run test:e2e:headed # Playwright, visible browser — the engine for QA sweeps
+npm run test:visual    # visual regression
+npm run test:a11y      # accessibility
+npm run test:perf      # Lighthouse CI budgets
+npm run db:migrate     # run migrations
+npm run db:seed        # seed from the handoff prototype content
+```
+
+Commands not yet implemented (`dev`, `test:e2e`, `test:visual`, `test:a11y`, `test:perf`,
+`db:migrate`, `db:seed`) are listed here as the target command surface from `CLAUDE.md`
+§11; they will be added as the app that needs them lands.
+
+## The verify gate
+
+`npm run verify` is the gate: typecheck, lint (zero warnings), and unit tests with
+coverage thresholds enforced in `vitest.config.ts` (100% for `packages/domain/**`, 95%
+for `apps/web/lib/**`, 90% repository-wide). It runs in the pre-commit hook and must pass
+before any change is committed.
+
+Unit tests (no I/O, no database) run in `verify`. Integration tests — anything matching
+`*.integration.test.ts`, which require `DATABASE_URL` — run separately in
+`npm run verify:full`, which is what CI runs. This split keeps the pre-commit gate
+something a developer can always pass honestly, even with Docker down.
