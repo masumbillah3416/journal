@@ -146,8 +146,8 @@ From design spec §5.1:
 
 | Migration | What it does |
 |---|---|
-| `20260831_154311_initial` | Creates all six collections and three globals above, with `deletedAt` (indexed) on `journeys` and `versions: { drafts: true }` on `journeys` and `pages` from the start — both are painful to retrofit onto a collection with existing rows, per the note above. `pages` deliberately has drafts but no `deleted_at`: a page is not independently trashed, it is deleted with the journey that owns it, which matches `DATA_MODEL.md`'s own schema and rule 4 above. Verified reversible: `runMigrateDown` then `runMigrateUp` restore the schema without loss. |
-| `20260831_161951_add_jobs` | Creates the `jobs` table (Task 9) backing the Postgres `QueuePort` adapter, and the `payload_locked_documents_rels.jobs_id` column/FK Payload adds for its own admin document-locking feature. Verified reversible; see the statement-order note below. |
+| `20260831_154311_initial` | Creates all six collections and three globals above, with `deletedAt` (indexed) on `journeys` and `versions: { drafts: true }` on `journeys` and `pages` from the start — both are painful to retrofit onto a collection with existing rows, per the note above. `pages` deliberately has drafts but no `deleted_at`: a page is not independently trashed, it is deleted with the journey that owns it, which matches `DATA_MODEL.md`'s own schema and rule 4 above. Verified reversible by `collections.integration.test.ts`, which rolls **every** migration back to zero — so this file's own `down()` runs regardless of how the batches were applied — then re-applies them and asserts a journey's fields, highlights and tally round-trip through the rebuilt schema. Rows do not survive a `DROP TABLE`; what is restored is the schema's ability to hold them. See `docs/testing.md` §9. |
+| `20260831_161951_add_jobs` | Creates the `jobs` table (Task 9) backing the Postgres `QueuePort` adapter, and the `payload_locked_documents_rels.jobs_id` column/FK Payload adds for its own admin document-locking feature. Verified reversible by the same test; see the statement-order note below. |
 
 Generated with `npm run db:migrate:create -w apps/web -- <name>`, applied with
 `npm run db:migrate -w apps/web`. Payload's generator emits a plain (non-type-only) import
@@ -165,7 +165,9 @@ generated, it ran `DROP TABLE "jobs" CASCADE` before an explicit
 drop then failed with "constraint ... does not exist". Reordered to drop the constraint
 (and its dependent index and column) before dropping the table it references, so the fix
 does not depend on `CASCADE`'s side-effect ordering. The generated SQL statements
-themselves are otherwise untouched.
+themselves are otherwise untouched. That fix is covered: restoring the generator's
+original order makes the reversibility test fail with the same
+"constraint ... does not exist" error it was written to prevent (`docs/testing.md` §9).
 
 `postgresAdapter` is configured with `push: false`, so this migration — not Payload's
 dev-mode schema "push" — is the only thing that ever changes the schema. `migrationDir` is

@@ -316,11 +316,9 @@ An uncovered line outside `packages/domain` requires a
 - **Status:** implemented. `apps/web/migrations/` holds two migrations:
   `20260831_154311_initial` (every collection and global's schema) and
   `20260831_161951_add_jobs` (the `jobs` table backing the `queue` port, Task 9).
-  `apps/web/lib/migrate.ts` wraps Payload's migration runner as `runMigrateUp` and
-  `runMigrateDown`. `collections.integration.test.ts`'s "runs down and up again without
-  loss" case calls both directly against the real test Postgres, asserting each resolves
-  without throwing and that a query still succeeds afterward.
-  `apps/web/lib/testPayload.ts`'s `getTestPayload()` also calls `runMigrateUp` once, on
+  `apps/web/lib/migrate.ts` wraps Payload's migration runner as `runMigrateUp`,
+  `runMigrateDown`, `appliedMigrationCount` and `runMigrateDownToZero`.
+  `apps/web/lib/testPayload.ts`'s `getTestPayload()` calls `runMigrateUp` once, on
   self-bootstrap, to bring a fresh `diary_test` database up to date before any test runs
   against it. `postgresAdapter` is configured with `push: false`
   (`apps/web/payload.config.ts`), so these migrations — never Payload's dev-mode schema
@@ -328,24 +326,82 @@ An uncovered line outside `packages/domain` requires a
   earlier version of this task found `push` silently building the schema ahead of the
   first real migration, which would have made the migration decorative rather than the
   thing that actually built the tables.
+- **What the reversibility test actually does.** `collections.integration.test.ts`'s
+  last case — *"rebuilds every table a journey, its highlights and its tally need, after
+  rolling all migrations back to zero and re-applying them"* — writes a journey whose
+  values span all three shapes the initial migration creates (plain columns on
+  `journeys`, a group's `furniture_*` column prefix, and the two ordered array tables
+  `journeys_highlights` and `journeys_tally`), captures those values, rolls every
+  migration back to **zero**, asserts against Postgres directly that those three tables
+  are gone and that no migration remains applied, re-applies every migration, writes the
+  same journey again, and asserts every captured value round-trips.
+
+  It replaced a case named *"runs down and up again without loss"* that seeded nothing
+  and compared nothing: it asserted only that `runMigrateDown()` and `runMigrateUp()`
+  did not throw, and that a subsequent `find()` was defined. Both halves of that name
+  were unearned.
+
+  **To zero, not one batch, and that is the point.** Payload's `migrateDown()` rolls
+  back only the most recent *batch* — every migration the last `migrate()` applied
+  together. On a database brought up in one go that is all of them; on one brought up
+  incrementally it is only the newest. A reversibility test built on a single
+  `migrateDown()` therefore proves whatever the local batch history happens to make it
+  prove, and the initial migration's `down()` — the one that drops every table, and the
+  one whose sibling carries a hand-fixed statement order — may never execute at all.
+  `runMigrateDownToZero()` loops until `appliedMigrationCount()` reaches zero, which
+  removes that dependence. `appliedMigrationCount()` asks Postgres with `to_regclass`
+  rather than asking Payload, because the state it has to be able to describe includes
+  "there is no schema left": the initial migration's `down()` drops `payload_migrations`
+  itself, so a Payload query for that collection would throw at exactly the moment the
+  answer is zero.
+
+  **Data is not expected to survive, and the test does not pretend otherwise.**
+  `DROP TABLE` destroys rows. What reversibility means here is that the schema comes
+  back able to hold exactly what it held before — which is why the test re-writes the
+  journey rather than looking for the old one.
+
+  **It has failed.** Per `CLAUDE.md` §2.3, it was verified against two deliberately
+  broken migrations. Deleting `DROP TABLE "journeys" CASCADE` from the initial
+  migration's `down()` fails it with `cannot drop type enum_journeys_weather_glyph
+  because other objects depend on it` — the surviving `journeys` table still uses that
+  type. Restoring the generator's original statement order in
+  `20260831_161951_add_jobs`'s `down()` — the CASCADE-ordering bug that file's hand-fix
+  exists to prevent — fails it with `constraint
+  "payload_locked_documents_rels_jobs_fk" of relation
+  "payload_locked_documents_rels" does not exist`. Both hand-fixes are therefore covered
+  by a test that demonstrably catches their removal.
+
+  **One thing to know when reading a failure.** Payload's own `migrate()` and
+  `migrateDown()` call `process.exit(1)` on a failed migration rather than throwing, so
+  a broken migration surfaces in Vitest as `Error: process.exit unexpectedly called with
+  "1"`, with the Postgres error above it in the log, not as an assertion diff. That is
+  why the test asserts the rollback's outcome *mid-test*, before re-applying: without
+  those two assertions, a rollback that quietly left a table behind would kill the
+  worker on the re-apply, before anything could name the problem.
 - **Coverage:** `migrate.ts` is reachable only from the integration-only callers above,
   so `vitest.config.ts`'s Docker-free unit pass excludes it from coverage rather than
   count it as 0%. It is gated instead by `vitest.integration.config.ts` at
-  **100% lines / 100% branches / 100% functions** — the real, measured number:
-  `runMigrateUp` and `runMigrateDown` are each two-line wrappers with no branches of
-  their own, and both are exercised by the tests named above. See the Contract section
-  above for the same exclude-and-regate treatment applied to the other integration-only
-  files.
-- **Run:** `npm run db:migrate -w apps/web` applies pending migrations;
-  `npm run db:migrate:down -w apps/web` rolls back the most recent batch;
-  `npm run db:migrate:create -w apps/web` generates a new migration from schema changes
-  (`README.md`'s Commands section). The reversibility test itself runs under
-  `npm run test:integration`, or `npm run verify:full`, which additionally gates
-  `migrate.ts`'s coverage via `npm run test:integration:coverage`.
-- **Add one:** for every new migration file, extend or add a case that runs it up, down,
-  and up again against a seeded copy of the test database — follow
-  `collections.integration.test.ts`'s existing case — asserting the schema and data are
-  correct after each step, not just that the commands exit zero.
+  **100% lines / 100% branches / 100% functions** — the real, measured number.
+  `runMigrateUp` and `runMigrateDown` are two-line wrappers with no branches of their
+  own; `appliedMigrationCount` is called both while `payload_migrations` exists and
+  after it has been dropped, so both of its branches run; and
+  `runMigrateDownToZero`'s loop both runs and exits. Its one no-progress guard carries a
+  `c8 ignore` with its reason (`CLAUDE.md` §2.1): it cannot fire while Payload deletes
+  the migration row it just rolled back, and it exists so that if it ever does, the
+  failure is a named error rather than a hung suite. See the Contract section above for
+  the same exclude-and-regate treatment applied to the other integration-only files.
+- **Run:** `npm run db:migrate` applies pending migrations; `npm run db:migrate:down`
+  rolls back the most recent batch; `npm run db:migrate:create -w apps/web -- <name>`
+  generates a new migration from schema changes (`README.md`'s Commands section). The
+  reversibility test itself runs under `npm run test:integration`, or
+  `npm run verify:full`, which additionally gates `migrate.ts`'s coverage via
+  `npm run test:integration:coverage`.
+- **Add one:** for every new migration file, extend the reversibility case with values
+  that exercise whatever tables that migration adds — follow the existing one: write
+  distinctive values, roll back to zero, assert the new tables are gone, re-apply, write
+  again, assert the values round-trip. Then break one statement in the new migration's
+  `down()` and confirm the case fails, and paste that failure. A reversibility test that
+  has never failed is not evidence (`CLAUDE.md` §2.3).
 
 ## Test quality rules (apply to every suite above)
 
