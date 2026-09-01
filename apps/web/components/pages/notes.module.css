@@ -1,0 +1,552 @@
+/**
+ * notes.module.css — the Notes page's header, two-column body and footer.
+ * SCREENS.md §1.3, transcribed value for value.
+ *
+ * NOTHING HERE IS RESPONSIVE AND NOTHING HERE REFLOWS — see
+ * `cover.module.css`'s header for why, and do not add a media query. Every
+ * number is a CSS pixel inside the 1300x860 design box `Book.tsx` scales as
+ * one; SCREENS.md §1.10's mobile reading mode is a different renderer, not a
+ * breakpoint on this one.
+ *
+ * THE ONE RULE IN THIS FILE THAT IS NOT DECORATION is the left column's
+ * flex distribution, and SCREENS.md §1.3 explains it in its own words:
+ *
+ *   > Fixed content plus leftover height produced a dead band, and
+ *   > `justify-content: space-between` on the highlight list dumped 232px
+ *   > into two gaps when a journey had three highlights instead of four. The
+ *   > fix is a *media element* taking the elastic space — it can absorb 54px
+ *   > or 300px without breaking. Highlights are capped at 4 and sized to
+ *   > content.
+ *
+ * So `.highlights`, `.noteBlock` and `.tally` are all `flex: 0 0 auto` —
+ * sized to their content, never given a share of what is left — and
+ * `.ephemera` alone is `flex: 1` with a `min-height` floor. Do not add
+ * `justify-content` to `.leftColumn`, do not give any of the first four
+ * children a `flex-grow`, and do not replace this column with a grid whose
+ * rows are `1fr`: each of those is the same defect in a new costume.
+ * `e2e/notes.spec.ts` measures the gaps on a THREE-highlight journey, which
+ * is the case that broke.
+ *
+ * Colours come from `@travel-diary/tokens`' `--td-*` custom properties
+ * wherever the token table names the value for this role. These do not, and
+ * each is written as a literal here for a stated reason:
+ *
+ *   1. `rgba(90,70,40,.22)` / `rgba(90,70,40,.18)` / `rgba(90,70,40,.3)` —
+ *      the header rule, the footer rule and the 52px rule above the note.
+ *      SCREENS.md §1.3 gives the first two explicitly and the token table
+ *      lists none of the three.
+ *   2. `#455c58` — the mood badge's ink, and `rgba(72,92,88,.5)` its dashed
+ *      ring. Both are given by SCREENS.md §1.3 and neither is in the token
+ *      table; this is the one place in the diary that uses this green.
+ *   3. `#8a7a5f` — the sign-off's ink, given explicitly by SCREENS.md §1.3.
+ *   4. `rgba(163,68,52,.55)` / `rgba(163,68,52,.05)` / `rgba(163,68,52,.07)` —
+ *      the weather ring, its fill and the gallery button's fill. All three
+ *      are alphas of the accent, which the token table publishes only as the
+ *      opaque `#a34434`; SCREENS.md §1.3 gives each alpha explicitly.
+ *   5. `rgba(120,98,60,.4)` — the tally ticket's dotted cell divider. The
+ *      token table publishes only the ends of this family's range
+ *      (`--td-hairline-dotted-min` .26, `--td-hairline-dotted-max` .30) and
+ *      .4 is outside it; the value is the prototype's, and SCREENS.md §1.3
+ *      says only "1px dotted".
+ *   6. `#f4ecd9` and `#fff` — the postage stamp's two printed lines, and
+ *      `#fffdf6` in its perforation gradient, which cannot be a custom
+ *      property because it appears inside a `radial-gradient` colour stop
+ *      pair with its own transparent twin. Prototype values on a decoration
+ *      that is `aria-hidden`.
+ *
+ * Two sizes are inside a token RANGE rather than being tokens themselves,
+ * so they are written as literals exactly as `contents.module.css` writes
+ * its .28 dotted alpha: the 10.5px eyebrow (range 10-11.5) and the 25px hero
+ * caption (range 23-26).
+ *
+ * ONE SIZE DEPARTS FROM ITS TOKEN DELIBERATELY: the note's line height is
+ * `1.6`, not `--td-diary-note-line-height` (1.64). SCREENS.md §1.3 states
+ * "Garamond 18.5px / 1.6" for THIS paragraph; the token's 1.64 is §1.6's
+ * About-page value. The more specific spec wins, and the size itself still
+ * comes from `--td-diary-note-size`.
+ * Depends on: packages/tokens/src/tokens.css, loaded by the diary layout.
+ */
+
+/* "grid-template-rows: auto 1fr auto, padding 32px 44px 24px 52px, gap 18px." */
+.notes {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 18px;
+  padding: 32px 44px 24px 52px;
+}
+
+/* "Header — flex, align-items: flex-end, 1.5px bottom rule, 14px padding." */
+.header {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1.5px solid rgba(90, 70, 40, 0.22);
+}
+
+.headerTitles {
+  flex: 1;
+  min-width: 0;
+}
+
+/* "dates (Courier 11.5px .26em)". */
+.dates {
+  margin: 0;
+  font-family: var(--td-font-courier);
+  font-size: var(--td-diary-eyebrow-max);
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--td-ink-diary-muted);
+}
+
+/* "name (Caveat 66px / .94)". */
+.name {
+  margin: 2px 0 0;
+  font-family: var(--td-font-caveat);
+  font-size: var(--td-diary-journey-name);
+  font-weight: 400;
+  line-height: 0.94;
+  color: var(--td-ink);
+}
+
+/* "place (Garamond italic 19px)". */
+.place {
+  margin: 3px 0 0;
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 19px;
+  color: var(--td-ink-diary-muted-italic);
+}
+
+/* "Right: two 98px circles, flex: none". */
+.badges {
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.weatherBadge,
+.moodBadge {
+  display: flex;
+  flex: none;
+  width: 98px;
+  height: 98px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+/* "Weather — 1.5px solid rgba(163,68,52,.55), rotate(-6deg),
+ * background rgba(163,68,52,.05), #a34434". */
+.weatherBadge {
+  gap: 3px;
+  border: 1.5px solid rgba(163, 68, 52, 0.55);
+  background: rgba(163, 68, 52, 0.05);
+  transform: rotate(-6deg);
+  color: var(--td-accent);
+}
+
+/* "Mood — 1.5px dashed rgba(72,92,88,.5), rotate(5deg), #455c58". */
+.moodBadge {
+  gap: 4px;
+  border: 1.5px dashed rgba(72, 92, 88, 0.5);
+  transform: rotate(5deg);
+  color: #455c58;
+}
+
+/* "label (Courier 11px .08em, centred, 0 9px)". */
+.badgeLabel {
+  padding: 0 9px;
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
+  text-align: center;
+}
+
+/* Glyphs: "sun 16px circle #a34434 · haze same at opacity .45 · wind 20x4px
+ * bar with box-shadow: 0 7px 0 -1px, 0 -7px 0 -1px". Drawn in CSS rather
+ * than shipped as three SVGs: they are two circles and a bar, and an image
+ * request for each would cost more than the rules that draw them. */
+.sunGlyph,
+.hazeGlyph,
+.windGlyph,
+.moodGlyph {
+  display: block;
+  flex: none;
+}
+
+.sunGlyph,
+.hazeGlyph {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--td-accent);
+}
+
+.hazeGlyph {
+  opacity: 0.45;
+}
+
+.windGlyph {
+  width: 20px;
+  height: 4px;
+  background: var(--td-accent);
+  box-shadow:
+    0 7px 0 -1px var(--td-accent),
+    0 -7px 0 -1px var(--td-accent);
+}
+
+/* "13px rotated square" — the mood badge's own glyph. */
+.moodGlyph {
+  width: 13px;
+  height: 13px;
+  background: #455c58;
+  transform: rotate(45deg);
+}
+
+/* "Body — grid-template-columns: 1.06fr .94fr, gap 36px." */
+.body {
+  display: grid;
+  grid-template-columns: 1.06fr 0.94fr;
+  gap: 36px;
+  min-height: 0;
+}
+
+/* "Left column (flex column, gap 12px, min-height: 0)". See this file's
+ * header: no `justify-content` here, ever. */
+.leftColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+/* The "Highlights" eyebrow. */
+.eyebrow {
+  margin: 0;
+  font-family: var(--td-font-courier);
+  font-size: 10.5px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--td-ink-diary-muted);
+}
+
+/* "Highlight list, flex: 0 0 auto, gap 13px". */
+.highlights {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 13px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.highlight {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+}
+
+/* "a 9px rotated #a34434 square (11px top margin)". */
+.highlightMark {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 11px;
+  background: var(--td-accent);
+  transform: rotate(45deg);
+}
+
+/* "beside Caveat 30px / 1.24". */
+.highlightText {
+  font-family: var(--td-font-caveat);
+  font-size: var(--td-diary-highlight);
+  line-height: 1.24;
+  color: var(--td-ink);
+}
+
+/* "52x1.5px rule, then the note". */
+.noteBlock {
+  flex: 0 0 auto;
+}
+
+.noteRule {
+  width: 52px;
+  height: 1.5px;
+  margin-bottom: 12px;
+  background: rgba(90, 70, 40, 0.3);
+}
+
+/* "Garamond 18.5px / 1.6 #4a4232, text-wrap: pretty". */
+.note {
+  margin: 0;
+  font-family: var(--td-font-garamond);
+  font-size: var(--td-diary-note-size);
+  line-height: 1.6;
+  color: var(--td-ink-body);
+  text-wrap: pretty;
+}
+
+/* "Tally ticket, flex: 0 0 auto, #fffdf6, padding 11px 14px 13px,
+ * rotate(-.5deg)". */
+.tally {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  margin: 0;
+  padding: 11px 14px 13px;
+  background: var(--td-paper-mount);
+  transform: rotate(-0.5deg);
+  box-shadow:
+    0 10px 22px -14px rgba(60, 44, 20, 0.5),
+    0 0 0 1px var(--td-hairline-border-min);
+}
+
+/* "four equal cells divided by 1px dotted". Divided BY, so the rule sits
+ * between cells: the first carries none, or the ticket would read as five
+ * cells with an empty one at the left. */
+.tallyCell {
+  flex: 1;
+  min-width: 0;
+  padding: 0 11px;
+}
+
+.tallyCell + .tallyCell {
+  border-left: 1px dotted rgba(120, 98, 60, 0.4);
+}
+
+/* "a Courier 10px .14em uppercase key". */
+.tallyKey {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--td-font-courier);
+  font-size: var(--td-diary-eyebrow-min);
+  letter-spacing: var(--td-letter-spacing-min);
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--td-ink-diary-muted-italic);
+}
+
+/* "over a Caveat 29px value". */
+.tallyValue {
+  margin: 1px 0 0;
+  font-family: var(--td-font-caveat);
+  font-size: var(--td-diary-tally-value);
+  line-height: 1.06;
+  white-space: nowrap;
+  color: var(--td-ink);
+}
+
+/* "Ephemera slot, flex: 1, min-height: 54px — a taped scrap that absorbs
+ * whatever height remains, rotate(.5deg), box-shadow ... washi strip at
+ * top: -11px; left: 36%". THE ELASTIC ELEMENT — see this file's header. */
+.ephemera {
+  position: relative;
+  flex: 1;
+  min-height: 54px;
+  width: 100%;
+  margin-top: 2px;
+  transform: rotate(0.5deg);
+  box-shadow:
+    0 0 0 7px var(--td-paper-mount),
+    0 0 0 8px rgba(120, 98, 60, 0.16),
+    0 12px 24px -16px rgba(60, 44, 20, 0.5);
+}
+
+/* Absolutely positioned rather than a flex child, so the scrap's own height
+ * is decided entirely by the space left over — an in-flow image would put
+ * its intrinsic aspect ratio back into that calculation, which is exactly
+ * what the slot exists to keep out of it. */
+.ephemeraImage {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ephemeraWashi {
+  position: absolute;
+  top: -11px;
+  left: 36%;
+  width: 96px;
+  height: 24px;
+  opacity: 0.7;
+  background: repeating-linear-gradient(120deg, rgba(196, 150, 120, 0.8) 0 6px, rgba(196, 150, 120, 0.4) 6px 12px);
+  clip-path: polygon(0 10%, 6% 0, 100% 6%, 95% 97%, 5% 100%);
+  transform: rotate(-2deg);
+}
+
+/* "Right column — hero photo, padding-top: 12px". */
+.rightColumn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: 12px;
+}
+
+/* "mount #fffdf6, padding 11px 11px 0, rotate(-1.1deg)". */
+.mount {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+  padding: 11px 11px 0;
+  border-radius: var(--td-radius-control);
+  background: var(--td-paper-mount);
+  transform: rotate(-1.1deg);
+  box-shadow:
+    0 14px 30px -16px rgba(60, 44, 20, 0.55),
+    0 0 0 1px rgba(120, 98, 60, 0.12);
+}
+
+/* "photo flex: 1; min-height: 80px; object-fit: cover". `object-position`
+ * is set inline by `Notes.tsx` from the slot's own focal point — it is the
+ * one value here that depends on the data rather than the design. */
+.heroPhoto {
+  display: block;
+  flex: 1;
+  min-height: 80px;
+  width: 100%;
+  object-fit: cover;
+}
+
+/* "caption Caveat 25px / 1.2 with 9px 4px 11px padding". */
+.heroCaption {
+  padding: 9px 4px 11px;
+  font-family: var(--td-font-caveat);
+  font-size: 25px;
+  line-height: 1.2;
+  color: var(--td-ink-body);
+}
+
+/* "washi strip at top: -15px; left: 24% rotate(-3deg)". */
+.heroWashi {
+  position: absolute;
+  top: -15px;
+  left: 24%;
+  width: 132px;
+  height: 31px;
+  opacity: 0.72;
+  background: repeating-linear-gradient(120deg, rgba(120, 150, 145, 0.75) 0 7px, rgba(120, 150, 145, 0.38) 7px 14px);
+  clip-path: polygon(0 10%, 5% 0, 100% 6%, 96% 97%, 4% 100%);
+  transform: rotate(-3deg);
+}
+
+/* "Postage stamp at bottom: -6px; right: -12px, rotate(7deg)". */
+.stampMount {
+  position: absolute;
+  right: -12px;
+  bottom: -6px;
+  padding: 4px;
+  border-radius: var(--td-radius-control);
+  background:
+    radial-gradient(circle 3px at 50% 50%, #fffdf6 92%, rgba(255, 253, 246, 0) 95%) 0 0 / 7.5px 7.5px,
+    var(--td-paper-mount);
+  filter: drop-shadow(0 3px 4px rgba(60, 44, 20, 0.3));
+  transform: rotate(7deg);
+}
+
+/* "76x92px face in linear-gradient(170deg, {accent}, rgba(0,0,0,.25))". The
+ * accent is the journey's own, so it arrives as `--stamp-accent` from
+ * `Notes.tsx`; the gradient itself stays here. */
+.stampFace {
+  display: flex;
+  width: 76px;
+  height: 92px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 6px;
+  background: linear-gradient(170deg, var(--stamp-accent), rgba(0, 0, 0, 0.25));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+/* "country (Courier 7.5px .16em)". */
+.stampCountry {
+  font-family: var(--td-font-courier);
+  font-size: 7.5px;
+  letter-spacing: 0.16em;
+  color: #f4ecd9;
+}
+
+/* "value (Courier 16px 700 white)". */
+.stampValue {
+  font-family: var(--td-font-courier);
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* "Footer — 1.5px top rule, 13px padding". */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-top: 13px;
+  border-top: 1.5px solid rgba(90, 70, 40, 0.18);
+}
+
+/* '"See full gallery" button (1.5px solid #a34434, rgba(163,68,52,.07) fill,
+ * 9px 18px, Courier 12px .18em uppercase, inverts on hover)'. It is an
+ * anchor, not a button — see `Notes.tsx`'s header. */
+.galleryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  border: 1.5px solid var(--td-accent);
+  border-radius: var(--td-radius-control);
+  background: rgba(163, 68, 52, 0.07);
+  font-family: var(--td-font-courier);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--td-accent);
+}
+
+/* `:focus-visible` alongside `:hover`: a keyboard reader gets the same
+ * inversion a pointer does, rather than the browser's default ring alone on
+ * a control whose own border is already 1.5px of the same colour. */
+.galleryButton:hover,
+.galleryButton:focus-visible {
+  background: var(--td-accent);
+  color: var(--td-cream-alt);
+}
+
+.galleryArrow {
+  font-size: 15px;
+}
+
+/* "the count in Garamond italic 17px". */
+.count {
+  margin: 0;
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 17px;
+  color: var(--td-ink-diary-muted);
+}
+
+/* "spacer, sign-off in Caveat 27px #8a7a5f at rotate(-2deg)". `margin-left:
+ * auto` rather than the prototype's empty `flex: 1` spacer div — the same
+ * layout with one fewer element in the accessibility tree, exactly as
+ * `contents.module.css` does it. */
+.signoff {
+  margin: 0 0 0 auto;
+  font-family: var(--td-font-caveat);
+  font-size: 27px;
+  color: #8a7a5f;
+  transform: rotate(-2deg);
+}

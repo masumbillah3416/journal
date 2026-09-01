@@ -437,7 +437,43 @@ would claim a measurement nothing performs.
   which is the one half of SCREENS.md §1.2's "zero overflow" claim that can be checked
   here — the multi-column count cannot, see `docs/deviations.md` §9.
 
-  Two assertions in it record a browser fact rather than the authored one, each with its
+  **`e2e/notes.spec.ts` (Phase 1 Task 10)** does the same job for the Notes page, and
+  two of its cases exist because of defects that have already happened rather than ones
+  somebody imagined.
+
+  The first is the highlight gaps. `SCREENS.md` §1.3 records that
+  `justify-content: space-between` on the highlight list "dumped 232px into two gaps
+  when a journey had three highlights instead of four", and that the fix was structural:
+  the highlights are `flex: 0 0 auto`, sized to their content, and the ephemera slot —
+  a media element that can absorb 54px or 300px without breaking — takes the elastic
+  space. The case measures the gaps between rendered highlights on a THREE-highlight
+  journey (Lisbon, `/p/6`), because three is the case that broke; a four-highlight
+  journey filled the column by accident and never showed the defect. Measured: 13px and
+  13px in layout pixels, against a bound of 30 and a recorded defect of 232.
+
+  The second is the focal point. `SCREENS.md` is blunt about the stakes — "If this is
+  not wired through to rendering, the admin's focal-point picker is decorative — that is
+  the whole point of it" — and a test asserting only that `object-position` carries the
+  right string would pass against a stylesheet with `object-fit: fill`, where
+  `object-position` does nothing at all. So the case screenshots the hero image twice,
+  once at the slot's own focal point and once forced back to `50% 50%`, and requires the
+  two buffers to differ. `apps/web/scripts/seed-data.ts` gives Tokyo's hero slot the
+  seed's one non-default focal point (`18% 82%`) so that there is a page on which the
+  crop demonstrably moves.
+
+  Every selector in that file is scoped to one leaf via `Leaf.tsx`'s `data-leaf` index.
+  `Book.tsx` renders all thirty-three leaves at once, so `[data-page="notes"]` alone
+  matches ten sections and an unscoped locator is a strict-mode violation rather than a
+  wait.
+
+  One assertion in it records a browser fact rather than the authored one, with its
+  reason at the assertion: the left column's fit is measured from its last child's
+  untransformed `offsetTop`/`offsetHeight` rather than from `scrollHeight`, because the
+  scrollable overflow region includes the ROTATED bounding boxes of the tally ticket
+  (-0.5deg) and the ephemera scrap (+0.5deg), which makes every notes page in the book
+  report exactly 3px of "overflow" on a column whose content fits perfectly.
+
+  Two assertions in `pages.spec.ts` record a browser fact rather than the authored one, each with its
   reason at the assertion: Chromium reports the inner rule's `2.5px` border as `2px`
   (it snaps a computed border width to a whole CSS pixel, measured at
   devicePixelRatio 1 *and* 3, so it is not a density effect), and the washi strip's
@@ -502,7 +538,8 @@ would claim a measurement nothing performs.
   axe violations, pixel drift). Cross-browser coverage is a candidate for a later phase,
   not a Task 12 gap silently worked around — see `playwright.config.ts`'s header.
 - **Run:** `npm run test:e2e` (headless, runs `e2e/smoke.spec.ts`,
-  `e2e/book.spec.ts`, `e2e/flip.spec.ts`, `e2e/layout.spec.ts` and `e2e/pages.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
+  `e2e/book.spec.ts`, `e2e/flip.spec.ts`, `e2e/layout.spec.ts`, `e2e/pages.spec.ts` and
+  `e2e/notes.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.
@@ -522,37 +559,41 @@ would claim a measurement nothing performs.
   that lands its designed layout, not before — a baseline captured against provisional
   page content would have to be thrown away and recaptured, teaching nobody to trust it
   in between. Phase 1 Task 9 added the **Cover** and **Contents** pages
-  (`diary-cover-*.png`, `diary-contents-*.png`, all three projects); Notes, Frames I/II
-  and About follow in Tasks 10 and 11.
+  (`diary-cover-*.png`, `diary-contents-*.png`, all three projects) and Task 10 the
+  **Notes** page (`diary-notes-*.png`); Frames I/II and About follow in Task 11.
 
   The diary cases snapshot the FULL PAGE, not the scaled design box. The box is drawn
   with `transform: scale(k)`, so a box-only snapshot would be byte-identical at all
   three projects and would prove nothing about the breakpoints, whereas the full page is
   what a reader at 390px actually sees. The consequence is that these baselines also
   carry the diary chrome outside the box (bookmark rail, bottom bar), whose designed
-  appearance is Task 12 — that task updates these six files, which is expected and is
-  what a baseline is for. All nine baselines in `e2e/visual.spec.ts-snapshots/` were
-  regenerated in the pinned container by the font-hosting task (docs/adr/0005): the
-  diary ones now show genuine Caveat and EB Garamond typography, but — see
-  `docs/deviations.md` §11 — Courier Prime and EB Garamond's italic face still render
-  in their generic fallbacks (a measured LCP constraint, not an oversight), so these
-  baselines guard geometry AND two of three families' typography, not all three yet.
-  Regenerate them again once Courier Prime is wired back in.
+  appearance is Task 12 — that task updates these nine files, which is expected and is
+  what a baseline is for. `docs/deviations.md` §11 still applies to all of them: Courier
+  Prime and EB Garamond's italic face render in their generic fallbacks (a measured LCP
+  constraint, not an oversight), so these baselines guard geometry AND two of three
+  families' typography, not all three yet. Regenerate them once Courier Prime is wired
+  back in.
 
-  **Four of the nine currently ratify a defect, and must not be trusted as a description
-  of the design until it is fixed.** The 2026-09-01 browser sweep
-  (`docs/qa/2026-09-01-diary-sweep.md`, DIARY-001 and DIARY-004) found that the book is
-  not centred in the area `useBookScale` measures: it is clipped from about 1435px down
-  and lies entirely outside the viewport at 390px. The `mid` and `mobile` Cover and
-  Contents baselines were regenerated over exactly that state, so
-  `diary-cover-mobile-linux.png` is a picture of a blank page with no book on it and the
-  suite has been green against it ever since. The suite that exists to catch this drift
-  is instead recording it. Whoever fixes DIARY-001 regenerates those four files as part
-  of the fix, and the regenerated images are the fix's proof.
+  **A baseline is only as good as the page it was captured over, and this suite has
+  already ratified an S1 defect once.** The 2026-09-01 browser sweep
+  (`docs/qa/2026-09-01-diary-sweep.md`, DIARY-001 and DIARY-004) found the book clipped
+  from about 1435px down and entirely outside the viewport at 390px — and the `mid` and
+  `mobile` Cover and Contents baselines had been regenerated over exactly that state, so
+  `diary-cover-mobile-linux.png` was a picture of a blank page with no book on it and
+  the suite stayed green against it for four tasks. That is fixed: the six diary
+  baselines were regenerated as part of the fix, and `e2e/layout.spec.ts` now asserts in
+  numbers, at all three projects, what a picture cannot say — that the design box is
+  inside the area its scale was measured from and that `elementFromPoint` at that area's
+  centre lands inside the book.
+
+  **The standing rule that came out of it:** never accept a regenerated `diary-*`
+  baseline unless `e2e/layout.spec.ts` was green in the SAME container run that produced
+  it, and never commit one without opening the image and looking at it. A green diff
+  against a wrong baseline is worth nothing.
 - **Status:** the mechanism is implemented and proven, and now runs in CI (Task 1 of
   Phase 1 closed the gap below). `e2e/visual.spec.ts` snapshots every screen that exists
-  today — `/cms` — at all three breakpoints, alongside the diary's Cover and Contents
-  pages, using the exact `toHaveScreenshot`/baseline-diff machinery every further page
+  today — `/cms` — at all three breakpoints, alongside the diary's Cover, Contents and
+  Notes pages, using the exact `toHaveScreenshot`/baseline-diff machinery every further page
   will use. Baselines are committed at
   `e2e/visual.spec.ts-snapshots/*.png`; a snapshot suite with no baseline to compare
   against protects nothing.
@@ -592,10 +633,15 @@ would claim a measurement nothing performs.
   4.5:1, per the handoff's own note). Where axe returns `incomplete` rather than a
   verdict, the ratio is measured from the rendered pixels and asserted anyway; an
   `incomplete` is never read as a pass.
-- **Status:** implemented for both routes that exist. `/p/1` (Phase 1 Task 7) calls
-  `expectNoAxeViolations(page)` with **no exclusions at all** — every rule in the full
-  ruleset applies to a route this project authored, and `/cms`'s two allowances below
-  must never be inherited by it. It passes on all three viewport projects. `/cms`
+- **Status:** implemented for both routes that exist, and for each designed diary page
+  in turn — `/p/1` (Cover, Task 7), `/p/2` (Contents, Task 9) and `/p/3` (Notes, Task
+  10), because each page kind renders different markup on the same URL shape. All three
+  call `expectNoAxeViolations(page)` with **no exclusions at all** — every rule in the
+  full ruleset applies to a route this project authored, and `/cms`'s allowances below
+  must never be inherited by them. All three pass on all three viewport projects. The
+  Notes case is the first with anything for `image-alt`, `definition-list` or
+  `link-name` to judge: it is the first page in the diary with photographs, a
+  description list (the tally ticket) and a link styled as a button. `/cms`
   asserts `results.violations` is empty — zero violations, not "no critical violations"; CLAUDE.md's
   non-negotiables draw no line between severities. `expectNoAxeViolations` defaults to
   the FULL ruleset with no exclusions; a caller passes rule ids to disable only via its

@@ -68,6 +68,16 @@ export interface JourneySeed {
   readonly tally: readonly TallyEntry[]
   /** Caption for the Notes page's hero photo slot. */
   readonly heroCaption: string
+  /**
+   * The hero slot's focal point, as percentages, when it is not the centre.
+   * Optional, and set for exactly one journey: `pages.slots[].focalX/focalY`
+   * default to 50 (DATA_MODEL.md, "Focal point lives on the slot"), so a seed
+   * where every slot is centred would leave the admin's focal-point picker
+   * unprovable in a browser - every rendered crop would look identical
+   * whether the value reached `object-position` or not. One non-default slot
+   * gives `e2e/notes.spec.ts` a page on which the crop demonstrably moves.
+   */
+  readonly heroFocal?: { readonly x: number; readonly y: number }
   /** Captions for Frames I's three photo slots, in order. */
   readonly frameOneCaptions: readonly string[]
   /** Captions for Frames II's four photo slots, in order. */
@@ -107,6 +117,7 @@ export const journeySeeds: readonly JourneySeed[] = [
       { key: 'Bowls of ramen', value: '11' },
     ],
     heroCaption: 'Crossing at Shibuya, second attempt, still blurred',
+    heroFocal: { x: 18, y: 82 },
     frameOneCaptions: [
       'Vending machine at 6am, Nakameguro',
       'The cat that runs the bookshop',

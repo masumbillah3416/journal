@@ -10,9 +10,10 @@
  * SCOPE. This task binds the flip machine to the DOM; the pages' own designed
  * layouts - Cover, Contents, Notes, Frames I/II and About, every measurement
  * of them absolute in SCREENS.md §1 - are Tasks 9 to 11, which replace this
- * component's per-kind bodies. What is here is real content, never a
- * placeholder string: each page is named with the label the domain derives
- * for it, and Contents renders its real entries as real anchors. The anchors
+ * component's per-kind bodies. Cover and Contents landed in Task 9 and Notes
+ * in Task 10; Frames I/II and About are the two kinds the fallback below
+ * still renders. What is there is real content, never a placeholder string:
+ * each page is named with the label the domain derives for it. The anchors
  * are the point. `e2e/book.spec.ts` clicks one to prove a back face is not
  * swallowing it, and a stub with nothing clickable on it would have made that
  * proof vacuous.
@@ -22,12 +23,13 @@
  * them (and the bookmark rail) into an animated jump is Task 8's trigger
  * work.
  * Depends on: `BookPage`/`ContentsEntry`/`pageLabel` (@travel-diary/domain/bookBundle),
- * ./book.module.css.
+ * ../pages/Cover, ../pages/Contents, ../pages/Notes, ./book.module.css.
  */
 import { pageLabel, type BookChrome, type BookPage, type ContentsEntry } from '@travel-diary/domain/bookBundle'
 import type React from 'react'
 import { Contents } from '../pages/Contents'
 import { Cover } from '../pages/Cover'
+import { Notes } from '../pages/Notes'
 import styles from './book.module.css'
 
 /** What one page face needs to render itself. */
@@ -56,6 +58,8 @@ export const PageFace = ({ page, contents, chrome, totalPages }: PageFaceProps):
   if (page.kind === 'contents') {
     return <Contents entries={contents} note={chrome.contentsNote} totalPages={totalPages} />
   }
+
+  if (page.kind === 'notes') return <Notes page={page} showDecorations={chrome.showDecorations} />
 
   return (
     <article className={styles.page}>

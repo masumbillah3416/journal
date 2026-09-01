@@ -110,6 +110,23 @@ test('has no axe violations on /p/2, the Contents page', async ({ page }) => {
   await expectNoAxeViolations(page)
 })
 
+test('has no axe violations on /p/3, a journey’s Notes page', async ({ page }) => {
+  await page.goto('/p/3')
+  await expect(page.locator('[data-leaf="2"] [data-page="notes"]')).toBeVisible()
+
+  // Also no exclusions - see the two cases above. This page is the first in
+  // the diary to carry photographs, a description list, a link styled as a
+  // button and two badges whose glyphs are drawn in CSS, so `image-alt`,
+  // `definition-list`, `link-name` and `color-contrast` all have something
+  // real to check here that they did not on the Cover or the Contents.
+  //
+  // The locator is scoped to leaf 2 deliberately: `Book.tsx` renders all
+  // thirty-three leaves, so ten notes pages are in this document and an
+  // unscoped locator would be a strict-mode violation rather than a wait.
+  // axe still analyses the WHOLE page, all ten of them included.
+  await expectNoAxeViolations(page)
+})
+
 /**
  * The cover's five text lines, with the WCAG 2.1 AA floor each one has to
  * clear. Only the title qualifies as large text: SC 1.4.3's exemption needs

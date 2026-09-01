@@ -259,7 +259,13 @@ const buildNotesSlots = async (
     1,
   )
   return [
-    { role: 'hero', media: heroMedia, caption: seedJourney.heroCaption, focalX: 50, focalY: 50 },
+    {
+      role: 'hero',
+      media: heroMedia,
+      caption: seedJourney.heroCaption,
+      focalX: seedJourney.heroFocal?.x ?? 50,
+      focalY: seedJourney.heroFocal?.y ?? 50,
+    },
     { role: 'ephemera', media: ephemeraMedia, caption: '', focalX: 50, focalY: 50 },
   ]
 }

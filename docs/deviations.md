@@ -400,3 +400,44 @@ global.
 `HANDOFF-DEVIATION` notes (at `.cover` and at `.years`); `e2e/a11y.spec.ts`'s cover
 contrast case; `e2e/support/coverContrast.ts`'s header (the measurement method);
 `docs/testing.md` §6, finding 2.
+
+## 13 · The Notes page follows `SCREENS.md` §1.3 where the prototype's own markup differs
+
+**What changed:** three places where `SCREENS.md` §1.3 and
+`handoff/design_handoff_travel_diary/Travel Diary.dc.html` do not agree, plus one
+accessibility decision the prototype could not express. `SCREENS.md` is the design
+source of record for this task, so it wins each disagreement; each is recorded here
+because the prototype is part of the same handoff directory.
+
+1. **The left column's order is the spec's, not the prototype's.** `SCREENS.md` §1.3
+   numbers the left column's five children explicitly — eyebrow, highlight list, rule
+   and note, **tally ticket**, then **ephemera slot**. The prototype's DOM puts the
+   ephemera scrap *above* the tally ticket. The spec's order is used. Both orders behave
+   identically under the flex rules the same paragraph gives (the scrap is the only
+   `flex: 1` child either way), so this is a visual ordering choice, not a layout one.
+
+2. **The tally ticket's dotted rule sits between cells, not before each one.**
+   `SCREENS.md` §1.3 says "four equal cells **divided by** `1px dotted`"; the prototype
+   puts `border-left` on every cell including the first, which draws an opening rule
+   with nothing to its left. The divider is `.tallyCell + .tallyCell` here, so four
+   cells carry three rules. `e2e/notes.spec.ts` asserts the first cell has none.
+
+3. **"See full gallery" is an anchor, not a button with a handler.** The prototype uses
+   `<button onClick>`; `README.md`'s own routing note requires real paths ("In
+   production use real paths (`/p/12`, `/gallery/tokyo`) rather than hashes"), and the
+   handoff's defect log records gallery buttons that "appeared dead while their handlers
+   were fine". It links to `/gallery/<slug>`, which is the route Task 14 builds — a
+   real, inspectable, indexable target rather than a click that goes nowhere, and it
+   costs the diary route no client JavaScript.
+
+4. **The ephemera scrap has an empty `alt`, not the prototype's `role="img"
+   aria-label="Pasted ephemera"`.** `ephemera` is a fixed role in the schema, and the
+   thing in the slot is a texture behind tape rather than a photograph with a subject —
+   the seed says as much where it creates one. An empty `alt` takes it out of the
+   accessibility tree, which is what a decorative image should do; announcing "Pasted
+   ephemera" between the tally ticket and the page's footer would be noise. The hero
+   photograph keeps the slot's own alt text, because that one is content.
+
+**Rationale:** `SCREENS.md` is named as the source of record and is the more precise of
+the two documents in each case above. Nothing here changes a measurement, a colour or a
+line of copy — every one of those is transcribed from §1.3 exactly.
