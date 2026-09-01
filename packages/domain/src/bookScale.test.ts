@@ -22,7 +22,10 @@ describe('bookScale', () => {
     expect(bookScale({ width: 3840, height: 2160 })).toBe(MAX_SCALE)
   })
 
-  it('never returns a negative or zero scale for a degenerate area', () => {
-    expect(bookScale({ width: 0, height: 0 })).toBeGreaterThan(0)
+  it('clamps a degenerate area to the minimum scale (0.05) so the book cannot collapse to nothing', () => {
+    // 0.05 is MIN_SCALE, kept private to bookScale.ts since the diary never
+    // needs to name it - pinned here as a literal so retuning the clamp
+    // would fail this test, not just "still greater than zero".
+    expect(bookScale({ width: 0, height: 0 })).toBeCloseTo(0.05, 6)
   })
 })
