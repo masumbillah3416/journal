@@ -335,3 +335,68 @@ silently.
 header (the full measured table lives there); `docs/adr/0005-font-hosting.md`;
 `apps/web/app/(diary)/diary.css`'s header note on `--td-font-courier`;
 `e2e/pages.spec.ts`'s Courier-fallback test; `e2e/visual.spec.ts`'s header note.
+
+## 12 · The cover's cloth stays opaque across its gradient, and the years line's alpha is `.78`
+
+**What changed:** two values from `SCREENS.md` §1.1's cover specification, and only these
+two.
+
+1. The full-bleed cloth's gradient end stop, `rgba(0,0,0,.28)`, is now **opaque**:
+   `linear-gradient(160deg, {cloth} 0%, color-mix(in srgb, {cloth} 72%, #000) 130%)`. That
+   end colour is what the handoff's own 28%-opaque black *resolves to* on the cloth — the
+   same tone, no longer letting anything through it.
+2. The years line's colour is `rgba(238,220,180,.78)`, not §1.1's `rgba(238,220,180,.5)`.
+   `.78` is the alpha the subtitle already carries, so no new value enters the palette.
+
+Everything else on the cover — every other colour, size, letter-spacing, margin, inset and
+piece of copy — is §1.1's, unchanged.
+
+**Rationale:** four of the cover's five lines failed WCAG 2.1 AA using the handoff's
+literal values. Measured from the rendered pixels in a real browser at all three viewport
+projects, not estimated (`e2e/support/coverContrast.ts`); the `desktop` figures below are
+the tightest of the three:
+
+| Cover line | Size | Before | After | Required |
+|---|---|---|---|---|
+| "Travel Diary" eyebrow | 12px | **2.86:1** | 4.52:1 | 4.5:1 |
+| "Wanderings" title | 124px | 3.81:1 | 8.13:1 | 3:1 |
+| Subtitle | 22px italic | **2.72:1** | 5.33:1 | 4.5:1 |
+| "Kept by {owner}" | 12.5px | **2.37:1** | 4.73:1 | 4.5:1 |
+| Years | 12.5px | **1.87:1** | 5.26:1 | 4.5:1 |
+
+Only the 124px title is large text under SC 1.4.3, which needs 24px or 18.66px bold — the
+22px italic subtitle does **not** qualify for the 3:1 exemption and is held to 4.5:1 like
+the three Courier lines.
+
+The cause was in the specified gradient rather than in the transcription; the handoff's
+own prototype renders the same way. `linear-gradient(160deg, {cloth} 0%,
+rgba(0,0,0,.28) 130%)` interpolates from an *opaque* colour to a 28%-opaque black, so the
+cloth's own alpha falls to about `.72` by mid-page and the light paper face beneath the
+cover shows through, lifting the background from `#2f4a47` to roughly `#5e6d67` exactly
+where the small Courier lines sit. Making the end stop opaque removes that wash and clears
+four of the five lines on its own. The years line is the one it does not rescue: at `.5` it
+reaches only about 3.2:1 even against the corrected background — no alpha fixed it at the
+old lightness, and `.78` is what clears it at the new one.
+
+**Who decided, and why it is recorded rather than taken quietly:** raising a handoff colour
+is a design decision, not a transcription one. Task 9 measured the failure, declined to fix
+it unilaterally and reported it to the design owner (`docs/testing.md` §6, finding 2; Task
+9's report §7.1). **The user approved this departure from the handoff's literal cover
+values in order to meet AA**, choosing to darken the cloth and keep the handoff's text
+colours rather than lighten the text.
+
+**Consequence a future task needs:** the eyebrow clears its floor at **4.52:1** on the
+`desktop` project — the narrowest margin on the page, because it is the topmost line and
+so sits on the lightest end of the cloth. Any change to the cloth gradient, to the 45°
+texture overlay above it, or to that line's own alpha must be **re-measured** rather than
+reasoned about. `e2e/a11y.spec.ts`'s cover case is what catches it, and it asserts a floor
+(`ratio >= minimumRatio`) rather than a pinned number, so it fails only when a line
+actually drops below AA rather than on anti-aliasing noise. The end stop uses CSS
+`color-mix()` (Chromium 111, Safari 16.2, Firefox 113), written that way rather than as a
+literal so the darkened tone still follows whichever cloth an editor picks in the `book`
+global.
+
+**Recorded as:** `apps/web/components/pages/cover.module.css`'s header table and its two
+`HANDOFF-DEVIATION` notes (at `.cover` and at `.years`); `e2e/a11y.spec.ts`'s cover
+contrast case; `e2e/support/coverContrast.ts`'s header (the measurement method);
+`docs/testing.md` §6, finding 2.

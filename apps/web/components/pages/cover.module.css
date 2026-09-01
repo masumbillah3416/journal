@@ -36,33 +36,56 @@
  * Depends on: packages/tokens/src/tokens.css, loaded by the diary layout.
  */
 
-/* MEASURED CONTRAST, recorded because axe cannot settle it. The cloth is a
- * gradient, so axe-core reports `color-contrast` as INCOMPLETE on this page
- * rather than as a pass or a violation (7 nodes, verified in the pinned
- * Playwright image) - the suite is green because axe declined to judge, which
- * is not the same as a green contrast result. Measured directly instead, by
- * sampling the rendered cloth beside each line in a real browser and running
- * the samples through `packages/domain/src/contrast.ts`:
+/* HANDOFF-DEVIATION (docs/deviations.md §12): two of SCREENS.md §1.1's own
+ * values are changed here, and only these two, to bring the cover's text to
+ * WCAG AA. The user approved the departure after four of the five lines were
+ * measured below 4.5:1 using the handoff's literal values.
  *
- *   Travel Diary  12px   3.54:1   needs 4.5:1   background #485d5a
- *   Wanderings    124px  5.44:1   needs 3:1     background #50635f   (passes)
- *   subtitle      22px   3.45:1   needs 4.5:1   background #576863
- *   Kept by       12.5px 2.94:1   needs 4.5:1   background #5c6c66
- *   years         12.5px 2.18:1   needs 4.5:1   background #5e6d67
+ * WHY AXE CANNOT SETTLE THIS. The cloth is a gradient, so axe-core reports
+ * `color-contrast` as INCOMPLETE on this page (7 nodes, verified in the pinned
+ * Playwright image) rather than as a pass or a violation - a green suite here
+ * meant axe declined to judge, not that the ratios were sound. They are
+ * measured directly instead, from the rendered pixels, by
+ * `e2e/a11y.spec.ts`'s own cover case (`e2e/support/coverContrast.ts`): each
+ * line is hidden with `visibility: hidden` so its box still shows the cloth it
+ * sat on, the LIGHTEST pixel under the line is taken as its background - the
+ * worst case, since the 45deg texture makes the background a range rather than
+ * a value - and the line's translucent cream is flattened onto it with
+ * `packages/domain/src/contrast.ts`.
  *
- * Every value on this page is SCREENS.md §1.1's own, transcribed unchanged,
- * and the prototype renders the same way - the root cause is in the specified
- * gradient rather than in this transcription. `linear-gradient(160deg,
- * {cloth} 0%, rgba(0,0,0,.28) 130%)` interpolates from an OPAQUE colour to a
- * 28%-opaque black, so the cloth's own alpha falls to about 0.72 by the middle
- * of the cover and the light paper face beneath shows through, lifting the
- * background from #2f4a47 to roughly #5e6d67 exactly where the small Courier
- * lines sit. Raising the colours is a design decision, not a transcription
- * one, so it has not been taken here; the finding is reported to the design
- * owner (docs/testing.md, Accessibility) with two candidate fixes - keeping
- * the cloth opaque across the gradient, which lifts three of the four lines
- * over 4.5:1, and the years line's `.5` alpha, which no alpha value can fix
- * on its own at that background lightness. */
+ *   Line          Size    Before   After    Needs
+ *   ------------  ------  -------  -------  -----
+ *   Travel Diary  12px    2.86:1   4.52:1   4.5:1
+ *   Wanderings    124px   3.81:1   8.13:1   3:1    (large text; passed before)
+ *   subtitle      22px    2.72:1   5.33:1   4.5:1
+ *   Kept by       12.5px  2.37:1   4.73:1   4.5:1
+ *   years         12.5px  1.87:1   5.26:1   4.5:1
+ *
+ * The figures above are the `desktop` project's, the tightest of the three;
+ * `mid` and `mobile` measure the same lines 0.1-0.2 higher. The eyebrow's
+ * 4.52:1 is the whole page's narrowest margin - it is the topmost line, so it
+ * sits on the lightest end of the cloth - and any future change to the
+ * gradient, the texture overlay or that line's alpha has to be re-measured
+ * rather than reasoned about.
+ *
+ * THE CAUSE was in the specified gradient, not in the transcription - the
+ * handoff's prototype renders the same way. `linear-gradient(160deg, {cloth}
+ * 0%, rgba(0,0,0,.28) 130%)` interpolates from an OPAQUE colour to a
+ * 28%-opaque black, so the cloth's own alpha falls to about 0.72 by mid-page
+ * and the light paper face beneath it shows through, lifting the background
+ * from #2f4a47 to roughly #5e6d67 exactly where the small Courier lines sit.
+ *
+ * THE TWO CHANGES, both below at the rule they affect:
+ *   1. `.cover`'s gradient end stop is now opaque. It is the SAME colour the
+ *      handoff asks for - `rgba(0,0,0,.28)` composited onto the cloth, written
+ *      as `color-mix(in srgb, var(--cover-cloth) 72%, #000)` so it still
+ *      follows whichever cloth an editor picks - it simply no longer lets the
+ *      paper through. That alone clears four of the five lines.
+ *   2. `.years`' alpha rises from `.5` to `.78`, the alpha `.subtitle`
+ *      already uses. No alpha fixes that line at the old background
+ *      lightness; at the new one, `.5` still reaches only ~3.2:1.
+ * No new colour is introduced by either, and every other value on this page is
+ * still SCREENS.md §1.1's own. */
 .cover {
   position: absolute;
   inset: 0;
@@ -70,10 +93,16 @@
   /* SCREENS.md §1.1: "Full-bleed cloth: repeating-linear-gradient(45deg,
    * rgba(255,255,255,.035) 0 2px, rgba(0,0,0,.03) 2px 4px) over
    * linear-gradient(160deg, {cloth} 0%, rgba(0,0,0,.28) 130%), plus
-   * inset 0 0 90px rgba(0,0,0,.35)." */
+   * inset 0 0 90px rgba(0,0,0,.35)."
+   *
+   * HANDOFF-DEVIATION: the end stop is the opaque form of §1.1's own
+   * `rgba(0,0,0,.28)` - the colour that overlay resolves to ON the cloth -
+   * rather than the translucent value itself, so the paper face beneath the
+   * cover no longer shows through the middle of the gradient. See this file's
+   * header for the measured before/after ratios and docs/deviations.md §12. */
   background:
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.035) 0 2px, rgba(0, 0, 0, 0.03) 2px 4px),
-    linear-gradient(160deg, var(--cover-cloth) 0%, rgba(0, 0, 0, 0.28) 130%);
+    linear-gradient(160deg, var(--cover-cloth) 0%, color-mix(in srgb, var(--cover-cloth) 72%, #000) 130%);
   box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.35);
 }
 
@@ -188,13 +217,19 @@
 /* Years — Courier 12.5px, .3em, rgba(238,220,180,.5), top margin 8px. Not
  * uppercased: the table asks for `text-transform: uppercase` on the "Kept by"
  * line and not on this one, and the seeded value ("2025 — 2026") has no case
- * to change anyway. */
+ * to change anyway.
+ *
+ * HANDOFF-DEVIATION: the alpha is `.78`, not §1.1's `.5`. This is the faintest
+ * line on the cover and the only one an opaque cloth alone does not rescue -
+ * at `.5` over the new background it still measures ~3.2:1. `.78` is the alpha
+ * `.subtitle` already carries, so no new value enters the palette. See this
+ * file's header and docs/deviations.md §12. */
 .years {
   margin: 8px 0 0;
   font-family: var(--td-font-courier);
   font-size: 12.5px;
   letter-spacing: 0.3em;
-  color: rgba(238, 220, 180, 0.5);
+  color: rgba(238, 220, 180, 0.78);
 }
 
 /* Washi strip — "190x36px at top: 52px; left: -26px, rotate(-7deg), tape

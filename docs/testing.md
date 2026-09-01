@@ -545,10 +545,14 @@ would claim a measurement nothing performs.
 ### 6 · Accessibility
 
 - **Tool:** axe-core in Playwright (`@axe-core/playwright`, `e2e/a11y.spec.ts`), via the
-  shared `expectNoAxeViolations` helper (`e2e/support/axe.ts`, Task 1 of Phase 1).
+  shared `expectNoAxeViolations` helper (`e2e/support/axe.ts`, Task 1 of Phase 1) — plus
+  `measureContrastOverGradient` (`e2e/support/coverContrast.ts`) for the one thing axe
+  will not judge: text over a gradient (finding 2 below).
 - **Scope:** every route. Contrast ratios from the handoff's token table are asserted,
   not assumed (e.g. `ink-muted` must stay opaque — an alpha version measures below
-  4.5:1, per the handoff's own note).
+  4.5:1, per the handoff's own note). Where axe returns `incomplete` rather than a
+  verdict, the ratio is measured from the rendered pixels and asserted anyway; an
+  `incomplete` is never read as a pass.
 - **Status:** implemented for both routes that exist. `/p/1` (Phase 1 Task 7) calls
   `expectNoAxeViolations(page)` with **no exclusions at all** — every rule in the full
   ruleset applies to a route this project authored, and `/cms`'s two allowances below
@@ -600,34 +604,44 @@ as `landmark-one-main` and `page-has-heading-one`. The diary route carries no ex
 of any kind — the Cover and Contents cases call `expectNoAxeViolations(page)` with no
 `allow` argument at all — and adding one there would be a defect, not a workaround.
 
-**2 · The Cover's contrast is measured, not asserted by axe — and four lines fail.**
-axe-core reports `color-contrast` as **incomplete** on both diary pages (7 nodes on the
-Cover, 45 on Contents), because it cannot resolve a gradient background. Incomplete is
-not a violation, so the suite is green; that is axe declining to judge, not a contrast
-pass, and `CLAUDE.md` §2 requires the ratios to be *asserted*. They were therefore
-measured directly: the rendered cloth was sampled beside each cover line in the pinned
-Playwright image and the samples run through `packages/domain/src/contrast.ts`.
+**2 · The Cover's contrast is measured, not asserted by axe — and two handoff values were
+changed so it clears AA.** axe-core reports `color-contrast` as **incomplete** on both
+diary pages (7 nodes on the Cover, 45 on Contents), because it cannot resolve a gradient
+background. Incomplete is not a violation, so the suite is green; that is axe declining to
+judge, not a contrast pass, and `CLAUDE.md` §2 requires the ratios to be *asserted*. They
+are now asserted by a test rather than measured by hand: `e2e/a11y.spec.ts`'s cover case
+calls `measureContrastOverGradient` (`e2e/support/coverContrast.ts`), which hides each
+line with `visibility: hidden` so its box shows only the cloth it sat on, screenshots the
+cover element, takes the **lightest** pixel under each line as that line's background —
+the worst case, since the 45° texture makes the background a range rather than a value —
+flattens the line's own translucent cream onto it, and runs both through
+`packages/domain/src/contrast.ts`. It runs at all three viewport projects.
 
-| Cover line | Size | Measured | Required | Sampled background |
+Measured with SCREENS.md §1.1's literal values, four of the five lines failed. Both
+columns below are the `desktop` project's, the tightest of the three:
+
+| Cover line | Size | Before | After | Required |
 |---|---|---|---|---|
-| "Travel Diary" eyebrow | 12px | 3.54:1 | 4.5:1 | `#485d5a` |
-| "Wanderings" title | 124px | 5.44:1 | 3:1 | `#50635f` |
-| Subtitle | 22px italic | 3.45:1 | 4.5:1 | `#576863` |
-| "Kept by …" | 12.5px | 2.94:1 | 4.5:1 | `#5c6c66` |
-| Years | 12.5px | 2.18:1 | 4.5:1 | `#5e6d67` |
+| "Travel Diary" eyebrow | 12px | **2.86:1** | 4.52:1 | 4.5:1 |
+| "Wanderings" title | 124px | 3.81:1 | 8.13:1 | 3:1 |
+| Subtitle | 22px italic | **2.72:1** | 5.33:1 | 4.5:1 |
+| "Kept by …" | 12.5px | **2.37:1** | 4.73:1 | 4.5:1 |
+| Years | 12.5px | **1.87:1** | 5.26:1 | 4.5:1 |
 
-Only the title clears its bar. Every colour on the page is SCREENS.md §1.1's own,
-transcribed unchanged, and the handoff's prototype renders the same way, so this is a
-finding about the specified design rather than about the transcription: the cloth
-gradient interpolates from an opaque colour to a 28%-opaque black, so by mid-page the
-cloth is only ~72% opaque and the light paper face beneath washes it from `#2f4a47` up
-to roughly `#5e6d67` — precisely where the small Courier lines sit. Two candidate fixes
-are recorded at `cover.module.css`'s `.cover` rule: keeping the cloth opaque across the
-gradient (which lifts three of the four lines over 4.5:1), and the years line's `.5`
-alpha, which **no** alpha value fixes on its own at that background lightness. Raising a
-handoff colour is a design decision and has not been taken unilaterally. **The Contents
-page needs no such note: every one of its fourteen text roles was measured against the
-darkest paper stop and clears its bar, the lowest at 4.57:1.**
+The 22px italic subtitle does **not** qualify for SC 1.4.3's large-text exemption, which
+needs 24px or 18.66px bold, so it is held to 4.5:1; only the 124px title is large text.
+The cause was in the specified gradient rather than in the transcription — the handoff's
+own prototype renders the same way: the cloth interpolates from an opaque colour to a
+28%-opaque black, so by mid-page the cloth is only ~72% opaque and the light paper face
+beneath washes it from `#2f4a47` up to roughly `#5e6d67`, precisely where the small
+Courier lines sit. **The user approved two value changes** (`docs/deviations.md` §12): the
+gradient's end stop is now the opaque form of that same `rgba(0,0,0,.28)` overlay, and the
+years line's alpha is `.78` rather than `.5` — the one line an opaque cloth alone does not
+rescue. No new colour was introduced, and every other §1.1 value is unchanged. The
+eyebrow's 4.52:1 is the narrowest margin on the page and must be re-measured, not reasoned
+about, after any change to the cloth, the texture over it, or that line's own alpha.
+**The Contents page needs no such note: every one of its fourteen text roles was measured
+against the darkest paper stop and clears its bar, the lowest at 4.57:1.**
 
 **3 · Two of the three handoff fonts are now self-hosted; the third is a measured,
 documented deferral.** README.md's "Fonts are Google Fonts (Caveat, EB Garamond,

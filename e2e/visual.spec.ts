@@ -42,6 +42,18 @@
  * face while the self-hosted file is fetched, and a snapshot taken during
  * that window is a race, not drift.
  *
+ * COVER CONTRAST: the three `diary-cover-*` baselines were regenerated again,
+ * in the same pinned container, when the cover's cloth was made opaque across
+ * its gradient and the years line's alpha raised to `.78` to bring all five
+ * cover lines to WCAG AA (docs/deviations.md §12). They were regenerated with
+ * `--update-snapshots=all` rather than the default `changed` mode: at 390px
+ * the book is drawn at roughly a third scale, and the `mobile` cover's diff
+ * came in UNDER `maxDiffPixelRatio` — so `changed` would have left that one
+ * baseline showing the old, failing cover while still reporting a pass, which
+ * is exactly the kind of quietly-stale baseline this file exists to prevent.
+ * The `/cms` and Contents baselines are untouched by that change and were not
+ * regenerated.
+ *
  * Baselines live in `e2e/visual.spec.ts-snapshots/` (one file per test per
  * project, auto-named by Playwright) and are committed — a snapshot with no
  * baseline to compare against protects nothing.
