@@ -117,7 +117,7 @@ jobs:
       # and 8 but this job did not, so their assertions (the back face
       # swallowing clicks, the transform-only budget, all five turn triggers)
       # had never actually gated a merge.
-      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/pages.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
+      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/pages.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
       # image: chrome-launcher's own auto-detection looks for a system
       # `google-chrome`/`chromium-browser` binary, which this image does not

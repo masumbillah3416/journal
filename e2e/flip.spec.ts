@@ -41,25 +41,12 @@
  * ones that arrive mid-flip, so counting them would encode the opposite of the
  * design. It asserts the only thing that matters: after the storm, the book
  * still turns.
- * Depends on: @playwright/test, the running app from playwright.config.ts's
- * `webServer`, and the seeded diary (`npm run db:seed`) whose first journey is
- * Tokyo, starting on page 3 of 33.
+ * Depends on: @playwright/test, `waitForLiveBook` (./support/liveBook), the
+ * running app from playwright.config.ts's `webServer`, and the seeded diary
+ * (`npm run db:seed`) whose first journey is Tokyo, starting on page 3 of 33.
  */
-import { expect, test, type Page } from '@playwright/test'
-
-/**
- * Waits until the book's own effects have run, so a trigger reaches a hydrated
- * flip machine rather than static server HTML. The signal is `useBookScale`
- * replacing the server-rendered `scale(1)` with a measured value - true of
- * every viewport this suite runs at (0.98 desktop, 0.77 mid, 0.13 mobile), and
- * the earliest observable proof that React is in charge of the page.
- */
-const waitForLiveBook = async (page: Page): Promise<void> => {
-  await page.waitForFunction(() => {
-    const box = document.querySelector('[data-design-box]')
-    return box instanceof HTMLElement && box.style.transform !== 'scale(1)'
-  })
-}
+import { expect, test } from '@playwright/test'
+import { waitForLiveBook } from './support/liveBook'
 
 test('turns forward on the right edge strip and back on the left', async ({ page }) => {
   await page.goto('/p/3')

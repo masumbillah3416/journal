@@ -65,10 +65,28 @@
   background: var(--td-outer);
 }
 
+/* The single track here is not a formality. With no `grid-template-*` the
+ * 1300x860 design box is auto-placed into an IMPLICIT `auto`-sized track that
+ * is itself 1300x860 and overflows this area to the right and below; centring
+ * inside a track the same size as the item is a no-op, so the box's layout
+ * origin stayed at 0,0 and `scale(k)` about its own centre pinned the drawn
+ * book's left edge at x = 650 - 650k whatever the area's own centre was.
+ * Measured: 129px of the page cut off at 1200px, 229px at 1000px, and at
+ * 390px the whole book outside the viewport and clipped away by
+ * `.stage { overflow: hidden }` (docs/qa/2026-09-01-diary-sweep.md, DIARY-001;
+ * it took the bookmark tabs and the page-edge turn strips with it, DIARY-002
+ * and DIARY-003). An EXPLICIT `minmax(0, 1fr)` track is exactly the area
+ * `useBookScale` measures, so `place-items: center` centres the box in the
+ * same rectangle the scale was fitted to and the drawn book is concentric
+ * with it at every width. `minmax(0, 1fr)` rather than `1fr`: a `1fr` track's
+ * automatic minimum is its content, which is the 1300px box again.
+ * `e2e/layout.spec.ts` is the assertion that this stays true. */
 .bookArea {
   position: relative;
   grid-area: book;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   place-items: center;
   min-width: 0;
   min-height: 0;

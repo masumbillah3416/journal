@@ -444,6 +444,23 @@ would claim a measurement nothing performs.
   rotation is read back out of the resolved matrix with `atan2` rather than pinned as
   matrix digits, which differ in the sixth decimal place between Chromium builds.
 
+  **`e2e/layout.spec.ts` (the 2026-09-01 sweep's DIARY-001/002/003)** covers where the
+  scaled book actually lands on the screen, at all three viewport projects. It exists
+  because the visual-regression suite was supposed to own this question and demonstrably
+  did not: the `mid` and `mobile` baselines were regenerated over a book that had been
+  pushed off the screen entirely and stayed green on a blank page for two commits
+  (`docs/qa/2026-09-01-diary-sweep.md`, DIARY-004). A baseline can only say "this looks
+  like it did last time"; a picture of no book is still a picture. The three cases say it
+  in numbers instead, each from the symptom a reader meets rather than from the CSS that
+  produced it: the design box's drawn rect is inside the area `useBookScale` measures and
+  concentric with it (off-centre by 0px, spilling 0px on each side, tolerant of the
+  sub-pixel remainder a fractional scale leaves); every `[data-bookmark]` tab hit-tests to
+  itself at its own centre and a click on one of the nine the sweep found dead reaches
+  `/p/12`; and both page-edge turn strips hit-test to themselves. That last one is the
+  case `e2e/flip.spec.ts` could not make: Playwright scrolls an element into view before
+  clicking it, so its edge-strip cases passed on a strip that had left the viewport, which
+  a reader cannot scroll back into `.stage` (`overflow: hidden`).
+
   `e2e/smoke.spec.ts` is the console-error gate: it loads `/cms` and `/p/1` and asserts
   **zero** `console` (error level) and `pageerror` events, with both listeners attached
   _before_ `page.goto()`. This is deliberately the harness's centre of gravity, not an
@@ -474,7 +491,7 @@ would claim a measurement nothing performs.
   axe violations, pixel drift). Cross-browser coverage is a candidate for a later phase,
   not a Task 12 gap silently worked around — see `playwright.config.ts`'s header.
 - **Run:** `npm run test:e2e` (headless, runs `e2e/smoke.spec.ts`,
-  `e2e/book.spec.ts`, `e2e/flip.spec.ts` and `e2e/pages.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
+  `e2e/book.spec.ts`, `e2e/flip.spec.ts`, `e2e/layout.spec.ts` and `e2e/pages.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.
