@@ -510,6 +510,17 @@ would claim a measurement nothing performs.
   in their generic fallbacks (a measured LCP constraint, not an oversight), so these
   baselines guard geometry AND two of three families' typography, not all three yet.
   Regenerate them again once Courier Prime is wired back in.
+
+  **Four of the nine currently ratify a defect, and must not be trusted as a description
+  of the design until it is fixed.** The 2026-09-01 browser sweep
+  (`docs/qa/2026-09-01-diary-sweep.md`, DIARY-001 and DIARY-004) found that the book is
+  not centred in the area `useBookScale` measures: it is clipped from about 1435px down
+  and lies entirely outside the viewport at 390px. The `mid` and `mobile` Cover and
+  Contents baselines were regenerated over exactly that state, so
+  `diary-cover-mobile-linux.png` is a picture of a blank page with no book on it and the
+  suite has been green against it ever since. The suite that exists to catch this drift
+  is instead recording it. Whoever fixes DIARY-001 regenerates those four files as part
+  of the fix, and the regenerated images are the fix's proof.
 - **Status:** the mechanism is implemented and proven, and now runs in CI (Task 1 of
   Phase 1 closed the gap below). `e2e/visual.spec.ts` snapshots every screen that exists
   today — `/cms` — at all three breakpoints, alongside the diary's Cover and Contents
