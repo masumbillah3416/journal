@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { flipReducer, initialFlipState } from './flip.js'
+import { ARM_MS, flipReducer, initialFlipState } from './flip.js'
 import { leafPresentation } from './pageStack.js'
 
 const config = { durationMs: 900, reducedMotion: false }
@@ -62,42 +62,72 @@ describe('leafPresentation', () => {
     expect(leafPresentation(3, state, TOTAL)).toMatchObject({ frontOpacity: 0, backOpacity: 1 })
   })
 
-  // The two tests below close the branch-coverage gate the way flip.test.ts's
-  // own trailing block does (CLAUDE.md §2.1: 100% branches on
-  // packages/domain/**): the seven tests transcribed from the brief never
-  // exercise the `totalPages` bound or a backward-direction turn, so without
-  // these, coverage tooling could report 100% purely because the compound
-  // conditions those paths sit in happen to also be reached from other
-  // angles - each test below pins a real, otherwise-unproven behaviour, not
-  // just a branch.
+  // The three tests below close the branch-coverage gate the way
+  // flip.test.ts's own trailing block does (CLAUDE.md §2.1: 100% branches on
+  // packages/domain/**), and each pins a real, previously-broken behaviour
+  // (fix round 1: rotation was keyed off `half` instead of `go`, the
+  // turning-leaf identity was `state.from` for both directions instead of
+  // direction-dependent, and a stale index hid the whole book instead of
+  // clamping) - not just a branch to execute.
 
-  it('treats a leaf index at or past a shrunk book as never visible or interactive', () => {
-    // If a journey is deleted after a reader's tab already holds a FlipState
-    // pointing past the book's new, shorter page count, that stale index
-    // must not render as a real, clickable leaf - the same "never render
-    // what the reader shouldn't see" reasoning the `visible` rule states
-    // above, extended to indices the book no longer has at all.
+  it('starts rotating the moment `go` fires, not at the midpoint', () => {
+    // `go` - not `half` - drives the CSS transform (flip.ts's own field doc:
+    // "drives the CSS transform; false during arming so the transition
+    // animates"). Keying rotation off `half` instead left the transform
+    // starting at t = ARM_MS + duration/2 and finishing after the machine
+    // had already committed at t = ARM_MS + duration + SETTLE_MS.
+    let state = flipReducer(initialFlipState(3), { type: 'start', to: 4, now: 0 }, config)
+    expect(state.go).toBe(false)
+    expect(leafPresentation(3, state, TOTAL).rotateDeg).toBe(0) // still resting, before `go`
+
+    state = flipReducer(state, { type: 'tick', now: ARM_MS }, config)
+    expect(state.go).toBe(true)
+    expect(state.half).toBe(false)
+    expect(leafPresentation(3, state, TOTAL).rotateDeg).toBe(-180) // flips the instant `go` fires
+  })
+
+  it("clamps a stale index to the book's last page instead of leaving it blank", () => {
+    // If a journey is deleted after a reader's tab already holds a
+    // FlipState pointing past the book's new, shorter page count, that
+    // reader must land on the last real page - not a book where every leaf
+    // is hidden because nothing matches the stale index any more.
     const stale = initialFlipState(40)
 
+    expect(leafPresentation(TOTAL - 1, stale, TOTAL).visible).toBe(true)
+    expect(leafPresentation(TOTAL - 1, stale, TOTAL).interactive).toBe(true)
+    // The stale index itself is still outside the book's real range, so a
+    // leaf AT that index is never rendered.
     expect(leafPresentation(40, stale, TOTAL).visible).toBe(false)
     expect(leafPresentation(40, stale, TOTAL).interactive).toBe(false)
   })
 
-  it('does not rotate the departing leaf on a backward turn, since only a forward turn crosses the midpoint', () => {
-    // Turning leaf identity is always `state.from` (see pageStack.ts's module
-    // header): a forward turn's departing leaf swings to -180 past the
-    // midpoint, but a backward turn's departing leaf only fades via opacity -
-    // it still gets the zIndex lift, but its rotation stays flat because
-    // `state.dir` is 'backward', not 'forward'.
-    let state = flipReducer(initialFlipState(4), { type: 'start', to: 3, now: 0 }, config)
+  it('animates the destination leaf on a backward turn, not the leaf already at rest', () => {
+    // Turned leaves lie at -180 on the left; going 5 -> 4 must un-turn leaf 4
+    // (state.to). Leaf 5 (state.from) is already resting at 0 and never
+    // moves - it was the currently open page, not the one being revealed.
+    let state = flipReducer(initialFlipState(5), { type: 'start', to: 4, now: 0 }, config)
     expect(state.dir).toBe('backward')
+    expect(leafPresentation(4, state, TOTAL).rotateDeg).toBe(-180) // still resting, before `go`
 
-    state = flipReducer(state, { type: 'tick', now: 30 + 450 }, config)
+    state = flipReducer(state, { type: 'tick', now: ARM_MS }, config)
+    expect(state.go).toBe(true)
+
+    const destination = leafPresentation(4, state, TOTAL)
+    const departure = leafPresentation(5, state, TOTAL)
+
+    expect(destination.rotateDeg).toBe(0) // target flips to `to` the instant `go` fires
+    expect(destination.zIndex).toBe(2000)
+    expect(destination).toMatchObject({ frontOpacity: 0, backOpacity: 1 }) // starts showing its back
+
+    expect(departure.rotateDeg).toBe(0) // never moves
+    expect(departure.zIndex).toBe(1000 - 5)
+    expect(departure).toMatchObject({ frontOpacity: 1, backOpacity: 0 }) // inert
+
+    state = flipReducer(state, { type: 'tick', now: ARM_MS + config.durationMs / 2 }, config)
     expect(state.half).toBe(true)
 
-    const departing = leafPresentation(4, state, TOTAL)
-    expect(departing.rotateDeg).toBe(0)
-    expect(departing.zIndex).toBe(2000)
-    expect(departing).toMatchObject({ frontOpacity: 0, backOpacity: 1 })
+    // Backward crossfades the other way round from forward - handoff
+    // README's flip sequence table specifies both pairings on adjacent lines.
+    expect(leafPresentation(4, state, TOTAL)).toMatchObject({ frontOpacity: 1, backOpacity: 0 })
   })
 })

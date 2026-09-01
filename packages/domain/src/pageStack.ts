@@ -24,14 +24,21 @@
  *     `backface-visibility` was tried in the handoff prototype and produced
  *     blank pages; two real faces whose opacity swaps is the fix.
  *
- * `state.from` is the sole leaf identity read below for "the leaf currently
- * turning" (the -180 past-midpoint clause, the zIndex 2000 lift, and the
- * opacity cross fade all key off it, never off `state.to`). `flipReducer`
- * always sets `from: state.index` at the moment a turn starts and leaves
- * `index` unchanged until commit, so `state.from === state.index` for the
- * whole life of a turn - `state.to` never independently identifies a leaf
- * that `state.from`/`state.index` doesn't already cover. Depends on FlipState
- * from ./flip.ts; depends on nothing else, no DOM, no framework.
+ * Two more rules were wrong in an earlier revision of this module and are
+ * corrected here - see the comments at their point of use below:
+ *
+ *   - Rotation keys off `state.go` (the field that "drives the CSS
+ *     transform"), never `state.half` (which only swaps face opacity). Keying
+ *     rotation off `half` made the transform start at the midpoint, half the
+ *     duration, finishing after the machine had already committed.
+ *   - The leaf that physically moves is `state.from` going forward but
+ *     `state.to` going backward - a turned leaf resting at -180 is what a
+ *     backward turn un-turns. Keying "the turning leaf" off `state.from`
+ *     alone left backward turns animating an inert leaf while the one that
+ *     should move held at -180 until commit and then snapped.
+ *
+ * Depends on FlipState from ./flip.ts; depends on nothing else, no DOM, no
+ * framework.
  */
 import type { FlipState } from './flip.js'
 
@@ -51,7 +58,7 @@ export interface LeafPresentation {
   readonly visible: boolean
   /** Whether this leaf may receive pointer/keyboard input. True only for the current page, and never while a turn is in flight. */
   readonly interactive: boolean
-  /** Opacity of the leaf's front face: `1` at rest, crossing to `0` at the turn's midpoint. */
+  /** Opacity of the leaf's front face: `1` where the front is the showing face, `0` where the back is. */
   readonly frontOpacity: number
   /** Opacity of the leaf's back face: the inverse of `frontOpacity`, so exactly one face is visible at any instant. */
   readonly backOpacity: number
@@ -62,29 +69,49 @@ export interface LeafPresentation {
  *
  * @param leafIndex - The zero-based position of the leaf in the book.
  * @param state - The flip machine's current state (see `./flip.ts`).
- * @param totalPages - The book's current page count. Bounds `leafIndex`: a
- *   leaf at or past the book's actual edge (for example a stale `state.index`
- *   left over after a journey was deleted and the book got shorter) is never
- *   `visible` or `interactive`, even if its index would otherwise match -
- *   the same "never render what isn't really there" reasoning as the
- *   `visible` rule above, extended to indices the book no longer has.
+ * @param totalPages - The book's current page count. A `state.index` at or
+ *   past this count (for example a stale FlipState left over after a journey
+ *   was deleted and the book got shorter) is clamped to the last real page,
+ *   so a reader in that situation lands on a live page rather than a book
+ *   where no leaf is visible or interactive at all.
  * @returns The leaf's rotation, stacking, visibility, interactivity and face opacities.
  */
 export const leafPresentation = (leafIndex: number, state: FlipState, totalPages: number): LeafPresentation => {
   const inBounds = leafIndex < totalPages
-  const turned = leafIndex < state.index
-  // The leaf physically turning is always the current page's own leaf - see
-  // the module header for why `state.from`, never `state.to`, is the leaf
-  // identity used throughout this function.
-  const isTurningLeaf = state.busy && leafIndex === state.from
-  const turningForwardPastMidpoint = isTurningLeaf && state.dir === 'forward' && state.half
+  const currentIndex = Math.min(state.index, totalPages - 1)
+
+  // `go` - not `half` - is what starts the CSS transition (flip.ts's own
+  // field doc: "drives the CSS transform; false during arming so the
+  // transition animates"; `half` only swaps face opacity, past the
+  // midpoint). Before `go`, every leaf reads its resting angle against
+  // `currentIndex`; the instant `go` flips true the whole stack reads its
+  // resting angle against `state.to` instead, so exactly the one leaf whose
+  // resting angle differs between the two starts animating - continuously,
+  // because at commit `index === to`, so this value does not change again.
+  const target = state.busy && state.go && state.to !== null ? state.to : currentIndex
+  const turned = leafIndex < target
+
+  // The leaf that physically moves is `state.from` going forward (it swings
+  // from 0 to -180) but `state.to` going backward (a turned leaf, already
+  // resting at -180, swings back to 0). `state.from` is never the moving
+  // leaf on a backward turn - it was already resting at 0 and stays there.
+  const turningLeaf = state.busy ? (state.dir === 'forward' ? state.from : state.to) : null
+  const isTurningLeaf = turningLeaf !== null && leafIndex === turningLeaf
+
+  // Forward starts front-up and swaps to back-up past the midpoint; backward
+  // starts back-up (it was already resting at -180) and swaps to front-up -
+  // handoff README's flip sequence table specifies both pairings on adjacent
+  // lines. `(dir === 'forward') !== half` is true on the "still showing the
+  // start face" side of the midpoint for both directions, flipping at `half`.
+  const frontOpacity = isTurningLeaf ? ((state.dir === 'forward') !== state.half ? 1 : 0) : 1
+  const backOpacity = isTurningLeaf ? 1 - frontOpacity : 0
 
   return {
-    rotateDeg: turned || turningForwardPastMidpoint ? -180 : 0,
+    rotateDeg: turned ? -180 : 0,
     zIndex: isTurningLeaf ? 2000 : turned ? leafIndex + 1 : 1000 - leafIndex,
-    visible: inBounds && (leafIndex === state.index || leafIndex === state.from || leafIndex === state.to),
-    interactive: inBounds && leafIndex === state.index && !state.busy,
-    frontOpacity: isTurningLeaf ? (state.half ? 0 : 1) : 1,
-    backOpacity: isTurningLeaf ? (state.half ? 1 : 0) : 0,
+    visible: inBounds && (leafIndex === currentIndex || leafIndex === state.from || leafIndex === state.to),
+    interactive: inBounds && leafIndex === currentIndex && !state.busy,
+    frontOpacity,
+    backOpacity,
   }
 }
