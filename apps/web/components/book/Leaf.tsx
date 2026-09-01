@@ -77,6 +77,10 @@ export const Leaf = ({ index, presentation, durationMs, children }: LeafProps): 
         visibility: presentation.visible ? 'visible' : 'hidden',
         pointerEvents: presentation.interactive ? 'auto' : 'none',
         transitionDuration,
+        // Promoted to its own compositor layer only while it is actually
+        // moving. A blanket `will-change: transform` in the stylesheet would
+        // hold 33 standing layers for a book where at most one leaf turns.
+        willChange: isTurning ? 'transform' : 'auto',
       }}
     >
       <div data-face="front" className={styles.front} style={{ opacity: presentation.frontOpacity }}>

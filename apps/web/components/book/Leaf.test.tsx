@@ -183,4 +183,16 @@ describe('Leaf', () => {
 
     expect(leaf.style.transitionDuration).toBe('0ms')
   })
+
+  it('asks the compositor for a layer only while the leaf is actually turning', () => {
+    const leaf = renderLeaf(4, turningForward(4, 5))
+
+    expect(leaf.style.willChange).toBe('transform')
+  })
+
+  it('holds no compositor layer for a resting leaf, so a 33-page book does not stand up 33 of them', () => {
+    const leaf = renderLeaf(4, initialFlipState(4))
+
+    expect(leaf.style.willChange).toBe('auto')
+  })
 })

@@ -122,7 +122,11 @@
   inset: 0;
   transform-origin: left center;
   transform-style: preserve-3d;
-  will-change: transform;
+  /* `will-change` is deliberately NOT here. Declared on `.leaf` it would ask
+   * the compositor for 33 standing layers on a book where at most one moves -
+   * memory on a phone, for no frame-rate gain, and the property's own
+   * documented misuse. Leaf.tsx sets it inline on the one leaf that is
+   * actually turning, alongside the duration it already varies there. */
   /* See rule 3 in this file's header: the property is fixed, the duration is
    * what Leaf.tsx varies. Never add a layout property to this list. */
   transition-property: transform;
