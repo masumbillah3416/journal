@@ -20,7 +20,16 @@ Enforced by TWO configs, because no single Vitest run can execute everything:
   | `packages/domain/**` (pure logic) | 100% | 100% | 100% |
   | `apps/web/lib/**`, server actions | 95% | 95% | 95% |
   | `apps/web/app/**` | 95% | 95% | 95% |
-  | Repository-wide (`apps/web/components/**` included) | 90% | 90% | 90% |
+  | `apps/web/components/**` | 90% | 90% | 90% |
+  | Repository-wide | 90% | 90% | 90% |
+
+  `apps/web/components/**`'s own row arrived with Phase 1 Task 7, the task that put the
+  first real files there (the book's frame, page stack and the two hooks that drive
+  them). Until then it deliberately had none: a threshold against an empty directory is a
+  vacuous pass, not a gate. It is set at the repository floor rather than `lib`'s and
+  `app`'s 95% because these are React bindings, whose last few percent are framework
+  glue; as of that task every file under it measures **100% on all four metrics**, so the
+  bar is a floor, not a ceiling that was negotiated down to fit.
 
 - **`vitest.integration.config.ts`**, checked by `npm run test:integration:coverage`.
   Covers everything only a real Postgres can execute: the integration-only `lib` and
@@ -50,8 +59,10 @@ test can execute without a Next.js request context:
   carry a `c8 ignore start`/`stop` around their whole body — imports included, since an
   unimported file's own imports are themselves uncovered lines otherwise. They report as
   fully excluded (no row at all in a passing run).
-- The other three sit under a Next.js dynamic-route directory written in square brackets
-  (`api/[...slug]/route.ts`, `cms/[[...segments]]/page.tsx` and its `not-found.tsx`) —
+- The other three — joined in Phase 1 Task 7 by the diary's own
+  `(diary)/p/[n]/page.tsx` — sit under a Next.js dynamic-route directory written in
+  square brackets (`api/[...slug]/route.ts`, `cms/[[...segments]]/page.tsx` and its
+  `not-found.tsx`) —
   required by Next.js's own routing convention. `c8 ignore start`/`stop` does not take
   effect for a file under a bracketed directory: verified by reproducing one of them
   byte-for-byte under an unbracketed sibling directory and watching the *copy* get
@@ -69,11 +80,22 @@ test can execute without a Next.js request context:
   coverage-tooling bug against a file with zero authored logic, not an unmeasured gap this
   phase failed to notice.
 
-`apps/web/components/**` is genuinely empty as of this task (`.gitkeep` only) and carries
-no per-glob threshold override — a threshold against zero files is the vacuous pass
-CLAUDE.md's controller ruling for this task explicitly forbade adding. It falls under the
-repository-wide floor the moment a real file lands there, same as any other directory the
-`include` reaches but does not name.
+`(diary)/p/[n]/page.tsx` (Phase 1 Task 7) was added to that same exclusion list, and the
+defect was re-verified rather than inherited. The control sat inside the very same
+coverage run: `(diary)/layout.tsx` — identical `c8 ignore start`/`stop` wrapping,
+identically never imported by any test, but not under a bracketed directory — reported
+correctly as 0 of 0 with no uncovered lines, while `(diary)/p/[n]/page.tsx`, wrapped
+exactly the same way, reported its whole body (lines 1–22) as uncovered. The bracket is
+the only difference between the two files, so it is the scanner that fails, not the file.
+The route itself was written to hold zero authored logic precisely so it could qualify:
+its one real decision — what `<n>` means — lives in `packages/domain/src/pageAddress.ts`
+with its own 100%-covered suite.
+
+`apps/web/components/**` was genuinely empty until Phase 1 Task 7 (`.gitkeep` only) and
+carried no per-glob threshold override until then — a threshold against zero files is the
+vacuous pass CLAUDE.md's controller ruling for Task 1 explicitly forbade adding. Task 7,
+which landed the first files there, added the explicit 90%/90%/90% row in the same commit,
+per CLAUDE.md §2.1.
 
 An uncovered line outside `packages/domain` requires a
 `/* c8 ignore next -- <reason> */` comment with a real reason (`CLAUDE.md` §2.1). Where a
@@ -112,7 +134,17 @@ would claim a measurement nothing performs.
     **jsdom** environment, with esbuild's automatic JSX runtime so a component test
     needs no `import React`. A separate project rather than a wider glob on `unit`
     because the environment differs, and paying jsdom's setup cost for every pure test
-    to accommodate a handful of component tests is the wrong trade.
+    to accommodate a handful of component tests is the wrong trade. Two further settings
+    arrived with Phase 1 Task 7's first real components: `setupFiles:
+    ['./vitest.dom-setup.ts']`, which sets `IS_REACT_ACT_ENVIRONMENT` once for every file
+    instead of four repeated lines at the top of each (React reads the flag off the
+    global object, so it cannot be set by importing anything), and
+    `css.modules.classNameStrategy: 'non-scoped'`, which makes a CSS Module import
+    resolve each key to its own literal name rather than `undefined`. Nothing in a jsdom
+    test asserts a computed style — jsdom performs no layout, which is exactly why the
+    rules that matter (a back face's `pointer-events: none` above all) are asserted in a
+    real browser instead — so the strategy is purely about components rendering readable
+    class names under test.
 
   `unit-dom` exists *before* Phase 1's first component, on purpose. Until it did, no
   project's `include` matched `*.test.tsx` and neither set a DOM environment — so the
@@ -296,10 +328,30 @@ would claim a measurement nothing performs.
 - **Tool:** Playwright (`playwright.config.ts`, Task 12).
 - **Scope:** real journeys — page flip, bookmark jump, gallery, lightbox, mobile swipe,
   sign-in + OTP, upload round-trip.
-- **Status:** the harness is implemented; the journeys it will guard are not. The public
-  diary, the bespoke `/admin` panel and sign-in are all Phase 1+ — the only route this
-  app serves today is Payload's own admin at `/cms` (`apps/web/payload.config.ts`).
-  `e2e/smoke.spec.ts` is today's one real end-to-end test: it loads `/cms` and asserts
+- **Status:** the harness is implemented, and the first real journey it guards is the
+  book. The bespoke `/admin` panel and sign-in are still later phases; the routes this
+  app serves today are Payload's own admin at `/cms` and the diary's `/p/<n>`.
+
+  **`e2e/book.spec.ts` (Phase 1 Task 7)** covers what only a real layout engine can
+  answer, and deliberately nothing that `packages/domain` already proves: that a click on
+  a Contents link is not swallowed by the leaf's back face, that no back face can receive
+  pointer events at all, that the leaf transitions `transform` and nothing else, that no
+  element anywhere inside the book animates a layout property, that the design box is a
+  fixed 1300×860 scaled by a transform rather than reflowed, that it rescales when the
+  viewport changes, and that exactly one leaf is visible at rest.
+
+  Its first case is the load-bearing one. The handoff records the exact defect
+  (README, "Pointer-events warning"): with the back face clickable, Contents links and
+  gallery buttons appeared completely dead while their handlers were fine, and it cost a
+  debugging session to find. The assertion was proved able to fail — removing
+  `pointer-events: none` from `.back` in `book.module.css` and re-running the suite fails
+  it on all three viewport projects, with Playwright naming the culprit outright
+  (`<div data-face="back" …> intercepts pointer events`); restoring the rule turns it
+  green again. That is also why the back face is hidden by opacity alone and never by
+  `visibility`: a second, redundant guard would have made the rule that actually matters
+  untestable.
+
+  `e2e/smoke.spec.ts` is the console-error gate: it loads `/cms` and `/p/1` and asserts
   **zero** `console` (error level) and `pageerror` events, with both listeners attached
   *before* `page.goto()`. This is deliberately the harness's centre of gravity, not an
   afterthought — the handoff's own defect log (`CLAUDE.md` §10, `SCREENS.md`) is mostly
@@ -317,8 +369,8 @@ would claim a measurement nothing performs.
   to catch the class of defect this harness targets today (console/pageerror,
   axe violations, pixel drift). Cross-browser coverage is a candidate for a later phase,
   not a Task 12 gap silently worked around — see `playwright.config.ts`'s header.
-- **Run:** `npm run test:e2e` (headless, runs `e2e/smoke.spec.ts`); `npm run
-  test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
+- **Run:** `npm run test:e2e` (headless, runs `e2e/smoke.spec.ts` and
+  `e2e/book.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.
@@ -326,14 +378,20 @@ would claim a measurement nothing performs.
   reflecting the state machine (e.g. `flipMachine`'s state), not on re-deriving the
   machine's logic in the test. Every new route gets its own `test()` in
   `e2e/smoke.spec.ts` first — a route with no console-error coverage is a route this
-  suite is silently not protecting.
+  suite is silently not protecting. A new spec file also needs adding to the
+  `test:e2e` script; a spec no script names is a spec CI does not run.
 
 ### 5 · Visual regression
 
 - **Tool:** Playwright snapshots (`toHaveScreenshot`, `maxDiffPixelRatio: 0.01` in
   `playwright.config.ts` — the design is high-fidelity, so drift is a defect, not noise).
 - **Scope:** every page type and every admin screen, at each breakpoint. Drift from the
-  high-fidelity design is treated as a defect.
+  high-fidelity design is treated as a defect. The diary's pages are deliberately NOT
+  snapshotted yet: Phase 1 Task 7 built the book's frame and page stack, but the pages
+  it holds are the designed layouts of Tasks 9–11, and a baseline captured against
+  provisional page content would have to be thrown away and recaptured, teaching nobody
+  to trust it in between. Each of those tasks adds its own snapshots as it lands its
+  pages.
 - **Status:** the mechanism is implemented and proven, and now runs in CI (Task 1 of
   Phase 1 closed the gap below). `e2e/visual.spec.ts` snapshots the one screen that exists
   today — `/cms` — at all three breakpoints, using the exact `toHaveScreenshot`/
@@ -372,8 +430,11 @@ would claim a measurement nothing performs.
 - **Scope:** every route. Contrast ratios from the handoff's token table are asserted,
   not assumed (e.g. `ink-muted` must stay opaque — an alpha version measures below
   4.5:1, per the handoff's own note).
-- **Status:** implemented for the one route that exists, `/cms`, asserting `results.
-  violations` is empty — zero violations, not "no critical violations"; CLAUDE.md's
+- **Status:** implemented for both routes that exist. `/p/1` (Phase 1 Task 7) calls
+  `expectNoAxeViolations(page)` with **no exclusions at all** — every rule in the full
+  ruleset applies to a route this project authored, and `/cms`'s two allowances below
+  must never be inherited by it. It passes on all three viewport projects. `/cms`
+  asserts `results.violations` is empty — zero violations, not "no critical violations"; CLAUDE.md's
   non-negotiables draw no line between severities. `expectNoAxeViolations` defaults to
   the FULL ruleset with no exclusions; a caller passes rule ids to disable only via its
   `options.allow`, visibly, at its own call site. Running axe against `/cms` today

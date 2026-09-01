@@ -3,9 +3,9 @@
  *
  * CLAUDE.md §2 requires axe-core in Playwright against every route, asserting
  * zero violations rather than "no critical violations" — the non-negotiables
- * draw no line between severities. Only `/cms` exists today (see
- * smoke.spec.ts's header for why); add one `test()` per route as the public
- * diary and the bespoke admin land in later phases.
+ * draw no line between severities. Two routes exist today, `/cms` and the
+ * diary's `/p/<n>` (see smoke.spec.ts's header); add one `test()` per route
+ * as the rest of the public diary and the bespoke admin land.
  *
  * Every case calls `expectNoAxeViolations` (`e2e/support/axe.ts`) rather than
  * building its own `AxeBuilder`, so the FULL ruleset is the default everyone
@@ -40,4 +40,13 @@ test('has no axe violations on /cms', async ({ page }) => {
   // These two rules belong to Payload's own generated admin markup, not to
   // any code authored here — see this file's header for the finding.
   await expectNoAxeViolations(page, { allow: ['landmark-one-main', 'page-has-heading-one'] })
+})
+
+test('has no axe violations on /p/1', async ({ page }) => {
+  await page.goto('/p/1')
+
+  // No exclusions, deliberately: every rule in the full ruleset applies to a
+  // route this project authored. The `allow` list on /cms above is scoped to
+  // Payload's own generated markup and must never be inherited here.
+  await expectNoAxeViolations(page)
 })

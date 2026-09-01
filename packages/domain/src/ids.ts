@@ -7,10 +7,13 @@
  * handoff records five separate defects caused by per-journey state held in one
  * global value (README "State" > "Admin") — distinct id types are the compile-time
  * half of the fix; keying every collection by id is the runtime half.
- * Depends on: Result, from ./result.js.
+ * Depends on: Result, from ./result. (The specifier carries no `.js`
+ * extension: anything a Next.js route can reach must be extensionless, since
+ * Turbopack does not resolve a `.js` specifier to a `.ts` file - see
+ * docs/architecture.md.)
  */
-import type { Result } from './result.js'
-import { err, ok } from './result.js'
+import type { Result } from './result'
+import { err, ok } from './result'
 
 /** Opaque brand carried by every identifier type, never present at runtime. */
 type Brand<Name extends string> = { readonly __brand: Name }

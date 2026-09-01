@@ -1,0 +1,30 @@
+/**
+ * diary.css — the document-level reset the diary route group needs.
+ *
+ * Deliberately tiny. The book is a fixed 1300x860 box scaled by a transform,
+ * so the only thing the document itself has to get right is to stop adding
+ * space around it: a default 8px body margin would push the measured stage
+ * past the viewport and make the book scale down to fit a container larger
+ * than the window.
+ *
+ * `@travel-diary/tokens/tokens.css` is imported first so every `--td-*`
+ * custom property this route's components read is defined before any rule
+ * that uses one.
+ * Depends on: packages/tokens/src/tokens.css.
+ */
+@import '@travel-diary/tokens/tokens.css';
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--td-outer);
+  color: var(--td-ink);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}

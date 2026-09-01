@@ -88,12 +88,25 @@
  * the moment it lands (Task 13's diary route and any further page under
  * `app/`), not the ignored or excluded scaffolding.
  *
- * `apps/web/components/**` gets no per-glob threshold override (unlike
- * `app/**`): the directory is genuinely empty (`.gitkeep` only) as of this
- * commit, and a threshold against zero files is the "vacuous pass" this
- * task was told explicitly not to add. It still falls under the repo-wide
- * 90% floor below the moment a real file lands there, exactly like any
- * other directory this config's `include` reaches but does not name.
+ * `apps/web/components/**` held no files at all until Task 7 of Phase 1, so
+ * it deliberately carried no per-glob threshold - a threshold against zero
+ * files is a vacuous pass, not a gate. Task 7 landed the book's frame, page
+ * stack and the two hooks that drive them there, so the directory now
+ * carries an explicit 90%/90%/90% threshold below: the repository-wide floor
+ * this file's earlier revision always said these files would fall under once
+ * they existed, now named rather than inherited, per CLAUDE.md §2.1's "adding
+ * code in a new directory means adding that directory to an include, with a
+ * real threshold, in the same commit".
+ *
+ * The `unit-dom` project gains two settings with Task 7's first real
+ * components: a `setupFiles` entry (see `vitest.dom-setup.ts`) and
+ * `css.modules.classNameStrategy: 'non-scoped'`, which makes a CSS Module
+ * import resolve each key to its own literal name instead of `undefined`.
+ * Nothing in a jsdom test asserts a computed style - jsdom performs no
+ * layout, which is exactly why the rules that matter (a back face's
+ * `pointer-events: none` above all) are asserted in a real browser by
+ * `e2e/book.spec.ts` - so the strategy is purely about components rendering
+ * readable class names under test.
  * Depends on: vitest/config.
  */
 import { defineConfig } from 'vitest/config'
@@ -129,6 +142,20 @@ export default defineConfig({
         esbuild: { jsx: 'automatic' as const },
         test: {
           name: 'unit-dom',
+          // React refuses to run `act()` unless IS_REACT_ACT_ENVIRONMENT is
+          // true on the global object, and reads it from there rather than
+          // from an import - so it is set once here for every component and
+          // hook test instead of four repeated lines at the top of each.
+          setupFiles: ['./vitest.dom-setup.ts'],
+          // CSS Modules are not compiled for this project (nothing here
+          // asserts a computed style - jsdom performs no layout, so the rules
+          // that matter, `pointer-events: none` on a back face above all, are
+          // asserted in the browser by e2e/book.spec.ts). `classNameStrategy:
+          // 'non-scoped'` makes `styles.leaf` resolve to the literal string
+          // `leaf` rather than `undefined`, so a component test renders the
+          // same class names a reader would see in the DOM instead of
+          // `class="undefined"`.
+          css: { modules: { classNameStrategy: 'non-scoped' as const } },
           // Until this project existed, no project's `include` matched
           // `*.test.tsx` and no project set a DOM environment. A React
           // component test would therefore have been collected by NOBODY -
@@ -248,6 +275,28 @@ export default defineConfig({
         // treatments (exclude-and-regate; `c8 ignore`) both assume the
         // chosen mechanism actually works, which this one demonstrably does
         // not here.
+        // Task 7 of Phase 1 added the diary's own bracketed route to this
+        // list, and re-verified the defect above rather than inheriting the
+        // claim. The control sits inside the very same coverage run: this
+        // task's `(diary)/layout.tsx` - identical `c8 ignore start`/`stop`
+        // wrapping, identically never imported by any test, but NOT under a
+        // bracketed directory - is correctly reported as 0 of 0 with no
+        // uncovered lines, while `(diary)/p/[n]/page.tsx`, wrapped exactly
+        // the same way, was reported with its whole body (lines 1-22)
+        // uncovered. The bracket is the only difference between them, so it
+        // is the scanner that fails, not the file. The file itself qualifies
+        // for CLAUDE.md §2.1's narrow carve-out on all three counts: it was
+        // read and holds zero authored logic (await the route params, read
+        // the bundle, render `<Book>` - its one real decision, what `<n>`
+        // means, is delegated to `pageIndexFromParam`, which has its own
+        // 100%-covered suite in packages/domain); the tooling defect is named
+        // and reproduced above; and this entry names the exact path, so a
+        // future file placed beside it under the same bracketed parent is not
+        // swept into the same hole and must justify its own exclusion. Its
+        // runtime behaviour is covered in a real browser by e2e/book.spec.ts
+        // and e2e/smoke.spec.ts. Revisit when @vitest/coverage-v8's version
+        // changes - a fixed scanner removes the justification.
+        'apps/web/app/(diary)/p/\\[n\\]/page.tsx',
         'apps/web/app/(payload)/api/\\[...slug\\]/route.ts',
         'apps/web/app/(payload)/cms/\\[\\[...segments\\]\\]/page.tsx',
         'apps/web/app/(payload)/cms/\\[\\[...segments\\]\\]/not-found.tsx',
@@ -288,6 +337,26 @@ export default defineConfig({
           lines: 95,
           branches: 95,
           functions: 95,
+        },
+        // Task 7 of Phase 1 populated apps/web/components/** with its first
+        // real files (the book's frame, page stack and the two hooks that
+        // drive them), so the directory now gets the explicit threshold
+        // CLAUDE.md §2.1 asks for - "adding code in a new directory means
+        // adding that directory to an include, with a real threshold, in the
+        // same commit". It is set at the repository-wide 90% floor, which is
+        // the bar this config's own header always said these files would
+        // fall under once they existed; the higher 95% bar is reserved for
+        // `lib/**` and `app/**`, whose files are server-side logic rather
+        // than a React binding whose last few percent are framework glue.
+        'apps/web/components/**/*.tsx': {
+          lines: 90,
+          branches: 90,
+          functions: 90,
+        },
+        'apps/web/components/**/*.ts': {
+          lines: 90,
+          branches: 90,
+          functions: 90,
         },
       },
     },

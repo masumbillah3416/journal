@@ -49,7 +49,30 @@ module, independently testable, named in its own header.
 | `flipMachine` | `packages/domain` | Pure reducer over `{dir, from, to, go, half, busy}` with an injected clock |
 | `bookScale` | `packages/domain` | `(area) → number`, `min(w/1300, h/860)` capped at 1.7 |
 | `bookBundle` | `packages/domain` + `apps/web/lib` | Payload rows in, one typed `BookBundle` out. The diary client reads nothing else. |
+| `pageStack` | `packages/domain` | `(leafIndex, FlipState, totalPages) → LeafPresentation`. Every field maps one-to-one into CSS, so the DOM layer re-derives no flip geometry. |
+| `pageAddress` | `packages/domain` | `('<n>', totalPages) → leafIndex`. The only translation between the 1-based page number a reader shares and the 0-based index the stack works in. |
 | `storage` / `mailer` / `transcodeQueue` | `apps/web/lib` | Ports with local and production adapters, one shared contract suite run against both |
+
+### The book's DOM binding (`apps/web/components/book/`)
+
+Phase 1 Task 7 added the one place the pure modules above become a page. It is
+deliberately thin, and every file in it names what it is allowed to decide:
+
+| File | Responsibility |
+|---|---|
+| `Book.tsx` | The diary's single `'use client'` boundary. Composes frame, scaled design box and stack; owns no arithmetic. |
+| `Leaf.tsx` | Assigns one `LeafPresentation` straight into `rotateY()`, `z-index`, `visibility`, `pointer-events` and the two face opacities. |
+| `PageFace.tsx` | The content of one page. Provisional until Tasks 9–11 land the designed layouts. |
+| `useFlip.ts` | Injects a real clock into `flipReducer` from a single `requestAnimationFrame` loop that stops when the book settles. |
+| `useBookScale.ts` | Feeds `bookScale` a measurement, re-measured on resize and through a `ResizeObserver`, always inside one animation frame. |
+| `book.module.css` | The handoff's absolute geometry. Holds the three rules that record real defects: no `backface-visibility`, back faces always `pointer-events: none`, and only `transform`/`opacity` ever transitioned. |
+
+**A `.js` import specifier does not survive Turbopack.** Next's bundler resolves
+`./payload.js` to nothing when the file on disk is `payload.ts`; Vitest and `tsc` both
+resolve it happily, so the mismatch stays invisible until a Next route imports the module
+for the first time — which `/p/<n>` was. Anything `apps/web/app/**` can reach therefore
+uses extensionless relative imports, matching `payload.config.ts`'s existing style.
+Type-only imports are exempt because they are erased before the bundler sees them.
 
 `BookBundle` is the only serialization boundary between server and diary client — the
 diary never learns what a Payload row looks like. `bookBundle`'s pure mapping rules
@@ -149,6 +172,15 @@ only `inline` deploys until video is turned back on.
 - **`bookScale`** — the book is authored at a fixed 1300×860 design box and must stay
   resolution-independent at any viewport; extracting the scale function as pure logic
   keeps the 1.7× cap (closing the handoff's known 4K gap) testable without a DOM.
+- **`pageStack`** — the flip's geometry is the part of the book that has actually gone
+  wrong: a rotation keyed off the wrong field, the wrong leaf animated on a backward
+  turn, a face crossfade that only worked forwards. Deriving all of it in one pure
+  function means the DOM layer has nothing left to get wrong, and the browser layer's
+  own tests can be about the browser (a swallowed click, a real transition) instead of
+  re-testing geometry.
+- **`pageAddress`** — a page component cannot be run without a Next request context, so
+  arithmetic living inside one is arithmetic nothing can check. Keeping the one decision
+  `/p/<n>` makes in the domain package is what leaves the route itself a passthrough.
 - **`bookBundle`** — one serialization boundary means the diary client's shape can never
   silently drift from what Payload happens to store; a schema change on the Payload side
   is caught at the `bookBundle` assembly step, not scattered across every component that

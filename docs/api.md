@@ -20,13 +20,13 @@ Whenever a route or server action is added, it is documented here **in the same 
 A stale entry here is worse than a missing one — changing a route's behaviour means
 updating its row in the same commit that changes the code (`CLAUDE.md` §1.3).
 
-## Phase 0 status
+## Status
 
-`apps/web` is scaffolded, and four route handlers exist today — all of them Payload's
-own, mounted under the `(payload)` route group and documented in the next section.
-No route or server action written *for the diary* exists yet; those arrive with Phase 1
-routing and are listed further down as **planned**, using only what the design spec (§8)
-already specifies, so Phase 1 has a contract to build against rather than inventing one
+Five route handlers exist today: Payload's own four, mounted under the `(payload)` route
+group, and the diary's `/p/<n>`, added with the book itself in Phase 1 Task 7 and
+extended in Task 13. Both sets are documented in full below. Everything still unbuilt is
+listed further down as **planned**, using only what the design spec (§8) already
+specifies, so each phase has a contract to build against rather than inventing one
 mid-phase.
 
 ## Payload-owned routes (live today)
@@ -132,27 +132,44 @@ for a different reason — see its row.
   guarantee is deleting this route directory in production, which is Phase 4's job once
   the bespoke panel replaces it.
 
-## Planned routes (Phase 1)
+## Diary routes (live today)
 
 ### `GET /p/<n>`
 
-- **Method:** `GET`.
+- **Path:** `apps/web/app/(diary)/p/[n]/page.tsx`, with `app/(diary)/layout.tsx` as the
+  route group's own root layout (parallel to `(payload)`'s, so the diary inherits none of
+  Payload's admin chrome).
+- **Method:** `GET` — a React Server Component route.
 - **Input:** `n` — a 1-indexed page number, path parameter. Not a `PageId`; a positional
   index into the book's ordered page list, since it is meant to be a short, memorable,
-  shareable URL (design spec §8).
-- **Output:** the diary page at that position, server-rendered from a `BookBundle`
-  assembled for the whole book. Content is statically rendered; the client takes over
-  only for scaling and the flip.
-- **Errors:** `n` outside the valid page range — behaviour (404 vs. clamp vs. redirect to
-  the nearest valid page) is not specified by the design spec and will be decided and
-  documented here when the route is built, not assumed now.
+  shareable URL (design spec §8). It is interpreted by
+  `pageIndexFromParam` (`packages/domain/src/pageAddress.ts`), not by this route, which
+  holds no logic of its own.
+- **Output:** the whole book, server-rendered from one `BookBundle`
+  (`apps/web/lib/readBookBundle.ts`), opened at the leaf `n` addresses. The client takes
+  over only for scaling (`useBookScale`) and flipping (`useFlip`).
+- **Errors:** none observable today. `n` outside the valid page range, or not a whole
+  page number at all, is **clamped** to the nearest real page rather than refused — the
+  same choice `pageStack.ts` makes for a stale index, and for the same reason: a reader
+  with a bad address should land on a page rather than a blank stack. A Payload failure
+  while assembling the bundle surfaces as a `500`, since `readBookBundle` throws on the
+  two boundary invariants it enforces (a journey missing `startsOn`; a media item with no
+  derivative of any tier).
 - **Auth requirement:** none. The public diary needs no authentication
   (`SECURITY.md`, "Sessions and access") — except that `site.passwordProtect`, when set,
   must gate this route server-side; a client-side check leaves the content fetchable
-  (`docs/security.md`).
+  (`docs/security.md`). **That gate is not built yet** and is tracked in
+  `docs/security.md`, not discharged here.
 - **Notes:** the URL is written on every turn (flip commit, mobile step, bookmark jump)
   and read on load, so the reader's exact page survives a reload or a shared link.
   Returning from `/gallery/<slug>` must restore the `/p/<n>` the reader was on, not `/`.
+- **Still to come (Task 13, which extends this same file):** `generateStaticParams` for
+  all 33 pages, revalidation, a real `404` for an out-of-range page in place of today's
+  clamp, per-page metadata, and the gallery-return behaviour. Task 8 adds the flip
+  triggers that write the URL on a turn. Both are named here so the gap between this row
+  and the design spec is a recorded decision rather than an omission.
+
+## Planned routes (Phase 1)
 
 ### `GET /gallery/<slug>`
 

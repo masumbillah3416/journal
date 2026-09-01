@@ -8,10 +8,10 @@
  * them. `console` (error level) and `pageerror` listeners are attached
  * *before* navigation, so nothing fired during the initial load can be missed.
  *
- * Only `/cms` exists today (Payload's own admin, mounted per
- * `apps/web/payload.config.ts`'s `routes.admin`) — the public diary is
- * Phase 1. Add one `test()` per route as routes are built; do not assert
- * against a route that does not exist yet.
+ * Two routes exist today: `/cms` (Payload's own admin, mounted per
+ * `apps/web/payload.config.ts`'s `routes.admin`) and `/p/<n>`, the public
+ * diary page added with the book itself (Task 7). Add one `test()` per route
+ * as routes are built; do not assert against a route that does not exist yet.
  * Depends on: @playwright/test, the running app from playwright.config.ts's
  * `webServer`.
  */
@@ -42,6 +42,32 @@ test('loads /cms without console errors or page errors', async ({ page }) => {
   // silent defect this suite exists to catch — can land a beat later than
   // either of those. A fixed grace period is unglamorous but reliable here;
   // there is no DOM signal to wait on for "hydration finished" in general.
+  await page.waitForTimeout(500)
+
+  expect(errors).toEqual([])
+})
+
+test('loads /p/1 without console errors or page errors', async ({ page }) => {
+  const errors: string[] = []
+
+  // Attached before goto(), for the same reason as the /cms case above.
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      errors.push(message.text())
+    }
+  })
+  page.on('pageerror', (error) => {
+    errors.push(error.message)
+  })
+
+  const response = await page.goto('/p/1', { waitUntil: 'networkidle' })
+
+  expect(response?.ok(), `expected /p/1 to respond 2xx, got ${String(response?.status())}`).toBe(true)
+
+  // The book hydrates into a client component that measures its container and
+  // sets a scale; a hydration mismatch between the server's unmeasured render
+  // and the client's would surface here, a beat after networkidle, and
+  // nowhere else.
   await page.waitForTimeout(500)
 
   expect(errors).toEqual([])
