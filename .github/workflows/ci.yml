@@ -41,19 +41,37 @@ jobs:
       - run: npm run db:migrate -w apps/web
       - run: npm run verify:full
 
-  # Second, independent job (Task 12): the browser, accessibility and
-  # performance suites from CLAUDE.md §2, run against a *built* app —
+  # Second, independent job (Task 12): the browser, accessibility, visual
+  # and performance suites from CLAUDE.md §2, run against a *built* app —
   # `next start`, not `next dev` — with its own migrated, seeded Postgres.
   # Kept separate from `verify` above so that job stays exactly what
   # docs/testing.md promises it is: Docker-free and fast. This job needs
   # Docker (the postgres service) and a browser binary, and is slower by
   # design — a build, a migration, a seed and three real browser projects.
+  #
+  # Runs INSIDE `mcr.microsoft.com/playwright:v1.62.1-noble` (Task 1) — the
+  # version pin matches package-lock.json's `@playwright/test` exactly, and
+  # must be bumped alongside it. This is the fix for a real, previously-
+  # documented gap: `toHaveScreenshot` baselines are keyed by OS and font
+  # rendering, so Windows-generated baselines (`-win32.png`) never honestly
+  # compared against this job's Ubuntu rendering, regardless of whether a
+  # page had actually changed. Generating AND comparing inside the same
+  # pinned image (see docs/testing.md's Visual regression section) closes
+  # that gap instead of working around it — the committed baselines are now
+  # `-linux.png`, produced by running `npx playwright test
+  # e2e/visual.spec.ts --update-snapshots` inside this exact image.
   browser:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
     # Same image and health-check reasoning as `verify` above; a second,
-    # independent Postgres instance on the runner's own port 5432, unrelated
-    # to either developer's local Postgres (5433) or `verify`'s (a different
-    # job, a different runner, its own 5432).
+    # independent Postgres instance, unrelated to either developer's local
+    # Postgres (5433) or `verify`'s (a different job, a different runner).
+    # Reached at the service id (`postgres`), not `localhost`: once the job
+    # itself runs inside a container (above), GitHub Actions puts the job
+    # and its service containers on one Docker network addressed by service
+    # name, rather than mapping the service's port onto the runner's own
+    # localhost the way an uncontainerized job would.
     services:
       postgres:
         image: postgres:16-alpine
@@ -61,22 +79,21 @@ jobs:
           POSTGRES_USER: diary
           POSTGRES_PASSWORD: diary
           POSTGRES_DB: diary
-        ports:
-          - 5432:5432
         options: >-
           --health-cmd "pg_isready -U diary"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgres://diary:diary@localhost:5432/diary
+      DATABASE_URL: postgres://diary:diary@postgres:5432/diary
       PAYLOAD_SECRET: ci-only-secret-value-never-used-outside-actions-32
       MEDIA_ORIGIN: http://localhost:3000
       CI: true
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
+      # No actions/setup-node and no `playwright install`: the pinned image
+      # already ships a matching Node (>=22, satisfying package.json's
+      # `engines`) and every Playwright browser this repo uses pre-installed.
       - run: npm ci
       # playwright.config.ts's webServer builds and `next start`s the app
       # itself once CI=true, so no separate build/start step is needed here
@@ -85,38 +102,47 @@ jobs:
       # a migrated, seeded database"), and matching what a real deploy does.
       - run: npm run db:migrate -w apps/web
       - run: npm run db:seed -w apps/web
-      # Only Chromium is used (see playwright.config.ts's header) — no
-      # --with-deps for firefox/webkit, so this stays a small, fast install.
-      - run: npx playwright install --with-deps chromium
-      # One Playwright invocation for both suites (rather than chaining
-      # `npm run test:e2e` and `npm run test:a11y` as separate steps): with
-      # `reuseExistingServer` off in CI (playwright.config.ts), each
-      # invocation would otherwise re-run `next build` from scratch.
-      - run: npx playwright test e2e/smoke.spec.ts e2e/a11y.spec.ts
-      # NOT run here: `test:visual`. Playwright's `toHaveScreenshot`
-      # baselines are OS- and font-rendering-specific — the ones committed
-      # in e2e/visual.spec.ts-snapshots/ were generated on the developer's
-      # Windows machine (files suffixed `-win32.png`) and Playwright's own
-      # lookup will not match them against this Ubuntu runner's rendering,
-      # regardless of whether the page actually changed. The standard fix is
-      # running inside Playwright's own pinned Docker image
-      # (mcr.microsoft.com/playwright) so baselines are generated and
-      # compared in one consistent environment; standing that up and
-      # verifying it end-to-end was out of scope for Task 12 and is recorded
-      # as unresolved in the Task 12 report. `npm run test:visual` remains
-      # fully working locally today (see docs/testing.md) and is the engine
-      # `sweeping-for-browser-defects` sweeps use for now.
+      # One Playwright invocation for all three suites (rather than chaining
+      # `npm run test:e2e`, `npm run test:a11y` and `npm run test:visual` as
+      # separate steps): with `reuseExistingServer` off in CI
+      # (playwright.config.ts), each invocation would otherwise re-run
+      # `next build` from scratch. `e2e/visual.spec.ts` now runs here too —
+      # see this job's own header for why its baselines finally compare
+      # honestly on this runner.
+      - run: npx playwright test e2e/smoke.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
+      # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
+      # image: chrome-launcher's own auto-detection looks for a system
+      # `google-chrome`/`chromium-browser` binary, which this image does not
+      # install — it ships browsers under /ms-playwright instead, which is
+      # exactly what the `npx playwright test` step above already used
+      # successfully. Resolved with `find` rather than hard-coding the
+      # versioned directory name (e.g. `chromium-1234`), which is an
+      # internal Playwright build id that can change on an image update
+      # this workflow did not otherwise ask for.
+      - name: Locate this image's Chromium binary for Lighthouse
+        run: echo "CHROME_PATH=$(find /ms-playwright -maxdepth 3 -iname chrome | head -1)" >> "$GITHUB_ENV"
+      # GATED, deliberately, even though `/p/1` (lighthouserc.json's diary
+      # URL) does not exist until Task 13 — this is a controller ruling for
+      # Task 1, not an oversight: leaving `continue-on-error` on until the
+      # route exists is exactly how this budget stayed decorative through
+      # Phase 0 (see docs/testing.md's Performance section for that
+      # history). Do not re-add `continue-on-error` to "fix" a future red
+      # run before Task 13 lands; that reintroduces exactly the decorative
+      # state this removal fixes.
       #
-      # NOT gated here: `test:perf`. With no diary route yet, Lighthouse's
-      # LCP/CLS budgets (CLAUDE.md §6) run against /cms — Payload's own
-      # heavy admin scaffolding under Lighthouse's simulated-mobile-network
-      # defaults, not the lightweight diary route the budget describes — and
-      # fail honestly and consistently as a result (see docs/testing.md's
-      # Performance section for a real pasted run). Gating merges on a
-      # budget that cannot yet pass for a reason unrelated to code quality
-      # would train reviewers to ignore this job. It still runs, uncommitted
-      # failures are visible in the log, and it becomes a real gate the
-      # moment the diary route exists in Phase 1.
-      - name: Lighthouse CI budgets (informational until the diary route exists)
+      # Measured today (Task 1's own verification run, pasted in its task
+      # report), this step actually PASSES, not fails: Next's own 404
+      # response for the not-yet-built `/p/1` renders fast enough
+      # (~2.0s LCP, 0 CLS) to clear the diary's budget on its own merits as
+      # a trivial page — the red run the brief anticipated does not
+      # currently reproduce. That does not make this step decorative: it is
+      # now a real, hard assertion against whatever `/p/1` actually returns,
+      # with no escape hatch, and Task 13 landing a heavier real page is
+      # exactly the case this gate exists to catch if that page regresses
+      # past 2.5s. `/cms` keeps its own budget entry in lighthouserc.json
+      # (CLS only, no LCP) rather than sharing `/p/1`'s — CLAUDE.md §6
+      # scopes the 2500ms LCP budget to "diary, 4G" specifically, and
+      # holding Payload's heavy admin bundle to it was the original reason
+      # this whole step was informational.
+      - name: Lighthouse CI budgets
         run: npm run test:perf
-        continue-on-error: true

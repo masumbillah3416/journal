@@ -11,14 +11,16 @@ see the **Status** column.
 Enforced by TWO configs, because no single Vitest run can execute everything:
 
 - **`vitest.config.ts`**, checked by `npm run test:unit`'s `--coverage` flag (the
-  Docker-free pre-commit pass). Covers `packages/*/src/**`, `apps/web/lib/**` and
-  `apps/web/scripts/**`, `.ts` and `.tsx` alike.
+  Docker-free pre-commit pass). Covers `packages/*/src/**`, `apps/web/lib/**`,
+  `apps/web/scripts/**`, `apps/web/app/**` and `apps/web/components/**`, `.ts` and
+  `.tsx` alike.
 
   | Layer | Lines | Branches | Functions |
   |---|---|---|---|
   | `packages/domain/**` (pure logic) | 100% | 100% | 100% |
   | `apps/web/lib/**`, server actions | 95% | 95% | 95% |
-  | Repository-wide | 90% | 90% | 90% |
+  | `apps/web/app/**` | 95% | 95% | 95% |
+  | Repository-wide (`apps/web/components/**` included) | 90% | 90% | 90% |
 
 - **`vitest.integration.config.ts`**, checked by `npm run test:integration:coverage`.
   Covers everything only a real Postgres can execute: the integration-only `lib` and
@@ -36,13 +38,37 @@ Phase 2's access control and Phase 4's hooks land in `collections/`, and a thres
 after the code arrives is a threshold negotiated down to whatever that code happens to
 score.
 
-**`apps/web/app/**` is the one deliberate hole, and it is a Phase 1 requirement.** It
-holds four re-exports of Payload's own route handlers and the layout around them — no
-logic of ours, and nothing any current test can execute without a Next.js request
-context. A threshold against a directory with nothing measurable in it is theatre.
-Phase 1's server actions and `BookBundle` mappers are the first real code to land there;
-**the task that lands them adds `apps/web/app/**` to a coverage `include` with a real
-threshold in the same commit.**
+**`apps/web/app/**` and `apps/web/components/**` were the last two holes, and Task 1 of
+Phase 1 closes both before either holds any of the phase's own code**, rather than
+waiting for the task that lands the first server action or component to remember to add
+its own directory — the controller ruling that reordered this ahead of the pages it
+guards (see this task's own report). `apps/web/app/**` today holds only Payload's own six
+route/layout re-exports under `(payload)/` — no logic of ours, and nothing any current
+test can execute without a Next.js request context:
+
+- Three of the six (`layout.tsx`, `api/graphql/route.ts`, `api/graphql-playground/route.ts`)
+  carry a `c8 ignore start`/`stop` around their whole body — imports included, since an
+  unimported file's own imports are themselves uncovered lines otherwise. They report as
+  fully excluded (no row at all in a passing run).
+- The other three sit under a Next.js dynamic-route directory written in square brackets
+  (`api/[...slug]/route.ts`, `cms/[[...segments]]/page.tsx` and its `not-found.tsx`) —
+  required by Next.js's own routing convention. `c8 ignore start`/`stop` does not take
+  effect for a file under a bracketed directory: verified by reproducing one of them
+  byte-for-byte under an unbracketed sibling directory and watching the *copy* get
+  ignored correctly while the original did not, with the tool instead reporting the
+  file's own header-comment lines as "uncovered" once the ignored code beneath them left
+  no `DA` entries to anchor against — a bug in how `@vitest/coverage-v8` scans source text
+  for ignore hints on that path shape, not a defect in the files. These three are excluded
+  in `vitest.config.ts`'s `exclude` array instead, with the glob's literal `[...]` escaped
+  (`\[...\]`) so it is not parsed as a glob character class — the same reason the
+  unescaped version silently failed to match at all during this task. See that file's own
+  comment for the full reasoning.
+
+`apps/web/components/**` is genuinely empty as of this task (`.gitkeep` only) and carries
+no per-glob threshold override — a threshold against zero files is the vacuous pass
+CLAUDE.md's controller ruling for this task explicitly forbade adding. It falls under the
+repository-wide floor the moment a real file lands there, same as any other directory the
+`include` reaches but does not name.
 
 An uncovered line outside `packages/domain` requires a
 `/* c8 ignore next -- <reason> */` comment with a real reason (`CLAUDE.md` §2.1). Where a
@@ -303,27 +329,32 @@ would claim a measurement nothing performs.
   `playwright.config.ts` — the design is high-fidelity, so drift is a defect, not noise).
 - **Scope:** every page type and every admin screen, at each breakpoint. Drift from the
   high-fidelity design is treated as a defect.
-- **Status:** the mechanism is implemented and proven; the pages it will guard (every
-  diary page type, the bespoke admin) are Phase 1+. `e2e/visual.spec.ts` snapshots the
-  one screen that exists today — `/cms` — at all three breakpoints, using the exact
-  `toHaveScreenshot`/baseline-diff machinery the real pages will use later. Baselines are
-  committed at `e2e/visual.spec.ts-snapshots/*.png`; a snapshot suite with no baseline to
-  compare against protects nothing.
-- **A real, known gap — not run in CI today:** Playwright's screenshot baselines are
-  keyed by OS and font rendering (the committed files are suffixed `-win32.png`, matching
-  the developer machine that generated them). CI's `browser` job runs on Ubuntu; a
-  Windows-generated baseline will not match there regardless of whether the page
-  genuinely changed. The standard fix — running inside Playwright's own pinned Docker
-  image (`mcr.microsoft.com/playwright`) so baselines are generated and compared in one
-  consistent environment — was out of scope to stand up and verify end-to-end for Task
-  12 without an unverified multi-gigabyte image pull; `.github/workflows/ci.yml`'s
-  `browser` job documents this exclusion at the point it would otherwise run
-  `test:visual`. `npm run test:visual` is fully functional locally today (see the Task 12
-  report for a real pass/fail/pass proof) and is what `test:e2e:headed`-driven sweeps use
-  in the meantime.
-- **Run:** `npm run test:visual`. Update baselines deliberately with `npx playwright test
-  e2e/visual.spec.ts --update-snapshots` after confirming a diff is an intended change,
-  never reflexively to make a failure go away.
+- **Status:** the mechanism is implemented and proven, and now runs in CI (Task 1 of
+  Phase 1 closed the gap below). `e2e/visual.spec.ts` snapshots the one screen that exists
+  today — `/cms` — at all three breakpoints, using the exact `toHaveScreenshot`/
+  baseline-diff machinery the real pages will use later. Baselines are committed at
+  `e2e/visual.spec.ts-snapshots/*.png`; a snapshot suite with no baseline to compare
+  against protects nothing.
+- **The former gap, closed:** Playwright's screenshot baselines are keyed by OS and font
+  rendering, so the Windows-generated baselines Task 12 committed (suffixed `-win32.png`)
+  never honestly compared against CI's Ubuntu `browser` job, regardless of whether a page
+  had actually changed — that job skipped `test:visual` outright rather than run a
+  comparison that could not mean anything. The fix is the standard one: both baseline
+  generation and CI comparison now happen inside the same pinned image,
+  `mcr.microsoft.com/playwright:v<version>`, where `<version>` matches the
+  `@playwright/test` version pinned in `package-lock.json` exactly (`.github/workflows/ci.yml`'s
+  `browser` job header names the current tag; bump both together). The committed baselines
+  are now `-linux.png`, generated by running `npx playwright test e2e/visual.spec.ts
+  --update-snapshots` inside that exact image (see this task's report for the pasted
+  baseline-generation and clean-comparison runs) — the old `-win32.png` files were deleted,
+  not kept alongside. `browser` no longer skips `test:visual`; it runs in the same
+  `npx playwright test` invocation as the smoke and accessibility specs.
+- **Run:** `npm run test:visual` on a developer's own machine still works for a quick
+  local check, but its baseline will not match this Ubuntu-image comparison pixel-for-pixel
+  on font rendering — treat a local mismatch as inconclusive, not as drift, and confirm
+  in the pinned image before updating a baseline. Update baselines deliberately, inside
+  the pinned image, with `npx playwright test e2e/visual.spec.ts --update-snapshots` after
+  confirming a diff is an intended change, never reflexively to make a failure go away.
 - **Add one:** one snapshot per page type per breakpoint listed in design spec §8.2
   (diary `<860px`; admin `≥1180`/`≥860`/narrow; login `<820`) as each page is built. The
   OTP-cell collapse at 819px (design spec §11) is the canonical example of a defect this
@@ -331,26 +362,42 @@ would claim a measurement nothing performs.
 
 ### 6 · Accessibility
 
-- **Tool:** axe-core in Playwright (`@axe-core/playwright`, `e2e/a11y.spec.ts`).
+- **Tool:** axe-core in Playwright (`@axe-core/playwright`, `e2e/a11y.spec.ts`), via the
+  shared `expectNoAxeViolations` helper (`e2e/support/axe.ts`, Task 1 of Phase 1).
 - **Scope:** every route. Contrast ratios from the handoff's token table are asserted,
   not assumed (e.g. `ink-muted` must stay opaque — an alpha version measures below
   4.5:1, per the handoff's own note).
 - **Status:** implemented for the one route that exists, `/cms`, asserting `results.
   violations` is empty — zero violations, not "no critical violations"; CLAUDE.md's
-  non-negotiables draw no line between severities. Running axe against `/cms` today
+  non-negotiables draw no line between severities. `expectNoAxeViolations` defaults to
+  the FULL ruleset with no exclusions; a caller passes rule ids to disable only via its
+  `options.allow`, visibly, at its own call site. Running axe against `/cms` today
   surfaced two real findings that belong to Payload's own stock admin markup, not to any
   code authored in this repository: `landmark-one-main` and `page-has-heading-one`, both
   `impact: moderate`, both scoped to the bare `<html>` element. `/cms` is explicitly
   "development scaffolding ... not the product" (`apps/web/payload.config.ts`'s own
-  header) and is disabled outright in production, so `e2e/a11y.spec.ts` disables exactly
-  these two rules by id — narrowly, with the finding and the reasoning recorded in the
-  test file's own header, not by loosening the top-level assertion. Any *other* violation,
-  on this route or any future one, still fails the suite. This exclusion is revisited the
-  moment `/cms` stops being the route under test — Phase 1's bespoke `/admin` replaces it.
+  header) and is disabled outright in production, so `e2e/a11y.spec.ts` calls
+  `expectNoAxeViolations(page, { allow: ['landmark-one-main', 'page-has-heading-one'] })`
+  — narrowly, with the finding and the reasoning recorded in the test file's own header,
+  not by loosening the helper's default. Any *other* violation, on this route or any
+  future one, still fails the suite, and a diary route calling the helper with no
+  `allow` cannot inherit `/cms`'s exclusion — each call site names its own. This
+  exclusion is revisited the moment `/cms` stops being the route under test — Phase 1's
+  bespoke `/admin` replaces it.
+- **Proof the helper actually catches something:** verified by planting a real violation
+  (an `<img>` with no `alt`, no `aria-label`, no `title` — axe's `image-alt`, `impact:
+  critical`) into the live `/cms` DOM via `page.evaluate` and calling
+  `expectNoAxeViolations(page)` with no `allow` — the assertion failed, listing
+  `image-alt` alongside the two known `/cms` findings (`region` also fired, since the
+  planted `<img>` sat outside any landmark). Removing the plant and calling
+  `expectNoAxeViolations(page, { allow: [...] })` with the two known exclusions passed
+  cleanly. See this task's report for the pasted runs.
 - **Run:** `npm run test:a11y`.
-- **Add one:** run axe against every new route as it is added; assert zero violations, and
-  only disable a specific rule id with the same standard of evidence as above (a named,
-  understood, vendor-owned finding) — never to make an inconvenient result disappear.
+- **Add one:** call `expectNoAxeViolations(page)` against every new route as it is added
+  — with no `allow`, which asserts zero violations against the full ruleset. Only pass
+  `allow` with the same standard of evidence as above (a named, understood, vendor-owned
+  finding), with a comment at the call site — never to make an inconvenient result
+  disappear, and never inherited from another spec's exclusion.
 
 ### 7 · Performance
 
@@ -360,32 +407,62 @@ would claim a measurement nothing performs.
 - **Scope:** the hard budgets in `CLAUDE.md` §6 — 60fps flip (only `transform`/`opacity`
   animated), diary route JS ≤180KB gzipped, admin ≤320KB, LCP ≤2.5s, CLS ≤0.1, INP
   ≤200ms, no N+1 queries, always a derivative tier never an original.
-- **Status — configured correctly, cannot yet bind meaningfully.** `lighthouserc.json`
-  asserts `largest-contentful-paint` (≤2500ms) and `cumulative-layout-shift` (≤0.1)
-  against `http://localhost:3000/cms`, the only URL that exists. Running it for real
-  (`npm run test:perf`) produces an honest, reproducible **failure**:
-  `largest-contentful-paint` measured ~11.7s against a 2500ms budget. This is not this
-  repository's diary being slow — it is Lighthouse's default simulated-mobile-network
-  throttling applied to Payload's own heavy admin-panel JavaScript bundle, which the
-  180KB/320KB budgets were never written to describe. The budget is configured correctly
-  for the route it is meant to guard; it simply has no honest target to bind to until the
-  diary route exists in Phase 1. The thresholds were **not** loosened, and no
-  `/cms`-specific carve-out was added, to make this pass — an assertion that always passes
-  because nothing real is being measured would be actively misleading. `cumulative-layout-
-  shift` does pass against `/cms` today, which is a real (if narrow) signal.
-- **Not gated in CI:** `.github/workflows/ci.yml`'s `browser` job runs `test:perf` with
-  `continue-on-error: true` — informational, visible in every run's log, not a merge
-  blocker. Hard-gating a budget that cannot currently pass for a reason unrelated to code
-  quality would train reviewers to ignore this job's failures, which is the opposite of
-  what a performance gate is for. It becomes a real, hard-gated budget the moment the
-  diary route exists to point it at.
+- **Status — hard-gated in CI as of Task 1 of Phase 1, ahead of the route it guards.**
+  `lighthouserc.json` now points `collect.url` at `http://localhost:3000/p/1` (the diary
+  route Task 13 creates) and `http://localhost:3000/cms`, with per-URL budgets via
+  `assert.assertMatrix` rather than one shared `assert.assertions` block: `/p/1` is held
+  to both `largest-contentful-paint` (≤2500ms) and `cumulative-layout-shift` (≤0.1); `/cms`
+  is held to `cumulative-layout-shift` only. `CLAUDE.md` §6 scopes the 2500ms LCP budget
+  to "diary, 4G" specifically — holding Payload's heavy admin bundle to it was the
+  original reason this whole step was informational, and giving `/cms` its own entry
+  with no LCP assertion is what stops that recurring now that `/cms` shares a config with
+  a real route. `.github/workflows/ci.yml`'s `browser` job no longer runs this step with
+  `continue-on-error` (see below).
+- **`/p/1` does not exist yet — Task 13 creates it — and that is deliberate, not an
+  oversight.** The controller ruling for Task 1 was to land the hard gate *before* the
+  page it measures, specifically so no later task can land a regression under a budget
+  still marked informational — Phase 0 shipped exactly that state once (`/cms` under
+  `continue-on-error`) and it hid nothing because nobody was watching an
+  informational job.
+- **Measured today, this does not reproduce as a failure — worth recording plainly.**
+  The brief anticipated `/p/1` failing honestly against a 404 until Task 13 lands the
+  real page. Run for real inside the pinned Playwright image (`npm run test:perf`,
+  `CHROME_PATH` pointed at that image's bundled Chromium — see below), Next's own 404
+  response for `/p/1` is small enough to clear the budget on its own merits:
+  `largest-contentful-paint` measured **~2039ms** (budget 2500ms) and
+  `cumulative-layout-shift` measured **0** — both pass. `/cms`'s `cumulative-layout-shift`
+  also measured **0** and passes; its `largest-contentful-paint` (measured ~5043ms) is no
+  longer asserted at all, by design. This does not make the gate decorative: it is a real,
+  hard assertion against whatever `/p/1` actually returns today, with no escape hatch, and
+  it is exactly the assertion Task 13 landing a heavier real page must clear honestly —
+  the false expectation was about which direction the *number* would land, not about
+  whether the gate is real. See this task's report for the pasted `lhci` run and the raw
+  `numericValue`s from the generated reports.
+- **Requires `--no-sandbox --disable-dev-shm-usage`** (`lighthouserc.json`'s
+  `collect.settings.chromeFlags`) to launch Chrome at all inside a container running as
+  root: without `--no-sandbox`, Chrome refuses to start
+  (`Running as root without --no-sandbox is not supported`); with only `--no-sandbox` and
+  not the second flag, Chrome launched but every audit failed uniformly with
+  `CHROME_INTERSTITIAL_ERROR` — Docker's default 64MB `/dev/shm` is too small for
+  Chrome's shared memory needs and the renderer crashed to an internal error page, which
+  Lighthouse correctly reports as the page having failed to load. Verified by reproducing
+  both failures in isolation before adding the fix; see this task's report.
 - **Run:** `npm run test:perf`. Needs a system Chrome/Chromium install discoverable by
-  `chrome-launcher` (GitHub's `ubuntu-latest` runner image ships one; set `CHROME_PATH`
-  locally if none is found automatically).
+  `chrome-launcher`. Inside `mcr.microsoft.com/playwright:v<version>` (the image
+  `browser`'s CI job now runs in — see the Visual regression section above), there is no
+  system `google-chrome`/`chromium-browser` binary to auto-detect; `CHROME_PATH` must
+  point at the image's own bundled Chromium under `/ms-playwright/chromium-<build>/
+  chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rather
+  than hard-coding `<build>`, an internal Playwright id that can change on an image
+  update). GitHub's plain `ubuntu-latest` (uncontainerized) ships a system Chrome
+  `chrome-launcher` finds on its own; set `CHROME_PATH` locally too if none is found
+  automatically there.
 - **Add one:** a budget per route, enforced in CI, not measured once and forgotten.
   Measure before optimizing, and paste the measurement (`CLAUDE.md` §0.4). Add the
-  diary route's URL to `lighthouserc.json`'s `collect.url` array the moment it exists,
-  and remove `continue-on-error` once its budgets pass for a real reason.
+  route's URL to `lighthouserc.json`'s `collect.url` array and its own `assertMatrix`
+  entry the moment it exists, scoped to the budget that actually applies to it (§6's
+  180KB/320KB JS-weight split is the same reasoning: a shared bundle-agnostic entry would
+  misdescribe one route or the other).
 
 ### 8 · Security
 

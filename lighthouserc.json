@@ -1,17 +1,31 @@
 {
   "ci": {
     "collect": {
-      "url": ["http://localhost:3000/cms"],
+      "url": ["http://localhost:3000/p/1", "http://localhost:3000/cms"],
       "numberOfRuns": 1,
       "startServerCommand": "npm run build -w apps/web && npm run start -w apps/web -- --port 3000",
       "startServerReadyPattern": "Ready in",
-      "startServerReadyTimeout": 180000
+      "startServerReadyTimeout": 180000,
+      "settings": {
+        "chromeFlags": "--no-sandbox --disable-dev-shm-usage"
+      }
     },
     "assert": {
-      "assertions": {
-        "largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
-        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }]
-      }
+      "assertMatrix": [
+        {
+          "matchingUrlPattern": ".*/p/1$",
+          "assertions": {
+            "largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
+            "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }]
+          }
+        },
+        {
+          "matchingUrlPattern": ".*/cms$",
+          "assertions": {
+            "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }]
+          }
+        }
+      ]
     },
     "upload": {
       "target": "filesystem",

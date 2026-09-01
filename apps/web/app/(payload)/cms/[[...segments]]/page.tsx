@@ -5,6 +5,13 @@
  * here so it never collides with `/admin`, the design's bespoke panel arriving
  * in a later phase. Depends on: `@payloadcms/next/views`, `payload.config.ts`,
  * the generated `importMap.js`.
+ *
+ * Both exports need a real Next.js request/render context Vitest cannot
+ * provide. Runtime behaviour is covered by e2e/smoke.spec.ts's console-error
+ * assertion and e2e/visual.spec.ts's screenshot against /cms, not a unit
+ * test. Excluded from vitest.config.ts's coverage (not a `c8 ignore` comment
+ * here — see that file's own comment for why the in-source directive does
+ * not apply cleanly to this path).
  */
 import type { Metadata } from 'next'
 import config from '@payload-config'

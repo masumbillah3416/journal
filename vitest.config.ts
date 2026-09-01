@@ -46,6 +46,54 @@
  * (run via `npm run test:integration:coverage`, chained into
  * `npm run verify:full`), runs the same integration tests with `--coverage`
  * scoped to exactly these files, with its own thresholds. See docs/testing.md.
+ *
+ * `apps/web/app/**` and `apps/web/components/**` (Task 1 of Phase 1) are
+ * included here NOW, before either holds any of the phase's own code, so
+ * that Phase 1's first server action, page component or mapper lands already
+ * measured rather than retrofitted - Phase 0 shipped three separate
+ * incidents of code invisible to every coverage pass because no `include`
+ * matched it (CLAUDE.md §2.1: "an unmeasured file looks exactly like a fully-
+ * covered one"). `apps/web/lib/**`'s coverage include already widens to
+ * `.tsx`; without the same widening here, a `components/` tree landing
+ * `.tsx` files would have been that fourth incident.
+ *
+ * `apps/web/app/**` today holds only Payload's own six route/layout
+ * re-exports under `(payload)/` (`docs/testing.md`'s "one deliberate hole" -
+ * no logic of ours, and nothing runnable without a real Next.js request
+ * context). Three of the six (`layout.tsx` and the two GraphQL routes) wrap
+ * their executable body - imports included, not just the export, since an
+ * unimported file's imports are themselves uncovered lines - in
+ * `c8 ignore start`/`stop`, rather than a silent config-level exclude: no
+ * OTHER coverage pass can see them either (unlike `migrate.ts` etc. above,
+ * there is no integration-only test that could import a route handler), so
+ * a per-file `c8 ignore` is the honest treatment CLAUDE.md §2.1 asks for
+ * where nothing can measure a file, not exclude-and-regate, which promises
+ * a pass that does not exist. `c8 ignore file` was tried first and
+ * rejected: for a file this coverage pass's `include` matches but no test
+ * ever imports, `@vitest/coverage-v8`'s zero-coverage path measures it
+ * through a line-comment scanner that recognises `next`/`start`/`stop` but
+ * not `file` (verified - `ignore file` left these files reporting real,
+ * non-zero, un-ignored statement/function counts at 0% executed, exactly
+ * the false negative this task exists to prevent).
+ *
+ * The other three - the ones under a Next.js dynamic-route directory
+ * (`[...slug]`, `[[...segments]]`) - are excluded in the `exclude` array
+ * below instead, with their own comment: `c8 ignore start`/`stop` does not
+ * take effect on that path shape either, verified by reproducing one of
+ * them byte-for-byte under an unbracketed sibling directory and watching
+ * the copy get ignored correctly while the bracketed original did not. See
+ * that comment for the full reasoning.
+ *
+ * `apps/web/app/**`'s 95%/95%/95% threshold below therefore binds real code
+ * the moment it lands (Task 13's diary route and any further page under
+ * `app/`), not the ignored or excluded scaffolding.
+ *
+ * `apps/web/components/**` gets no per-glob threshold override (unlike
+ * `app/**`): the directory is genuinely empty (`.gitkeep` only) as of this
+ * commit, and a threshold against zero files is the "vacuous pass" this
+ * task was told explicitly not to add. It still falls under the repo-wide
+ * 90% floor below the moment a real file lands there, exactly like any
+ * other directory this config's `include` reaches but does not name.
  * Depends on: vitest/config.
  */
 import { defineConfig } from 'vitest/config'
@@ -129,6 +177,12 @@ export default defineConfig({
         'apps/web/lib/**/*.ts',
         'apps/web/lib/**/*.tsx',
         'apps/web/scripts/**/*.ts',
+        // Task 1 of Phase 1: see this file's own header for why these two
+        // are widened in ahead of any real code landing in them.
+        'apps/web/app/**/*.ts',
+        'apps/web/app/**/*.tsx',
+        'apps/web/components/**/*.ts',
+        'apps/web/components/**/*.tsx',
       ],
       exclude: [
         '**/*.test.ts',
@@ -165,6 +219,32 @@ export default defineConfig({
         // needs the same explicit exclude-and-regate treatment as the queue
         // files.
         'apps/web/lib/testPayload.ts',
+        // Task 1 of Phase 1: these three are the app/(payload)/** files
+        // whose parent directory is a Next.js dynamic-route segment written
+        // in square brackets (`[...slug]`, `[[...segments]]`) - required by
+        // Next.js's own routing convention, not something this repository
+        // can rename. `c8 ignore start`/`stop` (used successfully in the
+        // three sibling files that do NOT sit under a bracketed directory -
+        // layout.tsx, api/graphql/route.ts, api/graphql-playground/route.ts,
+        // each fully excluded with no config entry needed) does not take
+        // effect for a file under one: verified by reproducing the same
+        // page.tsx content, byte-for-byte, under an unbracketed sibling
+        // directory (apps/web/app/(payload)/cms-test-nobracket/page.tsx,
+        // deleted after the comparison) - the copy was correctly ignored,
+        // the original was not, with the tool instead reporting its header
+        // comment's own line range as "uncovered" once the ignored code
+        // beneath it produced no `DA` entries of its own to anchor against.
+        // That is a bug in how `@vitest/coverage-v8` scans source text for
+        // ignore hints on this path shape, not a defect in the file. A
+        // config-level exclude, with this same reason, is the honest
+        // substitute for a source-level `c8 ignore` that cannot be trusted
+        // to hold on this path shape - CLAUDE.md §2.1's two sanctioned
+        // treatments (exclude-and-regate; `c8 ignore`) both assume the
+        // chosen mechanism actually works, which this one demonstrably does
+        // not here.
+        'apps/web/app/(payload)/api/\\[...slug\\]/route.ts',
+        'apps/web/app/(payload)/cms/\\[\\[...segments\\]\\]/page.tsx',
+        'apps/web/app/(payload)/cms/\\[\\[...segments\\]\\]/not-found.tsx',
       ],
       thresholds: {
         // Repository-wide floor.
@@ -178,6 +258,27 @@ export default defineConfig({
           functions: 100,
         },
         'apps/web/lib/**/*.ts': {
+          lines: 95,
+          branches: 95,
+          functions: 95,
+        },
+        // Task 1 of Phase 1: matches apps/web/lib's bar, since Phase 1's
+        // server actions, page components and BookBundle mappers are the
+        // same kind of code - our own logic, not framework glue. Every file
+        // currently under apps/web/app/** is either `c8 ignore start`/`stop`
+        // wrapped or config-excluded (see this file's own header), so this
+        // threshold has nothing to bind against yet; it starts applying the
+        // moment real code lands.
+        // No equivalent entry for apps/web/components/**: that directory
+        // holds no files yet (`.gitkeep` only), and a threshold against zero
+        // files is the vacuous pass this task was told not to add - it
+        // falls under the repo-wide floor above once populated instead.
+        'apps/web/app/**/*.ts': {
+          lines: 95,
+          branches: 95,
+          functions: 95,
+        },
+        'apps/web/app/**/*.tsx': {
           lines: 95,
           branches: 95,
           functions: 95,
