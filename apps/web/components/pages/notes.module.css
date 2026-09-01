@@ -64,6 +64,20 @@
  * "Garamond 18.5px / 1.6" for THIS paragraph; the token's 1.64 is §1.6's
  * About-page value. The more specific spec wins, and the size itself still
  * comes from `--td-diary-note-size`.
+ *
+ * EVERY TEXT ELEMENT HERE CARRIES AN EXPLICIT `line-height`, including the
+ * seven SCREENS.md §1.3 does not state. A fixed-size page whose text is left
+ * on `line-height: normal` is not fixed-size at all: `normal` is the font's
+ * own metric, and one of this page's three families (Courier Prime) is
+ * deliberately NOT self-hosted (docs/deviations.md §11, a measured LCP
+ * constraint), so on a diary route it resolves to whatever monospace the
+ * operating system supplies. Measured, that difference was 17px of the left
+ * column between a Windows host and the `mcr.microsoft.com/playwright`
+ * container — enough to push the ephemera scrap onto the footer's rule on
+ * one platform and not the other. Pinning them makes the page's height the
+ * same everywhere; the ratios chosen (1.2 for the label lines, 1.1 for the
+ * 27px sign-off, 1 for the arrow glyph) are the tightest that still clear
+ * each face's own ascender and descender.
  * Depends on: packages/tokens/src/tokens.css, loaded by the diary layout.
  */
 
@@ -97,6 +111,7 @@
   font-family: var(--td-font-courier);
   font-size: var(--td-diary-eyebrow-max);
   letter-spacing: 0.26em;
+  line-height: 1.2;
   text-transform: uppercase;
   color: var(--td-ink-diary-muted);
 }
@@ -117,6 +132,7 @@
   font-family: var(--td-font-garamond);
   font-style: italic;
   font-size: 19px;
+  line-height: 1.2;
   color: var(--td-ink-diary-muted-italic);
 }
 
@@ -232,6 +248,7 @@
   font-family: var(--td-font-courier);
   font-size: 10.5px;
   letter-spacing: 0.24em;
+  line-height: 1.2;
   text-transform: uppercase;
   color: var(--td-ink-diary-muted);
 }
@@ -328,6 +345,7 @@
   font-family: var(--td-font-courier);
   font-size: var(--td-diary-eyebrow-min);
   letter-spacing: var(--td-letter-spacing-min);
+  line-height: 1.2;
   text-transform: uppercase;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -352,7 +370,6 @@
   flex: 1;
   min-height: 54px;
   width: 100%;
-  margin-top: 2px;
   transform: rotate(0.5deg);
   box-shadow:
     0 0 0 7px var(--td-paper-mount),
@@ -512,6 +529,7 @@
   font-family: var(--td-font-courier);
   font-size: 12px;
   letter-spacing: 0.18em;
+  line-height: 1.2;
   text-transform: uppercase;
   text-decoration: none;
   color: var(--td-accent);
@@ -528,6 +546,7 @@
 
 .galleryArrow {
   font-size: 15px;
+  line-height: 1;
 }
 
 /* "the count in Garamond italic 17px". */
@@ -536,6 +555,7 @@
   font-family: var(--td-font-garamond);
   font-style: italic;
   font-size: 17px;
+  line-height: 1.2;
   color: var(--td-ink-diary-muted);
 }
 
@@ -547,6 +567,7 @@
   margin: 0 0 0 auto;
   font-family: var(--td-font-caveat);
   font-size: 27px;
+  line-height: 1.1;
   color: #8a7a5f;
   transform: rotate(-2deg);
 }

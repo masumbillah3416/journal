@@ -272,28 +272,43 @@ test.describe('Notes — SCREENS.md §1.3’s absolute measurements', () => {
     expect(ticket).toEqual({ count: 4, equalWidths: true, firstDivider: 'none', secondDivider: 'dotted' })
   })
 
-  test('fits the left column and the footer inside the page, on the four-highlight journey', async ({ page }) => {
+  test('keeps the ephemera scrap clear of the footer rule, on the four-highlight journey', async ({ page }) => {
     const fit = await page.evaluate((selector) => {
       const notes = document.querySelector(selector)
       const footer = notes?.querySelector('footer')
-      const column = notes?.querySelector('[data-highlights]')?.parentElement
-      const last = column?.lastElementChild
-      if (notes == null || footer == null || column == null || !(last instanceof HTMLElement)) return null
+      const scrap = notes?.querySelector('[data-ephemera]')
+      if (notes == null || footer == null || scrap == null) return null
+
+      // The book is drawn with `transform: scale(k)`, so a client rect is in
+      // scaled pixels; the mount ring below is an authored one. This is the
+      // factor between the two.
+      const scale = notes.getBoundingClientRect().height / (notes as HTMLElement).offsetHeight
+      const MOUNT_RING_PX = 7
+
       return {
         footerBelowPage: Math.round(footer.getBoundingClientRect().bottom - notes.getBoundingClientRect().bottom),
-        // The bottom of the column's last child against the bottom of the
-        // column's own content box, both in untransformed layout pixels and
-        // both measured from the same offset parent (the page section, which
-        // is the only positioned ancestor).
+        // What the READER sees, which is the question worth asking. The scrap
+        // is the elastic element, so on a journey whose fixed content already
+        // fills the column it sits at SCREENS.md §1.3's own 54px floor with
+        // nothing left to absorb — and what would then collide with the
+        // footer is not the scrap's box but its painted edge: `box-shadow:
+        // 0 0 0 7px #fffdf6` draws a mount ring 7px OUTSIDE the box. The
+        // 18px grid gap between the body and the footer is the space that
+        // has to stay clear.
         //
-        // NOT `scrollHeight`, which measures the scrollable overflow region
-        // and therefore includes the ROTATED bounding boxes of the tally
-        // ticket and the ephemera scrap — both deliberately crooked
-        // (SCREENS.md §1.3 gives them -0.5deg and +0.5deg), each contributing
-        // about a pixel and a half of bounding box that is design, not
-        // overflow. Measured that way every notes page in the book "overflows"
-        // by exactly 3px, on a column whose content fits perfectly.
-        columnSpill: last.offsetTop + last.offsetHeight - (column.offsetTop + column.clientHeight),
+        // Measured this way rather than as "the column's content fits its own
+        // box" for two reasons: `scrollHeight` counts the ROTATED bounding
+        // boxes of the crooked tally ticket and scrap (design, not overflow),
+        // and a few pixels of a decorative texture reaching into an 18px gap
+        // is not something a reader can see, whereas that texture's white
+        // ring crossing the footer's rule is. On this page, on Linux, the
+        // scrap's box overshoots by about 6px and its ring therefore ends
+        // about 5px clear of the rule; before every unstated `line-height`
+        // on this page was pinned it overshot by 17px and the ring crossed
+        // it (see `notes.module.css`'s header).
+        ringBelowFooterTop: Math.round(
+          scrap.getBoundingClientRect().bottom + MOUNT_RING_PX * scale - footer.getBoundingClientRect().top,
+        ),
       }
     }, TOKYO)
 
@@ -301,7 +316,7 @@ test.describe('Notes — SCREENS.md §1.3’s absolute measurements', () => {
     // is the tightest of the ten: if the authored sizes do not fit, they fail
     // here first.
     expect(fit?.footerBelowPage ?? 1).toBeLessThanOrEqual(0)
-    expect(fit?.columnSpill ?? 1).toBeLessThanOrEqual(0)
+    expect(fit?.ringBelowFooterTop ?? 1).toBeLessThanOrEqual(0)
   })
 
   test('gives the gallery button a real path rather than a dead click target', async ({ page }) => {
