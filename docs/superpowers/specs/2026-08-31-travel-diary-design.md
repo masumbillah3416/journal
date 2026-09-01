@@ -41,7 +41,7 @@ Scale: verified in the design at 30 journeys / 93 pages / 33 bookmarks; seeded a
 | App | Next.js 15 (App Router) with Payload CMS 3 in-process | Drafts, version history with restore, focal point and image-size generation each have dedicated screens in this design. Payload supplies all four. |
 | Database | Postgres — Docker locally, Neon in production | Content is relational: the Contents page and bookmark ordering want joins. |
 | Object storage | Cloudflare R2 — local disk adapter in development | Zero egress. 40GB of photography served from a metered origin is the single largest cost risk. |
-| Media processing | Dedicated worker container (Fly.io), `sharp` + `ffmpeg` | Transcoding does not fit serverless. |
+| Media processing | Dedicated worker container (Fly.io), `sharp` + `ffmpeg` — **deferred, no video clips for now** (`docs/adr/0004-media-pipeline-mode.md`); stills run `sharp` in-process on Vercel until it is re-enabled | Transcoding does not fit serverless. |
 | Queue | Postgres job table | One author, bursty uploads. A managed queue is unearned complexity. |
 | Mail | Resend — console adapter in development | OTP only; a handful of messages per month. |
 | Auth | Payload's own `users` auth + a custom OTP layer | See §2.1. |
@@ -117,9 +117,9 @@ Sign-in, OTP, reset and the "signed in" state · `otpChallenges` and `sessions` 
 
 ### Phase 3 — Media pipeline
 
-Presigned direct-to-bucket upload · the worker: magic-byte sniff, SVG rejection, EXIF read then strip, re-encode, five derivative tiers, perceptual hash and duplicate detection, `ffprobe`, H.264 transcode, poster extraction · `processing` / `ready` / `failed` states · download handler.
+Presigned direct-to-bucket upload · a `MediaProcessor` port (`docs/adr/0004-media-pipeline-mode.md`) with `inline` and `worker` adapters, selected by `MEDIA_PIPELINE` (`'inline' | 'worker'`, Zod-validated, default `'inline'`) · `inline`: magic-byte sniff, SVG rejection, EXIF read then strip, re-encode, five derivative tiers, perceptual hash and duplicate detection, all in-process on Vercel, stills only — video is deferred, so `inline` rejects `video/mp4`/`video/quicktime` at ingest even though the schema already lists them · `worker`: the same still pipeline plus `ffprobe`, H.264 transcode and poster extraction, run by the Fly.io worker this deferral leaves unbuilt — the adapter and its contract suite are built and pass in CI from day one regardless, per ADR 0004's non-negotiable · `processing` / `ready` / `failed` states · download handler.
 
-*Exit:* a still and a clip both survive a full round trip; EXIF verifiably absent; SVG verifiably rejected.
+*Exit:* a still survives a full round trip via the `inline` adapter; EXIF verifiably absent; SVG verifiably rejected; both `MediaProcessor` adapters pass the same contract suite in CI. Enabling clips is Phase 3's config switch (`MEDIA_PIPELINE=worker` plus deploying the Fly.io worker), not new code — see ADR 0004.
 
 ### Phase 4 — Admin
 
@@ -247,6 +247,14 @@ Below 820px the login hides the cloth panel, becomes a single 470px column and s
 
 ## 9 · Media pipeline
 
+**Video is deferred** (`docs/adr/0004-media-pipeline-mode.md`): no clips at launch, by
+user decision made after this section was first written. §9.2's worker steps below
+describe the full pipeline as designed; §9.3 records the mode switch that keeps
+re-enabling video to a one-line configuration change rather than a rebuild. The `media`
+collection's schema (`kind`, `posterAt`, `posterImage`, `durationSec`, and
+`video/mp4`/`video/quicktime` in `mimeTypes`) is unaffected and unchanged by this
+deferral — it already supports clips in full.
+
 ### 9.1 Upload
 
 Direct to bucket, and this is forced rather than preferred: Vercel's serverless functions cap request bodies at ~4.5MB, so a 25MB photograph cannot pass through the app at all.
@@ -275,6 +283,28 @@ Order matters — several steps only work if they come first.
 `processing` is a first-class UI state, not a missing image: the Media screen shows progress and the Galleries poster filmstrip needs a processed clip.
 
 `afterChange`: setting `isCover` clears it on the journey's other media.
+
+### 9.3 Pipeline mode
+
+The worker steps above run behind a `MediaProcessor` port (Ports & Adapters, same
+shape as `storage`/`mailer`/`queue`, §6), chosen by a `MEDIA_PIPELINE` environment
+variable (`'inline' | 'worker'`, Zod-validated in `apps/web/lib/env.ts`, default
+`'inline'`) — see `docs/adr/0004-media-pipeline-mode.md` for the full decision.
+
+- `inline` runs steps 1–6 above (everything except the clip-specific step 7)
+  in-process on Vercel as part of handling the upload request. No worker, no queue hop.
+- `worker` runs the same steps plus step 7 (`ffprobe`, transcode, poster extraction) on
+  the Fly.io worker, claimed from the Postgres job queue.
+- The flag switches three things together: which adapter is bound; whether
+  `video/mp4`/`video/quicktime` are accepted at ingest; whether the admin shows
+  clip-specific affordances (video upload picker, poster field, duration display).
+- Both adapters run the same contract suite in CI from day one, even though only
+  `inline` ever deploys before video is turned on — an untested deferred path is how
+  "flip one config" becomes "flip one config, then debug for three days" (ADR 0004).
+
+Enabling video later is: provision Fly.io, deploy the worker, set
+`MEDIA_PIPELINE=worker`. No schema migration — the `media` collection already supports
+clips in full (§9, above).
 
 ---
 
@@ -346,13 +376,13 @@ The gallery grid virtualizes past 100 tiles — the design tops out at ~100 asse
 
 ## 13 · Deployment and cost
 
-Vercel for the app, Neon for Postgres, R2 for media on its own domain, a Fly.io worker that auto-stops, Resend for OTP, Backblaze B2 for offsite backups.
+Vercel for the app, Neon for Postgres, R2 for media on its own domain, Resend for OTP, Backblaze B2 for offsite backups. The Fly.io worker originally planned here is **deferred** — no video clips for now (`docs/adr/0004-media-pipeline-mode.md`) — so nothing in this list is a service that bills by default.
 
-Expected steady state: **≈$2–3/month** on free tiers, ≈$45/month on paid plans, plus ~$12/year for a domain. Storage is the only variable that scales meaningfully — roughly $0.60/month per additional 40GB. Traffic barely moves the bill because the diary is statically rendered and R2 egress is free.
+Expected steady state, revised: **$0/month** for the app and its supporting services — Vercel Hobby, Neon, Cloudflare R2 and Resend all sit inside their free tiers at this project's single-author scale — plus ~$12/year for a domain (or $0 on a `*.vercel.app` subdomain). This supersedes the original ≈$2–3/month free-tier estimate for these four providers; Fly.io was the one service in that original stack that definitely billed regardless of usage, and removing it is what makes $0 viable. Backblaze B2's offsite-backup cost is separate and unaffected by this change. Storage is the only variable that scales meaningfully — roughly $0.60/month per additional 40GB. Traffic barely moves the bill because the diary is statically rendered and R2 egress is free. Enabling video later reintroduces Fly.io and its cost — see ADR 0004 and ADR 0001's revised consequences.
 
 **The one cost trap:** serving media through Next.js routes or `next/image` puts 40GB of photography through Vercel's metered bandwidth. Media must come from the R2 custom domain — which `SECURITY.md` independently requires. Security and cost want the same architecture.
 
-To be recorded as `docs/adr/0001-hosting-and-cost.md`. Figures are list prices as understood in August 2026 and should be re-verified before committing to providers.
+Recorded as `docs/adr/0001-hosting-and-cost.md`; the deferral as `docs/adr/0004-media-pipeline-mode.md`. Figures are list prices as understood in August 2026 and should be re-verified before committing to providers.
 
 ---
 

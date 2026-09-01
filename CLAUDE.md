@@ -75,7 +75,7 @@ Documentation is a deliverable, not an afterthought. **All of the following type
 | **Security** | Vitest + scripted probes | Rate limits, lockout, OTP single-use, SVG rejection, EXIF stripping, authorization on every mutation. |
 | **Migration** | Vitest | Every migration runs up, down, and up again against a seeded database. |
 
-### 2.1 Coverage gates — enforced in `vitest.config.ts`; CI fails below
+### 2.1 Coverage gates — enforced in `vitest.config.ts` and `vitest.integration.config.ts`; CI fails below
 
 | Layer | Lines | Branches | Functions |
 |---|---|---|---|
@@ -84,6 +84,8 @@ Documentation is a deliverable, not an afterthought. **All of the following type
 | Repository-wide | 90% | 90% | 90% |
 
 100% is required where it is meaningful — pure domain logic, where every branch is a real behaviour. It is *not* demanded of framework glue, where chasing the last percent produces tests that assert the framework rather than our code. Uncovered lines outside the domain layer require an `/* c8 ignore next -- <reason> */` with a real reason.
+
+**No file is in neither config's `include`.** A file no `include` matches is not reported as 0% — it is not reported at all, and an unmeasured file looks exactly like a fully-covered one. Two configs exist because no single Vitest run can execute everything: the Docker-free pass measures what it can run, and `vitest.integration.config.ts` measures what needs a real Postgres. A file unreachable from either gets one of two honest treatments, never silence: exclude-and-regate where some other pass can genuinely see it, or a `c8 ignore` carrying its reason where nothing can. Adding code in a new directory means adding that directory to an `include`, with a real threshold, in the same commit.
 
 ### 2.2 TDD cycle — mandatory
 
@@ -199,6 +201,37 @@ Rules: virtualize the gallery grid past 100 tiles. Debounce or `requestAnimation
 - Validate at the boundary, then trust the type inside.
 - Never log secrets, tokens, OTP codes, or full email addresses.
 
+### 7.1 Repository content never leaves this machine without explicit approval
+
+**Repository content is never sent to an external or third-party service.** Content
+means all of it: source, configuration, schema, migrations, data, seed content,
+diagrams, and excerpts of any of them. Services means all of them: rendering and
+diagram services, online validators and linters, formatters, paste and gist sites,
+translation services, search engines, LLM APIs — anything that receives the bytes over
+a network to somebody else's machine. The only exception is content the repository
+owner has been asked about and has explicitly approved sending, for that specific
+purpose, in that specific request.
+
+**Why.** Sending content to an external service publishes it. It may be logged, cached,
+indexed, retained after the request, or used as training data, and it may stay
+retrievable long after anything was "deleted" — the service's retention is not ours to
+know or to revoke. Whether this repository's content becomes public is the owner's
+decision to make, and taking it on their behalf is not a shortcut, it is a disclosure.
+The cost is asymmetric: asking costs one question, and getting it wrong cannot be
+undone.
+
+**When the local tool is missing, the verification is UNRESOLVED.** This is the case the
+rule exists for. If a diagram cannot be rendered, a schema cannot be validated, or a
+format cannot be checked because the tool for it is not installed here, the correct
+outcome is to report that check as unresolved and say which tool would settle it. It is
+never to route the content through an online equivalent to get a green tick. An
+unresolved check is honest and costs a follow-up; a check bought by publishing the
+repository is a §0.4 violation dressed as diligence, and the disclosure is permanent.
+
+This is not advisory and it is not scoped to one phase. It was written after repository
+content was sent to a public diagram-rendering service during Phase 0 to validate a
+Mermaid diagram, without asking.
+
 ---
 
 ## 8 · Git workflow
@@ -285,17 +318,36 @@ Defect reports are committed. They are the record of what was covered, and what 
 
 ## 11 · Commands
 
+Every one of these runs from the repository root. The four marked *(→ apps/web)* are
+root passthroughs to the `apps/web` workspace script of the same name, so a new
+contributor never has to know where the Payload CLI lives.
+
 ```
-npm run dev            # Next + Payload against local Postgres
-npm run verify         # typecheck + lint + unit + integration + coverage gates  <- pre-commit
-npm run test           # unit + integration, watch mode
-npm run test:e2e       # Playwright
-npm run test:e2e:headed # Playwright, visible browser — the engine for QA sweeps
-npm run test:visual    # visual regression
-npm run test:a11y      # accessibility
-npm run test:perf      # Lighthouse CI budgets
-npm run db:migrate     # run migrations
-npm run db:seed        # seed from the handoff prototype content
+npm run dev              # Next + Payload against local Postgres  (→ apps/web)
+npm run verify           # typecheck + lint + unit tests + unit coverage gates  <- pre-commit
+npm run verify:full      # verify, plus the integration suite and its own coverage gate  <- CI
+npm run test             # every Vitest project, watch mode
+npm run test:unit        # the unit project once, with coverage
+npm run test:integration # the integration project once — needs the Docker Postgres
+npm run test:e2e         # Playwright
+npm run test:e2e:headed  # Playwright, visible browser — the engine for QA sweeps
+npm run test:visual      # visual regression
+npm run test:a11y        # accessibility
+npm run test:perf        # Lighthouse CI budgets
+npm run db:migrate       # apply every pending migration  (→ apps/web)
+npm run db:migrate:down  # roll the most recent batch back  (→ apps/web)
+npm run db:seed          # seed from the handoff prototype content  (→ apps/web)
 ```
 
-`npm run verify` is the gate. It runs in the pre-commit hook and in CI, and it must pass before any completion claim.
+**There are two gates, deliberately, and they are not the same gate.**
+
+`npm run verify` is the pre-commit gate, run by the Husky hook. It is **typecheck, lint
+and the unit project only** — no integration tests, no Docker. That is a decision, not
+an oversight: a pre-commit gate that fails whenever a developer's Postgres container is
+down trains its author to reach for `--no-verify`, which §8.2 forbids outright. A gate
+has to be one a developer can always pass honestly.
+
+`npm run verify:full` is the CI gate. It is `verify` plus the integration suite and the
+separate coverage pass that gates the integration-only files (`vitest.integration.config.ts`).
+It needs a running Postgres. **It is what must pass before any completion claim**, and
+what a branch is merged on — `verify` alone is not evidence that the work is done.

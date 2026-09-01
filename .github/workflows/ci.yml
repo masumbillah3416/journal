@@ -1,0 +1,122 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    # Postgres 16, matching docker-compose.yml's image. Host port 5432 (not the
+    # local dev override of 5433) — that override exists only because a native
+    # Postgres already owns 5432 on this developer's machine; a GitHub-hosted
+    # runner has no such conflict, and 5432 is Postgres's own default port.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: diary
+          POSTGRES_PASSWORD: diary
+          POSTGRES_DB: diary
+        ports:
+          - 5432:5432
+        # The job waits for this before any step runs. Without it, `npm run
+        # db:migrate` or the integration suite could start against a Postgres
+        # that isn't accepting connections yet — an intermittent failure that
+        # trains people to hit re-run rather than a consistent, honest one.
+        options: >-
+          --health-cmd "pg_isready -U diary"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://diary:diary@localhost:5432/diary
+      # Throwaway CI-only value. Long enough to satisfy apps/web/lib/env.ts's
+      # parseEnv (>= 32 characters) — never used outside this workflow.
+      PAYLOAD_SECRET: ci-only-secret-value-never-used-outside-actions-32
+      MEDIA_ORIGIN: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      # Must precede the integration tests: they assert against real journeys/
+      # pages tables, which only exist once the first migration has run.
+      - run: npm run db:migrate -w apps/web
+      - run: npm run verify:full
+
+  # Second, independent job (Task 12): the browser, accessibility and
+  # performance suites from CLAUDE.md §2, run against a *built* app —
+  # `next start`, not `next dev` — with its own migrated, seeded Postgres.
+  # Kept separate from `verify` above so that job stays exactly what
+  # docs/testing.md promises it is: Docker-free and fast. This job needs
+  # Docker (the postgres service) and a browser binary, and is slower by
+  # design — a build, a migration, a seed and three real browser projects.
+  browser:
+    runs-on: ubuntu-latest
+    # Same image and health-check reasoning as `verify` above; a second,
+    # independent Postgres instance on the runner's own port 5432, unrelated
+    # to either developer's local Postgres (5433) or `verify`'s (a different
+    # job, a different runner, its own 5432).
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: diary
+          POSTGRES_PASSWORD: diary
+          POSTGRES_DB: diary
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U diary"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://diary:diary@localhost:5432/diary
+      PAYLOAD_SECRET: ci-only-secret-value-never-used-outside-actions-32
+      MEDIA_ORIGIN: http://localhost:3000
+      CI: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      # playwright.config.ts's webServer builds and `next start`s the app
+      # itself once CI=true, so no separate build/start step is needed here
+      # — but the database it starts against must already be migrated and
+      # seeded first, matching the Phase 0 exit criterion ("a built app with
+      # a migrated, seeded database"), and matching what a real deploy does.
+      - run: npm run db:migrate -w apps/web
+      - run: npm run db:seed -w apps/web
+      # Only Chromium is used (see playwright.config.ts's header) — no
+      # --with-deps for firefox/webkit, so this stays a small, fast install.
+      - run: npx playwright install --with-deps chromium
+      # One Playwright invocation for both suites (rather than chaining
+      # `npm run test:e2e` and `npm run test:a11y` as separate steps): with
+      # `reuseExistingServer` off in CI (playwright.config.ts), each
+      # invocation would otherwise re-run `next build` from scratch.
+      - run: npx playwright test e2e/smoke.spec.ts e2e/a11y.spec.ts
+      # NOT run here: `test:visual`. Playwright's `toHaveScreenshot`
+      # baselines are OS- and font-rendering-specific — the ones committed
+      # in e2e/visual.spec.ts-snapshots/ were generated on the developer's
+      # Windows machine (files suffixed `-win32.png`) and Playwright's own
+      # lookup will not match them against this Ubuntu runner's rendering,
+      # regardless of whether the page actually changed. The standard fix is
+      # running inside Playwright's own pinned Docker image
+      # (mcr.microsoft.com/playwright) so baselines are generated and
+      # compared in one consistent environment; standing that up and
+      # verifying it end-to-end was out of scope for Task 12 and is recorded
+      # as unresolved in the Task 12 report. `npm run test:visual` remains
+      # fully working locally today (see docs/testing.md) and is the engine
+      # `sweeping-for-browser-defects` sweeps use for now.
+      #
+      # NOT gated here: `test:perf`. With no diary route yet, Lighthouse's
+      # LCP/CLS budgets (CLAUDE.md §6) run against /cms — Payload's own
+      # heavy admin scaffolding under Lighthouse's simulated-mobile-network
+      # defaults, not the lightweight diary route the budget describes — and
+      # fail honestly and consistently as a result (see docs/testing.md's
+      # Performance section for a real pasted run). Gating merges on a
+      # budget that cannot yet pass for a reason unrelated to code quality
+      # would train reviewers to ignore this job. It still runs, uncommitted
+      # failures are visible in the log, and it becomes a real gate the
+      # moment the diary route exists in Phase 1.
+      - name: Lighthouse CI budgets (informational until the diary route exists)
+        run: npm run test:perf
+        continue-on-error: true

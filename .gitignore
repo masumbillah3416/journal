@@ -9,6 +9,7 @@ out/
 dist/
 build/
 *.tsbuildinfo
+next-env.d.ts
 
 # Environment and secrets — never commit
 .env
@@ -21,6 +22,8 @@ playwright-report/
 test-results/
 blob-report/
 *.lcov
+.lighthouseci/
+lhci-reports/
 
 # Local media and database volumes
 media/
