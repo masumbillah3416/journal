@@ -1,0 +1,227 @@
+/**
+ * contents.module.css — the index page's header, column-flow body and footer.
+ * SCREENS.md §1.2, transcribed value for value.
+ *
+ * NOTHING HERE IS RESPONSIVE AND NOTHING HERE REFLOWS — see
+ * `cover.module.css`'s header for why, and do not add a media query.
+ *
+ * The two track lists (`grid-template-columns`, `grid-template-rows`) are the
+ * only geometry this file does NOT own: they depend on how many journeys the
+ * book has, so `Contents.tsx` sets them inline from `contentsLayout`'s output.
+ * Everything else, including the `column` auto-flow and the 34px column gap
+ * that make those tracks mean anything, is here.
+ *
+ * Colours come from `@travel-diary/tokens`' `--td-*` custom properties
+ * wherever the token table names the value for this role. Four do not:
+ *
+ *   1. `rgba(90,70,40,.22)` and `rgba(90,70,40,.18)`, the header's and
+ *      footer's rules — SCREENS.md §1.2 gives both explicitly and the token
+ *      table lists neither.
+ *   2. `rgba(120,98,60,.28)`, each row's dotted bottom. The token table
+ *      publishes only the ends of this family's range
+ *      (`--td-hairline-dotted-min` at .26, `--td-hairline-dotted-max` at .30);
+ *      SCREENS.md §1.2 specifies .28, which is inside that range and is not
+ *      itself a token.
+ *   3. `rgba(120,98,60,.5)`, the dotted leader — outside the token range
+ *      entirely, and given only by the prototype.
+ *   4. `#5f5340`, the page number's ink — SCREENS.md §1.2 gives this line as
+ *      "Courier 14px" without a colour, and the prototype's value has no
+ *      entry in the token table.
+ *
+ * Two colours the prototype writes as near-miss literals ARE tokens here
+ * instead, because SCREENS.md §1.2 does not state either and the token table
+ * names both roles: the eyebrow and footer hint use `--td-ink-diary-muted`
+ * (#7a6b50) where the prototype writes #7a6b52, and each entry's name uses
+ * `--td-ink` (#33403c) where the prototype writes #2f3b38. A two-unit drift
+ * in an unstated colour is a prototype artefact, not a design decision, and
+ * CLAUDE.md forbids hardcoding a hex the token table already covers.
+ * Depends on: packages/tokens/src/tokens.css, loaded by the diary layout.
+ */
+
+/* "grid-template-rows: auto 1fr auto, padding 34px 46px 26px 52px, gap 20px." */
+.contents {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 20px;
+  padding: 34px 46px 26px 52px;
+}
+
+/* "Header — flex, baseline, 1.5px solid rgba(90,70,40,.22) bottom, 16px padding."
+ *
+ * HANDOFF-DEVIATION: `align-items: flex-end`, not `baseline`. The left block
+ * is a two-line item (eyebrow over heading), and flex `baseline` alignment
+ * uses an item's FIRST baseline — so the right-hand note would align to the
+ * 11.5px eyebrow at the top of the header rather than sit level with
+ * "Contents". SCREENS.md §1.3's near-identical Notes header spells the same
+ * arrangement out as `align-items: flex-end`, and the prototype's own
+ * Contents header uses `flex-end` too. See docs/deviations.md §10. */
+.header {
+  display: flex;
+  align-items: flex-end;
+  gap: 22px;
+  padding-bottom: 16px;
+  border-bottom: 1.5px solid rgba(90, 70, 40, 0.22);
+}
+
+.headerTitles {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Eyebrow "Index" — Courier 11.5px, .28em, uppercase. */
+.eyebrow {
+  margin: 0;
+  font-family: var(--td-font-courier);
+  font-size: var(--td-diary-eyebrow-max);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--td-ink-diary-muted);
+}
+
+/* "Contents" — Caveat 70px / .92. */
+.heading {
+  margin: 2px 0 0;
+  font-family: var(--td-font-caveat);
+  font-size: var(--td-diary-contents);
+  font-weight: 400;
+  line-height: 0.92;
+  color: var(--td-ink);
+}
+
+/* "a right-aligned italic Garamond 18px note capped at 280px." */
+.note {
+  max-width: 280px;
+  margin: 0;
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 18px;
+  text-align: right;
+  text-wrap: pretty;
+  color: var(--td-ink-diary-muted-italic);
+}
+
+/* "Body — column-flow grid: gridAutoFlow: column, columnGap: 34px."
+ * `min-height: 0` keeps the 1fr track from being sized by its content and
+ * pushing the footer off the page. */
+.body {
+  display: grid;
+  grid-auto-flow: column;
+  column-gap: 34px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* "Each row: flex, centred, 1px dotted rgba(120,98,60,.28) bottom,
+ * cursor: pointer." */
+.row {
+  display: flex;
+  min-width: 0;
+  border-bottom: 1px dotted rgba(120, 98, 60, 0.28);
+}
+
+/* The whole row is the link, so the click target is the row the reader sees
+ * rather than only the words in it. */
+.link {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  min-width: 0;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Number — "Courier 13px .14em #a34434, 30px wide". */
+.number {
+  flex: none;
+  width: 30px;
+  font-family: var(--td-font-courier);
+  font-size: 13px;
+  letter-spacing: var(--td-letter-spacing-min);
+  color: var(--td-accent);
+}
+
+/* Name — "Caveat 36px single-column / 27px multi-column". */
+.name,
+.nameCompact {
+  flex: none;
+  min-width: 0;
+  font-family: var(--td-font-caveat);
+  line-height: 1.05;
+  white-space: nowrap;
+  color: var(--td-ink);
+}
+
+.name {
+  font-size: 36px;
+}
+
+.nameCompact {
+  font-size: 27px;
+}
+
+/* Meta — "Garamond italic 17px, hidden in multi-column". It is not hidden by
+ * a rule here: `Contents.tsx` does not RENDER it in multi-column mode, so
+ * there is no element for a screen reader to find either. */
+.meta {
+  flex: none;
+  min-width: 0;
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 17px;
+  white-space: nowrap;
+  color: var(--td-ink-diary-muted);
+}
+
+/* "a dotted leader (flex: 1, dotted bottom, translateY(6px))". A static
+ * transform, never a transitioned one — see book.module.css's rule 3. */
+.leader {
+  flex: 1;
+  height: 0;
+  margin: 0 4px;
+  border-bottom: 1px dotted rgba(120, 98, 60, 0.5);
+  transform: translateY(6px);
+}
+
+/* "page number (Courier 14px)". */
+.pageNumber {
+  flex: none;
+  font-family: var(--td-font-courier);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  color: #5f5340;
+}
+
+/* "Footer — 1.5px top rule, a Courier hint line, and '{n} pages so far' in
+ * Caveat 26px #a34434 at rotate(-3deg)." */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1.5px solid rgba(90, 70, 40, 0.18);
+}
+
+.hint {
+  margin: 0;
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--td-ink-diary-muted);
+}
+
+/* `margin-left: auto` rather than the prototype's empty `flex: 1` spacer div:
+ * the same layout with one fewer element in the accessibility tree. */
+.tally {
+  margin: 0 0 0 auto;
+  font-family: var(--td-font-caveat);
+  font-size: 26px;
+  transform: rotate(-3deg);
+  color: var(--td-accent);
+}

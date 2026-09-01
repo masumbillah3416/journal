@@ -24,8 +24,10 @@
  * Depends on: `BookPage`/`ContentsEntry`/`pageLabel` (@travel-diary/domain/bookBundle),
  * ./book.module.css.
  */
-import { pageLabel, type BookPage, type ContentsEntry } from '@travel-diary/domain/bookBundle'
+import { pageLabel, type BookChrome, type BookPage, type ContentsEntry } from '@travel-diary/domain/bookBundle'
 import type React from 'react'
+import { Contents } from '../pages/Contents'
+import { Cover } from '../pages/Cover'
 import styles from './book.module.css'
 
 /** What one page face needs to render itself. */
@@ -34,35 +36,36 @@ export interface PageFaceProps {
   readonly page: BookPage
   /** The book's Contents index, rendered only on the Contents page. */
   readonly contents: readonly ContentsEntry[]
+  /** The `book` global's editor-supplied fields, printed by Cover and Contents. */
+  readonly chrome: BookChrome
+  /** The book's total page count, for the Contents footer's tally. */
+  readonly totalPages: number
 }
 
 /**
  * Renders the content of a single page.
  *
- * @param props - The page to render and the book's Contents index.
- * @returns The page's heading, its meta line where it has one, and the
- *   Contents index on the Contents page.
+ * @param props - The page to render, the book's Contents index, the book's
+ *   chrome and its total page count.
+ * @returns The designed Cover or Contents page, or - for a page whose design
+ *   is still a later task - the page's heading and its meta line.
  */
-export const PageFace = ({ page, contents }: PageFaceProps): React.JSX.Element => (
-  <article className={styles.page}>
-    <h1 className={styles.pageTitle}>{pageLabel(page)}</h1>
+export const PageFace = ({ page, contents, chrome, totalPages }: PageFaceProps): React.JSX.Element => {
+  if (page.kind === 'cover') return <Cover chrome={chrome} />
 
-    {page.kind === 'contents' && (
-      <ol className={styles.contentsList}>
-        {contents.map((entry) => (
-          <li key={entry.journeyId}>
-            <a className={styles.contentsLink} href={`/p/${String(entry.pageNumber)}`}>
-              {entry.name} — {entry.place}
-            </a>
-          </li>
-        ))}
-      </ol>
-    )}
+  if (page.kind === 'contents') {
+    return <Contents entries={contents} note={chrome.contentsNote} totalPages={totalPages} />
+  }
 
-    {(page.kind === 'notes' || page.kind === 'frames-i' || page.kind === 'frames-ii') && (
-      <p className={styles.pageMeta}>
-        {page.place} · {page.dates}
-      </p>
-    )}
-  </article>
-)
+  return (
+    <article className={styles.page}>
+      <h1 className={styles.pageTitle}>{pageLabel(page)}</h1>
+
+      {page.kind !== 'about' && (
+        <p className={styles.pageMeta}>
+          {page.place} · {page.dates}
+        </p>
+      )}
+    </article>
+  )
+}

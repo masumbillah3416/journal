@@ -12,8 +12,11 @@
  *
  * Four Payload queries, always, regardless of how many journeys or pages
  * exist (CLAUDE.md §6, no N+1):
- *   1. `findGlobal('book')` - only `journeyOrderMode`, to choose how the
- *      journeys below are sorted before `derivePages` sees them.
+ *   1. `findGlobal('book')` - `journeyOrderMode`, to choose how the journeys
+ *      below are sorted before `derivePages` sees them, plus the seven
+ *      editor-supplied fields the Cover and Contents pages print
+ *      ({@link toBookChrome}). One query, not two: the same global row
+ *      already had to be read for the sort order.
  *   2. `find('journeys')` - every published, non-deleted, non-archived
  *      journey, in one query, sorted per (1).
  *   3. `find('pages')` - every one of those journeys' pages together
@@ -54,13 +57,21 @@
  * without ever logging the journey document itself.
  *
  * Depends on: getPayload (./payload); Journey, BookPage, Slot, BookBundle,
- * derivePages, deriveContents, deriveBookmarks (@travel-diary/domain/bookBundle);
- * journeyId (@travel-diary/domain/ids); the generated Payload types.
+ * BookChrome, derivePages, deriveContents, deriveBookmarks
+ * (@travel-diary/domain/bookBundle); journeyId (@travel-diary/domain/ids);
+ * coverCloths (@travel-diary/tokens/colour), for the one chrome field whose
+ * empty value would render nothing at all; the generated Payload types.
  */
-import type { BookBundle, BookPage, Journey, Slot, SlotRole } from '@travel-diary/domain/bookBundle'
+import type { BookBundle, BookChrome, BookPage, Journey, Slot, SlotRole } from '@travel-diary/domain/bookBundle'
 import { deriveBookmarks, deriveContents, derivePages } from '@travel-diary/domain/bookBundle'
 import { journeyId } from '@travel-diary/domain/ids'
-import type { Journey as PayloadJourney, Media as PayloadMedia, Page as PayloadPage } from '../payload-types'
+import { coverCloths } from '@travel-diary/tokens/colour'
+import type {
+  Book as PayloadBook,
+  Journey as PayloadJourney,
+  Media as PayloadMedia,
+  Page as PayloadPage,
+} from '../payload-types'
 import { getPayload } from './payload'
 
 /** `book.journeyOrderMode`'s three values, transcribed from DATA_MODEL.md's globals section. */
@@ -79,6 +90,15 @@ type SelectedJourneyDoc = Pick<
 
 /** The exact shape `find('pages')`'s own `select` below returns. */
 type SelectedPageDoc = Pick<PayloadPage, 'id' | 'journey' | 'kind' | 'order' | 'slots'>
+
+/**
+ * The exact shape `findGlobal('book')`'s own `select` below returns - the
+ * sort mode plus the seven fields the Cover and Contents pages print.
+ */
+type SelectedBookGlobal = Pick<
+  PayloadBook,
+  'journeyOrderMode' | 'title' | 'subtitle' | 'owner' | 'coverCloth' | 'yearsShown' | 'contentsNote' | 'showDecorations'
+>
 
 /** The exact shape `find('media')`'s own `select` below returns. */
 type SelectedMediaDoc = Pick<PayloadMedia, 'id' | 'sizes' | 'alt' | 'caption'>
@@ -275,6 +295,28 @@ const withSlots = (
   })
 
 /**
+ * Narrows the `book` global's optional text fields into the definite
+ * {@link BookChrome} the pages read. Every one of them is nullable in the
+ * schema (none is `required: true`), so an editor clearing a field is an
+ * ordinary state rather than a corrupted row - each becomes `''`, and
+ * `Cover.tsx` omits the line rather than printing a label with nothing after
+ * it. `coverCloth` is the one field with a non-empty fallback: it is a
+ * background colour, and an empty string would render no cloth at all, so it
+ * falls back to the handoff's default cloth (`coverCloths`' first entry).
+ * @param doc - The `book` global, as `findGlobal` returns it.
+ * @returns The chrome the Cover and Contents pages print.
+ */
+const toBookChrome = (doc: SelectedBookGlobal): BookChrome => ({
+  title: doc.title ?? '',
+  subtitle: doc.subtitle ?? '',
+  owner: doc.owner ?? '',
+  coverCloth: doc.coverCloth ?? coverCloths[0],
+  yearsShown: doc.yearsShown ?? '',
+  contentsNote: doc.contentsNote ?? '',
+  showDecorations: doc.showDecorations ?? true,
+})
+
+/**
  * Assembles the diary's `BookBundle` from Payload: the reading sequence
  * (Cover, Contents, each journey's three pages with their resolved photo
  * slots, About), the Contents index, and the bookmark rail. See this
@@ -288,7 +330,20 @@ const withSlots = (
 export const readBookBundle = async (): Promise<BookBundle> => {
   const payload = await getPayload()
 
-  const book = await payload.findGlobal({ slug: 'book', depth: 0, select: { journeyOrderMode: true } })
+  const book = await payload.findGlobal({
+    slug: 'book',
+    depth: 0,
+    select: {
+      journeyOrderMode: true,
+      title: true,
+      subtitle: true,
+      owner: true,
+      coverCloth: true,
+      yearsShown: true,
+      contentsNote: true,
+      showDecorations: true,
+    },
+  })
   const sort = sortForJourneyOrderMode(book.journeyOrderMode ?? 'manual')
 
   const journeysResult = await payload.find({
@@ -367,5 +422,6 @@ export const readBookBundle = async (): Promise<BookBundle> => {
     pages,
     contents: deriveContents(pages),
     bookmarks: deriveBookmarks(pages),
+    chrome: toBookChrome(book),
   }
 }

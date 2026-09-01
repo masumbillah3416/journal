@@ -26,7 +26,7 @@ import {
   type BookBundle,
 } from '@travel-diary/domain/bookBundle'
 import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
-import { aJourney } from '@travel-diary/domain/testing/factories'
+import { aBookChrome, aJourney } from '@travel-diary/domain/testing/factories'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -45,7 +45,7 @@ const aBundle = (): BookBundle => {
     aJourney({ id: anId('tokyo'), slug: 'tokyo', name: 'Tokyo', place: 'Japan' }),
     aJourney({ id: anId('lisbon'), slug: 'lisbon', name: 'Lisbon', place: 'Portugal' }),
   ])
-  return { pages, contents: deriveContents(pages), bookmarks: deriveBookmarks(pages) }
+  return { pages, contents: deriveContents(pages), bookmarks: deriveBookmarks(pages), chrome: aBookChrome() }
 }
 
 const roots: Root[] = []

@@ -259,3 +259,26 @@ section of the handoff before assuming the row height still fits.
 **Recorded as:** `packages/domain/src/contentsLayout.ts`'s `HANDOFF-DEVIATION` in its
 module header; `packages/domain/src/contentsLayout.test.ts`'s thirty-one-entry case;
 `docs/testing.md` §1 (Unit).
+
+## 10 · Contents header is `align-items: flex-end`, not `baseline`
+
+**What changed:** SCREENS.md §1.2 describes the Contents header as "flex, baseline"; the
+implementation (`apps/web/components/pages/contents.module.css`, `.header`) uses
+`align-items: flex-end`.
+
+**Rationale:** the header's left-hand item is a two-line block — the "Index" eyebrow
+over the 70px "Contents" heading — and CSS flex `baseline` alignment uses an item's
+FIRST baseline set, which for a block container is derived from its first line box. So
+`baseline` would align the right-hand italic note to the 11.5px eyebrow at the top of
+the header, leaving it floating above the heading rather than sitting level with it.
+Two other statements in the handoff resolve which was meant: SCREENS.md §1.3's Notes
+header, which is the same arrangement one page later, spells it out as "flex,
+`align-items: flex-end`"; and the prototype's own Contents header
+(`Travel Diary.dc.html`) uses `align-items: flex-end` too. "Baseline" reads as loose
+prose for "bottom-aligned" in a section whose every other value is exact.
+
+**Consequence a future task needs:** none for layout. If a future design genuinely
+wants the note aligned to the eyebrow, that is a different arrangement and needs the
+left block's two lines split into separate flex items, not a one-word change.
+
+**Recorded as:** `contents.module.css`'s `HANDOFF-DEVIATION` at `.header`; this entry.

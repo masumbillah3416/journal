@@ -176,6 +176,20 @@ would claim a measurement nothing performs.
   ten contents entries — so a task that seeds more than eleven journeys owes the
   Contents body a real overflow assertion.
 
+  Two of Phase 1 Task 9's unit files carry a note of their own.
+  `packages/domain/src/coverTitle.test.ts` asserts the clamp bounds as **literals**
+  (`38`, `124`), never as `COVER_TITLE_SIZE.min`/`.max`: an assertion that reads the
+  constant it is guarding moves with that constant and can never fail. That was caught
+  by mutation, not by review — retuning the floor to 37 left the whole file green until
+  the literals went in (`CLAUDE.md` §2.3, "a test that has never failed is unproven").
+  `packages/domain/src/contentsLayout.test.ts`'s thirty-one-entry case pins **3 columns
+  × 11 rows**, which is what SCREENS.md §1.2's formula produces and *not* the "4 columns
+  × 8 rows" the same section calls verified; the two cannot both be true for any entry
+  count, and `docs/deviations.md` §9 carries the arithmetic. The multi-column path is
+  therefore covered as arithmetic but never rendered in a browser — the seeded book has
+  ten contents entries — so a task that seeds more than eleven journeys owes the
+  Contents body a real overflow assertion.
+
 - **Run:** `npm run test:unit` (both projects, with coverage), or `npm run test` for
   watch mode across every project.
 - **Add one:** colocate `<name>.test.ts` next to `<name>.ts` — or `<name>.test.tsx` for
@@ -407,6 +421,29 @@ would claim a measurement nothing performs.
   instead of `['2', '3']`, and this file's own in-flight read returns `['29']`
   instead of `['2', '3']`. Restoring the lines turns all three green.
 
+  **`e2e/pages.spec.ts` (Phase 1 Task 9)** covers the Cover and Contents pages'
+  browser-only guarantees, at all three viewport projects. What the two components
+  *decide* is already covered without a browser
+  (`apps/web/components/pages/Cover.test.tsx`, `Contents.test.tsx`) and so is the
+  arithmetic behind those decisions (`packages/domain/src/coverTitle.test.ts`,
+  `contentsLayout.test.ts`), so this file asserts only what a laid-out page can answer:
+  that SCREENS.md §1's measurements stay absolute under the design box's `scale(k)`
+  (`offsetTop`/`offsetLeft`/`offsetWidth` are layout coordinates a transform does not
+  touch, so the washi strip still reports `top: 52; left: -26; 190x36` at 390px as at
+  1440px); that the cover title actually FITS (`fitTitleSize` sizes from an *estimate*
+  of Caveat's advance width, since no font metrics exist on the server, so only a
+  browser can confirm `scrollWidth <= clientWidth` and that SCREENS.md's "last-resort"
+  ellipsis never engages); and that the Contents body does not overflow its `1fr` track,
+  which is the one half of SCREENS.md §1.2's "zero overflow" claim that can be checked
+  here — the multi-column count cannot, see `docs/deviations.md` §9.
+
+  Two assertions in it record a browser fact rather than the authored one, each with its
+  reason at the assertion: Chromium reports the inner rule's `2.5px` border as `2px`
+  (it snaps a computed border width to a whole CSS pixel, measured at
+  devicePixelRatio 1 *and* 3, so it is not a density effect), and the washi strip's
+  rotation is read back out of the resolved matrix with `atan2` rather than pinned as
+  matrix digits, which differ in the sixth decimal place between Chromium builds.
+
   `e2e/smoke.spec.ts` is the console-error gate: it loads `/cms` and `/p/1` and asserts
   **zero** `console` (error level) and `pageerror` events, with both listeners attached
   _before_ `page.goto()`. This is deliberately the harness's centre of gravity, not an
@@ -437,7 +474,7 @@ would claim a measurement nothing performs.
   axe violations, pixel drift). Cross-browser coverage is a candidate for a later phase,
   not a Task 12 gap silently worked around — see `playwright.config.ts`'s header.
 - **Run:** `npm run test:e2e` (headless, runs `e2e/smoke.spec.ts`,
-  `e2e/book.spec.ts` and `e2e/flip.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
+  `e2e/book.spec.ts`, `e2e/flip.spec.ts` and `e2e/pages.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.
@@ -453,16 +490,28 @@ would claim a measurement nothing performs.
 - **Tool:** Playwright snapshots (`toHaveScreenshot`, `maxDiffPixelRatio: 0.01` in
   `playwright.config.ts` — the design is high-fidelity, so drift is a defect, not noise).
 - **Scope:** every page type and every admin screen, at each breakpoint. Drift from the
-  high-fidelity design is treated as a defect. The diary's pages are deliberately NOT
-  snapshotted yet: Phase 1 Task 7 built the book's frame and page stack, but the pages
-  it holds are the designed layouts of Tasks 9–11, and a baseline captured against
-  provisional page content would have to be thrown away and recaptured, teaching nobody
-  to trust it in between. Each of those tasks adds its own snapshots as it lands its
-  pages.
+  high-fidelity design is treated as a defect. Each page type is snapshotted by the task
+  that lands its designed layout, not before — a baseline captured against provisional
+  page content would have to be thrown away and recaptured, teaching nobody to trust it
+  in between. Phase 1 Task 9 added the **Cover** and **Contents** pages
+  (`diary-cover-*.png`, `diary-contents-*.png`, all three projects); Notes, Frames I/II
+  and About follow in Tasks 10 and 11.
+
+  The diary cases snapshot the FULL PAGE, not the scaled design box. The box is drawn
+  with `transform: scale(k)`, so a box-only snapshot would be byte-identical at all
+  three projects and would prove nothing about the breakpoints, whereas the full page is
+  what a reader at 390px actually sees. The consequence is that these baselines also
+  carry the diary chrome outside the box (bookmark rail, bottom bar), whose designed
+  appearance is Task 12 — that task updates these six files, which is expected and is
+  what a baseline is for. They must **also** all be regenerated on the day the three
+  handoff fonts land (see §6's third finding): today every diary baseline renders in
+  the generic `cursive`/`serif`/`monospace` fallbacks, so they guard geometry but not
+  typography.
 - **Status:** the mechanism is implemented and proven, and now runs in CI (Task 1 of
-  Phase 1 closed the gap below). `e2e/visual.spec.ts` snapshots the one screen that exists
-  today — `/cms` — at all three breakpoints, using the exact `toHaveScreenshot`/
-  baseline-diff machinery the real pages will use later. Baselines are committed at
+  Phase 1 closed the gap below). `e2e/visual.spec.ts` snapshots every screen that exists
+  today — `/cms` — at all three breakpoints, alongside the diary's Cover and Contents
+  pages, using the exact `toHaveScreenshot`/baseline-diff machinery every further page
+  will use. Baselines are committed at
   `e2e/visual.spec.ts-snapshots/*.png`; a snapshot suite with no baseline to compare
   against protects nothing.
 - **The former gap, closed:** Playwright's screenshot baselines are keyed by OS and font
@@ -532,19 +581,60 @@ critical`) into the live `/cms` DOM via `page.evaluate` and calling
   finding), with a comment at the call site — never to make an inconvenient result
   disappear, and never inherited from another spec's exclusion.
 
-#### The `/cms` axe case had been passing vacuously
+#### Findings recorded here rather than silenced
 
-Until now, `e2e/a11y.spec.ts`'s `/cms` case called `expectNoAxeViolations` immediately
-after `page.goto`, with no wait for Payload's asynchronously-rendered login form — so
-axe was analysing a nearly empty document. The gap surfaced as an intermittent failure
-under concurrent workers that named a *different* rule on each run (`region` once, a
+**1 · The `/cms` axe case had been passing vacuously.** Until Phase 1 Task 9,
+`e2e/a11y.spec.ts`'s `/cms` case called `expectNoAxeViolations` immediately after
+`page.goto`, with no wait for Payload's asynchronously-rendered login form — so axe was
+analysing a nearly empty document. The gap surfaced as an intermittent failure under
+concurrent workers that named a *different* rule on each run (`region` once, a
 keyboard finding on `.checkbox.field-type` another), while passing every time the case
 ran alone. The case now waits for the form and for Next's dev overlay, exactly as
 `e2e/visual.spec.ts`'s `/cms` case already did. With the analysis deterministic, a
 **third** Payload-owned finding is visible and is now in that call site's `allow` list:
 `region` ("All page content should be contained by landmarks"), the same landmark family
 as `landmark-one-main` and `page-has-heading-one`. The diary route carries no exclusions
-of any kind, and adding one there would be a defect, not a workaround.
+of any kind — the Cover and Contents cases call `expectNoAxeViolations(page)` with no
+`allow` argument at all — and adding one there would be a defect, not a workaround.
+
+**2 · The Cover's contrast is measured, not asserted by axe — and four lines fail.**
+axe-core reports `color-contrast` as **incomplete** on both diary pages (7 nodes on the
+Cover, 45 on Contents), because it cannot resolve a gradient background. Incomplete is
+not a violation, so the suite is green; that is axe declining to judge, not a contrast
+pass, and `CLAUDE.md` §2 requires the ratios to be *asserted*. They were therefore
+measured directly: the rendered cloth was sampled beside each cover line in the pinned
+Playwright image and the samples run through `packages/domain/src/contrast.ts`.
+
+| Cover line | Size | Measured | Required | Sampled background |
+|---|---|---|---|---|
+| "Travel Diary" eyebrow | 12px | 3.54:1 | 4.5:1 | `#485d5a` |
+| "Wanderings" title | 124px | 5.44:1 | 3:1 | `#50635f` |
+| Subtitle | 22px italic | 3.45:1 | 4.5:1 | `#576863` |
+| "Kept by …" | 12.5px | 2.94:1 | 4.5:1 | `#5c6c66` |
+| Years | 12.5px | 2.18:1 | 4.5:1 | `#5e6d67` |
+
+Only the title clears its bar. Every colour on the page is SCREENS.md §1.1's own,
+transcribed unchanged, and the handoff's prototype renders the same way, so this is a
+finding about the specified design rather than about the transcription: the cloth
+gradient interpolates from an opaque colour to a 28%-opaque black, so by mid-page the
+cloth is only ~72% opaque and the light paper face beneath washes it from `#2f4a47` up
+to roughly `#5e6d67` — precisely where the small Courier lines sit. Two candidate fixes
+are recorded at `cover.module.css`'s `.cover` rule: keeping the cloth opaque across the
+gradient (which lifts three of the four lines over 4.5:1), and the years line's `.5`
+alpha, which **no** alpha value fixes on its own at that background lightness. Raising a
+handoff colour is a design decision and has not been taken unilaterally. **The Contents
+page needs no such note: every one of its fourteen text roles was measured against the
+darkest paper stop and clears its bar, the lowest at 4.57:1.**
+
+**3 · The three handoff fonts are not loaded by any route yet.** README.md's "Fonts are
+Google Fonts (Caveat, EB Garamond, Courier Prime) — self-host in production" is
+unimplemented: `packages/tokens` names the three families but nothing in `apps/web`
+loads a single font file, so every diary page renders in the generic
+`cursive`/`serif`/`monospace` fallbacks. The visual baselines therefore guard layout and
+geometry drift but not typography, and **all of them must be regenerated in the pinned
+container on the day the fonts land**. Fixing it is cross-cutting (six page types plus
+the admin) and needs an ADR on `next/font/google` versus committed `.woff2` files, so it
+was not folded into Task 9.
 
 ### 7 · Performance
 

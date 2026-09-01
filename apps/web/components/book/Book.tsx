@@ -130,7 +130,7 @@ export const Book = ({ bundle, initialIndex }: BookProps): React.JSX.Element => 
                 presentation={leafPresentation(index, state, totalPages)}
                 durationMs={DEFAULT_FLIP_DURATION_MS}
               >
-                <PageFace page={page} contents={bundle.contents} />
+                <PageFace page={page} contents={bundle.contents} chrome={bundle.chrome} totalPages={totalPages} />
               </Leaf>
             ))}
           </div>

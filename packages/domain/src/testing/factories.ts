@@ -6,9 +6,9 @@
  * call `aJourney()` and then mutate their own copy can never see each
  * other's changes. `Partial<Journey>` overrides merge shallowly over
  * sensible defaults, so a test's `aJourney({ slug: 'tokyo' })` names only the
- * field it cares about. Depends on: Journey, from ../bookBundle.
+ * field it cares about. Depends on: Journey and BookChrome, from ../bookBundle.
  */
-import type { Journey } from '../bookBundle'
+import type { BookChrome, Journey } from '../bookBundle'
 import type { JourneyId } from '../ids'
 
 // Test-only default id. The literal below is a fixed, non-empty string, so
@@ -34,5 +34,22 @@ export const aJourney = (overrides: Partial<Journey> = {}): Journey => ({
   startsOn: '2025-03-03T00:00:00.000Z',
   hiddenFromBookmarks: false,
   furniture: { accent: '#3d817e' },
+  ...overrides,
+})
+
+/**
+ * Builds a {@link BookChrome} for tests, with the seeded book's own values as
+ * defaults so a fixture reads like the real book rather than like a stub.
+ * @param overrides - Fields to override. Merged shallowly over the defaults.
+ * @returns A fresh chrome object, shared with no other call's result.
+ */
+export const aBookChrome = (overrides: Partial<BookChrome> = {}): BookChrome => ({
+  title: 'Wanderings',
+  subtitle: 'field notes, photographs and other scraps',
+  owner: 'M. Alvarez',
+  coverCloth: '#2f4a47',
+  yearsShown: '2025 — 2026',
+  contentsNote: 'Each journey runs three pages — notes, then two spreads of frames. The rest lives in the galleries.',
+  showDecorations: true,
   ...overrides,
 })

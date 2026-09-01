@@ -32,12 +32,14 @@
  * not just `undefined` (finding 3); and a draft journey's exclusion, which
  * was previously correct but unproven (finding 4).
  */
+import { coverCloths } from '@travel-diary/tokens/colour'
 import sharp from 'sharp'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { getPayload } from './payload'
 import { getTestPayload } from './testPayload'
 import { readBookBundle } from './readBookBundle'
 import { seed } from '../scripts/seed'
+import { bookGlobalSeed } from '../scripts/seed-data'
 
 const SETUP_TIMEOUT_MS = 60_000
 
@@ -57,6 +59,83 @@ describe('readBookBundle', () => {
     // `contents` has exactly one entry per journey (deriveContents), so its length is the
     // same fact the handoff's own wording ("ten journeys") is checking.
     expect(bundle.contents).toHaveLength(10)
+  })
+
+  it('carries the book global’s cover and contents copy through, verbatim from the seed', async () => {
+    const bundle = await readBookBundle()
+
+    expect(bundle.chrome).toEqual({
+      title: bookGlobalSeed.title,
+      subtitle: bookGlobalSeed.subtitle,
+      owner: bookGlobalSeed.owner,
+      coverCloth: bookGlobalSeed.coverCloth,
+      yearsShown: bookGlobalSeed.yearsShown,
+      contentsNote: bookGlobalSeed.contentsNote,
+      showDecorations: true,
+    })
+  })
+
+  describe('degrades cleared book-global fields rather than failing the whole book', () => {
+    // None of these fields is `required: true`, so an editor clearing one is
+    // an ordinary state, not a corrupted row. Every field is cleared in one
+    // case rather than one field per case: the behaviour under test is a
+    // single mapping (`toBookChrome`), and five near-identical cases would
+    // assert the same thing five times while each paying a global write.
+    afterEach(async () => {
+      await payload.updateGlobal({
+        slug: 'book',
+        data: {
+          title: bookGlobalSeed.title,
+          subtitle: bookGlobalSeed.subtitle,
+          owner: bookGlobalSeed.owner,
+          coverCloth: bookGlobalSeed.coverCloth,
+          yearsShown: bookGlobalSeed.yearsShown,
+          contentsNote: bookGlobalSeed.contentsNote,
+          showDecorations: true,
+        },
+      })
+    })
+
+    it('empties every cleared text field, so a page omits the line rather than printing an empty label', async () => {
+      await payload.updateGlobal({
+        slug: 'book',
+        data: { title: null, subtitle: null, owner: null, yearsShown: null, contentsNote: null },
+      })
+
+      const bundle = await readBookBundle()
+
+      expect([
+        bundle.chrome.title,
+        bundle.chrome.subtitle,
+        bundle.chrome.owner,
+        bundle.chrome.yearsShown,
+        bundle.chrome.contentsNote,
+      ]).toEqual(['', '', '', '', ''])
+    })
+
+    it('falls back to the handoff’s default cloth, since an empty colour would paint no cloth at all', async () => {
+      await payload.updateGlobal({ slug: 'book', data: { coverCloth: null } })
+
+      const bundle = await readBookBundle()
+
+      expect(bundle.chrome.coverCloth).toBe(coverCloths[0])
+    })
+
+    it('keeps decorations on when the flag is cleared, matching the schema default', async () => {
+      await payload.updateGlobal({ slug: 'book', data: { showDecorations: null } })
+
+      const bundle = await readBookBundle()
+
+      expect(bundle.chrome.showDecorations).toBe(true)
+    })
+
+    it('turns decorations off when an editor actually unticks them', async () => {
+      await payload.updateGlobal({ slug: 'book', data: { showDecorations: false } })
+
+      const bundle = await readBookBundle()
+
+      expect(bundle.chrome.showDecorations).toBe(false)
+    })
   })
 
   it('resolves each slot to a derivative URL, never an original', async () => {
@@ -126,7 +205,8 @@ describe('readBookBundle', () => {
     // One find for journeys, one for pages, one for media - never one per
     // journey or per page (CLAUDE.md §6).
     expect(findSpy.mock.calls.length).toBe(3)
-    // One findGlobal for `book` (journeyOrderMode).
+    // One findGlobal for `book` - the sort mode and the seven chrome fields
+    // come out of the SAME global read, never a second one.
     expect(findGlobalSpy.mock.calls.length).toBe(1)
 
     findSpy.mockRestore()

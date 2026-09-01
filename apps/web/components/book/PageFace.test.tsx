@@ -1,12 +1,13 @@
 /**
- * PageFace.test.tsx — the page content each leaf's front face carries.
+ * PageFace.test.tsx — the dispatch each leaf's front face performs.
  *
- * Only two behaviours exist here and both are asserted: every page is named
- * with the label the domain derives for it, and every Contents row is a real
- * anchor to the page its journey starts on. The second is what
- * `e2e/book.spec.ts`'s pointer-events case clicks — a link that is not
- * actually a link, or points at the wrong page, would make that proof
- * meaningless.
+ * This file asserts WHICH page component each `BookPage` kind reaches, and
+ * that the Contents rows are real anchors to the right pages; what those two
+ * designed pages then print is asserted where it lives, in
+ * `../pages/Cover.test.tsx` and `../pages/Contents.test.tsx`. The anchor case
+ * stays here because it is what `e2e/book.spec.ts`'s pointer-events case
+ * clicks — a link that is not actually a link, or points at the wrong page,
+ * would make that proof meaningless.
  * Depends on: react, react-dom/client, @travel-diary/domain, vitest (jsdom).
  */
 import {
@@ -17,7 +18,7 @@ import {
   type ContentsEntry,
 } from '@travel-diary/domain/bookBundle'
 import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
-import { aJourney } from '@travel-diary/domain/testing/factories'
+import { aBookChrome, aJourney } from '@travel-diary/domain/testing/factories'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -46,7 +47,7 @@ const renderFace = (page: BookPage, entries: readonly ContentsEntry[] = contents
   const root = createRoot(host)
   roots.push(root)
   act(() => {
-    root.render(<PageFace page={page} contents={entries} />)
+    root.render(<PageFace page={page} contents={entries} chrome={aBookChrome()} totalPages={pages.length} />)
   })
   return host
 }
@@ -69,10 +70,22 @@ afterEach(() => {
 })
 
 describe('PageFace', () => {
-  it('names the cover with the label the domain derives for it', () => {
+  it('dispatches the cover page to the designed Cover, not to a generic label', () => {
     const host = renderFace(pageOfKind('cover'))
 
-    expect(host.querySelector('h1')?.textContent).toBe(pageLabel(pageOfKind('cover')))
+    expect(host.querySelector('[data-page]')?.getAttribute('data-page')).toBe('cover')
+  })
+
+  it('dispatches the contents page to the designed Contents', () => {
+    const host = renderFace(pageOfKind('contents'))
+
+    expect(host.querySelector('[data-page]')?.getAttribute('data-page')).toBe('contents')
+  })
+
+  it('names the about page with the label the domain derives for it', () => {
+    const host = renderFace(pageOfKind('about'))
+
+    expect(host.querySelector('h1')?.textContent).toBe(pageLabel(pageOfKind('about')))
   })
 
   it('names a journey page with its journey and section', () => {
@@ -93,7 +106,10 @@ describe('PageFace', () => {
     const host = renderFace(pageOfKind('contents'))
 
     expect([...host.querySelectorAll('a')].map((link) => link.textContent)).toEqual(
-      contents.map((entry) => `${entry.name} — ${entry.place}`),
+      contents.map((entry, position) => {
+        const number = String(position + 1).padStart(2, '0')
+        return `${number}${entry.name}${entry.place} · ${entry.dates}p. ${String(entry.pageNumber)}`
+      }),
     )
   })
 

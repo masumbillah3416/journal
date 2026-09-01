@@ -126,11 +126,37 @@ export interface BookmarkTab {
   readonly accent?: string
 }
 
-/** The book's reading sequence, Contents index and bookmark rail, assembled together. */
+/**
+ * The editor-supplied chrome the Cover and Contents pages print: the `book`
+ * global's own fields, already narrowed to definite values (CLAUDE.md §3.1 -
+ * validate at the boundary, then trust the type inside). None is
+ * `required: true` in the schema, so every text field here can legitimately
+ * be an empty string, and the pages that read them render nothing rather
+ * than a label with nothing after it - see `Cover.tsx`.
+ */
+export interface BookChrome {
+  /** The cover title. Sized to fit by `fitTitleSize`, never truncated. */
+  readonly title: string
+  /** The italic line under the cover title. */
+  readonly subtitle: string
+  /** The name printed after "Kept by" on the cover. */
+  readonly owner: string
+  /** The cover cloth colour, one of `@travel-diary/tokens`' `coverCloths`. */
+  readonly coverCloth: string
+  /** The years line under the "Kept by" line. */
+  readonly yearsShown: string
+  /** The right-aligned italic note in the Contents header. */
+  readonly contentsNote: string
+  /** Whether the cover's washi strip and airmail stamp are drawn at all. */
+  readonly showDecorations: boolean
+}
+
+/** The book's reading sequence, Contents index, bookmark rail and printed chrome. */
 export interface BookBundle {
   readonly pages: readonly BookPage[]
   readonly contents: readonly ContentsEntry[]
   readonly bookmarks: readonly BookmarkTab[]
+  readonly chrome: BookChrome
 }
 
 /** The three page kinds every journey contributes, in reading order. */
