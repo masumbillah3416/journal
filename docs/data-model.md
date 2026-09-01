@@ -121,7 +121,12 @@ from the data it was derived from:
 - Page index and the `03 / 33` counter — from the ordered page list.
 - Contents entries and their page numbers — `2 + journeyIndex × pageCount + 1`.
 - Bookmark tab spans — a journey's tab is active across all of its pages.
-- "{n} photographs and {n} clips in the gallery" — count of `media` by `kind`.
+- "{n} photographs and {n} clips in the gallery" — count of `media` by `kind`. Computed
+  in `apps/web/lib/readBookBundle.ts` (`galleryCountsByJourney`) from one two-column
+  census query covering the whole book, and carried onto every page of a journey as
+  `BookPage.gallery`; the Notes page's footer (`SCREENS.md` §1.3) is its first reader.
+  A media row whose `kind` the pipeline has not set yet counts as a photograph — the
+  line names two categories, and an unclassified still is not a third.
 - "{n} of {n} in the book" — count of `media` where `inBook`.
 - Storage quota — sum of `filesize` grouped by `kind`.
 

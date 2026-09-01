@@ -25,8 +25,43 @@
  * through. Both additions are optional-safe on `derivePages`'s existing
  * output - see `slots`'s own doc comment - so neither required touching
  * `derivePages`'s logic.
+ *
+ * TASK 10 (the Notes page, SCREENS.md §1.3) widened `Journey` and the journey
+ * arm of `BookPage` again, and this time `derivePages` DOES copy the new
+ * fields: the weather and mood lines, the weather glyph, the highlights, the
+ * note, the tally ticket, the sign-off, the two postage-stamp lines and the
+ * `gallery` census. Every one of them is a journey-level fact rather than a
+ * page-level one, so it lives on the journey row and is copied onto the three
+ * pages derived from it, exactly as `name`, `place`, `dates` and `accent`
+ * already were. `gallery` is the one that is not stored anywhere at all - it
+ * is a census of the journey's media taken by `readBookBundle`, per
+ * CLAUDE.md §7's "derive, never store ... media counts".
  */
 import type { JourneyId } from './ids'
+
+/** Which of the three CSS-drawn weather glyphs a journey's Notes page prints (SCREENS.md §1.3). */
+export type WeatherGlyph = 'sun' | 'haze' | 'wind'
+
+/**
+ * One of the four cells on the Notes page's tally ticket (SCREENS.md §1.3).
+ * `value` is text, never a number: the seeded journeys use "plenty" and
+ * "uncounted" as freely as they use "19".
+ */
+export interface TallyCell {
+  readonly key: string
+  readonly value: string
+}
+
+/**
+ * How much a journey's gallery holds, for the "{n} photographs and {m} clips
+ * in the gallery" line in the Notes and Frames footers. DERIVED, never stored
+ * (CLAUDE.md §7, DATA_MODEL.md "Derived, not stored"): it is a census of the
+ * journey's media, taken at read time.
+ */
+export interface GalleryCounts {
+  readonly photographs: number
+  readonly clips: number
+}
 
 /** A trip: the unit of content a reader turns three pages of. */
 export interface Journey {
@@ -38,8 +73,33 @@ export interface Journey {
   /** Sortable ISO 8601 counterpart to {@link dates} (CLAUDE.md §7) - the only way to order human date ranges. */
   readonly startsOn: string
   readonly hiddenFromBookmarks: boolean
+  /** Free-text weather line printed inside the Notes page's weather badge, e.g. `'CLEAR 14C'`. */
+  readonly weather: string
+  /** Free-text mood line printed inside the Notes page's mood badge, e.g. `'WIDE EYED'`. */
+  readonly mood: string
+  /** Which glyph the weather badge draws. */
+  readonly weatherGlyph: WeatherGlyph
+  /**
+   * The Notes page's highlight lines, at most four. The cap is the schema's
+   * (`journeys.highlights.maxRows`) and the layout's: SCREENS.md §1.3 sizes
+   * the list to its content and lets the ephemera slot take what is left, so
+   * a fifth line would eat the slot rather than reflow the page.
+   */
+  readonly highlights: readonly string[]
+  /** The Notes page's prose paragraph, under the highlights. */
+  readonly note: string
+  /** The four cells of the Notes page's tally ticket. */
+  readonly tally: readonly TallyCell[]
+  /** This journey's gallery census - see {@link GalleryCounts}. */
+  readonly gallery: GalleryCounts
   readonly furniture: {
     readonly accent: string
+    /** The closing line at the foot of the Notes page, e.g. `'nineteen tarts, no regrets'`. */
+    readonly signoff: string
+    /** The postage stamp's country line, e.g. `'NIPPON'`. */
+    readonly stampCountry: string
+    /** The postage stamp's face value, e.g. `'120'`. */
+    readonly stampValue: string
   }
 }
 
@@ -65,7 +125,17 @@ export interface Slot {
 /** Which of the three fixed book-wide pages, or which of a journey's three, a page is. */
 export type BookPageKind = 'cover' | 'contents' | 'notes' | 'frames-i' | 'frames-ii' | 'about'
 
-/** Journey identity and display fields carried by each of a journey's three pages. */
+/**
+ * Journey identity, display fields and printed content, carried by each of a
+ * journey's three pages.
+ *
+ * The Notes-page content (`weather` through `stampValue`) sits here, on the
+ * shared arm, rather than on a `'notes'`-only shape: `BookPage`'s journey arm
+ * is one type, the values are journey-level facts rather than page-level
+ * ones, and the Frames pages read `gallery` for their own footer count
+ * (SCREENS.md §1.5). Copying a few strings onto two pages that do not print
+ * them is cheaper than a second page shape and a second mapping.
+ */
 interface JourneyPageInfo {
   readonly journeyId: JourneyId
   readonly slug: string
@@ -74,6 +144,26 @@ interface JourneyPageInfo {
   readonly dates: string
   readonly accent: string
   readonly hiddenFromBookmarks: boolean
+  /** Free-text weather line, printed inside the Notes page's weather badge. */
+  readonly weather: string
+  /** Free-text mood line, printed inside the Notes page's mood badge. */
+  readonly mood: string
+  /** Which glyph the Notes page's weather badge draws. */
+  readonly weatherGlyph: WeatherGlyph
+  /** The Notes page's highlight lines, at most four - see {@link Journey.highlights}. */
+  readonly highlights: readonly string[]
+  /** The Notes page's prose paragraph. */
+  readonly note: string
+  /** The four cells of the Notes page's tally ticket. */
+  readonly tally: readonly TallyCell[]
+  /** The closing line at the foot of the Notes page. */
+  readonly signoff: string
+  /** The Notes page's postage-stamp country line. */
+  readonly stampCountry: string
+  /** The Notes page's postage-stamp face value. */
+  readonly stampValue: string
+  /** This journey's gallery census, for the footer count. */
+  readonly gallery: GalleryCounts
   /**
    * This page's resolved photo slots, in display order. Optional because
    * {@link derivePages} - which only ever sees journey-level fields, never a
@@ -87,15 +177,20 @@ interface JourneyPageInfo {
 }
 
 /**
+ * One of a journey's three pages, named so the page components can take it
+ * as a prop. `Extract<BookPage, { kind: 'notes' }>` cannot express this: all
+ * three kinds share one arm, so the extraction yields `never`.
+ */
+export interface JourneyPage extends JourneyPageInfo {
+  readonly kind: 'notes' | 'frames-i' | 'frames-ii'
+}
+
+/**
  * One page in the reading sequence. Cover, Contents and About carry no
  * journey - the union makes reading `.slug` off one of them a compile error
  * rather than a runtime `undefined`.
  */
-export type BookPage =
-  | { readonly kind: 'cover' }
-  | { readonly kind: 'contents' }
-  | { readonly kind: 'about' }
-  | ({ readonly kind: 'notes' | 'frames-i' | 'frames-ii' } & JourneyPageInfo)
+export type BookPage = { readonly kind: 'cover' } | { readonly kind: 'contents' } | { readonly kind: 'about' } | JourneyPage
 
 /** One row in the Contents index: a journey's display fields and the page its notes page occupies. */
 export interface ContentsEntry {
@@ -183,6 +278,16 @@ export const derivePages = (journeys: readonly Journey[]): readonly BookPage[] =
         dates: journey.dates,
         accent: journey.furniture.accent,
         hiddenFromBookmarks: journey.hiddenFromBookmarks,
+        weather: journey.weather,
+        mood: journey.mood,
+        weatherGlyph: journey.weatherGlyph,
+        highlights: journey.highlights,
+        note: journey.note,
+        tally: journey.tally,
+        signoff: journey.furniture.signoff,
+        stampCountry: journey.furniture.stampCountry,
+        stampValue: journey.furniture.stampValue,
+        gallery: journey.gallery,
       }),
     ),
   ),

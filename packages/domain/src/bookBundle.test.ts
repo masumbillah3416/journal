@@ -31,6 +31,45 @@ describe('derivePages', () => {
     ])
   })
 
+  it('carries the journey’s notes-page content onto every one of its three pages', () => {
+    // SCREENS.md §1.3 prints the weather, mood, highlights, note, tally and
+    // sign-off; none of them is stored per page, so `derivePages` copies the
+    // journey's own values onto the pages it derives. Asserted on all three
+    // pages rather than only the notes page: `BookPage`'s journey arm is one
+    // shape, and a copy that reached only `'notes'` would leave the Frames
+    // pages' own footer count (SCREENS.md §1.5) with nothing to read.
+    const journeys = [
+      aJourney({
+        weather: 'HAZY 27C',
+        mood: 'UNHURRIED',
+        weatherGlyph: 'haze',
+        highlights: ['Tram 28 at seven', 'Custard tart count: nineteen'],
+        note: 'Every street in Lisbon is either up or down.',
+        tally: [{ key: 'Days', value: '11' }],
+        gallery: { photographs: 41, clips: 6 },
+        furniture: { accent: '#a06b3e', signoff: 'nineteen tarts, no regrets', stampCountry: 'PORTUGAL', stampValue: '85' },
+      }),
+    ]
+
+    const journeyPages = derivePages(journeys).filter((page) => page.kind !== 'cover' && page.kind !== 'contents' && page.kind !== 'about')
+
+    expect(journeyPages).toHaveLength(3)
+    for (const page of journeyPages) {
+      expect(page).toMatchObject({
+        weather: 'HAZY 27C',
+        mood: 'UNHURRIED',
+        weatherGlyph: 'haze',
+        highlights: ['Tram 28 at seven', 'Custard tart count: nineteen'],
+        note: 'Every street in Lisbon is either up or down.',
+        tally: [{ key: 'Days', value: '11' }],
+        signoff: 'nineteen tarts, no regrets',
+        stampCountry: 'PORTUGAL',
+        stampValue: '85',
+        gallery: { photographs: 41, clips: 6 },
+      })
+    }
+  })
+
   it('produces thirty-three pages for the seeded ten journeys', () => {
     // Cover + Contents + (10 x 3) + About. This is the handoff's "33 pages",
     // and it is derived here rather than stored — the database holds 30 rows.

@@ -39,7 +39,7 @@ import { getPayload } from './payload'
 import { getTestPayload } from './testPayload'
 import { readBookBundle } from './readBookBundle'
 import { seed } from '../scripts/seed'
-import { bookGlobalSeed } from '../scripts/seed-data'
+import { bookGlobalSeed, journeySeeds } from '../scripts/seed-data'
 
 const SETUP_TIMEOUT_MS = 60_000
 
@@ -181,6 +181,44 @@ describe('readBookBundle', () => {
     expect(slot).toMatchObject({ focalX: expect.any(Number), focalY: expect.any(Number) })
   })
 
+  it('carries a journey’s Notes-page content through, verbatim from the seed', async () => {
+    const bundle = await readBookBundle()
+    const lisbonSeed = journeySeeds.find((journey) => journey.slug === 'lisbon')
+    const lisbon = bundle.pages.find((page) => page.kind === 'notes' && page.slug === 'lisbon')
+
+    // SCREENS.md §1.3's copy is final (CLAUDE.md §9, Pass 3): asserted
+    // against the seed constant itself, so a paraphrase anywhere between
+    // Payload and the page fails here rather than shipping.
+    expect(lisbon).toMatchObject({
+      weather: lisbonSeed?.weather,
+      mood: lisbonSeed?.mood,
+      weatherGlyph: lisbonSeed?.weatherGlyph,
+      highlights: lisbonSeed?.highlights,
+      note: lisbonSeed?.note,
+      tally: lisbonSeed?.tally,
+      signoff: lisbonSeed?.signoff,
+      stampCountry: lisbonSeed?.stampCountry,
+      stampValue: lisbonSeed?.stampValue,
+    })
+  })
+
+  it('counts a journey’s gallery from its media rather than reading a stored total', async () => {
+    const bundle = await readBookBundle()
+    const lisbon = bundle.pages.find((page) => page.kind === 'notes' && page.slug === 'lisbon')
+    const journeys = await payload.find({ collection: 'journeys', where: { slug: { equals: 'lisbon' } }, limit: 1 })
+    const media = await payload.count({
+      collection: 'media',
+      where: { journey: { equals: journeys.docs[0]?.id } },
+    })
+
+    // CLAUDE.md §7: media counts are DERIVED. The seed gives every journey
+    // nine stills and no clips, so the census must add up to the collection's
+    // own count for that journey rather than to a number anybody stored.
+    const gallery = lisbon?.kind === 'notes' ? lisbon.gallery : undefined
+    expect(gallery).toBeDefined()
+    expect((gallery?.photographs ?? 0) + (gallery?.clips ?? 0)).toBe(media.totalDocs)
+  })
+
   it('sets depth explicitly rather than letting Payload walk the graph', async () => {
     // CLAUDE.md §7: select only the fields needed, set depth explicitly. A
     // default depth here pulls every relationship on every page load.
@@ -202,9 +240,9 @@ describe('readBookBundle', () => {
 
     await readBookBundle()
 
-    // One find for journeys, one for pages, one for media - never one per
-    // journey or per page (CLAUDE.md §6).
-    expect(findSpy.mock.calls.length).toBe(3)
+    // One find for journeys, one for pages, one for the slots' media and one
+    // for the gallery census - never one per journey or per page (CLAUDE.md §6).
+    expect(findSpy.mock.calls.length).toBe(4)
     // One findGlobal for `book` - the sort mode and the seven chrome fields
     // come out of the SAME global read, never a second one.
     expect(findGlobalSpy.mock.calls.length).toBe(1)
@@ -596,6 +634,11 @@ describe('readBookBundle', () => {
       for (const doc of found.docs) {
         const pages = await payload.find({ collection: 'pages', where: { journey: { equals: doc.id } } })
         for (const page of pages.docs) await payload.delete({ collection: 'pages', id: page.id })
+        // The census fixtures below attach media to this journey; they are
+        // removed with it, or `seed.integration.test.ts`'s own row counts
+        // would inherit them.
+        const media = await payload.find({ collection: 'media', where: { journey: { equals: doc.id } } })
+        for (const item of media.docs) await payload.delete({ collection: 'media', id: item.id })
         await payload.delete({ collection: 'journeys', id: doc.id })
       }
       await payload.updateGlobal({ slug: 'book', data: { journeyOrderMode: 'manual' } })
@@ -647,6 +690,128 @@ describe('readBookBundle', () => {
       const bookmarkTab = bundle.bookmarks.find((tab) => tab.slug === JOURNEY_SLUG)
 
       expect(bookmarkTab?.accent).toBe('#3d817e')
+    })
+
+    it('degrades every unfilled Notes-page field rather than failing the whole book', async () => {
+      // A journey an editor has created but not yet written up: no weather,
+      // no mood, no glyph, no highlights, no note, no tally, no furniture.
+      // The page must still render, so each field narrows to an empty value
+      // and `Notes.tsx` omits the element (see `toDomainJourney`).
+      const created = await payload.create({
+        collection: 'journeys',
+        data: {
+          name: 'Explicit Null Trip',
+          place: 'Nowhere',
+          slug: JOURNEY_SLUG,
+          dates: '1 - 2 January 2025',
+          startsOn: '2025-01-01T00:00:00.000Z',
+          _status: 'published',
+        },
+      })
+      await payload.update({
+        collection: 'journeys',
+        id: created.id,
+        // `highlights` and `tally` are left alone rather than set to `null`:
+        // Payload's Drizzle adapter cannot write `null` to an array field
+        // ("Cannot use 'in' operator to search for '$push' in null"), and an
+        // array an editor has never filled in comes back as `[]` from
+        // `find()` anyway, which is the state this case is about.
+        data: {
+          weather: null,
+          mood: null,
+          weatherGlyph: null,
+          note: null,
+          furniture: { signoff: null, stampCountry: null, stampValue: null },
+        },
+      })
+
+      const bundle = await readBookBundle()
+      const notes = bundle.pages.find((page) => page.kind === 'notes' && page.slug === JOURNEY_SLUG)
+
+      expect(notes).toMatchObject({
+        weather: '',
+        mood: '',
+        // The schema's own default, not an empty string: the glyph is drawn
+        // in CSS from a fixed set of three, so there is no "no glyph" state.
+        weatherGlyph: 'sun',
+        highlights: [],
+        note: '',
+        tally: [],
+        signoff: '',
+        stampCountry: '',
+        stampValue: '',
+        // A journey with no media of its own still counts, at zero.
+        gallery: { photographs: 0, clips: 0 },
+      })
+    })
+
+    it('empties a half-filled tally cell rather than printing "undefined" on the ticket', async () => {
+      // Both halves of a tally row are optional in the schema, so an editor
+      // who adds a row and fills only one side is an ordinary state. All four
+      // rows are supplied because the array itself is `minRows: 4, maxRows: 4`.
+      const created = await payload.create({
+        collection: 'journeys',
+        data: {
+          name: 'Explicit Null Trip',
+          place: 'Nowhere',
+          slug: JOURNEY_SLUG,
+          dates: '1 - 2 January 2025',
+          startsOn: '2025-01-01T00:00:00.000Z',
+          tally: [{ key: 'Days' }, { value: '12' }, { key: 'Rolls shot', value: '9' }, { key: 'Bowls', value: '11' }],
+          _status: 'published',
+        },
+      })
+      expect(created.tally?.[0]?.value).toBeFalsy()
+
+      const bundle = await readBookBundle()
+      const notes = bundle.pages.find((page) => page.kind === 'notes' && page.slug === JOURNEY_SLUG)
+
+      expect(notes).toMatchObject({
+        tally: [
+          { key: 'Days', value: '' },
+          { key: '', value: '12' },
+          { key: 'Rolls shot', value: '9' },
+          { key: 'Bowls', value: '11' },
+        ],
+      })
+    })
+
+    it('counts a clip as a clip and everything else as a photograph in the gallery census', async () => {
+      const created = await payload.create({
+        collection: 'journeys',
+        data: {
+          name: 'Explicit Null Trip',
+          place: 'Nowhere',
+          slug: JOURNEY_SLUG,
+          dates: '1 - 2 January 2025',
+          startsOn: '2025-01-01T00:00:00.000Z',
+          _status: 'published',
+        },
+      })
+      // Built with the same `sharp` the media pipeline uses, not a contrived
+      // mock. `kind` is what the census reads; the file itself is a still in
+      // both cases because this suite has no transcode pipeline to produce a
+      // real clip, and the census never opens the file.
+      const png = await sharp({
+        create: { width: 100, height: 100, channels: 3, background: { r: 180, g: 180, b: 180 } },
+      })
+        .png()
+        .toBuffer()
+      for (const [kind, name] of [
+        ['still', 'census-still.png'],
+        ['clip', 'census-clip.png'],
+      ] as const) {
+        await payload.create({
+          collection: 'media',
+          data: { journey: created.id, kind, alt: `census ${kind}`, order: 0 },
+          file: { data: png, mimetype: 'image/png', name, size: png.length },
+        })
+      }
+
+      const bundle = await readBookBundle()
+      const notes = bundle.pages.find((page) => page.kind === 'notes' && page.slug === JOURNEY_SLUG)
+
+      expect(notes).toMatchObject({ gallery: { photographs: 1, clips: 1 } })
     })
 
     it('falls back to "manual" ordering when the book global\'s journeyOrderMode is explicitly null', async () => {

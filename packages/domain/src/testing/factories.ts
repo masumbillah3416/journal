@@ -33,7 +33,19 @@ export const aJourney = (overrides: Partial<Journey> = {}): Journey => ({
   dates: '3–9 Mar 2025',
   startsOn: '2025-03-03T00:00:00.000Z',
   hiddenFromBookmarks: false,
-  furniture: { accent: '#3d817e' },
+  weather: 'CLEAR 14C',
+  mood: 'WIDE EYED',
+  weatherGlyph: 'sun',
+  highlights: ['First train at 05:40 — an empty carriage and a pink sky'],
+  note: 'Tokyo is loud in a way that never quite becomes noise.',
+  tally: [{ key: 'Days', value: '12' }],
+  gallery: { photographs: 47, clips: 7 },
+  furniture: {
+    accent: '#3d817e',
+    signoff: 'twelve days, one corner of it',
+    stampCountry: 'NIPPON',
+    stampValue: '120',
+  },
   ...overrides,
 })
 

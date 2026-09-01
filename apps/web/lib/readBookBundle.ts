@@ -10,22 +10,32 @@
  * `derivePages`/`deriveContents`/`deriveBookmarks`, reused here verbatim
  * (docs/deviations.md §5: Cover/Contents/About are not `pages` rows).
  *
- * Four Payload queries, always, regardless of how many journeys or pages
- * exist (CLAUDE.md §6, no N+1):
+ * Five Payload queries, always, regardless of how many journeys, pages or
+ * photographs exist (CLAUDE.md §6, no N+1):
  *   1. `findGlobal('book')` - `journeyOrderMode`, to choose how the journeys
  *      below are sorted before `derivePages` sees them, plus the seven
  *      editor-supplied fields the Cover and Contents pages print
  *      ({@link toBookChrome}). One query, not two: the same global row
  *      already had to be read for the sort order.
  *   2. `find('journeys')` - every published, non-deleted, non-archived
- *      journey, in one query, sorted per (1).
- *   3. `find('pages')` - every one of those journeys' pages together
+ *      journey, in one query, sorted per (1). This is also where the Notes
+ *      page's own content comes from (SCREENS.md §1.3: the weather and mood
+ *      lines, the highlights, the note, the tally ticket, the sign-off and
+ *      the postage stamp) - all of it lives on the journey row, so it costs
+ *      no query of its own.
+ *   3. `find('media')` - the gallery census: `journey` and `kind` only, for
+ *      every media row of every journey in the book, so each page's footer
+ *      count is DERIVED (CLAUDE.md §7) rather than stored. Two columns for
+ *      the whole book, not one query per journey.
+ *   4. `find('pages')` - every one of those journeys' pages together
  *      (`where: journey in [...]`), not one query per journey.
- *   4. `find('media')` - every media item referenced by any slot in (3)
+ *   5. `find('media')` - every media item referenced by any slot in (4)
  *      together (`where: id in [...]`), not one query per slot or per page.
- * Every one of the four sets `depth: 0` explicitly (CLAUDE.md §7: a default
+ *      Separate from (3) deliberately: this one carries each row's whole
+ *      `sizes` derivative map, which a census must never pay for.
+ * Every one of the five sets `depth: 0` explicitly (CLAUDE.md §7: a default
  * depth walks the whole relationship graph on every request) - relationships
- * are resolved by hand from (3)'s raw `journey`/`slots[].media` ids and (4)'s
+ * are resolved by hand from (4)'s raw `journey`/`slots[].media` ids and (5)'s
  * batch, not by Payload's own population. Every query also selects only the
  * fields this module reads (CLAUDE.md §7).
  *
@@ -62,7 +72,15 @@
  * coverCloths (@travel-diary/tokens/colour), for the one chrome field whose
  * empty value would render nothing at all; the generated Payload types.
  */
-import type { BookBundle, BookChrome, BookPage, Journey, Slot, SlotRole } from '@travel-diary/domain/bookBundle'
+import type {
+  BookBundle,
+  BookChrome,
+  BookPage,
+  GalleryCounts,
+  Journey,
+  Slot,
+  SlotRole,
+} from '@travel-diary/domain/bookBundle'
 import { deriveBookmarks, deriveContents, derivePages } from '@travel-diary/domain/bookBundle'
 import { journeyId } from '@travel-diary/domain/ids'
 import { coverCloths } from '@travel-diary/tokens/colour'
@@ -85,8 +103,30 @@ type JourneyOrderMode = 'manual' | 'newest' | 'oldest'
  */
 type SelectedJourneyDoc = Pick<
   PayloadJourney,
-  'id' | 'slug' | 'name' | 'place' | 'dates' | 'startsOn' | 'createdAt' | 'hiddenFromBookmarks' | 'furniture'
+  | 'id'
+  | 'slug'
+  | 'name'
+  | 'place'
+  | 'dates'
+  | 'startsOn'
+  | 'createdAt'
+  | 'hiddenFromBookmarks'
+  | 'furniture'
+  | 'weather'
+  | 'mood'
+  | 'weatherGlyph'
+  | 'highlights'
+  | 'note'
+  | 'tally'
 >
+
+/**
+ * The exact shape the gallery-census `find('media')` below returns: two
+ * columns, no `sizes` blob. It is a separate query from the slot-media one
+ * precisely so that counting a journey's gallery never drags every media
+ * row's derivative map across the wire (CLAUDE.md §7, no over-fetching).
+ */
+type CensusMediaDoc = Pick<PayloadMedia, 'journey' | 'kind'>
 
 /** The exact shape `find('pages')`'s own `select` below returns. */
 type SelectedPageDoc = Pick<PayloadPage, 'id' | 'journey' | 'kind' | 'order' | 'slots'>
@@ -179,7 +219,7 @@ const derivativeUrlFor = (media: SelectedMediaDoc, role: SlotRole): string => {
  *   Payload itself generated, so this is an invariant guard, not a
  *   condition callers are expected to handle.
  */
-const toDomainJourney = (doc: SelectedJourneyDoc, logger: StructuredLogger): Journey => {
+const toDomainJourney = (doc: SelectedJourneyDoc, gallery: GalleryCounts, logger: StructuredLogger): Journey => {
   const brandedId = journeyId(String(doc.id))
   if (!brandedId.ok) throw new Error(brandedId.error)
 
@@ -199,9 +239,52 @@ const toDomainJourney = (doc: SelectedJourneyDoc, logger: StructuredLogger): Jou
     dates: doc.dates,
     startsOn,
     hiddenFromBookmarks: doc.hiddenFromBookmarks ?? false,
-    furniture: { accent: doc.furniture?.accent ?? '#3d817e' },
+    // Every Notes-page field below is nullable in the schema (none is
+    // `required: true`), so an editor who has not filled one in yet is an
+    // ordinary state, not a corrupted row: each narrows to an empty string,
+    // empty list or the schema's own default, and `Notes.tsx` omits the
+    // element rather than printing an empty badge or a bullet with no line
+    // after it - the same policy `toBookChrome` applies to the cover.
+    weather: doc.weather ?? '',
+    mood: doc.mood ?? '',
+    weatherGlyph: doc.weatherGlyph ?? 'sun',
+    highlights: (doc.highlights ?? []).map((highlight) => highlight.text),
+    note: doc.note ?? '',
+    tally: (doc.tally ?? []).map((cell) => ({ key: cell.key ?? '', value: cell.value ?? '' })),
+    gallery,
+    furniture: {
+      accent: doc.furniture?.accent ?? '#3d817e',
+      signoff: doc.furniture?.signoff ?? '',
+      stampCountry: doc.furniture?.stampCountry ?? '',
+      stampValue: doc.furniture?.stampValue ?? '',
+    },
   }
 }
+
+/**
+ * Tallies each journey's gallery from a flat census of media rows.
+ * `kind` is set by the media pipeline rather than by an author and is
+ * nullable until it runs, so anything that is not explicitly a clip counts as
+ * a photograph - the reader-facing line says "photographs and clips", and an
+ * unclassified still is a photograph, not a third category.
+ * @param census - Every media row belonging to any journey in the book, with only `journey` and `kind` selected.
+ * @returns Each journey's counts, keyed by its numeric Payload id. A journey with no media at all is absent.
+ */
+const galleryCountsByJourney = (census: readonly CensusMediaDoc[]): ReadonlyMap<number, GalleryCounts> => {
+  const counts = new Map<number, { photographs: number; clips: number }>()
+  for (const item of census) {
+    if (item.journey === null || item.journey === undefined) continue
+    const journeyNumericId = typeof item.journey === 'number' ? item.journey : item.journey.id
+    const running = counts.get(journeyNumericId) ?? { photographs: 0, clips: 0 }
+    if (item.kind === 'clip') running.clips += 1
+    else running.photographs += 1
+    counts.set(journeyNumericId, running)
+  }
+  return counts
+}
+
+/** An empty census, for a journey whose media have not been uploaded yet. */
+const NO_GALLERY: GalleryCounts = { photographs: 0, clips: 0 }
 
 /**
  * Resolves one `pages` row's slots into the domain {@link Slot} shape.
@@ -379,10 +462,35 @@ export const readBookBundle = async (): Promise<BookBundle> => {
       createdAt: true,
       hiddenFromBookmarks: true,
       furniture: true,
+      weather: true,
+      mood: true,
+      weatherGlyph: true,
+      highlights: true,
+      note: true,
+      tally: true,
     },
   })
-  const journeys = journeysResult.docs.map((doc) => toDomainJourney(doc, payload.logger))
   const journeyNumericIds = journeysResult.docs.map((doc) => doc.id)
+
+  // The gallery census: one query for the whole book, two columns wide. It
+  // is deliberately NOT folded into the slot-media query below - that one is
+  // keyed by the slot media ids and carries every row's `sizes` map, and
+  // widening it to "every media row of every journey" to save a round trip
+  // would pull a derivative map per photograph for a number this page prints
+  // as two integers (CLAUDE.md §7, fetch narrowly).
+  const censusResult = await payload.find({
+    collection: 'media',
+    depth: 0,
+    pagination: false,
+    limit: 20_000,
+    where: { journey: { in: journeyNumericIds } },
+    select: { journey: true, kind: true },
+  })
+  const galleryByJourney = galleryCountsByJourney(censusResult.docs)
+
+  const journeys = journeysResult.docs.map((doc) =>
+    toDomainJourney(doc, galleryByJourney.get(doc.id) ?? NO_GALLERY, payload.logger),
+  )
 
   const pagesResult = await payload.find({
     collection: 'pages',
