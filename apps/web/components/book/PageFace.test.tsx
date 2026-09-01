@@ -16,12 +16,14 @@ import {
   pageLabel,
   type BookPage,
   type ContentsEntry,
+  type Slot,
 } from '@travel-diary/domain/bookBundle'
 import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
 import { aBookChrome, aJourney } from '@travel-diary/domain/testing/factories'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
+import { DEFERRED_PHOTOGRAPH_SRC } from '../pages/deferredPhotograph'
 import { PageFace } from './PageFace'
 
 /** Brands a test journey id, so two fixtures in one book are never the same journey (CLAUDE.md §7). */
@@ -38,16 +40,46 @@ const journeys = [
 const pages = derivePages(journeys)
 const contents = deriveContents(pages)
 
+/** A hero slot fixture, so a notes page here has a photograph to withhold. */
+const aHeroSlot = (): Slot => ({
+  role: 'hero',
+  src: '/api/media/file/tokyo-hero-800x800.png',
+  alt: 'Shibuya crossing',
+  caption: 'Crossing at Shibuya',
+  focalX: 50,
+  focalY: 50,
+})
+
+/**
+ * The derived notes page with a resolved slot on it, narrowed rather than
+ * cast (CLAUDE.md §3.1) so this fixture needs no `as`.
+ * @param slots - The slots to resolve onto the page.
+ * @returns The notes page, carrying those slots.
+ */
+const aNotesPageCarrying = (...slots: readonly Slot[]): BookPage => {
+  const page = pages.find((candidate) => candidate.kind === 'notes')
+  if (page === undefined || page.kind !== 'notes') throw new Error('the derived reading sequence has no notes page')
+  return { ...page, slots }
+}
+
 const roots: Root[] = []
 
 /** Renders one page face and hands back the host element. */
-const renderFace = (page: BookPage, entries: readonly ContentsEntry[] = contents): HTMLElement => {
+const renderFace = (page: BookPage, entries: readonly ContentsEntry[] = contents, loadsImages = true): HTMLElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
   roots.push(root)
   act(() => {
-    root.render(<PageFace page={page} contents={entries} chrome={aBookChrome()} totalPages={pages.length} />)
+    root.render(
+      <PageFace
+        page={page}
+        contents={entries}
+        chrome={aBookChrome()}
+        totalPages={pages.length}
+        loadsImages={loadsImages}
+      />,
+    )
   })
   return host
 }
@@ -123,5 +155,20 @@ describe('PageFace', () => {
     const host = renderFace(pageOfKind('about'))
 
     expect(host.querySelectorAll('a')).toHaveLength(0)
+  })
+
+  it("passes the leaf's image window down to the page that owns the photographs", () => {
+    // `leafPresentation.loadsImages` is decided once, in the domain, and this
+    // dispatch is the only route from the leaf to the page that prints an
+    // `<img>`. A face that dropped it on the floor would put the whole book's
+    // photographs back in the document, which is the defect the window exists
+    // to fix.
+    const withSlots = aNotesPageCarrying(aHeroSlot())
+
+    const deferred = renderFace(withSlots, contents, false)
+    const loaded = renderFace(withSlots, contents, true)
+
+    expect(deferred.querySelector('[data-hero]')?.getAttribute('src')).toBe(DEFERRED_PHOTOGRAPH_SRC)
+    expect(loaded.querySelector('[data-hero]')?.getAttribute('src')).toBe(aHeroSlot().src)
   })
 })

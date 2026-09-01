@@ -24,12 +24,15 @@ import {
   derivePages,
   pageCounter,
   type BookBundle,
+  type BookPage,
+  type Slot,
 } from '@travel-diary/domain/bookBundle'
 import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
 import { aBookChrome, aJourney } from '@travel-diary/domain/testing/factories'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
+import { DEFERRED_PHOTOGRAPH_SRC } from '../pages/deferredPhotograph'
 import { Book } from './Book'
 
 /** Brands a test journey id, so two fixtures in one book are never the same journey (CLAUDE.md §7). */
@@ -47,6 +50,34 @@ const aBundle = (): BookBundle => {
   ])
   return { pages, contents: deriveContents(pages), bookmarks: deriveBookmarks(pages), chrome: aBookChrome() }
 }
+
+/** A hero slot fixture, so the book under test has photographs to withhold. */
+const aHeroSlot = (name: string): Slot => ({
+  role: 'hero',
+  src: `/api/media/file/${name}-hero-800x800.png`,
+  alt: `${name} hero`,
+  caption: `${name}, in passing`,
+  focalX: 50,
+  focalY: 50,
+})
+
+/**
+ * The same bundle with a hero photograph resolved onto every notes page, the
+ * way `readBookBundle` resolves them in the app. Narrowed rather than cast
+ * (CLAUDE.md §3.1).
+ * @returns A bundle whose notes pages each carry one hero slot.
+ */
+const aBundleWithPhotographs = (): BookBundle => {
+  const bundle = aBundle()
+  const pages: BookPage[] = bundle.pages.map((page) =>
+    page.kind === 'notes' ? { ...page, slots: [aHeroSlot(page.slug)] } : page,
+  )
+  return { ...bundle, pages }
+}
+
+/** The `src` a leaf's hero photograph is carrying, or `'no hero'` when it has none. */
+const heroSrcOfLeaf = (host: HTMLElement, leaf: number): string =>
+  host.querySelector(`[data-leaf="${String(leaf)}"] [data-hero]`)?.getAttribute('src') ?? 'no hero'
 
 const roots: Root[] = []
 
@@ -265,5 +296,50 @@ describe('Book', () => {
     renderBook(3)
 
     expect(window.location.pathname).toBe('/p/4')
+  })
+
+  // The image window, end to end. `leafPresentation.loadsImages` decides it
+  // and `packages/domain/src/pageStack.test.ts` proves the arithmetic; what is
+  // asserted here is that the book actually WIRES that decision to the leaves,
+  // which is where Task 10's 1.8MB of eager photographs came from.
+
+  it('gives a real photograph only to the leaves beside the reader', () => {
+    const host = renderBook(5, aBundleWithPhotographs())
+
+    expect(heroSrcOfLeaf(host, 5)).toBe('/api/media/file/lisbon-hero-800x800.png')
+    expect(heroSrcOfLeaf(host, 2)).toBe(DEFERRED_PHOTOGRAPH_SRC)
+  })
+
+  it('keeps a deferred leaf’s own text in the document, so the deep link stays indexable', () => {
+    const host = renderBook(5, aBundleWithPhotographs())
+
+    expect(one(host, '[data-leaf="2"]').textContent).toContain('Tokyo')
+    expect(one(host, '[data-leaf="2"] [data-hero]').getAttribute('alt')).toBe('tokyo hero')
+  })
+
+  it('has the destination’s photograph in place before the turn reveals it', () => {
+    // A turn to a neighbour finds it already loaded — the window is one page
+    // wider than `visible` precisely so the reader never watches an empty
+    // frame swing into place.
+    const host = renderBook(4, aBundleWithPhotographs())
+    expect(heroSrcOfLeaf(host, 5)).toBe('/api/media/file/lisbon-hero-800x800.png')
+
+    click(host, '[data-nav="next"]')
+
+    expect(visibleLeaves(host)).toContain('5')
+    expect(heroSrcOfLeaf(host, 5)).toBe('/api/media/file/lisbon-hero-800x800.png')
+  })
+
+  it('opens the window on the destination the moment a bookmark jump starts', () => {
+    // A jump moves the reader many pages at once, so its destination cannot
+    // have been preloaded. It is inside the window from the first frame of the
+    // turn instead — never only once the turn has committed.
+    const host = renderBook(2, aBundleWithPhotographs())
+    expect(heroSrcOfLeaf(host, 5)).toBe(DEFERRED_PHOTOGRAPH_SRC)
+
+    click(host, '[data-bookmark="5"]')
+
+    expect(visibleLeaves(host)).toContain('5')
+    expect(heroSrcOfLeaf(host, 5)).toBe('/api/media/file/lisbon-hero-800x800.png')
   })
 })

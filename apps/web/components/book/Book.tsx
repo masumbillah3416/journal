@@ -58,6 +58,20 @@
  * reading thirty pages does not bury the page the reader arrived from under
  * thirty history entries.
  *
+ * THE IMAGE WINDOW IS WHY THIS FILE RENDERING ALL 33 LEAVES IS AFFORDABLE.
+ * Every leaf is in the document, and every leaf is absolutely positioned at
+ * `inset: 0`, so the browser considers all thirty-three in the viewport and
+ * `loading="lazy"` defers nothing - measured on `/p/1`, which fetched all 20
+ * of the seeded book's photographs (1,833,312 bytes) with the reader on the
+ * Cover and put the LCP gate 669ms into the red. `leafPresentation.loadsImages`
+ * narrows that to the open page, its two neighbours, and the leaves a turn
+ * departs from and arrives at; it is passed to `PageFace` here and no
+ * component re-derives it. The alternative - rendering only the current leaf
+ * server-side - was rejected outright: the design spec's §8 requires every
+ * page's content in the served HTML so the deep links are indexable, and the
+ * handoff lists "a client-only SPA (destroys the deep links' SEO value)"
+ * under what to avoid. The markup stays; the bytes go.
+ *
  * SCOPE. The bookmark rail, bottom bar and page counter are rendered here
  * because Task 8's triggers are useless without something to click, but only
  * their BEHAVIOUR is finished: their designed appearance (SCREENS.md §1.7 -
@@ -138,20 +152,34 @@ export const Book = ({ bundle, initialIndex }: BookProps): React.JSX.Element => 
           <div data-fore-edge="" className={styles.foreEdge} />
 
           <div data-stack="" className={styles.stack}>
-            {bundle.pages.map((page, index) => (
-              <Leaf
-                // Index is the leaf's identity here, not a stand-in for one: the
-                // reading sequence is a fixed, ordered stack of leaves rather
-                // than a sortable list of rows, and leaf 3 is the third leaf of
-                // the book whatever page happens to be printed on it.
-                key={index}
-                index={index}
-                presentation={leafPresentation(index, state, totalPages)}
-                durationMs={DEFAULT_FLIP_DURATION_MS}
-              >
-                <PageFace page={page} contents={bundle.contents} chrome={bundle.chrome} totalPages={totalPages} />
-              </Leaf>
-            ))}
+            {bundle.pages.map((page, index) => {
+              const presentation = leafPresentation(index, state, totalPages)
+
+              return (
+                <Leaf
+                  // Index is the leaf's identity here, not a stand-in for one: the
+                  // reading sequence is a fixed, ordered stack of leaves rather
+                  // than a sortable list of rows, and leaf 3 is the third leaf of
+                  // the book whatever page happens to be printed on it.
+                  key={index}
+                  index={index}
+                  presentation={presentation}
+                  durationMs={DEFAULT_FLIP_DURATION_MS}
+                >
+                  <PageFace
+                    page={page}
+                    contents={bundle.contents}
+                    chrome={bundle.chrome}
+                    totalPages={totalPages}
+                    // The window, straight off the leaf's own presentation. It
+                    // reaches the face rather than the leaf because it governs
+                    // the CONTENT the front face carries, not the leaf's
+                    // geometry - see this file's IMAGE WINDOW note above.
+                    loadsImages={presentation.loadsImages}
+                  />
+                </Leaf>
+              )
+            })}
           </div>
 
           {/* Siblings of the stack, not of the leaves - see

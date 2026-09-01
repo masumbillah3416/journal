@@ -49,7 +49,7 @@ module, independently testable, named in its own header.
 | `flipMachine`                           | `packages/domain`                  | Pure reducer over `{dir, from, to, go, half, busy}` with an injected clock                                                                        |
 | `bookScale`                             | `packages/domain`                  | `(area) → number`, `min(w/1300, h/860)` capped at 1.7                                                                                             |
 | `bookBundle`                            | `packages/domain` + `apps/web/lib` | Payload rows in, one typed `BookBundle` out. The diary client reads nothing else.                                                                 |
-| `pageStack`                             | `packages/domain`                  | `(leafIndex, FlipState, totalPages) → LeafPresentation`. Every field maps one-to-one into CSS, so the DOM layer re-derives no flip geometry.      |
+| `pageStack`                             | `packages/domain`                  | `(leafIndex, FlipState, totalPages) → LeafPresentation`. Every field maps one-to-one into CSS, so the DOM layer re-derives no flip geometry. `loadsImages` extends the same idea to the image window (`docs/adr/0006-diary-image-window.md`). |
 | `pageAddress`                           | `packages/domain`                  | `('<n>', totalPages) → leafIndex` and `leafIndex → '/p/<n>'`. The only translation between the 1-based page number a reader shares and the 0-based index the stack works in, in both directions. |
 | `storage` / `mailer` / `transcodeQueue` | `apps/web/lib`                     | Ports with local and production adapters, one shared contract suite run against both                                                              |
 
@@ -62,7 +62,7 @@ deliberately thin, and every file in it names what it is allowed to decide:
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `Book.tsx`        | The diary's single `'use client'` boundary. Composes frame, scaled design box, stack and every trigger; owns no arithmetic. Writes the URL on each committed page change.                               |
 | `Leaf.tsx`        | Assigns one `LeafPresentation` straight into `rotateY()`, `z-index`, `visibility`, `pointer-events`, the two face opacities and — from `isTurning` — the shade and transition duration.                 |
-| `PageFace.tsx`    | The content of one page. Provisional until Tasks 9–11 land the designed layouts.                                                                                                                       |
+| `PageFace.tsx`    | The content of one page, and the only route from a leaf to the components that print an `<img>` — so it also carries the leaf's `loadsImages` window down. Provisional until Task 11 lands Frames I/II. |
 | `EdgeStrip.tsx`   | One page-edge turn strip, as a labelled button. Geometry lives in the stylesheet; see `docs/deviations.md` §8 for where it sits in the DOM and why.                                                     |
 | `useTurnKeys.ts`  | The four page-turn keys, bound on `window`. Never takes a key from a text field, and calls `preventDefault` only on a key it acts on.                                                                  |
 | `useFlip.ts`      | Injects a real clock into `flipReducer` from a single `requestAnimationFrame` loop that stops when the book settles. `jumpTo` anchors a bookmark jump one page from its target before turning.         |
@@ -189,6 +189,15 @@ only `inline` deploys until video is turned back on.
   function means the DOM layer has nothing left to get wrong, and the browser layer's
   own tests can be about the browser (a swallowed click, a real transition) instead of
   re-testing geometry.
+- **`pageStack.loadsImages`** — the same argument, applied to bytes rather than
+  geometry. All thirty-three leaves are in the document (they must be: the design spec's
+  §8 requires every page's content in the served HTML so the deep links are indexable),
+  and they are stacked at `inset: 0`, so the browser treats every one of them as in the
+  viewport and `loading="lazy"` defers nothing. Deciding "is this leaf near enough to
+  fetch" beside the geometry that already answers "is this leaf visible" is what keeps
+  the two from disagreeing — `visible` is a subset of `loadsImages` by construction, so
+  a leaf can never swing into view carrying an empty frame. See
+  `docs/adr/0006-diary-image-window.md`.
 - **`pageAddress`** — a page component cannot be run without a Next request context, so
   arithmetic living inside one is arithmetic nothing can check. Keeping the one decision
   `/p/<n>` makes in the domain package is what leaves the route itself a passthrough.

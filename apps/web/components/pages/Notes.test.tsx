@@ -29,6 +29,7 @@ import { aJourney } from '@travel-diary/domain/testing/factories'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
+import { DEFERRED_PHOTOGRAPH_SRC } from './deferredPhotograph'
 import { Notes } from './Notes'
 
 const roots: Root[] = []
@@ -69,14 +70,20 @@ const aNotesPage = (journey: Partial<Journey> = {}, slots?: readonly Slot[]): Jo
   return slots === undefined ? page : { ...page, slots }
 }
 
-/** Renders the notes page and hands back the host element. */
-const renderNotes = (page: JourneyPage, showDecorations = true): HTMLElement => {
+/**
+ * Renders the notes page and hands back the host element.
+ * @param page - The journey's notes page.
+ * @param showDecorations - The book global's decorations flag.
+ * @param loadsImages - Whether this leaf is inside the reader's image window.
+ * @returns The host element the page was rendered into.
+ */
+const renderNotes = (page: JourneyPage, showDecorations = true, loadsImages = true): HTMLElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
   roots.push(root)
   act(() => {
-    root.render(<Notes page={page} showDecorations={showDecorations} />)
+    root.render(<Notes page={page} showDecorations={showDecorations} loadsImages={loadsImages} />)
   })
   return host
 }
@@ -283,9 +290,7 @@ describe('Notes — the hero photograph', () => {
   it('prints the hero caption under the mount', () => {
     const host = renderNotes(aNotesPage({}, [aHeroSlot()]))
 
-    expect(host.querySelector('figcaption')?.textContent).toBe(
-      'Crossing at Shibuya, second attempt, still blurred',
-    )
+    expect(host.querySelector('figcaption')?.textContent).toBe('Crossing at Shibuya, second attempt, still blurred')
   })
 
   it('omits the caption rather than printing an empty line when the slot has none', () => {
@@ -342,9 +347,9 @@ describe('Notes — the decorations', () => {
   it('keeps every decoration out of the accessibility tree', () => {
     const host = renderNotes(aNotesPage({}, [aHeroSlot(), anEphemeraSlot()]))
 
-    expect([...host.querySelectorAll('[data-decoration]')].every((node) => node.getAttribute('aria-hidden') === 'true')).toBe(
-      true,
-    )
+    expect(
+      [...host.querySelectorAll('[data-decoration]')].every((node) => node.getAttribute('aria-hidden') === 'true'),
+    ).toBe(true)
   })
 })
 
@@ -379,5 +384,71 @@ describe('Notes — the footer', () => {
     )
 
     expect(host.querySelectorAll('footer p')).toHaveLength(1)
+  })
+})
+
+describe('Notes — the image window', () => {
+  // Task 10 measured `/p/1` fetching all twenty of the seeded book's
+  // photographs — 1,820,504 bytes — with the reader on the Cover, because
+  // every leaf is in the document and stacked at `inset: 0`, so
+  // `loading="lazy"` considers all of them in the viewport. The window that
+  // fixes it is `leafPresentation.loadsImages`; what is asserted here is that
+  // this page HONOURS it, and that honouring it costs the page none of the
+  // text the design spec's §8 requires to stay indexable.
+
+  it('withholds the source of a photograph on a leaf the reader is nowhere near', () => {
+    const host = renderNotes(aNotesPage({}, [aHeroSlot(), anEphemeraSlot()]), true, false)
+
+    expect(host.querySelector('[data-hero]')?.getAttribute('src')).toBe(DEFERRED_PHOTOGRAPH_SRC)
+  })
+
+  it('withholds the ephemera scrap the same way', () => {
+    const host = renderNotes(aNotesPage({}, [aHeroSlot(), anEphemeraSlot()]), true, false)
+
+    const scrap = host.querySelector('[data-ephemera] img')
+    expect(scrap?.getAttribute('src')).toBe(DEFERRED_PHOTOGRAPH_SRC)
+  })
+
+  it('keeps every word of a deferred page in the markup, so the deep link stays indexable', () => {
+    // The bytes are what is withheld, never the text: the heading, the place,
+    // the highlight, the note, the tally, the caption and the alt text are
+    // all still here for a crawler that runs no JavaScript.
+    const page = aNotesPage(
+      {
+        name: 'Lisbon',
+        place: 'Portugal',
+        highlights: ['Tram 28 at dawn'],
+        note: 'Lisbon is a city of staircases.',
+        tally: [{ key: 'Days', value: '11' }],
+      },
+      [aHeroSlot(), anEphemeraSlot()],
+    )
+
+    const deferred = renderNotes(page, true, false)
+
+    expect(deferred.querySelector('h1')?.textContent).toBe('Lisbon')
+    expect(deferred.textContent).toContain('Portugal')
+    expect(deferred.textContent).toContain('Tram 28 at dawn')
+    expect(deferred.textContent).toContain('Lisbon is a city of staircases.')
+    expect(deferred.textContent).toContain('11')
+    expect(deferred.textContent).toContain('Crossing at Shibuya, second attempt, still blurred')
+    expect(deferred.querySelector('[data-hero]')?.getAttribute('alt')).toBe('Shibuya crossing')
+  })
+
+  it('still draws the focal point on a deferred photograph, so nothing shifts when it arrives', () => {
+    const page = aNotesPage({}, [aHeroSlot({ focalX: 18, focalY: 82 })])
+
+    const host = renderNotes(page, true, false)
+
+    expect(host.querySelector<HTMLElement>('[data-hero]')?.style.objectPosition).toBe('18% 82%')
+  })
+
+  it('carries the real source once the leaf is inside the window', () => {
+    const host = renderNotes(aNotesPage({}, [aHeroSlot(), anEphemeraSlot()]), true, true)
+
+    expect(host.querySelector('[data-hero]')?.getAttribute('src')).toBe('/api/media/file/tokyo-hero-800x800.png')
+    expect(host.querySelector('[data-ephemera] img')?.getAttribute('src')).toBe(
+      '/api/media/file/tokyo-ephemera-800x800.png',
+    )
   })
 })

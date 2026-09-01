@@ -52,12 +52,22 @@
  * line would eat the slot rather than reflow the page; the cap is applied at
  * the point the list is rendered so that a row which reached the database
  * before the schema cap did cannot break the layout.
+ * THE PHOTOGRAPHS ARE WINDOWED, THE WORDS ARE NOT. `loadsImages` arrives
+ * from `leafPresentation` (packages/domain/src/pageStack.ts) and says whether
+ * this leaf is near enough to the reader to fetch anything. Outside the
+ * window every element on this page is still rendered — the heading, the
+ * place, the highlights, the note, the tally, the caption, the alt text and
+ * the focal point — and only the `src` attributes are stood in for
+ * ({@link DEFERRED_PHOTOGRAPH_SRC}). The design spec's §8 requires the server
+ * to render every page's content so the deep links are indexable; it is the
+ * image BYTES that must stop loading eagerly, never the markup.
  * Depends on: react, `JourneyPage`/`Slot` (@travel-diary/domain/bookBundle),
  * ./WeatherBadge, ./MoodBadge, ./TallyTicket, ./EphemeraSlot,
- * ./notes.module.css.
+ * ./deferredPhotograph, ./notes.module.css.
  */
 import type { JourneyPage, Slot } from '@travel-diary/domain/bookBundle'
 import type React from 'react'
+import { DEFERRED_PHOTOGRAPH_SRC } from './deferredPhotograph'
 import { EphemeraSlot } from './EphemeraSlot'
 import { MoodBadge } from './MoodBadge'
 import { TallyTicket } from './TallyTicket'
@@ -70,6 +80,8 @@ export interface NotesProps {
   readonly page: JourneyPage
   /** The `book` global's decorations flag, gating the washi strips and the stamp. */
   readonly showDecorations: boolean
+  /** Whether this leaf is inside the reader's image window, from `leafPresentation.loadsImages`. */
+  readonly loadsImages: boolean
 }
 
 /**
@@ -93,12 +105,13 @@ const slotForRole = (slots: readonly Slot[] | undefined, role: Slot['role']): Sl
  * Renders a journey's notes page: the header with its two badges, the
  * two-column body, and the footer's gallery link, count and sign-off.
  *
- * @param props - The journey's notes page and the book's decorations flag.
+ * @param props - The journey's notes page, the book's decorations flag and
+ *   the leaf's image window.
  * @returns The Notes page.
  * @example
- * <Notes page={page} showDecorations={bundle.chrome.showDecorations} />
+ * <Notes page={page} showDecorations={bundle.chrome.showDecorations} loadsImages />
  */
-export const Notes = ({ page, showDecorations }: NotesProps): React.JSX.Element => {
+export const Notes = ({ page, showDecorations, loadsImages }: NotesProps): React.JSX.Element => {
   const hero = slotForRole(page.slots, 'hero')
   const ephemera = slotForRole(page.slots, 'ephemera')
   const highlights = page.highlights.slice(0, MAX_HIGHLIGHTS)
@@ -142,7 +155,7 @@ export const Notes = ({ page, showDecorations }: NotesProps): React.JSX.Element 
 
           {page.tally.length > 0 && <TallyTicket cells={page.tally} />}
 
-          <EphemeraSlot slot={ephemera} showDecorations={showDecorations} />
+          <EphemeraSlot slot={ephemera} showDecorations={showDecorations} loadsImages={loadsImages} />
         </div>
 
         <div className={styles.rightColumn}>
@@ -151,13 +164,16 @@ export const Notes = ({ page, showDecorations }: NotesProps): React.JSX.Element 
               <img
                 data-hero=""
                 className={styles.heroPhoto}
-                src={hero.src}
+                src={loadsImages ? hero.src : DEFERRED_PHOTOGRAPH_SRC}
                 alt={hero.alt}
-                // See this module's header: lazy and low priority because
-                // every leaf of the book is in the document at once, and the
-                // hero of a page the reader is not on must never compete with
-                // the one they are.
-                loading="lazy"
+                // See this module's header: low priority because every leaf of
+                // the book is in the document at once and the window still
+                // admits the reader's two neighbours, so the hero of a page
+                // the reader is not on must never compete with the one they
+                // are. `loading="lazy"` is deliberately absent — measured on
+                // `/p/1`, it deferred nothing, because every leaf sits at
+                // `inset: 0` and the browser counts all thirty-three as in
+                // the viewport. The window is the deferral.
                 decoding="async"
                 fetchPriority="low"
                 style={{ objectPosition: `${String(hero.focalX)}% ${String(hero.focalY)}%` }}

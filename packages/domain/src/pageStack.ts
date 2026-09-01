@@ -8,8 +8,9 @@
  * knows "where the book is"; this module turns that into "what this one leaf
  * looks like," so the DOM layer never re-derives flip geometry itself.
  *
- * Three rules below exist because the handoff records each one having gone
- * wrong once in practice, not because they are abstractly tidy:
+ * Four rules below exist because each one has gone wrong once in practice -
+ * the first three in the handoff's own defect log, the fourth measured on this
+ * branch - not because they are abstractly tidy:
  *
  *   - `interactive` is true only for the current leaf, and never while a turn
  *     is in flight (`state.busy`). A back face left clickable silently
@@ -23,6 +24,16 @@
  *     leaf relying on `backface-visibility` to hide its reverse side.
  *     `backface-visibility` was tried in the handoff prototype and produced
  *     blank pages; two real faces whose opacity swaps is the fix.
+ *   - `loadsImages` is a WINDOW, not a visibility test: the open page, its two
+ *     neighbours, and the leaves a turn departs from and arrives at. Every
+ *     leaf of the book is in the document at once and every leaf sits at
+ *     `inset: 0`, so the browser counts all thirty-three as in the viewport
+ *     and `loading="lazy"` defers nothing - measured, not assumed (`/p/1`
+ *     fetched all 20 of the seeded book's photographs, 1,833,312 bytes, with
+ *     the reader on the Cover, and the LCP gate went red at 3,247ms). The
+ *     window is one page wider than `visible` on each side precisely so the
+ *     next page's photograph is already fetched when its leaf starts to
+ *     swing, rather than starting to fetch then.
  *
  * Two more rules were wrong in an earlier revision of this module and are
  * corrected here - see the comments at their point of use below:
@@ -47,8 +58,10 @@ import type { FlipState } from './flip'
  * here is meant to be assigned straight to CSS - `rotateDeg` into a
  * `rotateY()`, `zIndex` and `frontOpacity`/`backOpacity` into their
  * like-named properties, `visible` into `visibility`, `interactive` into
- * `pointer-events`, and `isTurning` into the shade's opacity and the leaf's
- * transition duration - so the DOM layer never has to re-derive flip geometry.
+ * `pointer-events`, `loadsImages` into whether a photograph on this leaf
+ * carries a real `src`, and `isTurning` into the shade's opacity and the
+ * leaf's transition duration - so the DOM layer never has to re-derive flip
+ * geometry, nor re-decide which leaves are near enough to fetch.
  */
 export interface LeafPresentation {
   /** The leaf's `rotateY()` angle in degrees: `-180` once turned, `0` at rest. */
@@ -63,6 +76,20 @@ export interface LeafPresentation {
   readonly frontOpacity: number
   /** Opacity of the leaf's back face: the inverse of `frontOpacity`, so exactly one face is visible at any instant. */
   readonly backOpacity: number
+  /**
+   * Whether this leaf may put real `src` attributes on its photographs.
+   *
+   * A window around the reader, not a synonym for {@link visible}: `visible`
+   * is the three leaves a reader can see this instant, and this is those
+   * plus one page either side, so a neighbour's hero is fetched while the
+   * book is at rest and is ready the moment a turn reveals it. Every visible
+   * leaf is inside it by construction (see this module's header). A leaf
+   * outside it still renders all of its markup - headings, captions, alt
+   * text, the note, the highlights, the tally - because the design spec's §8
+   * requires the server to render every page's content so the deep links are
+   * indexable; it is the image BYTES that are withheld, never the text.
+   */
+  readonly loadsImages: boolean
   /**
    * Whether THIS leaf is the one physically turning right now. Published as a
    * field of its own so the DOM layer can drive the two things that have no
@@ -85,7 +112,8 @@ export interface LeafPresentation {
  *   so a reader in that situation lands on a live page rather than a book
  *   where no leaf is visible or interactive at all.
  * @returns The leaf's rotation, stacking, visibility, interactivity, face
- *   opacities, and whether it is the leaf actively turning.
+ *   opacities, whether it may fetch its photographs, and whether it is the
+ *   leaf actively turning.
  */
 export const leafPresentation = (leafIndex: number, state: FlipState, totalPages: number): LeafPresentation => {
   const inBounds = leafIndex < totalPages
@@ -121,6 +149,12 @@ export const leafPresentation = (leafIndex: number, state: FlipState, totalPages
     rotateDeg: turned ? -180 : 0,
     zIndex: isTurningLeaf ? 2000 : turned ? leafIndex + 1 : 1000 - leafIndex,
     visible: inBounds && (leafIndex === currentIndex || leafIndex === state.from || leafIndex === state.to),
+    // One page either side of the reader, plus the turn's own two leaves -
+    // named outright the way `visible` names them, so "every visible leaf
+    // loads its images" holds by construction rather than by the coincidence
+    // that a turn's `to` is always a neighbour of its `from`.
+    loadsImages:
+      inBounds && (Math.abs(leafIndex - currentIndex) <= 1 || leafIndex === state.from || leafIndex === state.to),
     interactive: inBounds && leafIndex === currentIndex && !state.busy,
     frontOpacity,
     backOpacity,

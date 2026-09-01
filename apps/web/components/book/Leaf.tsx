@@ -9,6 +9,12 @@
  * assigned straight across, and there is no `FlipState` in scope here to
  * re-derive anything from even by accident.
  *
+ * ONE FIELD OF THE PRESENTATION IS DELIBERATELY NOT READ HERE: `loadsImages`,
+ * which governs whether the page on the front face may fetch its photographs.
+ * It is content, not geometry, so `Book.tsx` hands it to `PageFace` directly
+ * rather than routing it through a component whose whole job is to translate
+ * geometry into style. Nothing about a leaf's box changes with it.
+ *
  * Which leaf is turning drives the two things no CSS property maps to
  * directly - the travelling shade's opacity, and the transition duration -
  * and it arrives as `presentation.isTurning`, a field of its own. It used to

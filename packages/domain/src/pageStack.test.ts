@@ -143,4 +143,99 @@ describe('leafPresentation', () => {
     // README's flip sequence table specifies both pairings on adjacent lines.
     expect(leafPresentation(4, state, TOTAL)).toMatchObject({ frontOpacity: 1, backOpacity: 0 })
   })
+
+  // The image window (Task 10's LCP defect). Every leaf of the book is in the
+  // document at once, and every leaf sits at `inset: 0`, so the browser
+  // considers all of them in the viewport and `loading="lazy"` defers
+  // nothing - measured, not assumed: `/p/1` fetched all 20 of the seeded
+  // book's photographs, 1,820,504 bytes, with the reader on the Cover.
+  // `loadsImages` is the field that stops that, and it lives here rather than
+  // as an inference in `Leaf.tsx`/`Book.tsx` for the reason this module's
+  // header gives: the DOM layer never re-derives flip geometry.
+
+  it('loads images for the open page and its two neighbours', () => {
+    const state = initialFlipState(10)
+
+    expect(leafPresentation(9, state, TOTAL).loadsImages).toBe(true)
+    expect(leafPresentation(10, state, TOTAL).loadsImages).toBe(true)
+    expect(leafPresentation(11, state, TOTAL).loadsImages).toBe(true)
+  })
+
+  it('leaves the rest of the book to render its markup without fetching a byte', () => {
+    const state = initialFlipState(10)
+
+    expect(leafPresentation(8, state, TOTAL).loadsImages).toBe(false)
+    expect(leafPresentation(12, state, TOTAL).loadsImages).toBe(false)
+    expect(leafPresentation(0, state, TOTAL).loadsImages).toBe(false)
+    expect(leafPresentation(TOTAL - 1, state, TOTAL).loadsImages).toBe(false)
+  })
+
+  it('never renders a leaf the reader can see whose images were not asked for', () => {
+    // The invariant that makes the window safe: `visible` is a subset of
+    // `loadsImages`, at rest and at every phase of a turn. If it ever were
+    // not, a reader would watch an empty frame swing into place.
+    const traced = [initialFlipState(3)]
+    let state = flipReducer(initialFlipState(3), { type: 'start', to: 4, now: 0 }, config)
+    for (const now of [ARM_MS, ARM_MS + config.durationMs / 2, ARM_MS + config.durationMs]) {
+      traced.push(state)
+      state = flipReducer(state, { type: 'tick', now }, config)
+    }
+    traced.push(state)
+
+    for (const traceState of traced) {
+      for (let leaf = 0; leaf < TOTAL; leaf += 1) {
+        const { visible, loadsImages } = leafPresentation(leaf, traceState, TOTAL)
+        expect(visible && !loadsImages).toBe(false)
+      }
+    }
+  })
+
+  it('has the destination page already loading before the turn starts to move', () => {
+    // The neighbour is inside the window while the book is at rest, so the
+    // photograph is fetched long before `go` fires rather than at the moment
+    // the leaf begins to swing.
+    const atRest = initialFlipState(3)
+    expect(leafPresentation(4, atRest, TOTAL).loadsImages).toBe(true)
+
+    const arming = flipReducer(atRest, { type: 'start', to: 4, now: 0 }, config)
+    expect(arming.go).toBe(false)
+    expect(leafPresentation(4, arming, TOTAL).loadsImages).toBe(true)
+  })
+
+  it('widens to the leaves a turn departs from and arrives at, however far apart they are', () => {
+    // `visible` names `from` and `to` outright rather than trusting them to
+    // be within a page of `index`; the window mirrors that, so the invariant
+    // above holds by construction and not by coincidence.
+    const distant = {
+      ...initialFlipState(3),
+      from: 3,
+      to: 20,
+      dir: 'forward' as const,
+      busy: true,
+      startedAt: 0,
+      phase: 'arming' as const,
+    }
+
+    expect(leafPresentation(20, distant, TOTAL).loadsImages).toBe(true)
+    expect(leafPresentation(19, distant, TOTAL).loadsImages).toBe(false)
+  })
+
+  it("opens the window around a bookmark jump's anchor, not the page it left", () => {
+    // `useFlip.jumpTo` lands on an anchor one page from the target and turns
+    // the single leaf between them; this is the state it builds. A jump from
+    // page 31 to page 4 must therefore fetch the destination's photographs
+    // and drop the ones twenty-seven pages behind it.
+    const jumped = flipReducer(initialFlipState(2), { type: 'start', to: 3, now: 0 }, config)
+
+    expect(leafPresentation(3, jumped, TOTAL).loadsImages).toBe(true)
+    expect(leafPresentation(2, jumped, TOTAL).loadsImages).toBe(true)
+    expect(leafPresentation(30, jumped, TOTAL).loadsImages).toBe(false)
+  })
+
+  it('asks for no images from a leaf that is not in the book at all', () => {
+    const stale = initialFlipState(40)
+
+    expect(leafPresentation(40, stale, TOTAL).loadsImages).toBe(false)
+    expect(leafPresentation(TOTAL - 1, stale, TOTAL).loadsImages).toBe(true)
+  })
 })

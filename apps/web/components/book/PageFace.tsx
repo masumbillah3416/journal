@@ -22,6 +22,13 @@
  * the handoff requires the deep links to be real, indexable paths; wiring
  * them (and the bookmark rail) into an animated jump is Task 8's trigger
  * work.
+ *
+ * IT CARRIES THE LEAF'S IMAGE WINDOW STRAIGHT THROUGH. `loadsImages` is
+ * decided once, by `leafPresentation` (packages/domain/src/pageStack.ts), and
+ * this dispatch is the only route from a leaf to the page components that
+ * print an `<img>`. It is passed down rather than re-derived here for the
+ * reason that module's header gives: the DOM layer never re-derives flip
+ * geometry, and "is this leaf near enough to fetch" is flip geometry.
  * Depends on: `BookPage`/`ContentsEntry`/`pageLabel` (@travel-diary/domain/bookBundle),
  * ../pages/Cover, ../pages/Contents, ../pages/Notes, ./book.module.css.
  */
@@ -42,24 +49,28 @@ export interface PageFaceProps {
   readonly chrome: BookChrome
   /** The book's total page count, for the Contents footer's tally. */
   readonly totalPages: number
+  /** Whether this leaf is inside the reader's image window, from `leafPresentation.loadsImages`. */
+  readonly loadsImages: boolean
 }
 
 /**
  * Renders the content of a single page.
  *
  * @param props - The page to render, the book's Contents index, the book's
- *   chrome and its total page count.
+ *   chrome, its total page count and the leaf's image window.
  * @returns The designed Cover or Contents page, or - for a page whose design
  *   is still a later task - the page's heading and its meta line.
  */
-export const PageFace = ({ page, contents, chrome, totalPages }: PageFaceProps): React.JSX.Element => {
+export const PageFace = ({ page, contents, chrome, totalPages, loadsImages }: PageFaceProps): React.JSX.Element => {
   if (page.kind === 'cover') return <Cover chrome={chrome} />
 
   if (page.kind === 'contents') {
     return <Contents entries={contents} note={chrome.contentsNote} totalPages={totalPages} />
   }
 
-  if (page.kind === 'notes') return <Notes page={page} showDecorations={chrome.showDecorations} />
+  if (page.kind === 'notes') {
+    return <Notes page={page} showDecorations={chrome.showDecorations} loadsImages={loadsImages} />
+  }
 
   return (
     <article className={styles.page}>
