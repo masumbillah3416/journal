@@ -185,3 +185,38 @@ injecting the value in a test.
 `apps/web/lib/adapters/console-mailer.test.ts`'s header and its three
 development-behaviour cases; `eslint.config.js`'s targeted `no-console` override;
 `docs/testing.md` §3 (Contract).
+
+## 8 · Page-edge turn strips are siblings of the page stack, not of the leaves
+
+**What changed:** `README.md`'s "Triggers" gives the two page-edge strips a
+`z-index: 900`, and the prototype (`Travel Diary.dc.html`, lines 300–301) renders them
+as the last two children of the perspective container — siblings of the leaves
+themselves. This project keeps the `z-index: 900`, both widths (44px forward, 30px
+backward), the full-height span and the hover wash exactly as specified, and changes
+one thing: the strips are children of the design box, siblings of the stack, aligned
+to the page area by the same inset custom properties the stack uses.
+
+**Rationale:** at `z-index: 900`, inside that container, neither strip can ever be
+clicked. The handoff's own stacking table puts untouched leaves at `1000 - i`, which is
+968 or higher for every page of a 33-page book, so the leaf the reader is looking at
+always paints above a strip at 900 and intercepts the click. This is not a reading of
+the spec — it was built the prototype's way first and measured: `e2e/flip.spec.ts`'s
+first case timed out after 30s with Playwright naming the culprit,
+`<article class="page">…</article> from <div data-leaf="2"> subtree intercepts pointer
+events`. Moving the strips one level up puts their `z-index: 900` in the design box's
+stacking context, where the stack is a `z-index: auto` element, so 900 is above the
+whole stack and still below anything the chrome may later place over the book. The
+alternative — keeping the prototype's parent and raising the strips above 1000 — would
+have discarded the handoff's number rather than its DOM position, and would have put
+the strips above the turning leaf as well.
+
+**Consequence a future task needs:** the strips now lie over the right 44px and left
+30px of the page area, so page content must stay clear of those bands. It already does
+in every layout SCREENS.md §1 specifies — the tightest is About's `padding: 36px 48px
+32px 54px` — but a future page that runs content to the page edge would find its clicks
+swallowed there, and would need to say so rather than discover it.
+
+**Recorded as:** `apps/web/components/book/book.module.css`'s `HANDOFF-DEVIATION` at
+`.edgeLeft`/`.edgeRight`; `apps/web/components/book/Book.tsx`'s comment at the two
+`<EdgeStrip>` elements; `apps/web/components/book/EdgeStrip.tsx`'s header;
+`docs/testing.md` §4 (End-to-end).

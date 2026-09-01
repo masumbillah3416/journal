@@ -185,6 +185,102 @@ describe('useFlip', () => {
     expect(controller().state).toMatchObject({ phase: 'idle', index: 5, busy: false })
   })
 
+  it('anchors a backward bookmark jump one page after its target, so the turn plays backwards', () => {
+    // THE ANCHOR RULE (handoff README, "Triggers"): "Bookmark jumps set an
+    // anchor page one step from the target, then flip, so the animation
+    // always plays in the right direction." Without it, a jump from page 30
+    // to page 3 hands the machine `from: 29, to: 2` - a single turn spanning
+    // twenty-seven leaves, which re-lays the entire stack in one frame and
+    // animates a leaf across a distance no page turn ever covers.
+    mount(<Probe initialIndex={29} config={aConfig()} />)
+
+    act(() => {
+      controller().jumpTo(2)
+    })
+
+    expect(controller().state).toMatchObject({ from: 3, to: 2, dir: 'backward', busy: true })
+  })
+
+  it('anchors a forward bookmark jump one page before its target, so the turn plays forwards', () => {
+    mount(<Probe initialIndex={2} config={aConfig()} />)
+
+    act(() => {
+      controller().jumpTo(29)
+    })
+
+    expect(controller().state).toMatchObject({ from: 28, to: 29, dir: 'forward', busy: true })
+  })
+
+  it('lands a bookmark jump on the page the tab addresses, not on its anchor', () => {
+    // The anchor is a staging post for the animation, never a destination:
+    // an implementation that flipped to the anchor and stopped would satisfy
+    // the direction assertions above and still take the reader to the wrong
+    // page.
+    mount(<Probe initialIndex={29} config={aConfig()} />)
+
+    act(() => {
+      controller().jumpTo(2)
+    })
+
+    expect(controller().state.to).toBe(2)
+  })
+
+  it('commits a bookmark jump to its target once the turn has run its course', async () => {
+    mount(<Probe initialIndex={29} config={aConfig()} />)
+
+    act(() => {
+      controller().jumpTo(2)
+    })
+    await elapse(250)
+
+    expect(controller().state).toMatchObject({ phase: 'idle', index: 2, busy: false })
+  })
+
+  it('swallows a bookmark jump requested while a turn is still in flight', async () => {
+    // Through the machine's own latch, not a second guard on top of it: the
+    // request is put to the reducer against the state the book is actually
+    // in, and only re-issued from an anchor if the reducer accepted it.
+    mount(<Probe initialIndex={4} config={aConfig()} />)
+
+    act(() => {
+      controller().turnTo(5)
+      controller().jumpTo(20)
+    })
+    await elapse(250)
+
+    expect(controller().state.index).toBe(5)
+  })
+
+  it('refuses a bookmark jump to a page outside the book', () => {
+    mount(<Probe initialIndex={4} config={aConfig()} />)
+
+    act(() => {
+      controller().jumpTo(33)
+    })
+
+    expect(controller().state).toMatchObject({ phase: 'idle', index: 4, busy: false })
+  })
+
+  it('refuses a bookmark jump to the page already open, so a tab cannot re-turn its own page', () => {
+    mount(<Probe initialIndex={4} config={aConfig()} />)
+
+    act(() => {
+      controller().jumpTo(4)
+    })
+
+    expect(controller().state).toMatchObject({ phase: 'idle', index: 4, busy: false })
+  })
+
+  it('changes the page instantly on a bookmark jump when the reader prefers reduced motion', () => {
+    mount(<Probe initialIndex={29} config={aConfig({ reducedMotion: true })} />)
+
+    act(() => {
+      controller().jumpTo(2)
+    })
+
+    expect(controller().state).toMatchObject({ phase: 'idle', index: 2, busy: false })
+  })
+
   it('reports that the reader cannot go back from the first page', () => {
     mount(<Probe initialIndex={0} config={aConfig()} />)
 

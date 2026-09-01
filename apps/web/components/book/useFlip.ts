@@ -23,6 +23,13 @@
  * behaviour, which is why `useFlip.test.tsx` asserts the frame count stops
  * growing rather than merely that the page changed.
  *
+ * `jumpTo` is the one place this file composes the machine rather than merely
+ * driving it, and the composition is the handoff's own rule (README,
+ * "Triggers"): "Bookmark jumps set an anchor page one step from the target,
+ * then flip, so the animation always plays in the right direction." See its
+ * own doc comment for what goes wrong without it, and for why the latch is
+ * still the only thing deciding whether a jump happens at all.
+ *
  * Depends on: react, and `flipReducer`/`initialFlipState`/`FlipState` from
  * `@travel-diary/domain/flip`.
  */
@@ -47,12 +54,14 @@ export interface FlipConfiguration {
   readonly totalPages: number
 }
 
-/** The book's current position, and the only three things a trigger needs to know about it. */
+/** The book's current position, and the only four things a trigger needs to know about it. */
 export interface FlipController {
   /** The machine's current state, ready to be handed to `leafPresentation` for each leaf. */
   readonly state: FlipState
   /** Asks the book to turn to a 0-based page index. Refused while a turn is in flight, or for a page outside the book. */
   readonly turnTo: (index: number) => void
+  /** Asks the book to jump to a 0-based page index the way a bookmark tab does: anchored, then turned. Same refusals as {@link turnTo}. */
+  readonly jumpTo: (index: number) => void
   /** Whether a page exists before the current one. */
   readonly canGoBack: boolean
   /** Whether a page exists after the current one. */
@@ -64,9 +73,9 @@ export interface FlipController {
  *
  * @param initialIndex - The 0-based page the book opens on.
  * @param config - Turn duration, the reader's reduced-motion preference, and the book's length.
- * @returns The machine's state plus the three things a trigger needs (see {@link FlipController}).
+ * @returns The machine's state plus the four things a trigger needs (see {@link FlipController}).
  * @example
- * const { state, turnTo, canGoForward } = useFlip(0, { durationMs: 900, reducedMotion: false, totalPages: 33 })
+ * const { state, turnTo, jumpTo, canGoForward } = useFlip(0, { durationMs: 900, reducedMotion: false, totalPages: 33 })
  */
 export const useFlip = (initialIndex: number, config: FlipConfiguration): FlipController => {
   const { durationMs, reducedMotion, totalPages } = config
@@ -83,6 +92,46 @@ export const useFlip = (initialIndex: number, config: FlipConfiguration): FlipCo
       setState((previous) =>
         flipReducer(previous, { type: 'start', to: index, now: performance.now() }, { durationMs, reducedMotion }),
       )
+    },
+    [durationMs, reducedMotion, totalPages],
+  )
+
+  /**
+   * A bookmark jump: land on an anchor one page from the target, then turn
+   * the single leaf between them.
+   *
+   * Without the anchor, a jump from page 30 to page 3 hands the machine
+   * `from: 29, to: 2` — one turn spanning twenty-seven leaves. `leafPresentation`
+   * then re-lays the whole stack against the new target in a single frame
+   * while animating a leaf across a distance no page turn ever covers, and the
+   * reader sees the book unravel rather than a page turn backwards. Anchoring
+   * makes every jump, however far, the same one-leaf turn the rest of the book
+   * already performs, played in the direction of travel — which is exactly
+   * what the handoff asks for.
+   *
+   * The latch stays the only authority on whether a jump happens. The request
+   * is put to the reducer FIRST against the state the book is actually in, and
+   * only re-issued from the anchor if the reducer accepted it; a jump arriving
+   * mid-turn, or aimed at the page already open, comes back as the same state
+   * object and is dropped here too. Anchoring first and asking afterwards
+   * would have let a bookmark tab walk straight through a turn in flight.
+   */
+  const jumpTo = useCallback(
+    (index: number): void => {
+      if (index < 0 || index >= totalPages) return
+
+      setState((previous) => {
+        const request = { type: 'start', to: index, now: performance.now() } as const
+        const machine = { durationMs, reducedMotion }
+
+        const asked = flipReducer(previous, request, machine)
+        if (asked === previous) return previous
+
+        // One step from the target, on the side the reader is arriving from,
+        // so `dir` comes out the same as it would for a neighbouring page.
+        const anchor = index > previous.index ? index - 1 : index + 1
+        return flipReducer(initialFlipState(anchor), request, machine)
+      })
     },
     [durationMs, reducedMotion, totalPages],
   )
@@ -119,6 +168,7 @@ export const useFlip = (initialIndex: number, config: FlipConfiguration): FlipCo
   return {
     state,
     turnTo,
+    jumpTo,
     canGoBack: state.index > 0,
     canGoForward: state.index < totalPages - 1,
   }

@@ -27,22 +27,51 @@
  *      duration of 0ms is what stops a bookmark jump from fanning the whole
  *      stack open at once.
  *
+ * Rule 3 binds the trigger surfaces Task 8 added as much as the leaves. The
+ * page-edge strips fade a gradient in under the pointer, and they do it by
+ * transitioning OPACITY over a statically-declared background rather than by
+ * transitioning `background`: `e2e/book.spec.ts` walks every element inside
+ * the design box and fails on any transition property that is not `transform`
+ * or `opacity`, and a background transition is exactly the kind of thing that
+ * looks free and is not.
+ *
  * Colours come from `@travel-diary/tokens`' `--td-*` custom properties. The
- * three literals below - the fore-edge's two paper stops and the travelling
- * shade's browns - are handoff values that have no entry in the token table
- * (README's own "Colour" section does not list them), so they are named here
- * rather than invented as new tokens.
+ * four literals below - the fore-edge's two paper stops, the travelling
+ * shade's browns and the edge strips' hover wash - are handoff values that
+ * have no entry in the token table (README's own "Colour" section does not
+ * list them), so they are named here rather than invented as new tokens.
  * Depends on: packages/tokens/src/tokens.css, loaded by the diary layout.
  */
 
+/* The reading surface: the book's own measured area, the bottom bar under it,
+ * and the bookmark rail beside both. The rail and the bar sit OUTSIDE the
+ * scaled design box (the handoff's own arrangement, and the reason its 4K note
+ * exists), so they must not overlap the area `useBookScale` measures - a strip
+ * of chrome lying across the book would also lie across the page-edge turn
+ * strips and swallow their clicks. A grid, rather than absolute positioning
+ * over the book, is what makes that impossible rather than merely unlikely.
+ * Its designed sizes and spacing are Task 12. */
 .stage {
   position: relative;
   display: grid;
-  place-items: center;
+  grid-template-areas:
+    'book rail'
+    'bar rail';
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   width: 100%;
   height: 100dvh;
   overflow: hidden;
   background: var(--td-outer);
+}
+
+.bookArea {
+  position: relative;
+  grid-area: book;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
 }
 
 .designBox {
@@ -51,6 +80,14 @@
   width: var(--td-design-box-width);
   height: var(--td-design-box-height);
   transform-origin: center center;
+  /* The handoff's page-area inset ("the page area inset 14px 18px 14px 36px"),
+   * named once here because two children need it: the page stack, and the
+   * page-edge turn strips that must line up with the stack's own edges
+   * exactly. Local rather than a `--td-*` token: it is this component's
+   * internal geometry, not a value the token table publishes. */
+  --page-area-inline-start: 36px;
+  --page-area-inline-end: 18px;
+  --page-area-block: 14px;
 }
 
 .board {
@@ -109,12 +146,76 @@
 
 .stack {
   position: absolute;
-  left: 36px;
-  right: 18px;
-  top: 14px;
-  bottom: 14px;
+  left: var(--page-area-inline-start);
+  right: var(--page-area-inline-end);
+  top: var(--page-area-block);
+  bottom: var(--page-area-block);
   perspective: 2800px;
   perspective-origin: 35% 50%;
+}
+
+/* The page-edge turn strips: the handoff's 44px forward band and 30px
+ * backward band, at its own `z-index: 900`, spanning the full height of the
+ * page area and aligned to its edges. The two share everything but their side.
+ *
+ * HANDOFF-DEVIATION: the prototype makes these two divs the last CHILDREN of
+ * the perspective container, siblings of the leaves. At `z-index: 900` there
+ * they are painted UNDER the page the reader is looking at, whose own stacking
+ * order is `1000 - i` (>= 968 for any page of a 33-page book), so the current
+ * leaf's face intercepts every click meant for a strip and neither strip can
+ * ever be pressed. That is not a theory: built exactly that way, Playwright
+ * timed out on the first case of `e2e/flip.spec.ts` with "<article class=page>
+ * from <div data-leaf=2> subtree intercepts pointer events". The strips are
+ * therefore siblings of the STACK rather than of the leaves, which puts
+ * `z-index: 900` in the design box's stacking context — above the whole stack
+ * (a `z-index: auto` element) and still below anything the chrome may add
+ * later. The handoff's value, widths and position are unchanged; only the
+ * parent is. See docs/deviations.md §8. */
+.edgeLeft,
+.edgeRight {
+  position: absolute;
+  top: var(--page-area-block);
+  bottom: var(--page-area-block);
+  z-index: 900;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  opacity: 0;
+  /* See rule 3 in this file's header: the wash is a static background whose
+   * OPACITY animates. Never transition `background` here. */
+  transition-property: opacity;
+  transition-timing-function: ease-in-out;
+  transition-duration: 160ms;
+}
+
+.edgeLeft {
+  left: var(--page-area-inline-start);
+  width: 30px;
+  /* Not a token: the handoff gives the strips' hover wash only as this
+   * gradient, and its colour table does not name it. */
+  background: linear-gradient(90deg, rgba(70, 52, 24, 0.14), rgba(70, 52, 24, 0));
+}
+
+.edgeRight {
+  right: var(--page-area-inline-end);
+  width: 44px;
+  border-radius: 0 9px 9px 0;
+  background: linear-gradient(270deg, rgba(70, 52, 24, 0.14), rgba(70, 52, 24, 0));
+}
+
+.edgeLeft:hover,
+.edgeLeft:focus-visible,
+.edgeRight:hover,
+.edgeRight:focus-visible {
+  opacity: 1;
+}
+
+/* At the ends of the book the band stops responding, and stops inviting a
+ * click it would only refuse. */
+.edgeLeft:disabled,
+.edgeRight:disabled {
+  cursor: default;
+  opacity: 0;
 }
 
 .leaf {
@@ -229,4 +330,93 @@
 .contentsLink:hover,
 .contentsLink:focus-visible {
   color: var(--td-accent-hover);
+}
+
+/* ---------------------------------------------------------------------------
+ * The chrome outside the scaled box. BEHAVIOUR ONLY - SCREENS.md §1.7's
+ * designed appearance (the rail's tint bars and active-tab shift, the 44px
+ * circular arrows' 1.5px rules, the counter over its page label, the spine
+ * ribbon) is Task 12. What is here exists so Task 8's triggers have something
+ * to click, and it commits to nothing Task 12 has to undo: sizes come from the
+ * handoff (158px rail, 44px hit target, 58px bar), colours from tokens, and no
+ * rule below transitions anything at all.
+ * --------------------------------------------------------------------------- */
+
+/* `flex-wrap` is not cosmetic here. At the mobile project's 390px the 158px
+ * rail leaves the bar 232px, and its own contents are 338px wide (44 + 20 +
+ * the handoff's 210px counter column + 20 + 44); unwrapped, `justify-content:
+ * center` spilled the next arrow out of the column and UNDER the rail, which
+ * then intercepted every click on it - caught by e2e/flip.spec.ts's bottom-arrow
+ * case on the mobile project, not by eye. The handoff's answer below 860px is
+ * a different layout entirely (SCREENS.md §1.10, mobile reading mode: "No book,
+ * no flip, no scaling"), which is a later task; wrapping is the correct
+ * behaviour to hold until then, because it keeps every control reachable at
+ * every width instead of hiding one under another. */
+.bottomBar {
+  grid-area: bar;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  min-height: 58px;
+}
+
+.navButton {
+  display: grid;
+  place-items: center;
+  width: var(--td-min-hit-target);
+  height: var(--td-min-hit-target);
+  padding: 0;
+  border: 1.5px solid var(--td-ink-body);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--td-ink-body);
+  font-family: var(--td-font-garamond);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.navButton:disabled {
+  border-color: var(--td-hairline-border-max);
+  color: var(--td-ink-muted);
+  cursor: default;
+}
+
+.counter {
+  /* The handoff's 210px column, but never wider than the space there is: a
+   * hard 210px floor is what pushed the arrows out of the bar at 390px. */
+  min-width: min(210px, 100%);
+  margin: 0;
+  color: var(--td-ink-body);
+  font-family: var(--td-font-courier);
+  font-size: 13px;
+  letter-spacing: var(--td-letter-spacing-max);
+  text-align: center;
+}
+
+.rail {
+  grid-area: rail;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  width: 158px;
+  min-height: 0;
+  padding-top: 4px;
+  overflow-y: auto;
+}
+
+.bookmarkTab {
+  border: 0;
+  border-radius: 0 6px 6px 0;
+  padding: 9px 10px 9px 8px;
+  background: var(--td-hairline-border-min);
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-size: 24px;
+  line-height: 1.1;
+  text-align: left;
+  cursor: pointer;
 }

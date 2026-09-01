@@ -354,6 +354,45 @@ would claim a measurement nothing performs.
   `visibility`: a second, redundant guard would have made the rule that actually matters
   untestable.
 
+  **`e2e/flip.spec.ts` (Phase 1 Task 8)** covers the reader's own triggers — both
+  page-edge strips, the bottom arrows, all four keyboard keys, and a bookmark jump —
+  driven as a reader drives them, plus the three things only a browser settles:
+  that a strip lying over the page stack is genuinely clickable rather than covered
+  by the leaf above it, that `prefers-reduced-motion` reaches the machine through a
+  real media query, and that hammering a key through a real 900ms transition leaves
+  the book usable rather than seized.
+
+  Two of its cases produced real findings on their first run, and both are recorded
+  where they were fixed rather than only here:
+
+  - **The handoff's own `z-index: 900` cannot work in the handoff's own DOM
+    position.** With the strips as siblings of the leaves (the prototype's
+    arrangement), Playwright timed out with `<article class=page> from <div
+    data-leaf=2> subtree intercepts pointer events` — a leaf's stacking order is
+    `1000 - i`, so the current page always paints above a strip at 900. The strips
+    became siblings of the STACK instead; see `docs/deviations.md` §8.
+  - **The bottom arrows were unclickable at 390px.** The `mobile` project caught
+    `<nav class=rail> intercepts pointer events` on the next arrow: the bar's
+    contents are 338px wide in a 232px column, and unwrapped they spilled under the
+    bookmark rail. `book.module.css`'s `.bottomBar` now wraps, with the reason at
+    the rule.
+
+  Every case in the file waits for the book to be LIVE before pressing anything
+  (`waitForLiveBook`, which watches the measured scale replace the server's
+  `scale(1)`). A page-turn trigger fired between the server's HTML arriving and
+  React hydrating is lost for good — no retry recovers it — and the two
+  reduced-motion cases, which by design do not wait out a transition, failed on all
+  three viewport projects until that wait existed. The patient cases had been
+  winning the same race by luck.
+
+  The bookmark-jump anchor is proved able to fail, the way `book.spec.ts`'s
+  pointer-events case is. Deleting the two anchoring lines from `useFlip.ts`'s
+  `jumpTo` — so the jump goes straight to the target from wherever the reader is —
+  fails three tests at three levels: `useFlip.test.tsx` reports `from: 29` where the
+  anchor rule requires `from: 3`, `Book.test.tsx` sees leaves `['2', '8']` visible
+  instead of `['2', '3']`, and this file's own in-flight read returns `['29']`
+  instead of `['2', '3']`. Restoring the lines turns all three green.
+
   `e2e/smoke.spec.ts` is the console-error gate: it loads `/cms` and `/p/1` and asserts
   **zero** `console` (error level) and `pageerror` events, with both listeners attached
   _before_ `page.goto()`. This is deliberately the harness's centre of gravity, not an
@@ -373,8 +412,8 @@ would claim a measurement nothing performs.
   to catch the class of defect this harness targets today (console/pageerror,
   axe violations, pixel drift). Cross-browser coverage is a candidate for a later phase,
   not a Task 12 gap silently worked around — see `playwright.config.ts`'s header.
-- **Run:** `npm run test:e2e` (headless, runs `e2e/smoke.spec.ts` and
-  `e2e/book.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
+- **Run:** `npm run test:e2e` (headless, runs `e2e/smoke.spec.ts`,
+  `e2e/book.spec.ts` and `e2e/flip.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.
@@ -518,6 +557,21 @@ critical`) into the live `/cms` DOM via `page.evaluate` and calling
   and lightbox live on their own route, so the real remaining claimants are Task 8's
   flip triggers and Task 12's chrome. Setting the gate now means whichever task breaches
   it finds out on its own commit rather than at the end of the phase.
+
+  **Task 8 spent 838 of those bytes.** Its triggers — both edge strips, the bottom
+  arrows and counter, the bookmark rail, the window keyboard listener, `jumpTo`'s
+  anchoring and the URL write — measure **141585 bytes** over the same 7 script
+  requests, against the same 184320 gate: **42735 bytes of headroom** left for Task
+  12's chrome. LCP 2045ms (budget 2500) and CLS 0 (budget 0.1) on the same run. The
+  cost is that small because every trigger ends at `turnTo` or `jumpTo` and the
+  arithmetic behind them already shipped in `packages/domain`, which the route was
+  already pulling in.
+
+  One local-environment note, since it wasted a run: `lhci autorun` builds and starts
+  the app on port 3000 itself, and a stale `next dev` still holding that port makes
+  every audit measure ITS error page instead — 703980 bytes of script, LCP 6.3s, and
+  `http-status-code` 0 on both URLs. The status-code assertion is what makes that
+  legible rather than a mysterious tenfold regression; free the port and re-run.
 
 - **`http-status-code` exists because the LCP/CLS budgets alone measured a vacuous
   pass, not because the route's status code is interesting on its own.** First shipped

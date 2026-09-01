@@ -50,7 +50,7 @@ module, independently testable, named in its own header.
 | `bookScale`                             | `packages/domain`                  | `(area) → number`, `min(w/1300, h/860)` capped at 1.7                                                                                             |
 | `bookBundle`                            | `packages/domain` + `apps/web/lib` | Payload rows in, one typed `BookBundle` out. The diary client reads nothing else.                                                                 |
 | `pageStack`                             | `packages/domain`                  | `(leafIndex, FlipState, totalPages) → LeafPresentation`. Every field maps one-to-one into CSS, so the DOM layer re-derives no flip geometry.      |
-| `pageAddress`                           | `packages/domain`                  | `('<n>', totalPages) → leafIndex`. The only translation between the 1-based page number a reader shares and the 0-based index the stack works in. |
+| `pageAddress`                           | `packages/domain`                  | `('<n>', totalPages) → leafIndex` and `leafIndex → '/p/<n>'`. The only translation between the 1-based page number a reader shares and the 0-based index the stack works in, in both directions. |
 | `storage` / `mailer` / `transcodeQueue` | `apps/web/lib`                     | Ports with local and production adapters, one shared contract suite run against both                                                              |
 
 ### The book's DOM binding (`apps/web/components/book/`)
@@ -60,10 +60,12 @@ deliberately thin, and every file in it names what it is allowed to decide:
 
 | File              | Responsibility                                                                                                                                                                                         |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Book.tsx`        | The diary's single `'use client'` boundary. Composes frame, scaled design box and stack; owns no arithmetic.                                                                                           |
+| `Book.tsx`        | The diary's single `'use client'` boundary. Composes frame, scaled design box, stack and every trigger; owns no arithmetic. Writes the URL on each committed page change.                               |
 | `Leaf.tsx`        | Assigns one `LeafPresentation` straight into `rotateY()`, `z-index`, `visibility`, `pointer-events`, the two face opacities and — from `isTurning` — the shade and transition duration.                 |
 | `PageFace.tsx`    | The content of one page. Provisional until Tasks 9–11 land the designed layouts.                                                                                                                       |
-| `useFlip.ts`      | Injects a real clock into `flipReducer` from a single `requestAnimationFrame` loop that stops when the book settles.                                                                                   |
+| `EdgeStrip.tsx`   | One page-edge turn strip, as a labelled button. Geometry lives in the stylesheet; see `docs/deviations.md` §8 for where it sits in the DOM and why.                                                     |
+| `useTurnKeys.ts`  | The four page-turn keys, bound on `window`. Never takes a key from a text field, and calls `preventDefault` only on a key it acts on.                                                                  |
+| `useFlip.ts`      | Injects a real clock into `flipReducer` from a single `requestAnimationFrame` loop that stops when the book settles. `jumpTo` anchors a bookmark jump one page from its target before turning.         |
 | `useBookScale.ts` | Feeds `bookScale` a measurement, re-measured on resize and through a `ResizeObserver`, always inside one animation frame.                                                                              |
 | `book.module.css` | The handoff's absolute geometry. Holds the three rules that record real defects: no `backface-visibility`, back faces always `pointer-events: none`, and only `transform`/`opacity` ever transitioned. |
 

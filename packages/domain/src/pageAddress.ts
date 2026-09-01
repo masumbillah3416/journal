@@ -42,3 +42,22 @@ export const pageIndexFromParam = (param: string, totalPages: number): number =>
   const pageNumber = Number.parseInt(param, 10)
   return Math.min(Math.max(pageNumber - 1, 0), totalPages - 1)
 }
+
+/**
+ * Turns a 0-based leaf index back into the `/p/<n>` path that addresses it -
+ * the inverse of {@link pageIndexFromParam}, and the string the diary writes
+ * into the address bar every time a turn commits (handoff README's flip
+ * sequence table: "commit index = to, clear flip, release latch, write URL").
+ *
+ * It lives here, beside its inverse, so the `+ 1` that separates the two
+ * numbering systems appears exactly once in each direction and can be
+ * round-tripped in a test. Written inline in a component, the same arithmetic
+ * would be untestable and free to drift by one from the conversion that reads
+ * it back.
+ *
+ * @param leafIndex - The 0-based leaf index the page stack is resting on.
+ * @returns The path a reader can copy, share and reload onto the same page.
+ * @example
+ * pagePath(2) // '/p/3' - the third page a reader sees
+ */
+export const pagePath = (leafIndex: number): string => `/p/${String(leafIndex + 1)}`

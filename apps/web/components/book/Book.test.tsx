@@ -1,16 +1,30 @@
 /**
  * Book.test.tsx — the composition of frame, scaled design box and page stack.
  *
- * Leaf geometry, flip timing and scale arithmetic each have their own tests
- * (`Leaf.test.tsx`, `useFlip.test.tsx`, `useBookScale.test.tsx`, and the
- * domain's own 100%-covered suites). What is asserted here is only what the
- * composition adds: one leaf per page in the bundle, the reader opening on
- * the page they asked for, the fixed design box carrying a measured scale,
- * the handoff's frame parts all present, and a single `main` landmark around
- * the whole book rather than one per leaf.
+ * Leaf geometry, flip timing, key handling and scale arithmetic each have
+ * their own tests (`Leaf.test.tsx`, `useFlip.test.tsx`, `useTurnKeys.test.tsx`,
+ * `EdgeStrip.test.tsx`, `useBookScale.test.tsx`, and the domain's own
+ * 100%-covered suites). What is asserted here is only what the composition
+ * adds: one leaf per page in the bundle, the reader opening on the page they
+ * asked for, the fixed design box carrying a measured scale, the handoff's
+ * frame parts all present, a single `main` landmark around the whole book -
+ * and, from Task 8, that every trigger is actually WIRED to the machine.
+ *
+ * A wiring test asserts the turn has STARTED, not that it has finished: the
+ * book turns at the handoff's 900ms default, and a suite that waited a second
+ * per trigger to watch a committed index would be a slow way to re-test
+ * `useFlip`, which already covers commit. What a started turn shows in the
+ * DOM is its destination leaf becoming visible - and, for a bookmark jump,
+ * WHICH leaf that turn departs from, which is the anchor rule made observable.
  * Depends on: react, react-dom/client, @travel-diary/domain, vitest (jsdom).
  */
-import { deriveBookmarks, deriveContents, derivePages, type BookBundle } from '@travel-diary/domain/bookBundle'
+import {
+  deriveBookmarks,
+  deriveContents,
+  derivePages,
+  pageCounter,
+  type BookBundle,
+} from '@travel-diary/domain/bookBundle'
 import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
 import { aJourney } from '@travel-diary/domain/testing/factories'
 import { act } from 'react'
@@ -36,13 +50,13 @@ const aBundle = (): BookBundle => {
 
 const roots: Root[] = []
 
-const renderBook = (initialIndex: number): HTMLElement => {
+const renderBook = (initialIndex: number, bundle: BookBundle = aBundle()): HTMLElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
   roots.push(root)
   act(() => {
-    root.render(<Book bundle={aBundle()} initialIndex={initialIndex} />)
+    root.render(<Book bundle={bundle} initialIndex={initialIndex} />)
   })
   return host
 }
@@ -53,6 +67,32 @@ const one = (host: HTMLElement, selector: string): HTMLElement => {
   if (found === null) throw new Error(`the book rendered no ${selector}`)
   return found
 }
+
+/** Clicks one of the book's own controls, asserted present so no test needs a non-null assertion. */
+const click = (host: HTMLElement, selector: string): void => {
+  const control = one(host, selector)
+  act(() => {
+    control.click()
+  })
+}
+
+/** Presses one key on the document, the way a reader with focus nowhere in particular would. */
+const pressKey = (key: string): void => {
+  act(() => {
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+  })
+}
+
+/** The `data-leaf` indices of every leaf the reader can currently see. */
+const visibleLeaves = (host: HTMLElement): string[] =>
+  [...host.querySelectorAll<HTMLElement>('[data-leaf]')]
+    .filter((leaf) => leaf.style.visibility === 'visible')
+    .map((leaf) => leaf.dataset['leaf'] ?? 'unnumbered')
+    .sort()
+
+/** Whether each of the named controls refuses input, in the order they were asked for. */
+const disabledStates = (host: HTMLElement, selectors: readonly string[]): boolean[] =>
+  selectors.map((selector) => one(host, selector).hasAttribute('disabled'))
 
 afterEach(() => {
   for (const root of roots) {
@@ -114,5 +154,116 @@ describe('Book', () => {
     const host = renderBook(2)
 
     expect(one(host, '[data-leaf="2"]').textContent).toContain('Tokyo')
+  })
+
+  it('renders a page-edge turn strip down each side of the book', () => {
+    const host = renderBook(2)
+
+    expect(disabledStates(host, ['[data-edge="left"]', '[data-edge="right"]'])).toEqual([false, false])
+  })
+
+  it('turns forward when the reader clicks the right page-edge strip', () => {
+    const host = renderBook(2)
+
+    click(host, '[data-edge="right"]')
+
+    // A turn that has armed reveals its destination leaf; see this file's header.
+    expect(visibleLeaves(host)).toContain('3')
+  })
+
+  it('turns back when the reader clicks the left page-edge strip', () => {
+    const host = renderBook(2)
+
+    click(host, '[data-edge="left"]')
+
+    expect(visibleLeaves(host)).toContain('1')
+  })
+
+  it('turns forward when the reader clicks the next arrow', () => {
+    const host = renderBook(2)
+
+    click(host, '[data-nav="next"]')
+
+    expect(visibleLeaves(host)).toContain('3')
+  })
+
+  it('turns back when the reader clicks the previous arrow', () => {
+    const host = renderBook(2)
+
+    click(host, '[data-nav="prev"]')
+
+    expect(visibleLeaves(host)).toContain('1')
+  })
+
+  it('offers no way back from the first page of the book', () => {
+    const host = renderBook(0)
+
+    expect(disabledStates(host, ['[data-nav="prev"]', '[data-edge="left"]'])).toEqual([true, true])
+  })
+
+  it('offers no way forward from the last page of the book', () => {
+    const host = renderBook(aBundle().pages.length - 1)
+
+    expect(disabledStates(host, ['[data-nav="next"]', '[data-edge="right"]'])).toEqual([true, true])
+  })
+
+  it('turns forward when the reader presses the forward key anywhere on the page', () => {
+    const host = renderBook(2)
+
+    pressKey('ArrowRight')
+
+    expect(visibleLeaves(host)).toContain('3')
+  })
+
+  it('turns back when the reader presses the backward key anywhere on the page', () => {
+    const host = renderBook(2)
+
+    pressKey('PageUp')
+
+    expect(visibleLeaves(host)).toContain('1')
+  })
+
+  it('renders one bookmark tab for every tab the rail derives', () => {
+    const host = renderBook(0)
+
+    expect(host.querySelectorAll('[data-bookmark]')).toHaveLength(aBundle().bookmarks.length)
+  })
+
+  it('renders no tab for a bookmark that addresses a page the book does not have', () => {
+    // `BookBundle` crosses a serialization boundary, so a rail and a reading
+    // sequence that disagree is a state this client can be handed. Such a tab
+    // renders nothing, rather than taking the whole rail down with it.
+    const bundle = aBundle()
+    const host = renderBook(0, {
+      ...bundle,
+      bookmarks: [...bundle.bookmarks, { kind: 'about', startIndex: bundle.pages.length + 4, span: 1 }],
+    })
+
+    expect(host.querySelectorAll('[data-bookmark]')).toHaveLength(bundle.bookmarks.length)
+  })
+
+  it('anchors a bookmark jump one page from its target, so the turn plays in the direction of travel', () => {
+    // From the last page of the book to Tokyo's notes page (leaf 2). The
+    // anchor rule (handoff README, "Triggers") says the turn must depart from
+    // leaf 3, one step from the target - never from leaf 8, which would sweep
+    // the whole book in a single turn and animate a transform no page turn
+    // ever produces.
+    const host = renderBook(aBundle().pages.length - 1)
+
+    click(host, '[data-bookmark="2"]')
+
+    expect(visibleLeaves(host)).toEqual(['2', '3'])
+  })
+
+  it('shows the page counter the handoff puts under the book', () => {
+    const host = renderBook(2)
+
+    expect(one(host, '[data-counter]').textContent).toBe(pageCounter(3, aBundle().pages.length))
+  })
+
+  it('writes the page it is showing into the URL, so the address bar stays shareable', () => {
+    renderBook(3)
+
+    expect(window.location.pathname).toBe('/p/4')
   })
 })

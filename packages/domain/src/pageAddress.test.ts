@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pageIndexFromParam } from './pageAddress'
+import { pageIndexFromParam, pagePath } from './pageAddress'
 
 describe('pageIndexFromParam', () => {
   it('turns the first page number a reader sees into the first leaf index', () => {
@@ -40,5 +40,25 @@ describe('pageIndexFromParam', () => {
 
   it('returns the first leaf for a book with no pages at all, rather than a negative index', () => {
     expect(pageIndexFromParam('1', 0)).toBe(0)
+  })
+})
+
+describe('pagePath', () => {
+  it('addresses the first leaf as the first page a reader sees', () => {
+    expect(pagePath(0)).toBe('/p/1')
+  })
+
+  it('addresses a mid-book leaf as the page number printed on it', () => {
+    expect(pagePath(2)).toBe('/p/3')
+  })
+
+  it('round-trips every leaf of the book back to itself', () => {
+    // The two directions are the same translation read forwards and
+    // backwards; an off-by-one in either would show up here rather than as a
+    // reader landing one page away from the link they shared.
+    const total = 33
+    const leaves = Array.from({ length: total }, (_unused, leafIndex) => leafIndex)
+
+    expect(leaves.map((leafIndex) => pageIndexFromParam(pagePath(leafIndex).slice('/p/'.length), total))).toEqual(leaves)
   })
 })

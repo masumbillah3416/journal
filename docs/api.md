@@ -161,13 +161,19 @@ for a different reason — see its row.
   (`docs/security.md`). **That gate is not built yet** and is tracked in
   `docs/security.md`, not discharged here.
 - **Notes:** the URL is written on every turn (flip commit, mobile step, bookmark jump)
-  and read on load, so the reader's exact page survives a reload or a shared link.
-  Returning from `/gallery/<slug>` must restore the `/p/<n>` the reader was on, not `/`.
+  and read on load, so the reader's exact page survives a reload or a shared link. As of
+  Task 8 that write is live: `Book.tsx` calls `window.history.replaceState` with
+  `pagePath(state.index)` from an effect keyed on the machine's committed index — the one
+  moment the reader's page actually changes, whichever trigger caused it. It replaces
+  rather than pushes, so reading thirty pages does not bury the page the reader arrived
+  from under thirty history entries, and it is `replaceState` rather than a router
+  navigation because a navigation would re-render the route and take the book's own flip
+  state with it. Returning from `/gallery/<slug>` must restore the `/p/<n>` the reader was
+  on, not `/`.
 - **Still to come (Task 13, which extends this same file):** `generateStaticParams` for
   all 33 pages, revalidation, a real `404` for an out-of-range page in place of today's
-  clamp, per-page metadata, and the gallery-return behaviour. Task 8 adds the flip
-  triggers that write the URL on a turn. Both are named here so the gap between this row
-  and the design spec is a recorded decision rather than an omission.
+  clamp, per-page metadata, and the gallery-return behaviour. It is named here so the gap
+  between this row and the design spec is a recorded decision rather than an omission.
 
 ## Planned routes (Phase 1)
 
