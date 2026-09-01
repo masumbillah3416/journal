@@ -15,13 +15,13 @@ Enforced by TWO configs, because no single Vitest run can execute everything:
   `apps/web/scripts/**`, `apps/web/app/**` and `apps/web/components/**`, `.ts` and
   `.tsx` alike.
 
-  | Layer | Lines | Branches | Functions |
-  |---|---|---|---|
-  | `packages/domain/**` (pure logic) | 100% | 100% | 100% |
-  | `apps/web/lib/**`, server actions | 95% | 95% | 95% |
-  | `apps/web/app/**` | 95% | 95% | 95% |
-  | `apps/web/components/**` | 90% | 90% | 90% |
-  | Repository-wide | 90% | 90% | 90% |
+  | Layer                             | Lines | Branches | Functions |
+  | --------------------------------- | ----- | -------- | --------- |
+  | `packages/domain/**` (pure logic) | 100%  | 100%     | 100%      |
+  | `apps/web/lib/**`, server actions | 95%   | 95%      | 95%       |
+  | `apps/web/app/**`                 | 95%   | 95%      | 95%       |
+  | `apps/web/components/**`          | 90%   | 90%      | 90%       |
+  | Repository-wide                   | 90%   | 90%      | 90%       |
 
   `apps/web/components/**`'s own row arrived with Phase 1 Task 7, the task that put the
   first real files there (the book's frame, page stack and the two hooks that drive
@@ -65,7 +65,7 @@ test can execute without a Next.js request context:
   `not-found.tsx`) —
   required by Next.js's own routing convention. `c8 ignore start`/`stop` does not take
   effect for a file under a bracketed directory: verified by reproducing one of them
-  byte-for-byte under an unbracketed sibling directory and watching the *copy* get
+  byte-for-byte under an unbracketed sibling directory and watching the _copy_ get
   ignored correctly while the original did not, with the tool instead reporting the
   file's own header-comment lines as "uncovered" once the ignored code beneath them left
   no `DA` entries to anchor against — a bug in how `@vitest/coverage-v8` scans source text
@@ -100,7 +100,7 @@ per CLAUDE.md §2.1.
 An uncovered line outside `packages/domain` requires a
 `/* c8 ignore next -- <reason> */` comment with a real reason (`CLAUDE.md` §2.1). Where a
 whole file is unreachable from any test, the honest options are two, and which one
-applies depends on whether some *other* pass can see it: exclude-and-regate (as
+applies depends on whether some _other_ pass can see it: exclude-and-regate (as
 `seed.ts`, `seed-data.ts`, `testPayload.ts` and `migrate.ts` each get — excluded from the
 unit pass, genuinely measured by the integration pass), or an explicit `c8 ignore` with
 its reason at the point it applies. `apps/web/scripts/run-seed.ts` is the second kind and
@@ -136,7 +136,7 @@ would claim a measurement nothing performs.
     because the environment differs, and paying jsdom's setup cost for every pure test
     to accommodate a handful of component tests is the wrong trade. Two further settings
     arrived with Phase 1 Task 7's first real components: `setupFiles:
-    ['./vitest.dom-setup.ts']`, which sets `IS_REACT_ACT_ENVIRONMENT` once for every file
+['./vitest.dom-setup.ts']`, which sets `IS_REACT_ACT_ENVIRONMENT` once for every file
     instead of four repeated lines at the top of each (React reads the flag off the
     global object, so it cannot be set by importing anything), and
     `css.modules.classNameStrategy: 'non-scoped'`, which makes a CSS Module import
@@ -146,7 +146,7 @@ would claim a measurement nothing performs.
     real browser instead — so the strategy is purely about components rendering readable
     class names under test.
 
-  `unit-dom` exists *before* Phase 1's first component, on purpose. Until it did, no
+  `unit-dom` exists _before_ Phase 1's first component, on purpose. Until it did, no
   project's `include` matched `*.test.tsx` and neither set a DOM environment — so the
   first React component test would have been collected by nobody, and **a test collected
   by nobody does not fail; it silently is not there and the run stays green**. That is
@@ -161,6 +161,7 @@ would claim a measurement nothing performs.
   is named here so that its disappearance from a run summary is noticeable. It is not a
   placeholder and does not get deleted when real component tests arrive — it is the only
   thing in the repository that asserts the harness exists independently of any component.
+
 - **Run:** `npm run test:unit` (both projects, with coverage), or `npm run test` for
   watch mode across every project.
 - **Add one:** colocate `<name>.test.ts` next to `<name>.ts` — or `<name>.test.tsx` for
@@ -259,11 +260,12 @@ would claim a measurement nothing performs.
     shell exported `NODE_ENV=development`, reporting a leak that was not one. Confirmed
     by running the old wiring under `NODE_ENV=development`:
     `× never records the message body, which carries the code → expected 'mail: sent
-    "Your code" to a***@b.com …' not to contain '123456'`. `CLAUDE.md` §2.3 requires
+"Your code" to a***@b.com …' not to contain '123456'`. `CLAUDE.md` §2.3 requires
     time and environment to be injected for exactly this reason.
+
   - `queue` → `apps/web/lib/adapters/postgres-queue.ts` (the `jobs` table, Task 9). The
     concurrency case — two concurrent `claim()` calls must yield the job to exactly one
-    caller — is why this suite is an *integration* test
+    caller — is why this suite is an _integration_ test
     (`postgres-queue.integration.test.ts`, needing real Postgres): `claim()`'s
     `SELECT ... FOR UPDATE SKIP LOCKED` has no meaning against a mock.
 
@@ -282,6 +284,7 @@ would claim a measurement nothing performs.
     `claim()` at all — which proved Postgres implements `SKIP LOCKED` (never in question),
     not that the adapter uses it; that version was replaced after review because deleting
     the clause from the adapter left it passing.
+
 - **Run:** unit-reachable contracts (`storage`, `mailer`) run under `npm run verify` like
   any other unit test; the `queue` contract, being integration-only, runs under
   `npm run verify:full` / `npm run test:integration`.
@@ -353,15 +356,16 @@ would claim a measurement nothing performs.
 
   `e2e/smoke.spec.ts` is the console-error gate: it loads `/cms` and `/p/1` and asserts
   **zero** `console` (error level) and `pageerror` events, with both listeners attached
-  *before* `page.goto()`. This is deliberately the harness's centre of gravity, not an
+  _before_ `page.goto()`. This is deliberately the harness's centre of gravity, not an
   afterthought — the handoff's own defect log (`CLAUDE.md` §10, `SCREENS.md`) is mostly
-  *silent* failures (a swallowed click, a missing derivative, a rejected autoplay
+  _silent_ failures (a swallowed click, a missing derivative, a rejected autoplay
   promise), none of which move a pixel, so visual or manual-only QA misses them
   entirely. The test also waits `networkidle` and a fixed 500ms grace period after
   `goto()` before asserting — a real hydration-time console error was observed (in this
-  task's own planted-failure proof, see below) landing *after* the `load` event, so
+  task's own planted-failure proof, see below) landing _after_ the `load` event, so
   checking immediately on navigation would have produced a false negative on exactly the
   class of defect this suite exists to catch.
+
 - **Three viewport projects** — `desktop` (1440×900), `mid` (1000×800), `mobile`
   (390×844; `isMobile`/`hasTouch` set) — run every spec three times, once per breakpoint
   named in the Task 12 brief. All three use Chromium, not a mix of engines: this
@@ -408,7 +412,7 @@ would claim a measurement nothing performs.
   `@playwright/test` version pinned in `package-lock.json` exactly (`.github/workflows/ci.yml`'s
   `browser` job header names the current tag; bump both together). The committed baselines
   are now `-linux.png`, generated by running `npx playwright test e2e/visual.spec.ts
-  --update-snapshots` inside that exact image (see this task's report for the pasted
+--update-snapshots` inside that exact image (see this task's report for the pasted
   baseline-generation and clean-comparison runs) — the old `-win32.png` files were deleted,
   not kept alongside. `browser` no longer skips `test:visual`; it runs in the same
   `npx playwright test` invocation as the smoke and accessibility specs.
@@ -445,14 +449,14 @@ would claim a measurement nothing performs.
   header) and is disabled outright in production, so `e2e/a11y.spec.ts` calls
   `expectNoAxeViolations(page, { allow: ['landmark-one-main', 'page-has-heading-one'] })`
   — narrowly, with the finding and the reasoning recorded in the test file's own header,
-  not by loosening the helper's default. Any *other* violation, on this route or any
+  not by loosening the helper's default. Any _other_ violation, on this route or any
   future one, still fails the suite, and a diary route calling the helper with no
   `allow` cannot inherit `/cms`'s exclusion — each call site names its own. This
   exclusion is revisited the moment `/cms` stops being the route under test — Phase 1's
   bespoke `/admin` replaces it.
 - **Proof the helper actually catches something:** verified by planting a real violation
   (an `<img>` with no `alt`, no `aria-label`, no `title` — axe's `image-alt`, `impact:
-  critical`) into the live `/cms` DOM via `page.evaluate` and calling
+critical`) into the live `/cms` DOM via `page.evaluate` and calling
   `expectNoAxeViolations(page)` with no `allow` — the assertion failed, listing
   `image-alt` alongside the two known `/cms` findings (`region` also fired, since the
   planted `<img>` sat outside any landmark). Removing the plant and calling
@@ -477,7 +481,8 @@ would claim a measurement nothing performs.
   `lighthouserc.json` now points `collect.url` at `http://localhost:3000/p/1` (the diary
   route Task 13 creates) and `http://localhost:3000/cms`, with per-URL budgets via
   `assert.assertMatrix` rather than one shared `assert.assertions` block: `/p/1` is held
-  to `http-status-code` (`minScore: 1`), `largest-contentful-paint` (≤2500ms) and
+  to `http-status-code` (`minScore: 1`), `resource-summary:script:size`
+  (≤184320 bytes), `largest-contentful-paint` (≤2500ms) and
   `cumulative-layout-shift` (≤0.1); `/cms` is held to `http-status-code` and
   `cumulative-layout-shift` only. `CLAUDE.md` §6 scopes the 2500ms LCP budget to "diary,
   4G" specifically — holding Payload's heavy admin bundle to it was the original reason
@@ -485,26 +490,49 @@ would claim a measurement nothing performs.
   assertion is what stops that recurring now that `/cms` shares a config with a real
   route. `.github/workflows/ci.yml`'s `browser` job no longer runs this step with
   `continue-on-error` (see below).
-- **`/p/1` does not exist yet — Task 13 creates it — and that is deliberate, not an
-  oversight.** The controller ruling for Task 1 was to land the hard gate *before* the
-  page it measures, specifically so no later task can land a regression under a budget
-  still marked informational — Phase 0 shipped exactly that state once (`/cms` under
-  `continue-on-error`) and it hid nothing because nobody was watching an
-  informational job.
+- **`/p/1` was landed as a hard gate before the page existed, deliberately.** The
+  controller ruling for Task 1 was to land the gate _before_ the page it measures,
+  specifically so no later task can land a regression under a budget still marked
+  informational — Phase 0 shipped exactly that state once (`/cms` under
+  `continue-on-error`) and it hid nothing because nobody was watching an informational
+  job. The route arrived in Task 7 (see `docs/api.md`), so every assertion in this
+  entry now measures a real diary page: the first full run against it recorded
+  `http-status-code` 1, script transfer 140747 bytes, LCP **2.0s** (score 0.97) and CLS
+  **0**.
+- **The 180KB JS budget had no gate at all until Phase 1 Task 7's fix round.**
+  `CLAUDE.md` §6 calls it a hard gate, and neither `package.json` nor
+  `lighthouserc.json` asserted a single byte — the number was a documented intention,
+  which is the same failure mode as an informational job nobody watches.
+  `resource-summary:script:size` on `/p/1` now enforces it at 184320 bytes (180KB).
+
+  **Which bytes count was a controller ruling, and the mechanism delivers it by
+  construction.** Next emits a legacy polyfill bundle marked `noModule`, fetched only by
+  browsers predating ES modules. The gate measures what readers actually download, so
+  that bundle does not count — and no bespoke script or per-chunk argument is needed to
+  get that, because Chrome never requests a `noModule` script, so Lighthouse never sees
+  it. The measured run confirms the mechanism rather than assuming it: Lighthouse counts
+  **7** script requests where the page's HTML carries **8** `<script src>` tags.
+
+  Measured at 140747 bytes against the 184320 gate — 43573 bytes of headroom. The pages
+  of Tasks 9–11 are server-component markup contributing near-zero JS, and the gallery
+  and lightbox live on their own route, so the real remaining claimants are Task 8's
+  flip triggers and Task 12's chrome. Setting the gate now means whichever task breaches
+  it finds out on its own commit rather than at the end of the phase.
+
 - **`http-status-code` exists because the LCP/CLS budgets alone measured a vacuous
   pass, not because the route's status code is interesting on its own.** First shipped
   without it, this gate measured Next's own 404 response for `/p/1` at `largest-
-  contentful-paint` **~2039ms** (budget 2500ms) and `cumulative-layout-shift` **0** —
+contentful-paint` **~2039ms** (budget 2500ms) and `cumulative-layout-shift` **0** —
   both cleared the budget, so CI reported a green "diary LCP budget verified" against a
   page that does not exist, which is worse than the informational-red state it replaced:
   a plausible 2039ms reads as a genuine successful measurement, where the earlier
   `continue-on-error` at least visibly meant "not ready." `http-status-code` scores 0 for
   any 4xx/5xx response and 1 otherwise (`node_modules/lighthouse/core/audits/seo/
-  http-status-code.js`) — added to `/p/1`'s `assertMatrix` entry, it fails the whole gate
+http-status-code.js`) — added to `/p/1`'s `assertMatrix` entry, it fails the whole gate
   outright against the 404 regardless of how fast that 404 happens to render, restoring
   the intended red-until-Task-13 state. Verified: `lhci autorun` against the current 404,
   inside the pinned Playwright image, fails with `http-status-code failure for minScore
-  assertion ... expected: >=1, found: 0` (see this task's report for the full pasted run).
+assertion ... expected: >=1, found: 0` (see this task's report for the full pasted run).
   Added to `/cms`'s entry too, for the same reason CLS is asserted there and LCP is not:
   it costs nothing against a route that already returns 200, and catches the admin route
   silently starting to 5xx, which is a real regression LCP/CLS alone would not surface.
@@ -525,7 +553,7 @@ would claim a measurement nothing performs.
   `browser`'s CI job now runs in — see the Visual regression section above), there is no
   system `google-chrome`/`chromium-browser` binary to auto-detect; `CHROME_PATH` must
   point at the image's own bundled Chromium under `/ms-playwright/chromium-<build>/
-  chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rather
+chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rather
   than hard-coding `<build>`, an internal Playwright id that can change on an image
   update). GitHub's plain `ubuntu-latest` (uncontainerized) ships a system Chrome
   `chrome-launcher` finds on its own; set `CHROME_PATH` locally too if none is found
@@ -570,8 +598,8 @@ would claim a measurement nothing performs.
   first real migration, which would have made the migration decorative rather than the
   thing that actually built the tables.
 - **What the reversibility test actually does.** `collections.integration.test.ts`'s
-  last case — *"rebuilds every table a journey, its highlights and its tally need, after
-  rolling all migrations back to zero and re-applying them"* — writes a journey whose
+  last case — _"rebuilds every table a journey, its highlights and its tally need, after
+  rolling all migrations back to zero and re-applying them"_ — writes a journey whose
   values span all three shapes the initial migration creates (plain columns on
   `journeys`, a group's `furniture_*` column prefix, and the two ordered array tables
   `journeys_highlights` and `journeys_tally`), captures those values, rolls every
@@ -579,13 +607,13 @@ would claim a measurement nothing performs.
   are gone and that no migration remains applied, re-applies every migration, writes the
   same journey again, and asserts every captured value round-trips.
 
-  It replaced a case named *"runs down and up again without loss"* that seeded nothing
+  It replaced a case named _"runs down and up again without loss"_ that seeded nothing
   and compared nothing: it asserted only that `runMigrateDown()` and `runMigrateUp()`
   did not throw, and that a subsequent `find()` was defined. Both halves of that name
   were unearned.
 
   **To zero, not one batch, and that is the point.** Payload's `migrateDown()` rolls
-  back only the most recent *batch* — every migration the last `migrate()` applied
+  back only the most recent _batch_ — every migration the last `migrate()` applied
   together. On a database brought up in one go that is all of them; on one brought up
   incrementally it is only the newest. A reversibility test built on a single
   `migrateDown()` therefore proves whatever the local batch history happens to make it
@@ -606,21 +634,22 @@ would claim a measurement nothing performs.
   **It has failed.** Per `CLAUDE.md` §2.3, it was verified against two deliberately
   broken migrations. Deleting `DROP TABLE "journeys" CASCADE` from the initial
   migration's `down()` fails it with `cannot drop type enum_journeys_weather_glyph
-  because other objects depend on it` — the surviving `journeys` table still uses that
+because other objects depend on it` — the surviving `journeys` table still uses that
   type. Restoring the generator's original statement order in
   `20260831_161951_add_jobs`'s `down()` — the CASCADE-ordering bug that file's hand-fix
   exists to prevent — fails it with `constraint
-  "payload_locked_documents_rels_jobs_fk" of relation
-  "payload_locked_documents_rels" does not exist`. Both hand-fixes are therefore covered
+"payload_locked_documents_rels_jobs_fk" of relation
+"payload_locked_documents_rels" does not exist`. Both hand-fixes are therefore covered
   by a test that demonstrably catches their removal.
 
   **One thing to know when reading a failure.** Payload's own `migrate()` and
   `migrateDown()` call `process.exit(1)` on a failed migration rather than throwing, so
   a broken migration surfaces in Vitest as `Error: process.exit unexpectedly called with
-  "1"`, with the Postgres error above it in the log, not as an assertion diff. That is
-  why the test asserts the rollback's outcome *mid-test*, before re-applying: without
+"1"`, with the Postgres error above it in the log, not as an assertion diff. That is
+  why the test asserts the rollback's outcome _mid-test_, before re-applying: without
   those two assertions, a rollback that quietly left a table behind would kill the
   worker on the re-apply, before anything could name the problem.
+
 - **Coverage:** `migrate.ts` is reachable only from the integration-only callers above,
   so `vitest.config.ts`'s Docker-free unit pass excludes it from coverage rather than
   count it as 0%. It is gated instead by `vitest.integration.config.ts` at
