@@ -1,6 +1,6 @@
 import { composite, contrastRatio } from '@travel-diary/domain/contrast'
 import { describe, expect, it } from 'vitest'
-import { colour } from './colour.js'
+import { colour } from './colour'
 
 const WCAG_BODY_TEXT = 4.5
 

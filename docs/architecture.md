@@ -44,35 +44,44 @@ restriction wired in. Adding one (e.g. `eslint-plugin-boundaries` or a path-base
 Four boundaries carry the design's stated failure modes (spec §6). Each is a small
 module, independently testable, named in its own header.
 
-| Module | Package | Contract |
-|---|---|---|
-| `flipMachine` | `packages/domain` | Pure reducer over `{dir, from, to, go, half, busy}` with an injected clock |
-| `bookScale` | `packages/domain` | `(area) → number`, `min(w/1300, h/860)` capped at 1.7 |
-| `bookBundle` | `packages/domain` + `apps/web/lib` | Payload rows in, one typed `BookBundle` out. The diary client reads nothing else. |
-| `pageStack` | `packages/domain` | `(leafIndex, FlipState, totalPages) → LeafPresentation`. Every field maps one-to-one into CSS, so the DOM layer re-derives no flip geometry. |
-| `pageAddress` | `packages/domain` | `('<n>', totalPages) → leafIndex`. The only translation between the 1-based page number a reader shares and the 0-based index the stack works in. |
-| `storage` / `mailer` / `transcodeQueue` | `apps/web/lib` | Ports with local and production adapters, one shared contract suite run against both |
+| Module                                  | Package                            | Contract                                                                                                                                          |
+| --------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `flipMachine`                           | `packages/domain`                  | Pure reducer over `{dir, from, to, go, half, busy}` with an injected clock                                                                        |
+| `bookScale`                             | `packages/domain`                  | `(area) → number`, `min(w/1300, h/860)` capped at 1.7                                                                                             |
+| `bookBundle`                            | `packages/domain` + `apps/web/lib` | Payload rows in, one typed `BookBundle` out. The diary client reads nothing else.                                                                 |
+| `pageStack`                             | `packages/domain`                  | `(leafIndex, FlipState, totalPages) → LeafPresentation`. Every field maps one-to-one into CSS, so the DOM layer re-derives no flip geometry.      |
+| `pageAddress`                           | `packages/domain`                  | `('<n>', totalPages) → leafIndex`. The only translation between the 1-based page number a reader shares and the 0-based index the stack works in. |
+| `storage` / `mailer` / `transcodeQueue` | `apps/web/lib`                     | Ports with local and production adapters, one shared contract suite run against both                                                              |
 
 ### The book's DOM binding (`apps/web/components/book/`)
 
 Phase 1 Task 7 added the one place the pure modules above become a page. It is
 deliberately thin, and every file in it names what it is allowed to decide:
 
-| File | Responsibility |
-|---|---|
-| `Book.tsx` | The diary's single `'use client'` boundary. Composes frame, scaled design box and stack; owns no arithmetic. |
-| `Leaf.tsx` | Assigns one `LeafPresentation` straight into `rotateY()`, `z-index`, `visibility`, `pointer-events` and the two face opacities. |
-| `PageFace.tsx` | The content of one page. Provisional until Tasks 9–11 land the designed layouts. |
-| `useFlip.ts` | Injects a real clock into `flipReducer` from a single `requestAnimationFrame` loop that stops when the book settles. |
-| `useBookScale.ts` | Feeds `bookScale` a measurement, re-measured on resize and through a `ResizeObserver`, always inside one animation frame. |
+| File              | Responsibility                                                                                                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Book.tsx`        | The diary's single `'use client'` boundary. Composes frame, scaled design box and stack; owns no arithmetic.                                                                                           |
+| `Leaf.tsx`        | Assigns one `LeafPresentation` straight into `rotateY()`, `z-index`, `visibility`, `pointer-events` and the two face opacities.                                                                        |
+| `PageFace.tsx`    | The content of one page. Provisional until Tasks 9–11 land the designed layouts.                                                                                                                       |
+| `useFlip.ts`      | Injects a real clock into `flipReducer` from a single `requestAnimationFrame` loop that stops when the book settles.                                                                                   |
+| `useBookScale.ts` | Feeds `bookScale` a measurement, re-measured on resize and through a `ResizeObserver`, always inside one animation frame.                                                                              |
 | `book.module.css` | The handoff's absolute geometry. Holds the three rules that record real defects: no `backface-visibility`, back faces always `pointer-events: none`, and only `transform`/`opacity` ever transitioned. |
 
-**A `.js` import specifier does not survive Turbopack.** Next's bundler resolves
-`./payload.js` to nothing when the file on disk is `payload.ts`; Vitest and `tsc` both
-resolve it happily, so the mismatch stays invisible until a Next route imports the module
-for the first time — which `/p/<n>` was. Anything `apps/web/app/**` can reach therefore
-uses extensionless relative imports, matching `payload.config.ts`'s existing style.
-Type-only imports are exempt because they are erased before the bundler sees them.
+**A `.js` import specifier does not survive Turbopack, and is banned repository-wide.**
+Next's bundler resolves `./payload.js` to nothing when the file on disk is `payload.ts`;
+Vitest and `tsc` both resolve it happily, so a file carrying one looks correct everywhere
+until a Next route imports it — which `/p/<n>` was the first to do. Next's own
+`experimental.extensionAlias` escape hatch is on its published list of options Turbopack
+ignores, so there is no configuration fix.
+
+`tsconfig.base.json` sets `moduleResolution: "Bundler"`, so the extension was never
+required in the first place; it was a leftover NodeNext-style convention. Every relative
+import in the repository is therefore extensionless, and `eslint.config.js`'s
+`no-restricted-imports` rule keeps it that way — otherwise the convention creeps back and
+the next person to learn about it learns from a build error naming a missing file rather
+than a wrong convention. The one exemption is `apps/web/app/(payload)/**`, whose
+`importMap.js` is a real `.js` file Payload generates; it is scoped to those files by
+path rather than weakened globally.
 
 `BookBundle` is the only serialization boundary between server and diary client — the
 diary never learns what a Payload row looks like. `bookBundle`'s pure mapping rules

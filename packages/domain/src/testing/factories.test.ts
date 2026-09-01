@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aJourney } from './factories.js'
+import { aJourney } from './factories'
 
 describe('aJourney', () => {
   it('builds a journey with sensible defaults when called with no overrides', () => {

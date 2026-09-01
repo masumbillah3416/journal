@@ -16,9 +16,9 @@
  * page number onto a real page rather than 404ing - the same choice
  * `pageStack.ts` makes for a stale index, and for the same reason: a reader
  * with a bad address should land on a page, not a blank stack.
- * Depends on: `readBookBundle` (../../../../lib/readBookBundle.js),
+ * Depends on: `readBookBundle` (../../../../lib/readBookBundle),
  * `pageIndexFromParam` (@travel-diary/domain/pageAddress), `Book`
- * (../../../../components/book/Book.js).
+ * (../../../../components/book/Book).
  */
 /* c8 ignore start -- Framework passthrough with no authored logic: await the
  * route params, read the bundle, render the book. It cannot be measured by

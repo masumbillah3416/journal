@@ -40,16 +40,16 @@
  * Depends on: `payload` (the collections from Task 6), `sharp`,
  * `stripedPlaceholder` (Task 10), `journeyAccents` from `@travel-diary/tokens`,
  * `journeyId`/`pageId` from `@travel-diary/domain/ids` (Task 4), and
- * `journeySeeds`/`bookGlobalSeed`/`aboutGlobalSeed` from `./seed-data.js`.
+ * `journeySeeds`/`bookGlobalSeed`/`aboutGlobalSeed` from `./seed-data`.
  */
 import type { Payload } from 'payload'
 import sharp from 'sharp'
 import { journeyId, pageId } from '@travel-diary/domain/ids'
 import type { Result } from '@travel-diary/domain/result'
 import { journeyAccents } from '@travel-diary/tokens/colour'
-import type { Journey, Media, Page } from '../payload-types.js'
-import { stripedPlaceholder } from './placeholder.js'
-import { aboutGlobalSeed, bookGlobalSeed, journeySeeds, type JourneySeed } from './seed-data.js'
+import type { Journey, Media, Page } from '../payload-types'
+import { stripedPlaceholder } from './placeholder'
+import { aboutGlobalSeed, bookGlobalSeed, journeySeeds, type JourneySeed } from './seed-data'
 
 /** Design-box dimensions for each slot role, lifted from the prototype (Task 11 brief). */
 const SLOT_SIZE = {

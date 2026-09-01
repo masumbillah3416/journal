@@ -8,7 +8,7 @@
  * since both are exported port-level behaviour, not private adapter detail.
  */
 import { describe, expect, it } from 'vitest'
-import { maskEmailAddress, validateEmailAddress } from './mailer.js'
+import { maskEmailAddress, validateEmailAddress } from './mailer'
 
 describe('validateEmailAddress', () => {
   it('accepts a well-formed address', () => {

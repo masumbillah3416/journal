@@ -1,6 +1,6 @@
 import { MAX_SCALE } from '@travel-diary/tokens/geometry'
 import { describe, expect, it } from 'vitest'
-import { bookScale } from './bookScale.js'
+import { bookScale } from './bookScale'
 
 describe('bookScale', () => {
   it('is 1 when the area is exactly the design box', () => {

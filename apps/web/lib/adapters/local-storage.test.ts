@@ -6,8 +6,8 @@
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { createLocalStorage } from './local-storage.js'
-import { storageContract } from './contract/storage-contract.js'
+import { createLocalStorage } from './local-storage'
+import { storageContract } from './contract/storage-contract'
 
 storageContract('local disk', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'travel-diary-storage-'))

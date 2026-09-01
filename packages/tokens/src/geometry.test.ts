@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DESIGN_BOX, MAX_SCALE, geometry } from './geometry.js'
+import { DESIGN_BOX, MAX_SCALE, geometry } from './geometry'
 
 describe('geometry tokens', () => {
   it('fixes the design box at the handoff-authored size', () => {

@@ -40,7 +40,7 @@
  * Depends on FlipState from ./flip.ts; depends on nothing else, no DOM, no
  * framework.
  */
-import type { FlipState } from './flip.js'
+import type { FlipState } from './flip'
 
 /**
  * What one leaf of the book should look like at this instant. Every field

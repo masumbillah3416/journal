@@ -23,7 +23,42 @@ export default tseslint.config(
       // destructures `payload`/`req` alongside `db` whether or not a given
       // migration's SQL needs them.
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      // A relative import must not carry a `.js` extension. `tsconfig.base.json`
+      // sets `moduleResolution: "Bundler"`, so the extension was never required —
+      // it was a leftover NodeNext-style convention. It is banned rather than
+      // merely discouraged because of how it fails: Vitest and `tsc` both resolve
+      // `./payload.js` to `payload.ts` happily, so a file carrying one looks
+      // correct everywhere until a Next.js route imports it, at which point
+      // Turbopack resolves it to nothing and the build fails with "Can't resolve
+      // './payload.js'" — an error that names a missing file rather than a wrong
+      // convention, which is a confusing way to learn this. Next's own
+      // `experimental.extensionAlias` escape hatch is on its published list of
+      // options Turbopack ignores, so there is no configuration fix. Phase 1
+      // Task 7 hit this on the first route to reach `apps/web/lib`.
+      // Both the bare and the nested pattern are listed: a rule matching only
+      // `./*.js` would miss `./contract/queue-contract.js`, which is exactly the
+      // shape that was in the repository.
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['./*.js', './**/*.js', '../*.js', '../**/*.js'],
+              message:
+                'Drop the .js extension from relative imports. moduleResolution is "Bundler", and Turbopack does not resolve a .js specifier to a .ts file — see docs/architecture.md.',
+            },
+          ],
+        },
+      ],
     },
+  },
+  {
+    // Payload GENERATES `app/(payload)/cms/importMap.js` as a real `.js` file on
+    // disk, so its specifier is correct and the rule above would be a false
+    // positive on it. Scoped to the three files that import it, by path, rather
+    // than weakened globally.
+    files: ['apps/web/app/(payload)/**/*.tsx'],
+    rules: { 'no-restricted-imports': 'off' },
   },
   // Type-aware strict rules — only for source files that live inside a tsconfig
   // project (app and package code); `files` already confines this to `packages/`

@@ -6,10 +6,10 @@
  * call `aJourney()` and then mutate their own copy can never see each
  * other's changes. `Partial<Journey>` overrides merge shallowly over
  * sensible defaults, so a test's `aJourney({ slug: 'tokyo' })` names only the
- * field it cares about. Depends on: Journey, from ../bookBundle.js.
+ * field it cares about. Depends on: Journey, from ../bookBundle.
  */
-import type { Journey } from '../bookBundle.js'
-import type { JourneyId } from '../ids.js'
+import type { Journey } from '../bookBundle'
+import type { JourneyId } from '../ids'
 
 // Test-only default id. The literal below is a fixed, non-empty string, so
 // routing it through the fallible `journeyId()` constructor would only add a

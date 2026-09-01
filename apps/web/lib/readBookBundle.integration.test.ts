@@ -9,11 +9,11 @@
  * project (see ../../../vitest.config.ts), never in `npm run verify`
  * (pre-commit).
  *
- * Uses `getTestPayload()` (`./testPayload.js`), not `getPayload()` directly:
+ * Uses `getTestPayload()` (`./testPayload`), not `getPayload()` directly:
  * every integration test file connects to the isolated `diary_test`
  * database, never the developer's own dev database (Task 10/11 review round
  * 1, finding 2 - see that module's header). `beforeAll` seeds via
- * `../scripts/seed.js`'s `seed()` directly, rather than assuming a previous
+ * `../scripts/seed`'s `seed()` directly, rather than assuming a previous
  * test file already ran it - `seed()` is idempotent (its own header), so
  * calling it here is safe regardless of run order and does not depend on
  * `seed.integration.test.ts` having run first.
@@ -34,10 +34,10 @@
  */
 import sharp from 'sharp'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { getPayload } from './payload.js'
-import { getTestPayload } from './testPayload.js'
-import { readBookBundle } from './readBookBundle.js'
-import { seed } from '../scripts/seed.js'
+import { getPayload } from './payload'
+import { getTestPayload } from './testPayload'
+import { readBookBundle } from './readBookBundle'
+import { seed } from '../scripts/seed'
 
 const SETUP_TIMEOUT_MS = 60_000
 

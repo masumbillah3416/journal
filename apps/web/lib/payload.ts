@@ -7,9 +7,7 @@
  * Local API is itself designed to be shared this way): repeatedly calling
  * `payload.init()` would open a new database pool per call, so the first call
  * initialises and every subsequent call reuses the same in-flight/resolved
- * promise. Depends on: `payload`, the sanitised config from `payload.config`
- * (extensionless: Turbopack does not resolve a `.js` specifier to a `.ts` file,
- * and this module is reachable from the `/p/<n>` route - see docs/architecture.md).
+ * promise. Depends on: `payload`, the sanitised config from `payload.config`.
  */
 import { getPayload as initPayload, type Payload } from 'payload'
 import config from '../payload.config'

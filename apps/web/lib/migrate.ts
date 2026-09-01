@@ -4,8 +4,8 @@
  * Exists so migration reversibility can be asserted by a test rather than
  * discovered during an incident (CLAUDE.md §2, "Migration" row: every
  * migration runs up, down, and up again against a seeded database). Depends
- * on the Payload instance from `./payload.js`, the validated `env` from
- * `./env.js`, and `pg` for the one question Payload cannot answer.
+ * on the Payload instance from `./payload`, the validated `env` from
+ * `./env`, and `pg` for the one question Payload cannot answer.
  *
  * `runMigrateDownToZero` exists because `payload.db.migrateDown()` rolls back
  * only the LAST BATCH — every migration the most recent `migrate()` applied
@@ -32,8 +32,8 @@
  * file's thresholds and docs/testing.md).
  */
 import { Client } from 'pg'
-import { env } from './env.js'
-import { getPayload } from './payload.js'
+import { env } from './env'
+import { getPayload } from './payload'
 
 /** Rolls the most recently applied batch of migrations back. */
 export const runMigrateDown = async (): Promise<void> => {

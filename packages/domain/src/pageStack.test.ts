@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ARM_MS, flipReducer, initialFlipState } from './flip.js'
-import { leafPresentation } from './pageStack.js'
+import { ARM_MS, flipReducer, initialFlipState } from './flip'
+import { leafPresentation } from './pageStack'
 
 const config = { durationMs: 900, reducedMotion: false }
 const TOTAL = 33

@@ -50,10 +50,10 @@
  */
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { env } from '../lib/env.js'
-import { appliedMigrationCount, runMigrateDownToZero, runMigrateUp } from '../lib/migrate.js'
-import { getPayload } from '../lib/payload.js'
-import { getTestPayload } from '../lib/testPayload.js'
+import { env } from '../lib/env'
+import { appliedMigrationCount, runMigrateDownToZero, runMigrateUp } from '../lib/migrate'
+import { getPayload } from '../lib/payload'
+import { getTestPayload } from '../lib/testPayload'
 
 const FIXTURE_SLUGS = ['test-tokyo', 'test-bergen', 'test-lisbon', 'test-reversibility']
 

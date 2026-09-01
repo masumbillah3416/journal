@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { journeyId, mediaId, pageId, slotKey } from './ids.js'
-import type { JourneyId, PageId } from './ids.js'
+import { journeyId, mediaId, pageId, slotKey } from './ids'
+import type { JourneyId, PageId } from './ids'
 
 describe('branded identifiers', () => {
   it('accepts a non-empty identifier', () => {

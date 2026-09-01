@@ -19,13 +19,13 @@
  * database, but its name says what it actually is.
  *
  * The suite takes a `readJobRow` probe rather than importing one. It used to
- * import `jobRow()` from ./queue-fixtures.js, which called `getPayload()` -
+ * import `jobRow()` from ./queue-fixtures, which called `getPayload()` -
  * so this "reusable" suite could only ever run somewhere Payload was
  * available, unlike the storage and mailer suites, which import nothing but
  * their port's type. A future worker-backed adapter would have had to drag a
  * CMS in to be contract-tested. Injecting the probe puts the how-do-I-read-a
  * -job-row question where it belongs: with the adapter's own test file.
- * Depends on: vitest, the QueuePort contract, ./queue-fixtures.js.
+ * Depends on: vitest, the QueuePort contract, ./queue-fixtures.
  *
  * Exercised only via `postgres-queue.integration.test.ts` against the real
  * Docker Postgres - the queue has no adapter that runs without one. Covered
@@ -33,8 +33,8 @@
  * not the unit project's coverage run - see docs/testing.md.
  */
 import { describe, expect, it } from 'vitest'
-import type { QueuePort } from '../../ports/queue.js'
-import { aMediaId } from './queue-fixtures.js'
+import type { QueuePort } from '../../ports/queue'
+import { aMediaId } from './queue-fixtures'
 
 /** Reads a persisted job row's observable state, however its adapter stores it. */
 export interface JobRowProbe {

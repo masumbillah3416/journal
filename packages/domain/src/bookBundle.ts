@@ -26,7 +26,7 @@
  * output - see `slots`'s own doc comment - so neither required touching
  * `derivePages`'s logic.
  */
-import type { JourneyId } from './ids.js'
+import type { JourneyId } from './ids'
 
 /** A trip: the unit of content a reader turns three pages of. */
 export interface Journey {

@@ -6,10 +6,10 @@
  * requirements, not conveniences (CLAUDE.md §7: never log secrets, tokens,
  * OTP codes, or full email addresses) - a mailer that leaks either into its
  * log output must fail this suite regardless of which adapter it is.
- * Depends on: vitest, the TestableMailer contract from ../../ports/mailer.js.
+ * Depends on: vitest, the TestableMailer contract from ../../ports/mailer.
  */
 import { describe, expect, it } from 'vitest'
-import type { TestableMailer } from '../../ports/mailer.js'
+import type { TestableMailer } from '../../ports/mailer'
 
 /**
  * Registers the shared MailerPort contract as a `describe` block.

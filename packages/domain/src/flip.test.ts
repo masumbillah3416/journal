@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ARM_MS, SETTLE_MS, flipReducer, initialFlipState, type FlipState } from './flip.js'
+import { ARM_MS, SETTLE_MS, flipReducer, initialFlipState, type FlipState } from './flip'
 
 const config = { durationMs: 900, reducedMotion: false }
 const start = (state: FlipState, to: number, now = 0): FlipState =>

@@ -25,8 +25,8 @@
  * Depends on: the Mailer port.
  */
 import { ok } from '@travel-diary/domain/result'
-import type { SentMessage, TestableMailer } from '../ports/mailer.js'
-import { maskEmailAddress, validateEmailAddress } from '../ports/mailer.js'
+import type { SentMessage, TestableMailer } from '../ports/mailer'
+import { maskEmailAddress, validateEmailAddress } from '../ports/mailer'
 
 /** Options for {@link createConsoleMailer}. */
 export interface ConsoleMailerOptions {

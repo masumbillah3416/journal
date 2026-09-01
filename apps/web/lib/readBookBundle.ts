@@ -53,16 +53,14 @@
  * naming the journey's slug via `payload.logger` - visible, not silent -
  * without ever logging the journey document itself.
  *
- * Depends on: getPayload (./payload - extensionless, because Turbopack does not
- * resolve a `.js` specifier to a `.ts` file and this module is reachable from
- * the `/p/<n>` route; see docs/architecture.md); Journey, BookPage, Slot, BookBundle,
+ * Depends on: getPayload (./payload); Journey, BookPage, Slot, BookBundle,
  * derivePages, deriveContents, deriveBookmarks (@travel-diary/domain/bookBundle);
  * journeyId (@travel-diary/domain/ids); the generated Payload types.
  */
 import type { BookBundle, BookPage, Journey, Slot, SlotRole } from '@travel-diary/domain/bookBundle'
 import { deriveBookmarks, deriveContents, derivePages } from '@travel-diary/domain/bookBundle'
 import { journeyId } from '@travel-diary/domain/ids'
-import type { Journey as PayloadJourney, Media as PayloadMedia, Page as PayloadPage } from '../payload-types.js'
+import type { Journey as PayloadJourney, Media as PayloadMedia, Page as PayloadPage } from '../payload-types'
 import { getPayload } from './payload'
 
 /** `book.journeyOrderMode`'s three values, transcribed from DATA_MODEL.md's globals section. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { deriveBookmarks, deriveContents, derivePages, pageCounter, pageLabel } from './bookBundle.js'
-import { aJourney } from './testing/factories.js'
+import { deriveBookmarks, deriveContents, derivePages, pageCounter, pageLabel } from './bookBundle'
+import { aJourney } from './testing/factories'
 
 /**
  * Narrows a possibly-absent test lookup to its value, or fails loudly.

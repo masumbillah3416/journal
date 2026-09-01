@@ -15,7 +15,7 @@
  * against; only `claim` needs raw SQL for the locking clause Payload's Local
  * API has no equivalent for.
  * Depends on: Result from `@travel-diary/domain/result`, the QueuePort
- * contract, `./payload.js` for the shared Payload/pg-pool instance.
+ * contract, `./payload` for the shared Payload/pg-pool instance.
  *
  * Exercised only by `postgres-queue.integration.test.ts` against the real
  * Docker Postgres - claim()'s locking clause has no meaning against a mock.
@@ -27,8 +27,8 @@
 import type { Result } from '@travel-diary/domain/result'
 import { err, ok } from '@travel-diary/domain/result'
 import type { MediaId } from '@travel-diary/domain/ids'
-import { getPayload } from '../payload.js'
-import type { ClaimedJob, QueuePort } from '../ports/queue.js'
+import { getPayload } from '../payload'
+import type { ClaimedJob, QueuePort } from '../ports/queue'
 
 /** Turns a caught value into a Result-friendly message without an `any`. */
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pageIndexFromParam } from './pageAddress.js'
+import { pageIndexFromParam } from './pageAddress'
 
 describe('pageIndexFromParam', () => {
   it('turns the first page number a reader sees into the first leaf index', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { letterSpacing, minimumSize, typeScale } from './type.js'
+import { letterSpacing, minimumSize, typeScale } from './type'
 
 describe('type tokens', () => {
   it('names the three handoff font families', () => {

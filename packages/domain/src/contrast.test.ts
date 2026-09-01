@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { composite, contrastRatio } from './contrast.js'
+import { composite, contrastRatio } from './contrast'
 
 describe('contrastRatio', () => {
   it('reports the maximum ratio for black on white', () => {

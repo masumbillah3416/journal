@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { err, isOk, ok } from './result.js'
+import { err, isOk, ok } from './result'
 
 describe('Result', () => {
   it('carries a value when the operation succeeded', () => {

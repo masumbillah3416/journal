@@ -32,7 +32,7 @@
  * because claim()'s own `SELECT ... FOR UPDATE` would then block on the
  * held lock instead of skipping it.
  *
- * Uses `getTestPayload()` (`../testPayload.js`), not `getPayload()` directly:
+ * Uses `getTestPayload()` (`../testPayload`), not `getPayload()` directly:
  * every integration test file connects to an isolated `diary_test` database,
  * never the developer's own dev database (Task 10/11 review finding 2).
  *
@@ -45,10 +45,10 @@
  * without Payload.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
-import { getTestPayload } from '../testPayload.js'
-import { createPostgresQueue } from './postgres-queue.js'
-import { queueContract } from './contract/queue-contract.js'
-import { aMediaId } from './contract/queue-fixtures.js'
+import { getTestPayload } from '../testPayload'
+import { createPostgresQueue } from './postgres-queue'
+import { queueContract } from './contract/queue-contract'
+import { aMediaId } from './contract/queue-fixtures'
 
 /**
  * Reads a job row back through Payload, to assert what the adapter persisted.
