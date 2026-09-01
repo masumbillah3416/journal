@@ -34,11 +34,24 @@
  * is never consulted, matching the slot schema's `defaultValue: 50` (a slot
  * always carries a definite value).
  *
+ * A `pages` row is matched to its {@link BookPage} by `kind` + `order`
+ * (Task 6 review, finding 1), never by `title`: `title` is free text an
+ * editor can rename at any time, `kind` is a fixed enum and `order` is the
+ * field DATA_MODEL.md built for sequencing, so a rename can never silently
+ * drop a page's photos the way matching on `title` could.
+ *
  * `Journey.startsOn` (widened onto the domain type by this task, per Task 5
- * review's carry-forward) is validated here, not merely typed: a published,
- * non-deleted journey missing `startsOn` fails loudly rather than silently
- * sorting wrong (CLAUDE.md §7: "validate at the boundary, then trust the
- * type inside").
+ * review's carry-forward) DEGRADES rather than throws when a published,
+ * non-deleted journey is missing it (Task 6 review, finding 2, reversing
+ * this module's original throw-on-missing behaviour): `journeys.startsOn`
+ * is not `required: true` in the schema, so a blank field is an ordinary
+ * editorial state, not a corrupted row, and this function renders a
+ * statically-generated public page - throwing would turn one editor's blank
+ * field into an outage of the other nine journeys. `toDomainJourney` falls
+ * back to the journey's own `createdAt` (always present, never null) as a
+ * deterministic secondary sort key, and logs a single structured warning
+ * naming the journey's slug via `payload.logger` - visible, not silent -
+ * without ever logging the journey document itself.
  *
  * Depends on: getPayload (./payload - extensionless, because Turbopack does not
  * resolve a `.js` specifier to a `.ts` file and this module is reachable from
@@ -63,14 +76,23 @@ type JourneyOrderMode = 'manual' | 'newest' | 'oldest'
  */
 type SelectedJourneyDoc = Pick<
   PayloadJourney,
-  'id' | 'slug' | 'name' | 'place' | 'dates' | 'startsOn' | 'hiddenFromBookmarks' | 'furniture'
+  'id' | 'slug' | 'name' | 'place' | 'dates' | 'startsOn' | 'createdAt' | 'hiddenFromBookmarks' | 'furniture'
 >
 
 /** The exact shape `find('pages')`'s own `select` below returns. */
-type SelectedPageDoc = Pick<PayloadPage, 'id' | 'journey' | 'title' | 'slots'>
+type SelectedPageDoc = Pick<PayloadPage, 'id' | 'journey' | 'kind' | 'order' | 'slots'>
 
 /** The exact shape `find('media')`'s own `select` below returns. */
 type SelectedMediaDoc = Pick<PayloadMedia, 'id' | 'sizes' | 'alt' | 'caption'>
+
+/**
+ * The slice of Payload's own logger this module writes to - a minimal,
+ * duck-typed interface rather than importing Pino's types, since a single
+ * `warn` call is the only thing this module asks of it.
+ */
+interface StructuredLogger {
+  warn: (mergingObject: Record<string, unknown>, message: string) => void
+}
 
 /**
  * The Payload `sort` value for a given {@link JourneyOrderMode}. `'order'` is
@@ -125,25 +147,31 @@ const derivativeUrlFor = (media: SelectedMediaDoc, role: SlotRole): string => {
 }
 
 /**
- * Converts a Payload `journeys` row into the domain `Journey` shape, brands
- * its id, and validates `startsOn` is present.
+ * Converts a Payload `journeys` row into the domain `Journey` shape and
+ * brands its id. A missing `startsOn` DEGRADES rather than fails the whole
+ * book (Task 6 review, finding 2): it falls back to the journey's own
+ * `createdAt` as a deterministic secondary sort key, and a single
+ * structured warning naming the journey's slug is logged so the gap is
+ * diagnosable rather than silent - never the document itself.
  * @param doc - A `journeys` document from `find`, already filtered to
  *   published, non-deleted, non-archived rows.
+ * @param logger - Where the degrade warning is written (`payload.logger`).
  * @returns The domain {@link Journey}.
- * @throws {Error} When `doc.id` cannot be branded (never happens for an id
- *   Payload itself generated), or `startsOn` is missing (CLAUDE.md §7: a
- *   free-text `dates` must always travel with a sortable `startsOn`).
+ * @throws {Error} When `doc.id` cannot be branded - never happens for an id
+ *   Payload itself generated, so this is an invariant guard, not a
+ *   condition callers are expected to handle.
  */
-const toDomainJourney = (doc: SelectedJourneyDoc): Journey => {
+const toDomainJourney = (doc: SelectedJourneyDoc, logger: StructuredLogger): Journey => {
   const brandedId = journeyId(String(doc.id))
   if (!brandedId.ok) throw new Error(brandedId.error)
 
   if (doc.startsOn === null || doc.startsOn === undefined) {
-    throw new Error(
-      `journey "${doc.slug}" has dates "${doc.dates}" but no startsOn - CLAUDE.md §7 requires every free-text ` +
-        'dates string to travel with a sortable counterpart',
+    logger.warn(
+      { journeySlug: doc.slug },
+      'journey has no startsOn; degrading to createdAt as its sort key rather than failing the whole book',
     )
   }
+  const startsOn = doc.startsOn ?? doc.createdAt
 
   return {
     id: brandedId.value,
@@ -151,18 +179,10 @@ const toDomainJourney = (doc: SelectedJourneyDoc): Journey => {
     name: doc.name,
     place: doc.place,
     dates: doc.dates,
-    startsOn: doc.startsOn,
+    startsOn,
     hiddenFromBookmarks: doc.hiddenFromBookmarks ?? false,
     furniture: { accent: doc.furniture?.accent ?? '#3d817e' },
   }
-}
-
-/** Maps a `pages` row's `title` to the {@link BookPage} kind `derivePages` gave that journey's page. */
-const kindForPageTitle = (title: string | null | undefined): 'notes' | 'frames-i' | 'frames-ii' | undefined => {
-  if (title === 'Notes') return 'notes'
-  if (title === 'Frames I') return 'frames-i'
-  if (title === 'Frames II') return 'frames-ii'
-  return undefined
 }
 
 /**
@@ -194,11 +214,51 @@ const slotsFor = (page: SelectedPageDoc, mediaById: ReadonlyMap<number, Selected
   })
 
 /**
+ * Groups a book's `pages` rows by journey, and within each journey maps
+ * each row onto the {@link BookPage} kind `derivePages` gave that position -
+ * `'notes'` for the row of `kind: 'notes'`, `'frames-i'`/`'frames-ii'` for
+ * the `kind: 'frames'` rows in ascending `order` - rather than by `title`
+ * (Task 6 review, finding 1). `title` is free text an editor can rename
+ * without warning; `kind` is a fixed enum and `order` is the field
+ * DATA_MODEL.md built for sequencing, so neither can silently drift the way
+ * matching on `title` could. A journey with more than two `kind: 'frames'`
+ * rows contributes only its first two by `order` - `BookPage` has no third
+ * frames slot to hold a row beyond that.
+ * @param pageDocs - Every page in the book, from `find('pages')`.
+ * @returns Every page keyed by `${journeyNumericId}:${kind}`.
+ */
+const groupPagesByJourneyAndKind = (pageDocs: readonly SelectedPageDoc[]): ReadonlyMap<string, SelectedPageDoc> => {
+  const byJourney = new Map<number, SelectedPageDoc[]>()
+  for (const page of pageDocs) {
+    const journeyNumericId = typeof page.journey === 'number' ? page.journey : page.journey.id
+    const journeyPages = byJourney.get(journeyNumericId)
+    if (journeyPages === undefined) byJourney.set(journeyNumericId, [page])
+    else journeyPages.push(page)
+  }
+
+  const byJourneyAndKind = new Map<string, SelectedPageDoc>()
+  for (const [journeyNumericId, journeyPages] of byJourney) {
+    const sortedByOrder = [...journeyPages].sort((a, b) => a.order - b.order)
+    let framesSeen = 0
+    for (const page of sortedByOrder) {
+      if (page.kind === 'notes') {
+        byJourneyAndKind.set(`${String(journeyNumericId)}:notes`, page)
+        continue
+      }
+      if (framesSeen === 0) byJourneyAndKind.set(`${String(journeyNumericId)}:frames-i`, page)
+      else if (framesSeen === 1) byJourneyAndKind.set(`${String(journeyNumericId)}:frames-ii`, page)
+      framesSeen += 1
+    }
+  }
+  return byJourneyAndKind
+}
+
+/**
  * Merges each notes/frames-i/frames-ii {@link BookPage} with its resolved
  * slots, matched to the Payload `pages` row of the same journey and kind.
  * Cover, Contents and About pass through unchanged - they carry no slots.
  * @param pages - `derivePages`'s output, the 33-page reading sequence.
- * @param pagesByJourneyAndKind - Every journey's pages, keyed by `${journeyId}:${kind}`.
+ * @param pagesByJourneyAndKind - Every journey's pages, keyed by `${journeyId}:${kind}` (see {@link groupPagesByJourneyAndKind}).
  * @param mediaById - Every media item any slot references, keyed by id.
  * @returns The same reading sequence, with `slots` attached where a matching row exists.
  */
@@ -222,9 +282,10 @@ const withSlots = (
  * slots, About), the Contents index, and the bookmark rail. See this
  * module's own header for the four-query shape and depth/select policy.
  * @returns The full {@link BookBundle}.
- * @throws {Error} When a journey included in the book is missing `startsOn`,
- *   or a slot's media has no derivative of any tier - both boundary
- *   invariants this function enforces rather than passing through broken.
+ * @throws {Error} When a slot's media has no derivative of any tier - a
+ *   boundary invariant this function enforces rather than passing through
+ *   broken. A missing `startsOn` no longer throws (Task 6 review, finding
+ *   2) - see {@link toDomainJourney}.
  */
 export const readBookBundle = async (): Promise<BookBundle> => {
   const payload = await getPayload()
@@ -238,18 +299,36 @@ export const readBookBundle = async (): Promise<BookBundle> => {
     pagination: false,
     limit: 1000,
     sort,
-    where: { and: [{ deletedAt: { equals: null } }, { archived: { not_equals: true } }] },
+    // Explicit `_status: 'published'` (Task 6 review, finding 4 - corrected,
+    // not merely documented): finding 4 as originally raised assumed `find()`
+    // without `draft: true` already excludes drafts, because a draft-only
+    // journey's `journeys` table row genuinely does not exist (verified
+    // directly against Postgres - only the versions table holds it). But
+    // Payload's Local API `find()` does not read the main table alone for a
+    // `versions.drafts`-enabled collection; it surfaces the current state of
+    // every document, draft-only ones included, with `_status: 'draft'` on
+    // the result (verified the same way: a draft-only fixture journey came
+    // back from `find()` with no `draft: true` passed). Without this filter,
+    // an unpublished draft would appear in the public book.
+    where: {
+      and: [
+        { _status: { equals: 'published' } },
+        { deletedAt: { equals: null } },
+        { archived: { not_equals: true } },
+      ],
+    },
     select: {
       slug: true,
       name: true,
       place: true,
       dates: true,
       startsOn: true,
+      createdAt: true,
       hiddenFromBookmarks: true,
       furniture: true,
     },
   })
-  const journeys = journeysResult.docs.map(toDomainJourney)
+  const journeys = journeysResult.docs.map((doc) => toDomainJourney(doc, payload.logger))
   const journeyNumericIds = journeysResult.docs.map((doc) => doc.id)
 
   const pagesResult = await payload.find({
@@ -258,7 +337,7 @@ export const readBookBundle = async (): Promise<BookBundle> => {
     pagination: false,
     limit: 5000,
     where: { journey: { in: journeyNumericIds } },
-    select: { journey: true, title: true, slots: true },
+    select: { journey: true, kind: true, order: true, slots: true },
   })
 
   const mediaIds = [
@@ -282,13 +361,7 @@ export const readBookBundle = async (): Promise<BookBundle> => {
   })
   const mediaById = new Map(mediaResult.docs.map((doc) => [doc.id, doc]))
 
-  const pagesByJourneyAndKind = new Map(
-    pagesResult.docs.flatMap((page): [string, SelectedPageDoc][] => {
-      const journeyNumericId = typeof page.journey === 'number' ? page.journey : page.journey.id
-      const kind = kindForPageTitle(page.title)
-      return kind === undefined ? [] : [[`${String(journeyNumericId)}:${kind}`, page]]
-    }),
-  )
+  const pagesByJourneyAndKind = groupPagesByJourneyAndKind(pagesResult.docs)
 
   const pages = withSlots(derivePages(journeys), pagesByJourneyAndKind, mediaById)
 

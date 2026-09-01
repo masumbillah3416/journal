@@ -21,7 +21,16 @@
  * Fixture journeys created directly by this file (the exclusion tests) use a
  * `test-` slug prefix, matching `collections.integration.test.ts`'s own
  * convention, so they cannot collide with the ten real seeded slugs, and are
- * deleted in `afterAll`.
+ * deleted in `afterAll`/`afterEach`.
+ *
+ * Task 6 review, fix round 1 adds coverage for four findings: page-to-slot
+ * matching by `kind`+`order` rather than free-text `title` (finding 1); a
+ * missing `startsOn` degrading rather than throwing, with a structured log
+ * line proving the degrade is visible (finding 2); four schema-defaulted
+ * fields (`hiddenFromBookmarks`, `furniture.accent`, `journeyOrderMode`,
+ * slot `focalX`/`focalY`) falling back correctly when explicitly `null`,
+ * not just `undefined` (finding 3); and a draft journey's exclusion, which
+ * was previously correct but unproven (finding 4).
  */
 import sharp from 'sharp'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -124,8 +133,8 @@ describe('readBookBundle', () => {
     findGlobalSpy.mockRestore()
   })
 
-  describe('excludes soft-deleted and archived journeys from the book', () => {
-    const FIXTURE_SLUGS = ['test-readbookbundle-deleted', 'test-readbookbundle-archived']
+  describe('excludes soft-deleted, archived and draft journeys from the book', () => {
+    const FIXTURE_SLUGS = ['test-readbookbundle-deleted', 'test-readbookbundle-archived', 'test-readbookbundle-draft']
 
     afterAll(async () => {
       for (const slug of FIXTURE_SLUGS) {
@@ -175,6 +184,40 @@ describe('readBookBundle', () => {
       expect(bundle.pages.some((page) => 'slug' in page && page.slug === 'test-readbookbundle-archived')).toBe(false)
       expect(bundle.contents).toHaveLength(10)
     })
+
+    it('omits a draft journey via an explicit _status filter (Task 6 review, finding 4)', async () => {
+      // Finding 4 as originally raised assumed `find()` without `draft: true`
+      // already excludes drafts, because a draft-only document's `journeys`
+      // table row genuinely does not exist (only the versions table holds
+      // it). Verified directly against Postgres that assumption is only half
+      // right: Payload's Local API `find()` still surfaces a draft-only
+      // document (with `_status: 'draft'` on the result) even without
+      // `draft: true` - so an explicit `_status: 'published'` filter, not a
+      // comment, is what actually keeps a draft journey out of the public book.
+      const created = await payload.create({
+        collection: 'journeys',
+        data: {
+          name: 'Draft Trip',
+          place: 'Nowhere',
+          slug: 'test-readbookbundle-draft',
+          dates: '1 - 2 January 2025',
+          startsOn: '2025-01-01T00:00:00.000Z',
+        },
+        draft: true,
+      })
+      expect(created._status).toBe('draft')
+      // Confirms find() without draft:true would otherwise have surfaced it,
+      // proving the explicit filter below is load-bearing, not decorative.
+      const withoutStatusFilter = await payload.find({
+        collection: 'journeys',
+        where: { slug: { equals: 'test-readbookbundle-draft' } },
+      })
+      expect(withoutStatusFilter.docs[0]?._status).toBe('draft')
+
+      const bundle = await readBookBundle()
+
+      expect(bundle.contents.some((entry) => entry.slug === 'test-readbookbundle-draft')).toBe(false)
+    })
   })
 
   describe('journey order follows the book global\'s journeyOrderMode', () => {
@@ -217,8 +260,8 @@ describe('readBookBundle', () => {
     })
   })
 
-  describe('boundary validation', () => {
-    const FIXTURE_SLUGS = ['test-readbookbundle-no-startson', 'test-readbookbundle-mismatched-title']
+  describe('matches a page to its slot by kind and order, not by title (Task 6 review, finding 1)', () => {
+    const FIXTURE_SLUGS = ['test-readbookbundle-kind-order']
 
     afterEach(async () => {
       for (const slug of FIXTURE_SLUGS) {
@@ -231,49 +274,90 @@ describe('readBookBundle', () => {
       }
     })
 
-    it('throws when a published, non-deleted journey is missing startsOn', async () => {
-      // CLAUDE.md §7: a free-text `dates` must always travel with a sortable
-      // `startsOn`. `journeys.startsOn` is not `required: true` in the schema
-      // (apps/web/collections/journeys.ts) precisely because an editor may
-      // not have filled it in yet - but the boundary this function guards
-      // must not silently sort such a journey wrong, so it fails loudly instead.
-      await payload.create({
-        collection: 'journeys',
-        data: {
-          name: 'No Start Date',
-          place: 'Nowhere',
-          slug: 'test-readbookbundle-no-startson',
-          dates: 'sometime in spring',
-          _status: 'published',
-        },
-      })
+    it('keeps a page\'s slots after its title is renamed to something matching none of Notes/Frames I/Frames II', async () => {
+      const anyMedia = await payload.find({ collection: 'media', limit: 1, depth: 0 })
+      const someMediaId = anyMedia.docs[0]?.id
+      if (someMediaId === undefined) throw new Error('expected at least one seeded media item')
 
-      await expect(readBookBundle()).rejects.toThrow(/startsOn/)
-    })
-
-    it('skips a page whose title does not match Notes/Frames I/Frames II, rather than merging it wrongly', async () => {
       const journey = await payload.create({
         collection: 'journeys',
         data: {
-          name: 'Mismatched Title Trip',
+          name: 'Kind Order Trip',
           place: 'Nowhere',
-          slug: 'test-readbookbundle-mismatched-title',
+          slug: 'test-readbookbundle-kind-order',
           dates: '1 - 2 January 2025',
           startsOn: '2025-01-01T00:00:00.000Z',
           _status: 'published',
         },
       })
+      // Exactly the scenario finding 1 describes: an editor renamed the page,
+      // so its `title` matches none of 'Notes'/'Frames I'/'Frames II'. `kind`
+      // and `order` - not `title` - are what this module now matches on.
       await payload.create({
         collection: 'pages',
-        data: { journey: journey.id, kind: 'notes', title: 'Extra', order: 0, _status: 'published' },
+        data: {
+          journey: journey.id,
+          kind: 'notes',
+          title: 'An editor renamed this page',
+          order: 0,
+          slots: [{ role: 'hero', media: someMediaId, caption: 'still here after the rename', focalX: 50, focalY: 50 }],
+          _status: 'published',
+        },
       })
 
       const bundle = await readBookBundle()
-      const notes = bundle.pages.find(
-        (page) => page.kind === 'notes' && page.slug === 'test-readbookbundle-mismatched-title',
-      )
+      const notes = bundle.pages.find((page) => page.kind === 'notes' && page.slug === 'test-readbookbundle-kind-order')
 
-      expect(notes?.kind === 'notes' ? notes.slots : undefined).toBeUndefined()
+      expect(notes?.kind === 'notes' ? notes.slots?.[0]?.caption : undefined).toBe('still here after the rename')
+    })
+
+    it('assigns frames-i/frames-ii by ascending order, not by title text or creation order', async () => {
+      const anyMedia = await payload.find({ collection: 'media', limit: 1, depth: 0 })
+      const someMediaId = anyMedia.docs[0]?.id
+      if (someMediaId === undefined) throw new Error('expected at least one seeded media item')
+
+      const journey = await payload.create({
+        collection: 'journeys',
+        data: {
+          name: 'Kind Order Trip',
+          place: 'Nowhere',
+          slug: 'test-readbookbundle-kind-order',
+          dates: '1 - 2 January 2025',
+          startsOn: '2025-01-01T00:00:00.000Z',
+          _status: 'published',
+        },
+      })
+      // Titles and creation order deliberately reversed from `order`, so a
+      // title-based, alphabetical or insertion-order match would swap these.
+      await payload.create({
+        collection: 'pages',
+        data: {
+          journey: journey.id,
+          kind: 'frames',
+          title: 'Zzz Created First, Ordered Second',
+          order: 5,
+          slots: [{ role: 'frame', media: someMediaId, caption: 'second frames page', focalX: 50, focalY: 50 }],
+          _status: 'published',
+        },
+      })
+      await payload.create({
+        collection: 'pages',
+        data: {
+          journey: journey.id,
+          kind: 'frames',
+          title: 'Aaa Created Second, Ordered First',
+          order: 1,
+          slots: [{ role: 'frame', media: someMediaId, caption: 'first frames page', focalX: 50, focalY: 50 }],
+          _status: 'published',
+        },
+      })
+
+      const bundle = await readBookBundle()
+      const framesI = bundle.pages.find((page) => page.kind === 'frames-i' && page.slug === 'test-readbookbundle-kind-order')
+      const framesII = bundle.pages.find((page) => page.kind === 'frames-ii' && page.slug === 'test-readbookbundle-kind-order')
+
+      expect(framesI?.kind === 'frames-i' ? framesI.slots?.[0]?.caption : undefined).toBe('first frames page')
+      expect(framesII?.kind === 'frames-ii' ? framesII.slots?.[0]?.caption : undefined).toBe('second frames page')
     })
 
     it('throws when a slot resolves to media with no derivative of any tier, rather than falling back to the original', async () => {
@@ -294,9 +378,9 @@ describe('readBookBundle', () => {
       const journey = await payload.create({
         collection: 'journeys',
         data: {
-          name: 'Mismatched Title Trip',
+          name: 'Kind Order Trip',
           place: 'Nowhere',
-          slug: 'test-readbookbundle-mismatched-title',
+          slug: 'test-readbookbundle-kind-order',
           dates: '1 - 2 January 2025',
           startsOn: '2025-01-01T00:00:00.000Z',
           _status: 'published',
@@ -327,9 +411,9 @@ describe('readBookBundle', () => {
       const journey = await payload.create({
         collection: 'journeys',
         data: {
-          name: 'Mismatched Title Trip',
+          name: 'Kind Order Trip',
           place: 'Nowhere',
-          slug: 'test-readbookbundle-mismatched-title',
+          slug: 'test-readbookbundle-kind-order',
           dates: '1 - 2 January 2025',
           startsOn: '2025-01-01T00:00:00.000Z',
           _status: 'published',
@@ -351,11 +435,184 @@ describe('readBookBundle', () => {
       })
 
       const bundle = await readBookBundle()
-      const notes = bundle.pages.find(
-        (page) => page.kind === 'notes' && page.slug === 'test-readbookbundle-mismatched-title',
-      )
+      const notes = bundle.pages.find((page) => page.kind === 'notes' && page.slug === 'test-readbookbundle-kind-order')
 
       expect(notes?.kind === 'notes' ? notes.slots?.[0]?.role : undefined).toBe('frame')
+    })
+  })
+
+  describe('a missing startsOn degrades rather than throws (Task 6 review, finding 2)', () => {
+    const JOURNEY_SLUG = 'test-readbookbundle-no-startson'
+
+    afterEach(async () => {
+      const found = await payload.find({ collection: 'journeys', where: { slug: { equals: JOURNEY_SLUG } } })
+      for (const doc of found.docs) await payload.delete({ collection: 'journeys', id: doc.id })
+    })
+
+    it('renders a journey missing startsOn instead of excluding it or failing the whole book', async () => {
+      // CLAUDE.md §7: a free-text `dates` must always travel with a sortable
+      // `startsOn`. `journeys.startsOn` is not `required: true` in the schema
+      // (apps/web/collections/journeys.ts) precisely because an editor may
+      // not have filled it in yet - an ordinary editorial state, not a
+      // corrupted row, on a statically-rendered public page. Excluding the
+      // journey would reintroduce finding 1's silent-vanishing problem in a
+      // different place, and throwing would turn one blank field into an
+      // outage of the other nine journeys - so this asserts neither happens.
+      await payload.create({
+        collection: 'journeys',
+        data: {
+          name: 'No Start Date',
+          place: 'Nowhere',
+          slug: JOURNEY_SLUG,
+          dates: 'sometime in spring',
+          _status: 'published',
+        },
+      })
+
+      const bundle = await readBookBundle()
+
+      expect(bundle.contents.map((entry) => entry.slug)).toContain(JOURNEY_SLUG)
+      expect(bundle.contents).toHaveLength(11)
+    })
+
+    it('logs a single structured warning naming the journey slug, never the document, when startsOn is missing', async () => {
+      const distinctivePlace = 'a place that must never appear in the log line'
+      await payload.create({
+        collection: 'journeys',
+        data: {
+          name: 'No Start Date',
+          place: distinctivePlace,
+          slug: JOURNEY_SLUG,
+          dates: 'sometime in spring',
+          _status: 'published',
+        },
+      })
+      const warnSpy = vi.spyOn(payload.logger, 'warn')
+
+      await readBookBundle()
+
+      // Cast away Pino's overloaded `warn` signature rather than `any`
+      // (CLAUDE.md §3.1): every real call here passes a merging object first.
+      const calls = warnSpy.mock.calls as unknown as [Record<string, unknown>, string][]
+      const call = calls.find(([mergingObject]) => mergingObject.journeySlug === JOURNEY_SLUG)
+      expect(call).toBeDefined()
+
+      const [mergingObject, message] = call ?? [{}, '']
+      // Structured and narrow: only the slug, nothing else - never the
+      // journey document itself (CLAUDE.md §7: never log the whole document).
+      expect(mergingObject).toEqual({ journeySlug: JOURNEY_SLUG })
+      expect(message).toMatch(/startsOn/)
+      expect(JSON.stringify([mergingObject, message])).not.toContain(distinctivePlace)
+
+      warnSpy.mockRestore()
+    })
+  })
+
+  describe('fields with a schema default fall back correctly when explicitly null, not just undefined (Task 6 review, finding 3)', () => {
+    const JOURNEY_SLUG = 'test-readbookbundle-explicit-null'
+
+    afterEach(async () => {
+      const found = await payload.find({ collection: 'journeys', where: { slug: { equals: JOURNEY_SLUG } } })
+      for (const doc of found.docs) {
+        const pages = await payload.find({ collection: 'pages', where: { journey: { equals: doc.id } } })
+        for (const page of pages.docs) await payload.delete({ collection: 'pages', id: page.id })
+        await payload.delete({ collection: 'journeys', id: doc.id })
+      }
+      await payload.updateGlobal({ slug: 'book', data: { journeyOrderMode: 'manual' } })
+    })
+
+    it('falls back to false when hiddenFromBookmarks is explicitly null, not just undefined', async () => {
+      // Payload's `defaultValue` fills a field only when it is `undefined` at
+      // write time; an explicit `null` - an ordinary PATCH from a script or a
+      // future admin control - bypasses it entirely (Task 6 review, finding 3).
+      const created = await payload.create({
+        collection: 'journeys',
+        data: {
+          name: 'Explicit Null Trip',
+          place: 'Nowhere',
+          slug: JOURNEY_SLUG,
+          dates: '1 - 2 January 2025',
+          startsOn: '2025-01-01T00:00:00.000Z',
+          _status: 'published',
+        },
+      })
+      await payload.update({ collection: 'journeys', id: created.id, data: { hiddenFromBookmarks: null } })
+      // Verifies the premise rather than assuming it: the stored value really
+      // is `null`, not silently coerced back to the schema default.
+      const stored = await payload.findByID({ collection: 'journeys', id: created.id, depth: 0 })
+      expect(stored.hiddenFromBookmarks).toBeNull()
+
+      const bundle = await readBookBundle()
+
+      expect(bundle.bookmarks.some((tab) => tab.slug === JOURNEY_SLUG)).toBe(true)
+    })
+
+    it('falls back to the schema default accent when furniture.accent is explicitly null', async () => {
+      const created = await payload.create({
+        collection: 'journeys',
+        data: {
+          name: 'Explicit Null Trip',
+          place: 'Nowhere',
+          slug: JOURNEY_SLUG,
+          dates: '1 - 2 January 2025',
+          startsOn: '2025-01-01T00:00:00.000Z',
+          _status: 'published',
+        },
+      })
+      await payload.update({ collection: 'journeys', id: created.id, data: { furniture: { accent: null } } })
+      const stored = await payload.findByID({ collection: 'journeys', id: created.id, depth: 0 })
+      expect(stored.furniture?.accent).toBeNull()
+
+      const bundle = await readBookBundle()
+      const bookmarkTab = bundle.bookmarks.find((tab) => tab.slug === JOURNEY_SLUG)
+
+      expect(bookmarkTab?.accent).toBe('#3d817e')
+    })
+
+    it('falls back to "manual" ordering when the book global\'s journeyOrderMode is explicitly null', async () => {
+      await payload.updateGlobal({ slug: 'book', data: { journeyOrderMode: null } })
+      const storedBook = await payload.findGlobal({ slug: 'book', depth: 0 })
+      expect(storedBook.journeyOrderMode).toBeNull()
+
+      // Must not throw, and must still produce a complete book.
+      const bundle = await readBookBundle()
+
+      expect(bundle.contents).toHaveLength(10)
+    })
+
+    it('falls back to 50 when a slot\'s focalX/focalY are explicitly null', async () => {
+      const anyMedia = await payload.find({ collection: 'media', limit: 1, depth: 0 })
+      const someMediaId = anyMedia.docs[0]?.id
+      if (someMediaId === undefined) throw new Error('expected at least one seeded media item')
+
+      const journey = await payload.create({
+        collection: 'journeys',
+        data: {
+          name: 'Explicit Null Trip',
+          place: 'Nowhere',
+          slug: JOURNEY_SLUG,
+          dates: '1 - 2 January 2025',
+          startsOn: '2025-01-01T00:00:00.000Z',
+          _status: 'published',
+        },
+      })
+      await payload.create({
+        collection: 'pages',
+        data: {
+          journey: journey.id,
+          kind: 'notes',
+          title: 'Notes',
+          order: 0,
+          slots: [{ role: 'hero', media: someMediaId, caption: '', focalX: null, focalY: null }],
+          _status: 'published',
+        },
+      })
+
+      const bundle = await readBookBundle()
+      const notes = bundle.pages.find((page) => page.kind === 'notes' && page.slug === JOURNEY_SLUG)
+      const slot = notes?.kind === 'notes' ? notes.slots?.[0] : undefined
+
+      expect(slot).toMatchObject({ focalX: 50, focalY: 50 })
     })
   })
 })

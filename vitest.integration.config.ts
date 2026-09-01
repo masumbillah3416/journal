@@ -142,33 +142,36 @@ export default defineConfig({
         // that has already bootstrapped `diary_test` once genuinely
         // measures, not what a first-ever run would.
         'apps/web/lib/testPayload.ts': { lines: 93, branches: 75, functions: 100 },
-        // readBookBundle.ts (Task 6 of Phase 1): 100% lines/statements/functions.
-        // 72% branches is the real, measured number - every uncovered branch
-        // is a defensive fallback with no organic trigger given Payload's own
-        // guarantees, not an untested code path a reader would hit in
-        // practice: (1) `journeyId()`'s error branch - Payload never hands
-        // back an empty id; (2) `hiddenFromBookmarks ?? false`,
-        // `furniture?.accent ?? '#3d817e'`, `journeyOrderMode ?? 'manual'` and
-        // `focalX`/`focalY ?? 50` - all four fields carry a schema
-        // `defaultValue`, so Payload itself never returns null for them;
-        // (3) every `typeof x === 'number' ? x : x.id` relationship-id branch
-        // (slot.media, page.journey) - this module always queries at
-        // `depth: 0`, so the populated-object alternative is provably dead
-        // code under that invariant, not merely untested; (4) the "media id
-        // not found in the batch" guard in `slotsFor` - every id it looks up
-        // came from the same book's own `where: id in [...]` query one line
-        // above, so it is never absent without a concurrent delete between
-        // the two queries; (5) the second half of `slot.alt ?? media.alt ??
-        // ''` and `slot.caption ?? media.caption ?? ''` - the seed and this
-        // file's own fixtures always give `media` a truthy `alt`/`caption`,
-        // so the final `''` never fires; (6) `page.slots ?? []` in `slotsFor`
-        // - every matched Notes/Frames page this suite creates always defines
-        // `slots`, since a page with none is not a case the seed or any
-        // fixture has reason to construct. `slot.role ?? 'frame'` (the one
-        // fallback WITHOUT a schema default) is the exception covered by a
-        // dedicated fixture - see readBookBundle.integration.test.ts's
-        // "defaults a slot with no role" test.
-        'apps/web/lib/readBookBundle.ts': { lines: 100, branches: 72, functions: 100 },
+        // readBookBundle.ts (Task 6 of Phase 1; Task 6 review fix round 1):
+        // 100% lines/statements/functions. 81% branches is the real, measured
+        // number, RAISED from an earlier 72% after the review's finding 3
+        // corrected an overbroad "no organic trigger" claim: `hiddenFromBookmarks
+        // ?? false`, `furniture?.accent ?? '#3d817e'`, `journeyOrderMode ??
+        // 'manual'` and slot `focalX`/`focalY ?? 50` are each reachable through
+        // ordinary API use - Payload's `defaultValue` fills a field only when
+        // it is `undefined` at write time, and an explicit `null` (an ordinary
+        // PATCH) bypasses it - so each is now exercised by a dedicated fixture
+        // (readBookBundle.integration.test.ts, "fields with a schema default
+        // fall back correctly when explicitly null"). `slot.role ?? 'frame'`
+        // (the one fallback WITHOUT a schema default) was already covered.
+        //
+        // What remains uncovered is genuinely dead, not merely untested -
+        // the review's own conclusion, verified rather than taken on faith:
+        // (1) `journeyId()`'s error branch - Payload never hands back an
+        // empty id; (2) every `typeof x === 'number' ? x : x.id`
+        // relationship-id branch (slot.media in two places, page.journey) -
+        // this module always queries at `depth: 0`, so the populated-object
+        // alternative is provably dead code under that invariant; (3) the
+        // "media id not found in the batch" guard in `slotsFor` - every id it
+        // looks up came from the same book's own `where: id in [...]` query
+        // one line above, so it is never absent without a concurrent delete
+        // between the two queries; (4) the second half of `slot.alt ??
+        // media.alt ?? ''` and `slot.caption ?? media.caption ?? ''` - the
+        // seed and every fixture here give `media` a truthy `alt`/`caption`,
+        // so the final `''` never fires; (5) `page.slots ?? []` in
+        // `slotsFor` - every matched Notes/Frames page this suite creates
+        // always defines `slots`.
+        'apps/web/lib/readBookBundle.ts': { lines: 100, branches: 81, functions: 100 },
         // seed-data.ts is a pure data literal - 100% by construction, every
         // call reads every field.
         'apps/web/scripts/seed-data.ts': { lines: 100, branches: 100, functions: 100 },
