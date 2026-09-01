@@ -419,6 +419,16 @@ would claim a measurement nothing performs.
   checking immediately on navigation would have produced a false negative on exactly the
   class of defect this suite exists to catch.
 
+  **A CI gap this file had not recorded.** `.github/workflows/ci.yml`'s `browser` job
+  named only `smoke`, `a11y` and `visual` in its single `npx playwright test`
+  invocation, so `e2e/book.spec.ts` and `e2e/flip.spec.ts` — named by
+  `npm run test:e2e` since Tasks 7 and 8 — had never actually gated a merge. Their
+  assertions are among the most load-bearing in the repository (the back face swallowing
+  every click, the transform-and-opacity-only budget, all five turn triggers), so they
+  were passing locally and guarding nothing remotely. The job now names every spec file
+  explicitly, which is also why the list is spelled out rather than given as a
+  directory: adding a spec without adding it there is then a visible omission in a diff.
+
 - **Three viewport projects** — `desktop` (1440×900), `mid` (1000×800), `mobile`
   (390×844; `isMobile`/`hasTouch` set) — run every spec three times, once per breakpoint
   named in the Task 12 brief. All three use Chromium, not a mix of engines: this
@@ -521,6 +531,20 @@ critical`) into the live `/cms` DOM via `page.evaluate` and calling
   `allow` with the same standard of evidence as above (a named, understood, vendor-owned
   finding), with a comment at the call site — never to make an inconvenient result
   disappear, and never inherited from another spec's exclusion.
+
+#### The `/cms` axe case had been passing vacuously
+
+Until now, `e2e/a11y.spec.ts`'s `/cms` case called `expectNoAxeViolations` immediately
+after `page.goto`, with no wait for Payload's asynchronously-rendered login form — so
+axe was analysing a nearly empty document. The gap surfaced as an intermittent failure
+under concurrent workers that named a *different* rule on each run (`region` once, a
+keyboard finding on `.checkbox.field-type` another), while passing every time the case
+ran alone. The case now waits for the form and for Next's dev overlay, exactly as
+`e2e/visual.spec.ts`'s `/cms` case already did. With the analysis deterministic, a
+**third** Payload-owned finding is visible and is now in that call site's `allow` list:
+`region` ("All page content should be contained by landmarks"), the same landmark family
+as `landmark-one-main` and `page-has-heading-one`. The diary route carries no exclusions
+of any kind, and adding one there would be a defect, not a workaround.
 
 ### 7 · Performance
 

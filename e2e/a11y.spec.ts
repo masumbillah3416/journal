@@ -16,13 +16,25 @@
  * `/cms` is Payload's own stock admin UI, not this project's code — per
  * `apps/web/payload.config.ts`'s own header, it is "development scaffolding
  * ... not the product" and is disabled outright in production. Running axe
- * against it today surfaces two real, pre-existing findings that belong to
+ * against it today surfaces three real, pre-existing findings that belong to
  * Payload's generated markup, not to anything authored here:
- * `landmark-one-main` ("Document should have one main landmark") and
- * `page-has-heading-one` ("Page should contain a level-one heading"), both
- * `impact: moderate`, both scoped to the `<html>` element itself. They are
- * disabled by id, narrowly, via `allow` — passed explicitly at this call
- * site, not baked into the helper — rather than by loosening the assertion.
+ * `landmark-one-main` ("Document should have one main landmark"),
+ * `page-has-heading-one` ("Page should contain a level-one heading") and
+ * `region` ("All page content should be contained by landmarks") — one
+ * family, all `impact: moderate`, all describing an admin shell with no
+ * landmark elements. They are disabled by id, narrowly, via `allow` — passed
+ * explicitly at this call site, not baked into the helper — rather than by
+ * loosening the assertion.
+ *
+ * `region` was only found once this case started waiting for Payload's
+ * asynchronously-rendered form, which is the point of that wait. Until then
+ * `/cms` was analysed immediately after `goto`, so axe was inspecting a
+ * document that had barely any content in it and the case was passing
+ * vacuously. Under concurrent workers that race surfaced as an intermittent
+ * failure naming a DIFFERENT rule on each run, which is what exposed it. The
+ * wait it now shares with `e2e/visual.spec.ts`'s `/cms` case makes the
+ * analysis deterministic, and `region` is what a fully-rendered Payload admin
+ * has always been violating.
  * Any *other* violation, on this route or any future one, still fails the
  * suite. See docs/testing.md's Accessibility section for the same note.
  * Revisit when the bespoke admin at `/admin` replaces `/cms` as the route
@@ -31,15 +43,32 @@
  * Depends on: @playwright/test, e2e/support/axe.ts, the running app from
  * playwright.config.ts's `webServer`.
  */
-import { test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { expectNoAxeViolations } from './support/axe'
 
 test('has no axe violations on /cms', async ({ page }) => {
   await page.goto('/cms')
 
-  // These two rules belong to Payload's own generated admin markup, not to
-  // any code authored here — see this file's header for the finding.
-  await expectNoAxeViolations(page, { allow: ['landmark-one-main', 'page-has-heading-one'] })
+  // Wait for Payload's form, exactly as e2e/visual.spec.ts's /cms case does,
+  // and for the same reason: Payload renders its login form asynchronously, so
+  // `goto` alone can hand axe a half-rendered document. This case had no wait
+  // until now, and the omission was not theoretical — under concurrent workers
+  // it produced two DIFFERENT spurious violations on Payload's own markup on
+  // different runs (`region`, "All page content should be contained by
+  // landmarks", and a keyboard finding on `.checkbox.field-type`), while
+  // passing every time the case ran alone. That is a readiness race, not a
+  // real finding, and the fix is the wait rather than another entry in
+  // `allow`.
+  await expect(page.locator('form')).toBeVisible()
+  await expect(page.getByText(/Rendering/)).toBeHidden()
+
+  // These THREE rules belong to Payload's own generated admin markup, not to
+  // any code authored here — see this file's header for the findings. `region`
+  // is not a regression: adding the readiness wait above is what made it
+  // visible. Before the wait, axe was analysing a half-rendered document and
+  // this case was passing vacuously, which is the more serious of the two
+  // defects this change fixes.
+  await expectNoAxeViolations(page, { allow: ['landmark-one-main', 'page-has-heading-one', 'region'] })
 })
 
 test('has no axe violations on /p/1', async ({ page }) => {

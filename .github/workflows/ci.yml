@@ -109,7 +109,13 @@ jobs:
       # `next build` from scratch. `e2e/visual.spec.ts` now runs here too —
       # see this job's own header for why its baselines finally compare
       # honestly on this runner.
-      - run: npx playwright test e2e/smoke.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
+      # Every spec file, named explicitly rather than by directory, so adding
+      # one without adding it here is a visible omission in a diff.
+      # `e2e/book.spec.ts` and `e2e/flip.spec.ts` are named here for the first
+      # time: `npm run test:e2e` has run them since Tasks 7 and 8, but this
+      # job did not, so their assertions (the back face swallowing clicks, the
+      # transform-only budget, all five turn triggers) had never gated a merge.
+      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
       # image: chrome-launcher's own auto-detection looks for a system
       # `google-chrome`/`chromium-browser` binary, which this image does not
