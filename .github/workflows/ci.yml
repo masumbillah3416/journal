@@ -117,7 +117,12 @@ jobs:
       # and 8 but this job did not, so their assertions (the back face
       # swallowing clicks, the transform-only budget, all five turn triggers)
       # had never actually gated a merge.
-      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/pages.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
+      # Task 10's `e2e/notes.spec.ts` and the LCP fix's
+      # `e2e/imageWindow.spec.ts` are named here too. `notes.spec.ts` had
+      # been in `npm run test:e2e` since Task 10 without being in this job,
+      # so the focal-point and highlight-gap cases had never gated a merge —
+      # exactly the omission this list exists to make visible.
+      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/imageWindow.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
       # image: chrome-launcher's own auto-detection looks for a system
       # `google-chrome`/`chromium-browser` binary, which this image does not

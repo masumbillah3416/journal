@@ -473,6 +473,28 @@ would claim a measurement nothing performs.
   (-0.5deg) and the ephemera scrap (+0.5deg), which makes every notes page in the book
   report exactly 3px of "overflow" on a column whose content fits perfectly.
 
+  **`e2e/imageWindow.spec.ts` (Phase 1, the LCP fix)** covers the one thing the unit
+  suites cannot: whether the bytes actually stop arriving. `Book.tsx` renders all
+  thirty-three leaves and every leaf is absolutely positioned at `inset: 0`, so the
+  browser counts all of them as in the viewport and `loading="lazy"` defers NOTHING —
+  measured, not assumed: `/p/1` fetched all twenty of the seeded book's photographs,
+  1,820,504 bytes, with the reader on the Cover, and the LCP gate went red at 3,247ms.
+  An attribute-level assertion would have passed the whole time that was happening,
+  because the `lazy` attribute was present throughout, so the first case counts real
+  network responses and requires ZERO on `/p/1`.
+
+  The window itself is `leafPresentation.loadsImages`
+  (`packages/domain/src/pageStack.ts`), unit-tested to 100% there. Three further cases
+  guard what a browser has to settle: that a distant leaf still carries its heading, its
+  caption and its alt text with only its `src` stood in for (the design spec's §8
+  indexability requirement — the bytes are deferred, never the markup); that the next
+  page's hero is already `complete` with a non-zero `naturalWidth` at the FIRST
+  animation frame of the turn that reveals it, which is the "empty frame swinging into
+  place" defect stated as an assertion; and that a bookmark jump's destination is inside
+  the window from the first frame of the jump rather than only once the turn commits.
+  The last two fire their trigger from inside `page.evaluate` and read one frame later,
+  for the reasons `flip.spec.ts`'s header sets out.
+
   Two assertions in `pages.spec.ts` record a browser fact rather than the authored one, each with its
   reason at the assertion: Chromium reports the inner rule's `2.5px` border as `2px`
   (it snaps a computed border width to a whole CSS pixel, measured at
@@ -538,8 +560,8 @@ would claim a measurement nothing performs.
   axe violations, pixel drift). Cross-browser coverage is a candidate for a later phase,
   not a Task 12 gap silently worked around — see `playwright.config.ts`'s header.
 - **Run:** `npm run test:e2e` (headless, runs `e2e/smoke.spec.ts`,
-  `e2e/book.spec.ts`, `e2e/flip.spec.ts`, `e2e/layout.spec.ts`, `e2e/pages.spec.ts` and
-  `e2e/notes.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
+  `e2e/book.spec.ts`, `e2e/flip.spec.ts`, `e2e/layout.spec.ts`, `e2e/pages.spec.ts`,
+  `e2e/notes.spec.ts` and `e2e/imageWindow.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.

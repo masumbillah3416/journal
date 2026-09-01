@@ -18,7 +18,7 @@
     "test:unit": "vitest run --project unit --project unit-dom --coverage",
     "test:integration": "vitest run --project integration --passWithNoTests",
     "test:integration:coverage": "vitest run --config vitest.integration.config.ts --passWithNoTests --coverage",
-    "test:e2e": "playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts",
+    "test:e2e": "playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/imageWindow.spec.ts",
     "test:e2e:headed": "playwright test --headed",
     "test:visual": "playwright test e2e/visual.spec.ts",
     "test:a11y": "playwright test e2e/a11y.spec.ts",
