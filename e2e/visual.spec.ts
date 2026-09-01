@@ -3,11 +3,20 @@
  * every breakpoint.
  *
  * CLAUDE.md §2 requires a visual-regression suite covering "every page type
- * and every admin screen, at each breakpoint". Three exist today: `/cms`
+ * and every admin screen, at each breakpoint". Four exist today: `/cms`
  * (Payload's own admin, which the bespoke admin replaces in a later phase)
- * and the diary's Cover and Contents pages, whose designs landed in Phase 1
- * Task 9 (SCREENS.md §1.1, §1.2). Notes, Frames I/II and About join this file
- * as Tasks 10 and 11 build them.
+ * and the diary's Cover, Contents and Notes pages, whose designs landed in
+ * Phase 1 Tasks 9 and 10 (SCREENS.md §1.1, §1.2, §1.3). Frames I/II and About
+ * join this file as Task 11 builds them.
+ *
+ * THE NOTES BASELINES (Task 10) also forced the six `diary-cover-*`/
+ * `diary-contents-*` files to be regenerated in the same run, and that is
+ * expected rather than damage: `/p/3` now renders a real designed page where
+ * it previously rendered a heading and a meta line, and every leaf of the
+ * book is in every screenshot. All twelve files in this directory were
+ * captured together, in one `mcr.microsoft.com/playwright:v1.62.1-noble` run,
+ * with `e2e/layout.spec.ts` green in the same run (see below) and every
+ * resulting image opened and looked at before being committed.
  *
  * BASELINES ARE GENERATED INSIDE `mcr.microsoft.com/playwright:v1.62.1-noble`,
  * never on a developer's Windows or macOS host (Task 1). Font rasterisation,
@@ -125,4 +134,26 @@ test('matches the baseline screenshot of the Contents page', async ({ page }) =>
   await page.evaluate(() => document.fonts.ready)
 
   await expect(page).toHaveScreenshot('diary-contents.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of a journey’s Notes page', async ({ page }) => {
+  await page.goto('/p/3', { waitUntil: 'networkidle' })
+
+  // Scoped to leaf 2: all ten notes pages are in the document at once (see
+  // e2e/notes.spec.ts's header), so an unscoped locator is a strict-mode
+  // violation rather than a wait.
+  await expect(page.locator('[data-leaf="2"] [data-page="notes"]')).toBeVisible()
+  await expect(page.locator('[data-design-box]')).toHaveAttribute('style', /scale\(/)
+  await page.evaluate(() => document.fonts.ready)
+
+  // This page is the first in the diary to carry photographs, so `networkidle`
+  // above is not enough on its own: an image can be fetched and still be
+  // undecoded when the screenshot is taken, which is a race rather than drift.
+  // Every image on the page is awaited, not only this leaf's, because a
+  // sibling leaf still decoding can repaint mid-capture.
+  await page.evaluate(async () => {
+    await Promise.all([...document.images].filter((image) => image.src !== '').map((image) => image.decode()))
+  })
+
+  await expect(page).toHaveScreenshot('diary-notes.png', { fullPage: true })
 })
