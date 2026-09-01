@@ -12,6 +12,15 @@
  * `apps/web/payload.config.ts`'s `routes.admin`) and `/p/<n>`, the public
  * diary page added with the book itself (Task 7). Add one `test()` per route
  * as routes are built; do not assert against a route that does not exist yet.
+ *
+ * The last case covers an address no route file declares and every browser
+ * asks for anyway. It is asserted with `request.get` rather than by watching
+ * a page load, because whether a browser fetches `/favicon.ico` at all
+ * depends on the browser and on whether it is headed: the sweep's headed run
+ * recorded the 404 as a console error on every cold load and Lighthouse
+ * recorded it on a production build, while the two headless cases above
+ * stayed green through the whole defect. A direct request is the reproduction
+ * that does not depend on that difference.
  * Depends on: @playwright/test, the running app from playwright.config.ts's
  * `webServer`.
  */
@@ -71,4 +80,10 @@ test('loads /p/1 without console errors or page errors', async ({ page }) => {
   await page.waitForTimeout(500)
 
   expect(errors).toEqual([])
+})
+
+test('serves an icon at /favicon.ico, which a browser asks for without being told to', async ({ request }) => {
+  const response = await request.get('/favicon.ico')
+
+  expect(response.status(), 'a cold load must not report a failed response').toBe(200)
 })

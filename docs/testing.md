@@ -473,6 +473,14 @@ would claim a measurement nothing performs.
   checking immediately on navigation would have produced a false negative on exactly the
   class of defect this suite exists to catch.
 
+  Its third case asserts that `/favicon.ico` responds `200`. Every browser asks for that
+  address without being told to, and nothing declared it — the sweep recorded the 404 as
+  a console `error` on every cold load of every route, and Lighthouse recorded it on a
+  production build (`docs/qa/2026-09-01-diary-sweep.md`, DIARY-006). It is asserted with
+  `request.get` rather than by watching a page load because whether a browser fetches
+  the address at all depends on the browser and on whether it is headed: the two cases
+  above are headless and stayed green through the whole defect.
+
   **A CI gap this file had not recorded.** `.github/workflows/ci.yml`'s `browser` job
   named only `smoke`, `a11y` and `visual` in its single `npx playwright test`
   invocation, so `e2e/book.spec.ts` and `e2e/flip.spec.ts` — named by
