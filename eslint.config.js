@@ -92,5 +92,26 @@ export default tseslint.config(
     files: ['apps/web/lib/adapters/console-mailer.ts'],
     rules: { 'no-console': 'off' },
   },
-  { ignores: ['**/dist/**', '**/.next/**', 'handoff/**', 'coverage/**'] },
+  // Generated output, never authored here. The last three are the browser and
+  // performance harnesses' own artefacts, and they are listed for the same
+  // reason `coverage/` already was: they are `.gitignore`d, so they are
+  // invisible in `git status`, but ESLint walks the working tree rather than
+  // the index — leaving them in made `npm run lint` (and therefore the
+  // pre-commit gate) pass or fail depending on whether the developer had run
+  // `npm run test:e2e` or `npm run test:perf` since the last clean, with
+  // thousands of errors reported against Playwright's own bundled trace
+  // viewer. A gate has to be one a developer can always pass honestly
+  // (CLAUDE.md §11), so the artefacts are excluded rather than the rules
+  // weakened.
+  {
+    ignores: [
+      '**/dist/**',
+      '**/.next/**',
+      'handoff/**',
+      'coverage/**',
+      'playwright-report/**',
+      'test-results/**',
+      'lhci-reports/**',
+    ],
+  },
 )
