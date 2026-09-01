@@ -119,4 +119,21 @@ describe('flipReducer', () => {
 
     expect(restruck).toBe(swapped)
   })
+
+  it('releases the latch immediately for a broken duration, so a bad config cannot strand it either', () => {
+    // A non-finite or non-positive durationMs makes every `elapsed >=
+    // threshold` comparison false forever, which would otherwise park the
+    // machine in `turning` with the latch stuck open. Reachable in practice:
+    // flipDurationMs crosses a server-to-client serialization boundary
+    // before reaching the reducer, and an unsaved global or a mapping slip
+    // yields undefined, which coerces to NaN.
+    for (const durationMs of [Number.NaN, 0, -100, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      const broken = { durationMs, reducedMotion: false }
+      let state = flipReducer(initialFlipState(3), { type: 'start', to: 4, now: 0 }, broken)
+      state = flipReducer(state, { type: 'tick', now: 1 }, broken)
+
+      expect(state.busy, `durationMs ${String(durationMs)} left the book seized`).toBe(false)
+      expect(state.index).toBe(4)
+    }
+  })
 })
