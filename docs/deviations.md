@@ -282,3 +282,56 @@ wants the note aligned to the eyebrow, that is a different arrangement and needs
 left block's two lines split into separate flex items, not a one-word change.
 
 **Recorded as:** `contents.module.css`'s `HANDOFF-DEVIATION` at `.header`; this entry.
+
+## 11 · Only two of three font families are self-hosted, one weight each
+
+**What changed:** README.md's Type section names three Google Fonts families at full
+weight ranges — Caveat 400-700; EB Garamond 400/500/600 + italic; Courier Prime
+400/700 — and says "self-host in production." What actually loads, via
+`apps/web/app/(diary)/fonts.ts`'s `next/font/local` calls: **Caveat at weight 400
+only, and EB Garamond's upright face at weight 400 only.** Courier Prime is not
+loaded at all; EB Garamond's italic face is not loaded; neither family's weights
+above 400 are loaded. Every diary page still renders those missing faces in the
+handoff's own fallback stack (`cursive` / `serif` / `monospace`), exactly as every
+page did before this task.
+
+**Rationale:** measured, not assumed. `npx lhci autorun`, run repeatedly against a
+freshly-built `.next` inside the pinned `mcr.microsoft.com/playwright:v1.62.1-noble`
+image, put `/p/1`'s Largest Contentful Paint over CLAUDE.md §6's 2,500ms gate the
+moment a third font file is self-hosted on this route — regardless of which specific
+family or weight is the third one added. `resource-summary:script:size` and
+`mainthread-work-breakdown` barely move between a zero-font, two-font and five-font
+build of the same route; what moves is request count, which points at
+connection/priority contention (`next start` serves this route over plain HTTP/1.1,
+no TLS) rather than a raw-byte cost. The full measured table, across every
+combination tried and multiple runs per combination once the noise in a single run
+near this margin became apparent, is recorded in `apps/web/app/(diary)/fonts.ts`'s own
+header — it is the load-bearing evidence for this entry and is not repeated here.
+
+Caveat was never in question: it is the LCP element measured on this route (a
+bookmark-rail journey name) and the cover title this whole task exists to fix.
+Between EB Garamond and Courier Prime, Garamond was kept — it carries the diary's
+reading content (captions, notes, descriptions) rather than Courier's auxiliary
+labels/dates/counters — and its pairing with Caveat measured a consistently positive,
+if thin, margin under the gate across six separate clean-build runs, where the
+Caveat+Courier pairing was observed once at a margin of roughly ten milliseconds.
+
+**Consequence a future task needs:** the three unwired files
+(`courier-prime-regular.woff2`, `courier-prime-bold.woff2`,
+`eb-garamond-italic.woff2`) are committed at
+`apps/web/app/(diary)/fonts/`, unused — re-enabling any of them is a `localFont` call
+in `fonts.ts`, not a new download. The concrete way to make room for them is Task 9's
+own deferred item: moving `Cover`/`Contents` out of `Book.tsx`'s client bundle into
+server-rendered children, which reduces the script weight sharing this route's
+connection with these font requests. Re-run `fonts.ts`'s measured table — several
+times, against a freshly-cleared Docker volume, not a warm one — once that lands,
+before assuming any deferred face must stay a fallback forever. `e2e/pages.spec.ts`
+asserts the current state explicitly in both directions (a loaded-FontFace check for
+Caveat and Garamond, a pinned-fallback check for the Courier eyebrow), so re-enabling
+a face without updating that file's assertions will fail the suite rather than pass
+silently.
+
+**Recorded as:** `apps/web/app/(diary)/fonts.ts`'s `HANDOFF-DEVIATION` in its module
+header (the full measured table lives there); `docs/adr/0005-font-hosting.md`;
+`apps/web/app/(diary)/diary.css`'s header note on `--td-font-courier`;
+`e2e/pages.spec.ts`'s Courier-fallback test; `e2e/visual.spec.ts`'s header note.

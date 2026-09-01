@@ -10,9 +10,45 @@
  * `@travel-diary/tokens/tokens.css` is imported first so every `--td-*`
  * custom property this route's components read is defined before any rule
  * that uses one.
- * Depends on: packages/tokens/src/tokens.css.
+ *
+ * The `:root` block below redefines TWO of the three `--td-font-*` values
+ * the import just set, layering the self-hosted `next/font/local` family in
+ * front of each stack rather than replacing it: `layout.tsx` applies
+ * `fonts.ts`'s `.variable` classes to `<html>`, which is this stylesheet's
+ * own `:root`, so `var(--font-caveat)` / `var(--font-eb-garamond)` are
+ * always defined here by the time this rule is read. `var(--td-font-caveat)`
+ * therefore resolves to `<the self-hosted face>, <next/font's
+ * metric-matched fallback>, 'Caveat', cursive` - the original handoff stack
+ * is still the last resort, unchanged, exactly as it was before this task;
+ * nothing that already writes `font-family: var(--td-font-caveat)` had to
+ * change.
+ *
+ * `--td-font-courier` is DELIBERATELY NOT touched here - `fonts.ts` does not
+ * load Courier Prime. See `fonts.ts`'s own header and `docs/deviations.md`
+ * §11: a third self-hosted font on this route repeatedly measured over the
+ * 2,500ms LCP gate (CLAUDE.md §6) on `/p/1`, on a freshly-built Docker
+ * volume. `--td-font-courier` keeps resolving to `tokens.css`'s original
+ * `'Courier Prime', monospace` - the generic fallback, exactly as it did
+ * before this task - until a future task frees enough of this route's
+ * request/script budget to add it back. Note also that even the two loaded
+ * families leave a thin, occasionally single-digit-millisecond margin under
+ * that gate (fonts.ts's header has the full multi-run table) - this route
+ * is passing, not comfortable.
+ *
+ * `packages/tokens/src/tokens.css` itself is left untouched on purpose: it
+ * is the shared, framework-agnostic token source, and wiring a
+ * `next/font`-generated variable name into it would couple that package to
+ * one app's build tool. This override lives in the one app that actually
+ * loads the fonts.
+ * Depends on: packages/tokens/src/tokens.css, ./fonts.ts (via layout.tsx's
+ * `.variable` classes on `<html>`).
  */
 @import '@travel-diary/tokens/tokens.css';
+
+:root {
+  --td-font-caveat: var(--font-caveat), 'Caveat', cursive;
+  --td-font-garamond: var(--font-eb-garamond), 'EB Garamond', serif;
+}
 
 html,
 body {

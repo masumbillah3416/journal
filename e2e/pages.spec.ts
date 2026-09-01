@@ -140,6 +140,42 @@ test.describe('Cover', () => {
     expect(title).not.toBeNull()
     expect(title?.scrollWidth).toBeLessThanOrEqual(title?.clientWidth ?? 0)
   })
+
+  test('renders the title in the self-hosted Caveat face, not the fallback', async ({ page }) => {
+    // The tempting check here — `document.fonts.check('124px Caveat')` — is a
+    // trap, verified directly against this route: it returns `true` even
+    // when nothing self-hosted is involved, because the Font Loading spec's
+    // `check()` returns `true` for a family with NO matching FontFace at
+    // all (there is nothing pending to wait for). `next/font/local` also
+    // never registers a `@font-face` literally named "Caveat" — it
+    // generates its own family (`caveat`), so a family-name string
+    // comparison against the literal handoff token is not a safe
+    // regression guard either.
+    //
+    // The real assertion: read the computed `font-family` the browser is
+    // ACTUALLY using, then confirm `document.fonts` (the set of FontFace
+    // objects a real `@font-face` rule put there) contains an entry for
+    // that exact family with status `loaded`. If the wiring ever reverted
+    // to the bare handoff stack (`'Caveat', cursive`, neither of which has
+    // any `@font-face` behind it), no such entry would exist and this fails.
+    await page.evaluate(() => document.fonts.ready)
+    const result = await page.evaluate(() => {
+      const node = document.querySelector<HTMLElement>('[data-page="cover"] h1')
+      if (node === null) return null
+      const style = getComputedStyle(node)
+      const firstFamily = (style.fontFamily.split(',')[0]?.trim() ?? '').replace(/^["']|["']$/g, '')
+      const hasLoadedFace = [...document.fonts].some(
+        (face) =>
+          face.family.replace(/^["']|["']$/g, '').toLowerCase() === firstFamily.toLowerCase() &&
+          face.status === 'loaded',
+      )
+      return { fontSize: style.fontSize, firstFamily, hasLoadedFace }
+    })
+
+    expect(result).not.toBeNull()
+    expect(result?.fontSize).toBe('124px')
+    expect(result?.hasLoadedFace).toBe(true)
+  })
 })
 
 test.describe('Contents', () => {
@@ -223,5 +259,55 @@ test.describe('Contents', () => {
     await expect(rows).toHaveCount(10)
     // The first journey's notes page is the third page of the book.
     await expect(rows.first()).toHaveAttribute('href', '/p/3')
+  })
+
+  test('renders the meta line in the self-hosted Garamond face', async ({ page }) => {
+    // Same technique as the Cover's Caveat check: read the family the
+    // browser actually computed, then confirm `document.fonts` holds a
+    // `loaded` FontFace for it — not `document.fonts.check()` against the
+    // literal handoff name, which returns `true` vacuously for a family with
+    // no `@font-face` at all (see the Cover test's comment).
+    await page.evaluate(() => document.fonts.ready)
+    const result = await page.evaluate(() => {
+      const firstFamily = (family: string) => (family.split(',')[0]?.trim() ?? '').replace(/^["']|["']$/g, '')
+      const hasLoadedFace = (family: string) =>
+        [...document.fonts].some(
+          (face) =>
+            face.family.replace(/^["']|["']$/g, '').toLowerCase() === family.toLowerCase() && face.status === 'loaded',
+        )
+      const meta = document.querySelector<HTMLElement>('[data-contents-body] li:first-child span:nth-child(3)')
+      if (meta === null) return null
+      const metaFamily = firstFamily(getComputedStyle(meta).fontFamily)
+      return {
+        metaText: meta.textContent,
+        metaLoaded: hasLoadedFace(metaFamily),
+      }
+    })
+
+    expect(result).not.toBeNull()
+    expect(result?.metaText).toContain('Japan')
+    expect(result?.metaLoaded).toBe(true)
+  })
+
+  test('still falls back to generic monospace for the Courier eyebrow — Courier Prime is not self-hosted yet', async ({
+    page,
+  }) => {
+    // apps/web/app/(diary)/fonts.ts's HANDOFF-DEVIATION: a third self-hosted
+    // font on this route measured over the LCP gate in the pinned container,
+    // so Courier Prime stays on the handoff's own fallback stack. This test
+    // pins that as a known, current fact rather than leaving it
+    // unasserted — it must fail (and be updated) the day Courier Prime is
+    // wired back in, not silently keep "passing" for the wrong reason.
+    await page.evaluate(() => document.fonts.ready)
+    const result = await page.evaluate(() => {
+      const eyebrow = document.querySelector<HTMLElement>('[data-page="contents"] header p:first-child')
+      if (eyebrow === null) return null
+      const family = getComputedStyle(eyebrow).fontFamily
+      return { text: eyebrow.textContent, family }
+    })
+
+    expect(result).not.toBeNull()
+    expect(result?.text).toBe('Index')
+    expect(result?.family).toBe('"Courier Prime", monospace')
   })
 })

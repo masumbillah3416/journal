@@ -28,14 +28,19 @@
  * appearance is Task 12; that task updates these three files, which is
  * expected and is what a baseline is for.
  *
- * KNOWN FIDELITY GAP, recorded rather than hidden: the three Google Fonts the
- * handoff specifies (Caveat, EB Garamond, Courier Prime) are not loaded by any
- * route in this repository yet — README.md's "self-host in production" is
- * unimplemented — so every diary baseline below is rendered in the generic
- * `cursive`/`serif`/`monospace` fallbacks. The baselines still guard layout
- * and geometry drift, which is most of what this suite is for, but they do not
- * yet guard typography. They must ALL be regenerated in the same container on
- * the day the fonts land.
+ * FONTS: the three Google Fonts the handoff specifies (Caveat, EB Garamond,
+ * Courier Prime) are self-hosted via `next/font/local` as of the font-hosting
+ * task (docs/adr/0005-font-hosting.md) — every diary baseline below now
+ * carries the real typefaces, not the `cursive`/`serif`/`monospace`
+ * fallbacks the six original Cover/Contents baselines were captured in. All
+ * nine baselines in this file were regenerated together in the pinned
+ * container the day the fonts landed, including the three `/cms` ones (that
+ * page never uses `@travel-diary/tokens`, so its baseline is unaffected in
+ * substance, but it is regenerated in the same run for a matched, dated set).
+ * `document.fonts.ready` is awaited before every screenshot below —
+ * `font-display: swap` means the very first paint can still show a fallback
+ * face while the self-hosted file is fetched, and a snapshot taken during
+ * that window is a race, not drift.
  *
  * Baselines live in `e2e/visual.spec.ts-snapshots/` (one file per test per
  * project, auto-named by Playwright) and are committed — a snapshot with no
@@ -73,6 +78,12 @@ test('matches the baseline screenshot of the Cover page', async ({ page }) => {
   await expect(page.locator('[data-page="cover"]')).toBeVisible()
   await expect(page.locator('[data-design-box]')).toHaveAttribute('style', /scale\(/)
 
+  // The three self-hosted families use `font-display: swap`, so the first
+  // paint can still be showing a fallback face. Waiting for
+  // `document.fonts.ready` is what makes this snapshot deterministic rather
+  // than a race against the font fetch.
+  await page.evaluate(() => document.fonts.ready)
+
   await expect(page).toHaveScreenshot('diary-cover.png', { fullPage: true })
 })
 
@@ -81,6 +92,7 @@ test('matches the baseline screenshot of the Contents page', async ({ page }) =>
 
   await expect(page.locator('[data-page="contents"]')).toBeVisible()
   await expect(page.locator('[data-design-box]')).toHaveAttribute('style', /scale\(/)
+  await page.evaluate(() => document.fonts.ready)
 
   await expect(page).toHaveScreenshot('diary-contents.png', { fullPage: true })
 })

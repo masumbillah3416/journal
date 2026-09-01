@@ -503,10 +503,13 @@ would claim a measurement nothing performs.
   what a reader at 390px actually sees. The consequence is that these baselines also
   carry the diary chrome outside the box (bookmark rail, bottom bar), whose designed
   appearance is Task 12 — that task updates these six files, which is expected and is
-  what a baseline is for. They must **also** all be regenerated on the day the three
-  handoff fonts land (see §6's third finding): today every diary baseline renders in
-  the generic `cursive`/`serif`/`monospace` fallbacks, so they guard geometry but not
-  typography.
+  what a baseline is for. All nine baselines in `e2e/visual.spec.ts-snapshots/` were
+  regenerated in the pinned container by the font-hosting task (docs/adr/0005): the
+  diary ones now show genuine Caveat and EB Garamond typography, but — see
+  `docs/deviations.md` §11 — Courier Prime and EB Garamond's italic face still render
+  in their generic fallbacks (a measured LCP constraint, not an oversight), so these
+  baselines guard geometry AND two of three families' typography, not all three yet.
+  Regenerate them again once Courier Prime is wired back in.
 - **Status:** the mechanism is implemented and proven, and now runs in CI (Task 1 of
   Phase 1 closed the gap below). `e2e/visual.spec.ts` snapshots every screen that exists
   today — `/cms` — at all three breakpoints, alongside the diary's Cover and Contents
@@ -626,15 +629,19 @@ handoff colour is a design decision and has not been taken unilaterally. **The C
 page needs no such note: every one of its fourteen text roles was measured against the
 darkest paper stop and clears its bar, the lowest at 4.57:1.**
 
-**3 · The three handoff fonts are not loaded by any route yet.** README.md's "Fonts are
-Google Fonts (Caveat, EB Garamond, Courier Prime) — self-host in production" is
-unimplemented: `packages/tokens` names the three families but nothing in `apps/web`
-loads a single font file, so every diary page renders in the generic
-`cursive`/`serif`/`monospace` fallbacks. The visual baselines therefore guard layout and
-geometry drift but not typography, and **all of them must be regenerated in the pinned
-container on the day the fonts land**. Fixing it is cross-cutting (six page types plus
-the admin) and needs an ADR on `next/font/google` versus committed `.woff2` files, so it
-was not folded into Task 9.
+**3 · Two of the three handoff fonts are now self-hosted; the third is a measured,
+documented deferral.** README.md's "Fonts are Google Fonts (Caveat, EB Garamond,
+Courier Prime) — self-host in production" was closed for Caveat and EB Garamond's
+upright face by the font-hosting task (`docs/adr/0005-font-hosting.md`,
+`apps/web/app/(diary)/fonts.ts`) via `next/font/local`, with the font files committed
+and `next build` never touching the network. Courier Prime and EB Garamond's italic
+face are **not** loaded — a third self-hosted font on this route repeatedly measured
+`/p/1`'s LCP over CLAUDE.md §6's 2,500ms gate in the pinned container, regardless of
+which specific family was added third (`docs/deviations.md` §11 has the full measured
+table). All nine visual baselines were regenerated in the pinned container against
+this state; they guard geometry and two of three families' typography, and must be
+regenerated again once Courier Prime's headroom is found (most likely via the
+script-weight reduction this same task's ADR names as the next step).
 
 ### 7 · Performance
 
