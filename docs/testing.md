@@ -162,6 +162,20 @@ would claim a measurement nothing performs.
   placeholder and does not get deleted when real component tests arrive — it is the only
   thing in the repository that asserts the harness exists independently of any component.
 
+  Two of Phase 1 Task 9's unit files carry a note of their own.
+  `packages/domain/src/coverTitle.test.ts` asserts the clamp bounds as **literals**
+  (`38`, `124`), never as `COVER_TITLE_SIZE.min`/`.max`: an assertion that reads the
+  constant it is guarding moves with that constant and can never fail. That was caught
+  by mutation, not by review — retuning the floor to 37 left the whole file green until
+  the literals went in (`CLAUDE.md` §2.3, "a test that has never failed is unproven").
+  `packages/domain/src/contentsLayout.test.ts`'s thirty-one-entry case pins **3 columns
+  × 11 rows**, which is what SCREENS.md §1.2's formula produces and *not* the "4 columns
+  × 8 rows" the same section calls verified; the two cannot both be true for any entry
+  count, and `docs/deviations.md` §9 carries the arithmetic. The multi-column path is
+  therefore covered as arithmetic but never rendered in a browser — the seeded book has
+  ten contents entries — so a task that seeds more than eleven journeys owes the
+  Contents body a real overflow assertion.
+
 - **Run:** `npm run test:unit` (both projects, with coverage), or `npm run test` for
   watch mode across every project.
 - **Add one:** colocate `<name>.test.ts` next to `<name>.ts` — or `<name>.test.tsx` for

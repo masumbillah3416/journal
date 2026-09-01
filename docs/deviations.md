@@ -220,3 +220,42 @@ swallowed there, and would need to say so rather than discover it.
 `.edgeLeft`/`.edgeRight`; `apps/web/components/book/Book.tsx`'s comment at the two
 `<EdgeStrip>` elements; `apps/web/components/book/EdgeStrip.tsx`'s header;
 `docs/testing.md` §4 (End-to-end).
+
+## 9 · Contents column count follows SCREENS.md's formula, not its "verified" example
+
+**What changed:** nothing about the algorithm — SCREENS.md §1.2's own formula is
+implemented verbatim in `packages/domain/src/contentsLayout.ts`:
+
+```
+columns = ceil(entryCount / 11)
+rows    = ceil(entryCount / columns)
+```
+
+What is *not* honoured is the sentence that closes the same section: "Verified: 31
+entries render as 4 columns × 8 rows with zero overflow." For 31 entries this formula
+gives **3 columns × 11 rows**.
+
+**Rationale:** the two statements cannot both be true, for any entry count at all.
+`columns = ceil(n / 11)` equals 4 only for n in 34–44; `rows = ceil(n / columns)`
+equals 8 with 4 columns only for n in 29–32. Those ranges do not overlap, so
+"4 columns × 8 rows" is unreachable under the stated formula — it is not a case this
+implementation happens to miss, it is a case the formula cannot produce. The formula
+was kept rather than the example, on three grounds: it is given as the algorithm, in a
+code block, and an algorithm is the more precise of the two statements; the handoff's
+own prototype runs exactly it (`Travel Diary.dc.html`:
+`Math.max(1, Math.ceil(contents.length / 11))`, then
+`Math.ceil(contents.length / nCols)`); and the section's *other* stated case — eleven
+entries in a single column, which is what the seeded ten-journey book produces — holds
+only under the formula.
+
+**Consequence a future task needs:** the "zero overflow" half of that sentence is a
+claim about geometry, and it is **unverified for 31 entries** either way. The seeded
+book has ten contents entries, so the multi-column path is exercised by
+`contentsLayout`'s unit tests but never rendered in a browser by any suite here. A
+task that seeds more than eleven journeys must add a real overflow assertion on the
+Contents body (`scrollHeight <= clientHeight`) at that count, and should re-read this
+section of the handoff before assuming the row height still fits.
+
+**Recorded as:** `packages/domain/src/contentsLayout.ts`'s `HANDOFF-DEVIATION` in its
+module header; `packages/domain/src/contentsLayout.test.ts`'s thirty-one-entry case;
+`docs/testing.md` §1 (Unit).
