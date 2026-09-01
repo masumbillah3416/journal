@@ -219,6 +219,12 @@ export default defineConfig({
         // needs the same explicit exclude-and-regate treatment as the queue
         // files.
         'apps/web/lib/testPayload.ts',
+        // readBookBundle.ts (Task 6 of Phase 1) is reachable only from
+        // readBookBundle.integration.test.ts - it needs a real Payload/
+        // Postgres to read journeys/pages/media from - so it is gated by
+        // vitest.integration.config.ts instead, same reasoning as the queue
+        // files and testPayload.ts above.
+        'apps/web/lib/readBookBundle.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by

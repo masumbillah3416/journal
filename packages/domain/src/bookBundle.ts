@@ -12,6 +12,19 @@
  * from a stored count.
  * Depends on: JourneyId, for keying every page, contents entry and bookmark
  * tab by journey identity rather than array position (CLAUDE.md §7).
+ *
+ * CARRY-FORWARD (Task 5 review, acted on in Task 6 - `apps/web/lib/readBookBundle.ts`):
+ * `Journey.startsOn` was added here because CLAUDE.md §7 ("Free-text `dates`
+ * always travels with a sortable `startsOn`") and DATA_MODEL.md both require
+ * it, and Task 6 is the module that actually sorts journeys before deriving
+ * the reading sequence — free-text dates like "28 Oct – 6 Nov 2025" have no
+ * other sortable form. `Slot`/`SlotRole` and `JourneyPageInfo.slots` were
+ * added for the same reason, one level down: a notes/frames page is not
+ * fully described without the photos it displays, and Task 6 is the module
+ * that resolves each slot to a derivative URL and carries its focal point
+ * through. Both additions are optional-safe on `derivePages`'s existing
+ * output - see `slots`'s own doc comment - so neither required touching
+ * `derivePages`'s logic.
  */
 import type { JourneyId } from './ids.js'
 
@@ -22,10 +35,31 @@ export interface Journey {
   readonly name: string
   readonly place: string
   readonly dates: string
+  /** Sortable ISO 8601 counterpart to {@link dates} (CLAUDE.md §7) - the only way to order human date ranges. */
+  readonly startsOn: string
   readonly hiddenFromBookmarks: boolean
   readonly furniture: {
     readonly accent: string
   }
+}
+
+/** Which photo role a slot plays on its page: the single hero, the ephemera strip, or one of a frames page's photos. */
+export type SlotRole = 'hero' | 'ephemera' | 'frame'
+
+/**
+ * One resolved photo slot, ready to render: a derivative URL - never an
+ * original (CLAUDE.md §7) - plus the focal point for THIS placement.
+ * DATA_MODEL.md: "Focal point lives on the slot, not the media item" - the
+ * same photograph in a tall frame and a wide frame wants different focus, so
+ * `focalX`/`focalY` here are the slot's own override, not the media item's default.
+ */
+export interface Slot {
+  readonly role: SlotRole
+  readonly src: string
+  readonly alt: string
+  readonly caption: string
+  readonly focalX: number
+  readonly focalY: number
 }
 
 /** Which of the three fixed book-wide pages, or which of a journey's three, a page is. */
@@ -40,6 +74,16 @@ interface JourneyPageInfo {
   readonly dates: string
   readonly accent: string
   readonly hiddenFromBookmarks: boolean
+  /**
+   * This page's resolved photo slots, in display order. Optional because
+   * {@link derivePages} - which only ever sees journey-level fields, never a
+   * page's own `pages` row - cannot populate it; `readBookBundle`
+   * (`apps/web/lib/readBookBundle.ts`) merges each page's slots in
+   * afterwards from the matching `pages` document, which is the only place
+   * that shape exists. Absent only when merged data could not be matched to
+   * a page - the diary itself always renders with slots present.
+   */
+  readonly slots?: readonly Slot[]
 }
 
 /**

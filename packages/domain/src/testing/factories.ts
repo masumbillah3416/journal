@@ -31,6 +31,7 @@ export const aJourney = (overrides: Partial<Journey> = {}): Journey => ({
   name: 'Tokyo',
   place: 'Japan',
   dates: '3–9 Mar 2025',
+  startsOn: '2025-03-03T00:00:00.000Z',
   hiddenFromBookmarks: false,
   furniture: { accent: '#3d817e' },
   ...overrides,
