@@ -11,7 +11,7 @@
  * viewport projects, which is where the defect lived — `desktop` was fine
  * throughout.
  *
- * All three cases are one root cause seen from three sides
+ * All four cases are one root cause seen from four sides
  * (DIARY-001/002/003), and each is written from the symptom a READER meets
  * rather than from the CSS that produced it:
  *
@@ -21,11 +21,16 @@
  *      result is not centred there, the scale is fitting one rectangle and
  *      the reader is looking at another. At 390px that difference was the
  *      whole book.
- *   2. Every bookmark tab receives a click. SCREENS.md §1.7 gives the rail
+ *   2. The book is really THERE, not merely laid out somewhere. A rect can
+ *      look right and still describe a box the reader cannot see, so the
+ *      centre of the area is hit-tested and has to resolve to something
+ *      inside the design box. `document.elementFromPoint` returning `null`
+ *      at 390px is the measurement that named this defect in the first place.
+ *   3. Every bookmark tab receives a click. SCREENS.md §1.7 gives the rail
  *      its own 158px column BESIDE the book, so no part of the book can lie
  *      over a tab; when the book did, nine of thirteen tabs swallowed every
  *      click in silence, with no console error and a handler that was fine.
- *   3. Both page-edge turn strips can be pressed. `e2e/flip.spec.ts` clicks
+ *   4. Both page-edge turn strips can be pressed. `e2e/flip.spec.ts` clicks
  *      them through Playwright, which scrolls an off-screen element into view
  *      first and so passed throughout; a reader cannot scroll `.stage`, which
  *      is `overflow: hidden`. Hit-testing at the strip's own centre is the
@@ -76,6 +81,29 @@ test('draws the book inside the area its scale was measured from, and concentric
     spillTop: Math.max(0, wholePixels(placement.spillTop)),
     spillBottom: Math.max(0, wholePixels(placement.spillBottom)),
   }).toEqual({ offCentreX: 0, offCentreY: 0, spillLeft: 0, spillRight: 0, spillTop: 0, spillBottom: 0 })
+})
+
+test('puts the book itself under a pointer aimed at the centre of its area', async ({ page }) => {
+  await page.goto('/p/1')
+  await waitForLiveBook(page)
+
+  const atCentre = await page.evaluate(() => {
+    const box = document.querySelector('[data-design-box]')
+    const area = box?.parentElement
+    if (box === null || area === null || area === undefined) throw new Error('no design box rendered')
+
+    const measured = area.getBoundingClientRect()
+    const hit = document.elementFromPoint(measured.x + measured.width / 2, measured.y + measured.height / 2)
+    if (hit === null) return 'nothing - the point is outside the viewport'
+    return box.contains(hit) ? 'the book' : `${hit.tagName}, outside the book`
+  })
+
+  // `elementFromPoint` returning `null` here is what a reader at 390px met:
+  // a blank page carrying only the rail, the counter and the two arrows,
+  // because the whole book had been clipped away by `.stage`'s `overflow:
+  // hidden`. Hit-testing is the only assertion that can tell "drawn" from
+  // "laid out somewhere off the screen".
+  expect(atCentre).toBe('the book')
 })
 
 test('lets a reader click every bookmark tab rather than the book covering them', async ({ page }) => {

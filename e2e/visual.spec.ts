@@ -54,6 +54,24 @@
  * The `/cms` and Contents baselines are untouched by that change and were not
  * regenerated.
  *
+ * THE BOOK: all six `diary-*` baselines were regenerated again, in the same
+ * pinned container, when the scaled book was centred in the area
+ * `useBookScale` measures (`apps/web/components/book/book.module.css`
+ * `.bookArea`). What they replaced is the reason `e2e/layout.spec.ts` exists.
+ * The `mid` and `mobile` files had been regenerated OVER the defect — the
+ * committed `diary-cover-mobile-linux.png` was a picture of the bookmark
+ * rail, the counter and two arrows on empty paper, with no book on the page
+ * at all, and it had been passing ever since (docs/qa/2026-09-01-diary-sweep.md,
+ * DIARY-004). A baseline can only say "this looks like it did last time"; it
+ * cannot say "the book is on the screen", because a picture of no book is
+ * still a picture, and this suite ratified the S1 defect it was meant to
+ * catch. Regenerating these files is therefore only half of that fix. The
+ * other half is `e2e/layout.spec.ts`, which asserts in numbers — at all three
+ * projects — that the design box is inside the area its scale was measured
+ * from, concentric with it, and that `document.elementFromPoint` at that
+ * area's centre lands inside the book. Never regenerate a `diary-*` baseline
+ * without that suite green in the same run.
+ *
  * Baselines live in `e2e/visual.spec.ts-snapshots/` (one file per test per
  * project, auto-named by Playwright) and are committed — a snapshot with no
  * baseline to compare against protects nothing.

@@ -454,8 +454,11 @@ would claim a measurement nothing performs.
   in numbers instead, each from the symptom a reader meets rather than from the CSS that
   produced it: the design box's drawn rect is inside the area `useBookScale` measures and
   concentric with it (off-centre by 0px, spilling 0px on each side, tolerant of the
-  sub-pixel remainder a fractional scale leaves); every `[data-bookmark]` tab hit-tests to
-  itself at its own centre and a click on one of the nine the sweep found dead reaches
+  sub-pixel remainder a fractional scale leaves); `document.elementFromPoint` at the
+  centre of that area resolves to something inside the design box, which is the one
+  assertion that separates "drawn" from "laid out somewhere off the screen" and is
+  exactly the probe that returned `null` at 390px; every `[data-bookmark]` tab hit-tests
+  to itself at its own centre and a click on one of the nine the sweep found dead reaches
   `/p/12`; and both page-edge turn strips hit-test to themselves. That last one is the
   case `e2e/flip.spec.ts` could not make: Playwright scrolls an element into view before
   clicking it, so its edge-strip cases passed on a strip that had left the viewport, which
