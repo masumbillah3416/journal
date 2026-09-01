@@ -23,6 +23,18 @@
  * `book.module.css`'s header for the defect that guards), and the travelling
  * shade. There is no `backface-visibility` anywhere: it was tried in the
  * handoff prototype and produced blank pages.
+ *
+ * STANDING CONDITION: THE BACK FACE MUST STAY CONTENTLESS. It is hidden by
+ * opacity alone, with no `visibility` guard - deliberately, because an
+ * opacity-0 element is still a hit-test target in every browser, so
+ * `pointer-events: none` was always the only load-bearing protection and a
+ * redundant second guard would make it impossible to prove (see
+ * `e2e/book.spec.ts`'s first case, which clicks a real Contents link). That
+ * omission is only safe while the face carries nothing: put content on it and
+ * the screen-reader, find-in-page and print arguments for hiding it properly
+ * all come back, and this becomes the wrong design rather than a tested one.
+ * A future task adding content here is changing an assumption, not adding a
+ * feature.
  * Depends on: react, `LeafPresentation` (@travel-diary/domain/pageStack),
  * ./book.module.css.
  */
