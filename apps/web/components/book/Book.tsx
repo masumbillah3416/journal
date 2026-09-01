@@ -29,6 +29,25 @@
  * matters. The tabs go to `jumpTo` rather than `turnTo` because a jump has to
  * be anchored one page from its target first; see `useFlip.ts` for why.
  *
+ * `'use client'` HERE IS A HYDRATION BOUNDARY, NOT A RENDER BOUNDARY, and the
+ * distinction is load-bearing for the design spec's §8: "the server assembles
+ * one typed `BookBundle` and statically renders every page's content, so the
+ * deep links are indexable". It does. Next.js server-renders a client
+ * component's whole subtree into the initial HTML and ships JavaScript only to
+ * make it interactive, so `<PageFace>` being imported here does NOT move the
+ * pages' content into the browser. Verified rather than assumed, against a
+ * production `next build` + `next start` with `curl` (no JavaScript executed):
+ * `/p/1`, `/p/12` and `/p/33` each return ~64KB of HTML carrying all
+ * thirty-three pages, the cover's own
+ * `<h1 class="cover-module__title">Wanderings</h1>` among them. Re-run that
+ * `curl` before acting on any claim that this file's `'use client'` costs the
+ * deep links their SEO; it has been raised once already and did not survive
+ * the measurement. What the boundary DOES cost is script weight - the page
+ * components hydrate, so they are in the route's bundle - and that is the
+ * (separate, smaller) claim `docs/adr/0005-font-hosting.md` makes when it
+ * names moving the faces to server-rendered children as a way to buy LCP
+ * headroom for a third font family.
+ *
  * THE URL IS WRITTEN ON EVERY PAGE CHANGE, from one effect keyed on the
  * machine's committed index - which is the only moment the reader's page
  * actually changes, whether that came from a turn, a bookmark jump or an
