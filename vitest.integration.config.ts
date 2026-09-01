@@ -52,14 +52,24 @@
  * negotiated down to whatever it happens to score. The one exclusion is
  * `migrations/index.ts`, a generated barrel Payload never imports.
  *
- * `apps/web/app/**` is deliberately NOT included yet, and this is a Phase 1
- * requirement rather than an oversight. It holds four re-exports of Payload's
- * own handlers and the layout around them - no logic of ours, and nothing any
- * current test can execute without a Next.js request context. A threshold
- * against a directory with nothing in it to measure is theatre. Phase 1's
- * server actions and `BookBundle` mappers are the first real code to land
- * there, and the task that lands them adds `apps/web/app/**` to a coverage
- * `include` with a real threshold in the same commit.
+ * `apps/web/app/**` is NOT included here, and that is settled, not stale:
+ * Task 1 of Phase 1 added it to `vitest.config.ts`'s unit coverage include
+ * instead (with a 95%/95%/95% threshold that starts binding the moment
+ * Task 13's diary route lands there) - see that file's own header. Three of
+ * its six current files (Payload's `layout.tsx` and the two GraphQL routes)
+ * are `c8 ignore start`/`stop`-wrapped and fully excluded there. The other
+ * three sit under a Next.js dynamic-route bracket directory
+ * (`api/[...slug]/route.ts`, `cms/[[...segments]]/page.tsx` and its
+ * `not-found.tsx`) where that same ignore mechanism does not take effect - a
+ * verified `@vitest/coverage-v8` defect, not a choice - so they are excluded
+ * from `vitest.config.ts`'s coverage `include` by exact path. This pass does
+ * not pick them up either: nothing under `apps/web/scripts/**` or
+ * `apps/web/collections/**`'s integration tests imports a Payload route
+ * handler, so adding them to the `include` below would not measure them, only
+ * relocate the same 0-of-0 non-measurement here. That is the narrow,
+ * explicitly-named carve-out CLAUDE.md §2.1 now documents for a verified
+ * coverage-tooling bug against a file with zero authored logic - not a gap
+ * this phase failed to notice.
  *
  * `DATABASE_URL` points at `diary_test`, a separate database from `.env`'s
  * `diary` - never the developer's own dev data - for the same reason as

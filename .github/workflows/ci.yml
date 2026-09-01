@@ -130,19 +130,21 @@ jobs:
       # run before Task 13 lands; that reintroduces exactly the decorative
       # state this removal fixes.
       #
-      # Measured today (Task 1's own verification run, pasted in its task
-      # report), this step actually PASSES, not fails: Next's own 404
-      # response for the not-yet-built `/p/1` renders fast enough
-      # (~2.0s LCP, 0 CLS) to clear the diary's budget on its own merits as
-      # a trivial page — the red run the brief anticipated does not
-      # currently reproduce. That does not make this step decorative: it is
-      # now a real, hard assertion against whatever `/p/1` actually returns,
-      # with no escape hatch, and Task 13 landing a heavier real page is
-      # exactly the case this gate exists to catch if that page regresses
-      # past 2.5s. `/cms` keeps its own budget entry in lighthouserc.json
-      # (CLS only, no LCP) rather than sharing `/p/1`'s — CLAUDE.md §6
-      # scopes the 2500ms LCP budget to "diary, 4G" specifically, and
-      # holding Payload's heavy admin bundle to it was the original reason
-      # this whole step was informational.
+      # This step is RED today, and is meant to be, until Task 13 replaces
+      # `/p/1`'s 404 with the real diary page — lighthouserc.json's `/p/1`
+      # entry asserts `http-status-code` (fails on any 4xx/5xx) alongside
+      # LCP/CLS specifically so that a fast-rendering 404 cannot pass this
+      # gate on its own merits (Task 1 fix round 1 found the LCP/CLS-only
+      # version doing exactly that — a 404 measured ~2.0s LCP, clearing the
+      # 2500ms budget and reporting a green "diary LCP verified" against a
+      # page that does not exist, which is worse than an informational red:
+      # a plausible number reads as a real measurement). Do not remove
+      # `http-status-code` once `/p/1` is real and returns 200 on its own —
+      # it is why the LCP/CLS numbers mean anything, not leftover noise.
+      # `/cms` keeps its own budget entry in lighthouserc.json
+      # (`http-status-code` and CLS, no LCP) rather than sharing `/p/1`'s —
+      # CLAUDE.md §6 scopes the 2500ms LCP budget to "diary, 4G"
+      # specifically, and holding Payload's heavy admin bundle to it was
+      # the original reason this whole step was informational.
       - name: Lighthouse CI budgets
         run: npm run test:perf

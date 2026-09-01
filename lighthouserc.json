@@ -15,6 +15,7 @@
         {
           "matchingUrlPattern": ".*/p/1$",
           "assertions": {
+            "http-status-code": ["error", { "minScore": 1 }],
             "largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
             "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }]
           }
@@ -22,6 +23,7 @@
         {
           "matchingUrlPattern": ".*/cms$",
           "assertions": {
+            "http-status-code": ["error", { "minScore": 1 }],
             "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }]
           }
         }

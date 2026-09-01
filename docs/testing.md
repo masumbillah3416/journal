@@ -62,7 +62,12 @@ test can execute without a Next.js request context:
   in `vitest.config.ts`'s `exclude` array instead, with the glob's literal `[...]` escaped
   (`\[...\]`) so it is not parsed as a glob character class — the same reason the
   unescaped version silently failed to match at all during this task. See that file's own
-  comment for the full reasoning.
+  comment for the full reasoning. These three are therefore in NEITHER coverage config —
+  `vitest.integration.config.ts` cannot see them either, since nothing under its own
+  integration tests imports a Payload route handler (see that file's own header) — which
+  is the narrow, explicitly-named carve-out `CLAUDE.md` §2.1 now documents for a verified
+  coverage-tooling bug against a file with zero authored logic, not an unmeasured gap this
+  phase failed to notice.
 
 `apps/web/components/**` is genuinely empty as of this task (`.gitkeep` only) and carries
 no per-glob threshold override — a threshold against zero files is the vacuous pass
@@ -411,12 +416,13 @@ would claim a measurement nothing performs.
   `lighthouserc.json` now points `collect.url` at `http://localhost:3000/p/1` (the diary
   route Task 13 creates) and `http://localhost:3000/cms`, with per-URL budgets via
   `assert.assertMatrix` rather than one shared `assert.assertions` block: `/p/1` is held
-  to both `largest-contentful-paint` (≤2500ms) and `cumulative-layout-shift` (≤0.1); `/cms`
-  is held to `cumulative-layout-shift` only. `CLAUDE.md` §6 scopes the 2500ms LCP budget
-  to "diary, 4G" specifically — holding Payload's heavy admin bundle to it was the
-  original reason this whole step was informational, and giving `/cms` its own entry
-  with no LCP assertion is what stops that recurring now that `/cms` shares a config with
-  a real route. `.github/workflows/ci.yml`'s `browser` job no longer runs this step with
+  to `http-status-code` (`minScore: 1`), `largest-contentful-paint` (≤2500ms) and
+  `cumulative-layout-shift` (≤0.1); `/cms` is held to `http-status-code` and
+  `cumulative-layout-shift` only. `CLAUDE.md` §6 scopes the 2500ms LCP budget to "diary,
+  4G" specifically — holding Payload's heavy admin bundle to it was the original reason
+  this whole step was informational, and giving `/cms` its own entry with no LCP
+  assertion is what stops that recurring now that `/cms` shares a config with a real
+  route. `.github/workflows/ci.yml`'s `browser` job no longer runs this step with
   `continue-on-error` (see below).
 - **`/p/1` does not exist yet — Task 13 creates it — and that is deliberate, not an
   oversight.** The controller ruling for Task 1 was to land the hard gate *before* the
@@ -424,20 +430,26 @@ would claim a measurement nothing performs.
   still marked informational — Phase 0 shipped exactly that state once (`/cms` under
   `continue-on-error`) and it hid nothing because nobody was watching an
   informational job.
-- **Measured today, this does not reproduce as a failure — worth recording plainly.**
-  The brief anticipated `/p/1` failing honestly against a 404 until Task 13 lands the
-  real page. Run for real inside the pinned Playwright image (`npm run test:perf`,
-  `CHROME_PATH` pointed at that image's bundled Chromium — see below), Next's own 404
-  response for `/p/1` is small enough to clear the budget on its own merits:
-  `largest-contentful-paint` measured **~2039ms** (budget 2500ms) and
-  `cumulative-layout-shift` measured **0** — both pass. `/cms`'s `cumulative-layout-shift`
-  also measured **0** and passes; its `largest-contentful-paint` (measured ~5043ms) is no
-  longer asserted at all, by design. This does not make the gate decorative: it is a real,
-  hard assertion against whatever `/p/1` actually returns today, with no escape hatch, and
-  it is exactly the assertion Task 13 landing a heavier real page must clear honestly —
-  the false expectation was about which direction the *number* would land, not about
-  whether the gate is real. See this task's report for the pasted `lhci` run and the raw
-  `numericValue`s from the generated reports.
+- **`http-status-code` exists because the LCP/CLS budgets alone measured a vacuous
+  pass, not because the route's status code is interesting on its own.** First shipped
+  without it, this gate measured Next's own 404 response for `/p/1` at `largest-
+  contentful-paint` **~2039ms** (budget 2500ms) and `cumulative-layout-shift` **0** —
+  both cleared the budget, so CI reported a green "diary LCP budget verified" against a
+  page that does not exist, which is worse than the informational-red state it replaced:
+  a plausible 2039ms reads as a genuine successful measurement, where the earlier
+  `continue-on-error` at least visibly meant "not ready." `http-status-code` scores 0 for
+  any 4xx/5xx response and 1 otherwise (`node_modules/lighthouse/core/audits/seo/
+  http-status-code.js`) — added to `/p/1`'s `assertMatrix` entry, it fails the whole gate
+  outright against the 404 regardless of how fast that 404 happens to render, restoring
+  the intended red-until-Task-13 state. Verified: `lhci autorun` against the current 404,
+  inside the pinned Playwright image, fails with `http-status-code failure for minScore
+  assertion ... expected: >=1, found: 0` (see this task's report for the full pasted run).
+  Added to `/cms`'s entry too, for the same reason CLS is asserted there and LCP is not:
+  it costs nothing against a route that already returns 200, and catches the admin route
+  silently starting to 5xx, which is a real regression LCP/CLS alone would not surface.
+  Do not remove this assertion once `/p/1` is real and returns 200 on its own — it is the
+  reason the LCP/CLS numbers mean anything at all, not leftover noise from a
+  not-yet-built route.
 - **Requires `--no-sandbox --disable-dev-shm-usage`** (`lighthouserc.json`'s
   `collect.settings.chromeFlags`) to launch Chrome at all inside a container running as
   root: without `--no-sandbox`, Chrome refuses to start
