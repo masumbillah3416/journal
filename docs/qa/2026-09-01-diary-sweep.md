@@ -210,6 +210,26 @@ attached before the first `page.goto` on each context, per `CLAUDE.md` §10.
   `404 Other http://localhost:3000/favicon.ico` in `network-requests` and the same line
   as the sole entry in its `errors-in-console` audit.
 
+## Triage and resolution — 2026-09-02
+
+Appended after the fixes; the findings above are the record of the sweep and are
+left as they were written.
+
+| Defect | Sev | Outcome | Where |
+| ------ | --- | ------- | ----- |
+| DIARY-001 | S1 | **Fixed.** `.bookArea` given explicit `minmax(0, 1fr)` tracks, so `place-items: center` centres the design box in the same rectangle `useBookScale` measures. | `fix(diary): centre the scaled book in the area its scale is measured from` |
+| DIARY-002 | S2 | **Fixed by DIARY-001**, verified rather than assumed: 0 of 13 tabs blocked at every viewport, and a click on `[data-bookmark="11"]` reaches `/p/12`. No separate change was needed — with the book inside its own grid column it cannot lie over the rail. | same commit |
+| DIARY-003 | S2 | **Fixed by DIARY-001**, verified: both `[data-edge]` strips hit-test to themselves at 1440, 1000 and 390. | same commit |
+| DIARY-004 | S2 | **Fixed.** All six `diary-*` baselines regenerated in `mcr.microsoft.com/playwright:v1.62.1-noble` and asserted to show a book before being accepted. | `test(diary): regenerate the visual baselines over a book that is on the screen` |
+| DIARY-005 | S3 | **Deferred to Task 12**, which owns SCREENS.md §1.7's appearance and already lists the `[start, start + 3)` span, the counter's page label and the rail's active state as its own steps. Landing the `aria-current` alone would ship half of §1.7 and move these six baselines twice. Recorded on the task brief. | Task 12 |
+| DIARY-006 | S4 | **Fixed.** `apps/web/app/favicon.ico` added; `/favicon.ico` responds 200 on every route. | `fix(diary): serve an icon at /favicon.ico` |
+
+The LCP prediction in DIARY-001 held. On five production runs of `npm run test:perf`
+after the fix, `/p/1`'s LCP element is the cover title
+(`h1.cover-module__title`, "Wanderings") on four of five runs rather than a bookmark
+tab; median LCP 2482ms against the 2500ms budget, median script transfer 142998 bytes
+against 184320.
+
 ## Clean
 
 - **`/p/1`, `/p/2`, `/p/3` at 1440×900 (`desktop`)** — the book is centred, fills its
