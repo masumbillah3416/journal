@@ -47,7 +47,8 @@ import type { FlipState } from './flip'
  * here is meant to be assigned straight to CSS - `rotateDeg` into a
  * `rotateY()`, `zIndex` and `frontOpacity`/`backOpacity` into their
  * like-named properties, `visible` into `visibility`, `interactive` into
- * `pointer-events` - so the DOM layer never has to re-derive flip geometry.
+ * `pointer-events`, and `isTurning` into the shade's opacity and the leaf's
+ * transition duration - so the DOM layer never has to re-derive flip geometry.
  */
 export interface LeafPresentation {
   /** The leaf's `rotateY()` angle in degrees: `-180` once turned, `0` at rest. */
@@ -62,6 +63,15 @@ export interface LeafPresentation {
   readonly frontOpacity: number
   /** Opacity of the leaf's back face: the inverse of `frontOpacity`, so exactly one face is visible at any instant. */
   readonly backOpacity: number
+  /**
+   * Whether THIS leaf is the one physically turning right now. Published as a
+   * field of its own so the DOM layer can drive the two things that have no
+   * geometry field - the travelling shade, and which leaf gets a non-zero
+   * transition duration - without re-deriving "which leaf is turning" from
+   * `state.from`/`state.to`/`state.dir`, or reading it back off the `zIndex`
+   * this module happens to assign it (see this interface's own doc comment).
+   */
+  readonly isTurning: boolean
 }
 
 /**
@@ -74,7 +84,8 @@ export interface LeafPresentation {
  *   was deleted and the book got shorter) is clamped to the last real page,
  *   so a reader in that situation lands on a live page rather than a book
  *   where no leaf is visible or interactive at all.
- * @returns The leaf's rotation, stacking, visibility, interactivity and face opacities.
+ * @returns The leaf's rotation, stacking, visibility, interactivity, face
+ *   opacities, and whether it is the leaf actively turning.
  */
 export const leafPresentation = (leafIndex: number, state: FlipState, totalPages: number): LeafPresentation => {
   const inBounds = leafIndex < totalPages
@@ -113,5 +124,6 @@ export const leafPresentation = (leafIndex: number, state: FlipState, totalPages
     interactive: inBounds && leafIndex === currentIndex && !state.busy,
     frontOpacity,
     backOpacity,
+    isTurning: isTurningLeaf,
   }
 }

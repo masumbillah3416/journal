@@ -101,6 +101,19 @@ describe('leafPresentation', () => {
     expect(leafPresentation(40, stale, TOTAL).interactive).toBe(false)
   })
 
+  it('names the leaf that is actively turning, rather than leaving the DOM to read it back off a z-index', () => {
+    // This module's own header promises its fields "map one-to-one into
+    // rotateY(), zIndex, opacity, visibility and pointer-events, so the DOM
+    // layer never has to re-derive flip geometry". Before this field existed,
+    // `Leaf.tsx` identified the turning leaf by comparing `zIndex` against a
+    // literal 2000 - a re-derivation of exactly the kind that promise forbids,
+    // and one that would break silently the day the stacking table changed.
+    const turning = flipReducer(initialFlipState(3), { type: 'start', to: 4, now: 0 }, config)
+
+    expect(leafPresentation(3, turning, TOTAL).isTurning).toBe(true)
+    expect(leafPresentation(4, turning, TOTAL).isTurning).toBe(false)
+  })
+
   it('animates the destination leaf on a backward turn, not the leaf already at rest', () => {
     // Turned leaves lie at -180 on the left; going 5 -> 4 must un-turn leaf 4
     // (state.to). Leaf 5 (state.from) is already resting at 0 and never

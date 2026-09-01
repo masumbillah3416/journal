@@ -9,14 +9,14 @@
  * assigned straight across, and there is no `FlipState` in scope here to
  * re-derive anything from even by accident.
  *
- * The one thing it does read back rather than receive is which leaf is
- * turning, taken from the z-index the page stack itself assigned
- * ({@link TURNING_LEAF_Z_INDEX}). That drives the two things a
- * `LeafPresentation` has no field for - the travelling shade, and the
- * transition duration. Reading the domain's own output is not the re-deriving
- * that header forbids; recomputing "which leaf is turning" from `state.from`,
- * `state.to` and `state.dir` in the DOM layer would be, and is exactly the
- * mistake that produced Task 4's backward-turn defect.
+ * Which leaf is turning drives the two things no CSS property maps to
+ * directly - the travelling shade's opacity, and the transition duration -
+ * and it arrives as `presentation.isTurning`, a field of its own. It used to
+ * be read back by comparing `presentation.zIndex` against a literal 2000:
+ * still the domain's own output, but a re-derivation of flip geometry all the
+ * same, and one that would have started silently marking the wrong leaf the
+ * day the handoff's stacking table changed. Task 8 closed that seam by
+ * publishing the fact instead of inferring it.
  *
  * Three faces, in painting order: the front (which carries the page content),
  * the back (mirrored, contentless, and ALWAYS `pointer-events: none` - see
@@ -42,15 +42,6 @@ import type { LeafPresentation } from '@travel-diary/domain/pageStack'
 import type React from 'react'
 import styles from './book.module.css'
 
-/**
- * The stacking order `pageStack.ts` gives "the leaf actively turning" — the
- * handoff's own z-index table: turned pages `i + 1`, untouched `1000 - i`,
- * the turning leaf `2000`. It is read back here because a `LeafPresentation`
- * carries no "is turning" field of its own, and inventing one by recomputing
- * flip geometry in the DOM is what that module exists to prevent.
- */
-const TURNING_LEAF_Z_INDEX = 2000
-
 /** What one leaf needs to render itself. */
 export interface LeafProps {
   /** The leaf's 0-based position in the book, published as `data-leaf`. */
@@ -70,7 +61,7 @@ export interface LeafProps {
  * @returns The leaf, its two faces and its travelling shade.
  */
 export const Leaf = ({ index, presentation, durationMs, children }: LeafProps): React.JSX.Element => {
-  const isTurning = presentation.zIndex === TURNING_LEAF_Z_INDEX
+  const { isTurning } = presentation
 
   // A leaf that is not turning gets 0ms, not a missing transition: the
   // property stays declared in CSS so the performance budget is assertable at
