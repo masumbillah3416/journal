@@ -722,6 +722,57 @@ script-weight reduction this same task's ADR names as the next step).
   `http-status-code` 0 on both URLs. The status-code assertion is what makes that
   legible rather than a mysterious tenfold regression; free the port and re-run.
 
+- **The LCP gate is asserted against the MEDIAN of five runs, not one run — and the
+  median had to be asked for explicitly, because lhci's default would have loosened the
+  gate.** `/p/1`'s LCP sits within tens of milliseconds of its 2500ms budget, and
+  `numberOfRuns: 1` made the assertion a single sample of a noisy measurement rather
+  than a measurement: one clean run after an unrelated change read 2567.7ms and failed
+  the build. A gate that fails at random on unrelated commits teaches its authors to
+  re-run CI until it passes, which is how a hard gate becomes decorative. The fix is to
+  reduce the noise, not to raise the number: `collect.numberOfRuns` is **5**, and each
+  `assertMatrix` entry carries `"aggregationMethod": "median"`.
+
+  **Both halves are load-bearing.** `@lhci/utils`'s `getStandardAssertionResults`
+  defaults `aggregationMethod` to `'optimistic'`
+  (`node_modules/@lhci/utils/src/assertions.js`), and
+  `getValueForAggregationMethod` resolves `optimistic` on any `max*` assertion to
+  `Math.min(...values)` — the **best** run of the five. Raising `numberOfRuns` alone
+  would therefore have converted a one-sample gate into a best-of-five gate, which is
+  strictly weaker than what it replaced. Verified rather than reasoned about, by
+  asserting the same five collected runs at a threshold that falls between their
+  minimum and their median (2477ms): with `aggregationMethod: "median"` lhci reports
+  `found: 2478.053` and fails; with the default it passes on `2475.156`. `median` is
+  the right basis for a budget because it asks whether a typical load is within budget,
+  and because it cannot be moved by one outlier — two of five runs may spike without
+  changing the verdict.
+
+  Measured over five runs on the same production build: LCP **2481.976 · 2478.018 ·
+  2482.933 · 2478.053 · 2475.156** ms, median **2478.1ms** against the unchanged 2500ms
+  budget (21.9ms of headroom), spread 7.8ms. Script transfer **142998 bytes** on 7
+  requests, identical on every run, against the unchanged 184320 gate — 41322 bytes of
+  headroom. CLS 0 on every run. Five rather than three because the whole step is
+  dominated by the one production build it runs first; the five audits themselves cost
+  about a minute, and five is the smallest odd count that still tolerates two outliers.
+
+  **What that 2.5s actually measures is a projection, not a paint.** `lighthouserc.json`
+  inherits Lighthouse's default `throttlingMethod: "simulate"`, so the reported LCP is
+  Lantern's model of the trace on slow 4G (150ms RTT, 1638Kbps, 4x CPU), not an observed
+  timing. Observed LCP on these five runs was 617/367/344/340/311ms, equal to observed
+  FCP in every one: the server-rendered markup paints in a single frame. The LCP element
+  is `nav.rail > button.bookmarkTab` — a bookmark tab's text, not a photograph, not the
+  cover title — and its phase split is TTFB 454ms, load delay 0, load time 0, render
+  delay **2028ms (82%)**. Nothing is render-blocking in the HTML sense
+  (`render-blocking-resources` scores 1, `font-display` passes, both self-hosted faces
+  finish inside 70ms), so that render delay is the JS: Lantern's pessimistic LCP graph
+  treats every node as render-blocking and folds in every CPU node that performed layout
+  (`@paulirish/trace_engine/models/trace/lantern/metrics/LargestContentfulPaint.js`),
+  then takes the maximum node end time — which lands on the diary route's own bundle.
+  The corroboration is that simulated LCP equals simulated TTI exactly on every run, the
+  single long task is attributed to the 72KB route chunk, and `unused-javascript` flags
+  52KiB unused across that chunk and the 43KB one beside it. The lever, if this budget
+  ever needs headroom, is script weight on this route — which is the same lever
+  `docs/adr/0005-font-hosting.md` already names for the third font family.
+
 - **`http-status-code` exists because the LCP/CLS budgets alone measured a vacuous
   pass, not because the route's status code is interesting on its own.** First shipped
   without it, this gate measured Next's own 404 response for `/p/1` at `largest-
