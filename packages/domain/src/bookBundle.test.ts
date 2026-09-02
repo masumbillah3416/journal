@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveBookmarks, deriveContents, derivePages, pageCounter, pageLabel } from './bookBundle'
+import { deriveBookmarks, deriveContents, derivePages, deriveRail, pageCounter, pageLabel } from './bookBundle'
 import { aJourney } from './testing/factories'
 
 /**
@@ -156,5 +156,35 @@ describe('pageLabel', () => {
   it('labels the second frames page with the journey name', () => {
     const pages = derivePages([aJourney({ name: 'Tokyo' })])
     expect(pageLabel(must(pages.find((p) => p.kind === 'frames-ii')))).toBe('Tokyo — Frames II')
+  })
+})
+
+describe('deriveRail', () => {
+  it('labels every tab with the label of the page it opens', () => {
+    const pages = derivePages([aJourney({ name: 'Tokyo' })])
+
+    expect(deriveRail(pages, deriveBookmarks(pages))).toEqual([
+      { startIndex: 0, label: 'Cover' },
+      { startIndex: 1, label: 'Contents' },
+      { startIndex: 2, label: 'Tokyo — Notes' },
+      { startIndex: 5, label: 'About' },
+    ])
+  })
+
+  it('drops a tab that addresses a page the book does not have', () => {
+    // A bundle crosses a serialization boundary, so a rail and a reading
+    // sequence that disagree is a state the reading surface can be handed.
+    // The tab is dropped here rather than in the JSX that draws it, so the
+    // rule has a test.
+    const pages = derivePages([aJourney({ name: 'Tokyo' })])
+    const strayTab = { kind: 'about' as const, startIndex: pages.length + 4, span: 1 }
+
+    const rail = deriveRail(pages, [...deriveBookmarks(pages), strayTab])
+
+    expect(rail.map((tab) => tab.startIndex)).toEqual([0, 1, 2, 5])
+  })
+
+  it('draws no rail at all for a book with no bookmarks', () => {
+    expect(deriveRail(derivePages([]), [])).toEqual([])
   })
 })

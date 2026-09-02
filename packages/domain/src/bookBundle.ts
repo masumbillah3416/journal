@@ -353,6 +353,38 @@ export const deriveBookmarks = (pages: readonly BookPage[]): readonly BookmarkTa
 }
 
 /**
+ * One tab of the bookmark rail as the reading surface actually draws it: the
+ * page it opens, and the words printed on it. {@link BookmarkTab} carries the
+ * journey fields an editor's rail is derived FROM; this carries only what a
+ * tab needs to be drawn and clicked.
+ */
+export interface RailTab {
+  /** The 0-based page index this tab jumps to. */
+  readonly startIndex: number
+  /** The label printed on the tab, from {@link pageLabel}. */
+  readonly label: string
+}
+
+/**
+ * Labels the bookmark rail, dropping any tab that addresses a page the book
+ * does not have.
+ *
+ * A `BookBundle` crosses a serialization boundary, so a rail and a reading
+ * sequence that disagree is a state the reading surface can be handed. It was
+ * the surface that used to drop such a tab, silently, in JSX; doing it here
+ * means the rule is stated once, in the one place with a test that can prove
+ * it, and the surface receives a rail it can draw without deciding anything.
+ * @param pages - The reading sequence from {@link derivePages}.
+ * @param bookmarks - The rail from {@link deriveBookmarks}.
+ * @returns One labelled tab per bookmark that addresses a real page, in rail order.
+ */
+export const deriveRail = (pages: readonly BookPage[], bookmarks: readonly BookmarkTab[]): readonly RailTab[] =>
+  bookmarks.flatMap((tab) => {
+    const page = pages[tab.startIndex]
+    return page === undefined ? [] : [{ startIndex: tab.startIndex, label: pageLabel(page) }]
+  })
+
+/**
  * The `NN / NN` counter under the bottom bar, zero-padded to the total's width.
  * @param current - The 1-based current page number.
  * @param total - The total number of pages.
