@@ -876,9 +876,26 @@ script-weight reduction this same task's ADR names as the next step).
   then takes the maximum node end time — which lands on the diary route's own bundle.
   The corroboration is that simulated LCP equals simulated TTI exactly on every run, the
   single long task is attributed to the 72KB route chunk, and `unused-javascript` flags
-  52KiB unused across that chunk and the 43KB one beside it. The lever, if this budget
-  ever needs headroom, is script weight on this route — which is the same lever
-  `docs/adr/0005-font-hosting.md` already names for the third font family.
+  52KiB unused across that chunk and the 43KB one beside it.
+
+  **"The lever is script weight on this route" was this entry's original conclusion, and
+  it was wrong.** It has since been tried twice and measured twice.
+  `docs/adr/0007-server-rendered-page-faces.md` removed 11,465 bytes of page components
+  from the client chunk and moved LCP by 0.3ms.
+  `docs/adr/0008-lcp-budget-and-the-framework-floor.md` then measured what the route
+  costs with NO application code at all: a minimal server component rendering one styled
+  heading, in this same app, with no font, stylesheet, image or client component, still
+  downloads **137,986 bytes of JavaScript over six chunks** and models an LCP of
+  **2,023.2ms** with a 1,571.8ms render delay — 81% of the 2,500ms budget, before this
+  repository writes a line. A plain static `.html` file with the same heading, served by
+  the same server, measures 900.8ms. The 72KB chunk this entry blames is React DOM plus
+  the Next App Router client runtime, and it loads on every route in this application
+  whether or not anything on it is interactive; the diary's OWN chunk is 3,646 bytes,
+  2.57% of the route's script transfer, with no attributable bootup time at all. Script
+  weight is not a lever this repository holds. ADR 0008 sets out what is left — accept a
+  budget chosen from the measured floor, measure against a different Lighthouse preset,
+  or accept that this stack cannot meet 2.5s — and leaves the choice to the repository
+  owner. **The gate has not been raised, downgraded or removed, and is currently red.**
 
 - **`http-status-code` exists because the LCP/CLS budgets alone measured a vacuous
   pass, not because the route's status code is interesting on its own.** First shipped
