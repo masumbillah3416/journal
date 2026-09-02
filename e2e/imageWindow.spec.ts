@@ -39,7 +39,7 @@
  * Frames I on page 4 and its Frames II on page 5.
  */
 import { expect, test } from '@playwright/test'
-import { waitForLiveBook } from './support/liveBook'
+import { waitForLiveBook, wholeBookPath } from './support/liveBook'
 
 /** The 1x1 transparent GIF a deferred photograph carries; see `deferredPhotograph.ts`. */
 const DEFERRED = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
@@ -59,17 +59,26 @@ test('fetches no photograph at all for a page with none on it', async ({ page })
   expect(photographs).toEqual([])
 })
 
-test("keeps every page's words in the document while withholding its bytes", async ({ page }) => {
-  // The design spec's §8 requires the server to render every page's content
-  // so the deep links are indexable. It is the image BYTES that are deferred,
-  // never the markup: a distant leaf still carries its heading, its caption
-  // and its alt text, with only its `src` stood in for.
-  await page.goto('/p/1')
+test("keeps a page's words in the book while withholding its bytes", async ({ page }) => {
+  // The two windows do different things and this case is what keeps them
+  // apart. A leaf outside the IMAGE window still carries its heading, its
+  // caption and its alt text, with only its `src` stood in for — the markup
+  // is never what is deferred there.
+  //
+  // The leaf it asks about used to be 29, chosen because it was as far from
+  // the reader as the book allows. It is 4 now, because the CONTENT window
+  // (docs/adr/0009-server-rendered-page-window.md) means leaf 29's face is
+  // not in `/p/1`'s document at all until the book asks for the rest of
+  // itself — and this case is about the image window, not that one. Leaf 4 is
+  // inside every served window of `/p/2` and outside its image window, which
+  // is exactly the pairing this asserts.
+  await page.goto('/p/2')
+  await waitForLiveBook(page)
 
-  const distant = page.locator('[data-leaf="29"]')
-  await expect(distant).toContainText('Seville')
-  await expect(distant.locator('[data-hero]')).toHaveAttribute('src', DEFERRED)
-  await expect(distant.locator('[data-hero]')).not.toHaveAttribute('alt', '')
+  const distant = page.locator('[data-leaf="4"]')
+  await expect(distant).toContainText('Tokyo')
+  await expect(distant.locator('img').first()).toHaveAttribute('src', DEFERRED)
+  await expect(distant.locator('img').first()).not.toHaveAttribute('alt', '')
 })
 
 test("has the next page's photograph decoded before its leaf becomes visible", async ({ page }) => {
@@ -105,7 +114,13 @@ test("opens the window on a bookmark jump's destination at the first frame of th
   // have been preloaded. What must not happen is the destination waiting for
   // the turn to COMMIT before it is allowed to fetch: it has to be inside the
   // window from the first frame, so the 900ms of the turn is loading time.
-  await page.goto('/p/1')
+  //
+  // Opened on the whole-book address for the same reason `flip.spec.ts`'s
+  // anchor case is: this reads one animation frame after the click, and the
+  // SERVER's content window (a different window from this file's subject —
+  // docs/adr/0009-server-rendered-page-window.md) leaves leaf 29 without a
+  // face on the bare `/p/1` until the reader's first turn fetches it.
+  await page.goto(wholeBookPath(1))
   await waitForLiveBook(page)
   await expect(page.locator('[data-leaf="29"] [data-hero]')).toHaveAttribute('src', DEFERRED)
 

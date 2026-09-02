@@ -46,7 +46,7 @@
  * (`npm run db:seed`) whose first journey is Tokyo, starting on page 3 of 33.
  */
 import { expect, test } from '@playwright/test'
-import { waitForLiveBook } from './support/liveBook'
+import { waitForLiveBook, wholeBookPath } from './support/liveBook'
 
 test('turns forward on the right edge strip and back on the left', async ({ page }) => {
   await page.goto('/p/3')
@@ -118,7 +118,16 @@ test('a bookmark jump departs from the page beside its target, not from across t
   // the same page, so the difference is only visible while the turn is in
   // flight — which is what this reads. See this file's header for why the
   // click is dispatched from inside the page.
-  await page.goto('/p/30')
+  //
+  // It opens on the whole-book address rather than the bare one because it
+  // reads a SINGLE animation frame after the click, and a served document
+  // carries only a window of the book's pages until the reader's first turn
+  // brings the rest (docs/adr/0009-server-rendered-page-window.md). Leaf 2 is
+  // twenty-seven pages from this reader, so on the bare address the first
+  // frame after the click is the book waiting for a round trip — which is
+  // real behaviour, asserted in e2e/serverWindow.spec.ts, and not the anchor
+  // rule this case is about.
+  await page.goto(wholeBookPath(30))
   await waitForLiveBook(page)
 
   const inFlight = await page.evaluate(async (): Promise<readonly string[]> => {
