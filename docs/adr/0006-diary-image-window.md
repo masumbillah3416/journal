@@ -1,5 +1,16 @@
 # 0006 — The diary renders every page's markup, but only a window of pages' image bytes
 
+> **Superseded in one respect by `docs/adr/0009-server-rendered-page-window.md`.** This
+> document's premise — that every route's document carries all thirty-three pages'
+> markup — no longer holds: `/p/<n>` now renders only the addressed page and three
+> leaves either side, and the book asks the server for the rest on the reader's first
+> turn. Nothing about the image window itself changed: `loadsImages` is still `±1` plus
+> the turn's own two leaves, `visible` is still a subset of it, and a leaf inside the
+> served content window but outside the image window still carries all of its markup and
+> none of its bytes. What changed is that "inside the document" is now a smaller set than
+> "in the book", and the two windows are separate: this one is a function of the flip
+> machine, that one of the address.
+
 ## Context
 
 `Book.tsx` renders one `<Leaf>` per page of the reading sequence — all thirty-three of

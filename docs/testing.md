@@ -87,9 +87,14 @@ identically never imported by any test, but not under a bracketed directory — 
 correctly as 0 of 0 with no uncovered lines, while `(diary)/p/[n]/page.tsx`, wrapped
 exactly the same way, reported its whole body (lines 1–22) as uncovered. The bracket is
 the only difference between the two files, so it is the scanner that fails, not the file.
-The route itself was written to hold zero authored logic precisely so it could qualify:
-its one real decision — what `<n>` means — lives in `packages/domain/src/pageAddress.ts`
-with its own 100%-covered suite.
+The route itself was written to hold zero authored logic precisely so it could qualify,
+and it has kept that property as it grew: all three of its real decisions live in
+`packages/domain`, which is gated at 100%. What `<n>` means is `pageAddress.ts`'s
+`pageIndexFromParam`; which pages this particular request gets the content of, and
+whether a given leaf is one of them, are `contentWindow.ts`'s `servedContentWindow` and
+`rendersContent` (`docs/adr/0009-server-rendered-page-window.md`). The exclusion is only
+honest while that holds — a branch written into the route itself is a branch neither
+coverage config can reach.
 
 `apps/web/components/**` was genuinely empty until Phase 1 Task 7 (`.gitkeep` only) and
 carried no per-glob threshold override until then — a threshold against zero files is the
@@ -505,15 +510,46 @@ would claim a measurement nothing performs.
 
   The window itself is `leafPresentation.loadsImages`
   (`packages/domain/src/pageStack.ts`), unit-tested to 100% there. Three further cases
-  guard what a browser has to settle: that a distant leaf still carries its heading, its
-  caption and its alt text with only its `src` stood in for (the design spec's §8
-  indexability requirement — the bytes are deferred, never the markup); that the next
+  guard what a browser has to settle: that a leaf inside the served document but outside
+  the image window still carries its heading, its caption and its alt text with only its
+  `src` stood in for (the bytes are deferred, never the markup); that the next
   page's hero is already `complete` with a non-zero `naturalWidth` at the FIRST
   animation frame of the turn that reveals it, which is the "empty frame swinging into
   place" defect stated as an assertion; and that a bookmark jump's destination is inside
   the window from the first frame of the jump rather than only once the turn commits.
   The last two fire their trigger from inside `page.evaluate` and read one frame later,
   for the reasons `flip.spec.ts`'s header sets out.
+
+  Two of this file's cases moved when the SERVER's content window landed
+  (`docs/adr/0009-server-rendered-page-window.md`), and both moves are recorded at the
+  case rather than here. The "words in the document" case now asks about leaf 4 on
+  `/p/2` rather than leaf 29 on `/p/1`, because leaf 29's face is no longer in `/p/1`'s
+  document at all until the reader turns a page — and leaf 4 on `/p/2` is the pairing
+  the case actually wants: inside the served window, outside the image window. The
+  bookmark-jump case opens the whole-book address (`wholeBookPath`), because it reads a
+  single animation frame after the click and on a bare `/p/1` that frame is the book
+  waiting for one round trip. That waiting is real behaviour, and it is asserted in
+  `e2e/serverWindow.spec.ts` rather than left out.
+
+  **`e2e/serverWindow.spec.ts` (the server content window)** covers the other window,
+  and its first case is the one the whole change stands or falls on: it fetches all
+  **thirty-three** `/p/<n>` routes as raw HTML with `request.get`, parses each with
+  `DOMParser` — never `page.goto`, because a crawler runs no JavaScript and neither may
+  the assertion that a crawler is served — and requires each document's own leaf to
+  match, character for character, what the completed book renders on that leaf. It
+  compares against the live book rather than a transcription, so a page whose content
+  ever thins out breaks the case instead of quietly agreeing with a stale string.
+  9,945 characters of page text across the thirty-three routes.
+
+  Its five browser cases are the other half, because a document that indexes beautifully
+  and strands a reader on a blank leaf four turns in has not solved anything. They walk
+  the reader's own path — a bare `/p/<n>`, then turns — past the window's edge forwards
+  and backwards, across the book from a bookmark tab, and, with the book's own request
+  for the rest of itself **held up on the network for six seconds** by `page.route`, four
+  turns into a three-leaf window: the reader stops at the edge on a page with content on
+  it, and the fourth turn plays itself the moment the rest arrives. That last case is the
+  empty-leaf defect stated as an assertion, and it is the only place the held-move queue
+  can be observed in a browser.
 
   Two assertions in `pages.spec.ts` record a browser fact rather than the authored one, each with its
   reason at the assertion: Chromium reports the inner rule's `2.5px` border as `2px`
@@ -581,8 +617,8 @@ would claim a measurement nothing performs.
   not a Task 12 gap silently worked around — see `playwright.config.ts`'s header.
 - **Run:** `npm run test:e2e` (headless, runs `e2e/smoke.spec.ts`,
   `e2e/book.spec.ts`, `e2e/flip.spec.ts`, `e2e/layout.spec.ts`, `e2e/pages.spec.ts`,
-  `e2e/notes.spec.ts`, `e2e/frames.spec.ts`, `e2e/about.spec.ts` and
-  `e2e/imageWindow.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
+  `e2e/notes.spec.ts`, `e2e/frames.spec.ts`, `e2e/about.spec.ts`,
+  `e2e/imageWindow.spec.ts` and `e2e/serverWindow.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.

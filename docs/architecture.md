@@ -51,6 +51,7 @@ module, independently testable, named in its own header.
 | `bookBundle`                            | `packages/domain` + `apps/web/lib` | Payload rows in, one typed `BookBundle` out. The diary client reads nothing else.                                                                 |
 | `pageStack`                             | `packages/domain`                  | `(leafIndex, FlipState, totalPages) → LeafPresentation`. Every field maps one-to-one into CSS, so the DOM layer re-derives no flip geometry. `loadsImages` extends the same idea to the image window (`docs/adr/0006-diary-image-window.md`). |
 | `pageAddress`                           | `packages/domain`                  | `('<n>', totalPages) → leafIndex` and `leafIndex → '/p/<n>'`. The only translation between the 1-based page number a reader shares and the 0-based index the stack works in, in both directions. |
+| `contentWindow`                         | `packages/domain`                  | `(addressedIndex, totalPages) → ContentWindow`. Which leaves' faces a `/p/<n>` document carries — the SERVER's window, a function of the address, where `pageStack.loadsImages` is a function of the flip machine. Also owns the one search parameter with which the book asks for the rest (`docs/adr/0009-server-rendered-page-window.md`). |
 | `storage` / `mailer` / `transcodeQueue` | `apps/web/lib`                     | Ports with local and production adapters, one shared contract suite run against both                                                              |
 
 ### The book's DOM binding (`apps/web/components/book/`)
@@ -60,13 +61,14 @@ deliberately thin, and every file in it names what it is allowed to decide:
 
 | File              | Responsibility                                                                                                                                                                                         |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Book.tsx`        | The diary's single `'use client'` boundary. Composes frame, scaled design box, stack and every trigger; owns no arithmetic. Writes the URL on each committed page change.                               |
+| `Book.tsx`        | The diary's single `'use client'` boundary. Composes frame, scaled design box, stack and every trigger; owns no arithmetic. Writes the URL on each committed page change, once the book is whole. Holds a turn or jump the served document cannot show yet, rather than revealing an empty leaf. |
 | `Leaf.tsx`        | Assigns one `LeafPresentation` straight into `rotateY()`, `z-index`, `visibility`, `pointer-events`, the two face opacities and — from `isTurning` — the shade and transition duration.                 |
 | `PageFace.tsx`    | Dispatch only: it maps a `BookPage`'s `kind` onto the designed page component for it, and hands down which leaf it is printed on. It carries no `loadsImages` flag — the image window reaches a photograph through the context `Book.tsx` publishes (`docs/adr/0006-diary-image-window.md`), so a page cannot forget to honour it. |
 | `EdgeStrip.tsx`   | One page-edge turn strip, as a labelled button. Geometry lives in the stylesheet; see `docs/deviations.md` §8 for where it sits in the DOM and why.                                                     |
 | `useTurnKeys.ts`  | The four page-turn keys, bound on `window`. Never takes a key from a text field, and calls `preventDefault` only on a key it acts on.                                                                  |
 | `useFlip.ts`      | Injects a real clock into `flipReducer` from a single `requestAnimationFrame` loop that stops when the book settles. `jumpTo` anchors a bookmark jump one page from its target before turning.         |
 | `useBookScale.ts` | Feeds `bookScale` a measurement, re-measured on resize and through a `ResizeObserver`, always inside one animation frame.                                                                              |
+| `useRestOfBook.ts` | The one request that turns a windowed document into the whole book, made on the reader's first turn. A `router.replace` onto the SAME path with a query added — measured to be the only re-render that does not unmount the book (`docs/adr/0009-server-rendered-page-window.md`). |
 | `book.module.css` | The handoff's absolute geometry. Holds the three rules that record real defects: no `backface-visibility`, back faces always `pointer-events: none`, and only `transform`/`opacity` ever transitioned. |
 
 **A `.js` import specifier does not survive Turbopack, and is banned repository-wide.**
@@ -190,14 +192,22 @@ only `inline` deploys until video is turned back on.
   own tests can be about the browser (a swallowed click, a real transition) instead of
   re-testing geometry.
 - **`pageStack.loadsImages`** — the same argument, applied to bytes rather than
-  geometry. All thirty-three leaves are in the document (they must be: the design spec's
-  §8 requires every page's content in the served HTML so the deep links are indexable),
-  and they are stacked at `inset: 0`, so the browser treats every one of them as in the
-  viewport and `loading="lazy"` defers nothing. Deciding "is this leaf near enough to
-  fetch" beside the geometry that already answers "is this leaf visible" is what keeps
-  the two from disagreeing — `visible` is a subset of `loadsImages` by construction, so
-  a leaf can never swing into view carrying an empty frame. See
-  `docs/adr/0006-diary-image-window.md`.
+  geometry. All thirty-three leaves are in the document, stacked at `inset: 0`, so the
+  browser treats every one of them as in the viewport and `loading="lazy"` defers
+  nothing. Deciding "is this leaf near enough to fetch" beside the geometry that already
+  answers "is this leaf visible" is what keeps the two from disagreeing — `visible` is a
+  subset of `loadsImages` by construction, so a leaf can never swing into view carrying
+  an empty frame. See `docs/adr/0006-diary-image-window.md`.
+- **`contentWindow`** — the other window, and the reason there are two. `loadsImages`
+  needs the flip machine, which only a browser has; which pages' FACES belong in a
+  served document needs only the address, which is all a server render has. They are
+  therefore different functions of different inputs, and collapsing them would mean
+  either freezing the image window at the page the reader arrived on or asking the
+  server a question it cannot answer. What the two share is a property: a leaf can never
+  become visible whose content is not in the document, because `Book` holds any move the
+  window cannot serve until the rest of the book arrives. See
+  `docs/adr/0009-server-rendered-page-window.md`, whose "hard part" section is the
+  measurement behind that sentence.
 - **`pageAddress`** — a page component cannot be run without a Next request context, so
   arithmetic living inside one is arithmetic nothing can check. Keeping the one decision
   `/p/<n>` makes in the domain package is what leaves the route itself a passthrough.
