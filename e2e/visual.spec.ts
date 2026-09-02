@@ -3,20 +3,20 @@
  * every breakpoint.
  *
  * CLAUDE.md §2 requires a visual-regression suite covering "every page type
- * and every admin screen, at each breakpoint". Six exist today: `/cms`
+ * and every admin screen, at each breakpoint". Seven exist today: `/cms`
  * (Payload's own admin, which the bespoke admin replaces in a later phase)
- * and the diary's Cover, Contents and Notes pages from Phase 1 Tasks 9 and
- * 10, plus Frames I and Frames II from Task 11 (SCREENS.md §1.1-§1.5). About
- * joins this file as the rest of that task builds it.
+ * and all six of the diary's page kinds - Cover, Contents and Notes from
+ * Phase 1 Tasks 9 and 10, and Frames I, Frames II and About from Task 11
+ * (SCREENS.md §1.1-§1.6). Every page type the book has is now covered.
  *
- * THE TWO FRAMES BASELINES (`diary-frames-i-*`, `diary-frames-ii-*`) were
- * captured in the same pinned-container run as the regeneration of the six
- * that already existed, with `e2e/layout.spec.ts` green in that run, and
- * every resulting image was opened and looked at before being committed. The
- * six older files moved because `/p/1` renders every leaf of the book at
- * once: replacing twenty heading-only fallbacks with twenty designed pages
- * changes what is drawn behind the current leaf on every one of these
- * screenshots.
+ * THE TASK 11 BASELINES (`diary-frames-i-*`, `diary-frames-ii-*`,
+ * `diary-about-*`) were captured in the same pinned-container run as the
+ * regeneration of the six that already existed, with `e2e/layout.spec.ts`
+ * green in that run, and every resulting image was opened and looked at
+ * before being committed. The six older files moved because `/p/1` renders
+ * every leaf of the book at once: replacing thirty heading-only fallbacks
+ * with thirty designed pages changes what is drawn behind the current leaf on
+ * every one of these screenshots.
  *
  * THE NOTES BASELINES (Task 10) also forced the six `diary-cover-*`/
  * `diary-contents-*` files to be regenerated in the same run, and that is
@@ -183,4 +183,11 @@ test('matches the baseline screenshot of a journey’s Frames II page', async ({
   await settled(page, '[data-leaf="4"] [data-page="frames-ii"]')
 
   await expect(page).toHaveScreenshot('diary-frames-ii.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the About page', async ({ page }) => {
+  await page.goto('/p/33', { waitUntil: 'networkidle' })
+  await settled(page, '[data-leaf="32"] [data-page="about"]')
+
+  await expect(page).toHaveScreenshot('diary-about.png', { fullPage: true })
 })

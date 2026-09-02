@@ -113,6 +113,7 @@ const facesOf = (bundle: BookBundle): React.JSX.Element[] =>
       page={page}
       contents={bundle.contents}
       chrome={bundle.chrome}
+      about={bundle.about}
       totalPages={bundle.pages.length}
     />
   ))

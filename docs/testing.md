@@ -437,6 +437,26 @@ would claim a measurement nothing performs.
   which is the one half of SCREENS.md §1.2's "zero overflow" claim that can be checked
   here — the multi-column count cannot, see `docs/deviations.md` §9.
 
+  **`e2e/frames.spec.ts` and `e2e/about.spec.ts` (Phase 1 Task 11)** do the same job
+  for the three pages that carry the book's photographs. Two things in them are worth
+  knowing before editing either file.
+
+  The rotations are read to THREE DECIMAL PLACES, out of the resolved transform matrix.
+  SCREENS.md §1.4-§1.6 give each of the eight mounts its own authored angle (−1.6°,
+  −1.4°, −1.2°, −0.7°, −0.5°, +0.8°, +1.0°, +1.5°), and rounding them to whole degrees
+  — the technique `notes.spec.ts` uses for its badges at −6° and +5° — collapses six of
+  them onto −1, 0 and +1, so the cases would pass against a page that had swapped them.
+  The three mini stamps on About are the exception and are rounded, because their
+  angles are three degrees apart at the closest.
+
+  The focal point is proved on a `frame`-role slot and on the About portrait, not only
+  on the Notes hero. The portrait matters most: it is the one photograph in the diary
+  whose focal point comes from the MEDIA ITEM rather than from a `pages` slot, so it
+  travels a different path through `readBookBundle` and a wiring that held for slots
+  alone would leave it silently centred. Both use `notes.spec.ts`'s method — assert the
+  fit is `cover`, assert the computed position, screenshot the element at its focal
+  point and again forced back to `50% 50%`, and require the two buffers to differ.
+
   **`e2e/notes.spec.ts` (Phase 1 Task 10)** does the same job for the Notes page, and
   two of its cases exist because of defects that have already happened rather than ones
   somebody imagined.
@@ -585,7 +605,7 @@ would claim a measurement nothing performs.
   (`diary-cover-*.png`, `diary-contents-*.png`, all three projects), Task 10 the
   **Notes** page (`diary-notes-*.png`) and Task 11 **Frames I**, **Frames II** and
   **About** (`diary-frames-i-*.png`, `diary-frames-ii-*.png`, `diary-about-*.png`) —
-  every page type the book has. All six diary cases share one `settled()` helper (wait
+  every page type the book has, twenty-one files in all. All six diary cases share one `settled()` helper (wait
   for the section, for the design box's `scale(k)`, for `document.fonts.ready`, then for
   every image in the document to `decode()`); each of those four waits replaces a race,
   and none of them is a timeout.
@@ -668,14 +688,20 @@ would claim a measurement nothing performs.
   verdict, the ratio is measured from the rendered pixels and asserted anyway; an
   `incomplete` is never read as a pass.
 - **Status:** implemented for both routes that exist, and for each designed diary page
-  in turn — `/p/1` (Cover, Task 7), `/p/2` (Contents, Task 9) and `/p/3` (Notes, Task
-  10), because each page kind renders different markup on the same URL shape. All three
+  in turn — `/p/1` (Cover, Task 7), `/p/2` (Contents, Task 9), `/p/3` (Notes, Task 10)
+  and `/p/4`, `/p/5`, `/p/33` (Frames I, Frames II and About, Task 11), because each
+  page kind renders different markup on the same URL shape. All six
   call `expectNoAxeViolations(page)` with **no exclusions at all** — every rule in the
   full ruleset applies to a route this project authored, and `/cms`'s allowances below
-  must never be inherited by them. All three pass on all three viewport projects. The
+  must never be inherited by them. All six pass on all three viewport projects. The
   Notes case is the first with anything for `image-alt`, `definition-list` or
   `link-name` to judge: it is the first page in the diary with photographs, a
-  description list (the tally ticket) and a link styled as a button. `/cms`
+  description list (the tally ticket) and a link styled as a button. The two Frames
+  cases are three quarters and four fifths photograph, so a slot whose alt text went
+  missing would be most of the page; the About case is the one page in the book with
+  nothing clickable on it at all, and the one whose level-one heading is a static
+  string rather than editor content — which is what keeps `page-has-heading-one` green
+  on a book whose `about` global has never been filled in. `/cms`
   asserts `results.violations` is empty — zero violations, not "no critical violations"; CLAUDE.md's
   non-negotiables draw no line between severities. `expectNoAxeViolations` defaults to
   the FULL ruleset with no exclusions; a caller passes rule ids to disable only via its

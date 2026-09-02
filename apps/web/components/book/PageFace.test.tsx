@@ -5,22 +5,18 @@
  * that the Contents rows are real anchors to the right pages; what each
  * designed page then prints is asserted where it lives, in
  * `../pages/Cover.test.tsx`, `Contents.test.tsx`, `Notes.test.tsx`,
- * `FramesI.test.tsx` and `FramesII.test.tsx`. The anchor case
+ * `FramesI.test.tsx`, `FramesII.test.tsx` and `About.test.tsx`. All six kinds
+ * are covered here, one case each, because the dispatch is a `switch` whose
+ * exhaustiveness is the only thing standing between a new page kind and a
+ * blank face. The anchor case
  * stays here because it is what `e2e/book.spec.ts`'s pointer-events case
  * clicks — a link that is not actually a link, or points at the wrong page,
  * would make that proof meaningless.
  * Depends on: react, react-dom/client, @travel-diary/domain, vitest (jsdom).
  */
-import {
-  deriveContents,
-  derivePages,
-  pageLabel,
-  type BookPage,
-  type ContentsEntry,
-  type Slot,
-} from '@travel-diary/domain/bookBundle'
+import { deriveContents, derivePages, type BookPage, type ContentsEntry, type Slot } from '@travel-diary/domain/bookBundle'
 import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
-import { aBookChrome, aJourney } from '@travel-diary/domain/testing/factories'
+import { aBookChrome, anAboutContent, aJourney } from '@travel-diary/domain/testing/factories'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -78,7 +74,14 @@ const renderFace = (page: BookPage, entries: readonly ContentsEntry[] = contents
   act(() => {
     root.render(
       <ImageWindow value={[loadsImages]}>
-        <PageFace page={page} contents={entries} chrome={aBookChrome()} totalPages={pages.length} leafIndex={0} />
+        <PageFace
+          page={page}
+          contents={entries}
+          chrome={aBookChrome()}
+          about={anAboutContent()}
+          totalPages={pages.length}
+          leafIndex={0}
+        />
       </ImageWindow>,
     )
   })
@@ -115,12 +118,6 @@ describe('PageFace', () => {
     expect(host.querySelector('[data-page]')?.getAttribute('data-page')).toBe('contents')
   })
 
-  it('names the about page with the label the domain derives for it', () => {
-    const host = renderFace(pageOfKind('about'))
-
-    expect(host.querySelector('h1')?.textContent).toBe(pageLabel(pageOfKind('about')))
-  })
-
   it('dispatches a journey’s first frames page to the designed FramesI', () => {
     const host = renderFace(pageOfKind('frames-i'))
 
@@ -131,6 +128,12 @@ describe('PageFace', () => {
     const host = renderFace(pageOfKind('frames-ii'))
 
     expect(host.querySelector('[data-page]')?.getAttribute('data-page')).toBe('frames-ii')
+  })
+
+  it('dispatches the about page to the designed About', () => {
+    const host = renderFace(pageOfKind('about'))
+
+    expect(host.querySelector('[data-page]')?.getAttribute('data-page')).toBe('about')
   })
 
   it('links every contents row to the page its journey starts on', () => {
@@ -158,7 +161,10 @@ describe('PageFace', () => {
     expect(host.textContent).toContain(journeys[0]?.dates)
   })
 
-  it('renders no links on a page that is not the contents', () => {
+  it('renders no links on the about page, which is the end of the book', () => {
+    // SCREENS.md §1.6 draws the reply-to address as text rather than as a
+    // `mailto:` link — see `../pages/About.tsx`'s header — so this page is
+    // the one face in the book with nothing to click on it at all.
     const host = renderFace(pageOfKind('about'))
 
     expect(host.querySelectorAll('a')).toHaveLength(0)

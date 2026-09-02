@@ -7,8 +7,8 @@
  * diary's `/p/<n>`; the diary route is checked once per designed PAGE rather
  * than once per route, because each page kind renders different markup on the
  * same URL shape (Phase 1 Task 9 added the Cover and Contents cases, Task 10
- * the Notes page and Task 11 the two Frames pages; About joins as the rest of
- * that task builds it). Add one `test()` per route or page as the rest of the
+ * the Notes page and Task 11 the two Frames pages and About - all six page
+ * kinds the book has). Add one `test()` per route or page as the rest of the
  * public diary and the bespoke admin land.
  *
  * Every case calls `expectNoAxeViolations` (`e2e/support/axe.ts`) rather than
@@ -145,6 +145,20 @@ test('has no axe violations on /p/5, a journey’s Frames II page', async ({ pag
   // Also no exclusions. Four photographs and a footer whose gallery control
   // is a link styled as a button, so `image-alt`, `link-name` and
   // `color-contrast` all have something real to check.
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /p/33, the About page', async ({ page }) => {
+  await page.goto('/p/33')
+  await expect(page.locator('[data-leaf="32"] [data-page="about"]')).toBeVisible()
+
+  // Also no exclusions. This page has a list, a portrait, two long
+  // paragraphs, three `aria-hidden` stamps and - uniquely in the book -
+  // nothing clickable at all, so `list`, `image-alt`, `empty-heading` and
+  // `color-contrast` are what it exercises. It is also the page whose
+  // level-one heading is a static string rather than editor content
+  // (`About.tsx`'s header), which is what keeps `page-has-heading-one` green
+  // on a book whose `about` global has never been filled in.
   await expectNoAxeViolations(page)
 })
 

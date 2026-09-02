@@ -1,0 +1,68 @@
+/**
+ * postageStamp.module.css — the About page's mini stamp, SCREENS.md §1.6.
+ *
+ * Every number here is shared by all three of that page's stamps: "three mini
+ * stamps (56x68px faces, rotations -6deg / +4deg / -2deg)" — so the FACE is
+ * one size and one shape, and only the angle and the tint are per stamp.
+ * Those two arrive together in a class from `about.module.css`, which is why
+ * the face's gradient reads `--stamp-accent` rather than naming a colour: a
+ * custom property set on the mount inherits into the face, so one class per
+ * stamp carries both without this file giving up ownership of the gradient.
+ *
+ * NOTHING HERE IS RESPONSIVE AND NOTHING HERE REFLOWS — see
+ * `cover.module.css`'s header for why, and do not add a media query.
+ *
+ * THE PERFORATION IS A REPEATING RADIAL GRADIENT, not a border image: a
+ * 2.6px-radius dot of paper on a 6.5px pitch, painted over the same paper, so
+ * the mount's edge reads as punched holes. Its two colour stops are literals
+ * rather than tokens because they are a stop PAIR — `#fbf6e9` and its own
+ * fully transparent twin `rgba(251,246,233,0)` — and a custom property cannot
+ * express the second in terms of the first. `#fbf6e9` is
+ * `@travel-diary/tokens`' `--td-paper`; `notes.module.css` records the same
+ * exception for the same reason on the Notes page's stamp.
+ *
+ * `#f4ecd9` and `#fff`, the two printed lines, are also literals: the token
+ * table names neither, both are the prototype's own values, and the element
+ * they paint is `aria-hidden` decoration.
+ * Depends on: packages/tokens/src/tokens.css, loaded by the diary layout.
+ */
+
+/* The perforated paper mount the face is stuck to. */
+.mount {
+  padding: 3px;
+  border-radius: var(--td-radius-control);
+  background:
+    radial-gradient(circle 2.6px at 50% 50%, #fbf6e9 92%, rgba(251, 246, 233, 0) 95%) 0 0 / 6.5px 6.5px,
+    #fbf6e9;
+  filter: drop-shadow(0 2px 3px rgba(60, 44, 20, 0.28));
+}
+
+/* "56x68px faces". The tint arrives as `--stamp-accent` — see this file's
+ * header. */
+.face {
+  display: flex;
+  width: 56px;
+  height: 68px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px;
+  background: linear-gradient(170deg, var(--stamp-accent), rgba(0, 0, 0, 0.25));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+.country {
+  font-family: var(--td-font-courier);
+  font-size: 7px;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  color: #f4ecd9;
+}
+
+.value {
+  font-family: var(--td-font-courier);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #fff;
+}

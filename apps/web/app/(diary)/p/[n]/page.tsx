@@ -79,6 +79,7 @@ const DiaryPage = async ({ params }: DiaryPageProps): Promise<React.JSX.Element>
           page={page}
           contents={bundle.contents}
           chrome={bundle.chrome}
+          about={bundle.about}
           totalPages={totalPages}
         />
       ))}

@@ -300,47 +300,6 @@
   transition-duration: 0ms;
 }
 
-.page {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 46px 52px;
-  color: var(--td-ink-body);
-  font-family: var(--td-font-garamond);
-}
-
-.pageTitle {
-  margin: 0;
-  font-family: var(--td-font-caveat);
-  font-size: var(--td-diary-section-head);
-  font-weight: 400;
-  line-height: 1.1;
-  color: var(--td-ink);
-}
-
-.contentsList {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.contentsLink {
-  font-size: var(--td-diary-highlight);
-  font-family: var(--td-font-caveat);
-  color: var(--td-ink);
-  text-decoration-color: var(--td-hairline-border-max);
-}
-
-.contentsLink:hover,
-.contentsLink:focus-visible {
-  color: var(--td-accent-hover);
-}
-
 /* ---------------------------------------------------------------------------
  * The chrome outside the scaled box. BEHAVIOUR ONLY - SCREENS.md §1.7's
  * designed appearance (the rail's tint bars and active-tab shift, the 44px

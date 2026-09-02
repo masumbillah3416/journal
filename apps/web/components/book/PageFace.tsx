@@ -7,14 +7,11 @@
  * from `deriveContents`, both in `@travel-diary/domain/bookBundle`, so the
  * page numbers here are the same ones the bottom bar's counter will use.
  *
- * SCOPE. This task binds the flip machine to the DOM; the pages' own designed
- * layouts - Cover, Contents, Notes, Frames I/II and About, every measurement
- * of them absolute in SCREENS.md §1 - are Tasks 9 to 11, which replace this
- * component's per-kind bodies. Cover and Contents landed in Task 9, Notes in
- * Task 10 and the two Frames pages in Task 11; About is the last kind the
- * fallback below still renders, and the same task replaces it. What is there
- * is real content, never a placeholder string: the page is named with the
- * label the domain derives for it.
+ * EVERY PAGE KIND NOW REACHES A DESIGNED PAGE, and this component is
+ * therefore a pure dispatch with no fallback body of its own. Cover and
+ * Contents landed in Task 9, Notes in Task 10, and Frames I/II and About in
+ * Task 11; the exhaustive `switch` below is what makes a future seventh page
+ * kind a compile error here rather than a blank face at runtime.
  *
  * Contents rows are plain `/p/<n>` anchors rather than in-book flips because
  * the handoff requires the deep links to be real, indexable paths; wiring
@@ -37,18 +34,18 @@
  * photograph needs from this dispatch is only WHICH LEAF it is printed on —
  * `<Photograph>` looks the rest up in the context `Book.tsx` publishes. See
  * `../pages/Photograph.tsx`'s header.
- * Depends on: `BookPage`/`ContentsEntry`/`pageLabel` (@travel-diary/domain/bookBundle),
- * ../pages/Cover, ../pages/Contents, ../pages/Notes, ../pages/FramesI,
- * ../pages/FramesII, ./book.module.css.
+ * Depends on: `BookPage`/`ContentsEntry`/`AboutContent`/`BookChrome`
+ * (@travel-diary/domain/bookBundle), ../pages/Cover, ../pages/Contents,
+ * ../pages/Notes, ../pages/FramesI, ../pages/FramesII, ../pages/About.
  */
-import { pageLabel, type BookChrome, type BookPage, type ContentsEntry } from '@travel-diary/domain/bookBundle'
+import type { AboutContent, BookChrome, BookPage, ContentsEntry } from '@travel-diary/domain/bookBundle'
 import type React from 'react'
+import { About } from '../pages/About'
 import { Contents } from '../pages/Contents'
 import { Cover } from '../pages/Cover'
 import { FramesI } from '../pages/FramesI'
 import { FramesII } from '../pages/FramesII'
 import { Notes } from '../pages/Notes'
-import styles from './book.module.css'
 
 /** What one page face needs to render itself. */
 export interface PageFaceProps {
@@ -58,6 +55,8 @@ export interface PageFaceProps {
   readonly contents: readonly ContentsEntry[]
   /** The `book` global's editor-supplied fields, printed by Cover and Contents. */
   readonly chrome: BookChrome
+  /** The `about` global's editor-supplied content, printed by the About page. */
+  readonly about: AboutContent
   /** The book's total page count, for the Contents footer's tally. */
   readonly totalPages: number
   /** Which leaf of the book this face is printed on, for the image window to look up. */
@@ -68,37 +67,33 @@ export interface PageFaceProps {
  * Renders the content of a single page.
  *
  * @param props - The page to render, the book's Contents index, the book's
- *   chrome, its total page count and the leaf it is printed on.
- * @returns The designed page for that kind, or - for About, whose design is
- *   the rest of this task - the page's heading.
+ *   chrome and About content, its total page count and the leaf it is
+ *   printed on.
+ * @returns The designed page for that kind. The `switch` is exhaustive over
+ *   {@link BookPage}'s six kinds and returns from every arm, so a seventh
+ *   kind added to the domain fails to compile here rather than rendering
+ *   nothing.
  */
-export const PageFace = ({ page, contents, chrome, totalPages, leafIndex }: PageFaceProps): React.JSX.Element => {
-  if (page.kind === 'cover') return <Cover chrome={chrome} />
-
-  if (page.kind === 'contents') {
-    return <Contents entries={contents} note={chrome.contentsNote} totalPages={totalPages} />
+export const PageFace = ({
+  page,
+  contents,
+  chrome,
+  about,
+  totalPages,
+  leafIndex,
+}: PageFaceProps): React.JSX.Element => {
+  switch (page.kind) {
+    case 'cover':
+      return <Cover chrome={chrome} />
+    case 'contents':
+      return <Contents entries={contents} note={chrome.contentsNote} totalPages={totalPages} />
+    case 'notes':
+      return <Notes page={page} showDecorations={chrome.showDecorations} leafIndex={leafIndex} />
+    case 'frames-i':
+      return <FramesI page={page} showDecorations={chrome.showDecorations} leafIndex={leafIndex} />
+    case 'frames-ii':
+      return <FramesII page={page} showDecorations={chrome.showDecorations} leafIndex={leafIndex} />
+    case 'about':
+      return <About content={about} showDecorations={chrome.showDecorations} leafIndex={leafIndex} />
   }
-
-  if (page.kind === 'notes') {
-    return <Notes page={page} showDecorations={chrome.showDecorations} leafIndex={leafIndex} />
-  }
-
-  if (page.kind === 'frames-i') {
-    return <FramesI page={page} showDecorations={chrome.showDecorations} leafIndex={leafIndex} />
-  }
-
-  if (page.kind === 'frames-ii') {
-    return <FramesII page={page} showDecorations={chrome.showDecorations} leafIndex={leafIndex} />
-  }
-
-  // About is the one kind left, so there is nothing to discriminate on and
-  // nothing but its own name to print: `pageLabel` derives "About", the same
-  // string the bottom bar's page label uses. The journey meta line the
-  // fallback used to carry went with the Frames pages, which were the last
-  // kinds that had a `place` and `dates` to put in it.
-  return (
-    <article className={styles.page}>
-      <h1 className={styles.pageTitle}>{pageLabel(page)}</h1>
-    </article>
-  )
 }
