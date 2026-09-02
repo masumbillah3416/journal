@@ -138,7 +138,7 @@ runtime and Payload's shared chunks, and that — plus the Caveat face under Lig
 
 ### What it did buy
 
-- The diary's own client chunk: **19,930 → 8,042 bytes** raw, 6,400 → 3,348 transferred.
+- The diary's own client chunk: **19,930 → 8,042 bytes** raw, 6,400 → 3,646 transferred.
   Verified by grep: no client JS chunk now contains `POSTA AEREA`, `cover-module__`,
   `contents-module__`, `notes-module__` or any Notes copy. Only the 43-byte placeholder
   GIF remains, in `Photograph`, where it belongs.

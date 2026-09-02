@@ -28,7 +28,7 @@
  * into the client `<Book>` as children — so this file, `Cover`, `Contents`,
  * `Notes`, the four slot components and their three stylesheets' class maps
  * are all absent from the route's script bundle. Measured: the diary's client
- * chunk went from 19,930 bytes to 8,449 (6,400 to 3,348 over the wire) when
+ * chunk went from 19,930 bytes to 8,042 (6,400 to 3,646 over the wire) when
  * they left it. Do not add a hook, a handler or a `'use client'` to anything
  * this file reaches without re-reading `docs/adr/0007-server-rendered-page-faces.md`
  * — one of them is enough to pull the whole subtree back into the browser.

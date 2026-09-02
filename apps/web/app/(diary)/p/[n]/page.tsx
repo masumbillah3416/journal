@@ -19,8 +19,8 @@
  * and three stylesheets' class maps all shipped. Rendering them here instead
  * and passing them down as `children` means they cross into the client as an
  * already-rendered payload with no component code behind it. Measured on
- * `/p/1`: the diary's own client chunk fell from 19,930 bytes to 8,449 (6,400
- * to 3,348 transferred) and total script transfer from 144,386 to 141,334.
+ * `/p/1`: the diary's own client chunk fell from 19,930 bytes to 8,042 (6,400
+ * to 3,646 transferred) and total script transfer from 144,386 to 141,632.
  * LCP did not move at all - see `docs/adr/0007-server-rendered-page-faces.md`,
  * which records both numbers, because the second one is the one a future task
  * needs.
