@@ -56,8 +56,8 @@
  * practical consequence is that Caveat+EB Garamond's true margin is thin
  * (single-digit milliseconds was observed more than once) and this route's
  * CI runs on this exact gate should be read as "usually passes, not
- * comfortably" until Task 9's structural fix (below) gives it real
- * headroom. This measurement was also taken through a Windows-host Docker
+ * comfortably". (Task 9's structural fix has since landed and did not give
+ * it headroom - see the re-measured table below.) This measurement was also taken through a Windows-host Docker
  * bind mount, whose I/O characteristics differ from a native Linux CI
  * runner in ways this investigation could not isolate from genuine
  * network-contention effects - reported as a caveat on the noise itself,
@@ -74,14 +74,38 @@
  * `./fonts/courier-prime-regular.woff2` and `./fonts/courier-prime-bold.woff2`,
  * and EB Garamond's italic file remains committed at
  * `./fonts/eb-garamond-italic.woff2` (none deleted) - re-enabling any of
- * them is a `localFont` call away, not a new download, the moment this
- * route has real headroom again. The concrete way to get there is Task 9's
- * own deferred item, not this task's to build: its report already named
- * "have the server route pre-render the page faces and pass them into
- * `Book` as children" as the fix for this route's script weight sharing the
- * connection with these fonts. Re-run the table above (several times, on a
- * freshly-cleared volume) once that lands, before concluding any deferred
- * face must stay a fallback forever.
+ * them is a `localFont` call away, not a new download.
+ *
+ * THE STRUCTURAL FIX THIS HEADER WAS WAITING FOR HAS LANDED, AND THE TABLE
+ * ABOVE NO LONGER REPRODUCES. "Have the server route pre-render the page
+ * faces and pass them into `Book` as children" was built and measured
+ * (`docs/adr/0007-server-rendered-page-faces.md`): it recovered 2,754 bytes
+ * of script transfer and moved `/p/1`'s LCP by nothing at all - 2,634.368ms
+ * before, 2,634.656ms after, render delay 2,180ms on both sides. The table
+ * was then re-run on top of it, exactly as this paragraph used to ask:
+ *
+ *   Fonts self-hosted           requests   `/p/1` LCP, 5 runs, median         Gate
+ *   --------------------------  --------   ---------------------------------  ----
+ *   Caveat + EB Garamond (this)     14     2,634.656ms                        FAIL
+ *   Caveat + Garamond + Courier     16     2,632.984ms                        FAIL
+ *                                          2649.0/2632.0/2633.0/2632.4/2634.3
+ *
+ * A third family is now free - 38,886 extra bytes and two extra requests
+ * moved the median by less than the noise, and the row above that once read
+ * "FAIL (gate 2,500ms)" at 2,638-2,641ms for this configuration now reads
+ * the same as the two-font one. What changed is not the font cost but the
+ * floor beneath it: this route sits at ~2,634ms whatever the fonts do,
+ * because a 2,180ms render delay that neither scripts nor fonts explain
+ * dominates it.
+ *
+ * The faces are STILL NOT WIRED, and that is now a decision rather than a
+ * measurement: there is no headroom to spend, one five-run sample near this
+ * margin is exactly what the noise note above warns against, and putting
+ * 38,886 more bytes on a route that is already 135ms over its budget is not
+ * something to do in passing. Wiring Courier Prime is a `localFont` call,
+ * a `--td-font-courier` line in `diary.css`, a class on `layout.tsx`'s
+ * `<html>`, and an update to `e2e/pages.spec.ts`'s pinned-fallback test -
+ * which will fail the moment it is done, by design.
  *
  * Files, weights, and why:
  *   - caveat-400.woff2      — Caveat, weight 400. A static single-weight

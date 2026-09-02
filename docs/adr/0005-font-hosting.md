@@ -139,14 +139,31 @@ mechanism — is most of what this document exists to record.
   another; `lighthouserc.json`'s `numberOfRuns: 1` is unchanged by this task, but this
   route's true position relative to the gate should be read as "usually passes" rather
   than "comfortably passes" until the next item lands.
-- **The real fix for headroom is already named and is not this ADR's to build**: Task
-  9's own report identified that `Cover` and `Contents` render inside `Book.tsx`'s
-  client boundary and so contribute to the diary route's script bundle, and recommended
-  having the server route pre-render page faces and pass them into `Book` as children.
-  Doing that shrinks the JS competing with these font requests for the same
-  connection/bandwidth and is very likely enough to restore Courier Prime (and the two
-  secondary faces) within the same gate — re-run `fonts.ts`'s measured table, on a
-  freshly-cleared Docker volume, before concluding otherwise.
+- **The fix named here as "the real fix for headroom" has since been built, measured,
+  and did not work.** This ADR expected that moving the page faces out of `Book.tsx`'s
+  client boundary into server-rendered children would shrink the JS competing with these
+  font requests and very likely make room for Courier Prime. It was built
+  (`docs/adr/0007-server-rendered-page-faces.md`) and it recovered 2,754 bytes of script
+  transfer — and **LCP did not move at all**: 2,634.368 ms before, 2,634.656 ms after,
+  render delay 2,180 ms both times. There is no headroom, and this route never had a
+  script-weight problem of the size that would produce one.
+
+  **The table was then re-run as this section asked, and this ADR's own finding did not
+  reproduce.** Courier Prime 400 and 700 wired on top of that change measured a
+  **2,632.984 ms** median over five runs against the two-font configuration's
+  **2,634.656 ms** — 38,886 extra bytes and four font requests instead of two, for a
+  difference smaller than the run-to-run noise. The "LCP crosses the gate the moment a
+  third font is self-hosted" conclusion recorded above was true when it was measured and
+  is not true now; what changed is the floor beneath it, since `/p/1` now sits at
+  ~2,634 ms with two fonts or with four, 135 ms over the gate, on a render delay that
+  neither scripts nor fonts explain.
+
+  The deferral therefore **stands, on a different and weaker footing than this ADR
+  claims**: not "a third font breaks the gate" but "the gate is already broken and this
+  is not the task that decides to spend 38,886 more bytes on a red route". Restoring
+  Courier Prime is now a decision waiting to be taken, not a measurement waiting to be
+  made. `docs/deviations.md` §11's rationale should be read with this paragraph beside
+  it.
 - **Courier Prime, EB Garamond's italic face, and every weight above 400 for the two
   loaded families render in generic fallbacks today** — an intentional, documented,
   reversible scope reduction from the handoff's full specification, not a silent gap.

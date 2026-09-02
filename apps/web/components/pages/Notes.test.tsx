@@ -31,6 +31,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 import { DEFERRED_PHOTOGRAPH_SRC } from './deferredPhotograph'
 import { Notes } from './Notes'
+import { ImageWindow } from './Photograph'
 
 const roots: Root[] = []
 
@@ -72,9 +73,13 @@ const aNotesPage = (journey: Partial<Journey> = {}, slots?: readonly Slot[]): Jo
 
 /**
  * Renders the notes page and hands back the host element.
+ *
+ * The page is printed on leaf 0 and the window is published the way `Book.tsx`
+ * publishes it, as a context - which is the only way it can reach a
+ * photograph now that this page is a server component (see `./Photograph.tsx`).
  * @param page - The journey's notes page.
  * @param showDecorations - The book global's decorations flag.
- * @param loadsImages - Whether this leaf is inside the reader's image window.
+ * @param loadsImages - Whether the window admits the leaf this page is on.
  * @returns The host element the page was rendered into.
  */
 const renderNotes = (page: JourneyPage, showDecorations = true, loadsImages = true): HTMLElement => {
@@ -83,7 +88,11 @@ const renderNotes = (page: JourneyPage, showDecorations = true, loadsImages = tr
   const root = createRoot(host)
   roots.push(root)
   act(() => {
-    root.render(<Notes page={page} showDecorations={showDecorations} loadsImages={loadsImages} />)
+    root.render(
+      <ImageWindow value={[loadsImages]}>
+        <Notes page={page} showDecorations={showDecorations} leafIndex={0} />
+      </ImageWindow>,
+    )
   })
   return host
 }
@@ -392,9 +401,13 @@ describe('Notes — the image window', () => {
   // photographs — 1,820,504 bytes — with the reader on the Cover, because
   // every leaf is in the document and stacked at `inset: 0`, so
   // `loading="lazy"` considers all of them in the viewport. The window that
-  // fixes it is `leafPresentation.loadsImages`; what is asserted here is that
-  // this page HONOURS it, and that honouring it costs the page none of the
-  // text the design spec's §8 requires to stay indexable.
+  // fixes it is `leafPresentation.loadsImages`, and this page reaches it
+  // through `<Photograph>`; what is asserted here is that the page's
+  // photographs END UP windowed, and that windowing them costs the page none
+  // of the text the design spec's §8 requires to stay indexable. Which `src`
+  // one photograph carries for a given window is `Photograph.test.tsx`'s
+  // subject; these cases exercise the whole page through the same seam the
+  // book uses.
 
   it('withholds the source of a photograph on a leaf the reader is nowhere near', () => {
     const host = renderNotes(aNotesPage({}, [aHeroSlot(), anEphemeraSlot()]), true, false)

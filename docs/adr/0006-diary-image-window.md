@@ -101,10 +101,20 @@ an image box). See `apps/web/components/pages/deferredPhotograph.ts`.
   the same 7,805 characters of page text across all thirty-three leaves before and
   after, with all twenty `<img>` elements and all ten non-empty `alt` attributes still
   present. Only the twenty `src="/api/media/file/…"` attributes are gone.
-- **Every page component that prints a photograph now takes a `loadsImages` prop**, from
-  `PageFace` down. Task 11's Frames I/II pages must take it too; a page that ignores it
-  puts its journey's photographs back in every route's initial load. This is the one
-  standing obligation this decision creates.
+- ~~**Every page component that prints a photograph now takes a `loadsImages` prop**,
+  from `PageFace` down. Task 11's Frames I/II pages must take it too; a page that ignores
+  it puts its journey's photographs back in every route's initial load. This is the one
+  standing obligation this decision creates.~~ **Discharged by
+  `docs/adr/0007-server-rendered-page-faces.md`.** The page components are now rendered
+  on the server and no longer carry the flag at all: `Book` publishes the window on a
+  React context and `apps/web/components/pages/Photograph.tsx` — the single `<img>`
+  component every page prints its photographs through — reads its own leaf's entry. A
+  page cannot ignore the window any more, because it never sees it. Frames I/II inherit
+  the behaviour by rendering a `<Photograph>`; they have nothing to remember.
+
+  The window's arithmetic, its ±1 width, its `visible ⊆ loadsImages` property and its
+  placeholder `src` are all unchanged by that ADR — only the route from
+  `leafPresentation` to the `<img>` is.
 - The window is deliberately not configurable. A wider window is more bytes and a
   narrower one is pop-in; ±1 is the smallest window that preloads a turn, and there is
   no second caller to serve (CLAUDE.md §4).

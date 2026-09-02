@@ -16,15 +16,26 @@
  * `useFlip`, which already covers commit. What a started turn shows in the
  * DOM is its destination leaf becoming visible - and, for a bookmark jump,
  * WHICH leaf that turn departs from, which is the anchor rule made observable.
+ *
+ * `renderBook` BUILDS THE FACES THE WAY THE ROUTE DOES, and deliberately so.
+ * `Book` no longer renders the pages; the `/p/<n>` route renders them on the
+ * server and passes them in as `children` (see `Book.tsx`'s header). A helper
+ * that handed this component some other children would be testing a
+ * composition nothing ships, so this one calls `<PageFace>` and `deriveRail`
+ * exactly as `app/(diary)/p/[n]/page.tsx` does - which is also what makes the
+ * image-window cases at the foot of this file meaningful: they run the real
+ * seam, from `leafPresentation` through the context to a real `<Photograph>`.
  * Depends on: react, react-dom/client, @travel-diary/domain, vitest (jsdom).
  */
 import {
   deriveBookmarks,
   deriveContents,
   derivePages,
+  deriveRail,
   pageCounter,
   type BookBundle,
   type BookPage,
+  type RailTab,
   type Slot,
 } from '@travel-diary/domain/bookBundle'
 import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
@@ -34,6 +45,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 import { DEFERRED_PHOTOGRAPH_SRC } from '../pages/deferredPhotograph'
 import { Book } from './Book'
+import { PageFace } from './PageFace'
 
 /** Brands a test journey id, so two fixtures in one book are never the same journey (CLAUDE.md §7). */
 const anId = (raw: string): JourneyId => {
@@ -81,13 +93,39 @@ const heroSrcOfLeaf = (host: HTMLElement, leaf: number): string =>
 
 const roots: Root[] = []
 
-const renderBook = (initialIndex: number, bundle: BookBundle = aBundle()): HTMLElement => {
+/**
+ * The thirty-three (here, nine) faces the `/p/<n>` route renders on the
+ * server, built here the same way - see this file's header.
+ * @param bundle - The book to render faces for.
+ * @returns One face per page, in reading order.
+ */
+const facesOf = (bundle: BookBundle): React.JSX.Element[] =>
+  bundle.pages.map((page, index) => (
+    <PageFace
+      key={index}
+      leafIndex={index}
+      page={page}
+      contents={bundle.contents}
+      chrome={bundle.chrome}
+      totalPages={bundle.pages.length}
+    />
+  ))
+
+const renderBook = (
+  initialIndex: number,
+  bundle: BookBundle = aBundle(),
+  bookmarks: readonly RailTab[] = deriveRail(bundle.pages, bundle.bookmarks),
+): HTMLElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
   roots.push(root)
   act(() => {
-    root.render(<Book bundle={bundle} initialIndex={initialIndex} />)
+    root.render(
+      <Book bookmarks={bookmarks} initialIndex={initialIndex}>
+        {facesOf(bundle)}
+      </Book>,
+    )
   })
   return host
 }
@@ -136,10 +174,21 @@ afterEach(() => {
 })
 
 describe('Book', () => {
-  it('renders one leaf for every page in the reading sequence', () => {
+  it('renders one leaf for every face it was handed', () => {
     const host = renderBook(0)
 
     expect(host.querySelectorAll('[data-leaf]')).toHaveLength(aBundle().pages.length)
+  })
+
+  it('slots each face into the leaf of the same index, never one off', () => {
+    // The faces arrive as an opaque list of children and the book never
+    // learns what is printed on them, so the only thing keeping page 5 off
+    // leaf 4 is the position it is slotted at. Asserted on a page whose text
+    // names its own journey, at both ends of the stack.
+    const host = renderBook(0)
+
+    expect(one(host, '[data-leaf="2"]').textContent).toContain('Tokyo')
+    expect(one(host, '[data-leaf="5"]').textContent).toContain('Lisbon')
   })
 
   it('opens on the page the reader asked for', () => {
@@ -254,23 +303,19 @@ describe('Book', () => {
     expect(visibleLeaves(host)).toContain('1')
   })
 
-  it('renders one bookmark tab for every tab the rail derives', () => {
+  it('renders one bookmark tab for every tab in the rail it was handed', () => {
     const host = renderBook(0)
 
     expect(host.querySelectorAll('[data-bookmark]')).toHaveLength(aBundle().bookmarks.length)
   })
 
-  it('renders no tab for a bookmark that addresses a page the book does not have', () => {
-    // `BookBundle` crosses a serialization boundary, so a rail and a reading
-    // sequence that disagree is a state this client can be handed. Such a tab
-    // renders nothing, rather than taking the whole rail down with it.
-    const bundle = aBundle()
-    const host = renderBook(0, {
-      ...bundle,
-      bookmarks: [...bundle.bookmarks, { kind: 'about', startIndex: bundle.pages.length + 4, span: 1 }],
-    })
+  it('prints the label the rail carries, rather than deriving one of its own', () => {
+    // The book is handed a labelled rail and never sees the pages behind it -
+    // dropping a tab that addresses a page the book does not have is
+    // `deriveRail`'s job now, proved in packages/domain/src/bookBundle.test.ts.
+    const host = renderBook(0, aBundle(), [{ startIndex: 2, label: 'Tokyo — Notes' }])
 
-    expect(host.querySelectorAll('[data-bookmark]')).toHaveLength(bundle.bookmarks.length)
+    expect([...host.querySelectorAll('[data-bookmark]')].map((tab) => tab.textContent)).toEqual(['Tokyo — Notes'])
   })
 
   it('anchors a bookmark jump one page from its target, so the turn plays in the direction of travel', () => {
@@ -302,6 +347,19 @@ describe('Book', () => {
   // and `packages/domain/src/pageStack.test.ts` proves the arithmetic; what is
   // asserted here is that the book actually WIRES that decision to the leaves,
   // which is where Task 10's 1.8MB of eager photographs came from.
+
+  it('publishes the window the faces look themselves up in, so a face needs no flag of its own', () => {
+    // The faces are rendered before this component exists and cannot be
+    // handed the window as a prop; `Book` publishes it on a context instead.
+    // A book that published nothing would render every photograph real, which
+    // is the 1.8MB defect, and would still pass every other case in this file.
+    const host = renderBook(5, aBundleWithPhotographs())
+
+    expect([heroSrcOfLeaf(host, 5), heroSrcOfLeaf(host, 2)]).toEqual([
+      '/api/media/file/lisbon-hero-800x800.png',
+      DEFERRED_PHOTOGRAPH_SRC,
+    ])
+  })
 
   it('gives a real photograph only to the leaves beside the reader', () => {
     const host = renderBook(5, aBundleWithPhotographs())

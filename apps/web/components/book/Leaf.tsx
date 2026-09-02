@@ -11,9 +11,12 @@
  *
  * ONE FIELD OF THE PRESENTATION IS DELIBERATELY NOT READ HERE: `loadsImages`,
  * which governs whether the page on the front face may fetch its photographs.
- * It is content, not geometry, so `Book.tsx` hands it to `PageFace` directly
- * rather than routing it through a component whose whole job is to translate
- * geometry into style. Nothing about a leaf's box changes with it.
+ * It is content, not geometry, so `Book.tsx` publishes it on the `ImageWindow`
+ * context that the photographs themselves read, rather than routing it through
+ * a component whose whole job is to translate geometry into style. Nothing
+ * about a leaf's box changes with it, and this component never learns what is
+ * printed on the face it is given - `children` arrives already rendered, on
+ * the server (see `Book.tsx`'s header).
  *
  * Which leaf is turning drives the two things no CSS property maps to
  * directly - the travelling shade's opacity, and the transition duration -

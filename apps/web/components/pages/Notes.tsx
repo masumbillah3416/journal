@@ -52,24 +52,30 @@
  * line would eat the slot rather than reflow the page; the cap is applied at
  * the point the list is rendered so that a row which reached the database
  * before the schema cap did cannot break the layout.
- * THE PHOTOGRAPHS ARE WINDOWED, THE WORDS ARE NOT. `loadsImages` arrives
- * from `leafPresentation` (packages/domain/src/pageStack.ts) and says whether
- * this leaf is near enough to the reader to fetch anything. Outside the
+ * THE PHOTOGRAPHS ARE WINDOWED, THE WORDS ARE NOT. Outside the reader's image
  * window every element on this page is still rendered — the heading, the
  * place, the highlights, the note, the tally, the caption, the alt text and
- * the focal point — and only the `src` attributes are stood in for
- * ({@link DEFERRED_PHOTOGRAPH_SRC}). The design spec's §8 requires the server
- * to render every page's content so the deep links are indexable; it is the
- * image BYTES that must stop loading eagerly, never the markup.
+ * the focal point — and only the `src` attributes are stood in for. The
+ * design spec's §8 requires the server to render every page's content so the
+ * deep links are indexable; it is the image BYTES that must stop loading
+ * eagerly, never the markup.
+ *
+ * THIS PAGE DOES NOT DECIDE THAT, AND CARRIES NO FLAG FOR IT. The window is a
+ * function of where the flip machine is, which is browser state this page —
+ * a server component, rendered once, whose code never reaches the browser —
+ * cannot see. `<Photograph>` reads it from the context `Book.tsx` publishes;
+ * all this page hands down is `leafIndex`, which leaf of the book it is
+ * printed on. See `./Photograph.tsx`'s header for why that seam is a context
+ * and not a prop.
  * Depends on: react, `JourneyPage`/`Slot` (@travel-diary/domain/bookBundle),
- * ./WeatherBadge, ./MoodBadge, ./TallyTicket, ./EphemeraSlot,
- * ./deferredPhotograph, ./notes.module.css.
+ * ./WeatherBadge, ./MoodBadge, ./TallyTicket, ./EphemeraSlot, ./Photograph,
+ * ./notes.module.css.
  */
 import type { JourneyPage, Slot } from '@travel-diary/domain/bookBundle'
 import type React from 'react'
-import { DEFERRED_PHOTOGRAPH_SRC } from './deferredPhotograph'
 import { EphemeraSlot } from './EphemeraSlot'
 import { MoodBadge } from './MoodBadge'
+import { Photograph } from './Photograph'
 import { TallyTicket } from './TallyTicket'
 import { WeatherBadge } from './WeatherBadge'
 import styles from './notes.module.css'
@@ -80,8 +86,8 @@ export interface NotesProps {
   readonly page: JourneyPage
   /** The `book` global's decorations flag, gating the washi strips and the stamp. */
   readonly showDecorations: boolean
-  /** Whether this leaf is inside the reader's image window, from `leafPresentation.loadsImages`. */
-  readonly loadsImages: boolean
+  /** Which leaf of the book this page is printed on, for the image window to look up. */
+  readonly leafIndex: number
 }
 
 /**
@@ -106,12 +112,12 @@ const slotForRole = (slots: readonly Slot[] | undefined, role: Slot['role']): Sl
  * two-column body, and the footer's gallery link, count and sign-off.
  *
  * @param props - The journey's notes page, the book's decorations flag and
- *   the leaf's image window.
+ *   the leaf it is printed on.
  * @returns The Notes page.
  * @example
- * <Notes page={page} showDecorations={bundle.chrome.showDecorations} loadsImages />
+ * <Notes page={page} showDecorations={bundle.chrome.showDecorations} leafIndex={2} />
  */
-export const Notes = ({ page, showDecorations, loadsImages }: NotesProps): React.JSX.Element => {
+export const Notes = ({ page, showDecorations, leafIndex }: NotesProps): React.JSX.Element => {
   const hero = slotForRole(page.slots, 'hero')
   const ephemera = slotForRole(page.slots, 'ephemera')
   const highlights = page.highlights.slice(0, MAX_HIGHLIGHTS)
@@ -155,28 +161,20 @@ export const Notes = ({ page, showDecorations, loadsImages }: NotesProps): React
 
           {page.tally.length > 0 && <TallyTicket cells={page.tally} />}
 
-          <EphemeraSlot slot={ephemera} showDecorations={showDecorations} loadsImages={loadsImages} />
+          <EphemeraSlot slot={ephemera} showDecorations={showDecorations} leafIndex={leafIndex} />
         </div>
 
         <div className={styles.rightColumn}>
           {hero !== undefined && (
             <figure className={styles.mount}>
-              <img
-                data-hero=""
-                className={styles.heroPhoto}
-                src={loadsImages ? hero.src : DEFERRED_PHOTOGRAPH_SRC}
+              <Photograph
+                leafIndex={leafIndex}
+                role={hero.role}
+                src={hero.src}
                 alt={hero.alt}
-                // See this module's header: low priority because every leaf of
-                // the book is in the document at once and the window still
-                // admits the reader's two neighbours, so the hero of a page
-                // the reader is not on must never compete with the one they
-                // are. `loading="lazy"` is deliberately absent — measured on
-                // `/p/1`, it deferred nothing, because every leaf sits at
-                // `inset: 0` and the browser counts all thirty-three as in
-                // the viewport. The window is the deferral.
-                decoding="async"
-                fetchPriority="low"
-                style={{ objectPosition: `${String(hero.focalX)}% ${String(hero.focalY)}%` }}
+                focalX={hero.focalX}
+                focalY={hero.focalY}
+                className={styles.heroPhoto}
               />
               {hero.caption !== '' && <figcaption className={styles.heroCaption}>{hero.caption}</figcaption>}
               {showDecorations && <span data-decoration="washi" aria-hidden="true" className={styles.heroWashi} />}

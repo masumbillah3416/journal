@@ -320,12 +320,24 @@ Caveat+Courier pairing was observed once at a margin of roughly ten milliseconds
 (`courier-prime-regular.woff2`, `courier-prime-bold.woff2`,
 `eb-garamond-italic.woff2`) are committed at
 `apps/web/app/(diary)/fonts/`, unused — re-enabling any of them is a `localFont` call
-in `fonts.ts`, not a new download. The concrete way to make room for them is Task 9's
-own deferred item: moving `Cover`/`Contents` out of `Book.tsx`'s client bundle into
-server-rendered children, which reduces the script weight sharing this route's
-connection with these font requests. Re-run `fonts.ts`'s measured table — several
-times, against a freshly-cleared Docker volume, not a warm one — once that lands,
-before assuming any deferred face must stay a fallback forever. `e2e/pages.spec.ts`
+in `fonts.ts`, not a new download.
+
+**The rationale above has been re-measured and no longer holds; the deferral does, for
+a different reason.** The concrete way to make room named here — moving the page faces
+out of `Book.tsx`'s client bundle into server-rendered children — has since been built
+and measured (`docs/adr/0007-server-rendered-page-faces.md`). It recovered 2,754 bytes
+of script transfer and moved LCP by nothing: 2,634.368ms before, 2,634.656ms after.
+`fonts.ts`'s table was then re-run on top of it, as this entry asked: Courier Prime
+400+700 wired in measured a **2,632.984ms** median over five runs against the two-font
+**2,634.656ms** — four font requests and 112,440 bytes instead of two and 73,554, for a
+difference inside the run-to-run noise. A third font family does not break this gate
+today. What breaks it is a 2,180ms render delay that neither scripts nor fonts explain,
+and `/p/1` measures ~2,634ms against the 2,500ms gate with two fonts or with four.
+
+So the faces stay in their fallbacks not because a third file costs the gate, but
+because there is no headroom to spend and adding 38,886 bytes to an already-failing
+route is a decision nobody has taken. That decision is now available to take on
+evidence; it was previously blocked on a measurement that has now been made. `e2e/pages.spec.ts`
 asserts the current state explicitly in both directions (a loaded-FontFace check for
 Caveat and Garamond, a pinned-fallback check for the Courier eyebrow), so re-enabling
 a face without updating that file's assertions will fail the suite rather than pass

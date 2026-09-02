@@ -32,17 +32,20 @@
  * label the media row happens to carry would be noise between the tally and
  * the page's footer.
  *
- * ITS BYTES ARE WINDOWED, ITS MARKUP IS NOT. `loadsImages` comes from
- * `leafPresentation` (packages/domain/src/pageStack.ts) and says whether this
- * leaf is near enough to the reader to fetch anything. Outside the window the
- * scrap keeps its box, its focal point and its (empty) alt, and carries
- * {@link DEFERRED_PHOTOGRAPH_SRC} instead of a real one.
+ * ITS BYTES ARE WINDOWED, ITS MARKUP IS NOT. The scrap keeps its box, its
+ * focal point and its (empty) alt wherever the reader is; only the `src` is
+ * stood in for, and only while this leaf is outside the reader's image
+ * window. This file does not decide that and does not carry a flag for it:
+ * `<Photograph>` reads the window from the context `Book.tsx` publishes, so
+ * this component stays a server component whose code never ships (see
+ * `./Photograph.tsx`'s header). All it has to hand down is which leaf it is
+ * printed on.
  * Depends on: react, `Slot` (@travel-diary/domain/bookBundle),
- * ./deferredPhotograph, ./notes.module.css.
+ * ./Photograph, ./notes.module.css.
  */
 import type { Slot } from '@travel-diary/domain/bookBundle'
 import type React from 'react'
-import { DEFERRED_PHOTOGRAPH_SRC } from './deferredPhotograph'
+import { Photograph } from './Photograph'
 import styles from './notes.module.css'
 
 /** What the ephemera slot needs to draw itself. */
@@ -54,42 +57,34 @@ export interface EphemeraSlotProps {
   readonly slot: Slot | undefined
   /** Whether the `book` global's decorations flag lets the washi strip be drawn. */
   readonly showDecorations: boolean
-  /** Whether this leaf is inside the reader's image window, from `leafPresentation.loadsImages`. */
-  readonly loadsImages: boolean
+  /** Which leaf of the book this scrap is printed on, for the image window to look up. */
+  readonly leafIndex: number
 }
 
 /**
  * Renders the ephemera slot: the elastic box, its photograph if there is one,
  * and — behind the decorations flag — the washi strip taped across its top.
  *
- * @param props - The ephemera slot, the decorations flag and the leaf's image window.
+ * @param props - The ephemera slot, the decorations flag and the leaf it is printed on.
  * @returns The taped scrap that absorbs the left column's leftover height.
  * @example
- * <EphemeraSlot slot={page.slots?.find((s) => s.role === 'ephemera')} showDecorations loadsImages />
+ * <EphemeraSlot slot={page.slots?.find((s) => s.role === 'ephemera')} showDecorations leafIndex={2} />
  */
-export const EphemeraSlot = ({ slot, showDecorations, loadsImages }: EphemeraSlotProps): React.JSX.Element => (
+export const EphemeraSlot = ({ slot, showDecorations, leafIndex }: EphemeraSlotProps): React.JSX.Element => (
   <div data-ephemera="" className={styles.ephemera}>
     {slot !== undefined && (
-      <img
-        className={styles.ephemeraImage}
-        src={loadsImages ? slot.src : DEFERRED_PHOTOGRAPH_SRC}
+      <Photograph
+        leafIndex={leafIndex}
+        role={slot.role}
+        src={slot.src}
+        // See this module's header: the scrap is a texture behind tape, not a
+        // photograph with a subject, so it is taken out of the accessibility
+        // tree entirely rather than announced with whatever label the media
+        // row happens to carry.
         alt=""
-        // Low priority deliberately: `Book.tsx` renders every one of the
-        // book's leaves at once, and the window still admits the reader's two
-        // neighbours, so a scrap here is never the page the reader is looking
-        // at. None of them is the LCP element on any page, and the diary
-        // route's LCP budget (CLAUDE.md §6) has very little headroom.
-        //
-        // `loading="lazy"` is deliberately NOT set. Measured on `/p/1`: every
-        // leaf sits at `inset: 0`, so the browser counts all thirty-three as
-        // in the viewport and fetched all twenty photographs anyway. The
-        // window above is the real deferral; leaving `lazy` on would make the
-        // neighbour's preload depend on a browser continuing to treat a
-        // hidden, stacked leaf as visible, which is the pop-in defect waiting
-        // to happen.
-        decoding="async"
-        fetchPriority="low"
-        style={{ objectPosition: `${String(slot.focalX)}% ${String(slot.focalY)}%` }}
+        focalX={slot.focalX}
+        focalY={slot.focalY}
+        className={styles.ephemeraImage}
       />
     )}
     {showDecorations && <span data-decoration="washi" aria-hidden="true" className={styles.ephemeraWashi} />}

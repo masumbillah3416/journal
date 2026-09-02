@@ -24,6 +24,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 import { DEFERRED_PHOTOGRAPH_SRC } from '../pages/deferredPhotograph'
+import { ImageWindow } from '../pages/Photograph'
 import { PageFace } from './PageFace'
 
 /** Brands a test journey id, so two fixtures in one book are never the same journey (CLAUDE.md §7). */
@@ -64,7 +65,10 @@ const aNotesPageCarrying = (...slots: readonly Slot[]): BookPage => {
 
 const roots: Root[] = []
 
-/** Renders one page face and hands back the host element. */
+/**
+ * Renders one page face on leaf 0 and hands back the host element, with the
+ * image window published as a context the way `Book.tsx` publishes it.
+ */
 const renderFace = (page: BookPage, entries: readonly ContentsEntry[] = contents, loadsImages = true): HTMLElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
@@ -72,13 +76,9 @@ const renderFace = (page: BookPage, entries: readonly ContentsEntry[] = contents
   roots.push(root)
   act(() => {
     root.render(
-      <PageFace
-        page={page}
-        contents={entries}
-        chrome={aBookChrome()}
-        totalPages={pages.length}
-        loadsImages={loadsImages}
-      />,
+      <ImageWindow value={[loadsImages]}>
+        <PageFace page={page} contents={entries} chrome={aBookChrome()} totalPages={pages.length} leafIndex={0} />
+      </ImageWindow>,
     )
   })
   return host
@@ -157,12 +157,12 @@ describe('PageFace', () => {
     expect(host.querySelectorAll('a')).toHaveLength(0)
   })
 
-  it("passes the leaf's image window down to the page that owns the photographs", () => {
-    // `leafPresentation.loadsImages` is decided once, in the domain, and this
-    // dispatch is the only route from the leaf to the page that prints an
-    // `<img>`. A face that dropped it on the floor would put the whole book's
-    // photographs back in the document, which is the defect the window exists
-    // to fix.
+  it("passes the leaf's own index down to the page that owns the photographs", () => {
+    // The window is decided once, in the domain, and published as a context;
+    // what a face has to carry is WHICH LEAF it is printed on, so the
+    // photographs inside it look the right entry up. A face that dropped that
+    // on the floor would leave every photograph reading leaf 0's entry, which
+    // on any other page is the wrong answer in both directions.
     const withSlots = aNotesPageCarrying(aHeroSlot())
 
     const deferred = renderFace(withSlots, contents, false)
