@@ -286,10 +286,16 @@ export default defineConfig({
         // uncovered. The bracket is the only difference between them, so it
         // is the scanner that fails, not the file. The file itself qualifies
         // for CLAUDE.md §2.1's narrow carve-out on all three counts: it was
-        // read and holds zero authored logic (await the route params, read
-        // the bundle, render `<Book>` - its one real decision, what `<n>`
-        // means, is delegated to `pageIndexFromParam`, which has its own
-        // 100%-covered suite in packages/domain); the tooling defect is named
+        // read and holds zero authored logic (await the route params and the
+        // query, read the bundle, render `<Book>` with one child per page) -
+        // all three of its real decisions are delegated to
+        // `@travel-diary/domain`, which gates that package at 100%:
+        // `pageIndexFromParam` for what `<n>` means, `servedContentWindow`
+        // for which pages this request gets the content of, and
+        // `rendersContent` for whether a given leaf is one of them
+        // (docs/adr/0009-server-rendered-page-window.md). Re-read this
+        // clause before adding anything to that file: a branch of its own
+        // there is a branch nothing can measure. The tooling defect is named
         // and reproduced above; and this entry names the exact path, so a
         // future file placed beside it under the same bracketed parent is not
         // swept into the same hole and must justify its own exclusion. Its

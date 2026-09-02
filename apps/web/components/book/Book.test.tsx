@@ -38,14 +38,25 @@ import {
   type RailTab,
   type Slot,
 } from '@travel-diary/domain/bookBundle'
+import { contentWindow, rendersContent, wholeBook, type ContentWindow } from '@travel-diary/domain/contentWindow'
 import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
 import { aBookChrome, anAboutContent, aJourney } from '@travel-diary/domain/testing/factories'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFERRED_PHOTOGRAPH_SRC } from '../pages/deferredPhotograph'
 import { Book } from './Book'
 import { PageFace } from './PageFace'
+
+// The App Router itself, not one of our modules (CLAUDE.md §2.3): `Book`
+// asks it for the rest of the book through `useRestOfBook`, and `useRouter`
+// throws outside a mounted router rather than reporting there is none. What
+// the hook DECIDES with it is asserted in `useRestOfBook.test.tsx`; here it
+// only has to exist.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: (): void => undefined }),
+  usePathname: () => '/p/1',
+}))
 
 /** Brands a test journey id, so two fixtures in one book are never the same journey (CLAUDE.md §7). */
 const anId = (raw: string): JourneyId => {
@@ -118,6 +129,31 @@ const facesOf = (bundle: BookBundle): React.JSX.Element[] =>
     />
   ))
 
+/**
+ * The faces a WINDOWED document carries: the page's own content inside the
+ * window, and the same contentless placeholder the route renders outside it.
+ * The count is unchanged, because the leaf stays even when its content goes.
+ * @param bundle - The book to render faces for.
+ * @param window - The span of leaves whose content the document carries.
+ * @returns One child per page, in reading order.
+ */
+const windowedFacesOf = (bundle: BookBundle, window: ContentWindow): React.JSX.Element[] =>
+  bundle.pages.map((page, index) =>
+    rendersContent(window, index) ? (
+      <PageFace
+        key={index}
+        leafIndex={index}
+        page={page}
+        contents={bundle.contents}
+        chrome={bundle.chrome}
+        about={bundle.about}
+        totalPages={bundle.pages.length}
+      />
+    ) : (
+      <div key={index} data-page-deferred={index} />
+    ),
+  )
+
 const renderBook = (
   initialIndex: number,
   bundle: BookBundle = aBundle(),
@@ -129,12 +165,52 @@ const renderBook = (
   roots.push(root)
   act(() => {
     root.render(
-      <Book bookmarks={bookmarks} initialIndex={initialIndex}>
+      <Book bookmarks={bookmarks} initialIndex={initialIndex} content={wholeBook(bundle.pages.length)}>
         {facesOf(bundle)}
       </Book>,
     )
   })
   return host
+}
+
+/**
+ * Renders the book the way a WINDOWED document does, and hands back the
+ * `render` that completes it - so a test can turn past the window's edge and
+ * then let the rest of the book arrive, which is the sequence a slow network
+ * actually produces.
+ * @param initialIndex - The page the reader opens on.
+ * @param bundle - The book to render.
+ * @returns The host element and a function that re-renders it whole.
+ */
+const renderWindowedBook = (
+  initialIndex: number,
+  bundle: BookBundle = aBundle(),
+): { readonly host: HTMLElement; readonly completeTheBook: () => void } => {
+  const host = document.createElement('div')
+  document.body.appendChild(host)
+  const root = createRoot(host)
+  roots.push(root)
+  const bookmarks = deriveRail(bundle.pages, bundle.bookmarks)
+  const total = bundle.pages.length
+  const render = (window: ContentWindow, faces: React.JSX.Element[]): void => {
+    act(() => {
+      root.render(
+        <Book bookmarks={bookmarks} initialIndex={initialIndex} content={window}>
+          {faces}
+        </Book>,
+      )
+    })
+  }
+
+  const window = contentWindow(initialIndex, total)
+  render(window, windowedFacesOf(bundle, window))
+
+  return {
+    host,
+    completeTheBook: () => {
+      render(wholeBook(total), facesOf(bundle))
+    },
+  }
 }
 
 /** One element, asserted present so no test needs a non-null assertion (CLAUDE.md §3.1). */
@@ -170,6 +246,21 @@ const visibleLeaves = (host: HTMLElement): string[] =>
 const disabledStates = (host: HTMLElement, selectors: readonly string[]): boolean[] =>
   selectors.map((selector) => one(host, selector).hasAttribute('disabled'))
 
+/**
+ * A `prefers-reduced-motion: reduce` stand-in - a browser API, never a mock
+ * of our own code (CLAUDE.md §2.3). It is what makes the window's edge
+ * reachable in a test at all: a reduced-motion turn commits instantly, so
+ * three key presses walk the reader to the edge of a radius-3 window without
+ * 2,700ms of real time - and that same reader is the only one who can outrun
+ * the request for the rest of the book in a real browser.
+ */
+const stubReducedMotion = (): void => {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: () => ({ matches: true, addEventListener: () => undefined, removeEventListener: () => undefined }),
+  })
+}
+
 afterEach(() => {
   for (const root of roots) {
     act(() => {
@@ -178,6 +269,7 @@ afterEach(() => {
   }
   roots.length = 0
   document.body.innerHTML = ''
+  Reflect.deleteProperty(window, 'matchMedia')
 })
 
 describe('Book', () => {
@@ -406,5 +498,89 @@ describe('Book', () => {
 
     expect(visibleLeaves(host)).toContain('5')
     expect(heroSrcOfLeaf(host, 5)).toBe('/api/media/file/lisbon-hero-800x800.png')
+  })
+
+  it('publishes the span of leaves whose content the served document carries', () => {
+    // Read by e2e/serverWindow.spec.ts, which needs to know what the document
+    // it just fetched actually contains before it can assert anything about
+    // what the reader can reach from it.
+    const { host } = renderWindowedBook(0)
+
+    expect(one(host, 'main').dataset['contentWindow']).toBe('0-3')
+  })
+
+  it('still renders one leaf per page when the document carries only a window of them', () => {
+    // The leaf is the stack's geometry - its z-order, its resting angle, the
+    // page count under it. Only its CONTENT is windowed, so a windowed
+    // document must produce exactly the same number of leaves as a whole one.
+    const { host } = renderWindowedBook(0)
+
+    expect(host.querySelectorAll('[data-leaf]')).toHaveLength(aBundle().pages.length)
+  })
+
+  it('turns without waiting to a page the document already carries', () => {
+    const { host } = renderWindowedBook(0)
+
+    click(host, '[data-nav="next"]')
+
+    expect(visibleLeaves(host)).toEqual(['0', '1'])
+  })
+
+  it('holds a turn past the window’s edge rather than revealing an empty leaf', () => {
+    // The failure this guards is the one the whole design turns on: a leaf
+    // whose face is blank because its page was never rendered into this
+    // document. The reader is walked to the far edge of the window and then
+    // asked to keep going.
+    stubReducedMotion()
+    const { host } = renderWindowedBook(0)
+
+    click(host, '[data-nav="next"]')
+    click(host, '[data-nav="next"]')
+    click(host, '[data-nav="next"]')
+    click(host, '[data-nav="next"]')
+
+    expect(visibleLeaves(host)).toEqual(['3'])
+    expect(one(host, '[data-leaf="3"]').textContent).toContain('Tokyo')
+  })
+
+  it('performs the held turn the moment the rest of the book arrives', () => {
+    stubReducedMotion()
+    const { host, completeTheBook } = renderWindowedBook(0)
+    click(host, '[data-nav="next"]')
+    click(host, '[data-nav="next"]')
+    click(host, '[data-nav="next"]')
+    click(host, '[data-nav="next"]')
+
+    completeTheBook()
+
+    expect(visibleLeaves(host)).toEqual(['4'])
+  })
+
+  it('holds a bookmark jump until the whole book has arrived, since a jump can land anywhere', () => {
+    const { host } = renderWindowedBook(0)
+
+    click(host, '[data-bookmark="5"]')
+
+    expect(visibleLeaves(host)).toEqual(['0'])
+  })
+
+  it('performs the held jump, still anchored beside its target, once the book is whole', () => {
+    const { host, completeTheBook } = renderWindowedBook(0)
+    click(host, '[data-bookmark="5"]')
+
+    completeTheBook()
+
+    expect(visibleLeaves(host)).toEqual(['4', '5'])
+  })
+
+  it('holds nothing back once the document carries the whole book', () => {
+    // The windowed path must not survive into the completed book: a jump on
+    // a whole book is put to the machine at once, exactly as it was before
+    // any of this existed.
+    const host = renderBook(0)
+
+    click(host, '[data-bookmark="5"]')
+
+    expect(visibleLeaves(host)).toEqual(['4', '5'])
   })
 })

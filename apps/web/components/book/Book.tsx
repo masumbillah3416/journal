@@ -77,6 +77,17 @@
  * reading thirty pages does not bury the page the reader arrived from under
  * thirty history entries.
  *
+ * THAT EFFECT WAITS FOR THE BOOK TO BE WHOLE, and it is doing two jobs at
+ * once because they are the same job. `useRestOfBook` asks for the rest of
+ * the book by putting `?pages=all` on the address, so this is also what takes
+ * it back off - the first write after the answer lands is a clean `/p/<n>`.
+ * And writing the address BEFORE that answer would be actively harmful:
+ * `history.replaceState` moves the router's own idea of which `/p/<n>` it is
+ * on, so a turn committed while the request was still in flight would turn it
+ * into a navigation to a different segment - which unmounts the book
+ * (measured; see `useRestOfBook.ts`). Until the answer lands the address is
+ * still the page the reader arrived on, which is where they still are.
+ *
  * THE IMAGE WINDOW IS WHY A BOOK OF 33 LEAVES IS AFFORDABLE. Every leaf is in
  * the document, and every leaf is absolutely positioned at `inset: 0`, so the
  * browser considers all thirty-three in the viewport and `loading="lazy"`
@@ -92,11 +103,35 @@
  * the one client component under `components/pages/` - reads its own leaf's
  * entry. No component re-derives the arithmetic.
  *
- * The alternative - rendering only the current leaf server-side - was rejected
- * outright: the design spec's §8 requires every page's content in the served
- * HTML so the deep links are indexable, and the handoff lists "a client-only
- * SPA (destroys the deep links' SEO value)" under what to avoid. The markup
- * stays; the bytes go.
+ * THE CONTENT WINDOW IS A SECOND, DIFFERENT WINDOW, AND THE TWO MUST NOT BE
+ * CONFUSED. The image window above is a function of where the flip machine
+ * is; this one is a function of the ADDRESS, and it arrives as a prop because
+ * the server is the only one who knows it. `/p/<n>` renders only the pages
+ * near `n` (`@travel-diary/domain/contentWindow`,
+ * `docs/adr/0009-server-rendered-page-window.md`) - every leaf is still in the
+ * stack, but the leaves outside that span carry no face. This component does
+ * three things with that fact and nothing else:
+ *
+ *   - it asks for the rest of the book, once, through `useRestOfBook`, on the
+ *     reader's FIRST turn or jump rather than on mount - because asked for on
+ *     mount the answer lands inside the page's own load and spends most of
+ *     what the window saved (measured; see that hook's header). The window is
+ *     three leaves deep either side, so the gesture that asks is itself
+ *     served out of the document already in hand;
+ *   - it HOLDS a turn or a jump whose destination the document does not carry
+ *     yet, instead of letting the reader turn into a blank leaf, and performs
+ *     it the moment the rest arrives. The queue holds one request, the newest,
+ *     and it does not bypass the latch: what it holds is re-presented to the
+ *     machine, which still refuses a turn in flight;
+ *   - it publishes the span as `data-content-window` so a browser test can
+ *     see which document it is looking at.
+ *
+ * Rendering only the current leaf server-side was rejected outright, and so
+ * was rendering all thirty-three: the first is the client-only SPA the
+ * handoff lists under what to avoid, and the second is what put the LCP gate
+ * 84ms into the red. A window keeps both promises, because indexability is
+ * per ROUTE and not per document - `/p/12` serves page 12, which is all
+ * anything ever asked of it.
  *
  * SCOPE. The bookmark rail, bottom bar and page counter are rendered here
  * because Task 8's triggers are useless without something to click, but only
@@ -111,17 +146,32 @@
  * ./useTurnKeys, ./useBookScale, ./EdgeStrip, ./Leaf, ./book.module.css.
  */
 import { pageCounter, type RailTab } from '@travel-diary/domain/bookBundle'
+import { isWholeBook, rendersContent, type ContentWindow } from '@travel-diary/domain/contentWindow'
 import { pagePath } from '@travel-diary/domain/pageAddress'
 import { leafPresentation } from '@travel-diary/domain/pageStack'
 import type React from 'react'
-import { Children, useCallback, useEffect, useRef } from 'react'
+import { Children, useCallback, useEffect, useRef, useState } from 'react'
 import { ImageWindow } from '../pages/Photograph'
 import styles from './book.module.css'
 import { EdgeStrip } from './EdgeStrip'
 import { Leaf } from './Leaf'
 import { useBookScale } from './useBookScale'
 import { DEFAULT_FLIP_DURATION_MS, useFlip, usePrefersReducedMotion } from './useFlip'
+import { useRestOfBook } from './useRestOfBook'
 import { useTurnKeys } from './useTurnKeys'
+
+/**
+ * A page change the reader has asked for that this document cannot show yet.
+ * The kind is carried rather than inferred from the distance travelled: a
+ * jump is anchored beside its target and a turn is not, and that is a
+ * difference in behaviour, not in arithmetic.
+ */
+interface HeldMove {
+  /** Which of the machine's two entry points the request came in through. */
+  readonly kind: 'turn' | 'jump'
+  /** The 0-based leaf the reader asked for. */
+  readonly target: number
+}
 
 /** What the book needs to render itself. */
 export interface BookProps {
@@ -129,6 +179,12 @@ export interface BookProps {
   readonly bookmarks: readonly RailTab[]
   /** The 0-based page the reader opens on, from the `/p/<n>` URL. */
   readonly initialIndex: number
+  /**
+   * The span of leaves whose faces this document actually carries, from
+   * `contentWindow` on the server. It cannot be derived here: only the render
+   * that produced the faces knows which of them are real.
+   */
+  readonly content: ContentWindow
   /**
    * One server-rendered page face per page, in reading order. Face `i` is
    * slotted into leaf `i`, and their count is the book's page count - see
@@ -148,7 +204,7 @@ export interface BookProps {
  * @example
  * <Book bookmarks={deriveRail(bundle.pages, bundle.bookmarks)} initialIndex={2}>{faces}</Book>
  */
-export const Book = ({ bookmarks, initialIndex, children }: BookProps): React.JSX.Element => {
+export const Book = ({ bookmarks, initialIndex, content, children }: BookProps): React.JSX.Element => {
   const bookArea = useRef<HTMLDivElement | null>(null)
   const scale = useBookScale(bookArea)
   const reducedMotion = usePrefersReducedMotion()
@@ -163,13 +219,59 @@ export const Book = ({ bookmarks, initialIndex, children }: BookProps): React.JS
     totalPages,
   })
 
+  const complete = isWholeBook(content, totalPages)
+  const askForTheRestOfTheBook = useRestOfBook(complete)
+
+  // At most one held request, the newest, kept until the page it wants is in
+  // the document. `null` is the ordinary state of a book whose document
+  // carries everything the reader has asked for - which, after the one
+  // `useRestOfBook` request lands, is every book.
+  const [held, setHeld] = useState<HeldMove | null>(null)
+
+  // A turn moves one leaf, so only the destination has to be in the document.
+  // A jump can land anywhere, and is anchored one page from its target by
+  // `useFlip.jumpTo`, so it waits for the whole book rather than re-deriving
+  // that anchor here to ask about it (`useFlip.ts`'s own rule).
+  const canReach = useCallback(
+    (move: HeldMove): boolean => (move.kind === 'jump' ? complete : rendersContent(content, move.target)),
+    [complete, content],
+  )
+
+  const perform = useCallback(
+    (move: HeldMove): void => {
+      if (move.kind === 'jump') jumpTo(move.target)
+      else turnTo(move.target)
+    },
+    [jumpTo, turnTo],
+  )
+
+  const request = useCallback(
+    (move: HeldMove): void => {
+      // The reader wants to read on, so the rest of the book is worth
+      // fetching now. It is a no-op after the first time, and on any book
+      // whose document already holds all of it.
+      askForTheRestOfTheBook()
+
+      if (canReach(move)) perform(move)
+      else setHeld(move)
+    },
+    [askForTheRestOfTheBook, canReach, perform],
+  )
+
+  useEffect(() => {
+    if (held === null || !canReach(held)) return
+
+    setHeld(null)
+    perform(held)
+  }, [held, canReach, perform])
+
   const turnForward = useCallback((): void => {
-    turnTo(state.index + 1)
-  }, [turnTo, state.index])
+    request({ kind: 'turn', target: state.index + 1 })
+  }, [request, state.index])
 
   const turnBackward = useCallback((): void => {
-    turnTo(state.index - 1)
-  }, [turnTo, state.index])
+    request({ kind: 'turn', target: state.index - 1 })
+  }, [request, state.index])
 
   useTurnKeys({ onForward: turnForward, onBackward: turnBackward })
 
@@ -180,14 +282,18 @@ export const Book = ({ bookmarks, initialIndex, children }: BookProps): React.JS
   const openLeaves = leaves.map(({ presentation }) => presentation.loadsImages)
 
   useEffect(() => {
-    // See this file's header: `replaceState`, not a router navigation, and
-    // keyed on the committed index so it fires once per page change rather
-    // than once per animation frame.
+    // See this file's header: `replaceState`, not a router navigation, keyed
+    // on the committed index so it fires once per page change rather than
+    // once per animation frame - and held until the book is whole, because
+    // until then the address carries the request that made it whole and
+    // moving it would cost a remount.
+    if (!complete) return
+
     window.history.replaceState(null, '', pagePath(state.index))
-  }, [state.index])
+  }, [state.index, complete])
 
   return (
-    <main className={styles.stage}>
+    <main className={styles.stage} data-content-window={`${String(content.from)}-${String(content.to)}`}>
       <div ref={bookArea} className={styles.bookArea}>
         <div data-design-box="" className={styles.designBox} style={{ transform: `scale(${String(scale)})` }}>
           <div className={styles.board} />
@@ -265,7 +371,7 @@ export const Book = ({ bookmarks, initialIndex, children }: BookProps): React.JS
             data-bookmark={tab.startIndex}
             className={styles.bookmarkTab}
             onClick={() => {
-              jumpTo(tab.startIndex)
+              request({ kind: 'jump', target: tab.startIndex })
             }}
           >
             {tab.label}
