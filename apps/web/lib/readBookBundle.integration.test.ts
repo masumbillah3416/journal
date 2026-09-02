@@ -332,6 +332,19 @@ describe('readBookBundle', () => {
       expect(bundle.about).toEqual({ portrait: undefined, paragraphs: [], kit: [], replyTo: '' })
     })
 
+    it('empties a cleared portrait caption while keeping the portrait it belongs to', async () => {
+      // Cleared INDEPENDENTLY of the portrait, which is the case the
+      // all-fields-cleared test above cannot reach: with no portrait there is
+      // no slot to put a caption on, so that case never exercises this
+      // fallback at all.
+      await payload.updateGlobal({ slug: 'about', data: { portraitCaption: null } })
+
+      const bundle = await readBookBundle()
+
+      expect(bundle.about.portrait?.caption).toBe('')
+      expect(bundle.about.portrait?.src).not.toBeUndefined()
+    })
+
     it('drops a paragraph or kit line whose text an editor cleared, rather than printing a blank line', async () => {
       await payload.updateGlobal({
         slug: 'about',
@@ -345,6 +358,44 @@ describe('readBookBundle', () => {
 
       expect(bundle.about.paragraphs).toEqual(['Kept.'])
       expect(bundle.about.kit).toEqual(['Kept too.'])
+    })
+  })
+
+  describe('the about portrait’s focal point, which lives on the media row', () => {
+    /** Finds the seeded portrait's media row by the label the seed stashes in `alt`. */
+    const portraitMediaId = async (): Promise<number> => {
+      const found = await payload.find({
+        collection: 'media',
+        depth: 0,
+        limit: 1,
+        where: { alt: { equals: 'PORTRAIT' } },
+      })
+      const id = found.docs[0]?.id
+      if (id === undefined) throw new Error('the seed did not create the about portrait')
+      return id
+    }
+
+    afterEach(async () => {
+      await payload.update({
+        collection: 'media',
+        id: await portraitMediaId(),
+        data: { focalX: aboutGlobalSeed.portraitFocal.x, focalY: aboutGlobalSeed.portraitFocal.y },
+      })
+    })
+
+    it('falls back to the centre when the media row’s focalX/focalY are explicitly null', async () => {
+      // `media.focalPoint` has no schema `defaultValue` of its own, and an
+      // explicit `null` is an ordinary PATCH - so a portrait whose picker has
+      // never been touched must render centred rather than at `NaN%`.
+      await payload.update({
+        collection: 'media',
+        id: await portraitMediaId(),
+        data: { focalX: null, focalY: null },
+      })
+
+      const bundle = await readBookBundle()
+
+      expect(bundle.about.portrait).toMatchObject({ focalX: 50, focalY: 50 })
     })
   })
 
@@ -435,7 +486,7 @@ describe('readBookBundle', () => {
     })
   })
 
-  describe('journey order follows the book global\'s journeyOrderMode', () => {
+  describe("journey order follows the book global's journeyOrderMode", () => {
     afterEach(async () => {
       // Restore the default so later tests (and other files sharing this
       // database) see the same order they would against a freshly seeded book.
@@ -489,7 +540,7 @@ describe('readBookBundle', () => {
       }
     })
 
-    it('keeps a page\'s slots after its title is renamed to something matching none of Notes/Frames I/Frames II', async () => {
+    it("keeps a page's slots after its title is renamed to something matching none of Notes/Frames I/Frames II", async () => {
       const anyMedia = await payload.find({ collection: 'media', limit: 1, depth: 0 })
       const someMediaId = anyMedia.docs[0]?.id
       if (someMediaId === undefined) throw new Error('expected at least one seeded media item')
@@ -568,8 +619,12 @@ describe('readBookBundle', () => {
       })
 
       const bundle = await readBookBundle()
-      const framesI = bundle.pages.find((page) => page.kind === 'frames-i' && page.slug === 'test-readbookbundle-kind-order')
-      const framesII = bundle.pages.find((page) => page.kind === 'frames-ii' && page.slug === 'test-readbookbundle-kind-order')
+      const framesI = bundle.pages.find(
+        (page) => page.kind === 'frames-i' && page.slug === 'test-readbookbundle-kind-order',
+      )
+      const framesII = bundle.pages.find(
+        (page) => page.kind === 'frames-ii' && page.slug === 'test-readbookbundle-kind-order',
+      )
 
       expect(framesI?.kind === 'frames-i' ? framesI.slots?.[0]?.caption : undefined).toBe('first frames page')
       expect(framesII?.kind === 'frames-ii' ? framesII.slots?.[0]?.caption : undefined).toBe('second frames page')
@@ -922,7 +977,7 @@ describe('readBookBundle', () => {
       expect(bundle.contents).toHaveLength(10)
     })
 
-    it('falls back to 50 when a slot\'s focalX/focalY are explicitly null', async () => {
+    it("falls back to 50 when a slot's focalX/focalY are explicitly null", async () => {
       const anyMedia = await payload.find({ collection: 'media', limit: 1, depth: 0 })
       const someMediaId = anyMedia.docs[0]?.id
       if (someMediaId === undefined) throw new Error('expected at least one seeded media item')

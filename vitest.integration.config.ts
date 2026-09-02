@@ -142,9 +142,19 @@ export default defineConfig({
         // that has already bootstrapped `diary_test` once genuinely
         // measures, not what a first-ever run would.
         'apps/web/lib/testPayload.ts': { lines: 93, branches: 75, functions: 100 },
-        // readBookBundle.ts (Task 6 of Phase 1; Task 6 review fix round 1):
-        // 100% lines/statements/functions. 81% branches is the real, measured
-        // number, RAISED from an earlier 72% after the review's finding 3
+        // readBookBundle.ts (Task 6 of Phase 1; Task 6 review fix round 1;
+        // Task 11): 100% lines/statements/functions. 83% branches is the
+        // real, measured number, RAISED again from 81% by Task 11, whose
+        // `about`-global mapping added branches AND the cases that exercise
+        // them (a cleared portrait caption with the portrait still attached,
+        // and a portrait media row whose `focalX`/`focalY` are explicitly
+        // null). Task 11 leaves exactly two of its own branches uncovered,
+        // both verified instances of classes (2) and (4) below rather than
+        // new gaps: `doc.portrait?.id` in `toAboutContent` (dead at
+        // `depth: 0`, like every other relationship-id branch here) and the
+        // `?? ''` half of `portraitMedia.alt ?? ''` (the seed labels the
+        // portrait `PORTRAIT`, so its `alt` is never absent). 81% was itself
+        // RAISED from an earlier 72% after the review's finding 3
         // corrected an overbroad "no organic trigger" claim: `hiddenFromBookmarks
         // ?? false`, `furniture?.accent ?? '#3d817e'`, `journeyOrderMode ??
         // 'manual'` and slot `focalX`/`focalY ?? 50` are each reachable through
@@ -171,7 +181,7 @@ export default defineConfig({
         // so the final `''` never fires; (5) `page.slots ?? []` in
         // `slotsFor` - every matched Notes/Frames page this suite creates
         // always defines `slots`.
-        'apps/web/lib/readBookBundle.ts': { lines: 100, branches: 81, functions: 100 },
+        'apps/web/lib/readBookBundle.ts': { lines: 100, branches: 83, functions: 100 },
         // seed-data.ts is a pure data literal - 100% by construction, every
         // call reads every field.
         'apps/web/scripts/seed-data.ts': { lines: 100, branches: 100, functions: 100 },
