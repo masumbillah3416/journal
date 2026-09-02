@@ -38,6 +38,17 @@
  *    at 1440px and at 390px. If a future change made this page responsive,
  *    these cases fail at one project and not another.
  *
+ * 4 · THE BADGE LABEL FIT. With Courier Prime self-hosted
+ *    (docs/adr/0008-lcp-budget-and-the-framework-floor.md), a badge label of
+ *    ten or more characters overflows the 98px circle SCREENS.md §1.3
+ *    specifies — real advance widths only exist in a real layout engine, so
+ *    jsdom cannot catch this the way `Notes.test.tsx` catches everything
+ *    else about these badges. `badgeLabelFontSize`
+ *    (packages/domain/src/badgeLabelFit.ts) is the owner's fix
+ *    (docs/deviations.md §14); these cases are what actually measures the
+ *    rendered label against the rendered circle rather than trusting the
+ *    formula that produced it.
+ *
  * EVERY SELECTOR IS SCOPED TO ONE LEAF. `Book.tsx` renders all thirty-three
  * leaves at once — that is what makes the flip a flip rather than a page
  * load — so `[data-page="notes"]` alone matches ten sections, one per
@@ -47,8 +58,9 @@
  *
  * Depends on: @playwright/test, the running app from playwright.config.ts's
  * `webServer`, and the seeded diary (`npm run db:seed`) — Tokyo's four
- * highlights at `/p/3`, Lisbon's three at `/p/6`, and Tokyo's hero slot,
- * which is the seed's one non-default focal point.
+ * highlights at `/p/3`, Lisbon's three at `/p/6`, Marrakech's "OVERWHELMED"
+ * mood at `/p/12`, and Tokyo's hero slot, which is the seed's one
+ * non-default focal point.
  */
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
@@ -57,6 +69,12 @@ const TOKYO_NOTES_PAGE = 3
 
 /** Lisbon's notes page: the second journey's first page, THREE highlights. */
 const LISBON_NOTES_PAGE = 6
+
+/** Marrakech's notes page: the fourth journey's, seeded with the mood "OVERWHELMED". */
+const MARRAKECH_NOTES_PAGE = 12
+
+/** Every seeded journey's Notes page, in seed order — `apps/web/scripts/seed-data.ts`. */
+const ALL_NOTES_PAGES = [3, 6, 9, 12, 15, 18, 21, 24, 27, 30] as const
 
 /**
  * The focal point `apps/web/scripts/seed-data.ts` gives Tokyo's hero slot —
@@ -363,5 +381,78 @@ test.describe('Notes — SCREENS.md §1.3’s absolute measurements', () => {
     await expect(footer).toContainText('twelve days, one corner of it')
     await expect(footer).toContainText('photographs and')
     await expect(footer).toContainText('clips in the gallery')
+  })
+})
+
+/**
+ * Reads a badge label's rendered width against its circle's own inner
+ * diameter — the only way to know whether `badgeLabelFontSize`
+ * (packages/domain/src/badgeLabelFit.ts) actually fits the label, since real
+ * Courier Prime advance widths do not exist in jsdom. `node.lastElementChild`
+ * is the label span: both `MoodBadge` and `WeatherBadge` render the glyph
+ * first and the label second, and neither carries a more specific hook.
+ * @param page - The Playwright page, already navigated to a notes page.
+ * @param selector - The notes section's own selector, from {@link notesSelector}.
+ * @param badge - Which of the two badges to read.
+ * @returns The label's text and whether its rendered width (including its
+ *   own padding) fits inside the circle's border-adjusted inner diameter, or
+ *   `null` if the journey has no badge of that kind.
+ */
+const readBadgeLabelFit = async (
+  page: Page,
+  selector: string,
+  badge: 'weather' | 'mood',
+): Promise<{ text: string; fits: boolean } | null> =>
+  page.evaluate(
+    ({ selector, badge }) => {
+      const node = document.querySelector(`${selector} [data-badge="${badge}"]`)
+      const label = node?.lastElementChild
+      if (!(node instanceof HTMLElement) || !(label instanceof HTMLElement)) return null
+      const borderWidth = Number.parseFloat(getComputedStyle(node).borderTopWidth)
+      const innerDiameter = node.offsetWidth - borderWidth * 2
+      return { text: label.textContent, fits: label.offsetWidth <= innerDiameter }
+    },
+    { selector, badge },
+  )
+
+test.describe('Notes — a long badge label shrinks to fit, rather than overflowing its circle', () => {
+  test('fits the seeded "OVERWHELMED" mood label (Marrakech, 11 characters) inside its 98px badge', async ({
+    page,
+  }) => {
+    const notes = await openNotes(page, MARRAKECH_NOTES_PAGE)
+    await expect(notes).toBeVisible()
+    const fit = await readBadgeLabelFit(page, notesSelector(MARRAKECH_NOTES_PAGE), 'mood')
+
+    // The proof this test exists at all: measured in this same pinned
+    // container before `badgeLabelFontSize` stepped the size down,
+    // "OVERWHELMED" was 105px against a 96px inner circle — `fits` was
+    // `false` here, not a jsdom guess. Reverting the step-down (returning
+    // `BADGE_LABEL_SIZE.max` unconditionally from `badgeLabelFontSize`)
+    // reproduces that failure; both runs are pasted in
+    // `.superpowers/sdd/2026-09-01-phase-1-public-diary/owner-decisions-report.md`.
+    expect(fit?.text).toBe('OVERWHELMED')
+    expect(fit?.fits).toBe(true)
+  })
+
+  test('fits every seeded journey’s mood and weather label inside its badge', async ({ page }) => {
+    const readings: Array<{ pageNumber: number; badge: string; text: string; fits: boolean }> = []
+
+    for (const pageNumber of ALL_NOTES_PAGES) {
+      const selector = notesSelector(pageNumber)
+      await openNotes(page, pageNumber)
+
+      for (const badge of ['weather', 'mood'] as const) {
+        const fit = await readBadgeLabelFit(page, selector, badge)
+        if (fit !== null) readings.push({ pageNumber, badge, ...fit })
+      }
+    }
+
+    // Every seeded label — nine weather lines and ten moods across the ten
+    // journeys — fits its badge. This is what proves the common case (every
+    // weather line, and nine of the ten moods) still renders untouched at
+    // 11px, not merely that the one long label was special-cased.
+    expect(readings).toHaveLength(20)
+    expect(readings.filter((reading) => !reading.fits)).toEqual([])
+    expect(readings.map((reading) => reading.text)).toContain('OVERWHELMED')
   })
 })

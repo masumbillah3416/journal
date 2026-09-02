@@ -19,9 +19,19 @@
  * The chosen glyph is published to the DOM as `data-weather-glyph`, so a
  * browser test can assert WHICH glyph was drawn rather than infer it from a
  * measured width — `e2e/notes.spec.ts` reads it.
+ *
+ * THE LABEL'S SIZE IS COMPUTED, the same way {@link MoodBadge}'s is:
+ * `badgeLabelFontSize` (`packages/domain/src/badgeLabelFit.ts`) shrinks a
+ * weather line past a length threshold so it fits the shared 98px circle
+ * (`docs/deviations.md` §14). No seeded weather line is long enough to
+ * trigger it — the longest is 9 characters against a 10-character
+ * threshold — but the badge shares its stylesheet class with the mood badge,
+ * so it shares this behaviour rather than fitting only the case that has
+ * shown up in the seed so far.
  * Depends on: react, `WeatherGlyph` (@travel-diary/domain/bookBundle),
- * ./notes.module.css.
+ * `badgeLabelFontSize` (@travel-diary/domain/badgeLabelFit), ./notes.module.css.
  */
+import { badgeLabelFontSize } from '@travel-diary/domain/badgeLabelFit'
 import type { WeatherGlyph } from '@travel-diary/domain/bookBundle'
 import type React from 'react'
 import styles from './notes.module.css'
@@ -56,6 +66,8 @@ const GLYPH_CLASS_NAME: Readonly<Record<WeatherGlyph, string | undefined>> = {
 export const WeatherBadge = ({ label, glyph }: WeatherBadgeProps): React.JSX.Element => (
   <div data-badge="weather" className={styles.weatherBadge}>
     <span data-weather-glyph={glyph} aria-hidden="true" className={GLYPH_CLASS_NAME[glyph]} />
-    <span className={styles.badgeLabel}>{label}</span>
+    <span className={styles.badgeLabel} style={{ fontSize: `${String(badgeLabelFontSize(label))}px` }}>
+      {label}
+    </span>
   </div>
 )

@@ -180,32 +180,27 @@
 
 /* "label (Courier 11px .08em, centred, 0 9px)".
  *
- * STANDING CONDITION, MEASURED AND NOT FIXED HERE - a mood or weather label
- * of ELEVEN OR MORE characters overflows its own badge, and the seeded book
- * contains exactly one ("OVERWHELMED", Marrakech). Every number involved is
- * SCREENS.md §1.3's own: a 98px circle (96px inside its 1.5px border), an
- * 11px Courier label at .08em tracking, 9px of padding each side. In real
- * Courier Prime that is 7.9px per character, so 96px of badge minus 18px of
- * padding holds 9 characters comfortably and 10 exactly; "OVERWHELMED"
- * measures 105px against 96px and its first and last letters sit ON the
- * dashed ring. Measured in the pinned container at all three viewports.
+ * RESOLVED - see docs/deviations.md §14. With real Courier Prime self-hosted
+ * (docs/adr/0008-lcp-budget-and-the-framework-floor.md), a mood or weather
+ * label of TEN OR MORE characters overflows its own badge; the seeded book
+ * contains exactly one past that ("OVERWHELMED", Marrakech, 11 characters,
+ * measured at 105px against a 96px circle before this fix). SCREENS.md
+ * §1.3's own numbers said so: a 98px circle (96px inside its 1.5px border),
+ * 9px of padding each side, and Courier Prime's own measured 7.9px/character
+ * hold 9 characters comfortably and overflow at 10.
  *
- * It did not show before Courier Prime was self-hosted
- * (docs/adr/0008-lcp-budget-and-the-framework-floor.md): the generic
- * monospace the browser had been substituting rendered the same label at
- * 88px, inside the circle. So this is not a pre-existing defect, it is the
- * real typeface being wider than the substitute the design was checked
- * against - which makes it a question about the design, not a bug with an
- * obvious right answer, and NOT one to settle by quietly editing a value
- * SCREENS.md states.
- *
- * The three ways out, none taken on this task's authority: shorten the
- * seeded mood word; reduce this padding to 4px and record it in
- * docs/deviations.md the way the cover's contrast change was recorded
- * (§12, user-approved); or widen the badge past 98px. Adding
- * `overflow: hidden; text-overflow: ellipsis` here the way `.tallyKey` does
- * is deliberately NOT on that list - "OVERWHELM..." inside a 98px circle
- * reads worse than a 4.5px spill. */
+ * Three ways out were on the table: shorten the seed word, widen the badge
+ * past 98px, or shrink the label past a length threshold. The owner chose
+ * the third — the circle's size is load-bearing (two sit side by side in a
+ * fixed header row; growing one unbalances the row and can push the journey
+ * name) and the label's exact size is not. `font-size` is set inline by
+ * `MoodBadge.tsx`/`WeatherBadge.tsx` from `badgeLabelFontSize`
+ * (`packages/domain/src/badgeLabelFit.ts`), a pure function of the label's
+ * length with its own 100%-covered suite; 11px here is what every label at
+ * or under the fitting threshold still renders at, unchanged. `letter-spacing`
+ * stays the handoff's `.08em` for the same reason `coverTitle.ts`'s formula
+ * does not touch tracking either: an em unit already shrinks in lockstep
+ * with `font-size`, so a second lever would only fight the first. */
 .badgeLabel {
   padding: 0 9px;
   font-family: var(--td-font-courier);

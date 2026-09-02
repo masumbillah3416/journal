@@ -418,3 +418,59 @@ because the prototype is part of the same handoff directory.
 **Rationale:** `SCREENS.md` is named as the source of record and is the more precise of
 the two documents in each case above. Nothing here changes a measurement, a colour or a
 line of copy — every one of those is transcribed from §1.3 exactly.
+
+## 14 · A long mood or weather label shrinks to fit its 98px badge, rather than overflowing it
+
+**What changed:** `SCREENS.md` §1.3 gives the Notes page's mood and weather badges as
+"two 98px circles" with a "Courier 11px `.08em`, centred, `0 9px`" label, and states no
+exception. With all three font families self-hosted
+(`docs/adr/0008-lcp-budget-and-the-framework-floor.md`), a label of ten or more
+characters overflows that circle — measured in the pinned
+`mcr.microsoft.com/playwright:v1.62.1-noble` container, the seeded mood "OVERWHELMED"
+(Marrakech, 11 characters) rendered its label at 105px against a 96px inner circle, 9px
+over, with its first and last letters sitting on the dashed ring. This is now handled:
+`badgeLabelFontSize` (`packages/domain/src/badgeLabelFit.ts`) shrinks a label's
+`font-size` — nothing else — once it would overflow at the handoff's 11px, set inline by
+`MoodBadge.tsx` and `WeatherBadge.tsx` the same way `Cover.tsx` sets the cover title's
+size from `fitTitleSize`. Every label at or under the fitting threshold (nine of the ten
+seeded moods, and all ten seeded weather lines) still renders at exactly 11px/`.08em`,
+untouched.
+
+**What did NOT change:** the 98px circle, its border, its rotation and its background
+are exactly `SCREENS.md` §1.3's. Both badges stay the same size as each other and as
+every other journey's. The label's padding (`0 9px`) is untouched — only its font size
+steps down, and `letter-spacing` is left at the handoff's `.08em` because it is an em
+unit and already shrinks in lockstep with the font size; a second lever on top of that
+would only fight the first.
+
+**Rationale:** three ways out were on the table — shorten the seeded mood word, widen
+the badge past 98px, or shrink the label past a length threshold — and none is free of
+a real tradeoff, which is why `notes.module.css`'s header left the question open rather
+than settling it unilaterally. The circle's size is load-bearing in a way its label's
+size is not: the weather and mood badges sit side by side in a fixed-width header row,
+so growing one to fit its own worst-case label changes the row's balance and can push
+the journey name — a change nobody asked for, to fix a problem confined to one editor's
+word choice. Shrinking the label instead costs nothing structural: it is presentational,
+it is deterministic (a pure function of the label's length,
+`packages/domain/src/badgeLabelFit.ts`, with its own 100%-covered suite), and it is
+provably contained to the labels that actually need it.
+
+**Who decided, and why it is recorded rather than taken quietly:** stepping a stated
+type size down for some inputs and not others is a design decision, not a transcription
+one — the same category `docs/deviations.md` §12 records for the cover's contrast fix.
+**The owner approved this departure from SCREENS.md §1.3's unconditional 11px label,**
+choosing to shrink long labels rather than widen the badge or edit the seed data.
+
+**Consequence a future task needs:** any journey whose mood or weather line is edited
+past nine characters (Courier Prime's measured 7.9px/character makes ten the first
+length that overflows at 11px) will render its badge label smaller than 11px, by design
+— this is not a bug to "fix" by reverting the label to a fixed size. `e2e/notes.spec.ts`
+measures the rendered label against the rendered circle's own inner diameter (not a
+fixed pixel width) for every seeded journey's mood and weather line, so a future label
+long enough to defeat even the floored minimum (`BADGE_LABEL_SIZE.min`, 8px) would fail
+there rather than silently overflow.
+
+**Recorded as:** `packages/domain/src/badgeLabelFit.ts` and its test suite;
+`apps/web/components/pages/MoodBadge.tsx` and `WeatherBadge.tsx`'s headers;
+`apps/web/components/pages/notes.module.css`'s `.badgeLabel` comment;
+`e2e/notes.spec.ts`'s "a long badge label shrinks to fit" cases.
