@@ -8,7 +8,7 @@
  * sensible defaults, so a test's `aJourney({ slug: 'tokyo' })` names only the
  * field it cares about. Depends on: Journey and BookChrome, from ../bookBundle.
  */
-import type { BookChrome, Journey } from '../bookBundle'
+import type { AboutContent, BookChrome, Journey, Slot } from '../bookBundle'
 import type { JourneyId } from '../ids'
 
 // Test-only default id. The literal below is a fixed, non-empty string, so
@@ -63,5 +63,42 @@ export const aBookChrome = (overrides: Partial<BookChrome> = {}): BookChrome => 
   yearsShown: '2025 — 2026',
   contentsNote: 'Each journey runs three pages — notes, then two spreads of frames. The rest lives in the galleries.',
   showDecorations: true,
+  ...overrides,
+})
+
+/**
+ * Builds the About page's portrait slot for tests.
+ *
+ * Its `role` is `'hero'` because that is what the portrait is on that page -
+ * the one photograph with a subject - and the role is what chooses the
+ * derivative tier `readBookBundle` resolves it at.
+ * @param overrides - Fields to override. Merged shallowly over the defaults.
+ * @returns A fresh portrait slot, shared with no other call's result.
+ */
+export const aPortrait = (overrides: Partial<Slot> = {}): Slot => ({
+  role: 'hero',
+  src: '/api/media/file/portrait-400x400.png',
+  alt: 'PORTRAIT',
+  caption: 'Somewhere with bad coffee and a good window',
+  focalX: 50,
+  focalY: 50,
+  ...overrides,
+})
+
+/**
+ * Builds an {@link AboutContent} for tests, with the seeded `about` global's
+ * own values as defaults so a fixture reads like the real page rather than
+ * like a stub.
+ * @param overrides - Fields to override. Merged shallowly over the defaults.
+ * @returns A fresh About content object, shared with no other call's result.
+ */
+export const anAboutContent = (overrides: Partial<AboutContent> = {}): AboutContent => ({
+  portrait: aPortrait(),
+  paragraphs: [
+    'This is a paper habit that ended up on a screen.',
+    'Nothing here is a recommendation. If a page looks crooked, that is the tape.',
+  ],
+  kit: ['35mm rangefinder, one lens', 'Pocket notebook, blue ink', 'Roll of washi tape, always'],
+  replyTo: 'hello@wanderings.travel',
   ...overrides,
 })

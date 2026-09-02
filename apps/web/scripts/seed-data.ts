@@ -36,6 +36,23 @@ export interface TallyEntry {
   readonly value: string
 }
 
+/**
+ * A focal point as percentages, for a slot whose crop is not centred.
+ *
+ * `pages.slots[].focalX/focalY` and `media.focalX/focalY` both default to 50
+ * (DATA_MODEL.md, "Focal point lives on the slot"), so a seed in which every
+ * slot were centred would leave the admin's focal-point picker unprovable in
+ * a browser - every rendered crop would look identical whether the value
+ * reached `object-position` or not. A handful of deliberately off-centre
+ * points give the browser suites pages on which the crop demonstrably moves.
+ */
+export interface SeedFocal {
+  /** Horizontal focus, as a percentage of the photograph's width. */
+  readonly x: number
+  /** Vertical focus, as a percentage of the photograph's height. */
+  readonly y: number
+}
+
 /** A journey's content, as extracted from the prototype. */
 export interface JourneySeed {
   /** URL-safe, unique identifier — the prototype's own `id`. */
@@ -69,19 +86,24 @@ export interface JourneySeed {
   /** Caption for the Notes page's hero photo slot. */
   readonly heroCaption: string
   /**
-   * The hero slot's focal point, as percentages, when it is not the centre.
-   * Optional, and set for exactly one journey: `pages.slots[].focalX/focalY`
-   * default to 50 (DATA_MODEL.md, "Focal point lives on the slot"), so a seed
-   * where every slot is centred would leave the admin's focal-point picker
-   * unprovable in a browser - every rendered crop would look identical
-   * whether the value reached `object-position` or not. One non-default slot
-   * gives `e2e/notes.spec.ts` a page on which the crop demonstrably moves.
+   * The hero slot's focal point when it is not the centre - see
+   * {@link SeedFocal}. Set for exactly one journey, which gives
+   * `e2e/notes.spec.ts` a page on which the crop demonstrably moves.
    */
-  readonly heroFocal?: { readonly x: number; readonly y: number }
+  readonly heroFocal?: SeedFocal
   /** Captions for Frames I's three photo slots, in order. */
   readonly frameOneCaptions: readonly string[]
   /** Captions for Frames II's four photo slots, in order. */
   readonly frameTwoCaptions: readonly string[]
+  /**
+   * Frames I's non-default focal points, keyed by 0-based slot index - see
+   * {@link SeedFocal}. Keyed rather than positional so a seed names only the
+   * slots it actually moves, and so adding a caption cannot silently shift
+   * another slot's focal point onto the wrong photograph.
+   */
+  readonly frameOneFocals?: Readonly<Record<number, SeedFocal>>
+  /** Frames II's non-default focal points, keyed by 0-based slot index. */
+  readonly frameTwoFocals?: Readonly<Record<number, SeedFocal>>
 }
 
 /**
@@ -118,6 +140,13 @@ export const journeySeeds: readonly JourneySeed[] = [
     ],
     heroCaption: 'Crossing at Shibuya, second attempt, still blurred',
     heroFocal: { x: 18, y: 82 },
+    // One off-centre slot on each Frames page, so `e2e/frames.spec.ts` can
+    // prove the crop moves on a `frame`-role slot as well as on a hero -
+    // seven photographs per journey reach `object-position` through the same
+    // component, and a wiring that held only for the hero would look
+    // identical in every screenshot.
+    frameOneFocals: { 0: { x: 22, y: 78 } },
+    frameTwoFocals: { 2: { x: 80, y: 24 } },
     frameOneCaptions: [
       'Vending machine at 6am, Nakameguro',
       'The cat that runs the bookshop',
@@ -443,11 +472,19 @@ export interface AboutGlobalSeed {
   readonly kit: readonly string[]
   /** The address a reader's reply is addressed to. */
   readonly replyTo: string
+  /**
+   * The portrait's focal point - see {@link SeedFocal}. It is written onto
+   * the MEDIA ITEM rather than onto a slot, because the `about` global holds
+   * a bare `upload` with no slot to override it with (DATA_MODEL.md:
+   * "`media.focalPoint` is the default; the slot overrides it").
+   */
+  readonly portraitFocal: SeedFocal
 }
 
 /** The `about` global's seed content. */
 export const aboutGlobalSeed: AboutGlobalSeed = {
   portraitCaption: 'Somewhere with bad coffee and a good window',
+  portraitFocal: { x: 34, y: 22 },
   paragraphs: [
     'This is a paper habit that ended up on a screen. I keep one page of notes per journey, then paste in whatever frames survive the edit. Everything else goes into the gallery behind each entry — sometimes a hundred photographs, most of them of doorways.',
     'Nothing here is a recommendation. The notes are written the same evening, badly, and left that way on purpose. If a page looks crooked, that is the tape.',

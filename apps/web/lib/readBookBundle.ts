@@ -10,7 +10,7 @@
  * `derivePages`/`deriveContents`/`deriveBookmarks`, reused here verbatim
  * (docs/deviations.md §5: Cover/Contents/About are not `pages` rows).
  *
- * Five Payload queries, always, regardless of how many journeys, pages or
+ * Six Payload queries, always, regardless of how many journeys, pages or
  * photographs exist (CLAUDE.md §6, no N+1):
  *   1. `findGlobal('book')` - `journeyOrderMode`, to choose how the journeys
  *      below are sorted before `derivePages` sees them, plus the seven
@@ -29,15 +29,27 @@
  *      the whole book, not one query per journey.
  *   4. `find('pages')` - every one of those journeys' pages together
  *      (`where: journey in [...]`), not one query per journey.
- *   5. `find('media')` - every media item referenced by any slot in (4)
- *      together (`where: id in [...]`), not one query per slot or per page.
- *      Separate from (3) deliberately: this one carries each row's whole
- *      `sizes` derivative map, which a census must never pay for.
- * Every one of the five sets `depth: 0` explicitly (CLAUDE.md §7: a default
+ *   5. `findGlobal('about')` - the About page's portrait, caption,
+ *      paragraphs, kit list and reply-to ({@link toAboutContent}). Read
+ *      BEFORE (6) so its portrait's media id joins that batch rather than
+ *      costing a query of its own.
+ *   6. `find('media')` - every media item referenced by any slot in (4),
+ *      plus the About portrait from (5), together (`where: id in [...]`),
+ *      not one query per slot or per page. Separate from (3) deliberately:
+ *      this one carries each row's whole `sizes` derivative map, which a
+ *      census must never pay for.
+ * Every one of the six sets `depth: 0` explicitly (CLAUDE.md §7: a default
  * depth walks the whole relationship graph on every request) - relationships
  * are resolved by hand from (4)'s raw `journey`/`slots[].media` ids and (5)'s
  * batch, not by Payload's own population. Every query also selects only the
  * fields this module reads (CLAUDE.md §7).
+ *
+ * THE ABOUT PORTRAIT'S FOCAL POINT COMES FROM THE MEDIA ITEM, and it is
+ * the one placement in the diary where that is right. DATA_MODEL.md's rule
+ * is "`media.focalPoint` is the default; the slot overrides it" - and the
+ * `about` global holds a bare `upload` with no slot on it, so there is
+ * nothing to override it with. Every other photograph in the book reaches
+ * this module through a `pages` row and keeps taking its slot's own value.
  *
  * Slots resolve to a DERIVATIVE url, never `media.url` (the original) -
  * {@link derivativeUrlFor} walks a role-ordered preference list over
@@ -67,12 +79,13 @@
  * without ever logging the journey document itself.
  *
  * Depends on: getPayload (./payload); Journey, BookPage, Slot, BookBundle,
- * BookChrome, derivePages, deriveContents, deriveBookmarks
+ * BookChrome, AboutContent, derivePages, deriveContents, deriveBookmarks
  * (@travel-diary/domain/bookBundle); journeyId (@travel-diary/domain/ids);
  * coverCloths (@travel-diary/tokens/colour), for the one chrome field whose
  * empty value would render nothing at all; the generated Payload types.
  */
 import type {
+  AboutContent,
   BookBundle,
   BookChrome,
   BookPage,
@@ -85,6 +98,7 @@ import { deriveBookmarks, deriveContents, derivePages } from '@travel-diary/doma
 import { journeyId } from '@travel-diary/domain/ids'
 import { coverCloths } from '@travel-diary/tokens/colour'
 import type {
+  About as PayloadAbout,
   Book as PayloadBook,
   Journey as PayloadJourney,
   Media as PayloadMedia,
@@ -140,8 +154,18 @@ type SelectedBookGlobal = Pick<
   'journeyOrderMode' | 'title' | 'subtitle' | 'owner' | 'coverCloth' | 'yearsShown' | 'contentsNote' | 'showDecorations'
 >
 
-/** The exact shape `find('media')`'s own `select` below returns. */
-type SelectedMediaDoc = Pick<PayloadMedia, 'id' | 'sizes' | 'alt' | 'caption'>
+/**
+ * The exact shape `findGlobal('about')`'s own `select` below returns - the
+ * five fields the About page prints.
+ */
+type SelectedAboutGlobal = Pick<PayloadAbout, 'portrait' | 'portraitCaption' | 'paragraphs' | 'kit' | 'replyTo'>
+
+/**
+ * The exact shape `find('media')`'s own `select` below returns. `focalX`/
+ * `focalY` are read for the About portrait alone - see this module's header
+ * for why that one photograph has no slot to carry them.
+ */
+type SelectedMediaDoc = Pick<PayloadMedia, 'id' | 'sizes' | 'alt' | 'caption' | 'focalX' | 'focalY'>
 
 /**
  * The slice of Payload's own logger this module writes to - a minimal,
@@ -400,6 +424,52 @@ const toBookChrome = (doc: SelectedBookGlobal): BookChrome => ({
 })
 
 /**
+ * The lines of an `about` global array field, with any an editor cleared
+ * dropped rather than printed as a blank line.
+ * @param rows - `paragraphs` or `kit`, as `findGlobal` returns them.
+ * @returns The non-empty lines, in stored order.
+ */
+const textLines = (rows: readonly { readonly text?: string | null }[] | null | undefined): readonly string[] =>
+  (rows ?? []).flatMap((row) => (row.text === null || row.text === undefined || row.text === '' ? [] : [row.text]))
+
+/**
+ * Narrows the `about` global into the definite {@link AboutContent} the About
+ * page reads, resolving its portrait against the same media batch the page
+ * slots use. Every field is nullable in the schema, so an editor clearing one
+ * is an ordinary state - `About.tsx` omits the block rather than printing a
+ * heading with nothing under it, exactly as `Cover.tsx` does.
+ * @param doc - The `about` global, as `findGlobal` returns it.
+ * @param mediaById - Every media item the book references, keyed by id.
+ * @returns The content the About page prints.
+ * @throws {Error} When the portrait's media has no derivative of any tier -
+ *   see {@link derivativeUrlFor}.
+ */
+const toAboutContent = (doc: SelectedAboutGlobal, mediaById: ReadonlyMap<number, SelectedMediaDoc>): AboutContent => {
+  const portraitId = typeof doc.portrait === 'number' ? doc.portrait : doc.portrait?.id
+  const portraitMedia = portraitId === undefined ? undefined : mediaById.get(portraitId)
+
+  return {
+    // `role: 'hero'` because that is what the portrait IS on that page - the
+    // one photograph with a subject - and the role is what chooses the
+    // derivative tier it resolves at.
+    portrait:
+      portraitMedia === undefined
+        ? undefined
+        : {
+            role: 'hero',
+            src: derivativeUrlFor(portraitMedia, 'hero'),
+            alt: portraitMedia.alt ?? '',
+            caption: doc.portraitCaption ?? '',
+            focalX: portraitMedia.focalX ?? 50,
+            focalY: portraitMedia.focalY ?? 50,
+          },
+    paragraphs: textLines(doc.paragraphs),
+    kit: textLines(doc.kit),
+    replyTo: doc.replyTo ?? '',
+  }
+}
+
+/**
  * Assembles the diary's `BookBundle` from Payload: the reading sequence
  * (Cover, Contents, each journey's three pages with their resolved photo
  * slots, About), the Contents index, and the bookmark rail. See this
@@ -501,12 +571,23 @@ export const readBookBundle = async (): Promise<BookBundle> => {
     select: { journey: true, kind: true, order: true, slots: true },
   })
 
+  const about = await payload.findGlobal({
+    slug: 'about',
+    depth: 0,
+    select: { portrait: true, portraitCaption: true, paragraphs: true, kit: true, replyTo: true },
+  })
+  const portraitId = typeof about.portrait === 'number' ? about.portrait : about.portrait?.id
+
+  // The About portrait joins the slot media's own batch rather than being
+  // fetched on its own - one photograph is not worth a round trip of its
+  // own, and it wants exactly the columns this query already selects.
   const mediaIds = [
-    ...new Set(
-      pagesResult.docs.flatMap((page) =>
+    ...new Set([
+      ...pagesResult.docs.flatMap((page) =>
         (page.slots ?? []).flatMap((slot) => (typeof slot.media === 'number' ? [slot.media] : [])),
       ),
-    ),
+      ...(portraitId === undefined ? [] : [portraitId]),
+    ]),
   ]
   // `where: { id: { in: [] } }` is a valid, cheap query that returns zero
   // docs (verified against Postgres directly) - no special-casing an empty
@@ -518,7 +599,7 @@ export const readBookBundle = async (): Promise<BookBundle> => {
     pagination: false,
     limit: 5000,
     where: { id: { in: mediaIds } },
-    select: { sizes: true, alt: true, caption: true },
+    select: { sizes: true, alt: true, caption: true, focalX: true, focalY: true },
   })
   const mediaById = new Map(mediaResult.docs.map((doc) => [doc.id, doc]))
 
@@ -531,5 +612,6 @@ export const readBookBundle = async (): Promise<BookBundle> => {
     contents: deriveContents(pages),
     bookmarks: deriveBookmarks(pages),
     chrome: toBookChrome(book),
+    about: toAboutContent(about, mediaById),
   }
 }

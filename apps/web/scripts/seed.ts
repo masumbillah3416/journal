@@ -49,7 +49,7 @@ import type { Result } from '@travel-diary/domain/result'
 import { journeyAccents } from '@travel-diary/tokens/colour'
 import type { Journey, Media, Page } from '../payload-types'
 import { stripedPlaceholder } from './placeholder'
-import { aboutGlobalSeed, bookGlobalSeed, journeySeeds, type JourneySeed } from './seed-data'
+import { aboutGlobalSeed, bookGlobalSeed, journeySeeds, type JourneySeed, type SeedFocal } from './seed-data'
 
 /** Design-box dimensions for each slot role, lifted from the prototype (Task 11 brief). */
 const SLOT_SIZE = {
@@ -278,6 +278,8 @@ const buildNotesSlots = async (
  * @param captions - This page's captions, in slot order.
  * @param slotPrefix - `'A'` for Frames I, `'B'` for Frames II, matching the prototype.
  * @param tint - The journey's accent colour.
+ * @param focals - This page's non-default focal points, keyed by 0-based slot
+ *   index; a slot named by none of them keeps the schema's own centre (50/50).
  */
 const buildFramesSlots = async (
   payload: Payload,
@@ -286,12 +288,14 @@ const buildFramesSlots = async (
   captions: readonly string[],
   slotPrefix: 'A' | 'B',
   tint: string,
+  focals: Readonly<Record<number, SeedFocal>>,
 ): Promise<readonly SeededSlot[]> => {
   const slots: SeededSlot[] = []
   for (const [index, caption] of captions.entries()) {
     const label = `${code} ${slotPrefix}${String(index + 1)}`
     const media = await upsertSlotMedia(payload, journeyNumericId, label, caption, tint, SLOT_SIZE.frame, index)
-    slots.push({ role: 'frame', media, caption, focalX: 50, focalY: 50 })
+    const focal = focals[index]
+    slots.push({ role: 'frame', media, caption, focalX: focal?.x ?? 50, focalY: focal?.y ?? 50 })
   }
   return slots
 }
@@ -353,18 +357,33 @@ const upsertJourneyPage = async (
  */
 const upsertPortraitMedia = async (payload: Payload): Promise<Media['id']> => {
   const label = 'PORTRAIT'
+  // Written onto the media item, not onto a slot: the `about` global holds a
+  // bare `upload`, so there is no slot to override it with (DATA_MODEL.md,
+  // "`media.focalPoint` is the default; the slot overrides it").
+  const focal = {
+    focalX: aboutGlobalSeed.portraitFocal.x,
+    focalY: aboutGlobalSeed.portraitFocal.y,
+  }
   const existing = await payload.find({
     collection: 'media',
     where: { alt: { equals: label } },
     limit: 1,
   })
   const found = existing.docs[0]
-  if (found) return found.id
+  // Re-seeding updates the focal point rather than returning the row
+  // untouched: unlike a journey's photo slots, whose focal points live on the
+  // `pages` row `upsertJourneyPage` rewrites in full, this one has nowhere
+  // else to be written from, so an early return would leave a developer's
+  // existing store centred for good.
+  if (found) {
+    const updated = await payload.update({ collection: 'media', id: found.id, data: focal })
+    return updated.id
+  }
 
   const png = await renderPlaceholderPng(label, '#7d715c', { width: 700, height: 900 })
   const created = await payload.create({
     collection: 'media',
-    data: { kind: 'still', caption: aboutGlobalSeed.portraitCaption, alt: label, order: 0 },
+    data: { kind: 'still', caption: aboutGlobalSeed.portraitCaption, alt: label, order: 0, ...focal },
     file: { data: png, mimetype: 'image/png', name: 'portrait.png', size: png.length },
   })
   return created.id
@@ -485,6 +504,7 @@ export const seed = async (payload: Payload): Promise<void> => {
       seedJourney.frameOneCaptions,
       'A',
       accent,
+      seedJourney.frameOneFocals ?? {},
     )
     const frameTwoSlots = await buildFramesSlots(
       payload,
@@ -493,6 +513,7 @@ export const seed = async (payload: Payload): Promise<void> => {
       seedJourney.frameTwoCaptions,
       'B',
       accent,
+      seedJourney.frameTwoFocals ?? {},
     )
 
     const baseOrder = index * PAGE_TITLES.length

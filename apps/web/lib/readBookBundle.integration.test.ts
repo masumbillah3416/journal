@@ -31,6 +31,12 @@
  * slot `focalX`/`focalY`) falling back correctly when explicitly `null`,
  * not just `undefined` (finding 3); and a draft journey's exclusion, which
  * was previously correct but unproven (finding 4).
+ *
+ * Task 11 (the About page, SCREENS.md §1.6) adds the `about` global's own
+ * cases: its content carried through verbatim, its portrait resolved to a
+ * derivative at the `hero` tier, its focal point taken from the MEDIA ITEM
+ * (the one placement in the diary with no slot to override it), and every
+ * field degrading rather than throwing when an editor clears it.
  */
 import { coverCloths } from '@travel-diary/tokens/colour'
 import sharp from 'sharp'
@@ -39,7 +45,7 @@ import { getPayload } from './payload'
 import { getTestPayload } from './testPayload'
 import { readBookBundle } from './readBookBundle'
 import { seed } from '../scripts/seed'
-import { bookGlobalSeed, journeySeeds } from '../scripts/seed-data'
+import { aboutGlobalSeed, bookGlobalSeed, journeySeeds } from '../scripts/seed-data'
 
 const SETUP_TIMEOUT_MS = 60_000
 
@@ -242,13 +248,104 @@ describe('readBookBundle', () => {
 
     // One find for journeys, one for pages, one for the slots' media and one
     // for the gallery census - never one per journey or per page (CLAUDE.md §6).
+    // The About page's portrait costs NO query of its own: its media id joins
+    // the slot-media query's `where: { id: { in: [...] } }` batch.
     expect(findSpy.mock.calls.length).toBe(4)
-    // One findGlobal for `book` - the sort mode and the seven chrome fields
-    // come out of the SAME global read, never a second one.
-    expect(findGlobalSpy.mock.calls.length).toBe(1)
+    // Two findGlobals: `book` (the sort mode and the seven chrome fields come
+    // out of the SAME read, never a second one) and `about`.
+    expect(findGlobalSpy.mock.calls.length).toBe(2)
 
     findSpy.mockRestore()
     findGlobalSpy.mockRestore()
+  })
+
+  it('carries the about global’s content through, verbatim from the seed', async () => {
+    const bundle = await readBookBundle()
+
+    // SCREENS.md §1.6's copy is final (CLAUDE.md §9, Pass 3) - asserted
+    // against the seed's own strings rather than retyped here, so a
+    // paraphrase in either place fails.
+    expect(bundle.about.paragraphs).toEqual(aboutGlobalSeed.paragraphs)
+    expect(bundle.about.kit).toEqual(aboutGlobalSeed.kit)
+    expect(bundle.about.replyTo).toBe(aboutGlobalSeed.replyTo)
+  })
+
+  it('resolves the about portrait to a derivative URL captioned by the global', async () => {
+    const bundle = await readBookBundle()
+
+    expect(bundle.about.portrait).toMatchObject({
+      role: 'hero',
+      caption: aboutGlobalSeed.portraitCaption,
+    })
+    // Never `media.url`, the original (CLAUDE.md §7, "Always a derivative
+    // tier"): every derivative Payload writes carries its dimensions in the
+    // filename, and an original does not.
+    expect(bundle.about.portrait?.src).toMatch(/-\d+x\d+\.\w+$/)
+  })
+
+  it('takes the about portrait’s focal point from the media item, which is the only place it can live', async () => {
+    // DATA_MODEL.md: "`media.focalPoint` is the default; the slot overrides
+    // it." The `about` global holds a bare `upload` with no slot on it, so
+    // the media item's own focal point IS the portrait's - and without this,
+    // the admin's focal-point picker is decorative on this page.
+    const bundle = await readBookBundle()
+
+    expect(bundle.about.portrait).toMatchObject({
+      focalX: aboutGlobalSeed.portraitFocal.x,
+      focalY: aboutGlobalSeed.portraitFocal.y,
+    })
+  })
+
+  describe('degrades cleared about-global fields rather than failing the whole book', () => {
+    afterEach(async () => {
+      const portrait = await payload.find({
+        collection: 'media',
+        depth: 0,
+        limit: 1,
+        where: { alt: { equals: 'PORTRAIT' } },
+      })
+      const portraitId = portrait.docs[0]?.id
+      await payload.updateGlobal({
+        slug: 'about',
+        data: {
+          portrait: portraitId ?? null,
+          portraitCaption: aboutGlobalSeed.portraitCaption,
+          paragraphs: aboutGlobalSeed.paragraphs.map((text) => ({ text })),
+          kit: aboutGlobalSeed.kit.map((text) => ({ text })),
+          replyTo: aboutGlobalSeed.replyTo,
+        },
+      })
+    })
+
+    it('empties every cleared field, so the page omits the block rather than printing an empty heading', async () => {
+      await payload.updateGlobal({
+        slug: 'about',
+        // The two array fields are cleared to `[]` rather than to `null`:
+        // Payload's own drizzle adapter throws on a null array here
+        // ("Cannot use 'in' operator to search for '$push' in null"), and an
+        // editor deleting every row in the admin leaves `[]` in any case.
+        data: { portrait: null, portraitCaption: null, paragraphs: [], kit: [], replyTo: null },
+      })
+
+      const bundle = await readBookBundle()
+
+      expect(bundle.about).toEqual({ portrait: undefined, paragraphs: [], kit: [], replyTo: '' })
+    })
+
+    it('drops a paragraph or kit line whose text an editor cleared, rather than printing a blank line', async () => {
+      await payload.updateGlobal({
+        slug: 'about',
+        data: {
+          paragraphs: [{ text: 'Kept.' }, { text: null }, { text: '' }],
+          kit: [{ text: null }, { text: 'Kept too.' }, { text: '' }],
+        },
+      })
+
+      const bundle = await readBookBundle()
+
+      expect(bundle.about.paragraphs).toEqual(['Kept.'])
+      expect(bundle.about.kit).toEqual(['Kept too.'])
+    })
   })
 
   describe('excludes soft-deleted, archived and draft journeys from the book', () => {

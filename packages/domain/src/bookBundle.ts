@@ -36,6 +36,17 @@
  * already were. `gallery` is the one that is not stored anywhere at all - it
  * is a census of the journey's media taken by `readBookBundle`, per
  * CLAUDE.md §7's "derive, never store ... media counts".
+ *
+ * TASK 11 (the Frames and About pages, SCREENS.md §1.4-1.6) added
+ * {@link AboutContent} and the `about` field on {@link BookBundle}. It sits
+ * beside `chrome` rather than on the `{ kind: 'about' }` page for the same
+ * reason `chrome` does not sit on the Cover page: both are GLOBAL content,
+ * read once per request from a Payload global, and a bundle whose consumers
+ * had to find them by walking the reading sequence would make every page
+ * component's props depend on where in the book it happened to be printed.
+ * The Frames pages needed nothing new here - SCREENS.md §1.4/§1.5 print the
+ * journey's name, dates, place, photo slots and gallery census, all of which
+ * `derivePages` and `readBookBundle` already carry.
  */
 import type { JourneyId } from './ids'
 
@@ -246,12 +257,43 @@ export interface BookChrome {
   readonly showDecorations: boolean
 }
 
+/**
+ * The editor-supplied content the About page prints: the `about` global's own
+ * fields, already narrowed to definite values (CLAUDE.md §3.1 - validate at
+ * the boundary, then trust the type inside). None is `required: true` in the
+ * schema, so every field here can legitimately be empty, and `About.tsx`
+ * renders nothing rather than a heading with nothing under it - the same
+ * policy {@link BookChrome} applies to the cover.
+ */
+export interface AboutContent {
+  /**
+   * The portrait, resolved the same way a page slot is: a derivative URL
+   * (never an original), the media item's alt text, the global's own
+   * `portraitCaption`, and a focal point. `undefined` when no portrait has
+   * been uploaded, in which case the About page draws its mount empty rather
+   * than collapsing the column.
+   *
+   * ITS FOCAL POINT COMES FROM THE MEDIA ITEM, not from a slot, and this is
+   * the one placement in the diary where that is correct: DATA_MODEL.md says
+   * "`media.focalPoint` is the default; the slot overrides it", and the
+   * `about` global holds a bare `upload` with no slot to override it with.
+   */
+  readonly portrait: Slot | undefined
+  /** The biography paragraphs, in order. */
+  readonly paragraphs: readonly string[]
+  /** The packing-kit lines printed under the "Kit" eyebrow, in order. */
+  readonly kit: readonly string[]
+  /** The address printed under "Write to me". */
+  readonly replyTo: string
+}
+
 /** The book's reading sequence, Contents index, bookmark rail and printed chrome. */
 export interface BookBundle {
   readonly pages: readonly BookPage[]
   readonly contents: readonly ContentsEntry[]
   readonly bookmarks: readonly BookmarkTab[]
   readonly chrome: BookChrome
+  readonly about: AboutContent
 }
 
 /** The three page kinds every journey contributes, in reading order. */
