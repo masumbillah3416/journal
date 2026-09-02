@@ -590,11 +590,11 @@ would claim a measurement nothing performs.
   what a reader at 390px actually sees. The consequence is that these baselines also
   carry the diary chrome outside the box (bookmark rail, bottom bar), whose designed
   appearance is Task 12 — that task updates these nine files, which is expected and is
-  what a baseline is for. `docs/deviations.md` §11 still applies to all of them: Courier
-  Prime and EB Garamond's italic face render in their generic fallbacks (a measured LCP
-  constraint, not an oversight), so these baselines guard geometry AND two of three
-  families' typography, not all three yet. Regenerate them once Courier Prime is wired
-  back in.
+  what a baseline is for. They now guard geometry AND the design's FULL typography:
+  Courier Prime 400/700 and EB Garamond's italic face were wired in and every baseline
+  was regenerated in the pinned container against them, with `e2e/layout.spec.ts` green
+  in the same run — see `docs/adr/0008-lcp-budget-and-the-framework-floor.md`.
+  `docs/deviations.md` §11, which recorded the old two-of-three state, is withdrawn.
 
   **A baseline is only as good as the page it was captured over, and this suite has
   already ratified an S1 defect once.** The 2026-09-01 browser sweep
@@ -750,19 +750,20 @@ about, after any change to the cloth, the texture over it, or that line's own al
 **The Contents page needs no such note: every one of its fourteen text roles was measured
 against the darkest paper stop and clears its bar, the lowest at 4.57:1.**
 
-**3 · Two of the three handoff fonts are now self-hosted; the third is a measured,
-documented deferral.** README.md's "Fonts are Google Fonts (Caveat, EB Garamond,
-Courier Prime) — self-host in production" was closed for Caveat and EB Garamond's
-upright face by the font-hosting task (`docs/adr/0005-font-hosting.md`,
-`apps/web/app/(diary)/fonts.ts`) via `next/font/local`, with the font files committed
-and `next build` never touching the network. Courier Prime and EB Garamond's italic
-face are **not** loaded — a third self-hosted font on this route repeatedly measured
-`/p/1`'s LCP over CLAUDE.md §6's 2,500ms gate in the pinned container, regardless of
-which specific family was added third (`docs/deviations.md` §11 has the full measured
-table). All nine visual baselines were regenerated in the pinned container against
-this state; they guard geometry and two of three families' typography, and must be
-regenerated again once Courier Prime's headroom is found (most likely via the
-script-weight reduction this same task's ADR names as the next step).
+**3 · All three handoff fonts are self-hosted, at all five faces the design uses.**
+README.md's "Fonts are Google Fonts (Caveat, EB Garamond, Courier Prime) — self-host in
+production" is closed via `next/font/local`, with the five `.woff2` files committed and
+`next build` never touching the network (`docs/adr/0005-font-hosting.md`,
+`apps/web/app/(diary)/fonts.ts`). Courier Prime 400/700 and EB Garamond's italic face
+were deferred through Phase 1 on a real LCP measurement, and that measurement **still
+reproduces**: `/p/1` measures 2,488.2ms with two faces, 2,637.4ms with four and
+2,933.8ms with five, against CLAUDE.md §6's 2,500ms gate. They were wired in anyway,
+because a minimal fontless route in this same app models 2,023.2ms of that budget on its
+own and the route's OBSERVED paint is ~130ms in every configuration —
+`docs/adr/0008-lcp-budget-and-the-framework-floor.md` has the floor measurement, the
+options, and the record that the gate is left **red and unraised**. Every visual
+baseline was regenerated in the pinned container against the five-face state, with
+`e2e/layout.spec.ts` green in the same run.
 
 ### 7 · Performance
 

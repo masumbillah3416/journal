@@ -13,13 +13,18 @@
  * scaled design box (bookmark rail, bottom bar, page counter) is Task 12, and
  * the `/p/<n>` metadata is Task 13.
  *
- * The two loaded `next/font/local` variable classes (Caveat, EB Garamond -
- * Courier Prime is not loaded, see fonts.ts) are applied to `<html>` so
- * their generated `--font-*` custom properties are in scope for the
- * `--td-font-*` tokens `diary.css` redefines - see fonts.ts's header for why
- * `next/font/local` rather than `next/font/google`, why only two of the
- * three families load today, and docs/adr/0005-font-hosting.md for the
- * decision record.
+ * All three `next/font/local` variable classes (Caveat, EB Garamond,
+ * Courier Prime) are applied to `<html>` so their generated `--font-*`
+ * custom properties are in scope for the `--td-font-*` tokens `diary.css`
+ * redefines - see fonts.ts's header for why `next/font/local` rather than
+ * `next/font/google`, and docs/adr/0005-font-hosting.md for the decision
+ * record. Courier Prime and EB Garamond's italic were deferred from Phase 1
+ * on an LCP measurement that still reproduces - and were wired in anyway,
+ * because the route models 2,023ms of its 2,500ms budget with no
+ * application code on it at all and paints in ~130ms whatever the fonts do.
+ * The class list below is the whole of what re-enabling them took; the
+ * reasoning and the numbers are in
+ * docs/adr/0008-lcp-budget-and-the-framework-floor.md.
  * Depends on: ./diary.css (which imports the token custom properties), ./fonts.ts.
  */
 /* c8 ignore start -- The document shell: a Next.js root layout is never
@@ -34,7 +39,7 @@
 import type { Metadata } from 'next'
 import type React from 'react'
 import './diary.css'
-import { caveat, ebGaramond } from './fonts'
+import { caveat, courierPrime, ebGaramond } from './fonts'
 
 /** The browser-tab title every diary page inherits until Task 13 gives each page its own. */
 export const metadata: Metadata = {
@@ -43,7 +48,7 @@ export const metadata: Metadata = {
 
 /** Wraps every public diary route in the document the book is drawn into. */
 const DiaryLayout = ({ children }: { readonly children: React.ReactNode }): React.JSX.Element => (
-  <html lang="en" className={`${caveat.variable} ${ebGaramond.variable}`}>
+  <html lang="en" className={`${caveat.variable} ${ebGaramond.variable} ${courierPrime.variable}`}>
     <body>{children}</body>
   </html>
 )

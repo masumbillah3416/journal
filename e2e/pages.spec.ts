@@ -289,25 +289,62 @@ test.describe('Contents', () => {
     expect(result?.metaLoaded).toBe(true)
   })
 
-  test('still falls back to generic monospace for the Courier eyebrow — Courier Prime is not self-hosted yet', async ({
-    page,
-  }) => {
-    // apps/web/app/(diary)/fonts.ts's HANDOFF-DEVIATION: a third self-hosted
-    // font on this route measured over the LCP gate in the pinned container,
-    // so Courier Prime stays on the handoff's own fallback stack. This test
-    // pins that as a known, current fact rather than leaving it
-    // unasserted — it must fail (and be updated) the day Courier Prime is
-    // wired back in, not silently keep "passing" for the wrong reason.
+  test('renders the Courier eyebrow in the self-hosted Courier Prime face', async ({ page }) => {
+    // This case replaces a fallback-PINNING test that asserted the opposite:
+    // `font-family === '"Courier Prime", monospace'`, deliberately written so
+    // that wiring Courier Prime back in would fail loudly rather than pass
+    // silently. Courier Prime has now been wired in - not because the LCP
+    // measurement behind the deferral stopped reproducing (it does), but
+    // because the route models most of its budget before any of this
+    // repository's code runs (docs/adr/0008-lcp-budget-and-the-framework-
+    // floor.md). The pin has served its purpose, and is replaced by the same
+    // positive assertion the Caveat and Garamond cases make: read the family
+    // the browser actually computed,
+    // then require a `loaded` FontFace for it. `document.fonts.check()` is
+    // still not used here, for the reason the Cover case's comment gives.
     await page.evaluate(() => document.fonts.ready)
     const result = await page.evaluate(() => {
       const eyebrow = document.querySelector<HTMLElement>('[data-page="contents"] header p:first-child')
       if (eyebrow === null) return null
-      const family = getComputedStyle(eyebrow).fontFamily
-      return { text: eyebrow.textContent, family }
+      const style = getComputedStyle(eyebrow)
+      const firstFamily = (style.fontFamily.split(',')[0]?.trim() ?? '').replace(/^["']|["']$/g, '')
+      const hasLoadedFace = [...document.fonts].some(
+        (face) =>
+          face.family.replace(/^["']|["']$/g, '').toLowerCase() === firstFamily.toLowerCase() &&
+          face.status === 'loaded',
+      )
+      return { text: eyebrow.textContent, firstFamily, hasLoadedFace }
     })
 
     expect(result).not.toBeNull()
     expect(result?.text).toBe('Index')
-    expect(result?.family).toBe('"Courier Prime", monospace')
+    expect(result?.firstFamily).not.toBe('Courier Prime')
+    expect(result?.hasLoadedFace).toBe(true)
+  })
+
+  test('has a real EB Garamond italic face behind the italic meta line, not a synthesised slant', async ({ page }) => {
+    // `contents.module.css`'s `.meta` sets `font-style: italic` on
+    // `--td-font-garamond`. Until the italic file was wired in, the browser
+    // synthesised the slant from the upright face; `document.fonts` is what
+    // distinguishes the two, because a synthesised oblique adds no FontFace.
+    await page.evaluate(() => document.fonts.ready)
+    const italics = await page.evaluate(() => {
+      const meta = document.querySelector<HTMLElement>('[data-contents-body] li:first-child span:nth-child(3)')
+      if (meta === null) return null
+      const style = getComputedStyle(meta)
+      const family = (style.fontFamily.split(',')[0]?.trim() ?? '').replace(/^["']|["']$/g, '')
+      return {
+        fontStyle: style.fontStyle,
+        hasItalicFace: [...document.fonts].some(
+          (face) =>
+            face.family.replace(/^["']|["']$/g, '').toLowerCase() === family.toLowerCase() &&
+            face.style === 'italic' &&
+            face.status === 'loaded',
+        ),
+      }
+    })
+
+    expect(italics?.fontStyle).toBe('italic')
+    expect(italics?.hasItalicFace).toBe(true)
   })
 })

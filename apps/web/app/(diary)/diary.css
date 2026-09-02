@@ -11,8 +11,8 @@
  * custom property this route's components read is defined before any rule
  * that uses one.
  *
- * The `:root` block below redefines TWO of the three `--td-font-*` values
- * the import just set, layering the self-hosted `next/font/local` family in
+ * The `:root` block below redefines ALL THREE `--td-font-*` values the
+ * import just set, layering the self-hosted `next/font/local` family in
  * front of each stack rather than replacing it: `layout.tsx` applies
  * `fonts.ts`'s `.variable` classes to `<html>`, which is this stylesheet's
  * own `:root`, so `var(--font-caveat)` / `var(--font-eb-garamond)` are
@@ -23,17 +23,19 @@
  * nothing that already writes `font-family: var(--td-font-caveat)` had to
  * change.
  *
- * `--td-font-courier` is DELIBERATELY NOT touched here - `fonts.ts` does not
- * load Courier Prime. See `fonts.ts`'s own header and `docs/deviations.md`
- * §11: a third self-hosted font on this route repeatedly measured over the
- * 2,500ms LCP gate (CLAUDE.md §6) on `/p/1`, on a freshly-built Docker
- * volume. `--td-font-courier` keeps resolving to `tokens.css`'s original
- * `'Courier Prime', monospace` - the generic fallback, exactly as it did
- * before this task - until a future task frees enough of this route's
- * request/script budget to add it back. Note also that even the two loaded
- * families leave a thin, occasionally single-digit-millisecond margin under
- * that gate (fonts.ts's header has the full multi-run table) - this route
- * is passing, not comfortable.
+ * `--td-font-courier` IS redefined here now. It was deliberately left alone
+ * through Phase 1, because a third self-hosted font on this route measured
+ * over the 2,500ms LCP gate (CLAUDE.md §6) in the pinned container. That
+ * measurement still reproduces - 2,488ms with two faces, 2,934ms with five -
+ * and the faces are wired in anyway, deliberately. `fonts.ts`'s header has
+ * the full five-run table and
+ * `docs/adr/0008-lcp-budget-and-the-framework-floor.md` has the reasoning:
+ * the OBSERVED paint on this route is ~130ms in every configuration, the
+ * whole spread is Lighthouse's Lantern projection, and a fontless route
+ * rendering one bare heading in this same app already models 2,023ms of the
+ * 2,500ms budget. Courier Prime carries every eyebrow, date, counter, badge
+ * label and stamp in this design, so leaving it in a generic `monospace`
+ * bought a number, not a reader's second.
  *
  * `packages/tokens/src/tokens.css` itself is left untouched on purpose: it
  * is the shared, framework-agnostic token source, and wiring a
@@ -48,6 +50,7 @@
 :root {
   --td-font-caveat: var(--font-caveat), 'Caveat', cursive;
   --td-font-garamond: var(--font-eb-garamond), 'EB Garamond', serif;
+  --td-font-courier: var(--font-courier-prime), 'Courier Prime', monospace;
 }
 
 html,

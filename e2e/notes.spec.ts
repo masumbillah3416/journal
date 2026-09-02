@@ -272,6 +272,32 @@ test.describe('Notes — SCREENS.md §1.3’s absolute measurements', () => {
     expect(ticket).toEqual({ count: 4, equalWidths: true, firstDivider: 'none', secondDivider: 'dotted' })
   })
 
+  test('prints every tally key in full rather than truncating it to the ellipsis', async ({ page }) => {
+    // `.tallyKey` carries `overflow: hidden; text-overflow: ellipsis` as a
+    // safety net for an editor typing a key longer than the design
+    // anticipated. It is NOT meant to engage on the design's own seeded
+    // content, and it silently did: self-hosting Courier Prime
+    // (docs/adr/0008-lcp-budget-and-the-framework-floor.md) replaced a
+    // generic monospace with a face about 6.8% wider, "KILOMETRES WALKED"
+    // went from exactly 118px in a 118px box to 126px, and the committed
+    // Notes baseline was regenerated showing "KILOMETRES WALK...". A
+    // screenshot caught it; nothing asserted it. This does.
+    //
+    // Asserted on the LONGEST seeded key rather than on a fixed pixel width,
+    // because the number that matters is "does it fit", not "how wide is it".
+    const keys = await page.evaluate((selector) => {
+      const cells = [...document.querySelectorAll<HTMLElement>(`${selector} [data-tally-cell] dt`)]
+      return cells.map((key) => ({
+        text: key.textContent.trim(),
+        truncated: key.scrollWidth > key.clientWidth,
+      }))
+    }, TOKYO)
+
+    expect(keys.length).toBe(4)
+    expect(keys.map((key) => key.text)).toContain('Kilometres walked')
+    expect(keys.filter((key) => key.truncated)).toEqual([])
+  })
+
   test('keeps the ephemera scrap clear of the footer rule, on the four-highlight journey', async ({ page }) => {
     const fit = await page.evaluate((selector) => {
       const notes = document.querySelector(selector)

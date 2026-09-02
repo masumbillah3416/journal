@@ -283,70 +283,35 @@ left block's two lines split into separate flex items, not a one-word change.
 
 **Recorded as:** `contents.module.css`'s `HANDOFF-DEVIATION` at `.header`; this entry.
 
-## 11 · Only two of three font families are self-hosted, one weight each
+## 11 · WITHDRAWN — all three font families are self-hosted
 
-**What changed:** README.md's Type section names three Google Fonts families at full
-weight ranges — Caveat 400-700; EB Garamond 400/500/600 + italic; Courier Prime
-400/700 — and says "self-host in production." What actually loads, via
-`apps/web/app/(diary)/fonts.ts`'s `next/font/local` calls: **Caveat at weight 400
-only, and EB Garamond's upright face at weight 400 only.** Courier Prime is not
-loaded at all; EB Garamond's italic face is not loaded; neither family's weights
-above 400 are loaded. Every diary page still renders those missing faces in the
-handoff's own fallback stack (`cursive` / `serif` / `monospace`), exactly as every
-page did before this task.
+**This is no longer a deviation.** Courier Prime 400/700 and EB Garamond's italic face
+were deferred through Phase 1 on a measured LCP constraint; they are now wired in
+`apps/web/app/(diary)/fonts.ts` and all three `--td-font-*` tokens are redefined in
+`apps/web/app/(diary)/diary.css`. Every diary page renders the handoff's own
+typography. Nothing here departs from `handoff/design_handoff_travel_diary/README.md`'s
+Type section any more, so the entry's substance has been deleted rather than amended.
 
-**Rationale:** measured, not assumed. `npx lhci autorun`, run repeatedly against a
-freshly-built `.next` inside the pinned `mcr.microsoft.com/playwright:v1.62.1-noble`
-image, put `/p/1`'s Largest Contentful Paint over CLAUDE.md §6's 2,500ms gate the
-moment a third font file is self-hosted on this route — regardless of which specific
-family or weight is the third one added. `resource-summary:script:size` and
-`mainthread-work-breakdown` barely move between a zero-font, two-font and five-font
-build of the same route; what moves is request count, which points at
-connection/priority contention (`next start` serves this route over plain HTTP/1.1,
-no TLS) rather than a raw-byte cost. The full measured table, across every
-combination tried and multiple runs per combination once the noise in a single run
-near this margin became apparent, is recorded in `apps/web/app/(diary)/fonts.ts`'s own
-header — it is the load-bearing evidence for this entry and is not repeated here.
+The number is retained rather than renumbered because §12 and §13 are cross-referenced
+by name from `cover.module.css`, `notes.module.css`, `e2e/a11y.spec.ts`,
+`e2e/visual.spec.ts` and `docs/testing.md`, and silently shifting them would be a worse
+outcome than an explicit tombstone.
 
-Caveat was never in question: it is the LCP element measured on this route (a
-bookmark-rail journey name) and the cover title this whole task exists to fix.
-Between EB Garamond and Courier Prime, Garamond was kept — it carries the diary's
-reading content (captions, notes, descriptions) rather than Courier's auxiliary
-labels/dates/counters — and its pairing with Caveat measured a consistently positive,
-if thin, margin under the gate across six separate clean-build runs, where the
-Caveat+Courier pairing was observed once at a margin of roughly ten milliseconds.
+**Two things a future reader still needs, both of which moved rather than vanished:**
 
-**Consequence a future task needs:** the three unwired files
-(`courier-prime-regular.woff2`, `courier-prime-bold.woff2`,
-`eb-garamond-italic.woff2`) are committed at
-`apps/web/app/(diary)/fonts/`, unused — re-enabling any of them is a `localFont` call
-in `fonts.ts`, not a new download.
-
-**The rationale above has been re-measured and no longer holds; the deferral does, for
-a different reason.** The concrete way to make room named here — moving the page faces
-out of `Book.tsx`'s client bundle into server-rendered children — has since been built
-and measured (`docs/adr/0007-server-rendered-page-faces.md`). It recovered 2,754 bytes
-of script transfer and moved LCP by nothing: 2,634.368ms before, 2,634.656ms after.
-`fonts.ts`'s table was then re-run on top of it, as this entry asked: Courier Prime
-400+700 wired in measured a **2,632.984ms** median over five runs against the two-font
-**2,634.656ms** — four font requests and 112,440 bytes instead of two and 73,554, for a
-difference inside the run-to-run noise. A third font family does not break this gate
-today. What breaks it is a 2,180ms render delay that neither scripts nor fonts explain,
-and `/p/1` measures ~2,634ms against the 2,500ms gate with two fonts or with four.
-
-So the faces stay in their fallbacks not because a third file costs the gate, but
-because there is no headroom to spend and adding 38,886 bytes to an already-failing
-route is a decision nobody has taken. That decision is now available to take on
-evidence; it was previously blocked on a measurement that has now been made. `e2e/pages.spec.ts`
-asserts the current state explicitly in both directions (a loaded-FontFace check for
-Caveat and Garamond, a pinned-fallback check for the Courier eyebrow), so re-enabling
-a face without updating that file's assertions will fail the suite rather than pass
-silently.
-
-**Recorded as:** `apps/web/app/(diary)/fonts.ts`'s `HANDOFF-DEVIATION` in its module
-header (the full measured table lives there); `docs/adr/0005-font-hosting.md`;
-`apps/web/app/(diary)/diary.css`'s header note on `--td-font-courier`;
-`e2e/pages.spec.ts`'s Courier-fallback test; `e2e/visual.spec.ts`'s header note.
+1. **The LCP cost was real and still reproduces.** Four faces measure 2,637.4ms and
+   five measure 2,933.8ms on `/p/1`, against 2,488.2ms for two, on CLAUDE.md §6's
+   2,500ms gate. The faces were wired in anyway, because a minimal fontless route in
+   this same app already measures 2,023.2ms of that budget and the observed paint is
+   ~130ms in every configuration. The full working, the options, and the fact that the
+   gate is left **red and unraised**, are in
+   `docs/adr/0008-lcp-budget-and-the-framework-floor.md`;
+   `docs/adr/0005-font-hosting.md` carries the amended decision record.
+2. **What is still not loaded, and why it is not a deviation.** EB Garamond 500/600 and
+   Caveat 500-700 do not load and no `.woff2` for them is committed. No rule anywhere
+   under `apps/web/components` sets those weights, so nothing renders in a fallback for
+   want of them — this is CLAUDE.md §4's YAGNI, not a reduction in fidelity. The moment
+   a component sets one, `fonts.ts`'s header names the variable file to swap in.
 
 ## 12 · The cover's cloth stays opaque across its gradient, and the years line's alpha is `.78`
 

@@ -1,4 +1,4 @@
-# 0005 — Font hosting: self-host via `next/font/local`, two of three families for now
+# 0005 — Font hosting: self-host via `next/font/local` (superseded in part by ADR 0008: all three families now load)
 
 ## Context
 
@@ -77,26 +77,30 @@ mechanism — is most of what this document exists to record.
   in the shipped product itself. No separate licence file is bundled with the `.woff2`
   binaries; the licence is recorded here and by this project name being an
   open-source-licensed asset, not a proprietary purchase.
-- **Two of the three families load today: Caveat (400) and EB Garamond (400 upright).**
-  Courier Prime, EB Garamond's italic face, and every weight beyond 400 for Caveat and
-  Garamond are **not loaded**, though every one of those `.woff2` files is committed
-  and unused (`courier-prime-regular.woff2`, `courier-prime-bold.woff2`,
-  `eb-garamond-italic.woff2`) — re-enabling any of them is a one-line `localFont` call,
-  not a new download. This is recorded as `docs/deviations.md` §11 and in
-  `apps/web/app/(diary)/fonts.ts`'s own header, which carries the full measured table.
-  In short: repeated `npx lhci autorun` runs against a freshly-built `.next` in the
-  pinned `mcr.microsoft.com/playwright:v1.62.1-noble` image showed `/p/1`'s LCP crossing
-  the 2,500ms gate once three or more fonts are self-hosted on this route, regardless of
+- **SUPERSEDED BY ADR 0008 — all five committed faces load today: Caveat 400, EB
+  Garamond 400 upright and italic, Courier Prime 400 and 700.** What this bullet
+  originally decided, and why, is kept below because the measurement behind it still
+  reproduces; what changed is that the gate it was protecting turned out to be
+  unreachable regardless. See the Consequences.
+
+  *As originally decided:* two of the three families loaded — Caveat (400) and EB
+  Garamond (400 upright). Courier Prime, EB Garamond's italic face, and every weight
+  beyond 400 were not loaded, though every one of those `.woff2` files was committed
+  (`courier-prime-regular.woff2`, `courier-prime-bold.woff2`,
+  `eb-garamond-italic.woff2`) — re-enabling any of them a one-line `localFont` call, not
+  a new download. Recorded then as `docs/deviations.md` §11 (since removed) and in
+  `apps/web/app/(diary)/fonts.ts`'s own header. In short: repeated `npx lhci autorun`
+  runs against a freshly-built `.next` in the pinned
+  `mcr.microsoft.com/playwright:v1.62.1-noble` image showed `/p/1`'s LCP crossing the
+  2,500ms gate once three or more fonts are self-hosted on this route, regardless of
   which specific family is the third — `resource-summary:script:size` and
   `mainthread-work-breakdown` barely move between configurations, so this is a
   request-count/connection-contention effect (the route is served over plain HTTP/1.1
-  with no TLS by `next start`), not a raw-byte one. Caveat is not negotiable: it is the
-  actual LCP element on this route (a bookmark-rail journey name) and the cover title
-  this task exists to fix. EB Garamond was kept over Courier Prime because it carries
-  the diary's reading content (captions, notes, descriptions) rather than Courier's
-  auxiliary labels, and because the Caveat+Garamond pairing's margin under the gate,
-  while thin, was consistently positive across repeated clean-volume runs, whereas
-  Caveat+Courier's was observed once at single-digit milliseconds of margin.
+  with no TLS by `next start`), not a raw-byte one. **That effect is real and was
+  re-confirmed at 2,637.4 ms for the four-face build.** Caveat is not negotiable: it is
+  the actual LCP element on this route and the cover title this task exists to fix. EB
+  Garamond was kept over Courier Prime because it carries the diary's reading content
+  (captions, notes, descriptions) rather than Courier's auxiliary labels.
 - **One weight per loaded family, not the handoff's full range**, per option 5/6:
   `git grep` across every `.module.css` under `apps/web/components` confirms no rule
   sets a Caveat weight other than 400, or a Garamond upright weight other than 400,
@@ -148,35 +152,51 @@ mechanism — is most of what this document exists to record.
   render delay 2,180 ms both times. There is no headroom, and this route never had a
   script-weight problem of the size that would produce one.
 
-  **The table was then re-run as this section asked, and this ADR's own finding did not
-  reproduce.** Courier Prime 400 and 700 wired on top of that change measured a
-  **2,632.984 ms** median over five runs against the two-font configuration's
-  **2,634.656 ms** — 38,886 extra bytes and four font requests instead of two, for a
-  difference smaller than the run-to-run noise. The "LCP crosses the gate the moment a
-  third font is self-hosted" conclusion recorded above was true when it was measured and
-  is not true now; what changed is the floor beneath it, since `/p/1` now sits at
-  ~2,634 ms with two fonts or with four, 135 ms over the gate, on a render delay that
-  neither scripts nor fonts explain.
+- **THE MEASUREMENT IN THIS ADR REPRODUCES, and ADR 0007's contrary finding is
+  withdrawn.** That report re-ran this ADR's table and concluded a third and fourth font
+  were free (2,632.984 ms against 2,634.656 ms). It compared against a warm-`.next`-volume
+  baseline that had drifted into this route's high mode at ~2,634 ms. On a freshly wiped
+  volume, five runs per configuration, every static asset's status code verified 200
+  before collecting:
 
-  The deferral therefore **stands, on a different and weaker footing than this ADR
-  claims**: not "a third font breaks the gate" but "the gate is already broken and this
-  is not the task that decides to spend 38,886 more bytes on a red route". Restoring
-  Courier Prime is now a decision waiting to be taken, not a measurement waiting to be
-  made. `docs/deviations.md` §11's rationale should be read with this paragraph beside
-  it.
-- **Courier Prime, EB Garamond's italic face, and every weight above 400 for the two
-  loaded families render in generic fallbacks today** — an intentional, documented,
-  reversible scope reduction from the handoff's full specification, not a silent gap.
-  `docs/deviations.md` §11 and `e2e/pages.spec.ts` both assert this explicitly (a test
-  pins the Courier eyebrow's computed `font-family` at the literal fallback stack, so
-  the day Courier Prime is wired back in, that test fails and must be updated — it
-  cannot silently keep "passing" for the wrong reason).
-- **All nine committed visual baselines** (`e2e/visual.spec.ts-snapshots/`) were
-  regenerated inside the pinned container against this final configuration and now show
-  genuine Caveat and EB Garamond typography on the Cover and Contents pages, with
-  Courier Prime and Garamond italic still visibly in their generic fallbacks — an
-  accurate picture of the current, intentionally partial state, not a claim of full
-  fidelity.
-- **No build-time network dependency for fonts, in this container or any other** — the
-  five `.woff2` files (two loaded, three committed for later) are ordinary repository
-  content from here on.
+      Caveat 400 + EB Garamond 400          2 files    73,554 B    2,488.2 ms
+      + Courier Prime 400/700               4 files   112,440 B    2,637.4 ms
+      + EB Garamond italic                  5 files   138,277 B    2,933.8 ms
+
+  which is this ADR's own "2,638-2,641 ms once a third font is self-hosted" to within a
+  millisecond. The mechanism named here — `next/font`'s per-face
+  `<link rel="preload" as="font">` competing with the script chain on a simulated 4G
+  link — was right. `docs/adr/0008-lcp-budget-and-the-framework-floor.md` has the
+  working.
+
+- **The deferral was nevertheless lifted, and all five faces now ship.** Not because the
+  cost went away but because the gate it protects cannot be met either way. A minimal
+  route in this same app — one server component, one styled heading, no font, no
+  stylesheet, no client component — measures **2,023.2 ms** and ships **137,986 bytes**
+  of React and Next App Router runtime, which is 81% of the 2,500 ms budget before this
+  repository writes a line; and the OBSERVED paint on `/p/1` is 122-174 ms in every
+  configuration measured, because `simulate` reports Lantern's projection, not a paint.
+  Spending the design's entire auxiliary typeface to buy 446 ms of a projected number, on
+  a route whose real paint does not move, was the wrong trade. ADR 0008 records the
+  floor, the options, and the fact that the gate is left **red and unraised** at
+  2,933.8 ms.
+
+- **Courier Prime 400/700 and EB Garamond's italic face now load.** All five committed
+  `.woff2` files are wired in `apps/web/app/(diary)/fonts.ts`, and
+  `apps/web/app/(diary)/diary.css` redefines all three `--td-font-*` tokens rather than
+  two. Weights 500/600 for EB Garamond and 500-700 for Caveat are still not loaded and no
+  file for them is committed: no rule in this codebase asks for one (CLAUDE.md §4's
+  YAGNI). `docs/deviations.md`'s font entry (§11) has been removed, and
+  `e2e/pages.spec.ts`'s Courier fallback-pinning test — written so that re-enabling the
+  face would fail loudly rather than pass silently — has done its job and been replaced
+  by the positive assertion the Caveat and Garamond cases make, plus a new case that
+  distinguishes a real EB Garamond italic face from a synthesised slant.
+
+- **Every committed visual baseline** (`e2e/visual.spec.ts-snapshots/`) has been
+  regenerated inside the pinned container against the five-face configuration, with
+  `e2e/layout.spec.ts` green in the same run. They previously showed genuine Caveat and
+  EB Garamond upright with Courier Prime and Garamond italic visibly in their generic
+  fallbacks; they now show the design's full typography.
+- **No build-time network dependency for fonts, in this container or any other** — all
+  five `.woff2` files are ordinary repository content from here on, and all five are
+  loaded.

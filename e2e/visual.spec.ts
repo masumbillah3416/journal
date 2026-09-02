@@ -37,15 +37,20 @@
  * appearance is Task 12; that task updates these three files, which is
  * expected and is what a baseline is for.
  *
- * FONTS: the three Google Fonts the handoff specifies (Caveat, EB Garamond,
- * Courier Prime) are self-hosted via `next/font/local` as of the font-hosting
- * task (docs/adr/0005-font-hosting.md) — every diary baseline below now
- * carries the real typefaces, not the `cursive`/`serif`/`monospace`
- * fallbacks the six original Cover/Contents baselines were captured in. All
- * nine baselines in this file were regenerated together in the pinned
- * container the day the fonts landed, including the three `/cms` ones (that
- * page never uses `@travel-diary/tokens`, so its baseline is unaffected in
- * substance, but it is regenerated in the same run for a matched, dated set).
+ * FONTS: all three Google Fonts the handoff specifies (Caveat, EB Garamond,
+ * Courier Prime) are self-hosted via `next/font/local`, at all five faces the
+ * design actually uses — Caveat 400, EB Garamond 400 upright AND italic,
+ * Courier Prime 400 AND 700. The first two landed with the font-hosting task
+ * (docs/adr/0005-font-hosting.md); the other three had been deferred on an
+ * LCP measurement and were wired in later
+ * (docs/adr/0008-lcp-budget-and-the-framework-floor.md), which is why every
+ * baseline in this file has now been regenerated a second time. Until that
+ * point these images showed the Courier eyebrows, dates, counters, badge
+ * labels and stamps in a generic monospace, and every Garamond italic as a
+ * synthesised slant of the upright; they now carry the design's real
+ * typography throughout. The three `/cms` baselines are regenerated in the
+ * same run for a matched, dated set (that page never uses
+ * `@travel-diary/tokens`, so it is unaffected in substance).
  * `document.fonts.ready` is awaited before every screenshot below —
  * `font-display: swap` means the very first paint can still show a fallback
  * face while the self-hosted file is fetched, and a snapshot taken during

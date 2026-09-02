@@ -68,10 +68,14 @@
  * EVERY TEXT ELEMENT HERE CARRIES AN EXPLICIT `line-height`, including the
  * seven SCREENS.md §1.3 does not state. A fixed-size page whose text is left
  * on `line-height: normal` is not fixed-size at all: `normal` is the font's
- * own metric, and one of this page's three families (Courier Prime) is
- * deliberately NOT self-hosted (docs/deviations.md §11, a measured LCP
- * constraint), so on a diary route it resolves to whatever monospace the
- * operating system supplies. Measured, that difference was 17px of the left
+ * own metric, and one of this page's three families (Courier Prime) was
+ * deliberately NOT self-hosted when these were pinned, so on a diary route
+ * it resolved to whatever monospace the operating system supplied. All three
+ * families are self-hosted now (docs/adr/0008-lcp-budget-and-the-framework-floor.md
+ * lifted that deferral), which removes the cause but not the reason to keep
+ * these pinned: `normal` still varies with whatever face wins the stack, and
+ * a `font-display: swap` fallback is a real face too. Measured, that
+ * difference was 17px of the left
  * column between a Windows host and the `mcr.microsoft.com/playwright`
  * container — enough to push the ephemera scrap onto the footer's rule on
  * one platform and not the other. Pinning them makes the page's height the
@@ -174,7 +178,34 @@
   color: #455c58;
 }
 
-/* "label (Courier 11px .08em, centred, 0 9px)". */
+/* "label (Courier 11px .08em, centred, 0 9px)".
+ *
+ * STANDING CONDITION, MEASURED AND NOT FIXED HERE - a mood or weather label
+ * of ELEVEN OR MORE characters overflows its own badge, and the seeded book
+ * contains exactly one ("OVERWHELMED", Marrakech). Every number involved is
+ * SCREENS.md §1.3's own: a 98px circle (96px inside its 1.5px border), an
+ * 11px Courier label at .08em tracking, 9px of padding each side. In real
+ * Courier Prime that is 7.9px per character, so 96px of badge minus 18px of
+ * padding holds 9 characters comfortably and 10 exactly; "OVERWHELMED"
+ * measures 105px against 96px and its first and last letters sit ON the
+ * dashed ring. Measured in the pinned container at all three viewports.
+ *
+ * It did not show before Courier Prime was self-hosted
+ * (docs/adr/0008-lcp-budget-and-the-framework-floor.md): the generic
+ * monospace the browser had been substituting rendered the same label at
+ * 88px, inside the circle. So this is not a pre-existing defect, it is the
+ * real typeface being wider than the substitute the design was checked
+ * against - which makes it a question about the design, not a bug with an
+ * obvious right answer, and NOT one to settle by quietly editing a value
+ * SCREENS.md states.
+ *
+ * The three ways out, none taken on this task's authority: shorten the
+ * seeded mood word; reduce this padding to 4px and record it in
+ * docs/deviations.md the way the cover's contrast change was recorded
+ * (§12, user-approved); or widen the badge past 98px. Adding
+ * `overflow: hidden; text-overflow: ellipsis` here the way `.tallyKey` does
+ * is deliberately NOT on that list - "OVERWHELM..." inside a 98px circle
+ * reads worse than a 4.5px spill. */
 .badgeLabel {
   padding: 0 9px;
   font-family: var(--td-font-courier);
@@ -327,11 +358,28 @@
 
 /* "four equal cells divided by 1px dotted". Divided BY, so the rule sits
  * between cells: the first carries none, or the ticket would read as five
- * cells with an empty one at the left. */
+ * cells with an empty one at the left.
+ *
+ * The 6px inner padding is NOT a SCREENS.md value - §1.3 states the
+ * TICKET's padding (11px 14px 13px) and says only "four equal cells" about
+ * these. It was 11px until Courier Prime was self-hosted
+ * (docs/adr/0008-lcp-budget-and-the-framework-floor.md), and Courier Prime
+ * is about 6.8% wider than the generic monospace the browser had been
+ * substituting: measured in the pinned container, the seeded key
+ * "KILOMETRES WALKED" went from 118px (exactly the 118px content box, no
+ * margin at all) to 126px, and `.tallyKey`'s ellipsis engaged - the
+ * committed Notes baseline showed "KILOMETRES WALK...". 6px restores a
+ * 128px box and 2px of slack. It is the padding rather than the key's
+ * `font-size` or `letter-spacing` that moved because those two ARE stated
+ * ("a Courier 10px .14em uppercase key") and this is not.
+ *
+ * `.tallyKey` keeps its ellipsis: it is the safety net for an editor typing
+ * a key longer than the design anticipated, which is a different problem
+ * from the one above. */
 .tallyCell {
   flex: 1;
   min-width: 0;
-  padding: 0 11px;
+  padding: 0 6px;
 }
 
 .tallyCell + .tallyCell {
