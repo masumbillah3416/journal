@@ -139,8 +139,11 @@ Five runs each, same machine, same command:
 
 | Where the request is made | LCP median | document | total transfer |
 |---|---|---|---|
-| on mount | 3,009.7 ms | 10,561 | 329,374 |
-| **on the reader's first turn** | **2,932.0 ms** | 10,560 | **300,383** |
+| on mount | 3,009.68 ms | 10,561 | 329,374 |
+| **on the reader's first turn** | **2,927.14 ms** | 10,560 | **300,383** |
+
+(An earlier five-run set of the same shipped code measured 2,932.02ms. The figure quoted
+throughout this document is the run taken against the committed tree.)
 
 Most of the win was being spent putting back what the window had just removed.
 
@@ -203,10 +206,13 @@ still the page the reader arrived on, which is where they still are.
 - **`/p/1`'s document is 65,014 raw bytes, down from 274,459** — 10,560 transferred,
   down from 23,445. Across all thirty-three routes the served document is now 60,620 to
   89,639 raw bytes (mean 79,721) where every one of them used to be 274,459.
-- **LCP median over five runs: 3,083.95ms → 2,932.02ms.** The 3,000ms gate passes with
-  **68ms of margin**, and `npm run test:perf` is green for the first time since Task 11.
-  FCP falls with it, 1,067 → 911ms. CLS stays 0. Script transfer 141,589 → 141,919,
-  against the 184,320 gate.
+- **LCP median over five runs: 3,083.95ms → 2,927.14ms** (2926.6 / 2926.6 / **2927.1** /
+  2929.4 / 2931.4). The 3,000ms gate passes with **72.9ms of margin**, and
+  `npm run test:perf` is green for the first time since Task 11. FCP falls with it,
+  1,064.0 → 908.1ms. CLS stays 0. Script transfer 141,589 → 141,919, against the
+  184,320 gate. Observed Style & Layout on the median run, the largest item ADR 0008
+  attributed to this repository, falls 167.9 → 93.8ms — a 44% cut, and ×4 under
+  Lantern's CPU multiplier the single biggest contributor to the result.
 - **It stops growing with the book.** `/p/1` used to gain seven photograph subtrees per
   journey. It now carries four pages whatever the book's length — the document is
   O(1) in journeys where it was O(n).
@@ -241,6 +247,12 @@ still the page the reader arrived on, which is where they still are.
   of them stopped being heading-only fallbacks"; removing those leaves from the document
   restores them exactly, which is the cleanest confirmation available that the window
   changes what is in the document and not what is on the screen.
-- **The original 2,500ms budget is still out of reach**, by 432ms. ADR 0008's floor
-  (2,023ms for a route with no application code on it, and 445.6ms for the design's
-  three extra font faces) has not moved, and this change does not touch it.
+- **The original 2,500ms budget is still out of reach**, by 427.1ms, and this change
+  brings it no closer to reach. ADR 0008's floor has not moved: 2,023.2ms for a route
+  with no application code on it, plus 445.6ms for the design's three extra font faces,
+  is **2,468.8ms — 98.8% of a 2,500ms budget before the diary renders anything at all.**
+  The diary's own share is now 458.3ms, and deleting every byte of it would leave the
+  route 31ms inside a gate whose runs spread by 5ms and whose bimodality this repository
+  has measured at 149ms. What this change did do to that arithmetic is remove its
+  growth: ADR 0008's 465.0ms line was 33 faces and rising with every journey, and 458.3ms
+  for four faces is flat.

@@ -266,13 +266,13 @@ weakened. A red gate that is understood is worth more than a green one that was 
 - **Update, after `docs/adr/0009-server-rendered-page-window.md`.** The 465.0ms line
   in the arithmetic above — "the diary itself: 33 server-rendered faces" — is the one
   item on this page that has since moved. `/p/<n>` now renders four to seven faces
-  rather than thirty-three, and `/p/1`'s LCP measures **2,932.0ms** over the same five
+  rather than thirty-three, and `/p/1`'s LCP measures **2,927.14ms** over the same five
   runs, against 3,083.95ms with all thirty-three (and 2,933.8ms recorded here, before
   the Frames and About pages existed). The observed Style & Layout on the median run
-  falls 167.9ms → 95.3ms. **Everything else on this page stands**: the 900.8ms any
+  falls 167.9ms → 93.8ms. **Everything else on this page stands**: the 900.8ms any
   document costs, the 1,122.4ms of React and the App Router client runtime, and the
   445.6ms of the design's three extra font faces are all untouched, and the original
-  2,500ms budget is still 432ms away. That is why this ADR's decision is not revisited
+  2,500ms budget is still 427ms away. That is why this ADR's decision is not revisited
   by that one — it removed the diary's own share of the number, and the diary's own
   share was never what put 2,500ms out of reach.
 - `/p/1`'s LCP gate is now **error at `maxNumericValue: 3000`**, measured on
