@@ -10,13 +10,11 @@
  * SCOPE. This task binds the flip machine to the DOM; the pages' own designed
  * layouts - Cover, Contents, Notes, Frames I/II and About, every measurement
  * of them absolute in SCREENS.md §1 - are Tasks 9 to 11, which replace this
- * component's per-kind bodies. Cover and Contents landed in Task 9 and Notes
- * in Task 10; Frames I/II and About are the two kinds the fallback below
- * still renders. What is there is real content, never a placeholder string:
- * each page is named with the label the domain derives for it. The anchors
- * are the point. `e2e/book.spec.ts` clicks one to prove a back face is not
- * swallowing it, and a stub with nothing clickable on it would have made that
- * proof vacuous.
+ * component's per-kind bodies. Cover and Contents landed in Task 9, Notes in
+ * Task 10 and the two Frames pages in Task 11; About is the last kind the
+ * fallback below still renders, and the same task replaces it. What is there
+ * is real content, never a placeholder string: the page is named with the
+ * label the domain derives for it.
  *
  * Contents rows are plain `/p/<n>` anchors rather than in-book flips because
  * the handoff requires the deep links to be real, indexable paths; wiring
@@ -40,12 +38,15 @@
  * `<Photograph>` looks the rest up in the context `Book.tsx` publishes. See
  * `../pages/Photograph.tsx`'s header.
  * Depends on: `BookPage`/`ContentsEntry`/`pageLabel` (@travel-diary/domain/bookBundle),
- * ../pages/Cover, ../pages/Contents, ../pages/Notes, ./book.module.css.
+ * ../pages/Cover, ../pages/Contents, ../pages/Notes, ../pages/FramesI,
+ * ../pages/FramesII, ./book.module.css.
  */
 import { pageLabel, type BookChrome, type BookPage, type ContentsEntry } from '@travel-diary/domain/bookBundle'
 import type React from 'react'
 import { Contents } from '../pages/Contents'
 import { Cover } from '../pages/Cover'
+import { FramesI } from '../pages/FramesI'
+import { FramesII } from '../pages/FramesII'
 import { Notes } from '../pages/Notes'
 import styles from './book.module.css'
 
@@ -68,8 +69,8 @@ export interface PageFaceProps {
  *
  * @param props - The page to render, the book's Contents index, the book's
  *   chrome, its total page count and the leaf it is printed on.
- * @returns The designed Cover or Contents page, or - for a page whose design
- *   is still a later task - the page's heading and its meta line.
+ * @returns The designed page for that kind, or - for About, whose design is
+ *   the rest of this task - the page's heading.
  */
 export const PageFace = ({ page, contents, chrome, totalPages, leafIndex }: PageFaceProps): React.JSX.Element => {
   if (page.kind === 'cover') return <Cover chrome={chrome} />
@@ -82,15 +83,22 @@ export const PageFace = ({ page, contents, chrome, totalPages, leafIndex }: Page
     return <Notes page={page} showDecorations={chrome.showDecorations} leafIndex={leafIndex} />
   }
 
+  if (page.kind === 'frames-i') {
+    return <FramesI page={page} showDecorations={chrome.showDecorations} leafIndex={leafIndex} />
+  }
+
+  if (page.kind === 'frames-ii') {
+    return <FramesII page={page} showDecorations={chrome.showDecorations} leafIndex={leafIndex} />
+  }
+
+  // About is the one kind left, so there is nothing to discriminate on and
+  // nothing but its own name to print: `pageLabel` derives "About", the same
+  // string the bottom bar's page label uses. The journey meta line the
+  // fallback used to carry went with the Frames pages, which were the last
+  // kinds that had a `place` and `dates` to put in it.
   return (
     <article className={styles.page}>
       <h1 className={styles.pageTitle}>{pageLabel(page)}</h1>
-
-      {page.kind !== 'about' && (
-        <p className={styles.pageMeta}>
-          {page.place} · {page.dates}
-        </p>
-      )}
     </article>
   )
 }

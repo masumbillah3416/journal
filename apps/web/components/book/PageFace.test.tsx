@@ -2,9 +2,10 @@
  * PageFace.test.tsx — the dispatch each leaf's front face performs.
  *
  * This file asserts WHICH page component each `BookPage` kind reaches, and
- * that the Contents rows are real anchors to the right pages; what those two
- * designed pages then print is asserted where it lives, in
- * `../pages/Cover.test.tsx` and `../pages/Contents.test.tsx`. The anchor case
+ * that the Contents rows are real anchors to the right pages; what each
+ * designed page then prints is asserted where it lives, in
+ * `../pages/Cover.test.tsx`, `Contents.test.tsx`, `Notes.test.tsx`,
+ * `FramesI.test.tsx` and `FramesII.test.tsx`. The anchor case
  * stays here because it is what `e2e/book.spec.ts`'s pointer-events case
  * clicks — a link that is not actually a link, or points at the wrong page,
  * would make that proof meaningless.
@@ -120,10 +121,16 @@ describe('PageFace', () => {
     expect(host.querySelector('h1')?.textContent).toBe(pageLabel(pageOfKind('about')))
   })
 
-  it('names a journey page with its journey and section', () => {
+  it('dispatches a journey’s first frames page to the designed FramesI', () => {
+    const host = renderFace(pageOfKind('frames-i'))
+
+    expect(host.querySelector('[data-page]')?.getAttribute('data-page')).toBe('frames-i')
+  })
+
+  it('dispatches a journey’s second frames page to the designed FramesII', () => {
     const host = renderFace(pageOfKind('frames-ii'))
 
-    expect(host.querySelector('h1')?.textContent).toBe('Tokyo — Frames II')
+    expect(host.querySelector('[data-page]')?.getAttribute('data-page')).toBe('frames-ii')
   })
 
   it('links every contents row to the page its journey starts on', () => {

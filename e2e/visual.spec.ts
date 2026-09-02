@@ -3,11 +3,20 @@
  * every breakpoint.
  *
  * CLAUDE.md §2 requires a visual-regression suite covering "every page type
- * and every admin screen, at each breakpoint". Four exist today: `/cms`
+ * and every admin screen, at each breakpoint". Six exist today: `/cms`
  * (Payload's own admin, which the bespoke admin replaces in a later phase)
- * and the diary's Cover, Contents and Notes pages, whose designs landed in
- * Phase 1 Tasks 9 and 10 (SCREENS.md §1.1, §1.2, §1.3). Frames I/II and About
- * join this file as Task 11 builds them.
+ * and the diary's Cover, Contents and Notes pages from Phase 1 Tasks 9 and
+ * 10, plus Frames I and Frames II from Task 11 (SCREENS.md §1.1-§1.5). About
+ * joins this file as the rest of that task builds it.
+ *
+ * THE TWO FRAMES BASELINES (`diary-frames-i-*`, `diary-frames-ii-*`) were
+ * captured in the same pinned-container run as the regeneration of the six
+ * that already existed, with `e2e/layout.spec.ts` green in that run, and
+ * every resulting image was opened and looked at before being committed. The
+ * six older files moved because `/p/1` renders every leaf of the book at
+ * once: replacing twenty heading-only fallbacks with twenty designed pages
+ * changes what is drawn behind the current leaf on every one of these
+ * screenshots.
  *
  * THE NOTES BASELINES (Task 10) also forced the six `diary-cover-*`/
  * `diary-contents-*` files to be regenerated in the same run, and that is
@@ -92,7 +101,32 @@
  * Depends on: @playwright/test, the running app from playwright.config.ts's
  * `webServer`, and the seeded diary (`npm run db:seed`).
  */
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+
+/**
+ * Waits for a diary page to be drawn, scaled, fonted and decoded before it is
+ * screenshotted.
+ *
+ * All four waits are needed and none is a timeout. The section itself is
+ * server-rendered but `useBookScale` sets the transform on the client, so a
+ * snapshot taken before that lands catches an unscaled box. The three
+ * self-hosted families use `font-display: swap`, so the first paint can still
+ * show a fallback face. And `networkidle` is not enough on a page with
+ * photographs: an image can be fetched and still be undecoded when the
+ * screenshot is taken, which is a race rather than drift - every image in the
+ * document is awaited, not only this leaf's, because a sibling leaf still
+ * decoding can repaint mid-capture.
+ * @param page - The Playwright page, already navigated.
+ * @param selector - The page section to wait for, scoped to its own leaf.
+ */
+const settled = async (page: Page, selector: string): Promise<void> => {
+  await expect(page.locator(selector)).toBeVisible()
+  await expect(page.locator('[data-design-box]')).toHaveAttribute('style', /scale\(/)
+  await page.evaluate(() => document.fonts.ready)
+  await page.evaluate(async () => {
+    await Promise.all([...document.images].filter((image) => image.src !== '').map((image) => image.decode()))
+  })
+}
 
 test('matches the baseline screenshot of /cms', async ({ page }) => {
   await page.goto('/cms', { waitUntil: 'networkidle' })
@@ -115,50 +149,38 @@ test('matches the baseline screenshot of /cms', async ({ page }) => {
 
 test('matches the baseline screenshot of the Cover page', async ({ page }) => {
   await page.goto('/p/1', { waitUntil: 'networkidle' })
-
-  // Wait for the page itself, not a timeout: the book is server-rendered but
-  // `useBookScale` sets the transform on the client, so a snapshot taken
-  // before that lands would catch an unscaled box - a flaky false diff.
-  await expect(page.locator('[data-page="cover"]')).toBeVisible()
-  await expect(page.locator('[data-design-box]')).toHaveAttribute('style', /scale\(/)
-
-  // The three self-hosted families use `font-display: swap`, so the first
-  // paint can still be showing a fallback face. Waiting for
-  // `document.fonts.ready` is what makes this snapshot deterministic rather
-  // than a race against the font fetch.
-  await page.evaluate(() => document.fonts.ready)
+  await settled(page, '[data-page="cover"]')
 
   await expect(page).toHaveScreenshot('diary-cover.png', { fullPage: true })
 })
 
 test('matches the baseline screenshot of the Contents page', async ({ page }) => {
   await page.goto('/p/2', { waitUntil: 'networkidle' })
-
-  await expect(page.locator('[data-page="contents"]')).toBeVisible()
-  await expect(page.locator('[data-design-box]')).toHaveAttribute('style', /scale\(/)
-  await page.evaluate(() => document.fonts.ready)
+  await settled(page, '[data-page="contents"]')
 
   await expect(page).toHaveScreenshot('diary-contents.png', { fullPage: true })
 })
 
 test('matches the baseline screenshot of a journey’s Notes page', async ({ page }) => {
   await page.goto('/p/3', { waitUntil: 'networkidle' })
-
   // Scoped to leaf 2: all ten notes pages are in the document at once (see
   // e2e/notes.spec.ts's header), so an unscoped locator is a strict-mode
   // violation rather than a wait.
-  await expect(page.locator('[data-leaf="2"] [data-page="notes"]')).toBeVisible()
-  await expect(page.locator('[data-design-box]')).toHaveAttribute('style', /scale\(/)
-  await page.evaluate(() => document.fonts.ready)
-
-  // This page is the first in the diary to carry photographs, so `networkidle`
-  // above is not enough on its own: an image can be fetched and still be
-  // undecoded when the screenshot is taken, which is a race rather than drift.
-  // Every image on the page is awaited, not only this leaf's, because a
-  // sibling leaf still decoding can repaint mid-capture.
-  await page.evaluate(async () => {
-    await Promise.all([...document.images].filter((image) => image.src !== '').map((image) => image.decode()))
-  })
+  await settled(page, '[data-leaf="2"] [data-page="notes"]')
 
   await expect(page).toHaveScreenshot('diary-notes.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of a journey’s Frames I page', async ({ page }) => {
+  await page.goto('/p/4', { waitUntil: 'networkidle' })
+  await settled(page, '[data-leaf="3"] [data-page="frames-i"]')
+
+  await expect(page).toHaveScreenshot('diary-frames-i.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of a journey’s Frames II page', async ({ page }) => {
+  await page.goto('/p/5', { waitUntil: 'networkidle' })
+  await settled(page, '[data-leaf="4"] [data-page="frames-ii"]')
+
+  await expect(page).toHaveScreenshot('diary-frames-ii.png', { fullPage: true })
 })

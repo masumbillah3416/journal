@@ -320,15 +320,6 @@
   color: var(--td-ink);
 }
 
-.pageMeta {
-  margin: 0;
-  font-family: var(--td-font-courier);
-  font-size: var(--td-diary-eyebrow-max);
-  letter-spacing: var(--td-letter-spacing-min);
-  text-transform: uppercase;
-  color: var(--td-ink-diary-muted);
-}
-
 .contentsList {
   display: flex;
   flex-direction: column;

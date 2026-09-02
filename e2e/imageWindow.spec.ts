@@ -24,9 +24,19 @@
  * header sets out at length: firing from inside the page removes the driver
  * round-trip, and one frame is the shortest wait that is actually enough
  * because React does not flush a click's re-render synchronously.
+ * TASK 11 MADE THIS FILE'S BUDGET FOUR AND A HALF TIMES LARGER. The Frames
+ * pages put SEVEN more photographs on every journey, taking the seeded book
+ * from twenty images to roughly ninety — so a Frames page that rendered its
+ * mounts without honouring the window would silently reverse
+ * `docs/adr/0006-diary-image-window.md` across seventy images, and the first
+ * case below (which counts real network responses on `/p/1`) is the one that
+ * would catch it. The two cases added with those pages check the same thing
+ * from the other side: which leaves are OPEN when the reader is standing on a
+ * Frames page, and that a Frames page two leaves away is still shut.
  * Depends on: @playwright/test, `waitForLiveBook` (./support/liveBook), the
  * running app from playwright.config.ts's `webServer`, and the seeded diary
- * (`npm run db:seed`): 10 journeys, 33 pages, Tokyo's notes on page 3.
+ * (`npm run db:seed`): 10 journeys, 33 pages, Tokyo's notes on page 3, its
+ * Frames I on page 4 and its Frames II on page 5.
  */
 import { expect, test } from '@playwright/test'
 import { waitForLiveBook } from './support/liveBook'
@@ -111,4 +121,40 @@ test("opens the window on a bookmark jump's destination at the first frame of th
   })
 
   expect(sourceAtTheFirstFrame).toMatch(/^\/api\/media\/file\/seville-hero/)
+})
+
+test('opens the window on a Frames page to its own leaf and its two neighbours, and no further', async ({ page }) => {
+  // Asserted as the SET OF LEAVES carrying a real `src` rather than as a
+  // count of responses, so the case names which leaf is wrong when it fails
+  // rather than only that the total moved. On `/p/4` the reader is on Tokyo's
+  // Frames I (leaf 3), so the window is leaves 2, 3 and 4 — Tokyo's whole
+  // journey and nothing else. Every other journey's seven frames stay shut.
+  await page.goto('/p/4')
+  await waitForLiveBook(page)
+
+  const open = await page.evaluate((deferred) => {
+    const leaves = [...document.querySelectorAll('[data-leaf]')]
+    return leaves.flatMap((leaf) => {
+      const photographs = [...leaf.querySelectorAll('img')]
+      const loaded = photographs.filter((image) => image.getAttribute('src') !== deferred)
+      return loaded.length === 0 ? [] : [Number(leaf.getAttribute('data-leaf'))]
+    })
+  }, DEFERRED)
+
+  expect(open.sort((a, b) => a - b)).toEqual([2, 3, 4])
+})
+
+test('leaves a Frames page two leaves away from the reader deferred', async ({ page }) => {
+  // The complement of the case above, from the reader's side. `/p/2` is the
+  // Contents page (leaf 1), so Tokyo's Frames I (leaf 3) is exactly one leaf
+  // outside the window — the nearest a Frames page can be to the reader and
+  // still be shut. Its markup is all present; only the bytes are withheld.
+  await page.goto('/p/2')
+  await waitForLiveBook(page)
+
+  const framesI = page.locator('[data-leaf="3"] [data-page="frames-i"]')
+  await expect(framesI).toContainText('Frames 01 – 03')
+
+  const sources = await framesI.locator('img').evaluateAll((images) => images.map((image) => image.getAttribute('src')))
+  expect(sources).toEqual([DEFERRED, DEFERRED, DEFERRED])
 })

@@ -1,0 +1,366 @@
+/**
+ * frames.module.css — Frames I and Frames II, SCREENS.md §1.4 and §1.5,
+ * transcribed value for value.
+ *
+ * ONE STYLESHEET FOR TWO PAGES, because SCREENS.md describes them that way:
+ * §1.5 opens "Same header pattern", and the two pages' headers, mounts and
+ * the shape of their photo grids are one design with two settings of the same
+ * dials. The header, the mount base and the footer are therefore written once
+ * here and the two grids differ only where the spec differs — `1.5fr 1fr` at
+ * `22px 24px` against `1fr 1fr 1fr` at `20px 22px`.
+ *
+ * NOTHING HERE IS RESPONSIVE AND NOTHING HERE REFLOWS — see
+ * `cover.module.css`'s header for why, and do not add a media query. Every
+ * number is a CSS pixel inside the 1300x860 design box `Book.tsx` scales as
+ * one; SCREENS.md §1.10's mobile reading mode is a different renderer, not a
+ * breakpoint on this one.
+ *
+ * THE SEVEN ROTATIONS ARE AUTHORED VALUES, NOT JITTER, and this is the one
+ * thing in this file a future edit is most likely to "tidy up". SCREENS.md
+ * gives each photograph its own angle — `-.7deg`, `1deg`, `-1.4deg` on
+ * Frames I; `.8deg`, `-1.2deg`, `1.5deg`, `-.5deg` on Frames II — and they
+ * are seven different numbers on purpose: a page whose mounts all leaned the
+ * same way would read as a mistake rather than as a scrapbook. Do not replace
+ * them with a formula, a random seed or a shared variable.
+ * `e2e/frames.spec.ts` reads each one back out of the resolved transform
+ * matrix to three decimal places, precisely because six of the seven round to
+ * the same three integers.
+ *
+ * EVERY CAPTION SIZE IS STATED, AND THREE OF THE FIVE ARE TOKENS.
+ * `--td-diary-photo-caption-min` is 23px and `--td-diary-photo-caption-max`
+ * is 26px, which are exactly SCREENS.md's Frames I P2/P3 and P1 captions and
+ * Frames II's P4. The remaining two — Frames II's 24px P1 and 22px P2/P3 —
+ * are written as literals: 24 is inside that token range without being either
+ * end of it (the same treatment `notes.module.css` gives its 25px hero
+ * caption), and 22 is below the range's floor entirely. SCREENS.md states
+ * neither of them as a token and states both as a number.
+ *
+ * Colours come from `@travel-diary/tokens`' `--td-*` custom properties
+ * wherever the token table names the value for this role. These do not, and
+ * each is a literal here for a stated reason:
+ *
+ *   1. `rgba(90,70,40,.2)` and `rgba(90,70,40,.18)` — the header rule and the
+ *      Frames II footer rule. The prototype gives both explicitly and the
+ *      token table lists neither. They are deliberately NOT the same value:
+ *      the header rule is the heavier of the two, exactly as on the Notes
+ *      page, where SCREENS.md §1.3 states `.22` and `.18`.
+ *   2. `rgba(163,68,52,.07)` — the gallery button's fill, an alpha of the
+ *      accent that the token table publishes only as the opaque `#a34434`.
+ *      SCREENS.md §1.3 gives this alpha explicitly for the same button.
+ *   3. `rgba(120,98,60,.12)` — the hairline ring in every mount's box shadow.
+ *      The token table's border hairlines are `.14` and `.34`; `.12` is
+ *      outside that range and is the prototype's own value.
+ *   4. `rgba(60,44,20,.5)` / `rgba(60,44,20,.55)` — the mounts' drop shadows,
+ *      and `rgba(196,150,120,...)` / `rgba(150,160,190,...)` the two washi
+ *      strips' tape gradients. All four are prototype values on shadows and
+ *      on `aria-hidden` decoration; the token table names none of them.
+ *
+ * EVERY TEXT ELEMENT CARRIES AN EXPLICIT `line-height`, including the ones
+ * SCREENS.md does not state, for the reason `notes.module.css`'s header sets
+ * out at length: `line-height: normal` is the font's own metric, it varies
+ * with whatever face wins the stack, and a fixed-size page whose text is left
+ * on it is not fixed-size at all. That defect has already cost this project
+ * 17px of column height between a Windows host and the pinned Playwright
+ * container once.
+ * Depends on: packages/tokens/src/tokens.css, loaded by the diary layout;
+ * ./photoMount.module.css, which owns the three structural mount rules.
+ */
+
+/* Frames I: "grid-template-rows: auto 1fr, padding 30px 44px 30px 52px,
+ * gap 16px." No footer at all — the photo grid takes the whole `1fr`. */
+.framesI {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 16px;
+  padding: 30px 44px 30px 52px;
+}
+
+/* Frames II: the same page with a third row for the footer SCREENS.md §1.5
+ * gives it, and the 24px bottom padding that footer sits on — the same
+ * bottom padding the Notes page uses, and for the same reason. */
+.framesII {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 16px;
+  padding: 30px 44px 24px 52px;
+}
+
+/* "Header: name (Caveat 40px), "Frames 01 - 03" (Courier 11px .24em),
+ * spacer, dates." Baseline-aligned, so the 40px name and the two small lines
+ * sit on one line rather than on their boxes' centres. */
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding-bottom: 11px;
+  border-bottom: 1.5px solid rgba(90, 70, 40, 0.2);
+}
+
+/* "name (Caveat 40px)" — `--td-diary-section-head` is the token table's own
+ * name for 40px. */
+.name {
+  margin: 0;
+  font-family: var(--td-font-caveat);
+  font-size: var(--td-diary-section-head);
+  font-weight: 400;
+  line-height: 1;
+  color: var(--td-ink);
+}
+
+/* '"Frames 01 - 03" (Courier 11px .24em)'. */
+.frameLabel {
+  margin: 0;
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--td-ink-diary-muted);
+}
+
+/* "spacer, dates" on Frames I; "place on the right" on Frames II. Both are
+ * the same Garamond italic line, and both are pushed right by `margin-left:
+ * auto` rather than by the prototype's empty `flex: 1` spacer div — the same
+ * layout with one fewer element in the accessibility tree, exactly as
+ * `contents.module.css` and `notes.module.css` do it. */
+.headerAside {
+  margin: 0 0 0 auto;
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 17px;
+  line-height: 1.2;
+  color: var(--td-ink-diary-muted);
+}
+
+/* Frames I: "Grid 1.5fr 1fr x 1fr 1fr, gap 22px 24px." */
+.gridOne {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 22px 24px;
+  min-height: 0;
+}
+
+/* Frames II: "Grid 1fr 1fr 1fr x 1fr 1fr, gap 20px 22px." */
+.gridTwo {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 20px 22px;
+  min-height: 0;
+}
+
+/* Each of the seven mounts below carries its OWN drop shadow rather than
+ * composing a shared one. The prototype gives a mount spanning two tracks a
+ * deeper shadow than a single-cell mount (`0 16px 34px -18px` against
+ * `0 13px 26px -15px`), which is the paper looking heavier because it is
+ * bigger; three of the seven values recur, but they recur as a consequence of
+ * the sizes rather than as a rule, so they are written where they apply. */
+
+/* Frames I - "P1 column 1, spanning both rows — mount padding 12px 12px 0,
+ * rotate(-.7deg), caption 26px". */
+.oneP1 {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  padding: 12px 12px 0;
+  transform: rotate(-0.7deg);
+  box-shadow:
+    0 16px 34px -18px rgba(60, 44, 20, 0.55),
+    0 0 0 1px rgba(120, 98, 60, 0.12);
+}
+
+.oneP1Caption {
+  padding: 10px 4px 12px;
+  font-size: var(--td-diary-photo-caption-max);
+  line-height: 1.2;
+}
+
+/* Frames I - "P2 column 2 row 1 — padding 10px 10px 0, rotate(1deg),
+ * caption 23px". */
+.oneP2 {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 10px 10px 0;
+  transform: rotate(1deg);
+  box-shadow:
+    0 14px 28px -16px rgba(60, 44, 20, 0.5),
+    0 0 0 1px rgba(120, 98, 60, 0.12);
+}
+
+/* Frames I - "P3 column 2 row 2 — rotate(-1.4deg), caption 23px". SCREENS.md
+ * restates no padding for P3, so it keeps its neighbour's. */
+.oneP3 {
+  grid-column: 2;
+  grid-row: 2;
+  padding: 10px 10px 0;
+  transform: rotate(-1.4deg);
+  box-shadow:
+    0 14px 28px -16px rgba(60, 44, 20, 0.5),
+    0 0 0 1px rgba(120, 98, 60, 0.12);
+}
+
+.oneSmallCaption {
+  padding: 8px 3px 10px;
+  font-size: var(--td-diary-photo-caption-min);
+  line-height: 1.18;
+}
+
+/* Frames I - "washi at top: -14px; right: 22px rotate(4deg)". */
+.oneWashi {
+  position: absolute;
+  top: -14px;
+  right: 22px;
+  width: 118px;
+  height: 29px;
+  opacity: 0.7;
+  background: repeating-linear-gradient(120deg, rgba(196, 150, 120, 0.8) 0 7px, rgba(196, 150, 120, 0.4) 7px 14px);
+  clip-path: polygon(0 8%, 5% 0, 100% 5%, 96% 98%, 4% 100%);
+  transform: rotate(4deg);
+}
+
+/* Frames II - "P1 column 1, both rows, rotate(.8deg), caption 24px". */
+.twoP1 {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  padding: 11px 11px 0;
+  transform: rotate(0.8deg);
+  box-shadow:
+    0 14px 30px -16px rgba(60, 44, 20, 0.5),
+    0 0 0 1px rgba(120, 98, 60, 0.12);
+}
+
+.twoP1Caption {
+  padding: 9px 3px 11px;
+  font-size: 24px;
+  line-height: 1.18;
+}
+
+/* Frames II - "P2 column 2 row 1, rotate(-1.2deg), caption 22px". */
+.twoP2 {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 10px 10px 0;
+  transform: rotate(-1.2deg);
+  box-shadow:
+    0 13px 26px -15px rgba(60, 44, 20, 0.5),
+    0 0 0 1px rgba(120, 98, 60, 0.12);
+}
+
+/* Frames II - "P3 column 3 row 1, rotate(1.5deg) with washi ...". SCREENS.md
+ * states no caption size for P3, so it keeps P2's 22px, which is what the
+ * prototype draws. */
+.twoP3 {
+  grid-column: 3;
+  grid-row: 1;
+  padding: 10px 10px 0;
+  transform: rotate(1.5deg);
+  box-shadow:
+    0 13px 26px -15px rgba(60, 44, 20, 0.5),
+    0 0 0 1px rgba(120, 98, 60, 0.12);
+}
+
+.twoSmallCaption {
+  padding: 8px 3px 10px;
+  font-size: 22px;
+  line-height: 1.16;
+}
+
+/* Frames II - "P4 columns 2-3 row 2, rotate(-.5deg), caption 23px". */
+.twoP4 {
+  grid-column: 2 / span 2;
+  grid-row: 2;
+  padding: 11px 11px 0;
+  transform: rotate(-0.5deg);
+  box-shadow:
+    0 14px 30px -16px rgba(60, 44, 20, 0.5),
+    0 0 0 1px rgba(120, 98, 60, 0.12);
+}
+
+.twoP4Caption {
+  padding: 9px 3px 11px;
+  font-size: var(--td-diary-photo-caption-min);
+  line-height: 1.18;
+}
+
+/* Frames II - "P3 ... washi at top: -13px; left: 18px rotate(-5deg)". */
+.twoWashi {
+  position: absolute;
+  top: -13px;
+  left: 18px;
+  width: 110px;
+  height: 28px;
+  opacity: 0.7;
+  background: repeating-linear-gradient(120deg, rgba(150, 160, 190, 0.8) 0 7px, rgba(150, 160, 190, 0.4) 7px 14px);
+  clip-path: polygon(0 9%, 5% 0, 100% 6%, 96% 97%, 4% 100%);
+  transform: rotate(-5deg);
+}
+
+/* Frames II - "Footer: gallery button, count, and "Only a few frames live in
+ * the book"." */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-top: 12px;
+  border-top: 1.5px solid rgba(90, 70, 40, 0.18);
+}
+
+/* The same button SCREENS.md §1.3 specifies for the Notes footer: "1.5px
+ * solid #a34434, rgba(163,68,52,.07) fill, 9px 18px, Courier 12px .18em
+ * uppercase, inverts on hover". It is an anchor, not a button — see
+ * `Notes.tsx`'s header for the dead-click defect that rule comes from. */
+.galleryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  border: 1.5px solid var(--td-accent);
+  border-radius: var(--td-radius-control);
+  background: rgba(163, 68, 52, 0.07);
+  font-family: var(--td-font-courier);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--td-accent);
+}
+
+/* `:focus-visible` alongside `:hover`, for the reason `notes.module.css`
+ * gives: a keyboard reader gets the same inversion a pointer does. */
+.galleryButton:hover,
+.galleryButton:focus-visible {
+  background: var(--td-accent);
+  color: var(--td-cream-alt);
+}
+
+.galleryArrow {
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* "the count" — the same Garamond italic line as the Notes footer's. */
+.count {
+  margin: 0;
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 17px;
+  line-height: 1.2;
+  color: var(--td-ink-diary-muted);
+}
+
+/* 'spacer, and "Only a few frames live in the book"'. `margin-left: auto`
+ * rather than an empty spacer div, as above. */
+.framesNote {
+  margin: 0 0 0 auto;
+  font-family: var(--td-font-courier);
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--td-ink-diary-muted);
+}

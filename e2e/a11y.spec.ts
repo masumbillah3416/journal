@@ -6,10 +6,10 @@
  * draw no line between severities. Two routes exist today, `/cms` and the
  * diary's `/p/<n>`; the diary route is checked once per designed PAGE rather
  * than once per route, because each page kind renders different markup on the
- * same URL shape (Phase 1 Task 9 added the Cover and Contents cases; Notes,
- * Frames I/II and About join as Tasks 10 and 11 build them). Add one `test()`
- * per route or page as the rest of the public diary and the bespoke admin
- * land.
+ * same URL shape (Phase 1 Task 9 added the Cover and Contents cases, Task 10
+ * the Notes page and Task 11 the two Frames pages; About joins as the rest of
+ * that task builds it). Add one `test()` per route or page as the rest of the
+ * public diary and the bespoke admin land.
  *
  * Every case calls `expectNoAxeViolations` (`e2e/support/axe.ts`) rather than
  * building its own `AxeBuilder`, so the FULL ruleset is the default everyone
@@ -124,6 +124,27 @@ test('has no axe violations on /p/3, a journey’s Notes page', async ({ page })
   // thirty-three leaves, so ten notes pages are in this document and an
   // unscoped locator would be a strict-mode violation rather than a wait.
   // axe still analyses the WHOLE page, all ten of them included.
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /p/4, a journey’s Frames I page', async ({ page }) => {
+  await page.goto('/p/4')
+  await expect(page.locator('[data-leaf="3"] [data-page="frames-i"]')).toBeVisible()
+
+  // Also no exclusions - see the cases above. This page carries three
+  // `<figure>`/`<figcaption>` pairs and no other content but its header, so
+  // `image-alt` has more to judge here than anywhere in the book: a slot
+  // whose alt text went missing would be three quarters of the page.
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /p/5, a journey’s Frames II page', async ({ page }) => {
+  await page.goto('/p/5')
+  await expect(page.locator('[data-leaf="4"] [data-page="frames-ii"]')).toBeVisible()
+
+  // Also no exclusions. Four photographs and a footer whose gallery control
+  // is a link styled as a button, so `image-alt`, `link-name` and
+  // `color-contrast` all have something real to check.
   await expectNoAxeViolations(page)
 })
 

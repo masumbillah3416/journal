@@ -561,7 +561,8 @@ would claim a measurement nothing performs.
   not a Task 12 gap silently worked around — see `playwright.config.ts`'s header.
 - **Run:** `npm run test:e2e` (headless, runs `e2e/smoke.spec.ts`,
   `e2e/book.spec.ts`, `e2e/flip.spec.ts`, `e2e/layout.spec.ts`, `e2e/pages.spec.ts`,
-  `e2e/notes.spec.ts` and `e2e/imageWindow.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
+  `e2e/notes.spec.ts`, `e2e/frames.spec.ts`, `e2e/about.spec.ts` and
+  `e2e/imageWindow.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.
@@ -581,8 +582,19 @@ would claim a measurement nothing performs.
   that lands its designed layout, not before — a baseline captured against provisional
   page content would have to be thrown away and recaptured, teaching nobody to trust it
   in between. Phase 1 Task 9 added the **Cover** and **Contents** pages
-  (`diary-cover-*.png`, `diary-contents-*.png`, all three projects) and Task 10 the
-  **Notes** page (`diary-notes-*.png`); Frames I/II and About follow in Task 11.
+  (`diary-cover-*.png`, `diary-contents-*.png`, all three projects), Task 10 the
+  **Notes** page (`diary-notes-*.png`) and Task 11 **Frames I**, **Frames II** and
+  **About** (`diary-frames-i-*.png`, `diary-frames-ii-*.png`, `diary-about-*.png`) —
+  every page type the book has. All six diary cases share one `settled()` helper (wait
+  for the section, for the design box's `scale(k)`, for `document.fonts.ready`, then for
+  every image in the document to `decode()`); each of those four waits replaces a race,
+  and none of them is a timeout.
+
+  Each Task 11 baseline was captured in the same pinned-container run that regenerated
+  the six older ones, and the older six MOVED for a structural reason rather than a
+  cosmetic one: `/p/1` renders all thirty-three leaves at once, so replacing thirty
+  heading-only fallback faces with thirty designed pages changes what is drawn behind
+  the current leaf in every screenshot in this suite.
 
   The diary cases snapshot the FULL PAGE, not the scaled design box. The box is drawn
   with `transform: scale(k)`, so a box-only snapshot would be byte-identical at all
