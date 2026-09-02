@@ -1,10 +1,40 @@
 # 0008 — The LCP budget and the framework's floor beneath it
 
-**Status: DRAFT — a measurement and three options. The decision is the repository
-owner's and has not been taken.** Nothing in `lighthouserc.json` was changed by the
-work that produced this document: the `/p/1` LCP assertion is still `error` at
-`maxNumericValue: 2500`, still asserted on the median of five runs, and it is
-currently **red**. It was not raised, not downgraded to a warning, and not removed.
+**Status: DECIDED, 2026-09-02.** The repository owner chose **Option 1** (§"Options"
+below): accept a higher budget for this specific simulation, set from the measured
+floor rather than from intuition. This was the owner's call, not a task's — the
+measurement and the four options were produced by the investigation below and reported
+without a recommendation taken; the choice among them belongs to whoever owns the
+product's promises, and CLAUDE.md §6 is theirs to amend.
+
+`lighthouserc.json`'s `/p/1` LCP assertion is now `error` at `maxNumericValue: 3000`,
+still asserted with `aggregationMethod: "median"` over `numberOfRuns: 5` — neither of
+those was touched, per this document's own "What was deliberately NOT done" below,
+which still holds. `CLAUDE.md` §6 now names the Lighthouse preset and throttling the
+number is measured under ("`simulate`: 150ms RTT, 1,638Kbps, 4x CPU, median of 5") and
+cross-references this ADR, rather than promising a bare "≤ 2.5s" the measurement above
+shows this stack cannot reach while rendering the design.
+
+**Why 3,000 and not some other number past the floor.** It is not merely "the floor
+plus a round allowance" — it is chosen to still catch a real regression. ADR 0006's
+image-window defect, before its fix, measured `/p/1` at **3,247.14ms** (this document's
+Context section) and separately **~3,170ms** in that ADR's own before/after table — both
+comfortably over 3,000. A gate at 3,000 would have failed that build exactly as the
+2,500 gate did; raising the budget to cover the framework's floor does not also cover a
+regression this project has already shipped and fixed once. Re-reverting that fix and
+re-measuring under this document's own five-run/clean-volume method would confirm the
+figure directly, but is expensive under that method (a full `next build`, a wiped
+`.next` volume, and five throttled Lighthouse runs per configuration, per §"Method" of
+`.superpowers/sdd/2026-09-01-phase-1-public-diary/lcp-floor-report.md`) and is not done
+here; the ADR 0006 measurement is taken as sufficient evidence instead, as this
+document's own "Options" section anticipated ("it would still catch the image
+regression ADR 0006 fixed, which measured 3,170ms").
+
+**What this decision does not change.** `resource-summary:script:size` stays at
+`184320`; `cumulative-layout-shift` stays at `0.1`; `aggregationMethod: "median"` stays
+in place specifically because the lhci default (`optimistic`) takes the best of five
+runs and would silently loosen the gate in a way this decision does not intend. Nothing
+else in `lighthouserc.json` moved.
 
 ## Context
 
@@ -201,7 +231,9 @@ application, on a metric that is already indistinguishable from time-to-interact
 
 ## Options — for the owner, not for this task
 
-1. **Accept a higher budget for this specific simulation.** Set the `/p/1` LCP
+**Option 1 is the one the owner took, 2026-09-02 — see "Status" above.**
+
+1. **Accept a higher budget for this specific simulation. TAKEN.** Set the `/p/1` LCP
    assertion to a number chosen from the measured floor rather than from intuition —
    for instance 3,000ms, which is the floor plus a stated allowance and would keep the
    gate meaningful (it would still catch the image regression ADR 0006 fixed, which
@@ -231,13 +263,21 @@ weakened. A red gate that is understood is worth more than a green one that was 
 
 ## Consequences
 
-- `/p/1`'s LCP gate is **red at 2,933.8ms against 2,500ms** and will stay red until
-  one of the options above is chosen. CI's `browser` job fails on it.
+- `/p/1`'s LCP gate is now **error at `maxNumericValue: 3000`**, measured on
+  `aggregationMethod: "median"` over five runs, and passes: the shipped route measures
+  **~2,933ms**, about 67ms of margin. See
+  `.superpowers/sdd/2026-09-01-phase-1-public-diary/owner-decisions-report.md` for the
+  re-run pasted after this decision was applied.
 - `resource-summary:script:size` is **141,632 bytes against the 184,320 gate** —
   unchanged by the font work (fonts are not script) and passing with 42,688 bytes to
   spare. Note what that gate now means: 137,986 of those bytes are the framework's,
   so the "diary route JS ≤ 180KB" budget is being met almost entirely by not being
-  charged for the runtime that dominates it.
+  charged for the runtime that dominates it. This ADR does not touch that gate.
 - CLS is **0** on `/p/1` with all five faces preloaded, unchanged.
 - The probe route is deleted. It is reproduced verbatim above so the floor can be
   re-measured without re-deriving it.
+- **The gate still bites.** ADR 0006's image-window regression measured `/p/1` at
+  ~3,170-3,247ms before its fix — over the new 3,000ms budget as much as it was over
+  the old 2,500ms one. 3,000 was chosen, in part, because it does not launder that
+  regression; see "Status" above for why it was not cheap to re-demonstrate live and
+  what stands in for that demonstration instead.
