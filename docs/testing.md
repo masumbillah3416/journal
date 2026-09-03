@@ -18,10 +18,19 @@ Enforced by TWO configs, because no single Vitest run can execute everything:
   | Layer                             | Lines | Branches | Functions |
   | --------------------------------- | ----- | -------- | --------- |
   | `packages/domain/**` (pure logic) | 100%  | 100%     | 100%      |
+  | `packages/tokens/**` (pure logic) | 100%  | 100%     | 100%      |
   | `apps/web/lib/**`, server actions | 95%   | 95%      | 95%       |
   | `apps/web/app/**`                 | 95%   | 95%      | 95%       |
   | `apps/web/components/**`          | 90%   | 90%      | 90%       |
   | Repository-wide                   | 90%   | 90%      | 90%       |
+
+  `packages/tokens/**`'s row arrived with Phase 1's final review, which found it gated by
+  nothing but the repository-wide 90% floor. It is the same kind of code as
+  `packages/domain/**` — three pure modules (`colour.ts`, `geometry.ts`, `type.ts`), no
+  I/O, no framework, no React — and it measures 100% on all three metrics today, so the
+  threshold is set at what it actually achieves rather than at a number rounded up to
+  meet it. `CLAUDE.md` §2.1's rule is that a directory gets "a real threshold"; inheriting
+  a floor written for framework glue is not one.
 
   `apps/web/components/**`'s own row arrived with Phase 1 Task 7, the task that put the
   first real files there (the book's frame, page stack and the two hooks that drive

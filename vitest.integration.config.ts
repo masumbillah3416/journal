@@ -50,7 +50,7 @@
  * is free - Phase 2's access control and Phase 4's hooks land in
  * `collections/`, and a threshold set after that code arrives is a threshold
  * negotiated down to whatever it happens to score. The one exclusion is
- * `migrations/index.ts`, a generated barrel Payload never imports.
+ * `apps/web/migrations/index.ts`, a generated barrel Payload never imports.
  *
  * `apps/web/app/**` is NOT included here, and that is settled, not stale:
  * Task 1 of Phase 1 added it to `vitest.config.ts`'s unit coverage include
@@ -117,12 +117,15 @@ export default defineConfig({
         'apps/web/payload.config.ts',
         'apps/web/migrations/**/*.ts',
       ],
-      // `**/index.ts`: `migrations/index.ts` is a generated barrel that
-      // Payload never imports - `readMigrationFiles` reads the migration
-      // files off disk directly - so it is 0% by construction, not by
-      // neglect. `vitest.config.ts`'s coverage excludes `**/index.ts` for the
-      // same reason.
-      exclude: ['**/*.test.ts', '**/*.d.ts', '**/index.ts'],
+      // `apps/web/migrations/index.ts` is a generated barrel that Payload
+      // never imports - `readMigrationFiles` reads the migration files off
+      // disk directly - so it is 0% by construction, not by neglect. Named by
+      // its exact path, not as `**/index.ts`: CLAUDE.md §2.1 requires an
+      // exclusion to name the file it excuses, so that a future `index.ts`
+      // anywhere in this repository has to justify its own exclusion rather
+      // than inherit this one. `vitest.config.ts`'s coverage excludes the same
+      // exact path for the same reason.
+      exclude: ['**/*.test.ts', '**/*.d.ts', 'apps/web/migrations/index.ts'],
       thresholds: {
         // postgres-queue.ts's two error-catch branches (an unexpected DB
         // failure inside enqueue(), and inside claim()'s rollback) have no
