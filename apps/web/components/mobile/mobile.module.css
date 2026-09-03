@@ -267,6 +267,26 @@
   text-transform: uppercase;
 }
 
+/* SCREENS.md §1.1's sixth cover line, at this surface's own scale. The book's
+ * `cover.module.css` sets it in Courier 12.5px/.3em with an 8px top margin at
+ * `rgba(238,220,180,.78)`, and NOT uppercased - the §1.1 table asks for
+ * `text-transform: uppercase` on "Kept by" and not on this one, and
+ * "2025 — 2026" has no case to change anyway. The size and tracking here are
+ * `.coverKeptBy`'s, which is that pair scaled for a 390px phone; the alpha is
+ * the book's own `.78` (docs/deviations.md §12 raised it from §1.1's `.5` to
+ * clear AA, and it is the alpha `.coverSubtitle` already carries), so this
+ * line sits ABOVE the neighbouring "Kept by" line's `.72` rather than below
+ * it. §1.10 does not enumerate the cover's lines at all - it says "fitted
+ * title" and stops - so the surface takes §1.1's set, which is what it already
+ * did for the eyebrow, both rules, the subtitle and "Kept by" (PH1-004). */
+.coverYears {
+  margin: 8px 0 0;
+  color: rgba(238, 220, 180, 0.78);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.26em;
+}
+
 /* "a full-width 'Start reading' button". An anchor drawn as one - see
  * `MobilePage.tsx`'s header for why every page-changing control on this
  * surface is a real link. */

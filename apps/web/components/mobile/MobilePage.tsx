@@ -37,6 +37,15 @@
  * still applied, as `object-position`, exactly as `Photograph` applies it -
  * DATA_MODEL.md's picker is only real if it reaches rendering.
  *
+ * THE COVER PRINTS SCREENS.md §1.1's SET, NOT A SHORTER ONE. §1.10 describes
+ * this surface's cover as a "cloth block ... fitted title, then a full-width
+ * 'Start reading' button and a swipe hint" and enumerates none of the type, so
+ * the lines come from §1.1 - eyebrow, both rules, title, subtitle, "Kept by"
+ * and the years - at this surface's own scale (`mobile.module.css`). It used to
+ * print five of the six and silently drop the years, so an owner editing
+ * `book.yearsShown` saw it change on a laptop and not on a phone (PH1-004,
+ * docs/qa/2026-09-03-phase-1-closing-sweep.md). The two surfaces show one book.
+ *
  * EMPTY FIELDS PRINT NOTHING, not an empty label - the policy `Cover.tsx`,
  * `Notes.tsx` and `About.tsx` all apply, since no text field on the `book` or
  * `about` globals or on a journey is `required: true` in the schema.
@@ -171,6 +180,11 @@ const MobileCover = ({
         <div aria-hidden="true" className={styles.coverHairlineBottom} />
 
         {chrome.owner !== '' && <p className={styles.coverKeptBy}>Kept by {chrome.owner}</p>}
+        {chrome.yearsShown !== '' && (
+          <p data-cover-years="" className={styles.coverYears}>
+            {chrome.yearsShown}
+          </p>
+        )}
       </div>
 
       {/* A book of one page has nowhere to start reading, and a link to a page

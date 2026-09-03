@@ -212,10 +212,29 @@ describe('MobilePage', () => {
     }).toEqual({ keptBy: true, subtitle: true, cloth: '#7a3b32' })
   })
 
-  it('prints nothing for a cover whose subtitle and owner an editor has cleared', () => {
-    const container = render(pageOf('cover'), { chrome: aBookChrome({ subtitle: '', owner: '' }) })
+  it('prints the years line the book’s own Cover prints, so the two surfaces show one book', () => {
+    // PH1-004. `Cover.tsx` prints five of SCREENS.md §1.1's six lines here and
+    // dropped the sixth: `yearsShown` is an editor-supplied field on the `book`
+    // global, so an owner who edited it saw it change on a laptop and not on a
+    // phone, with nothing in the product or in docs/deviations.md saying it
+    // should. §12 revisits that line's alpha and keeps the line.
+    const container = render(pageOf('cover'), { chrome: aBookChrome({ yearsShown: '2025 — 2026' }) })
 
-    expect(one(container, '[data-mobile-page]').textContent).not.toContain('Kept by')
+    expect(one(container, '[data-mobile-page]').textContent).toContain('2025 — 2026')
+  })
+
+  it('prints nothing for a cover whose subtitle, owner and years an editor has cleared', () => {
+    const container = render(pageOf('cover'), {
+      chrome: aBookChrome({ subtitle: '', owner: '', yearsShown: '' }),
+    })
+
+    expect({
+      keptBy: one(container, '[data-mobile-page]').textContent.includes('Kept by'),
+      // The same rule the book's Cover follows and the project's standing
+      // policy for an optional line (docs/deviations.md §19): an empty
+      // optional line prints nothing, not an empty element.
+      years: container.querySelector('[data-cover-years]') !== null,
+    }).toEqual({ keptBy: false, years: false })
   })
 
   it('makes every Contents row a real link to the page it names', () => {
