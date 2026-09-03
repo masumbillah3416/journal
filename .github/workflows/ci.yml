@@ -185,5 +185,15 @@ jobs:
       # CLAUDE.md §6 scopes the 2500ms LCP budget to "diary, 4G"
       # specifically, and holding Payload's heavy admin bundle to it was
       # the original reason this whole step was informational.
+      # `npm run test:perf` runs TWO lhci configurations and both are gates:
+      # `lighthouserc.json` (phone emulation - the mobile reading surface,
+      # the gallery and `/cms`) and `lighthouserc.book.json` (a 1350x940
+      # viewport with `Cookie: td-reading-surface=book` - the book surface).
+      # They are separate because lhci collect settings are per-run, not
+      # per-URL, and a desktop viewport makes the gallery fetch larger
+      # derivatives than its own image budget allows. Do not merge them, and
+      # do not drop the second command from this step: without it the book
+      # surface - the heavier one, and the one every LCP ADR measured - is
+      # not gated at all. See docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md.
       - name: Lighthouse CI budgets
         run: npm run test:perf

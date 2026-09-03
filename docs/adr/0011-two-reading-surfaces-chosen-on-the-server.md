@@ -204,3 +204,16 @@ script runs. The swipe is the fourth and the only one that cannot be.
   or if a future task adds enough weight to the mobile tree that the shared chunk matters —
   alternative 5 is worth re-measuring, because everything else about the split already
   holds. Re-run the measurement rather than the reasoning.
+
+- **Update, after `docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md`.**
+  The pinned `Cookie: td-reading-surface=book` named twice above now lives in
+  `lighthouserc.book.json`, not `lighthouserc.json`, and it is no longer enough on its
+  own: on Lighthouse's 412px emulated phone the correction this ADR designed fired on
+  every run, threw the pinned book away and re-rendered the mobile surface, which made
+  the gate bimodal (3,016ms or 3,167ms) and, in the afternoon, 2,932ms on the same
+  commit. The book is now measured at a 1350x940 viewport that agrees with the pin.
+  Everything this ADR decided about which surface a reader is served, the cookie, the
+  correction and its readback guard is unchanged — the correction is right, and only the
+  measurement was asking it to argue with itself. This ADR's claim that the mobile surface
+  "cannot become the binding constraint while the book is gated" is no longer assumed:
+  it is gated too, at 2,926.8ms against the book's 2,930.5ms.

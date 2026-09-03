@@ -169,3 +169,15 @@ down from 148,791 and 10,741. Both figures are far inside the 184,320 budget.
   `?pages=all` is carried across the rewrite, the served window is still the book entry's,
   and all thirty-three deep links still serve their own page's content in raw HTML
   (`e2e/serverWindow.spec.ts`, green).
+
+- **Update, after `docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md`.**
+  The gated run described above — "`extraHeaders`' cookie is injected at the network layer
+  where `document.cookie` cannot see it … the run then also downloads the mobile entry's
+  6,840-byte chunk and 3,149 bytes of stylesheet **after LCP**" — was right about the
+  mechanism and wrong about the ordering. It is a race: when the refresh won, the book
+  never painted and LCP measured 3,016ms or 3,167ms instead of 2,932ms. `/p/1` is now
+  collected twice, the book at a 1350x940 viewport in `lighthouserc.book.json` and the
+  mobile surface on the phone emulation in `lighthouserc.json`, and the gate measures
+  **142,828 script bytes** directly — the same "book surface's own transfer … 142,818"
+  figure this ADR could only obtain by measuring outside the gate. The 149,658 figure and
+  its honest note are now history rather than the gated number.

@@ -1307,38 +1307,59 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   update). GitHub's plain `ubuntu-latest` (uncontainerized) ships a system Chrome
   `chrome-launcher` finds on its own; set `CHROME_PATH` locally too if none is found
   automatically there.
-- **The diary budget is pinned to the BOOK surface** (Phase 1 Task 15).
-  `lighthouserc.json`'s `collect.settings.extraHeaders` sends
-  `Cookie: td-reading-surface=book`, and that one line is load-bearing: Lighthouse
-  emulates a phone by default, and below 860px `/p/1` now serves `SCREENS.md` §1.10's
-  mobile reading mode instead of the book
-  (`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`). Without the pin the
-  gate silently stopped measuring the book — the document it saw fell from 11,454 to
-  5,208 transferred bytes — which is a truer picture of a phone reader and a worse
-  budget, because a budget guards the worst case and the book is the heavier surface.
-  The mobile surface is less than half the document, so it cannot become the binding
+- **The diary budget is pinned to the BOOK surface, and since ADR 0014 it is measured at
+  a viewport that is actually served the book** (Phase 1 Task 15, revised).
+  `lighthouserc.book.json` sends `Cookie: td-reading-surface=book` — that line is
+  load-bearing, because below 860px `/p/1` serves `SCREENS.md` §1.10's mobile reading
+  mode instead of the book
+  (`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`), and without the pin the
+  gate silently stopped measuring the book. **It is not enough on its own.** The same
+  file emulates a 1350x940 desktop viewport, because Lighthouse injects `extraHeaders` at
+  the network layer where `document.cookie` cannot see them: on a 412px emulated phone
+  `SurfaceCorrection` measured the viewport, disagreed with the served book, and called
+  `router.refresh()` on **every** run, so the gate was measuring the mobile surface
+  preceded by a discarded book render. See
+  `docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md` for the twenty-run
+  distribution that showed it, and for why the throttling (150ms RTT, 1,638Kbps, 4x CPU,
+  `simulate`) is identical in both files. **The step was RED as of Task 15** —
+  3,011.36ms against 3,000 — caused by the mobile surface's client half sitting in the
+  book's own chunk group, which Turbopack would not split per import. It was reported red
+  rather than raised, and the cookie was NOT removed, because removing it would have
+  turned the gate green by changing what it measured rather than by making anything
+  faster. **It went GREEN at the two-route split** — 2,932.66ms with 67.34ms of margin
+  (`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`) — and it is green and
+  **stable** now: three consecutive `npm run test:perf` invocations, each with its own
+  build, gave book medians of **2,930.5 / 2,931.1 / 2,927.8ms**, fifteen runs spanning
+  2,926.0-2,937.8ms.
+- **`npm run test:perf` runs TWO lhci configurations, and both are gates.** Collect
+  settings in lhci are per-run, not per-URL, so the diary's desktop viewport cannot share
+  a run with the gallery's: at 1350x940 `/gallery/<slug>` picks larger derivatives and
+  fetches 1,229,466 bytes of image against its 600,000 budget (ADR 0013), which would
+  re-base a budget this change has no business touching. So `lighthouserc.json` collects
+  `/p/1`, `/gallery/patagonia` and `/cms` on Lighthouse's phone emulation with no pinned
+  cookie, and `lighthouserc.book.json` collects `/p/1` alone on the desktop viewport with
+  the cookie. Both keep `numberOfRuns: 5` and `aggregationMethod: "median"`. If you add a
+  route, add it to the first file unless it needs a viewport the first file cannot give
+  it.
+- **The mobile reading surface is gated too, since ADR 0014.** Dropping
+  `collect.settings.extraHeaders` from `lighthouserc.json` means its `/p/1` entry now
+  measures what a phone is actually served: 144,835 script bytes against the 184,320
+  budget, LCP 2,926.8ms against 3,000, CLS 0, over fifteen runs spanning
+  2,924.8-2,933.4ms. ADR 0011 said the mobile surface "cannot become the binding
   constraint while the book is gated; if that ever stops being true, measure it rather
-  than assume it. **The step was RED as of Task 15** — 3,011.36ms against 3,000,
-  +75.24ms, caused by the mobile surface's client half and its 23,923-byte stylesheet
-  sitting in the book's own chunk group, which Turbopack would not split per import. It
-  was reported red rather than raised, and the cookie above was NOT removed, because
-  removing it would have turned the gate green by changing what it measured rather than
-  by making anything faster. **It is GREEN again as of the two-route split** —
-  **2,932.66ms** (5 runs: 2,930.69 / 2,932.46 / 2,932.66 / 2,935.45 / 2,962.96), 67.34ms
-  of margin, with the pinned cookie still in place and the book still the surface
-  measured. The mobile surface, measured separately in the same container, is 2,929.58ms
-  with 144,826 script bytes. See
-  `docs/adr/0012-two-route-entries-for-two-reading-surfaces.md` for the per-chunk figures
-  and the six alternatives it beat.
-- **The gated script figure carries a known, harmless inflation, and it is not the book's
-  weight.** Lighthouse emulates a 412px-wide phone, and `extraHeaders`' cookie is injected
-  at the network layer where `document.cookie` cannot see it — so `SurfaceCorrection`
-  measures 412px, disagrees with the served book, and refreshes, and the run downloads the
-  mobile entry's chunk and stylesheet AFTER LCP. That is the mismatched reader's path
-  (`docs/adr/0011`), not a desktop reader's. The gated number is 149,658; the book
-  surface's own transfer on the same build, with no correction in the run, is 142,818
-  script and 9,046 stylesheet. Both are far inside the 184,320 budget, and LCP is
-  unaffected — the correction happens after it.
+  than assume it". It is now measured, on every run — and it is 3.7ms lighter than the
+  book, not half its cost, because both are dominated by ADR 0008's framework floor and
+  the five font faces rather than by their own markup.
+- **A correction that was recorded as harmless was not, and this paragraph replaces the
+  claim.** Until ADR 0014 this section said the mismatched-surface refresh downloaded the
+  mobile entry's chunk and stylesheet "AFTER LCP … LCP is unaffected — the correction
+  happens after it". It was a race, not an ordering. When the book's paint won, `/p/1`
+  measured 2,932ms; when the refresh won, the book never painted at all, the first paint
+  was the mobile Cover's title at 271-1,110ms observed, the five font faces landed in the
+  first-paint graph (simulated FCP 910 -> 1,581ms), and LCP measured 3,016ms or — when
+  Lantern additionally pinned it to the end of hydration — 3,167ms. Machine state decided
+  which. The gated script figure of 149,658 was the same artefact; the book surface's own
+  transfer, which the gate now measures directly, is **142,828**.
 - **Add one:** a budget per route, enforced in CI, not measured once and forgotten.
   Measure before optimizing, and paste the measurement (`CLAUDE.md` §0.4). Add the
   route's URL to `lighthouserc.json`'s `collect.url` array and its own `assertMatrix`

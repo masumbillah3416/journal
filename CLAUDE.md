@@ -181,7 +181,7 @@ A change is done only when **all** hold:
 | Page flip | Sustained 60fps. **Only `transform` and `opacity` animated** — never layout properties |
 | Diary route JS | ≤ 180KB gzipped |
 | Admin route JS | ≤ 320KB gzipped |
-| LCP (`/p/1`, Lighthouse `simulate` preset: 150ms RTT, 1,638Kbps, 4x CPU, median of 5) | ≤ 3.0s — see ADR 0008 |
+| LCP (`/p/1`, Lighthouse `simulate` preset: 150ms RTT, 1,638Kbps, 4x CPU, median of 5; the book surface at a 1350x940 viewport, the mobile surface at 412x823) | ≤ 3.0s — see ADR 0008 for the number, ADR 0014 for the two viewports |
 | CLS | ≤ 0.1 |
 | INP | ≤ 200ms |
 | Database queries per request | No N+1. Every list is one query with joins |
