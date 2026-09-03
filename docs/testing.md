@@ -88,13 +88,19 @@ correctly as 0 of 0 with no uncovered lines, while `(diary)/p/[n]/page.tsx`, wra
 exactly the same way, reported its whole body (lines 1–22) as uncovered. The bracket is
 the only difference between the two files, so it is the scanner that fails, not the file.
 The route itself was written to hold zero authored logic precisely so it could qualify,
-and it has kept that property as it grew: all three of its real decisions live in
-`packages/domain`, which is gated at 100%. What `<n>` means is `pageAddress.ts`'s
-`pageIndexFromParam`; which pages this particular request gets the content of, and
-whether a given leaf is one of them, are `contentWindow.ts`'s `servedContentWindow` and
-`rendersContent` (`docs/adr/0009-server-rendered-page-window.md`). The exclusion is only
-honest while that holds — a branch written into the route itself is a branch neither
-coverage config can reach.
+and it has kept that property as it grew: all of its real decisions live in
+`packages/domain`, which is gated at 100%. What `<n>` means, and whether the book has
+such a page at all, is `pageAddress.ts`'s `addressedPageIndex`; which pages this
+particular request gets the content of, and whether a given leaf is one of them, are
+`contentWindow.ts`'s `servedContentWindow` and `rendersContent`
+(`docs/adr/0009-server-rendered-page-window.md`); and the title, description and
+canonical link `generateMetadata` returns are `pageMetadata.ts`'s, which is where its
+six fallbacks over blank editor fields are covered. The exclusion is only honest while
+that holds — a branch written into the route itself is a branch neither coverage config
+can reach. `app/(diary)/not-found.tsx`, added in Task 13, is the OTHER honest treatment
+and needs no config entry: it is not under a bracketed directory, so its `c8 ignore
+start`/`stop` wrapping takes effect, and it holds no branch of its own — the only value
+on it is `pagePath(0)`.
 
 `apps/web/components/**` was genuinely empty until Phase 1 Task 7 (`.gitkeep` only) and
 carried no per-glob threshold override until then — a threshold against zero files is the
@@ -531,6 +537,29 @@ would claim a measurement nothing performs.
   waiting for one round trip. That waiting is real behaviour, and it is asserted in
   `e2e/serverWindow.spec.ts` rather than left out.
 
+  **`e2e/routing.spec.ts` (Phase 1 Task 13)** covers what the diary's ADDRESSES promise,
+  which is a different subject from what any page renders. Six cases assert the 404
+  boundary from outside the app — `/p/999`, `/p/34`, `/p/0` and `/p/tokyo` are 404 while
+  `/p/33` is still 200, so the boundary is off by nothing — and one requires the 404 view
+  to carry a link back to `/p/1`, because a reader who lands there has nothing else on
+  screen. Four more read raw HTML with `request.get`, never `page.goto`: a crawler runs no
+  JavaScript, so neither may the assertion standing in for one. They require each page's
+  own `<title>` and `<meta name="description">` (two deep links that are one search result
+  are most of what real paths were bought to avoid) and require `?pages=all` to declare
+  `/p/<n>` as its canonical, which is what stops the content window's own request address
+  from being duplicate content.
+
+  Its last two cases are the **gallery return**, which the design spec calls out by name:
+  "returning from a gallery restores `/p/<n>`, not `/`". `/gallery/<slug>` is Task 14's to
+  build, and the cases do not wait for it — `Notes.tsx` and `FramesII.tsx` already render
+  the gallery button as a real `<a href>` (Task 10/11, deliberately), and a navigation to a
+  route that does not exist yet is still a navigation with a history entry. So the second
+  case turns two pages, clicks the real link on the leaf the reader is actually on, goes
+  back, and requires `/p/5` — the page reading took them to, not the one they arrived at.
+  It passes today against a 404 and will keep passing when Task 14 puts a gallery there.
+  What it actually guards is `Book.tsx`'s `history.replaceState`: were the book to push
+  rather than replace, or not write the address at all, both cases fail.
+
   **`e2e/serverWindow.spec.ts` (the server content window)** covers the other window,
   and its first case is the one the whole change stands or falls on: it fetches all
   **thirty-three** `/p/<n>` routes as raw HTML with `request.get`, parses each with
@@ -601,7 +630,11 @@ would claim a measurement nothing performs.
   `overflow: hidden` to lose its scrollbar would fail there), on a viewport forced short
   so the thirteen tabs overflow at every project rather than only at two of them.
 
-  `e2e/smoke.spec.ts` is the console-error gate: it loads `/cms` and `/p/1` and asserts
+  `e2e/smoke.spec.ts` is the console-error gate: it loads `/cms`, `/p/1` and (Task 13)
+  the page-not-found view at `/p/999` — where the correct response is a 404, so that case
+  asserts the status rather than `ok()`, and what it is really about is that a route which
+  deliberately throws `notFound()` renders cleanly rather than logging on the way. It
+  asserts
   **zero** `console` (error level) and `pageerror` events, with both listeners attached
   _before_ `page.goto()`. This is deliberately the harness's centre of gravity, not an
   afterthought — the handoff's own defect log (`CLAUDE.md` §10, `SCREENS.md`) is mostly
@@ -640,6 +673,7 @@ would claim a measurement nothing performs.
   disagree eventually; until one is generated from the other, checking both is part of
   landing a spec.
 
+
 - **Three viewport projects** — `desktop` (1440×900), `mid` (1000×800), `mobile`
   (390×844; `isMobile`/`hasTouch` set) — run every spec three times, once per breakpoint
   named in the Task 12 brief. All three use Chromium, not a mix of engines: this
@@ -651,7 +685,8 @@ would claim a measurement nothing performs.
   `e2e/book.spec.ts`, `e2e/flip.spec.ts`, `e2e/layout.spec.ts`, `e2e/chrome.spec.ts`,
   `e2e/pages.spec.ts`,
   `e2e/notes.spec.ts`, `e2e/frames.spec.ts`, `e2e/about.spec.ts`,
-  `e2e/imageWindow.spec.ts` and `e2e/serverWindow.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
+  `e2e/imageWindow.spec.ts`, `e2e/serverWindow.spec.ts` and
+  `e2e/routing.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.
@@ -660,7 +695,8 @@ would claim a measurement nothing performs.
   machine's logic in the test. Every new route gets its own `test()` in
   `e2e/smoke.spec.ts` first — a route with no console-error coverage is a route this
   suite is silently not protecting. A new spec file also needs adding to the
-  `test:e2e` script; a spec no script names is a spec CI does not run.
+  `test:e2e` script AND to `.github/workflows/ci.yml`'s browser job; a spec no script
+  names is a spec CI does not run.
 
 ### 5 · Visual regression
 
@@ -678,6 +714,17 @@ would claim a measurement nothing performs.
   for the section, for the design box's `scale(k)`, for `document.fonts.ready`, then for
   every image in the document to `decode()`); each of those four waits replaces a race,
   and none of them is a timeout.
+
+  Task 13 added a twenty-second, twenty-third and twenty-fourth: `diary-not-found-*.png`,
+  the page-not-found view an address naming no page now renders. It is the one case here
+  that does not call `settled()` — there is no scaled design box on that view to wait
+  for, only the fonts. It earns a baseline because it is a view assembled from the
+  design's surface (desk gradient, paper card, hairline rule, all three type families)
+  for a screen the design does not itself specify, which is exactly the kind of thing
+  that drifts away from the rest unnoticed. Task 13 changed no page's markup, and the
+  twenty-one existing baselines came back **byte-identical** from the same
+  `--update-snapshots=all` container run that wrote the three new ones, with
+  `e2e/layout.spec.ts` green in it.
 
   Each Task 11 baseline was captured in the same pinned-container run that regenerated
   the six older ones, and the older six MOVED for a structural reason rather than a
@@ -756,13 +803,16 @@ would claim a measurement nothing performs.
   4.5:1, per the handoff's own note). Where axe returns `incomplete` rather than a
   verdict, the ratio is measured from the rendered pixels and asserted anyway; an
   `incomplete` is never read as a pass.
-- **Status:** implemented for both routes that exist, and for each designed diary page
+- **Status:** implemented for every view that exists, and for each designed diary page
   in turn — `/p/1` (Cover, Task 7), `/p/2` (Contents, Task 9), `/p/3` (Notes, Task 10)
   and `/p/4`, `/p/5`, `/p/33` (Frames I, Frames II and About, Task 11), because each
-  page kind renders different markup on the same URL shape. All six
+  page kind renders different markup on the same URL shape — plus Task 13's
+  page-not-found view (`/p/999`), the one diary view that is not a page of the book and
+  the one where an unlabelled way back would strand a reader with nothing else on
+  screen. All seven
   call `expectNoAxeViolations(page)` with **no exclusions at all** — every rule in the
   full ruleset applies to a route this project authored, and `/cms`'s allowances below
-  must never be inherited by them. All six pass on all three viewport projects. The
+  must never be inherited by them. All seven pass on all three viewport projects. The
   Notes case is the first with anything for `image-alt`, `definition-list` or
   `link-name` to judge: it is the first page in the diary with photographs, a
   description list (the tally ticket) and a link styled as a button. The two Frames

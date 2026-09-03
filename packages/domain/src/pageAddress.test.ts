@@ -1,45 +1,53 @@
 import { describe, expect, it } from 'vitest'
-import { pageIndexFromParam, pagePath } from './pageAddress'
+import { addressedPageIndex, pagePath } from './pageAddress'
 
-describe('pageIndexFromParam', () => {
+describe('addressedPageIndex', () => {
   it('turns the first page number a reader sees into the first leaf index', () => {
-    expect(pageIndexFromParam('1', 33)).toBe(0)
+    expect(addressedPageIndex('1', 33)).toBe(0)
   })
 
   it('turns a mid-book page number into its zero-based leaf index', () => {
-    expect(pageIndexFromParam('3', 33)).toBe(2)
+    expect(addressedPageIndex('3', 33)).toBe(2)
   })
 
   it('turns the last page number into the last leaf index', () => {
-    expect(pageIndexFromParam('33', 33)).toBe(32)
+    expect(addressedPageIndex('33', 33)).toBe(32)
   })
 
-  it('clamps a page number past the end of the book to the last leaf', () => {
-    expect(pageIndexFromParam('999', 33)).toBe(32)
+  it('refuses a page number past the end of the book rather than clamping to the last leaf', () => {
+    expect(addressedPageIndex('999', 33)).toBeNull()
   })
 
-  it('clamps a page number below the first page to the first leaf', () => {
-    expect(pageIndexFromParam('0', 33)).toBe(0)
+  it('refuses the page number one past the last real page', () => {
+    expect(addressedPageIndex('34', 33)).toBeNull()
   })
 
-  it('reads a page number that is not a number at all as the first leaf', () => {
-    expect(pageIndexFromParam('tokyo', 33)).toBe(0)
+  it('refuses page zero, since the first page a reader sees is page one', () => {
+    expect(addressedPageIndex('0', 33)).toBeNull()
   })
 
-  it('reads a signed page number as the first leaf, since a page number is never signed', () => {
-    expect(pageIndexFromParam('-4', 33)).toBe(0)
+  it('refuses a page number that is not a number at all', () => {
+    expect(addressedPageIndex('tokyo', 33)).toBeNull()
   })
 
-  it('reads a fractional page number as the first leaf, since pages are whole', () => {
-    expect(pageIndexFromParam('2.7', 33)).toBe(0)
+  it('refuses a signed page number, since a page number is never signed', () => {
+    expect(addressedPageIndex('-4', 33)).toBeNull()
   })
 
-  it('reads an empty page number as the first leaf', () => {
-    expect(pageIndexFromParam('', 33)).toBe(0)
+  it('refuses a fractional page number, since pages are whole', () => {
+    expect(addressedPageIndex('2.7', 33)).toBeNull()
   })
 
-  it('returns the first leaf for a book with no pages at all, rather than a negative index', () => {
-    expect(pageIndexFromParam('1', 0)).toBe(0)
+  it('refuses an empty page number', () => {
+    expect(addressedPageIndex('', 33)).toBeNull()
+  })
+
+  it('refuses a page number padded with a leading zero, which is a different address', () => {
+    expect(addressedPageIndex('03', 33)).toBeNull()
+  })
+
+  it('refuses every address in a book with no pages at all, rather than returning a negative index', () => {
+    expect(addressedPageIndex('1', 0)).toBeNull()
   })
 })
 
@@ -59,6 +67,8 @@ describe('pagePath', () => {
     const total = 33
     const leaves = Array.from({ length: total }, (_unused, leafIndex) => leafIndex)
 
-    expect(leaves.map((leafIndex) => pageIndexFromParam(pagePath(leafIndex).slice('/p/'.length), total))).toEqual(leaves)
+    expect(leaves.map((leafIndex) => addressedPageIndex(pagePath(leafIndex).slice('/p/'.length), total))).toEqual(
+      leaves,
+    )
   })
 })

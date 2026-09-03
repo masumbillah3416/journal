@@ -76,7 +76,7 @@ export interface ContentWindow {
  * The window a `/p/<n>` document carries: the addressed page and
  * {@link CONTENT_WINDOW_RADIUS} leaves either side of it, clamped to the book.
  *
- * @param addressedIndex - The 0-based leaf the URL addresses, from `pageIndexFromParam`.
+ * @param addressedIndex - The 0-based leaf the URL addresses, from `addressedPageIndex`.
  * @param totalPages - How many pages the book currently has.
  * @returns The inclusive span of leaves whose content belongs in that document.
  * @example

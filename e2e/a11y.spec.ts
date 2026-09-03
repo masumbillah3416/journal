@@ -162,6 +162,23 @@ test('has no axe violations on /p/33, the About page', async ({ page }) => {
   await expectNoAxeViolations(page)
 })
 
+test('has no axe violations on the page-not-found view', async ({ page }) => {
+  // The one diary view that is not a page of the book: Task 13's
+  // `app/(diary)/not-found.tsx`, which an address naming no page renders with
+  // HTTP 404. It is a route this project serves, so CLAUDE.md §2's "every
+  // route" covers it, and a reader who reaches it has nothing else on screen -
+  // an unlabelled way back would strand them completely.
+  await page.goto('/p/999')
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+
+  // No exclusions - see the diary cases above. This view has its own `<main>`
+  // and its own level-one heading, so `landmark-one-main` and
+  // `page-has-heading-one` are requirements here too, and its single link and
+  // four lines of type on a paper gradient are what `link-name` and
+  // `color-contrast` have to check.
+  await expectNoAxeViolations(page)
+})
+
 /**
  * The cover's five text lines, with the WCAG 2.1 AA floor each one has to
  * clear. Only the title qualifies as large text: SC 1.4.3's exemption needs

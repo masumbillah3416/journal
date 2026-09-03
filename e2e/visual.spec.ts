@@ -9,6 +9,15 @@
  * Phase 1 Tasks 9 and 10, and Frames I, Frames II and About from Task 11
  * (SCREENS.md §1.1-§1.6). Every page type the book has is now covered.
  *
+ * AN EIGHTH VIEW THAT IS NOT A PAGE OF THE BOOK: Task 13's page-not-found
+ * view (`app/(diary)/not-found.tsx`), which an address naming no page now
+ * renders instead of clamping onto page 33. The design has no 404 screen, so
+ * this one is assembled from the design's own surface - desk gradient, paper
+ * card, hairline rule, the three type families - and a baseline is what stops
+ * it from drifting away from them unnoticed. Its case is the only one here
+ * that does not call `settled`: there is no scaled design box on it to wait
+ * for, only the fonts.
+ *
  * THE TASK 12 REGENERATION (all six `diary-*` cases, eighteen images) is the
  * chrome. SCREENS.md §1.7's bookmark rail, bottom bar and spine ribbon sit
  * OUTSIDE the scaled design box and were, until Task 12, behaviour only — a
@@ -206,4 +215,15 @@ test('matches the baseline screenshot of the About page', async ({ page }) => {
   await settled(page, '[data-leaf="32"] [data-page="about"]')
 
   await expect(page).toHaveScreenshot('diary-about.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the page-not-found view', async ({ page }) => {
+  // A route with no book on it, so `settled` — which waits for the scaled
+  // design box — does not apply. What has to be settled here is the type: all
+  // three families are used on this view, and a screenshot taken before they
+  // load is a screenshot of the fallback stack.
+  await page.goto('/p/999', { waitUntil: 'networkidle' })
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('diary-not-found.png', { fullPage: true })
 })

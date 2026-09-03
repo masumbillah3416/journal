@@ -10,8 +10,11 @@
  *
  * It carries nothing but the document and the stylesheet, because everything
  * visible belongs to `<Book>`: the diary's chrome that sits OUTSIDE the
- * scaled design box (bookmark rail, bottom bar, page counter) is Task 12, and
- * the `/p/<n>` metadata is Task 13.
+ * scaled design box (bookmark rail, bottom bar, page counter) lives in
+ * `components/chrome/`, and each page's own title, description and canonical
+ * link are `generateMetadata`'s in `p/[n]/page.tsx`. This layout also wraps
+ * `not-found.tsx`, so an address naming no page is drawn on the diary's own
+ * document rather than on Next's bare default.
  *
  * All three `next/font/local` variable classes (Caveat, EB Garamond,
  * Courier Prime) are applied to `<html>` so their generated `--font-*`
@@ -41,7 +44,12 @@ import type React from 'react'
 import './diary.css'
 import { caveat, courierPrime, ebGaramond } from './fonts'
 
-/** The browser-tab title every diary page inherits until Task 13 gives each page its own. */
+/**
+ * The diary's fallback document title. Every `/p/<n>` overrides it with the
+ * page's own (`generateMetadata` in `p/[n]/page.tsx`, from `pageMetadata`);
+ * what is left inheriting it is the one diary view that is not a page of the
+ * book - `not-found.tsx`, which an address naming no page renders.
+ */
 export const metadata: Metadata = {
   title: 'Travel Diary',
 }

@@ -50,7 +50,8 @@ module, independently testable, named in its own header.
 | `bookScale`                             | `packages/domain`                  | `(area) → number`, `min(w/1300, h/860)` capped at 1.7                                                                                             |
 | `bookBundle`                            | `packages/domain` + `apps/web/lib` | Payload rows in, one typed `BookBundle` out. The diary client reads nothing else.                                                                 |
 | `pageStack`                             | `packages/domain`                  | `(leafIndex, FlipState, totalPages) → LeafPresentation`. Every field maps one-to-one into CSS, so the DOM layer re-derives no flip geometry. `loadsImages` extends the same idea to the image window (`docs/adr/0006-diary-image-window.md`). |
-| `pageAddress`                           | `packages/domain`                  | `('<n>', totalPages) → leafIndex` and `leafIndex → '/p/<n>'`. The only translation between the 1-based page number a reader shares and the 0-based index the stack works in, in both directions. |
+| `pageAddress`                           | `packages/domain`                  | `('<n>', totalPages) → leafIndex \| null` and `leafIndex → '/p/<n>'`. The only translation between the 1-based page number a reader shares and the 0-based index the stack works in, in both directions. `null` is "the book has no such page", which the route spends as a `404` (Task 13; it clamped before). |
+| `pageMetadata`                          | `packages/domain`                  | `(BookPage, {chrome, about, pageNumber, totalPages}) → {title, description}`. What one indexable deep link tells a crawler about itself. Every field it reads is optional in the schema, so the fallbacks are the module: a blank subtitle must not become `undefined · Wanderings` or a description that is one full stop. |
 | `contentWindow`                         | `packages/domain`                  | `(addressedIndex, totalPages) → ContentWindow`. Which leaves' faces a `/p/<n>` document carries — the SERVER's window, a function of the address, where `pageStack.loadsImages` is a function of the flip machine. Also owns the one search parameter with which the book asks for the rest (`docs/adr/0009-server-rendered-page-window.md`). |
 | `storage` / `mailer` / `transcodeQueue` | `apps/web/lib`                     | Ports with local and production adapters, one shared contract suite run against both                                                              |
 
@@ -230,6 +231,20 @@ only `inline` deploys until video is turned back on.
 - **`pageAddress`** — a page component cannot be run without a Next request context, so
   arithmetic living inside one is arithmetic nothing can check. Keeping the one decision
   `/p/<n>` makes in the domain package is what leaves the route itself a passthrough.
+  Task 13 turned its clamp into a rejection: `/p/999` is now `null` here and `notFound()`
+  there, rather than page 33 at status 200.
+- **`pageMetadata`** — the same argument, applied to `generateMetadata`, which is the
+  route's second untestable entry point. What looks like string interpolation is six
+  fallbacks over fields an editor is allowed to leave blank, and every one of them is a
+  branch a search result would show if it were wrong.
+
+`/p/<n>` renders DYNAMICALLY, and does not declare `generateStaticParams`. That is a
+measured decision rather than an omission — statically generating all thirty-three and
+reading the content window's `searchParams` are mutually exclusive on one path in
+Next 16, and the static build was built and measured at no LCP advantage. See
+`docs/adr/0010-static-generation-and-the-content-window.md`, which also records the
+route shape (hoisting `Book` into `p/[n]/layout.tsx`, widening via a child route) that
+could hold both if that ever changes.
 - **`bookBundle`** — one serialization boundary means the diary client's shape can never
   silently drift from what Payload happens to store; a schema change on the Payload side
   is caught at the `bookBundle` assembly step, not scattered across every component that

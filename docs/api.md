@@ -24,7 +24,9 @@ updating its row in the same commit that changes the code (`CLAUDE.md` §1.3).
 
 Five route handlers exist today: Payload's own four, mounted under the `(payload)` route
 group, and the diary's `/p/<n>`, added with the book itself in Phase 1 Task 7 and
-extended in Task 13. Both sets are documented in full below. Everything still unbuilt is
+completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
+metadata and a canonical link, and settled in
+`docs/adr/0010-static-generation-and-the-content-window.md` why it stays dynamic. Both sets are documented in full below. Everything still unbuilt is
 listed further down as **planned**, using only what the design spec (§8) already
 specifies, so each phase has a contract to build against rather than inventing one
 mid-phase.
@@ -134,27 +136,37 @@ for a different reason — see its row.
 
 ## Diary routes (live today)
 
-### `GET /p/<n>`
+### `GET /p/<n>` (and its 404 view)
 
-- **Path:** `apps/web/app/(diary)/p/[n]/page.tsx`, with `app/(diary)/layout.tsx` as the
-  route group's own root layout (parallel to `(payload)`'s, so the diary inherits none of
+- **Path:** `apps/web/app/(diary)/p/[n]/page.tsx`, with `app/(diary)/not-found.tsx` for
+  an address the book has no page for, and `app/(diary)/layout.tsx` as the route group's
+  own root layout wrapping both (parallel to `(payload)`'s, so the diary inherits none of
   Payload's admin chrome).
 - **Method:** `GET` — a React Server Component route.
 - **Input:** `n` — a 1-indexed page number, path parameter. Not a `PageId`; a positional
   index into the book's ordered page list, since it is meant to be a short, memorable,
   shareable URL (design spec §8). It is interpreted by
-  `pageIndexFromParam` (`packages/domain/src/pageAddress.ts`), not by this route, which
-  holds no logic of its own.
+  `addressedPageIndex` (`packages/domain/src/pageAddress.ts`), not by this route, which
+  holds no logic of its own. One optional query parameter, `pages=all`, is read: it is
+  the book's own request for the pages its document left out
+  (`docs/adr/0009-server-rendered-page-window.md`), never anything a reader types, and
+  the response to it declares `/p/<n>` as its canonical URL so it is not a second
+  crawlable address for the same page.
 - **Output:** the whole book, server-rendered from one `BookBundle`
   (`apps/web/lib/readBookBundle.ts`), opened at the leaf `n` addresses. The client takes
   over only for scaling (`useBookScale`) and flipping (`useFlip`).
-- **Errors:** none observable today. `n` outside the valid page range, or not a whole
-  page number at all, is **clamped** to the nearest real page rather than refused — the
-  same choice `pageStack.ts` makes for a stale index, and for the same reason: a reader
-  with a bad address should land on a page rather than a blank stack. A Payload failure
-  while assembling the bundle surfaces as a `500`, since `readBookBundle` throws on the
-  two boundary invariants it enforces (a journey missing `startsOn`; a media item with no
-  derivative of any tier).
+- **Errors:** `404` for any `n` the book has no page for — outside `1..33`, padded with a
+  leading zero, or not a whole page number at all. `addressedPageIndex` returns `null` and
+  the route calls `notFound()`, which renders `app/(diary)/not-found.tsx` under the
+  diary's own layout. This **replaces the clamp** the route shipped with through Task 12:
+  `/p/999` used to be answered with page 33 at status `200`, which told a crawler that
+  thirty-three synonyms for the last page were all real pages and told a reader that a
+  broken link had worked. `pageStack.ts` still clamps a stale `state.index`, and that is a
+  different case — the book's own state disagreeing with itself, where landing on a real
+  page is a recovery, rather than the reader's input, where it is a lie about what they
+  asked for. A Payload failure while assembling the bundle surfaces as a `500`, since
+  `readBookBundle` throws on the two boundary invariants it enforces (a journey missing
+  `startsOn`; a media item with no derivative of any tier).
 - **Auth requirement:** none. The public diary needs no authentication
   (`SECURITY.md`, "Sessions and access") — except that `site.passwordProtect`, when set,
   must gate this route server-side; a client-side check leaves the content fetchable
@@ -162,7 +174,10 @@ for a different reason — see its row.
   `docs/security.md`, not discharged here.
 - **Notes:** the URL is written on every turn (flip commit, mobile step, bookmark jump)
   and read on load, so the reader's exact page survives a reload or a shared link. As of
-  Task 8 that write is live: `Book.tsx` calls `window.history.replaceState` with
+  Task 8 that write is live, and as of Task 13 it is asserted end to end
+  (`e2e/routing.spec.ts`: turn two pages, click a page footer's real
+  `/gallery/<slug>` link, go back, and the address is still the page the reader had
+  turned to). `Book.tsx` calls `window.history.replaceState` with
   `pagePath(state.index)` from an effect keyed on the machine's committed index — the one
   moment the reader's page actually changes, whichever trigger caused it. It replaces
   rather than pushes, so reading thirty pages does not bury the page the reader arrived
@@ -170,9 +185,27 @@ for a different reason — see its row.
   navigation because a navigation would re-render the route and take the book's own flip
   state with it. Returning from `/gallery/<slug>` must restore the `/p/<n>` the reader was
   on, not `/`.
-- **Still to come (Task 13, which extends this same file):** `generateStaticParams` for
-  all 33 pages, revalidation, a real `404` for an out-of-range page in place of today's
-  clamp, per-page metadata, and the gallery-return behaviour. It is named here so the gap
+- **Metadata:** each page carries its own `<title>`, `<meta name="description">` and
+  `<link rel="canonical">`, derived by `pageMetadata`
+  (`packages/domain/src/pageMetadata.ts`) from the page and the book global — the page's
+  own label before the book's title (`Tokyo — Notes · Wanderings`), and the editor's own
+  words as the description where there are any. Thirty-three deep links sharing one title
+  are thirty-three results nobody can tell apart, which throws away most of what real
+  paths bought. The canonical is root-relative: this repository has no configured site
+  origin (`MEDIA_ORIGIN` is the media bucket's), and a canonical resolved against
+  `localhost:3000` would be worse than none.
+- **Rendering:** dynamic (`ƒ /p/[n]`), server-rendered per request. It does **not**
+  declare `generateStaticParams`, and that is a measurement rather than an omission:
+  statically generating all thirty-three and reading `searchParams` are mutually
+  exclusive on one path in Next 16, `searchParams` is the only signal that widens the
+  content window without unmounting the book, and the 33-route static build was built and
+  measured at 2,932.92ms LCP against this route's 2,931.04ms — no win the gate can see.
+  See `docs/adr/0010-static-generation-and-the-content-window.md`. `readBookBundle` is
+  wrapped in React's per-request `cache` so this route's two reads of it —
+  `generateMetadata`'s and the page component's — cost six Payload queries between them
+  rather than twelve.
+- **Still to come:** on-demand revalidation of affected paths on publish (design spec §8).
+  Nothing publishes yet, so there is nothing to revalidate; it is named here so the gap
   between this row and the design spec is a recorded decision rather than an omission.
 
 ## Planned routes (Phase 1)

@@ -149,8 +149,24 @@ test('a bookmark jump departs from the page beside its target, not from across t
 
 test('changes page instantly under prefers-reduced-motion', async ({ browser }) => {
   const context = await browser.newContext({ reducedMotion: 'reduce' })
+  // The whole-book address, for the same reason the bookmark-anchor case
+  // above uses it, and it is a REAL FLAKE this case was carrying rather than
+  // a convenience. The subject here is the flip machine: under reduced motion
+  // the turn commits with no transition to wait out, so 200ms is generous.
+  // But `Book` deliberately holds the ADDRESS until the book is whole
+  // (docs/adr/0009-server-rendered-page-window.md - writing `/p/<n>` while
+  // the request for the rest of the book is in flight would turn the next
+  // turn into a segment navigation and unmount the book), so on the bare
+  // address those 200ms are being spent on a same-origin round trip that has
+  // nothing to do with reduced motion. On the machine ADR 0009 was written on
+  // the round trip took 56ms and the case passed; inside
+  // `mcr.microsoft.com/playwright:v1.62.1-noble`, where Postgres is a
+  // host-gateway hop away, it does not - VERIFIED AT `41ca587`, with none of
+  // Task 13's changes present, where this one case fails in that container
+  // while the other 26 in this file pass. Opening the whole-book address
+  // leaves the machine's own instantaneity as the only thing being timed.
   const page = await context.newPage()
-  await page.goto('/p/3')
+  await page.goto(wholeBookPath(3))
   await waitForLiveBook(page)
 
   await page.keyboard.press('ArrowRight')

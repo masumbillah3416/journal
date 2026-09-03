@@ -78,12 +78,34 @@
  * naming the journey's slug via `payload.logger` - visible, not silent -
  * without ever logging the journey document itself.
  *
- * Depends on: getPayload (./payload); Journey, BookPage, Slot, BookBundle,
- * BookChrome, AboutContent, derivePages, deriveContents, deriveBookmarks
- * (@travel-diary/domain/bookBundle); journeyId (@travel-diary/domain/ids);
- * coverCloths (@travel-diary/tokens/colour), for the one chrome field whose
- * empty value would render nothing at all; the generated Payload types.
+ * IT IS READ TWICE PER REQUEST AND QUERIED ONCE, and the `cache()` wrapper on
+ * the export is what makes those the same sentence. The `/p/<n>` route reads
+ * the bundle in `generateMetadata` (for the page's own title and description)
+ * and again in the page component (for the faces) - two entry points Next
+ * invokes separately and neither of which can hand its result to the other.
+ * Without deduplication that is twelve Payload queries for one document
+ * instead of six, which is the over-fetching CLAUDE.md §7 forbids, and it is
+ * not free: measured on a production build, `/p/3` went from ~30ms to ~45ms
+ * to first byte, and in the pinned Playwright container - where Postgres is a
+ * network hop away - it took the reduced-motion case in `e2e/flip.spec.ts`,
+ * which allows the book 200ms to complete itself and write the address, from
+ * green to red on all three viewports.
+ *
+ * React's `cache` is per-REQUEST, not a shared server cache: it memoizes for
+ * the lifetime of one server render and is discarded with it, so an editor's
+ * change is never served stale, and two concurrent readers never share a
+ * bundle. Outside a server render - which is where the integration suite
+ * calls it from - it has no dispatcher to memoize against and simply calls
+ * through, so the tests still see a real query per call.
+ *
+ * Depends on: cache (react); getPayload (./payload); Journey, BookPage, Slot,
+ * BookBundle, BookChrome, AboutContent, derivePages, deriveContents,
+ * deriveBookmarks (@travel-diary/domain/bookBundle); journeyId
+ * (@travel-diary/domain/ids); coverCloths (@travel-diary/tokens/colour), for
+ * the one chrome field whose empty value would render nothing at all; the
+ * generated Payload types.
  */
+import { cache } from 'react'
 import type {
   AboutContent,
   BookBundle,
@@ -474,13 +496,16 @@ const toAboutContent = (doc: SelectedAboutGlobal, mediaById: ReadonlyMap<number,
  * (Cover, Contents, each journey's three pages with their resolved photo
  * slots, About), the Contents index, and the bookmark rail. See this
  * module's own header for the four-query shape and depth/select policy.
+ * Wrapped in React's `cache` so the two reads one request makes - the route's
+ * `generateMetadata` and its page component - cost six Payload queries
+ * between them rather than twelve. See this module's header.
  * @returns The full {@link BookBundle}.
  * @throws {Error} When a slot's media has no derivative of any tier - a
  *   boundary invariant this function enforces rather than passing through
  *   broken. A missing `startsOn` no longer throws (Task 6 review, finding
  *   2) - see {@link toDomainJourney}.
  */
-export const readBookBundle = async (): Promise<BookBundle> => {
+export const readBookBundle = cache(async (): Promise<BookBundle> => {
   const payload = await getPayload()
 
   const book = await payload.findGlobal({
@@ -614,4 +639,4 @@ export const readBookBundle = async (): Promise<BookBundle> => {
     chrome: toBookChrome(book),
     about: toAboutContent(about, mediaById),
   }
-}
+})

@@ -25,10 +25,12 @@
  *
  * IT TAKES THE PATH IT IS ON RATHER THAN DERIVING ONE. `usePathname()` is the
  * address this document was actually served at, and that is the only path
- * that leaves the segment's value unchanged. `pagePath(initialIndex)` would
- * usually agree with it and would differ for `/p/999`, which `pageIndexFromParam`
- * clamps onto page 33 — and the disagreement would cost a remount at exactly
- * the moment it is least recoverable.
+ * that leaves the segment's value unchanged. `pagePath(initialIndex)` agrees
+ * with it on every address this route now renders — Task 13 replaced the old
+ * clamp with `addressedPageIndex`, so `/p/999` is a 404 and never reaches
+ * this hook at all — but it derives an address instead of reading the one in
+ * hand, and any future disagreement between the two would cost a remount at
+ * exactly the moment it is least recoverable.
  *
  * THE QUERY IS NEVER LEFT IN THE ADDRESS BAR. `Book` writes `/p/<n>` over it
  * as soon as the answer lands, from the same effect that keeps the address

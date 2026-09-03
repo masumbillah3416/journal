@@ -4,7 +4,7 @@
  * The minimum route needed to host the book. It reads the `BookBundle` through
  * the repository seam (`lib/readBookBundle.ts`), turns the URL's 1-based page
  * number into the 0-based leaf index the stack works in
- * (`pageIndexFromParam`), renders every page's face, and hands them to
+ * (`addressedPageIndex`), renders every page's face, and hands them to
  * `<Book>`. It holds no logic of its own on purpose: a Next.js page component
  * cannot be run without a request context, so anything decided here would be
  * undecidable by any test - which is why the two real decisions, what `<n>`
@@ -49,26 +49,49 @@
  * `docs/adr/0009-server-rendered-page-window.md` for the measurement that
  * prompted it and the three alternatives it beat.
  *
- * SCOPE. `generateStaticParams` for all 33 pages, revalidation, the
- * out-of-range 404 and the gallery-return behaviour are Task 13, which
- * extends this file. Until then `pageIndexFromParam` clamps an out-of-range
- * page number onto a real page rather than 404ing - the same choice
- * `pageStack.ts` makes for a stale index, and for the same reason: a reader
- * with a bad address should land on a page, not a blank stack.
+ * AN ADDRESS THE BOOK HAS NO PAGE FOR IS A 404. `addressedPageIndex` returns
+ * `null` for `/p/999`, `/p/0`, `/p/03` and `/p/tokyo` alike, and this route
+ * turns that into `notFound()` - rendering `app/(diary)/not-found.tsx` with
+ * HTTP 404. The route previously clamped such an address onto page 33 and
+ * answered 200, which told a crawler that thirty-three synonyms for the last
+ * page were all real pages, and told a reader that a broken link had worked.
+ * The decision is `addressedPageIndex`'s (its header carries the reasoning);
+ * this file only spends it.
+ *
+ * IT DOES NOT DECLARE `generateStaticParams`, AND THAT IS A MEASUREMENT
+ * RATHER THAN AN OMISSION. Statically generating all thirty-three pages and
+ * reading `searchParams` are mutually exclusive on one path in Next 16, and
+ * `searchParams` is the only signal that can widen the window without
+ * unmounting the book (ADR 0009). The 33-route static build was BUILT and
+ * MEASURED against this dynamic one - all thirty-three prerender, and they
+ * answer in 1.7-2.6ms where this route takes 19-34ms - and LCP
+ * moved 2,931.04ms to 2,932.92ms, which is inside a single run's spread. It
+ * buys nothing the gate can see and costs the window, so it is not taken.
+ * See `docs/adr/0010-static-generation-and-the-content-window.md` for the
+ * runs and the three shapes that were considered for having both.
+ *
+ * SCOPE. On-demand revalidation on publish (design spec §8) is a later task's
+ * - nothing publishes yet. The gallery-return behaviour is the address this
+ * route writes plus `Book.tsx`'s `replaceState`, and is asserted by
+ * `e2e/routing.spec.ts` today against the real `/gallery/<slug>` link the
+ * page footers already carry; the gallery route itself is Task 14.
  * Depends on: `readBookBundle` (../../../../lib/readBookBundle),
- * `pageIndexFromParam` (@travel-diary/domain/pageAddress),
+ * `addressedPageIndex`/`pagePath` (@travel-diary/domain/pageAddress),
+ * `pageMetadata` (@travel-diary/domain/pageMetadata),
  * `servedContentWindow`/`rendersContent`
  * (@travel-diary/domain/contentWindow), `deriveRail`/`derivePageLabels`
  * (@travel-diary/domain/bookBundle), `Book` (../../../../components/book/Book),
- * `PageFace` (../../../../components/book/PageFace).
+ * `PageFace` (../../../../components/book/PageFace), `notFound` (next/navigation).
  */
 /* c8 ignore start -- Framework passthrough with no authored logic: await the
  * route params and the query, read the bundle, render one face per
  * page inside the served window and a contentless marker outside it, render
- * the book. Its three real decisions - what `<n>` means, which pages this
- * request gets the content of, and whether a given leaf is one of them - are
- * `pageIndexFromParam`, `servedContentWindow` and `rendersContent`, each with
- * its own covered suite elsewhere. The three values the chrome needs - the
+ * the book. Its four real decisions - what `<n>` means, whether the book has
+ * such a page at all, which pages this request gets the content of, and
+ * whether a given leaf is one of them - are `addressedPageIndex`,
+ * `servedContentWindow` and `rendersContent`, each with its own covered suite
+ * elsewhere, as is the title and description `generateMetadata` returns
+ * (`pageMetadata`). The three values the chrome needs - the
  * labelled rail, one label per page, and whether decorations are on - are
  * `deriveRail`, `derivePageLabels` and a field off the `book` global, so none
  * of them is decided here either.
@@ -80,11 +103,15 @@
  * path in vitest.config.ts's coverage exclude, which is the treatment that
  * actually holds here. Both are present deliberately: the comment states the
  * reason at the point of exclusion, and the config entry is what enforces it.
- * Its runtime behaviour is covered in the browser by e2e/book.spec.ts,
- * e2e/smoke.spec.ts and e2e/imageWindow.spec.ts. */
+ * Its runtime behaviour is covered in the browser by e2e/routing.spec.ts
+ * (the 404, the metadata, the canonical link), e2e/book.spec.ts,
+ * e2e/smoke.spec.ts, e2e/serverWindow.spec.ts and e2e/imageWindow.spec.ts. */
 import { derivePageLabels, deriveRail } from '@travel-diary/domain/bookBundle'
 import { rendersContent, servedContentWindow, type RouteQuery } from '@travel-diary/domain/contentWindow'
-import { pageIndexFromParam } from '@travel-diary/domain/pageAddress'
+import { addressedPageIndex, pagePath } from '@travel-diary/domain/pageAddress'
+import { pageMetadata } from '@travel-diary/domain/pageMetadata'
+import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import type React from 'react'
 import { Book } from '../../../../components/book/Book'
 import { PageFace } from '../../../../components/book/PageFace'
@@ -97,11 +124,51 @@ interface DiaryPageProps {
   readonly searchParams: Promise<RouteQuery>
 }
 
+/**
+ * The title, description and canonical link one page of the book carries.
+ *
+ * THE CANONICAL LINK IS THE POINT OF THIS FUNCTION, not decoration on it.
+ * `?pages=all` is a real, reachable URL serving the same page's content under
+ * a second address - the book puts it there itself when it asks for the rest
+ * of the book (`docs/adr/0009-server-rendered-page-window.md`), and that
+ * ADR's own concerns list asked this task for the link by name. It is
+ * declared for the plain address too, not only the widened one: a page whose
+ * canonical is itself is what makes the widened one's claim meaningful.
+ *
+ * It is a ROOT-RELATIVE path rather than an absolute URL, deliberately. An
+ * absolute one needs an origin, and this repository has no configured
+ * production origin to build one from - `MEDIA_ORIGIN` is the media bucket's,
+ * which is not the site's. A canonical resolved against `localhost:3000` at
+ * build time would be worse than none at all, and a root-relative href
+ * resolves correctly against whatever origin actually served the document.
+ *
+ * @param props - The route's own parameters, of which only `params` is read.
+ * @returns This page's own title and description, and the canonical `/p/<n>`.
+ */
+export const generateMetadata = async ({ params }: DiaryPageProps): Promise<Metadata> => {
+  const [{ n }, bundle] = await Promise.all([params, readBookBundle()])
+  const openIndex = addressedPageIndex(n, bundle.pages.length)
+  // An address with no page of its own has no metadata of its own either:
+  // Next renders `not-found.tsx` for it, under the layout's own title.
+  const page = openIndex === null ? undefined : bundle.pages[openIndex]
+  if (openIndex === null || page === undefined) return {}
+
+  const { title, description } = pageMetadata(page, {
+    chrome: bundle.chrome,
+    about: bundle.about,
+    pageNumber: openIndex + 1,
+    totalPages: bundle.pages.length,
+  })
+
+  return { title, description, alternates: { canonical: pagePath(openIndex) } }
+}
+
 /** Renders the book, opened at the page `<n>` addresses. */
 const DiaryPage = async ({ params, searchParams }: DiaryPageProps): Promise<React.JSX.Element> => {
   const [{ n }, query, bundle] = await Promise.all([params, searchParams, readBookBundle()])
   const totalPages = bundle.pages.length
-  const openIndex = pageIndexFromParam(n, totalPages)
+  const openIndex = addressedPageIndex(n, totalPages)
+  if (openIndex === null) notFound()
   const content = servedContentWindow(query, openIndex, totalPages)
 
   return (

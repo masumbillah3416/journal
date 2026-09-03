@@ -82,6 +82,42 @@ test('loads /p/1 without console errors or page errors', async ({ page }) => {
   expect(errors).toEqual([])
 })
 
+/** The address with no page behind it, used by the case below and its filter. */
+const NO_SUCH_PAGE = '/p/999'
+
+test('renders the page-not-found view without console errors or page errors', async ({ page }) => {
+  const errors: string[] = []
+
+  // Attached before goto(), for the same reason as the two cases above.
+  page.on('console', (message) => {
+    // THE ONE EXPECTED CONSOLE ERROR ON THIS ROUTE, EXCLUDED BY ITS SOURCE
+    // URL RATHER THAN BY ITS TEXT. Chromium logs "Failed to load resource:
+    // the server responded with a status of 404 (Not Found)" for the
+    // DOCUMENT's own response, and a 404 is the correct response here - the
+    // whole point of the route. The message text does not name the resource,
+    // so filtering on the text would also swallow a genuinely broken
+    // stylesheet, font or image on this page; `location().url` does name it,
+    // and it is the address under test only for the document's own entry.
+    if (message.type() === 'error' && message.location().url.endsWith(NO_SUCH_PAGE)) return
+    if (message.type() === 'error') {
+      errors.push(message.text())
+    }
+  })
+  page.on('pageerror', (error) => {
+    errors.push(error.message)
+  })
+
+  const response = await page.goto(NO_SUCH_PAGE, { waitUntil: 'networkidle' })
+
+  // A 404 is the CORRECT response here, so `ok()` is the wrong assertion -
+  // what this case is about is that a route which deliberately throws
+  // `notFound()` renders its view cleanly rather than logging on the way.
+  expect(response?.status(), 'an address with no page must be 404, not 200 or 500').toBe(404)
+  await page.waitForTimeout(500)
+
+  expect(errors).toEqual([])
+})
+
 test('serves an icon at /favicon.ico, which a browser asks for without being told to', async ({ request }) => {
   const response = await request.get('/favicon.ico')
 

@@ -1,0 +1,182 @@
+/**
+ * routing.spec.ts — what the diary's addresses promise, asserted from outside.
+ *
+ * The design spec's §8 makes `/p/<n>` a REAL, 1-indexed path rather than a
+ * hash, for one reason: the deep links have to be indexable and shareable.
+ * That promise has four observable parts, and this file is one case per part:
+ *
+ *   1. **The content is in the HTML.** Asserted with `request.get`, never
+ *      `page.goto` — a crawler runs no JavaScript, so neither may the
+ *      assertion that stands in for one. (`e2e/serverWindow.spec.ts` proves
+ *      the same thing exhaustively across all thirty-three routes; the case
+ *      here is the readable statement of the rule those thirty-three enforce.)
+ *   2. **An address the book has no page for is a 404**, not a page the
+ *      reader did not ask for and not a crash — Task 13's routing decision,
+ *      taken in `addressedPageIndex` (@travel-diary/domain/pageAddress) and
+ *      turned into a response by the route's `notFound()`.
+ *   3. **Every page has a title and a description of its own.** Thirty-three
+ *      results wearing one title are thirty-three results nobody can tell
+ *      apart, which throws away most of what real paths bought.
+ *   4. **`?pages=all` points back at `/p/<n>`.** The book asks for the rest
+ *      of itself by putting that query on the address it is already on
+ *      (`docs/adr/0009-server-rendered-page-window.md`), which makes it a
+ *      real, reachable URL serving the same page under a second address. A
+ *      canonical link is what stops that from being duplicate content, and
+ *      ADR 0009's own concerns list asked Task 13 for it by name.
+ *
+ * THE GALLERY CASE IS THE ONE THAT WILL OUTLIVE THIS TASK. The spec calls it
+ * out specifically — "returning from a gallery restores `/p/<n>`, not `/`" —
+ * and `/gallery/<slug>` is Task 14's to build. The case does not wait for it:
+ * `Notes.tsx` and `FramesII.tsx` already render the gallery button as a real
+ * `<a href="/gallery/<slug>">` (Task 10/11, deliberately, so it would be a
+ * navigation rather than a click handler), and a navigation to a route that
+ * does not exist yet is still a navigation with a history entry. So the case
+ * turns pages, clicks the real link, goes back, and requires the address the
+ * reader was on. It passes today against a 404 and it will keep passing when
+ * Task 14 puts a gallery there — the thing under test is the diary's history
+ * behaviour, which is this task's, not the gallery's markup, which is not.
+ *
+ * What makes it work is `Book.tsx`'s `history.replaceState`: the reader's
+ * page is written onto the CURRENT history entry rather than pushed as a new
+ * one, so the entry the gallery link pushes from already reads `/p/5`. Were
+ * the book to write the address with a push, or not at all, this case fails.
+ * THE PAGE-NOT-FOUND VIEW'S OWN AXE CASE IS IN `e2e/a11y.spec.ts`, not here,
+ * beside the six diary pages' - that file is where "every route has one" can
+ * be read off in a single list, and splitting it would be the beginning of
+ * the drift `e2e/ciRegistration.spec.ts` exists to stop.
+ * Depends on: @playwright/test, `WHOLE_BOOK_QUERY`
+ * (@travel-diary/domain/contentWindow), `waitForLiveBook` (./support/liveBook),
+ * the running app from
+ * playwright.config.ts's `webServer`, and the seeded diary
+ * (`npm run db:seed`): 10 journeys, 33 pages, the first of them Tokyo.
+ */
+import { WHOLE_BOOK_QUERY } from '@travel-diary/domain/contentWindow'
+import { expect, test } from '@playwright/test'
+import { waitForLiveBook } from './support/liveBook'
+
+/** The flip's own duration, plus the arming and settling either side of it. */
+const A_WHOLE_TURN_MS = 1_100
+
+/** The value of a `<meta name="...">` in a raw HTML document. */
+const metaContent = (html: string, name: string): string | null => {
+  const match = new RegExp(`<meta name="${name}" content="([^"]*)"`).exec(html)
+  return match?.[1] ?? null
+}
+
+/** The `href` of the document's `<link rel="canonical">`, if it has one. */
+const canonicalHref = (html: string): string | null => {
+  const match = /<link rel="canonical" href="([^"]*)"/.exec(html)
+  return match?.[1] ?? null
+}
+
+/** The document's `<title>`, if it has one. */
+const documentTitle = (html: string): string | null => {
+  const match = /<title>([^<]*)<\/title>/.exec(html)
+  return match?.[1] ?? null
+}
+
+test('serves a page’s own content in the HTML, for a crawler that runs no script', async ({ request }) => {
+  const html = await (await request.get('/p/3')).text()
+
+  expect(html).toContain('Tokyo')
+})
+
+test('answers an out-of-range page number with a 404 rather than a page the reader did not ask for', async ({
+  request,
+}) => {
+  expect((await request.get('/p/999')).status()).toBe(404)
+})
+
+test('answers the page number one past the end of the book with a 404', async ({ request }) => {
+  expect((await request.get('/p/34')).status()).toBe(404)
+})
+
+test('answers page zero with a 404, since the first page a reader sees is page one', async ({ request }) => {
+  expect((await request.get('/p/0')).status()).toBe(404)
+})
+
+test('answers an address that is not a page number at all with a 404, not a crash', async ({ request }) => {
+  expect((await request.get('/p/tokyo')).status()).toBe(404)
+})
+
+test('still serves the last real page of the book, so the 404 boundary is off by nothing', async ({ request }) => {
+  expect((await request.get('/p/33')).status()).toBe(200)
+})
+
+test('shows the reader a way back into the book when there is no such page', async ({ page }) => {
+  const response = await page.goto('/p/999')
+
+  expect(response?.status()).toBe(404)
+  await expect(page.getByRole('link', { name: /open the diary/i })).toHaveAttribute('href', '/p/1')
+})
+
+test('titles each page for what is printed on it, not for the book it is in', async ({ request }) => {
+  const notes = documentTitle(await (await request.get('/p/3')).text())
+  const framesI = documentTitle(await (await request.get('/p/4')).text())
+
+  expect(notes).toBe('Tokyo — Notes · Wanderings')
+  expect(framesI).toBe('Tokyo — Frames I · Wanderings')
+})
+
+test('describes each page for what is printed on it, so two deep links are not one result', async ({ request }) => {
+  const notes = metaContent(await (await request.get('/p/3')).text(), 'description')
+  const framesI = metaContent(await (await request.get('/p/4')).text(), 'description')
+
+  expect(notes).toContain('Tokyo')
+  expect(framesI).toContain('Tokyo')
+  expect(notes).not.toBe(framesI)
+})
+
+test('points the whole-book address back at the page’s own URL, so it is not duplicate content', async ({
+  request,
+}) => {
+  const widened = await (await request.get(`/p/3?${WHOLE_BOOK_QUERY}`)).text()
+
+  expect(canonicalHref(widened)).toBe('/p/3')
+})
+
+test('gives the page’s own URL the same canonical, so the two addresses agree on which is the one', async ({
+  request,
+}) => {
+  const plain = await (await request.get('/p/3')).text()
+
+  expect(canonicalHref(plain)).toBe('/p/3')
+})
+
+test('returning from a gallery restores the page the reader was on, not the cover', async ({ page }) => {
+  // Page 3 is the first journey's Notes page, which is the first page of the
+  // book carrying a gallery link at all.
+  await page.goto('/p/3')
+  await waitForLiveBook(page)
+
+  await page.getByRole('link', { name: /See full gallery/ }).first().click()
+  await page.goBack()
+
+  await expect(page).toHaveURL(/\/p\/3$/)
+})
+
+test('returning from a gallery restores the page the reader turned to, not the one they arrived on', async ({
+  page,
+}) => {
+  // The stronger half of the same promise: the address the reader shares has
+  // to be where READING took them, which is `history.replaceState`'s job on
+  // every committed turn, not the address the document was served at.
+  await page.goto('/p/3')
+  await waitForLiveBook(page)
+
+  // Two turns from page 3 lands on page 5, the journey's Frames II - the next
+  // page after this one that carries a gallery link of its own.
+  await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(A_WHOLE_TURN_MS)
+  await page.keyboard.press('ArrowRight')
+  await page.waitForTimeout(A_WHOLE_TURN_MS)
+  await expect(page).toHaveURL(/\/p\/5$/)
+
+  // Scoped to the leaf the reader is actually on. Every leaf of the window is
+  // in the document, so an unscoped locator would find page 3's gallery link
+  // as well - on a leaf that has already been turned over.
+  await page.locator('[data-leaf="4"]').getByRole('link', { name: /See full gallery/ }).click()
+  await page.goBack()
+
+  await expect(page).toHaveURL(/\/p\/5$/)
+})

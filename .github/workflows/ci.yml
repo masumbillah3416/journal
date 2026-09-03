@@ -129,7 +129,10 @@ jobs:
       # none of them gating a merge until now. `serverWindow.spec.ts` is the
       # one that matters most of the three - it is what asserts all
       # thirty-three deep links still serve their own page.
-      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
+      # Task 13 adds `e2e/routing.spec.ts` - the 404 for an address the book
+      # has no page for, the per-page metadata, the canonical link and the
+      # gallery return.
+      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
       # image: chrome-launcher's own auto-detection looks for a system
       # `google-chrome`/`chromium-browser` binary, which this image does not
