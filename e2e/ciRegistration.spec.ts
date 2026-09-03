@@ -1,5 +1,12 @@
 /**
- * ciRegistration.spec.ts — every browser spec in this directory is actually run.
+ * ciRegistration.spec.ts — everything this repository asks CI to run is
+ * actually named by the command that runs it.
+ *
+ * TWO SUBJECTS, ONE MECHANISM. The first is spec registration (below); the
+ * second, added by the Phase 1 final review, is the pair of Lighthouse
+ * configurations. Both are the same defect shape: a list of things to run,
+ * held in a file that is not the thing itself, which drifts silently because
+ * nothing green ever goes red when an entry is dropped.
  *
  * THIS FILE EXISTS BECAUSE THE SAME OMISSION HAPPENED TWICE, and both times
  * the suite stayed green while a spec gated nothing. `.github/workflows/ci.yml`'s
@@ -34,12 +41,27 @@
  * `test:visual` and `test:a11y` — because the visual and accessibility suites
  * are deliberately their own commands.
  *
+ * THE LIGHTHOUSE CONFIGS ARE THE SAME LESSON, LEARNED A THIRD TIME.
+ * `npm run test:perf` chains TWO `lhci autorun` invocations — one per
+ * `lighthouserc*.json` — because lhci's collect settings are per-run, not
+ * per-URL, so the book surface's 1350x940 desktop viewport cannot share a run
+ * with the gallery's phone emulation
+ * (`docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md`). Nothing
+ * enforced that. Collapsing the script to one command — a plausible
+ * tidy-up — would have silently stopped gating the book surface, the heavier
+ * of the two and the one every LCP ADR measured, while `npm run test:perf`
+ * still exited 0 and CI still reported the step green. That is precisely the
+ * failure the two spec cases above exist for, so it gets the same treatment:
+ * the config files are read off the filesystem, the script is read out of
+ * `package.json`, and the case fails naming exactly which config nothing runs.
+ *
  * It needs no browser and no server, and takes no `page` fixture, so it costs
  * the run nothing but the file read. Adding a spec means adding one name to
- * one `run:` line and one npm script; this file is what says so, at the
- * moment it is forgotten.
+ * one `run:` line and one npm script; adding a Lighthouse configuration means
+ * adding one command to `test:perf`; this file is what says so, at the moment
+ * either is forgotten.
  * Depends on: @playwright/test, node:fs, node:path, node:url,
- * .github/workflows/ci.yml, package.json.
+ * .github/workflows/ci.yml, package.json, lighthouserc*.json.
  */
 import { expect, test } from '@playwright/test'
 import { readdirSync, readFileSync } from 'node:fs'
@@ -92,6 +114,29 @@ test('runs every browser spec in CI’s browser job', () => {
   expect(
     unregistered,
     'these spec files exist but no `- run:` line in .github/workflows/ci.yml names them, so they gate nothing',
+  ).toEqual([])
+})
+
+/**
+ * Every Lighthouse configuration at the repository root, by filename. Read off
+ * disk for the same reason `specFiles` is: a hard-coded pair would still pass
+ * on the day a third configuration is added and never run.
+ */
+const lighthouseConfigs = (): readonly string[] =>
+  readdirSync(REPO_ROOT)
+    .filter((entry) => entry.startsWith('lighthouserc') && entry.endsWith('.json'))
+    .sort()
+
+test('runs every Lighthouse configuration from npm run test:perf', () => {
+  const configs = lighthouseConfigs()
+  expect(configs.length, 'no lighthouserc*.json at the repository root to check against').toBeGreaterThan(1)
+
+  const testPerf = rootScripts()['test:perf'] ?? ''
+  const ungated = configs.filter((config) => !testPerf.includes(config))
+
+  expect(
+    ungated,
+    `npm run test:perf does not name these lighthouserc files, so the routes they gate are gated by nothing: ${testPerf}`,
   ).toEqual([])
 })
 

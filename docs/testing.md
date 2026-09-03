@@ -820,6 +820,21 @@ would claim a measurement nothing performs.
   `e2e/dummyDrift.spec.ts` was added, both cases failed naming it, and the file was
   deleted. It needs no browser and no `page` fixture, so it costs the run a file read.
 
+  **A third case was added in Phase 1's final review, for the same defect shape in a
+  different list.** `npm run test:perf` chains TWO `lhci autorun` invocations, one per
+  `lighthouserc*.json`, because lhci's collect settings are per-run rather than per-URL
+  and the book's 1350x940 desktop viewport cannot share a run with the gallery's phone
+  emulation (ADR 0014). Nothing enforced the pairing: collapsing the script to one
+  command — a plausible tidy-up — would have silently stopped gating the book surface,
+  the heavier of the two and the one every LCP ADR measured, while `npm run test:perf`
+  still exited 0 and CI still reported the step green. The case reads the config
+  filenames off the repository root, reads `test:perf` out of `package.json`, and fails
+  naming exactly which config nothing runs. Reading the filenames off disk rather than
+  hard-coding the pair is what makes it catch a THIRD configuration added and never run.
+  Proved able to fail: `test:perf` was collapsed to the first command alone, the case
+  failed naming `lighthouserc.book.json`, and the script was restored — both runs are
+  pasted in this task's report.
+
 - **Three viewport projects** — `desktop` (1440×900), `mid` (1000×800), `mobile`
   (390×844; `isMobile`/`hasTouch` set) — run every spec three times, once per breakpoint
   named in the Task 12 brief. All three use Chromium, not a mix of engines: this
