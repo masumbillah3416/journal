@@ -95,8 +95,22 @@
  * `history.replaceState` moves the router's own idea of which `/p/<n>` it is
  * on, so a turn committed while the request was still in flight would turn it
  * into a navigation to a different segment - which unmounts the book
- * (measured; see `useRestOfBook.ts`). Until the answer lands the address is
- * still the page the reader arrived on, which is where they still are.
+ * (measured; see `useRestOfBook.ts`).
+ *
+ * SO THE ADDRESS CAN LAG A COMMITTED TURN, AND THAT IS A KNOWN COST RATHER
+ * THAN AN INVARIANT. This paragraph used to end "until the answer lands the
+ * address is still the page the reader arrived on, which is where they still
+ * are", and the second half of that was false: a turn whose destination the
+ * served window already carries commits on its own schedule, so between the
+ * commit and the answer the counter names the new page and the address still
+ * names the old one - and a reload inside that gap puts the reader back where
+ * they were. On a production build the answer lands ~110ms in, well inside the
+ * 900ms turn, so the two move together and no reader meets it; on a slow
+ * enough connection one would. It is held open deliberately, because the
+ * alternative costs the remount above, and it is pinned by
+ * `Book.test.tsx`'s "holds the address behind a committed turn" - which
+ * carries the reasoning and the follow-up measurement that would settle it
+ * (docs/qa/2026-09-03-phase-1-closing-sweep.md PH1-006).
  *
  * THE IMAGE WINDOW IS WHY A BOOK OF 33 LEAVES IS AFFORDABLE. Every leaf is in
  * the document, and every leaf is absolutely positioned at `inset: 0`, so the

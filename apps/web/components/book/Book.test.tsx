@@ -777,6 +777,50 @@ describe('Book', () => {
     expect(visibleLeaves(host)).toEqual(['4', '5'])
   })
 
+  it('holds the address behind a committed turn until the book is whole, and then catches it up', () => {
+    // PH1-006, PINNED RATHER THAN FIXED, and this comment is the record of
+    // why. A turn whose destination the served window already carries commits
+    // on its own schedule, but `Book`'s address effect is `if (!complete)
+    // return` - so between the two the counter names page 2 while the address
+    // still says `/p/1`, and a reload inside that gap puts the reader back on
+    // page 1.
+    //
+    // The hold is not an oversight; it is load-bearing and measured.
+    // `useRestOfBook` widens the document by navigating to the SAME path with
+    // `?pages=all` added, because Next keys a route segment's subtree by that
+    // segment's value: changing `/p/<n>` while the widening request is in
+    // flight remounts the book and throws the flip state away (measured on a
+    // production build - mount count 1 to 2 - see that hook's header and
+    // docs/adr/0009). Writing the address earlier is what would cost that.
+    //
+    // The gap does not reach a reader on a normal connection: on a production
+    // build the widening lands ~110ms in, well inside the 900ms turn, so the
+    // counter and the address move together. It reaches one on a slow enough
+    // connection, and the measurement that would settle how slow -
+    // `/p/<n>` under network throttling on a production build - is the one
+    // docs/qa/2026-09-03-phase-1-closing-sweep.md explicitly did not take.
+    // Until it is taken, this test is here so that the trade-off is executable
+    // rather than a paragraph: anyone who moves the address write earlier will
+    // see this go red with the remount it costs written beside it.
+    stubReducedMotion()
+    // The address the reader actually arrived on, which the server wrote and
+    // this harness otherwise leaves at jsdom's default.
+    window.history.replaceState(null, '', '/p/1')
+    const { host, completeTheBook } = renderWindowedBook(0)
+
+    click(host, '[data-nav="next"]')
+
+    const held = publishedLocation(host)
+    completeTheBook()
+
+    expect({ held: { counter: held.counter, path: held.path }, after: publishedLocation(host).path }).toEqual({
+      // The reader's page HAS changed - the counter says so - and the address
+      // has not followed it yet. That is the gap.
+      held: { counter: '2 / 9', path: '/p/1' },
+      after: '/p/2',
+    })
+  })
+
   it('holds nothing back once the document carries the whole book', () => {
     // The windowed path must not survive into the completed book: a jump on
     // a whole book is put to the machine at once, exactly as it was before
