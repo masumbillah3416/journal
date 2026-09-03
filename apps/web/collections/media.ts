@@ -36,8 +36,15 @@ import type { CollectionConfig } from 'payload'
  * wrote answered 500 ("File ... is missing on the disk") when the diary asked
  * for it. Anchoring the path to the module means the store is the same
  * directory whichever script opens Payload and from wherever it is run.
+ *
+ * EXPORTED for one caller: `apps/web/lib/readGalleryDownload.ts`, which reads
+ * a derivative's bytes back out of this same store through the Storage port
+ * to serve the gallery's download action (SECURITY.md - the download must go
+ * through a handler of ours, never a bucket URL). It is exported rather than
+ * duplicated there precisely because the two disagreeing about where the
+ * store is, is the defect this constant was written to fix.
  */
-const MEDIA_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../media')
+export const MEDIA_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../media')
 
 /** The upload collection backing every still and clip in the diary. */
 export const Media: CollectionConfig = {

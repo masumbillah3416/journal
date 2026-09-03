@@ -576,3 +576,45 @@ reachable arrow in a bar that grew are the two failures it exists to tell apart.
 red before green: with Task 8's `flex-wrap` and `min-width: min(210px, 100%)` restored,
 that case fails on `mobile` and passes on `desktop` and `mid`, which is exactly the shape
 of the original defect.
+
+
+---
+
+## 17 · NOT a deviation — the lightbox's Download goes through our own handler, because `SECURITY.md` says it must
+
+**Handoff, `SCREENS.md` §1.9:** "Download (an `<a download>` — must serve a derivative,
+never a bucket URL)."
+
+**Handoff, the prototype (`Travel Diary.dc.html`, the `showLb` block):**
+
+```html
+<a href="{{ lbSrc }}" download="{{ lbFile }}" ...>Download</a>
+```
+
+`lbSrc` is the image itself. The two halves of the handoff disagree: `SCREENS.md` and
+`SECURITY.md` both require a handler of ours, and the prototype links straight at the
+file. **`SECURITY.md` wins**, and this entry exists so that reading the prototype later
+does not look like finding a regression:
+
+> the gallery's download action must serve a derivative **through your own handler**,
+> not a bucket URL. Direct URLs invite enumeration of everything in the bucket,
+> including anything marked hidden.
+
+**What was built:** `GET /gallery/<slug>/download/<id>`
+(`apps/web/app/(diary)/gallery/[slug]/download/[id]/route.ts`), documented in full in
+`docs/api.md` and `docs/security.md`. The lightbox's `href` is
+`galleryDownloadPath(slug, id)` — root-relative, both segments percent-encoded, so it
+carries no scheme and no authority and cannot resolve to `MEDIA_ORIGIN`.
+
+**One thing `docs/api.md` used to promise that this route does not do: a short-lived
+signed URL.** The planned entry said "a short-lived signed URL with
+`Content-Disposition: attachment` and a strict `Content-Type`". The route serves the
+bytes directly instead, and that is a deliberate simplification rather than an omission.
+A signed URL is what you reach for when the *store* is the thing answering the request
+and your app is only issuing permission — the signature is the permission travelling
+without you. Here the app is already in the request path: it has just done four database
+checks (published journey, right journey, not hidden, downloads allowed) and it holds
+the bytes. Redirecting to a signed URL after all that adds an expiry window to reason
+about and a second origin to configure, and removes no hop. When the store becomes
+Cloudflare R2 in Phase 3 the trade may change — `StoragePort.signedUrl` already exists
+for exactly that — and this entry is where to start when it does.

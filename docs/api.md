@@ -22,9 +22,10 @@ updating its row in the same commit that changes the code (`CLAUDE.md` §1.3).
 
 ## Status
 
-Five route handlers exist today: Payload's own four, mounted under the `(payload)` route
-group, and the diary's `/p/<n>`, added with the book itself in Phase 1 Task 7 and
-completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
+Six route handlers exist today: Payload's own four, mounted under the `(payload)` route
+group, and two of the diary's own — `/p/<n>`, added with the book itself in Phase 1
+Task 7, and the gallery's download handler `/gallery/<slug>/download/<id>`, added in
+Task 14 ahead of the gallery page that links to it. `/p/<n>` was completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
 metadata and a canonical link, and settled in
 `docs/adr/0010-static-generation-and-the-content-window.md` why it stays dynamic. Both sets are documented in full below. Everything still unbuilt is
 listed further down as **planned**, using only what the design spec (§8) already
@@ -208,29 +209,42 @@ for a different reason — see its row.
   Nothing publishes yet, so there is nothing to revalidate; it is named here so the gap
   between this row and the design spec is a recorded decision rather than an omission.
 
+### `GET /gallery/<slug>/download/<id>`
+
+- **Method:** `GET`.
+- **Input:** `slug` — the journey's slug; `id` — the media row's id. Both path
+  parameters, both read as opaque strings and matched against the database rather than
+  parsed; nothing from the request body or headers is read, so the response never varies
+  by caller.
+- **Output:** the bytes of one derivative (`hero`, else `frame`, else `tile`, else
+  `thumb` — never `hero2x`, and never the uploaded original), with
+  `Content-Disposition: attachment; filename="<slug>-<nnn>.<ext>"`, a `Content-Type`
+  from a three-value allowlist (`image/jpeg`, `image/png`, `image/webp`),
+  `X-Content-Type-Options: nosniff`, `X-Robots-Tag: noindex` and
+  `Cache-Control: public, max-age=3600`. The filename is derived from the journey's slug
+  and the frame's position in the gallery, never from the stored key.
+- **Errors:** `404`, with the body `Not found`, for every refusal: no such journey; the
+  journey is unpublished, archived or soft-deleted; no such media row; the row belongs
+  to another journey; the row is `hidden`; the row's `allowDownload` is `false`; the row
+  has no derivative; the derivative's stored mime type is not on the allowlist; the
+  bytes are missing from the store. **One response for all nine, deliberately** — a
+  handler that distinguished them would be the enumeration oracle `SECURITY.md` requires
+  this route to close.
+- **Auth requirement:** none.
+- **Notes:** this is the handler `SECURITY.md` demands ("the gallery's download action
+  must serve a derivative through your own handler, not a bucket URL"). The prototype's
+  own lightbox links straight at the image; this route replaces that. A short-lived
+  signed URL was considered and not taken: this app already fronts the store, so a
+  signed URL would add an expiry to think about without removing a hop — see
+  `docs/deviations.md` §17.
+
 ## Planned routes (Phase 1)
 
 ### `GET /gallery/<slug>`
 
-- **Method:** `GET`.
-- **Input:** `slug` — the journey's slug, path parameter (`journeys.slug`, unique,
-  indexed).
-- **Output:** that journey's gallery: journey title and date range, frame count, and the
-  grid of up to ~100 media items (thumbnails, captions, index badges; clips show a play
-  badge and duration). Virtualized past 100 tiles per the performance budget
-  (`CLAUDE.md` §6).
-- **Errors:** unknown `slug` — behaviour not yet specified; to be decided and documented
-  when the route is built. A journey's `hidden` media items are excluded from this
-  response regardless of slug validity.
-- **Auth requirement:** none by default, subject to the same `site.passwordProtect` gate
-  as `/p/<n>`, and to `site.indexGalleries` governing whether this route is crawlable
-  (`robots.txt` and `X-Robots-Tag`, since the page is statically served —
-  `docs/security.md`).
-- **Notes:** the gallery's download action must serve a derivative **through this app's
-  own handler** — a short-lived signed URL with `Content-Disposition: attachment` and a
-  strict `Content-Type` — never a bucket URL directly, which would invite enumeration of
-  everything in the bucket including hidden items (`SECURITY.md`). That handler is a
-  separate action from the route itself and will get its own row here once built.
+The page the download handler above belongs to. Built in the next commit, and its row
+lands with it - this document's own contract is that a route is documented in the
+commit that adds it, not before.
 
 ## Planned server actions (later phases)
 

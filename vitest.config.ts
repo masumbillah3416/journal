@@ -252,6 +252,12 @@ export default defineConfig({
         // vitest.integration.config.ts instead, same reasoning as the queue
         // files and testPayload.ts above.
         'apps/web/lib/readBookBundle.ts',
+        // readGalleryDownload.ts (Task 14 of Phase 1) is reachable only from
+        // its own `*.integration.test.ts` - it needs a real Payload/Postgres
+        // AND the derivative files the media collection wrote to disk - so it
+        // is gated by vitest.integration.config.ts instead, same reasoning as
+        // readBookBundle.ts above.
+        'apps/web/lib/readGalleryDownload.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by
@@ -303,6 +309,20 @@ export default defineConfig({
         // and e2e/smoke.spec.ts. Revisit when @vitest/coverage-v8's version
         // changes - a fixed scanner removes the justification.
         'apps/web/app/(diary)/p/\\[n\\]/page.tsx',
+        // The gallery's download route (Task 14 of Phase 1) is excluded on the
+        // same three counts CLAUDE.md §2.1's carve-out requires, re-verified
+        // against the control in this same run rather than inherited. (1) It
+        // was read and holds zero authored logic: await two params, call
+        // `readGalleryDownload`, turn a `Result` into a `Response` with four
+        // fixed headers - every decision is that module's (integration-tested
+        // against a real Payload) or `@travel-diary/domain/galleryDownload`'s
+        // (gated at 100%). (2) The tooling defect is the one named above and
+        // is a property of the path shape, which this file shares (`[slug]`,
+        // `[id]`); `(diary)/layout.tsx` remains the control that is correctly
+        // ignored with no config entry. (3) It names its exact path, so a
+        // future file placed beside it is not swept into the same hole. Its
+        // runtime behaviour is covered in a real browser by e2e/gallery.spec.ts.
+        'apps/web/app/(diary)/gallery/\\[slug\\]/download/\\[id\\]/route.ts',
         'apps/web/app/(payload)/api/\\[...slug\\]/route.ts',
         'apps/web/app/(payload)/cms/\\[\\[...segments\\]\\]/page.tsx',
         'apps/web/app/(payload)/cms/\\[\\[...segments\\]\\]/not-found.tsx',

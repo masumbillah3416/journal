@@ -110,6 +110,7 @@ export default defineConfig({
         'apps/web/lib/testPayload.ts',
         'apps/web/lib/migrate.ts',
         'apps/web/lib/readBookBundle.ts',
+        'apps/web/lib/readGalleryDownload.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
         'apps/web/payload.config.ts',
