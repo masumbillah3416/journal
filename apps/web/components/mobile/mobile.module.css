@@ -845,6 +845,19 @@
   color: var(--td-cream);
   text-align: left;
   text-decoration: none;
+  /* SCREENS.md §1.7 names both properties for the rail tab this row is the
+   * repaint of ("Transition `transform 180ms, background 180ms`"), and
+   * `docs/deviations.md` §22 is why the drawer reuses that tab's treatment
+   * rather than inventing one. It is not bound by `book.module.css`'s rule 3
+   * (only `transform` and `opacity` inside the design box, which
+   * `e2e/book.spec.ts` audits) for a stronger reason than the rail's: below
+   * 860px there is no design box and no flip at all — SCREENS.md §1.10's
+   * "No book, no flip, no scaling" — so the sixty frames of a turning leaf
+   * that CLAUDE.md §6's rule protects do not exist on this surface. Recorded
+   * as `docs/deviations.md` §24, with `chrome.module.css`'s `.tab`.
+   * Carried across from `apps/web/components/chrome/chrome.module.css` in the
+   * Phase 1 final review: Task 15 copied the declaration without the reason,
+   * which is how a deliberate exception decays into an unexplained one. */
   transition-property: transform, background;
   transition-duration: 180ms;
   transition-timing-function: ease;

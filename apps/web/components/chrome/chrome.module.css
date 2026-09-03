@@ -105,7 +105,10 @@
   /* SCREENS.md §1.7 names both properties. This is chrome OUTSIDE the design
    * box, so it is not bound by `book.module.css`'s rule 3 (only `transform`
    * and `opacity` inside the box, which `e2e/book.spec.ts` audits) — the flip
-   * budget is about the sixty frames of a turning leaf, and a tab is not one. */
+   * budget is about the sixty frames of a turning leaf, and a tab is not one.
+   * Recorded as `docs/deviations.md` §24, with the mobile drawer's own tab
+   * (`apps/web/components/mobile/mobile.module.css`'s `.drawerTab`), which is
+   * this rule repainted for a dark panel. */
   transition-property: transform, background;
   transition-duration: 180ms;
   transition-timing-function: ease;

@@ -861,3 +861,53 @@ current-state table for every number involved.
 App Router runtime models under ~1.5s on this preset would put 2,500ms back within
 reach, and ADR 0008's minimal-route probe is the measurement that would say so. Re-run
 it before arguing the number either way.
+
+---
+
+## 24 · Two chrome elements transition `background` as well as `transform`
+
+**Where:** `apps/web/components/chrome/chrome.module.css` — `.tab`;
+`apps/web/components/mobile/mobile.module.css` — `.drawerTab`.
+
+**What `CLAUDE.md` says.** §6's first budget row reads: "Page flip | Sustained 60fps.
+**Only `transform` and `opacity` animated** — never layout properties." Read as a
+whole-codebase rule, a `transition-property: transform, background` is an exception to
+it, so it is written down here rather than left to be re-litigated by the next reader who
+greps for `transition-property`.
+
+**What the handoff says.** `SCREENS.md` §1.7 specifies the bookmark rail's tab
+verbatim — "Transition `transform 180ms, background 180ms`" — naming both properties and
+both durations. §1.10 says nothing at all about the drawer tab's transition; the drawer
+reuses the rail's tab treatment, repainted for a dark panel, for the reasons in §22 of
+this file, and the transition came across with it.
+
+**Why the rule does not bind these two, and why the exception was kept rather than
+narrowed.** Three reasons, in order of weight:
+
+1. **The rule's subject is the flip.** The budget row is titled "Page flip", and its
+   concern is the sixty frames of a turning leaf. `book.module.css`'s rule 3 is where
+   that is enforced in code, scoped to the design box, and `e2e/book.spec.ts` audits it
+   there. Neither of these elements is inside the design box: the rail's tab is chrome
+   beside the book, and below 860px there is no design box, no leaf and no flip at all
+   (`SCREENS.md` §1.10: "No book, no flip, no scaling") — `e2e/mobile.spec.ts` asserts
+   that a phone's document carries zero `[data-design-box]` and zero `[data-leaf]` nodes.
+2. **`background` is not a layout property.** The clause the row actually forbids is
+   "never layout properties"; a background-colour transition on a 158px-wide tab repaints
+   one small box and triggers no reflow. Neither element animates during a flip in any
+   case — the rail tab's transition fires on a bookmark press, the drawer tab's on a
+   drawer press.
+3. **Narrowing both to `transform` would contradict the handoff.** §1.7 names
+   `background 180ms` explicitly. Dropping it would remove a stated design behaviour to
+   satisfy a rule aimed at a different surface, and would make the active tab's fill snap
+   rather than settle. Where the handoff and a general rule disagree on a point the rule
+   does not actually govern, the handoff wins.
+
+**Why this entry exists at all.** The exception was reasoned through once, in a four-line
+comment on `chrome.module.css`'s `.tab` (Task 12), and then the declaration was copied to
+`mobile.module.css`'s `.drawerTab` (Task 15) **without the comment** — a convention
+travelling without its reasoning, which is how a deliberate exception decays into an
+unexplained one. The Phase 1 final review caught it. Both rules now carry the
+justification, both point here, and this entry is the single place the reasoning lives.
+
+**What would reverse this.** Either element moving inside the design box, or a
+`SCREENS.md` revision dropping `background` from §1.7's transition. Neither exists today.
