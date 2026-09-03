@@ -84,6 +84,21 @@ export const GET = async (_request: Request, context: DownloadRouteContext): Pro
       // to: replacing a photograph creates new derivative filenames, and this
       // route is keyed by the row's id, so a stale hour is the worst a reader
       // can get and a re-upload is not one.
+      //
+      // `public` IS CORRECT TODAY AND BECOMES WRONG THE MOMENT A JOURNEY IS
+      // GATED. Every journey this handler will serve is published and
+      // unauthenticated, so there is no reader-specific response for a shared
+      // cache to hand to the wrong reader. `SECURITY.md`'s `passwordProtect`
+      // is Phase 1's diary routing and `site.passwordProtect` is written by
+      // the Phase 4 Settings screen; the first time a gate exists in front of
+      // a journey, this header must become `private` (or `no-store`) for a
+      // gated one, because a `public` response is cacheable by any proxy
+      // between us and the reader and would outlive the gate. It is not made
+      // conditional now because there is nothing to condition it on -
+      // `readGalleryDownload` has no notion of a gated journey to return, and
+      // inventing the flag here would be the same "inventing the policy"
+      // `docs/security.md`'s `indexGalleries` row refuses. Revisit with
+      // `passwordProtect`, in the same change that adds the gate.
       'Cache-Control': 'public, max-age=3600',
     },
   })
