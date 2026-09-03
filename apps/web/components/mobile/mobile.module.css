@@ -1,0 +1,909 @@
+/**
+ * mobile.module.css — the mobile reading mode, SCREENS.md §1.10 transcribed.
+ *
+ * NOTHING HERE IS A BREAKPOINT ON THE BOOK. §1.10 opens with "No book, no
+ * flip, no scaling", and this stylesheet is the other half of that sentence:
+ * a scrolling column laid out in the viewport's own pixels, with no 1300x860
+ * design box, no `transform: scale()` and no shared class with
+ * `book.module.css`, `cover.module.css` or `notes.module.css`. There is no
+ * `@media` rule in this file and there must not be one - which surface a
+ * reader gets is decided before any CSS is parsed
+ * (`@travel-diary/domain/readingSurface`,
+ * `docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`), so a
+ * document carrying these rules never also carries the book's.
+ *
+ * ONE STYLESHEET FOR THE WHOLE SURFACE, deliberately, for the reason
+ * `chrome.module.css`'s header gives: §1.10 is one design section, its five
+ * parts share the same paper, cream and hairline tokens, and one CSS Module
+ * is one class map in the route's client bundle rather than five.
+ *
+ * COLOURS COME FROM `@travel-diary/tokens` wherever the token table names the
+ * value for this role - `#3b332a` is `--td-sidebar-from`, `#fbf6e9` is
+ * `--td-paper`, `#f6ecd6` is `--td-cream`, the 52px nav buttons are
+ * `--td-min-nav-button`. What is written as a literal below is a handoff
+ * value the token table does not name, and each carries its source:
+ *
+ *   1. the cream hairlines and rings on the dark header and drawer
+ *      (`rgba(238,220,180,.34)`, `rgba(238,220,180,.16)`) - the prototype's
+ *      own, unnamed by README's colour table;
+ *   2. the bottom bar's top rule `rgba(120,98,60,.24)` and the disabled
+ *      arrow's two values, the same treatment `chrome.module.css` records
+ *      for the same controls;
+ *   3. `#455c58`, the mood bar's ink, and `#5f5340`, the contents row's page
+ *      number - prototype values with no token;
+ *   4. the mount's paper shadow, the cover's cloth overlay and the cover's
+ *      cream alphas, all as `cover.module.css` and `photoMount.module.css`
+ *      already write them.
+ *
+ * THE COVER'S CLOTH CARRIES `cover.module.css`'s DEVIATION, not the
+ * prototype's literal gradient. `linear-gradient(160deg, {cloth} 0%,
+ * rgba(0,0,0,.3) 130%)` interpolates to a translucent black, so the paper
+ * behind it shows through the middle of the block and lifts the background
+ * exactly where the small Courier lines sit - measured, on the desktop cover,
+ * at 1.87:1 for the years line (docs/deviations.md §12). The end stop here is
+ * the opaque form of the same colour, and the cream alphas are the ones that
+ * measurement settled on rather than the prototype's slightly lighter pair.
+ *
+ * THE DRAWER'S TAB LIST IS PAINTED FOR A DARK PANEL, and that is a departure
+ * from the prototype worth reading before changing. The prototype reuses the
+ * desktop bookmark rail's tab styles inside the drawer - `#7a6b50` ink on
+ * `rgba(120,98,60,.07)` - but the rail sits on paper and the drawer sits on
+ * `#3b332a`, where that pair measures 2.28:1 for the name and 1.68:1 for the
+ * sub-line. SCREENS.md §1.10 states
+ * only the tab list's size and row height and says nothing about its colour,
+ * so the colours are §2's, for the admin nav rail on this exact background:
+ * cream label, `--td-cream-dim` sub-label, and an active tab filled with
+ * paper and inked dark. See docs/deviations.md §22.
+ * Depends on: packages/tokens/src/tokens.css, loaded by the diary layout.
+ */
+
+/* ---------------------------------------------------------------------------
+ * The surface — a column of header, scrolling content and bottom bar.
+ * --------------------------------------------------------------------------- */
+
+/* `100dvh`, matching `book.module.css`'s `.stage`: on a phone the visual
+ * viewport shrinks as the browser's own chrome slides in, and `vh` would leave
+ * the bottom bar under it. `position: relative` is what the drawer's scrim and
+ * panel are absolutely positioned against, so neither can escape the surface. */
+.diary {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--td-paper-from), #f6efdd);
+}
+
+/* ---------------------------------------------------------------------------
+ * Header — SCREENS.md §1.10: `#3b332a`, padding `14px 16px 12px`.
+ * --------------------------------------------------------------------------- */
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px 12px;
+  background: var(--td-sidebar-from);
+}
+
+/* "44px burger (three 17x2px bars)". 44px is the handoff's own hit-target
+ * minimum (`--td-min-hit-target`), which is what it is written as. */
+.burger {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: var(--td-min-hit-target);
+  height: var(--td-min-hit-target);
+  padding: 0;
+  border: 1px solid rgba(238, 220, 180, 0.34);
+  border-radius: var(--td-radius-card);
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Every part of the burger is the control, never a target of its own - the
+ * same rule, for the same reason, as `chrome.module.css`'s `.tab *`. */
+.burger *,
+.navButton * {
+  pointer-events: none;
+}
+
+.burgerBar {
+  width: 17px;
+  height: 2px;
+  background: var(--td-cream);
+}
+
+/* `min-width: 0` is what lets the name line below actually ellipsis: a flex
+ * item's automatic minimum is its content, so without it the header grows
+ * wider than the phone instead of truncating. */
+.headerTitles {
+  flex: 1;
+  min-width: 0;
+}
+
+.headerEyebrow {
+  margin: 0;
+  overflow: hidden;
+  color: var(--td-cream-dim);
+  font-family: var(--td-font-courier);
+  font-size: 9px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.headerName {
+  margin: 0;
+  overflow: hidden;
+  color: var(--td-cream);
+  font-family: var(--td-font-caveat);
+  font-weight: 400;
+  font-size: 26px;
+  line-height: 1.24;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.headerCounter {
+  flex: none;
+  margin: 0;
+  color: var(--td-cream-dim);
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  letter-spacing: var(--td-letter-spacing-min);
+}
+
+/* ---------------------------------------------------------------------------
+ * Content — SCREENS.md §1.10: scrolling, padding `20px 18px 30px`.
+ * --------------------------------------------------------------------------- */
+
+/* `min-height: 0` again, and here it is load-bearing rather than tidy: without
+ * it this column grows to its content and the bottom bar is pushed off the
+ * phone instead of the content scrolling under it. `overscroll-behavior` stops
+ * a flick at the end of a page from pulling the whole document, which on a
+ * touch surface reads as the page coming loose. */
+.content {
+  flex: 1;
+  min-height: 0;
+  padding: 20px 18px 30px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+/* ---------------------------------------------------------------------------
+ * Cover page — cloth block, `min-height: 58vh`, padding `46px 26px`.
+ * --------------------------------------------------------------------------- */
+
+.cover {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 58vh;
+  padding: 46px 26px;
+  border-radius: var(--td-radius-card);
+  /* The cloth, and `cover.module.css`'s opaque end stop rather than the
+   * prototype's `rgba(0,0,0,.3)` - see this file's header. */
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.035) 0 2px, rgba(0, 0, 0, 0.03) 2px 4px),
+    linear-gradient(160deg, var(--cover-cloth) 0%, color-mix(in srgb, var(--cover-cloth) 70%, #000) 130%);
+  box-shadow:
+    inset 0 0 70px rgba(0, 0, 0, 0.35),
+    0 16px 34px -22px rgba(48, 38, 24, 0.6);
+  text-align: center;
+}
+
+.coverRule {
+  position: absolute;
+  inset: 14px;
+  border: 1px solid rgba(232, 210, 161, 0.4);
+}
+
+.coverEyebrow {
+  margin: 0;
+  color: rgba(238, 220, 180, 0.72);
+  font-family: var(--td-font-courier);
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0.36em;
+  text-transform: uppercase;
+}
+
+.coverHairlineTop,
+.coverHairlineBottom {
+  flex: none;
+  width: 44px;
+  height: 1px;
+  background: rgba(232, 210, 161, 0.5);
+}
+
+.coverHairlineTop {
+  margin: 14px 0 8px;
+}
+
+.coverHairlineBottom {
+  margin: 18px 0 10px;
+}
+
+/* The size is set inline from `fitMobileTitleSize`, because it depends on the
+ * editor's title and no stylesheet can see one. The three ellipsis properties
+ * are the same last-resort floor `cover.module.css` carries. */
+.coverTitle {
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  color: var(--td-cream);
+  font-family: var(--td-font-caveat);
+  font-weight: 400;
+  line-height: 1.1;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.22);
+}
+
+.coverSubtitle {
+  margin: 10px 0 0;
+  color: rgba(240, 225, 192, 0.78);
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.coverKeptBy {
+  margin: 0;
+  color: rgba(238, 220, 180, 0.72);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+}
+
+/* "a full-width 'Start reading' button". An anchor drawn as one - see
+ * `MobilePage.tsx`'s header for why every page-changing control on this
+ * surface is a real link. */
+.startReading {
+  display: block;
+  width: 100%;
+  margin-top: 20px;
+  padding: 15px;
+  border: 1.5px solid var(--td-accent);
+  border-radius: var(--td-radius-control);
+  background: var(--td-accent);
+  color: var(--td-cream-alt);
+  font-family: var(--td-font-courier);
+  font-size: 11.5px;
+  letter-spacing: 0.2em;
+  text-align: center;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.swipeHint {
+  margin: 12px 0 0;
+  color: var(--td-ink-diary-muted);
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 15px;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------------------
+ * Shared page furniture — the eyebrow, the 52px heading and the rules.
+ * --------------------------------------------------------------------------- */
+
+.eyebrow {
+  margin: 0;
+  color: var(--td-ink-diary-muted);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+}
+
+.heading {
+  margin: 0;
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-weight: 400;
+  font-size: 52px;
+  line-height: 1.12;
+}
+
+.rule {
+  height: 1px;
+  margin: 20px 0 16px;
+  background: rgba(90, 70, 40, 0.22);
+}
+
+.ruleWide {
+  height: 1px;
+  margin: 22px 0 18px;
+  background: rgba(90, 70, 40, 0.22);
+}
+
+/* ---------------------------------------------------------------------------
+ * Contents page — rows of number, name over meta, and a page number.
+ * --------------------------------------------------------------------------- */
+
+.contentsNote {
+  margin: 6px 0 16px;
+  color: var(--td-ink-diary-muted-italic);
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 16.5px;
+  line-height: 1.45;
+}
+
+.contentsList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contentsRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 2px;
+  border-bottom: 1px dotted rgba(120, 98, 60, 0.32);
+  text-decoration: none;
+}
+
+.contentsNumber {
+  flex: none;
+  width: 26px;
+  color: var(--td-accent);
+  font-family: var(--td-font-courier);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+
+.contentsEntry {
+  flex: 1;
+  min-width: 0;
+}
+
+.contentsName {
+  display: block;
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-size: 30px;
+  line-height: 1.2;
+}
+
+.contentsMeta {
+  display: block;
+  overflow: hidden;
+  color: var(--td-ink-diary-muted);
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 14.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Not a token: the prototype's own ink for this column, unnamed by README's
+ * colour table. Measures 6.96:1 on the diary's paper. */
+.contentsPage {
+  flex: none;
+  color: #5f5340;
+  font-family: var(--td-font-courier);
+  font-size: 12px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Journey page — dates, name, place, two badge bars, and the photographs.
+ * --------------------------------------------------------------------------- */
+
+.journeyDates {
+  margin: 0;
+  color: var(--td-ink-diary-muted);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.journeyName {
+  margin: 0;
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-weight: 400;
+  font-size: 50px;
+  line-height: 1.1;
+}
+
+.journeyPlace {
+  margin: 0;
+  color: var(--td-ink-diary-muted-italic);
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 17px;
+}
+
+/* "two badge bars (weather/mood, `flex: 1` each, `11px 13px`)". */
+.badges {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.badge {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 11px 13px;
+  border-radius: var(--td-radius-card);
+}
+
+.weatherBadge {
+  border: 1.5px solid rgba(163, 68, 52, 0.5);
+  color: var(--td-accent);
+}
+
+/* Not a token: the prototype's own ink and ring for the mood bar. Measures
+ * 6.65:1 on the diary's paper. */
+.moodBadge {
+  border: 1.5px dashed rgba(72, 92, 88, 0.5);
+  color: #455c58;
+}
+
+.badgeLabel {
+  overflow: hidden;
+  font-family: var(--td-font-courier);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The three weather glyphs, drawn in CSS rather than fetched as images -
+ * SCREENS.md §1.3's own geometry, which the prototype reuses at this size:
+ * "sun 16px circle #a34434 · haze same at opacity .45 · wind 20x4px bar with
+ * box-shadow: 0 7px 0 -1px, 0 -7px 0 -1px". */
+.sunGlyph,
+.hazeGlyph {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--td-accent);
+}
+
+.hazeGlyph {
+  opacity: 0.45;
+}
+
+.windGlyph {
+  flex: none;
+  width: 20px;
+  height: 4px;
+  background: var(--td-accent);
+  box-shadow:
+    0 7px 0 -1px var(--td-accent),
+    0 -7px 0 -1px var(--td-accent);
+}
+
+.moodGlyph {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  background: #455c58;
+  transform: rotate(45deg);
+}
+
+/* ---------------------------------------------------------------------------
+ * Notes-only block — highlights, the note, and the two-column tally card.
+ * --------------------------------------------------------------------------- */
+
+.highlightsEyebrow {
+  margin: 0 0 11px;
+  color: var(--td-ink-diary-muted);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.highlights {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.highlight {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+
+.highlightMark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 11px;
+  background: var(--td-accent);
+  transform: rotate(45deg);
+}
+
+.highlightText {
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-size: 27px;
+  line-height: 1.3;
+}
+
+.note {
+  margin: 16px 0 0;
+  color: var(--td-ink-body);
+  font-family: var(--td-font-garamond);
+  font-size: 18px;
+  line-height: 1.62;
+  text-wrap: pretty;
+}
+
+.tally {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  margin: 18px 0 0;
+  padding: 14px 15px;
+  background: var(--td-paper-mount);
+  box-shadow: 0 0 0 1px rgba(120, 98, 60, 0.16);
+}
+
+.tallyKey {
+  margin: 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: var(--td-letter-spacing-min);
+  text-transform: uppercase;
+}
+
+.tallyValue {
+  margin: 0;
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-size: 27px;
+  line-height: 1.2;
+}
+
+/* ---------------------------------------------------------------------------
+ * Photographs — mounts with `aspect-ratio: 4/3` photos, 18px apart.
+ * --------------------------------------------------------------------------- */
+
+.mount {
+  margin: 0 0 18px;
+  padding: 10px 10px 0;
+  background: var(--td-paper-mount);
+  /* The mount's paper shadow, as `photoMount.module.css` writes it. */
+  box-shadow:
+    0 10px 22px -16px rgba(60, 44, 20, 0.5),
+    0 0 0 1px rgba(120, 98, 60, 0.14);
+}
+
+.photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.caption {
+  margin: 0;
+  padding: 9px 3px 12px;
+  color: var(--td-ink-body);
+  font-family: var(--td-font-caveat);
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+/* "a full-width gallery button and the count". An anchor, like the book's own
+ * gallery button (`Notes.tsx`). */
+.galleryButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 15px;
+  border: 1.5px solid var(--td-accent);
+  border-radius: var(--td-radius-control);
+  background: rgba(163, 68, 52, 0.07);
+  color: var(--td-accent);
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.galleryArrow {
+  font-size: 15px;
+}
+
+.galleryCount {
+  margin: 10px 0 0;
+  color: var(--td-ink-diary-muted);
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 15.5px;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------------------
+ * About page — portrait mount, two paragraphs, and the reply-to address.
+ * --------------------------------------------------------------------------- */
+
+.portraitMount {
+  margin: 16px 0 18px;
+}
+
+.aboutParagraph {
+  margin: 0 0 14px;
+  color: var(--td-ink-body);
+  font-family: var(--td-font-garamond);
+  font-size: 18px;
+  line-height: 1.62;
+  text-wrap: pretty;
+}
+
+.replyEyebrow {
+  margin: 4px 0 8px;
+  color: var(--td-ink-diary-muted);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.replyTo {
+  margin: 0;
+  color: var(--td-accent);
+  font-family: var(--td-font-caveat);
+  font-size: 30px;
+  line-height: 1.25;
+}
+
+/* ---------------------------------------------------------------------------
+ * Bottom bar — `#fbf6e9`, 1px top rule, padding `10px 14px`.
+ * --------------------------------------------------------------------------- */
+
+.bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  /* Not a token: the prototype's own rule for this bar, a hairline between
+   * `--td-hairline-border-min` and `-max` that README's table does not name. */
+  border-top: 1px solid rgba(120, 98, 60, 0.24);
+  background: var(--td-paper);
+}
+
+/* 52px, not the book's 44px: SCREENS.md §1.10 specifies these larger than the
+ * hit-target minimum, and `--td-min-nav-button` is the token that says so. */
+.navButton {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--td-min-nav-button);
+  height: var(--td-min-nav-button);
+  padding: 0;
+  border: 1.5px solid var(--td-ink-body);
+  border-radius: var(--td-radius-card);
+  background: transparent;
+  color: var(--td-ink-body);
+  font-size: 20px;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* At the ends of the book the arrow stops inviting a press it would refuse.
+ * The same two values `chrome.module.css` uses for the book's own arrows;
+ * a disabled control is exempt from WCAG's contrast floor. */
+.navButton:disabled {
+  border-color: rgba(120, 98, 60, 0.25);
+  color: rgba(120, 98, 60, 0.38);
+  cursor: default;
+}
+
+.barLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  color: var(--td-ink-diary-muted);
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 14.5px;
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------------------------------------------------------------------------
+ * Drawer — scrim at `z-index: 800`, 82% panel capped at 320px at `810`.
+ * --------------------------------------------------------------------------- */
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 800;
+  border: 0;
+  padding: 0;
+  background: rgba(26, 22, 17, 0.5);
+  cursor: pointer;
+}
+
+.drawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 810;
+  display: flex;
+  flex-direction: column;
+  width: 82%;
+  max-width: 320px;
+  background: var(--td-sidebar-from);
+}
+
+.drawerHeader {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid rgba(238, 220, 180, 0.16);
+}
+
+.drawerTitle {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--td-cream-dim);
+  font-family: var(--td-font-courier);
+  font-weight: 400;
+  font-size: 9.5px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.drawerClose {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(238, 220, 180, 0.34);
+  border-radius: var(--td-radius-card);
+  background: transparent;
+  color: var(--td-cream);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.drawerTabs {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 10px 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+/* "the tab list at Caveat 26px with 13px rows" - §1.10's only statement about
+ * these rows. Everything else is the bookmark rail's own tab, repainted for a
+ * dark panel; see this file's header. */
+.drawerTab {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 13px 10px 13px 0;
+  border: 0;
+  border-radius: 0 6px 6px 0;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(238, 220, 180, 0.16);
+  color: var(--td-cream);
+  text-align: left;
+  text-decoration: none;
+  transition-property: transform, background;
+  transition-duration: 180ms;
+  transition-timing-function: ease;
+}
+
+/* Lifted out of the drawer and onto the page, exactly as the rail's active tab
+ * is: `--td-paper` is the paper the reader is looking at. */
+.drawerTabActive {
+  background: var(--td-paper);
+  box-shadow:
+    0 3px 12px -5px rgba(60, 44, 20, 0.5),
+    inset 0 0 0 1px rgba(120, 98, 60, 0.22);
+  color: var(--td-ink);
+  transform: translateX(-6px);
+}
+
+.drawerTab * {
+  pointer-events: none;
+}
+
+.drawerTabTint {
+  align-self: stretch;
+  flex: none;
+  width: 6px;
+  border-radius: 0 2px 2px 0;
+  /* The default for Cover, Contents and About, which have no journey behind
+   * them. The same literal, from the same `tabDef`, as `chrome.module.css`. */
+  background: #8a7a5f;
+  opacity: 0.5;
+}
+
+.drawerTabActive .drawerTabTint {
+  opacity: 1;
+}
+
+.drawerTabText {
+  flex: 1;
+  min-width: 0;
+}
+
+.drawerTabName {
+  display: block;
+  overflow: hidden;
+  font-family: var(--td-font-caveat);
+  font-size: 26px;
+  line-height: 1.05;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.drawerTabSub {
+  display: block;
+  overflow: hidden;
+  color: var(--td-cream-dim);
+  font-family: var(--td-font-courier);
+  font-size: 9px;
+  letter-spacing: var(--td-letter-spacing-min);
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* On paper, the sub-line takes the same treatment `chrome.module.css` gives
+ * the rail's: pinned to `--td-ink-body` at `.78`, which is what brings a 9px
+ * tracked Courier line to WCAG AA (docs/deviations.md §15). */
+.drawerTabActive .drawerTabSub {
+  color: var(--td-ink-body);
+  opacity: 0.78;
+}
+
+/* Every control on this surface is reachable by keyboard, so every control
+ * shows where the keyboard is. */
+.burger:focus-visible,
+.navButton:focus-visible,
+.drawerClose:focus-visible,
+.drawerTab:focus-visible,
+.startReading:focus-visible,
+.galleryButton:focus-visible,
+.contentsRow:focus-visible {
+  outline: 2px solid var(--td-accent);
+  outline-offset: 2px;
+}

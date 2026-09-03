@@ -87,6 +87,35 @@ server already knows, and turns it into markup.
 | `Ribbon.tsx`        | The spine ribbon. The one piece of chrome that lies OVER the page, hence `pointer-events: none` and its own browser test; drawn only when the book's `decorations` flag is on.                                             |
 | `chrome.module.css` | §1.7's measurements. One stylesheet for the three components: one class map in the route's bundle rather than three, and §1.7 is one design section. Carries the `HANDOFF-DEVIATION` at `.tabSub` (`docs/deviations.md` §15). |
 
+### The other reading surface (`apps/web/components/mobile/`)
+
+Phase 1 Task 15 added `SCREENS.md` §1.10, and it is a SECOND COMPONENT TREE rather than a
+breakpoint over the first. §1.10 opens "No book, no flip, no scaling": below 860px the
+diary is a dark header over a scrolling column over a bottom bar, with the bookmark rail
+behind a drawer. Nothing in it is inside the 1300x860 design box and nothing is scaled, so
+there is no media query in `book.module.css` and there must not be one - the two surfaces
+never share a document. Which one a request gets is decided before either is rendered; see
+`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`.
+
+| File                    | Responsibility                                                                                                                                                                                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MobileDiary.tsx`       | The surface's single `'use client'` boundary. Composes the header, the scrolling column, the bottom bar and the drawer, and owns two facts: whether the drawer is open, and the two page indices either side of this one. It does not render the page - it is handed one, exactly as `Book.tsx` is handed its faces. |
+| `MobilePage.tsx`        | A SERVER component, and one generic renderer for §1.10's four page kinds - Cover, Contents, Journey (all three of a journey's pages) and About. Nothing it reaches ships to the browser.                            |
+| `MobileHeader.tsx`      | The `#3b332a` bar: the 44px burger, the book title over this page's short name (`mobileHeading`), and the `NN / NN` counter (`pageCounter`). Derives nothing.                                                      |
+| `BookmarkDrawer.tsx`    | The scrim and the 82%-wide panel, as a real modal: named dialog, focus moved in, Tab trapped, Escape closing. Every tab is a real `/p/<n>` link. Focus RESTORATION belongs to `MobileDiary`, which outlives it.     |
+| `useSwipe.ts`           | `touchstart`/`touchend` into `shouldTurnPage`. Holds no threshold and no ratio of its own - see `packages/domain/src/swipe.ts`, where the rule that stops a scroll turning a page is stated once.                   |
+| `useViewportSurface.ts` | Feeds `surfaceForWidth` a measurement, re-measured on resize and through a `ResizeObserver`, always inside one animation frame - the same shape `useBookScale` has.                                                 |
+| `SurfaceCorrection.tsx` | Draws nothing. Where the measured viewport and the served surface disagree, it remembers the measurement in a session cookie and re-renders the route on the server. It reads the cookie back before refreshing, so a reader with cookies blocked keeps the surface they have rather than reloading forever. |
+| `mobile.module.css`     | §1.10's measurements, in the viewport's own pixels. Carries the `HANDOFF-DEVIATION` at `.drawerTab` (`docs/deviations.md` §22).                                                                                     |
+
+**A page change on this surface is a navigation, and that is the structural difference
+from the book.** The book turns pages inside one document because a 900ms 3D flip cannot
+survive its subtree being unmounted, and the whole of ADR 0009 exists to protect that. A
+scrolling column has no animation in flight, no measured scale and no flip machine, so
+`/p/<n>` is reached by pressing a link - which is why this surface's document carries ONE
+page (22,481 raw bytes on `/p/3`, against the book's 89,589) and why three of its four
+page-changing controls work before any script has run.
+
 The rail and the bar claim `grid-area: rail` and `grid-area: bar` from `.stage` rather
 than being positioned over the book, and that is structural rather than cosmetic: a
 strip of chrome over the book is also a strip of chrome over the page-edge turn strips,

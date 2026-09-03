@@ -153,9 +153,22 @@ for a different reason — see its row.
   (`docs/adr/0009-server-rendered-page-window.md`), never anything a reader types, and
   the response to it declares `/p/<n>` as its canonical URL so it is not a second
   crawlable address for the same page.
-- **Output:** the whole book, server-rendered from one `BookBundle`
-  (`apps/web/lib/readBookBundle.ts`), opened at the leaf `n` addresses. The client takes
-  over only for scaling (`useBookScale`) and flipping (`useFlip`).
+- **Output:** ONE OF TWO READING SURFACES, server-rendered from one `BookBundle`
+  (`apps/web/lib/readBookBundle.ts`) and opened at the leaf `n` addresses. At and above
+  860px it is the book: every leaf of the stack, with the faces inside the served content
+  window, and the client taking over only for scaling (`useBookScale`) and flipping
+  (`useFlip`). Below 860px it is `SCREENS.md` §1.10's mobile reading mode - a header, the
+  ONE addressed page, a bottom bar and a bookmark drawer - and the client takes over only
+  for the swipe and the drawer. The two are never both in a document: the mobile one is
+  22,481 raw bytes on `/p/3` against the book's 89,589. Which one this request gets is
+  `servedReadingSurface`'s (`packages/domain/src/readingSurface.ts`); see
+  `docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`.
+- **Request headers read:** two, both handed straight to the domain without
+  interpretation. `Cookie` - for `td-reading-surface`, the session cookie a previous
+  correction wrote (`docs/security.md`); and `User-Agent` - for its device kind, through
+  Next's own `userAgent()` parser, which is what gets a phone the mobile surface on its
+  first paint rather than a flash of the book. Reading either makes the route dynamic; it
+  already was.
 - **Errors:** `404` for any `n` the book has no page for — outside `1..33`, padded with a
   leading zero, or not a whole page number at all. `addressedPageIndex` returns `null` and
   the route calls `notFound()`, which renders `app/(diary)/not-found.tsx` under the
@@ -173,8 +186,10 @@ for a different reason — see its row.
   must gate this route server-side; a client-side check leaves the content fetchable
   (`docs/security.md`). **That gate is not built yet** and is tracked in
   `docs/security.md`, not discharged here.
-- **Notes:** the URL is written on every turn (flip commit, mobile step, bookmark jump)
-  and read on load, so the reader's exact page survives a reload or a shared link. As of
+- **Notes:** the URL is written on every turn (flip commit, bookmark jump) and read on
+  load, so the reader's exact page survives a reload or a shared link. On the mobile
+  surface there is nothing to write: a page change there IS a navigation to `/p/<n>`, so
+  the address is correct by construction and `history.replaceState` has no part in it. As of
   Task 8 that write is live, and as of Task 13 it is asserted end to end
   (`e2e/routing.spec.ts`: turn two pages, click a page footer's real
   `/gallery/<slug>` link, go back, and the address is still the page the reader had

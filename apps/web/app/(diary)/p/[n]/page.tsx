@@ -70,31 +70,71 @@
  * See `docs/adr/0010-static-generation-and-the-content-window.md` for the
  * runs and the three shapes that were considered for having both.
  *
+ * IT SERVES ONE OF TWO READING SURFACES, AND EXACTLY ONE. Below 860px the
+ * design replaces the book outright - "No book, no flip, no scaling"
+ * (SCREENS.md §1.10) - so this route renders either `<Book>` with a window of
+ * page faces or `<MobileDiary>` with the single addressed page, never both.
+ * Serving both and hiding one would put the mobile mode's markup and script in
+ * front of every desktop reader (against a 3,000ms LCP gate with ~69ms of
+ * margin) and the book's thirty-three-leaf stack in front of every phone. The
+ * choice is `servedReadingSurface`'s
+ * (@travel-diary/domain/readingSurface, 100%-covered), from two signals this
+ * route reads off the request and hands over without interpreting: the
+ * `Cookie` header, parsed by `rememberedSurface`, and the user-agent's device
+ * kind, parsed by Next's own `userAgent`. Nothing about the breakpoint is
+ * decided here.
+ *
+ * THE MOBILE DOCUMENT CARRIES ONE PAGE, not `contentWindow`'s seven, and that
+ * is not a second window - it is the absence of one. The window exists because
+ * the book keeps thirty-three leaves in a single document and turns them
+ * without navigating (ADR 0009); the mobile surface changes page by pressing a
+ * link, so its document only ever needs the page the address names.
+ * `servedContentWindow` is therefore not consulted on that branch at all.
+ *
+ * A SERVER GUESS IS CORRECTED IN THE BROWSER, by `<SurfaceCorrection>`, which
+ * is rendered beside whichever surface was chosen. It measures the real
+ * viewport and, where the guess was wrong - a desktop window narrowed under
+ * 860px, a tablet held the other way round - remembers the measurement and
+ * re-renders this route. See its own header and
+ * `docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`.
+ *
  * SCOPE. On-demand revalidation on publish (design spec §8) is a later task's
  * - nothing publishes yet. The gallery-return behaviour is the address this
  * route writes plus `Book.tsx`'s `replaceState`, and is asserted by
  * `e2e/routing.spec.ts` today against the real `/gallery/<slug>` link the
- * page footers already carry; the gallery route itself is Task 14.
+ * page footers already carry.
  * Depends on: `readBookBundle` (../../../../lib/readBookBundle),
  * `addressedPageIndex`/`pagePath` (@travel-diary/domain/pageAddress),
  * `pageMetadata` (@travel-diary/domain/pageMetadata),
  * `servedContentWindow`/`rendersContent`
- * (@travel-diary/domain/contentWindow), `deriveRail`/`derivePageLabels`
+ * (@travel-diary/domain/contentWindow),
+ * `servedReadingSurface`/`rememberedSurface` (@travel-diary/domain/readingSurface),
+ * `deriveRail`/`derivePageLabels`/`pageLabel`/`mobileHeading`
  * (@travel-diary/domain/bookBundle), `Book` (../../../../components/book/Book),
- * `PageFace` (../../../../components/book/PageFace), `notFound` (next/navigation).
+ * `PageFace` (../../../../components/book/PageFace),
+ * `MobileDiary`/`MobilePage`/`SurfaceCorrection` (../../../../components/mobile/),
+ * `headers` (next/headers), `userAgent` (next/server), `notFound` (next/navigation).
  */
 /* c8 ignore start -- Framework passthrough with no authored logic: await the
- * route params and the query, read the bundle, render one face per
- * page inside the served window and a contentless marker outside it, render
- * the book. Its four real decisions - what `<n>` means, whether the book has
- * such a page at all, which pages this request gets the content of, and
- * whether a given leaf is one of them - are `addressedPageIndex`,
- * `servedContentWindow` and `rendersContent`, each with its own covered suite
- * elsewhere, as is the title and description `generateMetadata` returns
- * (`pageMetadata`). The three values the chrome needs - the
- * labelled rail, one label per page, and whether decorations are on - are
- * `deriveRail`, `derivePageLabels` and a field off the `book` global, so none
- * of them is decided here either.
+ * route params, the query and the request headers, read the bundle, and render
+ * whichever surface `servedReadingSurface` names - the mobile mode with the
+ * one addressed page, or the book with one face per page inside the served
+ * window and a contentless marker outside it. Its five real decisions - what
+ * `<n>` means, whether the book has such a page at all, which surface this
+ * request is served, which pages it gets the content of, and whether a given
+ * leaf is one of them - are `addressedPageIndex`, `servedReadingSurface`
+ * (with `rememberedSurface`), `servedContentWindow` and `rendersContent`, each
+ * with its own 100%-covered suite in `@travel-diary/domain`, as is the title
+ * and description `generateMetadata` returns (`pageMetadata`). The five values
+ * the two surfaces' chrome needs - the labelled rail, one label per page, this
+ * page's own label, its short mobile heading, and whether decorations are on -
+ * are `deriveRail`, `derivePageLabels`, `pageLabel`, `mobileHeading` and a
+ * field off the `book` global, so none of them is decided here either. The one
+ * `if` this file adds spends a decision rather than taking one, exactly as the
+ * `rendersContent` ternary beside it does, and BOTH of its arms are asserted
+ * in a real browser: the book arm by every spec that opens `/p/<n>` at the
+ * `desktop` and `mid` projects, and the mobile arm by `e2e/mobile.spec.ts` at
+ * the `mobile` project, whose user-agent is a phone's.
  * It cannot be measured by either Vitest config (a page component needs a real
  * Next request context, and no integration test can supply one), and this
  * file's path contains a Next.js dynamic-route bracket segment, where
@@ -105,16 +145,23 @@
  * reason at the point of exclusion, and the config entry is what enforces it.
  * Its runtime behaviour is covered in the browser by e2e/routing.spec.ts
  * (the 404, the metadata, the canonical link), e2e/book.spec.ts,
- * e2e/smoke.spec.ts, e2e/serverWindow.spec.ts and e2e/imageWindow.spec.ts. */
-import { derivePageLabels, deriveRail } from '@travel-diary/domain/bookBundle'
+ * e2e/smoke.spec.ts, e2e/serverWindow.spec.ts, e2e/imageWindow.spec.ts and
+ * e2e/mobile.spec.ts. */
+import { derivePageLabels, deriveRail, mobileHeading, pageLabel } from '@travel-diary/domain/bookBundle'
 import { rendersContent, servedContentWindow, type RouteQuery } from '@travel-diary/domain/contentWindow'
 import { addressedPageIndex, pagePath } from '@travel-diary/domain/pageAddress'
 import { pageMetadata } from '@travel-diary/domain/pageMetadata'
+import { rememberedSurface, servedReadingSurface } from '@travel-diary/domain/readingSurface'
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
+import { userAgent } from 'next/server'
 import type React from 'react'
 import { Book } from '../../../../components/book/Book'
 import { PageFace } from '../../../../components/book/PageFace'
+import { MobileDiary } from '../../../../components/mobile/MobileDiary'
+import { MobilePage } from '../../../../components/mobile/MobilePage'
+import { SurfaceCorrection } from '../../../../components/mobile/SurfaceCorrection'
 import { readBookBundle } from '../../../../lib/readBookBundle'
 
 /** The route's own parameters. Next 15+ hands them over as promises. */
@@ -163,41 +210,79 @@ export const generateMetadata = async ({ params }: DiaryPageProps): Promise<Meta
   return { title, description, alternates: { canonical: pagePath(openIndex) } }
 }
 
-/** Renders the book, opened at the page `<n>` addresses. */
+/** Renders whichever reading surface this request is served, opened at `<n>`. */
 const DiaryPage = async ({ params, searchParams }: DiaryPageProps): Promise<React.JSX.Element> => {
-  const [{ n }, query, bundle] = await Promise.all([params, searchParams, readBookBundle()])
+  const [{ n }, query, requestHeaders, bundle] = await Promise.all([params, searchParams, headers(), readBookBundle()])
   const totalPages = bundle.pages.length
   const openIndex = addressedPageIndex(n, totalPages)
   if (openIndex === null) notFound()
-  const content = servedContentWindow(query, openIndex, totalPages)
+  const page = bundle.pages[openIndex]
+  // Unreachable for an index `addressedPageIndex` returned, which is in range
+  // by construction; `noUncheckedIndexedAccess` needs it said out loud.
+  if (page === undefined) notFound()
 
-  return (
-    <Book
-      bookmarks={deriveRail(bundle.pages, bundle.bookmarks)}
-      labels={derivePageLabels(bundle.pages)}
-      showDecorations={bundle.chrome.showDecorations}
-      initialIndex={openIndex}
-      content={content}
-    >
-      {bundle.pages.map((page, index) =>
-        rendersContent(content, index) ? (
-          <PageFace
-            key={index}
-            leafIndex={index}
+  const surface = servedReadingSurface({
+    remembered: rememberedSurface(requestHeaders.get('cookie') ?? undefined),
+    device: userAgent({ headers: requestHeaders }).device.type,
+  })
+
+  if (surface === 'mobile') {
+    return (
+      <>
+        <MobileDiary
+          bookTitle={bundle.chrome.title}
+          heading={mobileHeading(page)}
+          label={pageLabel(page)}
+          bookmarks={deriveRail(bundle.pages, bundle.bookmarks)}
+          pageIndex={openIndex}
+          totalPages={totalPages}
+        >
+          <MobilePage
             page={page}
             contents={bundle.contents}
             chrome={bundle.chrome}
             about={bundle.about}
+            leafIndex={openIndex}
             totalPages={totalPages}
           />
-        ) : (
-          // A leaf, but no face. The stack needs the leaf for its z-order and
-          // its page count; the reader needs the face only once they can get
-          // to it, which is what `useRestOfBook` sees to.
-          <div key={index} data-page-deferred={index} />
-        ),
-      )}
-    </Book>
+        </MobileDiary>
+        <SurfaceCorrection served={surface} />
+      </>
+    )
+  }
+
+  const content = servedContentWindow(query, openIndex, totalPages)
+
+  return (
+    <>
+      <Book
+        bookmarks={deriveRail(bundle.pages, bundle.bookmarks)}
+        labels={derivePageLabels(bundle.pages)}
+        showDecorations={bundle.chrome.showDecorations}
+        initialIndex={openIndex}
+        content={content}
+      >
+        {bundle.pages.map((leafPage, index) =>
+          rendersContent(content, index) ? (
+            <PageFace
+              key={index}
+              leafIndex={index}
+              page={leafPage}
+              contents={bundle.contents}
+              chrome={bundle.chrome}
+              about={bundle.about}
+              totalPages={totalPages}
+            />
+          ) : (
+            // A leaf, but no face. The stack needs the leaf for its z-order and
+            // its page count; the reader needs the face only once they can get
+            // to it, which is what `useRestOfBook` sees to.
+            <div key={index} data-page-deferred={index} />
+          ),
+        )}
+      </Book>
+      <SurfaceCorrection served={surface} />
+    </>
   )
 }
 

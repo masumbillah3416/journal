@@ -732,3 +732,47 @@ down here with the measurement that forced it.
 **Not changed:** the counter (cream at 70%, 12px), the Download and Share controls (cream
 at 100% with a 40% border) and the caption (cream at 100%, Caveat 28px) all clear AA at
 the handoff's own values, and axe flagged none of them.
+
+---
+
+## 22 · The bookmark drawer's tab list is painted for a dark panel, not reused from the paper rail
+
+**Where:** `apps/web/components/mobile/mobile.module.css` — `.drawerTab`,
+`.drawerTabActive`, `.drawerTabName`, `.drawerTabSub`, `.drawerTabTint`.
+
+**What the handoff says.** `SCREENS.md` §1.10 gives the drawer as "an 82%-wide panel
+capped at 320px (`z-index: 810`) on `#3b332a`: header with 'Bookmarks' and a 34px close,
+then the tab list at 26px Caveat with 13px rows." It states the panel's background, the
+list's size and its row height, **and nothing at all about the tabs' colour.** The
+prototype fills that silence by reusing the desktop bookmark rail's own tab styles inside
+the drawer (`Travel Diary.dc.html`: the drawer's `<button>` takes `t.style`/`t.name`
+straight from the shared `tabDef`).
+
+**What is built.** The sizes and the row height are §1.10's, verbatim. The colours are
+§2's — the admin nav rail, which is the handoff's own treatment for a tab list on this
+exact `#3b332a`: cream label, `--td-cream-dim` sub-label, and an active tab filled with
+`#fbf6e9` and inked dark, lifted `translateX(-6px)` with the rail's own shadow.
+
+**Why.** The rail's palette is designed for paper and the drawer is a dark panel, so
+reusing it puts `#7a6b50` ink on `rgba(120,98,60,.07)` over `#3b332a`. Measured with this
+repository's own `contrastRatio`/`composite` (`packages/domain/src/contrast.ts`):
+
+| Line | Prototype's colours | Built | WCAG 2.1 AA floor |
+|---|---|---|---|
+| tab name (Caveat 26px) | **2.28:1** | 10.57:1 | 4.5:1 (Caveat is not a large-text face at this size in the sense SC 1.4.3 means) |
+| tab sub-line (Courier 9px) | **1.68:1** | 6.10:1 | 4.5:1 |
+| active tab name | — | 10.03:1 | 4.5:1 |
+| active tab sub-line | — | 4.98:1 | 4.5:1 |
+
+Both prototype figures are well under the floor, and `e2e/a11y.spec.ts`'s
+drawer-open case runs axe with **no exclusions**, so the literal transcription would have
+been a failing build rather than a debatable choice. The handoff supplies the right
+colours for this background itself, one section away, which is why they were taken rather
+than invented.
+
+**The active tab's sub-line** takes the same treatment `docs/deviations.md` §15 records
+for the rail's: pinned to `--td-ink-body` at `.78`, which is what brings a 9px tracked
+Courier line on paper to AA. §15's reasoning applies unchanged; only the surface differs.
+
+**What would reverse this.** A `SCREENS.md` revision that states the drawer's tab colours
+explicitly, or a redesign of the panel's background. Neither exists today.

@@ -147,8 +147,16 @@
  * the one piece that DOES lie over the page, and is `pointer-events: none`
  * for exactly that reason.
  *
- * SCOPE. The mobile reading mode below 860px (SCREENS.md §1.10) is a later
- * task; metadata, `generateStaticParams` and the out-of-range 404 are Task 13.
+ * BELOW 860px THIS COMPONENT IS NOT RENDERED AT ALL. SCREENS.md §1.10's
+ * mobile reading mode replaces the book rather than restyling it - "No book,
+ * no flip, no scaling" - so `../mobile/MobileDiary.tsx` is a separate tree and
+ * the `/p/<n>` route serves one or the other, chosen before either is
+ * rendered (`@travel-diary/domain/readingSurface`,
+ * `docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`). That is why
+ * there is no breakpoint in `book.module.css` and there must not be one: a
+ * media query here would produce a scaled book fighting a scrolling column in
+ * one DOM. `data-reading-surface="book"` on the `<main>` below is how a
+ * browser test knows which surface it is looking at.
  * Depends on: react, `RailTab` (@travel-diary/domain/bookBundle),
  * `pagePath` (@travel-diary/domain/pageAddress), `leafPresentation`
  * (@travel-diary/domain/pageStack), ../pages/Photograph, ../chrome/BookmarkRail,
@@ -329,7 +337,11 @@ export const Book = ({
   }, [state.index, complete])
 
   return (
-    <main className={styles.stage} data-content-window={`${String(content.from)}-${String(content.to)}`}>
+    <main
+      className={styles.stage}
+      data-reading-surface="book"
+      data-content-window={`${String(content.from)}-${String(content.to)}`}
+    >
       <div ref={bookArea} className={styles.bookArea}>
         <div data-design-box="" className={styles.designBox} style={{ transform: `scale(${String(scale)})` }}>
           <div className={styles.board} />
@@ -398,7 +410,6 @@ export const Book = ({
           request({ kind: 'jump', target: startIndex })
         }}
       />
-
     </main>
   )
 }

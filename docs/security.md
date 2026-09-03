@@ -50,6 +50,34 @@ Phase 3.
 | Secrets in the platform store | never in the repo; `.env` is gitignored | Phase 0 for repo hygiene (`.gitignore` already excludes `.env`, `.env.*`, keeping only `.env.example`) — moving real secrets into each provider's platform store happens as each provider is actually provisioned at deploy time, which is not pinned to a single phase in §4 |
 | Offsite backups of Postgres **and** the bucket, restore tested | scheduled dump to a different provider; restore drill in `docs/runbook.md` | Phase 3. The design spec's phase plan (§4) does not itself name a phase for this operational requirement; the procedure is documented now, in Phase 0 (`docs/runbook.md`), but Phase 3 is the first point at which both Postgres and the media bucket hold real content, so it is the earliest phase where a restore drill proves anything. A demonstrated (not merely written) drill is a Phase 3 exit criterion. |
 
+## The one cookie the public diary sets
+
+`td-reading-surface`, added in Phase 1 Task 15. It is listed here because a cookie on a
+public, unauthenticated surface is worth stating explicitly rather than leaving to be
+discovered, not because `SECURITY.md` has a row for it.
+
+| Property | Value |
+|---|---|
+| Name | `td-reading-surface` |
+| Value | exactly one of two literal strings, `book` or `mobile` — validated by `rememberedSurface` (`packages/domain/src/readingSurface.ts`) on read, never cast |
+| Written by | `apps/web/components/mobile/SurfaceCorrection.tsx`, in the browser, and only when the measured viewport disagrees with the surface the server served |
+| Lifetime | the browsing session — no `Max-Age`, no `Expires` |
+| Flags | `Path=/`, `SameSite=Lax`. **No `Secure`**, deliberately: it must also be set over plain HTTP on a developer's machine, and it carries no secret |
+| Read by | `app/(diary)/p/[n]/page.tsx`, from the request's `Cookie` header, and handed to `servedReadingSurface` without interpretation |
+
+**What it is not.** It is not an identifier, it is not a session, it is not personal data,
+it cannot be used to recognise a returning reader, and nothing else in the product reads
+it. What it remembers is the width of the window in front of the reader right now — a
+fact the reader's own browser measured — so that a desktop window narrowed under 860px, or
+a tablet held the other way round, does not pay a round trip for the correction on every
+page they turn. Its whole reason for existing is
+`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`, and if that decision is
+reversed the cookie goes with it.
+
+The route also reads `User-Agent`, through Next's own `userAgent()` parser, for its
+device kind alone (`mobile`/`tablet`/absent). It is a first-paint guess, corrected by the
+browser's own measurement, and it is neither stored nor logged.
+
 The last row is the one `SECURITY.md` says deserves more attention than everything above
 it: *"Not an attacker — losing 40GB of photographs. Automated offsite backups of
 Postgres and the media bucket, on a schedule, to a different provider. Versioned or
