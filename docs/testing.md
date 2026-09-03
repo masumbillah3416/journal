@@ -1152,11 +1152,13 @@ production" is closed via `next/font/local`, with the five `.woff2` files commit
 `apps/web/app/(diary)/fonts.ts`). Courier Prime 400/700 and EB Garamond's italic face
 were deferred through Phase 1 on a real LCP measurement, and that measurement **still
 reproduces**: `/p/1` measures 2,488.2ms with two faces, 2,637.4ms with four and
-2,933.8ms with five, against CLAUDE.md §6's 2,500ms gate. They were wired in anyway,
-because a minimal fontless route in this same app models 2,023.2ms of that budget on its
-own and the route's OBSERVED paint is ~130ms in every configuration —
+2,933.8ms with five, against CLAUDE.md §6's 2,500ms gate — the gate at the time of
+writing; **3,000ms today**, see §7.0's current-state table below. They were wired in
+anyway, because a minimal fontless route in this same app models 2,023.2ms of that
+budget on its own and the route's OBSERVED paint is ~130ms in every configuration —
 `docs/adr/0008-lcp-budget-and-the-framework-floor.md` has the floor measurement, the
-options, and the record that the gate is left **red and unraised**. Every visual
+options, and the record that the gate was left **red and unraised** at the time — raised
+to 3,000ms since, and green today (§7.0). Every visual
 baseline was regenerated in the pinned container against the five-face state, with
 `e2e/layout.spec.ts` green in the same run.
 

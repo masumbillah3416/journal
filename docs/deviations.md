@@ -802,6 +802,7 @@ Courier line on paper to AA. §15's reasoning applies unchanged; only the surfac
 
 **What would reverse this.** A `SCREENS.md` revision that states the drawer's tab colours
 explicitly, or a redesign of the panel's background. Neither exists today.
+
 ---
 
 ## 23 · The LCP budget was raised from 2,500ms to 3,000ms, which the task brief forbade

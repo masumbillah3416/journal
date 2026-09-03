@@ -192,8 +192,9 @@ mechanism — is most of what this document exists to record.
   configuration measured, because `simulate` reports Lantern's projection, not a paint.
   Spending the design's entire auxiliary typeface to buy 446 ms of a projected number, on
   a route whose real paint does not move, was the wrong trade. ADR 0008 records the
-  floor, the options, and the fact that the gate is left **red and unraised** at
-  2,933.8 ms.
+  floor, the options, and the fact that the gate was left **red and unraised** at
+  2,933.8 ms — at the time of writing; it has since been raised to 3,000 ms and is green
+  (`docs/testing.md` §7.0).
 
 - **Courier Prime 400/700 and EB Garamond's italic face now load.** All five committed
   `.woff2` files are wired in `apps/web/app/(diary)/fonts.ts`, and
