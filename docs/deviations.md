@@ -5,7 +5,9 @@ documented exception to `CLAUDE.md` itself — is recorded here, per `CLAUDE.md`
 (`// HANDOFF-DEVIATION: <reason>` in code) and §1.2. Entries 1–4 come from design spec
 §15, which cross-references §2.1–2.3 and §7.1 for the detail; 5 onward were added as
 later tasks found them. §5 and §16 are correction records rather than active
-deviations, and §11 is a withdrawn one.
+deviations, and §11 is a withdrawn one. The later entries include departures from
+`CLAUDE.md` and from this project's own task plan rather than from the handoff, which is
+what the second clause of the sentence above is for.
 
 ## 1 · Payload auth instead of Auth.js
 
@@ -800,3 +802,62 @@ Courier line on paper to AA. §15's reasoning applies unchanged; only the surfac
 
 **What would reverse this.** A `SCREENS.md` revision that states the drawer's tab colours
 explicitly, or a redesign of the panel's background. Neither exists today.
+---
+
+## 23 · The LCP budget was raised from 2,500ms to 3,000ms, which the task brief forbade
+
+**Where:** `CLAUDE.md` §6's LCP row; `lighthouserc.json` and `lighthouserc.book.json`'s
+`largest-contentful-paint` assertions; `docs/adr/0008-lcp-budget-and-the-framework-floor.md`.
+
+**What the plan said.** Task 13's brief, Step 5, in full: *"Confirm Lighthouse now passes
+against `/p/1`. If LCP exceeds 2500ms, report the measurement — do NOT raise the
+budget."* That is as explicit as an instruction gets, and it is recorded here because
+this file's preamble covers deliberate exceptions to *this project's own* standards, and
+a departure from the project's own plan is one of them. Nothing in `SCREENS.md`,
+`README.md`, `DATA_MODEL.md` or `SECURITY.md` names an LCP number; the 2,500ms figure was
+this repository's, written into `CLAUDE.md` §6 in Phase 0 before any route existed.
+
+**What was done.** The budget is **3,000ms** — in `CLAUDE.md` §6 and in both lhci
+configs' `largest-contentful-paint` assertions.
+
+**Why.** The instruction was obeyed first, and for several rounds. The gate was reported
+**red and unraised** through Task 13, through the font work (`docs/adr/0005`, which
+records the five-face build at 2,933.8ms and says in terms that the gate is "left red and
+unraised"), and through two separate attempts to buy the milliseconds back — ADR 0006
+removed 1.83MB of images and ADR 0007 removed 11,465 bytes of page components from the
+client chunk, moving LCP by 0.3ms. What ended the deferral was a measurement nobody had
+taken: `docs/adr/0008` measured what the route costs with **no application code at
+all** — one server component rendering one styled heading, no font, no stylesheet, no
+client component, in this same app — and found **2,023.2ms** of modelled LCP and
+**137,986 bytes** of React and Next App Router runtime. That is 81% of the old budget
+before this repository writes a line, so the budget was not describing this repository's
+work; it was describing a floor this repository does not own. The reported figure is a
+projection rather than a paint besides: `simulate` reports Lantern's model, and the
+OBSERVED paint on `/p/1` is 122-174ms in every configuration measured.
+
+**Why 3,000 rather than "the floor plus something".** ADR 0008's "Why 3,000 and not some
+other number past the floor" is the argument, and its test is that the new number still
+catches a regression this project has actually shipped: ADR 0006's image-window defect
+measured `/p/1` at 3,170-3,247ms before its fix, so a 3,000ms gate would have failed that
+build exactly as the 2,500ms gate did. A budget that launders a known past regression
+would not be a budget.
+
+**Whose decision it was.** ADR 0008 is marked `Status: DECIDED` by the repository owner,
+who was given the measured floor and four options with no recommendation taken. Amending
+`CLAUDE.md` §6 is the owner's call, not a task's — which is precisely why Task 13's brief
+was right to forbid a task from making it, and why this entry records that the exception
+was escalated rather than taken.
+
+**What was deliberately NOT relaxed with it.** `resource-summary:script:size` stays at
+184,320 bytes, `cumulative-layout-shift` at 0.1, `numberOfRuns` at 5 and
+`aggregationMethod` at `median` — the last of those specifically because lhci's default
+(`optimistic`) takes the best of five runs and would have loosened the gate a second
+time, silently. `docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md` later
+made the gate *stricter* in the dimension that mattered, by pinning the two viewports the
+two reading surfaces are actually measured at, and `docs/testing.md` §7.0 is the
+current-state table for every number involved.
+
+**What would reverse this.** A framework floor that falls — a Next/React release whose
+App Router runtime models under ~1.5s on this preset would put 2,500ms back within
+reach, and ADR 0008's minimal-route probe is the measurement that would say so. Re-run
+it before arguing the number either way.
