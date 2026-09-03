@@ -1162,20 +1162,83 @@ baseline was regenerated in the pinned container against the five-face state, wi
 
 ### 7 · Performance
 
-- **Tool:** Lighthouse CI (`@lhci/cli`, `lighthouserc.json`) + custom probes (the custom
-  probes — 60fps flip measurement, N+1 query detection — are still not yet implemented;
-  they need the flip and data-fetching code these budgets describe).
+#### 7.0 · Current state — what is gated today
+
+**Read this table first.** Everything below it is a chronological record of how these
+numbers were arrived at, kept because the measurements are the argument for the numbers.
+That record quotes figures that have since been superseded — the 2,500ms LCP budget
+above all. **No figure beneath this section is the current gate unless this table says
+so.**
+
+| Gate | Config | Route | Limit |
+|---|---|---|---|
+| `largest-contentful-paint` | `lighthouserc.book.json` | `/p/1`, book surface (1350x940, `Cookie: td-reading-surface=book`) | **≤3000ms** |
+| `largest-contentful-paint` | `lighthouserc.json` | `/p/1`, mobile surface (Lighthouse phone emulation, no cookie) | **≤3000ms** |
+| `largest-contentful-paint` | `lighthouserc.json` | `/gallery/patagonia` | ≤4000ms |
+| `resource-summary:script:size` | both | `/p/1` (both surfaces), `/gallery/<slug>` | ≤184320 bytes (180KB, `CLAUDE.md` §6) |
+| `resource-summary:image:size` | `lighthouserc.json` | `/gallery/<slug>` | ≤600000 bytes |
+| `cumulative-layout-shift` | both | every collected URL | ≤0.1 |
+| `http-status-code` | both | every collected URL | `minScore: 1` |
+| — | `lighthouserc.json` | `/cms` | `http-status-code` and CLS only: no LCP, no script budget |
+
+Both configs collect `numberOfRuns: 5` and every `assertMatrix` entry carries
+`"aggregationMethod": "median"`. `npm run test:perf` runs **both** configs, and both are
+gates; `e2e/ciRegistration.spec.ts` asserts that the script still names both files.
+
+**Both gates are green.** Last measured at Phase 1's final review, one
+`npm run test:perf` inside `mcr.microsoft.com/playwright:v1.62.1-noble`, each config
+building the app itself first:
+
+| Route (config) | Metric | Median of 5 | Gate | Margin |
+|---|---|---|---|---|
+| `/p/1` book (`.book.json`) | LCP | **2,934.53ms** | 3000 | 65.47ms |
+| `/p/1` book | script | 142,834 B | 184,320 | 41,486 B |
+| `/p/1` mobile (`.json`) | LCP | **2,925.59ms** | 3000 | 74.41ms |
+| `/p/1` mobile | script | 144,835 B | 184,320 | 39,485 B |
+| `/gallery/patagonia` | LCP | 3,532.70ms | 4000 | 467.30ms |
+| `/gallery/patagonia` | script | 141,711 B | 184,320 | 42,609 B |
+| `/gallery/patagonia` | image | 477,329 B | 600,000 | 122,671 B |
+| `/cms` | — | — | CLS and status only | — |
+
+CLS was **0** on all twenty runs and `http-status-code` scored **1** on every one. The
+five book runs read 2,932.28 / 2,934.41 / **2,934.53** / 2,935.14 / 2,956.60ms; the five
+mobile runs 2,404.94 / 2,405.08 / **2,925.59** / 2,935.49 / 2,951.89ms — two runs of that
+set landing half a second below the rest is the spread the `median` aggregation exists to
+absorb, and is why `optimistic` (lhci's default, which takes the minimum) would have
+reported this route at 2,404.94ms and called 500ms of headroom that does not exist.
+`/cms` measured 4,880.39ms of LCP and 647,142 script bytes, neither of them gated, for
+the reason its row above gives.
+
+**Why 3000 and not 2500.** `CLAUDE.md` §6's LCP budget was 2,500ms from Phase 0 until
+Phase 1 Task 13. `docs/adr/0008-lcp-budget-and-the-framework-floor.md` measured what this
+route costs with no application code at all — 2,023.2ms and 137,986 bytes of React and
+Next App Router runtime for one styled heading — which is 81% of the old budget before
+this repository writes a line, and the budget was set to **3.0s** from that measured
+floor. `docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md` then fixed
+*where* it is measured: the book at 1350x940 with the surface cookie pinned, the mobile
+surface at Lighthouse's own phone emulation, both on the same `simulate` throttling
+(150ms RTT, 1,638Kbps, 4x CPU). The raise itself is recorded as a departure from the
+plan in `docs/deviations.md` §23 — Task 13 Step 5 said not to raise it — and the gate
+was reported red and unraised for several rounds before it moved.
+
+#### 7.1 · The record
+
+- **Tool:** Lighthouse CI (`@lhci/cli`, `lighthouserc.json` and `lighthouserc.book.json`)
+  + custom probes (the custom probes — 60fps flip measurement, N+1 query detection — are
+  still not yet implemented; they need the flip and data-fetching code these budgets
+  describe).
 - **Scope:** the hard budgets in `CLAUDE.md` §6 — 60fps flip (only `transform`/`opacity`
-  animated), diary route JS ≤180KB gzipped, admin ≤320KB, LCP ≤2.5s, CLS ≤0.1, INP
+  animated), diary route JS ≤180KB gzipped, admin ≤320KB, LCP **≤3.0s** (ADR 0008 for
+  the number, ADR 0014 for the two viewports it is measured at), CLS ≤0.1, INP
   ≤200ms, no N+1 queries, always a derivative tier never an original.
 - **Status — hard-gated in CI as of Task 1 of Phase 1, ahead of the route it guards.**
   `lighthouserc.json` now points `collect.url` at `http://localhost:3000/p/1` (the diary
   route Task 13 creates) and `http://localhost:3000/cms`, with per-URL budgets via
   `assert.assertMatrix` rather than one shared `assert.assertions` block: `/p/1` is held
   to `http-status-code` (`minScore: 1`), `resource-summary:script:size`
-  (≤184320 bytes), `largest-contentful-paint` (≤2500ms) and
-  `cumulative-layout-shift` (≤0.1); `/cms` is held to `http-status-code` and
-  `cumulative-layout-shift` only.
+  (≤184320 bytes), `largest-contentful-paint` (≤2500ms **as landed in Task 1 — the
+  budget is 3000ms today, see §7.0**) and `cumulative-layout-shift` (≤0.1); `/cms` is
+  held to `http-status-code` and `cumulative-layout-shift` only.
 
   **Task 14 added a third URL and a fourth budget.** `/gallery/patagonia` is collected
   and asserted in its own `assertMatrix` entry. The gallery route is OUTSIDE the diary's
@@ -1196,7 +1259,8 @@ baseline was regenerated in the pinned container against the five-face state, wi
   fetched today because every one carries `loading="lazy"`, and if that attribute is
   ever dropped the route fetches every tile in the gallery while every functional test
   still passes. `e2e/gallery.spec.ts` asserts the ATTRIBUTE; only this budget asserts
-  the EFFECT. `CLAUDE.md` §6 scopes the 2500ms LCP budget to "diary, 4G" specifically —
+  the EFFECT. `CLAUDE.md` §6 scopes the diary LCP budget (2500ms at the time of writing;
+  3000ms today, §7.0) to the diary route specifically —
   holding Payload's heavy admin bundle to it was the original reason this whole step
   was informational, and giving `/cms` its own entry with no LCP assertion is what
   stops that recurring now that `/cms` shares a config with a real route.
