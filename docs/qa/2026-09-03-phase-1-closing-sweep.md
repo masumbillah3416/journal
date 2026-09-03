@@ -2,7 +2,7 @@
 
 **Build:** bbd6e17 **Engine:** playwright-headed **Routes walked:** 19 addresses × 3 viewport projects
 
-**Result:** 6 defects — S1:0 S2:2 S3:2 S4:2
+**Result:** 7 defects — S1:0 S2:2 S3:2 S4:3
 
 Viewports are `playwright.config.ts`'s three projects: `desktop` 1440×900, `mid`
 1000×800, `mobile` 390×844 (`isMobile`, `hasTouch`, DPR 3, iPhone user agent — the
@@ -328,10 +328,12 @@ none of them is covered by any of its twenty-two entries, though three lean on e
 that support the fix rather than excuse the defect (§13.4 for PH1-002, §2 and §4 for
 PH1-003, §12 for PH1-004).
 
-**A correction to this file's own header.** It says "6 defects — S1:0 S2:2 S3:2 S4:2" and
-then lists **seven**, PH1-001 through PH1-007. The severity tally is right for the first
-six and the seventh is a third S4, so the count in the header is one short rather than an
-extra defect having been invented. Read the list, not the total.
+**A correction to this file's own header, now applied.** This file originally opened with
+"6 defects — S1:0 S2:2 S3:2 S4:2" and then listed **seven**, PH1-001 through PH1-007. The
+severity tally was right for the first six and the seventh is a third S4, so the header's
+count was one short rather than an extra defect having been invented — the header has
+been corrected to "7 defects — S1:0 S2:2 S3:2 S4:3" to match the list it summarizes,
+rather than left to disagree with the body it introduces.
 
 | Defect | Sev | Outcome | Commit |
 | --- | --- | --- | --- |
