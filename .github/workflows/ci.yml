@@ -129,10 +129,17 @@ jobs:
       # none of them gating a merge until now. `serverWindow.spec.ts` is the
       # one that matters most of the three - it is what asserts all
       # thirty-three deep links still serve their own page.
-      # Task 13 adds `e2e/routing.spec.ts` - the 404 for an address the book
-      # has no page for, the per-page metadata, the canonical link and the
-      # gallery return.
-      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
+      #
+      # THE LIST NO LONGER DEPENDS ON ANYONE NOTICING. Task 13 adds
+      # `e2e/ciRegistration.spec.ts`, whose whole subject is this line: it
+      # globs `e2e/*.spec.ts` off the filesystem and fails, naming the file,
+      # if any of them is absent from this `run:` command or from the npm
+      # scripts in package.json. It reads the command rather than the file,
+      # so a spec named only in the comments above does not satisfy it. Twice
+      # is enough; the convention is now enforced rather than remembered.
+      # Task 13's own `e2e/routing.spec.ts` (the 404, the per-page metadata,
+      # the canonical link and the gallery return) is named here too.
+      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/ciRegistration.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
       # image: chrome-launcher's own auto-detection looks for a system
       # `google-chrome`/`chromium-browser` binary, which this image does not

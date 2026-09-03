@@ -673,6 +673,17 @@ would claim a measurement nothing performs.
   disagree eventually; until one is generated from the other, checking both is part of
   landing a spec.
 
+  **The third time, it was made impossible instead.** Task 13 added
+  **`e2e/ciRegistration.spec.ts`**, whose whole subject is the two lists above. It
+  globs `e2e/*.spec.ts` off the filesystem, reads the `- run:` command out of
+  `.github/workflows/ci.yml`'s browser job and the `test:e2e` / `test:visual` /
+  `test:a11y` scripts out of `package.json`, and fails naming exactly which spec is
+  missing from which list. It reads the `run:` COMMAND rather than the workflow file,
+  because that file's comments name half these specs in prose and a substring search
+  over it would pass for a spec that is only ever mentioned — which is the state this
+  guard exists to end, dressed as a green test. It was proved able to fail: a throwaway
+  `e2e/dummyDrift.spec.ts` was added, both cases failed naming it, and the file was
+  deleted. It needs no browser and no `page` fixture, so it costs the run a file read.
 
 - **Three viewport projects** — `desktop` (1440×900), `mid` (1000×800), `mobile`
   (390×844; `isMobile`/`hasTouch` set) — run every spec three times, once per breakpoint
@@ -685,8 +696,8 @@ would claim a measurement nothing performs.
   `e2e/book.spec.ts`, `e2e/flip.spec.ts`, `e2e/layout.spec.ts`, `e2e/chrome.spec.ts`,
   `e2e/pages.spec.ts`,
   `e2e/notes.spec.ts`, `e2e/frames.spec.ts`, `e2e/about.spec.ts`,
-  `e2e/imageWindow.spec.ts`, `e2e/serverWindow.spec.ts` and
-  `e2e/routing.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
+  `e2e/imageWindow.spec.ts`, `e2e/serverWindow.spec.ts`, `e2e/routing.spec.ts` and
+  `e2e/ciRegistration.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.
@@ -696,7 +707,8 @@ would claim a measurement nothing performs.
   `e2e/smoke.spec.ts` first — a route with no console-error coverage is a route this
   suite is silently not protecting. A new spec file also needs adding to the
   `test:e2e` script AND to `.github/workflows/ci.yml`'s browser job; a spec no script
-  names is a spec CI does not run.
+  names is a spec CI does not run, and `e2e/ciRegistration.spec.ts` now fails the build
+  when either list is missing one rather than leaving it to be noticed two tasks later.
 
 ### 5 · Visual regression
 
