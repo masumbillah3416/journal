@@ -319,6 +319,169 @@ the end of this file.
 
 ---
 
+## Triage — how each of these was resolved
+
+Added after the sweep, by the closing-fixes pass on branch `feat/phase-1-public-diary`.
+Every defect above records its outcome here: **fixed**, **already a recorded departure**,
+or **not fixed, with the reason**. `docs/deviations.md` was read against all seven first;
+none of them is covered by any of its twenty-two entries, though three lean on entries
+that support the fix rather than excuse the defect (§13.4 for PH1-002, §2 and §4 for
+PH1-003, §12 for PH1-004).
+
+**A correction to this file's own header.** It says "6 defects — S1:0 S2:2 S3:2 S4:2" and
+then lists **seven**, PH1-001 through PH1-007. The severity tally is right for the first
+six and the seventh is a third S4, so the count in the header is one short rather than an
+extra defect having been invented. Read the list, not the total.
+
+| Defect | Sev | Outcome | Commit |
+| --- | --- | --- | --- |
+| PH1-001 · bookmark jump publishes its anchor | S2 | **Fixed** | `e52552d` |
+| PH1-002 · ephemera scrap published as a gallery frame | S2 | **Fixed** | `a58287e` |
+| PH1-003 · soft upscale at DPR ≥ 2, no `srcset` anywhere | S3 | **Fixed** (one residual, stated) | `88ce1c1` |
+| PH1-004 · mobile Cover drops the years line | S3 | **Fixed** | `57ad54a` |
+| PH1-005 · unused stylesheet preloaded on every page | S4 | **Fixed** | `c3b44aa` |
+| PH1-006 · address lags a committed turn | S4 | **Not fixed** — documented cost, pinned by a test | `b0140b0` |
+| PH1-007 · `?pages=all` stranded by a surface swap | S4 | **Not fixed** — outside this pass's scope | — |
+
+### PH1-001 · fixed
+
+The anchor was kept — Task 8 measured that removing it makes the flip spin the wrong way
+through the whole book — and the machine now holds the reader's location and the stack's
+anchor as two fields instead of one, with a bookmark jump arriving as its own `jump`
+event. Red first at two levels: `Book.test.tsx` polls the counter, page label, active tab
+and `location.pathname` every 40ms across a whole jump, and `e2e/flip.spec.ts` polls the
+same four in a real browser.
+
+### PH1-002 · fixed
+
+Not a re-litigation of `docs/deviations.md` §19, and the note at the end of this file is
+why that needed saying. §19 explains why a gallery tile renders its caption element when
+the caption is empty, and that reasoning is sound and untouched. What it never examined is
+a row in the grid that is **not a photograph and that no editor put there** — and the
+empty caption was the symptom that surfaced it, not the defect. §19 has gained a paragraph
+saying so. §13.4 already settled what the ephemera slot holds ("a texture behind tape
+rather than a photograph with a subject"), which is the argument for the fix, not against
+it.
+
+**The rule turned out to be written three times, and that is why the fix is not one
+line.** `readGalleryBundle` builds the grid; `readGalleryDownload` re-derives the same
+list in the same order, because a download's filename carries the frame's *position*; and
+`readBookBundle` counts it a third time for the census the Notes footer prints and the
+gallery header repeats. Fixing only the grid would have been worse than fixing nothing —
+the scrap's download address would have stayed live with every filename after it naming
+the wrong photograph, and the page would have read "9 photographs" over a grid of eight.
+All three now ask one pure module, `apps/web/lib/galleryFrames.ts`. It also closed a
+defect no fixture could have shown: **the census was the only reader that had never
+applied the `hidden` filter at all.**
+
+**This report's suggested mechanism was wrong, and is worth recording as wrong.** The
+finding says "the row already carries the `hidden` flag the query respects, so the
+mechanism to exclude it exists and is not being used." Marking the scrap `hidden: true`
+would break the Notes page: `collections/media.ts`'s reader rule is a `Where` constraint
+Payload applies to `/api/media/file/<name>` as well as to a listing, so a hidden scrap
+answers 403 to every signed-out reader and the page loses the texture §13 exists to keep.
+The scrap is identified instead by the `pages` slot that prints it — `role` lives on the
+slot, not on the media row.
+
+**Consequence for a future reader:** Patagonia's gallery is now **60** tiles, not 61, and
+the other nine journeys are 8 rather than 9. §1.8's verified bar ("square and unsqueezed
+at 40+") still holds and §1.9's `003 / 061` was always the counter's three-digit *format*.
+`docs/deviations.md` §20 records the change.
+
+### PH1-003 · fixed, with one residual stated rather than glossed
+
+`TILE_TIERS` is now the list of tiers a tile **offers**, emitted as a `srcset` with each
+derivative's real width, and the browser chooses. `sizes` — without which no `srcset` can
+work — is derived in the domain (`galleryTileSizes`) from the same thumb size that sets
+the track it describes, in two entries rather than the grid's whole column arithmetic,
+because `sizes` is an attribute on every one of sixty `img`s. The one-column case, where
+this report measured the defect and where the error would be largest, is exact.
+
+A second test pins the other direction: at 1440px the tile is 215px at DPR 1 and the
+400px `thumb` is still what gets served. Trading a soft phone for a wasteful desktop would
+not have been a fix.
+
+**Residual.** The seeded placeholders are 900px squares, so Payload derives only `thumb`
+and `tile` for them, and 800px is the sharpest answer this database holds for a 354px tile
+at DPR 3 — 1.33× rather than the 2.66× it was. The *mechanism* was the defect and is now
+right; a real photograph carries `frame` and `hero` too and the same `srcset` reaches them
+with no further change. This is the same fixture ceiling this finding already declines to
+report the book's page slots on, and `hero2x` being served to nobody on the book's surface
+is unchanged by this fix.
+
+The browser measurement had to change, and the reason is worth keeping: **`naturalWidth`
+is not readable evidence once a `srcset` is in play.** The browser reports an image's
+intrinsic size corrected for the pixel density its chosen candidate implies, so a
+correctly-served 800px tile in a 354px box reports `354` — the same number a wrong one
+reports. The test asserts which candidate was taken instead.
+
+### PH1-004 · fixed
+
+§1.10 was not an authority the omission could appeal to: it enumerates no type on the
+mobile cover at all — not the eyebrow, the rules, the subtitle or "Kept by" either, all
+four of which that surface already printed from §1.1 — so the set is §1.1's and the years
+line was the only member missing. The line takes `.coverKeptBy`'s 10px/.26em (§1.1's
+12.5px/.3em scaled for a 390px phone) with the book's own 8px top margin, no
+`text-transform`, and `docs/deviations.md` §12's `rgba(238,220,180,.78)`. That alpha sits
+*above* the neighbouring "Kept by" line's `.72`, so it cannot be the first line on this
+cloth to fail contrast.
+
+### PH1-005 · fixed
+
+The cause was where the rules lived, not the preload. `not-found.tsx` is a sibling slot of
+`children` in the `(diary)` group's layout tree, so Next collects a CSS module imported
+there as part of the *segment's* stylesheets and preloads it on every route in the group.
+The rules moved into `diary.css`, which the group's layout already loads everywhere, so
+there is no second chunk to preload. Not one declaration changed, and the rendered 404 was
+opened at 1440×900 to confirm it: desk gradient, paper card with its hairline and shadow,
+Courier eyebrow, Caveat 58px title, hairline rule, Garamond body, terracotta "Open the
+diary". An inline `<style>` was rejected — it would ship the rules on the 404 alone, but it
+moves a stylesheet into a `.tsx` file and out of the convention every other surface here
+follows.
+
+### PH1-006 · not fixed; a documented cost with a measured production margin, now pinned
+
+This is **not** a recorded deviation, and it is **not** a later phase's work either —
+saying so would be stretching this task. It is a Phase 1 trade-off that this report is
+right to call out, and one whose fix is not affordable on the evidence available:
+
+- **The hold is load-bearing and measured.** `useRestOfBook` widens the document by
+  navigating to the *same* path with `?pages=all` added, because Next keys a route
+  segment's subtree by that segment's value. Changing `/p/<n>` while that request is in
+  flight remounts the book and discards the flip state — measured on a production build,
+  mount count 1 → 2. Writing the address earlier is what would cost that.
+- **Holding the turn instead** — the way a jump is already held — would make a reader's
+  first turn wait on a round trip, which is the single thing `useRestOfBook`'s design
+  exists to avoid: the window is three leaves deep either side precisely so the gesture
+  that asks for the rest of the book is served out of the document already in hand.
+- **No reader on a normal connection meets it.** This report's own production numbers: the
+  widening lands at 110ms, well inside the 900ms turn, so the counter and the address move
+  together and the same refresh keeps the new page.
+
+So the honest outcome is a cost recorded rather than an invariant claimed. Two things
+changed. `Book.tsx`'s header had asserted "until the answer lands the address is still the
+page the reader arrived on, **which is where they still are**" — this report is correct
+that the second half is false, and it has been corrected rather than left to mislead the
+next reader. And `Book.test.tsx` now pins the gap executably, with the remount measurement
+in its own comment, so anyone who moves the address write earlier meets a red test with
+the reason attached.
+
+**What would settle it** is the one measurement this sweep names as not taken: `/p/<n>`
+under network throttling on a production build, to find the connection speed at which the
+gap becomes reader-visible. That is a follow-up, and it is what should decide whether
+paying the remount is worth it.
+
+### PH1-007 · not fixed; outside this pass
+
+Not triaged here beyond this note: the closing-fixes pass was scoped to PH1-002 through
+PH1-006, and PH1-007 is the finding this file's own header does not count. It is a real
+finding and it is still open. It is also the cheapest of the three S4s to close — the
+mobile route entry needs the same "take the query back off" write the book surface already
+does — and it shares PH1-006's mechanism seen from the other side, as this report says. It
+should be picked up alongside PH1-006's throttling measurement rather than on its own.
+
+---
+
 ## Status of every defect from the earlier sweeps
 
 Each was re-checked in the browser on the **production build**, not read off a green
