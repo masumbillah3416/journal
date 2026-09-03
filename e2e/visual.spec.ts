@@ -9,6 +9,22 @@
  * Phase 1 Tasks 9 and 10, and Frames I, Frames II and About from Task 11
  * (SCREENS.md §1.1-§1.6). Every page type the book has is now covered.
  *
+ * THE TASK 12 REGENERATION (all six `diary-*` cases, eighteen images) is the
+ * chrome. SCREENS.md §1.7's bookmark rail, bottom bar and spine ribbon sit
+ * OUTSIDE the scaled design box and were, until Task 12, behaviour only — a
+ * column of plain one-line tabs, two guillemet arrows and a bare counter.
+ * Every diary case here snapshots the FULL PAGE (see below), so every one of
+ * them carried that interim chrome and every one of them moves. What replaces
+ * it: the "Bookmarks" eyebrow, thirteen two-line tabs each with its tint bar,
+ * the active tab lifted 6px onto the page in the page's own paper, the 58px
+ * bar with its circular arrows and the page label under the counter, and the
+ * ribbon hanging off the top-left of the board. This file's earlier revision
+ * predicted exactly this ("that task updates these files, which is expected
+ * and is what a baseline is for"); it is six cases rather than three because
+ * Task 11 added three more page types in between. The three `/cms` baselines
+ * are untouched — that route has its own root layout and never sees the
+ * diary's chrome or its stylesheet — and were not regenerated.
+ *
  * THE TASK 11 BASELINES (`diary-frames-i-*`, `diary-frames-ii-*`,
  * `diary-about-*`) were captured in the same pinned-container run as the
  * regeneration of the six that already existed, with `e2e/layout.spec.ts`
@@ -42,9 +58,9 @@
  * at 390px actually sees is the scaled result — a box-only snapshot would be
  * identical at all three projects and would prove nothing about the
  * breakpoints. The consequence is that these baselines also carry the diary
- * chrome outside the box (bookmark rail, bottom bar), whose designed
- * appearance is Task 12; that task updates these three files, which is
- * expected and is what a baseline is for.
+ * chrome outside the box — the bookmark rail and the bottom bar — and, inside
+ * the box but drawn over the page, the spine ribbon. That is why Task 12
+ * moved every one of them; see above.
  *
  * FONTS: all three Google Fonts the handoff specifies (Caveat, EB Garamond,
  * Courier Prime) are self-hosted via `next/font/local`, at all five faces the
