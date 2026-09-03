@@ -389,6 +389,17 @@ test('serves every one of the thirty-three deep links its own page, in raw HTML'
   expect(book.kinds).not.toContain('none')
   expect(book.governingTab).not.toContain('none')
 
+  // The identity check below (kind, then governing journey) only pins a served
+  // route to the right leaf because that pair happens to be unique across
+  // today's thirty-three - true of the current seed, but never asserted here,
+  // so a future seed with two same-kind pages in one journey would silently
+  // weaken this test instead of failing it. Assert the uniqueness directly.
+  const bookPairs = book.kinds.map((kind, leaf) => `${kind}::${book.governingTab[leaf] ?? ''}`)
+  expect(
+    new Set(bookPairs).size,
+    'two leaves share the same (kind, governing journey) pair - the checks below cannot tell them apart',
+  ).toBe(book.kinds.length)
+
   const documents = await Promise.all(
     book.kinds.map(async (_kind, leaf) => {
       const path = `/p/${String(leaf + 1)}`
