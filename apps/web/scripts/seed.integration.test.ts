@@ -7,7 +7,7 @@
  * runs only under the `integration` Vitest project (see
  * ../../../vitest.config.ts), never in `npm run verify` (pre-commit).
  *
- * Uses `getTestPayload()` (`../lib/testPayload.js`), not `getPayload()`
+ * Uses `getTestPayload()` (`../lib/testPayload`), not `getPayload()`
  * directly: every integration test file connects to an isolated `diary_test`
  * database, never the developer's own dev database (Task 10/11 review round
  * 1, finding 2) - see that module's header for why and how.
@@ -40,9 +40,9 @@
  * this one, and is not faked here by counting something that is not a page.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
-import { getTestPayload } from '../lib/testPayload.js'
-import { seed } from './seed.js'
-import { aboutGlobalSeed, bookGlobalSeed, journeySeeds } from './seed-data.js'
+import { getTestPayload } from '../lib/testPayload'
+import { seed } from './seed'
+import { aboutGlobalSeed, bookGlobalSeed, journeySeeds } from './seed-data'
 
 const SEED_TEST_TIMEOUT_MS = 60_000
 

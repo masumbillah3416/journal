@@ -1,0 +1,35 @@
+{
+  "ci": {
+    "collect": {
+      "url": ["http://localhost:3000/p/1"],
+      "numberOfRuns": 5,
+      "startServerCommand": "npm run build -w apps/web && npm run start -w apps/web -- --port 3000",
+      "startServerReadyPattern": "Ready in",
+      "startServerReadyTimeout": 180000,
+      "settings": {
+        "chromeFlags": "--no-sandbox --disable-dev-shm-usage",
+        "extraHeaders": "{\"Cookie\":\"td-reading-surface=book\"}",
+        "formFactor": "desktop",
+        "screenEmulation": { "mobile": false, "width": 1350, "height": 940, "deviceScaleFactor": 1, "disabled": false }
+      }
+    },
+    "assert": {
+      "assertMatrix": [
+        {
+          "matchingUrlPattern": ".*/p/1$",
+          "aggregationMethod": "median",
+          "assertions": {
+            "http-status-code": ["error", { "minScore": 1 }],
+            "resource-summary:script:size": ["error", { "maxNumericValue": 184320 }],
+            "largest-contentful-paint": ["error", { "maxNumericValue": 3000 }],
+            "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }]
+          }
+        }
+      ]
+    },
+    "upload": {
+      "target": "filesystem",
+      "outputDir": "./lhci-reports/book"
+    }
+  }
+}

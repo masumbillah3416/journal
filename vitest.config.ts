@@ -46,6 +46,67 @@
  * (run via `npm run test:integration:coverage`, chained into
  * `npm run verify:full`), runs the same integration tests with `--coverage`
  * scoped to exactly these files, with its own thresholds. See docs/testing.md.
+ *
+ * `apps/web/app/**` and `apps/web/components/**` (Task 1 of Phase 1) are
+ * included here NOW, before either holds any of the phase's own code, so
+ * that Phase 1's first server action, page component or mapper lands already
+ * measured rather than retrofitted - Phase 0 shipped three separate
+ * incidents of code invisible to every coverage pass because no `include`
+ * matched it (CLAUDE.md §2.1: "an unmeasured file looks exactly like a fully-
+ * covered one"). `apps/web/lib/**`'s coverage include already widens to
+ * `.tsx`; without the same widening here, a `components/` tree landing
+ * `.tsx` files would have been that fourth incident.
+ *
+ * `apps/web/app/**` today holds only Payload's own six route/layout
+ * re-exports under `(payload)/` (`docs/testing.md`'s "one deliberate hole" -
+ * no logic of ours, and nothing runnable without a real Next.js request
+ * context). Three of the six (`layout.tsx` and the two GraphQL routes) wrap
+ * their executable body - imports included, not just the export, since an
+ * unimported file's imports are themselves uncovered lines - in
+ * `c8 ignore start`/`stop`, rather than a silent config-level exclude: no
+ * OTHER coverage pass can see them either (unlike `migrate.ts` etc. above,
+ * there is no integration-only test that could import a route handler), so
+ * a per-file `c8 ignore` is the honest treatment CLAUDE.md §2.1 asks for
+ * where nothing can measure a file, not exclude-and-regate, which promises
+ * a pass that does not exist. `c8 ignore file` was tried first and
+ * rejected: for a file this coverage pass's `include` matches but no test
+ * ever imports, `@vitest/coverage-v8`'s zero-coverage path measures it
+ * through a line-comment scanner that recognises `next`/`start`/`stop` but
+ * not `file` (verified - `ignore file` left these files reporting real,
+ * non-zero, un-ignored statement/function counts at 0% executed, exactly
+ * the false negative this task exists to prevent).
+ *
+ * The other three - the ones under a Next.js dynamic-route directory
+ * (`[...slug]`, `[[...segments]]`) - are excluded in the `exclude` array
+ * below instead, with their own comment: `c8 ignore start`/`stop` does not
+ * take effect on that path shape either, verified by reproducing one of
+ * them byte-for-byte under an unbracketed sibling directory and watching
+ * the copy get ignored correctly while the bracketed original did not. See
+ * that comment for the full reasoning.
+ *
+ * `apps/web/app/**`'s 95%/95%/95% threshold below therefore binds real code
+ * the moment it lands (Task 13's diary route and any further page under
+ * `app/`), not the ignored or excluded scaffolding.
+ *
+ * `apps/web/components/**` held no files at all until Task 7 of Phase 1, so
+ * it deliberately carried no per-glob threshold - a threshold against zero
+ * files is a vacuous pass, not a gate. Task 7 landed the book's frame, page
+ * stack and the two hooks that drive them there, so the directory now
+ * carries an explicit 90%/90%/90% threshold below: the repository-wide floor
+ * this file's earlier revision always said these files would fall under once
+ * they existed, now named rather than inherited, per CLAUDE.md §2.1's "adding
+ * code in a new directory means adding that directory to an include, with a
+ * real threshold, in the same commit".
+ *
+ * The `unit-dom` project gains two settings with Task 7's first real
+ * components: a `setupFiles` entry (see `vitest.dom-setup.ts`) and
+ * `css.modules.classNameStrategy: 'non-scoped'`, which makes a CSS Module
+ * import resolve each key to its own literal name instead of `undefined`.
+ * Nothing in a jsdom test asserts a computed style - jsdom performs no
+ * layout, which is exactly why the rules that matter (a back face's
+ * `pointer-events: none` above all) are asserted in a real browser by
+ * `e2e/book.spec.ts` - so the strategy is purely about components rendering
+ * readable class names under test.
  * Depends on: vitest/config.
  */
 import { defineConfig } from 'vitest/config'
@@ -60,7 +121,16 @@ export default defineConfig({
       {
         test: {
           name: 'unit',
-          include: ['packages/*/src/**/*.test.ts', 'apps/web/lib/**/*.test.ts', 'apps/web/scripts/**/*.test.ts'],
+          include: [
+            'packages/*/src/**/*.test.ts',
+            'apps/web/lib/**/*.test.ts',
+            'apps/web/scripts/**/*.test.ts',
+            // `apps/web/middleware.ts` sits at the app's own root, where
+            // Next.js requires it - see its header. Without this glob its
+            // test file would be collected by nobody, which is the exact
+            // failure mode this config's header exists to prevent.
+            'apps/web/*.test.ts',
+          ],
           exclude: ['**/*.integration.test.ts', '**/node_modules/**'],
           env: {
             DATABASE_URL: 'postgres://unit-test:unused@localhost:5432/unit-test',
@@ -81,6 +151,20 @@ export default defineConfig({
         esbuild: { jsx: 'automatic' as const },
         test: {
           name: 'unit-dom',
+          // React refuses to run `act()` unless IS_REACT_ACT_ENVIRONMENT is
+          // true on the global object, and reads it from there rather than
+          // from an import - so it is set once here for every component and
+          // hook test instead of four repeated lines at the top of each.
+          setupFiles: ['./vitest.dom-setup.ts'],
+          // CSS Modules are not compiled for this project (nothing here
+          // asserts a computed style - jsdom performs no layout, so the rules
+          // that matter, `pointer-events: none` on a back face above all, are
+          // asserted in the browser by e2e/book.spec.ts). `classNameStrategy:
+          // 'non-scoped'` makes `styles.leaf` resolve to the literal string
+          // `leaf` rather than `undefined`, so a component test renders the
+          // same class names a reader would see in the DOM instead of
+          // `class="undefined"`.
+          css: { modules: { classNameStrategy: 'non-scoped' as const } },
           // Until this project existed, no project's `include` matched
           // `*.test.tsx` and no project set a DOM environment. A React
           // component test would therefore have been collected by NOBODY -
@@ -129,12 +213,59 @@ export default defineConfig({
         'apps/web/lib/**/*.ts',
         'apps/web/lib/**/*.tsx',
         'apps/web/scripts/**/*.ts',
+        // `apps/web/migrations/index.ts`: named by its exact path, not
+        // widened to `apps/web/migrations/**` - its sibling migration files
+        // need a real Postgres connection to execute their `up()`/`down()`
+        // and are measured instead by `vitest.integration.config.ts`'s own
+        // `apps/web/migrations/**` include. This one file needs neither, so
+        // it is measured here instead by `apps/web/lib/migrationsIndex.test.ts`
+        // (matched by this project's plain `apps/web/lib/**/*.test.ts` glob
+        // above - no new glob needed). That test does NOT live beside the
+        // barrel it tests: Payload's own `readMigrationFiles` treats every
+        // file in `migrationDir` ending `.ts`/`.js` as a migration to
+        // dynamically import UNLESS its name is exactly `index.ts`/`index.js`
+        // - it does not recognise `*.test.ts` as anything special. A
+        // `index.test.ts` colocated in `apps/web/migrations/` was tried first
+        // and broke every integration test that bootstraps Payload (each
+        // self-migrates on first connect): `readMigrationFiles` tried to
+        // `dynamicImport` the test file itself as a migration and failed
+        // resolving its own extension-less `./index` import. See the `exclude`
+        // array below for why the wildcard this replaced was wrong.
+        'apps/web/migrations/index.ts',
+        // Task 1 of Phase 1: see this file's own header for why these two
+        // are widened in ahead of any real code landing in them.
+        'apps/web/app/**/*.ts',
+        'apps/web/app/**/*.tsx',
+        'apps/web/components/**/*.ts',
+        'apps/web/components/**/*.tsx',
+        // Next.js requires the middleware at the app's own root, so no
+        // `apps/web/lib/**` or `apps/web/app/**` glob above reaches it -
+        // and an unmeasured file looks exactly like a fully-covered one
+        // (CLAUDE.md §2.1). It is named here, and gated at 100% below.
+        'apps/web/middleware.ts',
       ],
       exclude: [
         '**/*.test.ts',
         '**/*.test.tsx',
         '**/*.d.ts',
-        '**/index.ts',
+        // This was `'**/index.ts'` until Phase 1's final review. CLAUDE.md
+        // §2.1 requires an exclusion to name "the file's exact path, never a
+        // directory wildcard", so that a future file placed alongside it is
+        // not silently swept into the same hole - and a `**/index.ts` excuses
+        // every `index.ts` this repository will ever hold, sight unseen.
+        // Narrowing it to `apps/web/migrations/index.ts` - the one file the
+        // wildcard actually described - made it visible that the file then
+        // sat in NEITHER config's measured set: `vitest.integration.config.ts`
+        // also excludes it by the same exact path, because
+        // `readMigrationFiles` filters `index.ts`/`index.js` out and no
+        // integration test executes it either. That is exactly the gap
+        // CLAUDE.md §2.1 forbids without a named, demonstrated tooling
+        // defect - and there isn't one here, only a file nothing organically
+        // imports - so the fix is to measure it, not to excuse it: it is
+        // included above instead, with a dedicated
+        // `apps/web/lib/migrationsIndex.test.ts` (a plain import and an
+        // array-shape assertion, no Postgres needed) and its own 100%
+        // threshold below. It is NOT in this exclude list.
         // Gated instead by vitest.integration.config.ts's dedicated pass -
         // see this file's own header and docs/testing.md.
         'apps/web/lib/adapters/postgres-queue.ts',
@@ -165,6 +296,112 @@ export default defineConfig({
         // needs the same explicit exclude-and-regate treatment as the queue
         // files.
         'apps/web/lib/testPayload.ts',
+        // readBookBundle.ts (Task 6 of Phase 1) is reachable only from
+        // readBookBundle.integration.test.ts - it needs a real Payload/
+        // Postgres to read journeys/pages/media from - so it is gated by
+        // vitest.integration.config.ts instead, same reasoning as the queue
+        // files and testPayload.ts above.
+        'apps/web/lib/readBookBundle.ts',
+        // readGalleryBundle.ts and readGalleryDownload.ts (Task 14 of Phase
+        // 1) are reachable only from their own `*.integration.test.ts` files
+        // - both need a real Payload/Postgres, and readGalleryDownload also
+        // needs the derivative files the media collection wrote to disk - so
+        // they are gated by vitest.integration.config.ts instead, same
+        // reasoning as readBookBundle.ts above.
+        'apps/web/lib/readGalleryBundle.ts',
+        'apps/web/lib/readGalleryDownload.ts',
+        // Task 1 of Phase 1: these three are the app/(payload)/** files
+        // whose parent directory is a Next.js dynamic-route segment written
+        // in square brackets (`[...slug]`, `[[...segments]]`) - required by
+        // Next.js's own routing convention, not something this repository
+        // can rename. `c8 ignore start`/`stop` (used successfully in the
+        // three sibling files that do NOT sit under a bracketed directory -
+        // layout.tsx, api/graphql/route.ts, api/graphql-playground/route.ts,
+        // each fully excluded with no config entry needed) does not take
+        // effect for a file under one: verified by reproducing the same
+        // page.tsx content, byte-for-byte, under an unbracketed sibling
+        // directory (apps/web/app/(payload)/cms-test-nobracket/page.tsx,
+        // deleted after the comparison) - the copy was correctly ignored,
+        // the original was not, with the tool instead reporting its header
+        // comment's own line range as "uncovered" once the ignored code
+        // beneath it produced no `DA` entries of its own to anchor against.
+        // That is a bug in how `@vitest/coverage-v8` scans source text for
+        // ignore hints on this path shape, not a defect in the file. A
+        // config-level exclude, with this same reason, is the honest
+        // substitute for a source-level `c8 ignore` that cannot be trusted
+        // to hold on this path shape - CLAUDE.md §2.1's two sanctioned
+        // treatments (exclude-and-regate; `c8 ignore`) both assume the
+        // chosen mechanism actually works, which this one demonstrably does
+        // not here.
+        // Task 7 of Phase 1 added the diary's own bracketed route to this
+        // list, and re-verified the defect above rather than inheriting the
+        // claim. The control sits inside the very same coverage run: this
+        // task's `(diary)/layout.tsx` - identical `c8 ignore start`/`stop`
+        // wrapping, identically never imported by any test, but NOT under a
+        // bracketed directory - is correctly reported as 0 of 0 with no
+        // uncovered lines, while `(diary)/p/[n]/page.tsx`, wrapped exactly
+        // the same way, was reported with its whole body (lines 1-22)
+        // uncovered. The bracket is the only difference between them, so it
+        // is the scanner that fails, not the file. The file itself qualifies
+        // for CLAUDE.md §2.1's narrow carve-out on all three counts: it was
+        // read and holds zero authored logic (await the route params and the
+        // query, read the bundle, render `<Book>` with one child per page) -
+        // all three of its real decisions are delegated to
+        // `@travel-diary/domain`, which gates that package at 100%:
+        // `pageIndexFromParam` for what `<n>` means, `servedContentWindow`
+        // for which pages this request gets the content of, and
+        // `rendersContent` for whether a given leaf is one of them
+        // (docs/adr/0009-server-rendered-page-window.md). Re-read this
+        // clause before adding anything to that file: a branch of its own
+        // there is a branch nothing can measure. The tooling defect is named
+        // and reproduced above; and this entry names the exact path, so a
+        // future file placed beside it under the same bracketed parent is not
+        // swept into the same hole and must justify its own exclusion. Its
+        // runtime behaviour is covered in a real browser by e2e/book.spec.ts
+        // and e2e/smoke.spec.ts. Revisit when @vitest/coverage-v8's version
+        // changes - a fixed scanner removes the justification.
+        'apps/web/app/(diary)/p/\\[n\\]/page.tsx',
+        // Task 15's follow-up (docs/adr/0012) splits the diary's two reading
+        // surfaces across two route entries so neither ships the other's
+        // client chunk, which adds a second page component under a bracketed
+        // directory. It qualifies on the same three counts as the one above,
+        // re-verified in the same run against the unbracketed control
+        // `(diary)/layout.tsx` rather than inherited: (1) it was read and holds
+        // zero authored logic - await the params, read the bundle, render
+        // `<MobileDiary>` around the one addressed page - with what `<n>` means
+        // delegated to `addressedPageIndex`, its metadata to
+        // `addressedPageMetadata`, its chrome to `deriveRail`/`mobileHeading`/
+        // `pageLabel`, and WHICH READERS REACH IT AT ALL to
+        // `apps/web/middleware.ts`, which this pass does measure, at 100%;
+        // (2) the tooling defect is the one named above and is a property of the
+        // path shape, which this file shares; (3) it names its exact path. Its
+        // runtime behaviour is covered in a real browser by e2e/mobile.spec.ts,
+        // e2e/routing.spec.ts, e2e/layout.spec.ts and e2e/a11y.spec.ts.
+        'apps/web/app/(diary)/m/\\[n\\]/page.tsx',
+        // Task 14 of Phase 1 adds the gallery route and its download handler
+        // to this list, on the same three counts CLAUDE.md §2.1's carve-out
+        // requires - re-verified against the control in this same run rather
+        // than inherited. (1) Both were read and hold zero authored logic:
+        // the page awaits its param, reads `readGalleryBundle`, 404s when
+        // there is none and renders two components; the route handler awaits
+        // its two params, calls `readGalleryDownload` and turns a `Result`
+        // into a `Response` with four fixed headers. Every decision either
+        // appears to take belongs to a module with its own suite -
+        // `readGalleryBundle`/`readGalleryDownload` (integration, against a
+        // real Payload), `GalleryHeader`/`Grid`/`Tile`/`Lightbox` (jsdom),
+        // and `@travel-diary/domain`'s `gallery`/`galleryDownload`, gated at
+        // 100%. (2) The tooling defect is the one named above and is a
+        // property of the path shape, which both of these share (`[slug]`,
+        // `[id]`); `(diary)/layout.tsx` remains the control that is correctly
+        // ignored without a config entry. (3) Each names its exact path, so a
+        // future file placed beside either is not swept into the same hole.
+        // Their runtime behaviour is covered in a real browser by
+        // e2e/gallery.spec.ts and e2e/a11y.spec.ts.
+        'apps/web/app/(diary)/gallery/\\[slug\\]/page.tsx',
+        'apps/web/app/(diary)/gallery/\\[slug\\]/download/\\[id\\]/route.ts',
+        'apps/web/app/(payload)/api/\\[...slug\\]/route.ts',
+        'apps/web/app/(payload)/cms/\\[\\[...segments\\]\\]/page.tsx',
+        'apps/web/app/(payload)/cms/\\[\\[...segments\\]\\]/not-found.tsx',
       ],
       thresholds: {
         // Repository-wide floor.
@@ -177,10 +414,84 @@ export default defineConfig({
           branches: 100,
           functions: 100,
         },
+        // `packages/tokens/src/**` is the same kind of code as
+        // `packages/domain/src/**` - three pure modules (`colour.ts`,
+        // `geometry.ts`, `type.ts`) with no I/O, no framework and no React -
+        // and it was falling to the repository-wide 90% floor purely because
+        // nobody had named it. CLAUDE.md §2.1 asks a directory for "a real
+        // threshold", and the honest one is the number the directory actually
+        // achieves: 100/100/100, measured, not rounded up. Named rather than
+        // inherited so that a rule landing at 91% here fails on its own commit
+        // instead of hiding under an aggregate set for framework glue.
+        'packages/tokens/src/**/*.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
         'apps/web/lib/**/*.ts': {
           lines: 95,
           branches: 95,
           functions: 95,
+        },
+        // Task 1 of Phase 1: matches apps/web/lib's bar, since Phase 1's
+        // server actions, page components and BookBundle mappers are the
+        // same kind of code - our own logic, not framework glue. Every file
+        // currently under apps/web/app/** is either `c8 ignore start`/`stop`
+        // wrapped or config-excluded (see this file's own header), so this
+        // threshold has nothing to bind against yet; it starts applying the
+        // moment real code lands.
+        // No equivalent entry for apps/web/components/**: that directory
+        // holds no files yet (`.gitkeep` only), and a threshold against zero
+        // files is the vacuous pass this task was told not to add - it
+        // falls under the repo-wide floor above once populated instead.
+        'apps/web/app/**/*.ts': {
+          lines: 95,
+          branches: 95,
+          functions: 95,
+        },
+        'apps/web/app/**/*.tsx': {
+          lines: 95,
+          branches: 95,
+          functions: 95,
+        },
+        // Task 7 of Phase 1 populated apps/web/components/** with its first
+        // real files (the book's frame, page stack and the two hooks that
+        // drive them), so the directory now gets the explicit threshold
+        // CLAUDE.md §2.1 asks for - "adding code in a new directory means
+        // adding that directory to an include, with a real threshold, in the
+        // same commit". It is set at the repository-wide 90% floor, which is
+        // the bar this config's own header always said these files would
+        // fall under once they existed; the higher 95% bar is reserved for
+        // `lib/**` and `app/**`, whose files are server-side logic rather
+        // than a React binding whose last few percent are framework glue.
+        'apps/web/components/**/*.tsx': {
+          lines: 90,
+          branches: 90,
+          functions: 90,
+        },
+        'apps/web/components/**/*.ts': {
+          lines: 90,
+          branches: 90,
+          functions: 90,
+        },
+        // The middleware takes no decision of its own - which surface a
+        // request is served is `servedReadingSurface`'s, gated at 100% in the
+        // domain - so what is left in it is three routing outcomes and a
+        // matcher, every one of them reachable from a plain `NextRequest`
+        // (apps/web/middleware.test.ts). 100% is the number that is actually
+        // achieved there, not a rounded-up one.
+        'apps/web/middleware.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        // Two imports and an array literal, nothing else - `index.test.ts`
+        // exercises the whole file, so 100% is the honest number, not a
+        // rounded-up one.
+        'apps/web/migrations/index.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
         },
       },
     },

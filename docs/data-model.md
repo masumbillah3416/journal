@@ -60,6 +60,25 @@ frame and a wide frame wants different focus; `media.focalPoint` is the default 
 through to actual rendering a Phase 4 exit criterion precisely because an admin control
 that doesn't affect rendering is decorative.
 
+**Wired through, and proved rather than asserted (Phase 1 Tasks 10 and 11).** Every
+photograph the diary draws — the Notes hero, the ephemera scrap, Frames I's three,
+Frames II's four and the About portrait — reaches `object-position` through one
+component, `apps/web/components/pages/Photograph.tsx`, which sets it inline from the
+slot's own value. `apps/web/scripts/seed-data.ts` deliberately gives four of those
+slots a NON-DEFAULT focal point (Tokyo's hero, its first Frames I slot, its third
+Frames II slot, and the About portrait's media item), because a seed in which every
+slot were centred would leave the control unprovable in a browser: every rendered crop
+would look identical whether the value arrived or not. `e2e/notes.spec.ts`,
+`e2e/frames.spec.ts` and `e2e/about.spec.ts` each screenshot the same element twice —
+once at its focal point, once forced back to `50% 50%` — and require the two buffers
+to differ.
+
+**The About portrait is the one exception to "on the slot", and the rule's own wording
+is why.** The `about` global holds a bare `upload` with no slot on it, so there is
+nothing for a slot to override: `media.focalPoint` IS the portrait's focal point, and
+`readBookBundle` reads `media.focalX/focalY` for that one photograph. The seed writes
+it onto the media row rather than onto a `pages` slot for the same reason.
+
 ### `users`
 
 One row in practice. `auth: { tokenExpiration: 60 * 60 * 24 * 7, maxLoginAttempts: 5,
@@ -121,7 +140,12 @@ from the data it was derived from:
 - Page index and the `03 / 33` counter — from the ordered page list.
 - Contents entries and their page numbers — `2 + journeyIndex × pageCount + 1`.
 - Bookmark tab spans — a journey's tab is active across all of its pages.
-- "{n} photographs and {n} clips in the gallery" — count of `media` by `kind`.
+- "{n} photographs and {n} clips in the gallery" — count of `media` by `kind`. Computed
+  in `apps/web/lib/readBookBundle.ts` (`galleryCountsByJourney`) from one two-column
+  census query covering the whole book, and carried onto every page of a journey as
+  `BookPage.gallery`; the Notes page's footer (`SCREENS.md` §1.3) is its first reader.
+  A media row whose `kind` the pipeline has not set yet counts as a photograph — the
+  line names two categories, and an unclassified still is not a third.
 - "{n} of {n} in the book" — count of `media` where `inBook`.
 - Storage quota — sum of `filesize` grouped by `kind`.
 
@@ -198,3 +222,11 @@ journey list. The handoff's "33 pages" names the full reading sequence (Cover + 
 rows and the two globals; it was never a `pages` row count. An earlier version of the
 seed got this wrong (three rows attached to the first journey as a workaround) — see
 `docs/deviations.md` §5, now a correction record rather than an active deviation.
+
+**Both globals reach the diary beside the reading sequence, not inside it.**
+`BookBundle` carries `chrome` (the `book` global, Phase 1 Task 9) and `about` (the
+`about` global, Task 11) as their own fields. Neither hangs off the `{ kind: 'cover' }`
+or `{ kind: 'about' }` page, because both are read once per request from a global
+rather than derived from a row — a bundle whose consumers had to find them by walking
+the reading sequence would make every page component's props depend on where in the
+book it happened to be printed.

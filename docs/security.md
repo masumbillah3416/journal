@@ -43,11 +43,40 @@ Phase 3.
 | CSRF protection on cookie-authenticated mutations | Phase 2 | Phase 2 |
 | Authorization on **every** mutation | Payload access control per collection — nothing inherits trust from the page it was reached from | Phase 2 (built before the admin's ten screens exist, deliberately — see design spec §4, Phase 2) |
 | Media served from a separate origin | R2 custom domain with its own restrictive CSP | Phase 1 (public diary rendering references media by URL for the first time) |
-| Downloads through our handler | short-lived signed URL, `Content-Disposition: attachment`, strict `Content-Type`. Never a bucket URL — direct URLs invite enumeration of everything in the bucket, including anything hidden | Phase 1 (gallery + lightbox download action) |
+| A hidden media item stays hidden from a signed-out reader | `media`'s own `access.read` returns a `{ hidden: { not_equals: true } }` constraint rather than `true`, so the exclusion applies to `/api/media/file/<name>` as well as to a listing (`apps/web/collections/media.ts`) | **Discharged in Phase 1 Task 10**, the first task whose page displays a photograph. Asserted by `apps/web/collections/collections.integration.test.ts` — one case that a reader CAN read an ordinary item, one that they CANNOT read a hidden one, and one that a signed-in editor still can. Without a rule of its own the collection inherited Payload's default ("a logged-in user"), so every photograph in the public diary answered `403` — a failure invisible in a screenshot, since the page laid out perfectly with empty frames |
+| Downloads through our handler | `GET /gallery/<slug>/download/<id>` (`apps/web/app/(diary)/gallery/[slug]/download/[id]/route.ts`), whose whole body is `apps/web/lib/readGalleryDownload.ts` and whose pure rules are `packages/domain/src/galleryDownload.ts`. Never a bucket URL: the `href` the lightbox renders is `galleryDownloadPath`'s root-relative path — no scheme, no authority, both segments percent-encoded — so it cannot resolve to `MEDIA_ORIGIN` or to any other origin. The handler serves a **derivative** (`hero`, else `frame`, else `tile`, else `thumb`; never `hero2x`, and never the uploaded original) with `Content-Disposition: attachment`, a `Content-Type` from a three-value allowlist that refuses `image/svg+xml` by name rather than by hoping the upload pipeline did, `X-Content-Type-Options: nosniff` and `X-Robots-Tag: noindex`. It verifies four things before reading a byte — the journey is published, the frame belongs to *that* journey, the frame is not `hidden`, and `allowDownload` is not `false` — and answers **one identical 404 for every refusal**, so it cannot become the enumeration oracle the requirement exists to close. A short-lived signed URL was considered and not taken (`docs/deviations.md` §17): this app already fronts the store, so signing would add an expiry to reason about without removing a hop | **Discharged in Phase 1 Task 14**, with the gallery and its lightbox. Asserted by `apps/web/lib/readGalleryDownload.integration.test.ts` (ten cases against a real Payload, a real Postgres and the real files on disk — four of them refusals, plus one that every refusal is the *same* refusal), by `packages/domain/src/galleryDownload.test.ts` (the allowlist, the derived filename, the root-relative path), and in the browser by `e2e/gallery.spec.ts`, which reads the response headers a unit test cannot see |
 | `passwordProtect` gates server-side | a client-side check leaves the content fetchable | Phase 1 (diary routing) |
-| `indexGalleries` respected | `robots.txt` **and** `X-Robots-Tag`, since pages are statically served | Phase 1 (gallery route) |
+| `indexGalleries` respected | `robots.txt` **and** `X-Robots-Tag`, since pages are statically served | **HALF DISCHARGED; the half that reads the setting is Phase 4's, named below.** `site.indexGalleries` is a setting nothing in this repository writes or reads yet (`apps/web/globals/site.ts`) and the Settings screen that would set it is Phase 4, so no route sets `X-Robots-Tag` from it — hard-coding a directive would be inventing the policy rather than respecting the setting. What the Phase 1 final review added is the file itself: `apps/web/public/robots.txt`, static, permissive, and consistent with `indexGalleries`'s `defaultValue: true`. Serving none at all was equally permissive but by omission rather than by a decision anyone can read, and `SECURITY.md` asks for the file by name. **Phase 4 owes two things, and they are one change:** replace the static file with `apps/web/app/robots.ts` (Next's own metadata route, which can read the global) so a `false` setting produces `Disallow: /gallery/`, and set `X-Robots-Tag: noindex` on `apps/web/app/(diary)/gallery/[slug]/page.tsx` from the same setting — a static file cannot consult a database, and a `robots.txt` alone does not stop an already-known URL being indexed, which is the whole reason `SECURITY.md` asks for both. `e2e/routing.spec.ts` asserts the file is served and does not forbid the diary; the download handler beneath the gallery sets `X-Robots-Tag: noindex` unconditionally, which is not this row — a downloaded file is never a result to index, whatever the author decides about the gallery page |
 | Secrets in the platform store | never in the repo; `.env` is gitignored | Phase 0 for repo hygiene (`.gitignore` already excludes `.env`, `.env.*`, keeping only `.env.example`) — moving real secrets into each provider's platform store happens as each provider is actually provisioned at deploy time, which is not pinned to a single phase in §4 |
 | Offsite backups of Postgres **and** the bucket, restore tested | scheduled dump to a different provider; restore drill in `docs/runbook.md` | Phase 3. The design spec's phase plan (§4) does not itself name a phase for this operational requirement; the procedure is documented now, in Phase 0 (`docs/runbook.md`), but Phase 3 is the first point at which both Postgres and the media bucket hold real content, so it is the earliest phase where a restore drill proves anything. A demonstrated (not merely written) drill is a Phase 3 exit criterion. |
+
+## The one cookie the public diary sets
+
+`td-reading-surface`, added in Phase 1 Task 15. It is listed here because a cookie on a
+public, unauthenticated surface is worth stating explicitly rather than leaving to be
+discovered, not because `SECURITY.md` has a row for it.
+
+| Property | Value |
+|---|---|
+| Name | `td-reading-surface` |
+| Value | exactly one of two literal strings, `book` or `mobile` — validated by `rememberedSurface` (`packages/domain/src/readingSurface.ts`) on read, never cast |
+| Written by | `apps/web/components/mobile/SurfaceCorrection.tsx`, in the browser, and only when the measured viewport disagrees with the surface the server served |
+| Lifetime | the browsing session — no `Max-Age`, no `Expires` |
+| Flags | `Path=/`, `SameSite=Lax`. **No `Secure`**, deliberately: it must also be set over plain HTTP on a developer's machine, and it carries no secret |
+| Read by | `apps/web/middleware.ts`, on the server, for `/p/<n>` and nothing else — it is the one signal that decides which of the two route entries answers (`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`). It was read by the `/p/[n]` page component until that split; the value read, and what it is read for, are unchanged. |
+
+**What it is not.** It is not an identifier, it is not a session, it is not personal data,
+it cannot be used to recognise a returning reader, and nothing else in the product reads
+it. What it remembers is the width of the window in front of the reader right now — a
+fact the reader's own browser measured — so that a desktop window narrowed under 860px, or
+a tablet held the other way round, does not pay a round trip for the correction on every
+page they turn. Its whole reason for existing is
+`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`, and if that decision is
+reversed the cookie goes with it.
+
+The middleware also reads `User-Agent`, through Next's own `userAgent()` parser, for its
+device kind alone (`mobile`/`tablet`/absent). It is a first-paint guess, corrected by the
+browser's own measurement, and it is neither stored nor logged.
 
 The last row is the one `SECURITY.md` says deserves more attention than everything above
 it: *"Not an attacker — losing 40GB of photographs. Automated offsite backups of

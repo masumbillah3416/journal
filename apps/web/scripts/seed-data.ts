@@ -36,6 +36,23 @@ export interface TallyEntry {
   readonly value: string
 }
 
+/**
+ * A focal point as percentages, for a slot whose crop is not centred.
+ *
+ * `pages.slots[].focalX/focalY` and `media.focalX/focalY` both default to 50
+ * (DATA_MODEL.md, "Focal point lives on the slot"), so a seed in which every
+ * slot were centred would leave the admin's focal-point picker unprovable in
+ * a browser - every rendered crop would look identical whether the value
+ * reached `object-position` or not. A handful of deliberately off-centre
+ * points give the browser suites pages on which the crop demonstrably moves.
+ */
+export interface SeedFocal {
+  /** Horizontal focus, as a percentage of the photograph's width. */
+  readonly x: number
+  /** Vertical focus, as a percentage of the photograph's height. */
+  readonly y: number
+}
+
 /** A journey's content, as extracted from the prototype. */
 export interface JourneySeed {
   /** URL-safe, unique identifier — the prototype's own `id`. */
@@ -68,10 +85,55 @@ export interface JourneySeed {
   readonly tally: readonly TallyEntry[]
   /** Caption for the Notes page's hero photo slot. */
   readonly heroCaption: string
+  /**
+   * The hero slot's focal point when it is not the centre - see
+   * {@link SeedFocal}. Set for exactly one journey, which gives
+   * `e2e/notes.spec.ts` a page on which the crop demonstrably moves.
+   */
+  readonly heroFocal?: SeedFocal
   /** Captions for Frames I's three photo slots, in order. */
   readonly frameOneCaptions: readonly string[]
   /** Captions for Frames II's four photo slots, in order. */
   readonly frameTwoCaptions: readonly string[]
+  /**
+   * Frames I's non-default focal points, keyed by 0-based slot index - see
+   * {@link SeedFocal}. Keyed rather than positional so a seed names only the
+   * slots it actually moves, and so adding a caption cannot silently shift
+   * another slot's focal point onto the wrong photograph.
+   */
+  readonly frameOneFocals?: Readonly<Record<number, SeedFocal>>
+  /** Frames II's non-default focal points, keyed by 0-based slot index. */
+  readonly frameTwoFocals?: Readonly<Record<number, SeedFocal>>
+  /**
+   * This journey's FULL gallery - everything behind `/gallery/<slug>`, of
+   * which the nine in-book slots above are a subset (SCREENS.md §1.8; the
+   * About page's own copy: "Everything else goes into the gallery behind each
+   * entry - sometimes a hundred photographs, most of them of doorways").
+   *
+   * SET FOR EXACTLY ONE JOURNEY, and for one reason: SCREENS.md §1.8 records
+   * the grid as "Verified with 61 tiles; must stay square and unsqueezed at
+   * 40+", and the lightbox's own counter in §1.9 reads `003 / 061`. Patagonia
+   * is the prototype journey whose `count` is 61, so seeding its gallery in
+   * full is what gives `e2e/gallery.spec.ts` a real sixty-one-tile grid to
+   * measure. The other nine journeys keep their nine in-book frames: the
+   * prototype gives them counts too (Tokyo 52, Lisbon 46, Marrakech 38), but
+   * seeding ~400 more placeholder renders would buy no gate that this one
+   * does not already provide, and would slow every CI seed to do it.
+   *
+   * `captions` is the prototype's own eight-caption cycle for the journey,
+   * verbatim; the seed repeats it over `count` frames exactly as the
+   * prototype's `gallery(j)` does (`caps[i % caps.length]`).
+   *
+   * NO CLIPS. The prototype marks every seventh frame as a video
+   * (`vid: i % 7 === 5`). Video is deferred (docs/adr/0004-media-pipeline-mode.md,
+   * `MEDIA_PIPELINE=inline`), so seeding a `kind: 'clip'` row would be a clip
+   * that nothing can transcode, play or generate a poster for - see
+   * docs/deviations.md.
+   */
+  readonly gallery?: {
+    readonly count: number
+    readonly captions: readonly string[]
+  }
 }
 
 /**
@@ -107,6 +169,14 @@ export const journeySeeds: readonly JourneySeed[] = [
       { key: 'Bowls of ramen', value: '11' },
     ],
     heroCaption: 'Crossing at Shibuya, second attempt, still blurred',
+    heroFocal: { x: 18, y: 82 },
+    // One off-centre slot on each Frames page, so `e2e/frames.spec.ts` can
+    // prove the crop moves on a `frame`-role slot as well as on a hero -
+    // seven photographs per journey reach `object-position` through the same
+    // component, and a wiring that held only for the hero would look
+    // identical in every screenshot.
+    frameOneFocals: { 0: { x: 22, y: 78 } },
+    frameTwoFocals: { 2: { x: 80, y: 24 } },
     frameOneCaptions: [
       'Vending machine at 6am, Nakameguro',
       'The cat that runs the bookshop',
@@ -188,6 +258,19 @@ export const journeySeeds: readonly JourneySeed[] = [
       'The trail sign nobody obeys',
       'Wind on the water, all afternoon',
     ],
+    gallery: {
+      count: 61,
+      captions: [
+        'Ridge line at dawn',
+        'Cloud over the saddle',
+        'Glacial melt, close',
+        'Refugio window',
+        'Trail marker, bent',
+        'Lake, impossible colour',
+        'Scree and shadow',
+        'Last light on the granite',
+      ],
+    },
   },
   {
     slug: 'marrakech',
@@ -432,11 +515,19 @@ export interface AboutGlobalSeed {
   readonly kit: readonly string[]
   /** The address a reader's reply is addressed to. */
   readonly replyTo: string
+  /**
+   * The portrait's focal point - see {@link SeedFocal}. It is written onto
+   * the MEDIA ITEM rather than onto a slot, because the `about` global holds
+   * a bare `upload` with no slot to override it with (DATA_MODEL.md:
+   * "`media.focalPoint` is the default; the slot overrides it").
+   */
+  readonly portraitFocal: SeedFocal
 }
 
 /** The `about` global's seed content. */
 export const aboutGlobalSeed: AboutGlobalSeed = {
   portraitCaption: 'Somewhere with bad coffee and a good window',
+  portraitFocal: { x: 34, y: 22 },
   paragraphs: [
     'This is a paper habit that ended up on a screen. I keep one page of notes per journey, then paste in whatever frames survive the edit. Everything else goes into the gallery behind each entry — sometimes a hundred photographs, most of them of doorways.',
     'Nothing here is a recommendation. The notes are written the same evening, badly, and left that way on purpose. If a page looks crooked, that is the tape.',

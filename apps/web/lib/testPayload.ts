@@ -31,12 +31,12 @@
  * exist yet on a fresh volume) or inside a transaction (Postgres forbids
  * `CREATE DATABASE` there), so this connects with a plain `pg` client to the
  * same server's default `postgres` maintenance database first.
- * Depends on: `pg`, `./env.js`, `./payload.js`, `./migrate.js`.
+ * Depends on: `pg`, `./env`, `./payload`, `./migrate`.
  */
 import { Client } from 'pg'
-import { env } from './env.js'
-import { getPayload } from './payload.js'
-import { runMigrateUp } from './migrate.js'
+import { env } from './env'
+import { getPayload } from './payload'
+import { runMigrateUp } from './migrate'
 
 /**
  * Creates the database named in `databaseUrl` on its Postgres server, unless

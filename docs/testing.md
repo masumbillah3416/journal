@@ -11,14 +11,34 @@ see the **Status** column.
 Enforced by TWO configs, because no single Vitest run can execute everything:
 
 - **`vitest.config.ts`**, checked by `npm run test:unit`'s `--coverage` flag (the
-  Docker-free pre-commit pass). Covers `packages/*/src/**`, `apps/web/lib/**` and
-  `apps/web/scripts/**`, `.ts` and `.tsx` alike.
+  Docker-free pre-commit pass). Covers `packages/*/src/**`, `apps/web/lib/**`,
+  `apps/web/scripts/**`, `apps/web/app/**` and `apps/web/components/**`, `.ts` and
+  `.tsx` alike.
 
-  | Layer | Lines | Branches | Functions |
-  |---|---|---|---|
-  | `packages/domain/**` (pure logic) | 100% | 100% | 100% |
-  | `apps/web/lib/**`, server actions | 95% | 95% | 95% |
-  | Repository-wide | 90% | 90% | 90% |
+  | Layer                             | Lines | Branches | Functions |
+  | --------------------------------- | ----- | -------- | --------- |
+  | `packages/domain/**` (pure logic) | 100%  | 100%     | 100%      |
+  | `packages/tokens/**` (pure logic) | 100%  | 100%     | 100%      |
+  | `apps/web/lib/**`, server actions | 95%   | 95%      | 95%       |
+  | `apps/web/app/**`                 | 95%   | 95%      | 95%       |
+  | `apps/web/components/**`          | 90%   | 90%      | 90%       |
+  | Repository-wide                   | 90%   | 90%      | 90%       |
+
+  `packages/tokens/**`'s row arrived with Phase 1's final review, which found it gated by
+  nothing but the repository-wide 90% floor. It is the same kind of code as
+  `packages/domain/**` — three pure modules (`colour.ts`, `geometry.ts`, `type.ts`), no
+  I/O, no framework, no React — and it measures 100% on all three metrics today, so the
+  threshold is set at what it actually achieves rather than at a number rounded up to
+  meet it. `CLAUDE.md` §2.1's rule is that a directory gets "a real threshold"; inheriting
+  a floor written for framework glue is not one.
+
+  `apps/web/components/**`'s own row arrived with Phase 1 Task 7, the task that put the
+  first real files there (the book's frame, page stack and the two hooks that drive
+  them). Until then it deliberately had none: a threshold against an empty directory is a
+  vacuous pass, not a gate. It is set at the repository floor rather than `lib`'s and
+  `app`'s 95% because these are React bindings, whose last few percent are framework
+  glue; as of that task every file under it measures **100% on all four metrics**, so the
+  bar is a floor, not a ceiling that was negotiated down to fit.
 
 - **`vitest.integration.config.ts`**, checked by `npm run test:integration:coverage`.
   Covers everything only a real Postgres can execute: the integration-only `lib` and
@@ -36,18 +56,89 @@ Phase 2's access control and Phase 4's hooks land in `collections/`, and a thres
 after the code arrives is a threshold negotiated down to whatever that code happens to
 score.
 
-**`apps/web/app/**` is the one deliberate hole, and it is a Phase 1 requirement.** It
-holds four re-exports of Payload's own route handlers and the layout around them — no
-logic of ours, and nothing any current test can execute without a Next.js request
-context. A threshold against a directory with nothing measurable in it is theatre.
-Phase 1's server actions and `BookBundle` mappers are the first real code to land there;
-**the task that lands them adds `apps/web/app/**` to a coverage `include` with a real
-threshold in the same commit.**
+**`apps/web/app/**` and `apps/web/components/**` were the last two holes, and Task 1 of
+Phase 1 closes both before either holds any of the phase's own code**, rather than
+waiting for the task that lands the first server action or component to remember to add
+its own directory — the controller ruling that reordered this ahead of the pages it
+guards (see this task's own report). `apps/web/app/**` today holds only Payload's own six
+route/layout re-exports under `(payload)/` — no logic of ours, and nothing any current
+test can execute without a Next.js request context:
+
+- Three of the six (`layout.tsx`, `api/graphql/route.ts`, `api/graphql-playground/route.ts`)
+  carry a `c8 ignore start`/`stop` around their whole body — imports included, since an
+  unimported file's own imports are themselves uncovered lines otherwise. They report as
+  fully excluded (no row at all in a passing run).
+- The other three — joined in Phase 1 Task 7 by the diary's own
+  `(diary)/p/[n]/page.tsx` — sit under a Next.js dynamic-route directory written in
+  square brackets (`api/[...slug]/route.ts`, `cms/[[...segments]]/page.tsx` and its
+  `not-found.tsx`) —
+  required by Next.js's own routing convention. `c8 ignore start`/`stop` does not take
+  effect for a file under a bracketed directory: verified by reproducing one of them
+  byte-for-byte under an unbracketed sibling directory and watching the _copy_ get
+  ignored correctly while the original did not, with the tool instead reporting the
+  file's own header-comment lines as "uncovered" once the ignored code beneath them left
+  no `DA` entries to anchor against — a bug in how `@vitest/coverage-v8` scans source text
+  for ignore hints on that path shape, not a defect in the files. These three are excluded
+  in `vitest.config.ts`'s `exclude` array instead, with the glob's literal `[...]` escaped
+  (`\[...\]`) so it is not parsed as a glob character class — the same reason the
+  unescaped version silently failed to match at all during this task. See that file's own
+  comment for the full reasoning. These three are therefore in NEITHER coverage config —
+  `vitest.integration.config.ts` cannot see them either, since nothing under its own
+  integration tests imports a Payload route handler (see that file's own header) — which
+  is the narrow, explicitly-named carve-out `CLAUDE.md` §2.1 now documents for a verified
+  coverage-tooling bug against a file with zero authored logic, not an unmeasured gap this
+  phase failed to notice.
+
+`(diary)/p/[n]/page.tsx` (Phase 1 Task 7) was added to that same exclusion list, and the
+defect was re-verified rather than inherited. The control sat inside the very same
+coverage run: `(diary)/layout.tsx` — identical `c8 ignore start`/`stop` wrapping,
+identically never imported by any test, but not under a bracketed directory — reported
+correctly as 0 of 0 with no uncovered lines, while `(diary)/p/[n]/page.tsx`, wrapped
+exactly the same way, reported its whole body (lines 1–22) as uncovered. The bracket is
+the only difference between the two files, so it is the scanner that fails, not the file.
+The route itself was written to hold zero authored logic precisely so it could qualify,
+and it has kept that property as it grew: all of its real decisions live in
+`packages/domain`, which is gated at 100%. What `<n>` means, and whether the book has
+such a page at all, is `pageAddress.ts`'s `addressedPageIndex`; which pages this
+particular request gets the content of, and whether a given leaf is one of them, are
+`contentWindow.ts`'s `servedContentWindow` and `rendersContent`
+(`docs/adr/0009-server-rendered-page-window.md`); and the title, description and
+canonical link `generateMetadata` returns are `pageMetadata.ts`'s, which is where its
+six fallbacks over blank editor fields are covered. The exclusion is only honest while
+that holds — a branch written into the route itself is a branch neither coverage config
+can reach. `app/(diary)/not-found.tsx`, added in Task 13, is the OTHER honest treatment
+and needs no config entry: it is not under a bracketed directory, so its `c8 ignore
+start`/`stop` wrapping takes effect, and it holds no branch of its own — the only value
+on it is `pagePath(0)`.
+
+`(diary)/m/[n]/page.tsx` — the mobile reading surface's own route entry, added when the
+two surfaces were split across two entries
+(`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`) — joined the same
+exclusion list on the same three counts, re-verified against the same control in the same
+run rather than inherited. It holds zero authored logic: await the params, read the
+bundle, render `<MobileDiary>` around the ONE addressed page. What `<n>` means is
+`addressedPageIndex`'s; its title, description and canonical are `addressedPageMetadata`'s
+(both `packages/domain`, gated at 100%); its chrome's three values are `deriveRail`,
+`mobileHeading` and `pageLabel`'s. And **which readers reach it at all** — the one
+decision the split actually moved — is `servedReadingSurface`'s, spent by
+`apps/web/middleware.ts`, which is NOT excluded: it sits at the app's own root, is named
+in `vitest.config.ts`'s coverage `include` (no `lib/**` or `app/**` glob reaches it) and
+is gated at **100/100/100**, met by ten cases in `apps/web/middleware.test.ts` driving a
+plain `NextRequest` — a desktop and a phone user agent, both cookie values, a query
+carried across the rewrite, and the 308 off `/m/<n>`. That test file needed its own glob
+(`apps/web/*.test.ts`) on the `unit` project, because a test file no project's `include`
+matches is collected by nobody and its absence is silent.
+
+`apps/web/components/**` was genuinely empty until Phase 1 Task 7 (`.gitkeep` only) and
+carried no per-glob threshold override until then — a threshold against zero files is the
+vacuous pass CLAUDE.md's controller ruling for Task 1 explicitly forbade adding. Task 7,
+which landed the first files there, added the explicit 90%/90%/90% row in the same commit,
+per CLAUDE.md §2.1.
 
 An uncovered line outside `packages/domain` requires a
 `/* c8 ignore next -- <reason> */` comment with a real reason (`CLAUDE.md` §2.1). Where a
 whole file is unreachable from any test, the honest options are two, and which one
-applies depends on whether some *other* pass can see it: exclude-and-regate (as
+applies depends on whether some _other_ pass can see it: exclude-and-regate (as
 `seed.ts`, `seed-data.ts`, `testPayload.ts` and `migrate.ts` each get — excluded from the
 unit pass, genuinely measured by the integration pass), or an explicit `c8 ignore` with
 its reason at the point it applies. `apps/web/scripts/run-seed.ts` is the second kind and
@@ -81,9 +172,19 @@ would claim a measurement nothing performs.
     **jsdom** environment, with esbuild's automatic JSX runtime so a component test
     needs no `import React`. A separate project rather than a wider glob on `unit`
     because the environment differs, and paying jsdom's setup cost for every pure test
-    to accommodate a handful of component tests is the wrong trade.
+    to accommodate a handful of component tests is the wrong trade. Two further settings
+    arrived with Phase 1 Task 7's first real components: `setupFiles:
+['./vitest.dom-setup.ts']`, which sets `IS_REACT_ACT_ENVIRONMENT` once for every file
+    instead of four repeated lines at the top of each (React reads the flag off the
+    global object, so it cannot be set by importing anything), and
+    `css.modules.classNameStrategy: 'non-scoped'`, which makes a CSS Module import
+    resolve each key to its own literal name rather than `undefined`. Nothing in a jsdom
+    test asserts a computed style — jsdom performs no layout, which is exactly why the
+    rules that matter (a back face's `pointer-events: none` above all) are asserted in a
+    real browser instead — so the strategy is purely about components rendering readable
+    class names under test.
 
-  `unit-dom` exists *before* Phase 1's first component, on purpose. Until it did, no
+  `unit-dom` exists _before_ Phase 1's first component, on purpose. Until it did, no
   project's `include` matched `*.test.tsx` and neither set a DOM environment — so the
   first React component test would have been collected by nobody, and **a test collected
   by nobody does not fail; it silently is not there and the run stays green**. That is
@@ -98,6 +199,35 @@ would claim a measurement nothing performs.
   is named here so that its disappearance from a run summary is noticeable. It is not a
   placeholder and does not get deleted when real component tests arrive — it is the only
   thing in the repository that asserts the harness exists independently of any component.
+
+  Two of Phase 1 Task 9's unit files carry a note of their own.
+  `packages/domain/src/coverTitle.test.ts` asserts the clamp bounds as **literals**
+  (`38`, `124`), never as `COVER_TITLE_SIZE.min`/`.max`: an assertion that reads the
+  constant it is guarding moves with that constant and can never fail. That was caught
+  by mutation, not by review — retuning the floor to 37 left the whole file green until
+  the literals went in (`CLAUDE.md` §2.3, "a test that has never failed is unproven").
+  `packages/domain/src/contentsLayout.test.ts`'s thirty-one-entry case pins **3 columns
+  × 11 rows**, which is what SCREENS.md §1.2's formula produces and *not* the "4 columns
+  × 8 rows" the same section calls verified; the two cannot both be true for any entry
+  count, and `docs/deviations.md` §9 carries the arithmetic. The multi-column path is
+  therefore covered as arithmetic but never rendered in a browser — the seeded book has
+  ten contents entries — so a task that seeds more than eleven journeys owes the
+  Contents body a real overflow assertion.
+
+  Two of Phase 1 Task 9's unit files carry a note of their own.
+  `packages/domain/src/coverTitle.test.ts` asserts the clamp bounds as **literals**
+  (`38`, `124`), never as `COVER_TITLE_SIZE.min`/`.max`: an assertion that reads the
+  constant it is guarding moves with that constant and can never fail. That was caught
+  by mutation, not by review — retuning the floor to 37 left the whole file green until
+  the literals went in (`CLAUDE.md` §2.3, "a test that has never failed is unproven").
+  `packages/domain/src/contentsLayout.test.ts`'s thirty-one-entry case pins **3 columns
+  × 11 rows**, which is what SCREENS.md §1.2's formula produces and *not* the "4 columns
+  × 8 rows" the same section calls verified; the two cannot both be true for any entry
+  count, and `docs/deviations.md` §9 carries the arithmetic. The multi-column path is
+  therefore covered as arithmetic but never rendered in a browser — the seeded book has
+  ten contents entries — so a task that seeds more than eleven journeys owes the
+  Contents body a real overflow assertion.
+
 - **Run:** `npm run test:unit` (both projects, with coverage), or `npm run test` for
   watch mode across every project.
 - **Add one:** colocate `<name>.test.ts` next to `<name>.ts` — or `<name>.test.tsx` for
@@ -196,11 +326,12 @@ would claim a measurement nothing performs.
     shell exported `NODE_ENV=development`, reporting a leak that was not one. Confirmed
     by running the old wiring under `NODE_ENV=development`:
     `× never records the message body, which carries the code → expected 'mail: sent
-    "Your code" to a***@b.com …' not to contain '123456'`. `CLAUDE.md` §2.3 requires
+"Your code" to a***@b.com …' not to contain '123456'`. `CLAUDE.md` §2.3 requires
     time and environment to be injected for exactly this reason.
+
   - `queue` → `apps/web/lib/adapters/postgres-queue.ts` (the `jobs` table, Task 9). The
     concurrency case — two concurrent `claim()` calls must yield the job to exactly one
-    caller — is why this suite is an *integration* test
+    caller — is why this suite is an _integration_ test
     (`postgres-queue.integration.test.ts`, needing real Postgres): `claim()`'s
     `SELECT ... FOR UPDATE SKIP LOCKED` has no meaning against a mock.
 
@@ -219,6 +350,7 @@ would claim a measurement nothing performs.
     `claim()` at all — which proved Postgres implements `SKIP LOCKED` (never in question),
     not that the adapter uses it; that version was replaced after review because deleting
     the clause from the adapter left it passing.
+
 - **Run:** unit-reachable contracts (`storage`, `mailer`) run under `npm run verify` like
   any other unit test; the `queue` contract, being integration-only, runs under
   `npm run verify:full` / `npm run test:integration`.
@@ -265,20 +397,480 @@ would claim a measurement nothing performs.
 - **Tool:** Playwright (`playwright.config.ts`, Task 12).
 - **Scope:** real journeys — page flip, bookmark jump, gallery, lightbox, mobile swipe,
   sign-in + OTP, upload round-trip.
-- **Status:** the harness is implemented; the journeys it will guard are not. The public
-  diary, the bespoke `/admin` panel and sign-in are all Phase 1+ — the only route this
-  app serves today is Payload's own admin at `/cms` (`apps/web/payload.config.ts`).
-  `e2e/smoke.spec.ts` is today's one real end-to-end test: it loads `/cms` and asserts
+- **Status:** the harness is implemented, and the first real journey it guards is the
+  book. The bespoke `/admin` panel and sign-in are still later phases; the routes this
+  app serves today are Payload's own admin at `/cms`, the diary's `/p/<n>`, and — since
+  Phase 1 Task 14 — `/gallery/<slug>` with its download handler.
+
+  **`e2e/gallery.spec.ts` (Phase 1 Task 14)** covers the four things about the gallery
+  and its lightbox that only a served, laid-out page can answer, and deliberately
+  nothing that `packages/domain/src/gallery.ts` (100%) or
+  `apps/web/components/gallery/*.test.tsx` already prove.
+
+  1. **The tiles stay square and unsqueezed at sixty-one of them.** `SCREENS.md` §1.8
+     records the grid as "Verified with 61 tiles; must stay square and unsqueezed at
+     40+", which is a statement about `aspect-ratio: 1/1` and `object-fit: cover` under
+     a `repeat(auto-fill, minmax(...))` track — none of which exists until a browser
+     lays it out. `apps/web/scripts/seed.ts` seeds Patagonia's full sixty-one-frame
+     gallery so this case has the number the design was verified at (see
+     `docs/deviations.md` §20 for why one journey and not ten).
+  2. **The download is served by us.** `SECURITY.md`'s requirement has a half that no
+     unit test can see: the RESPONSE headers. This suite issues the real request and
+     asserts `Content-Disposition: attachment`, the strict `Content-Type`,
+     `X-Content-Type-Options: nosniff`, and a `404` when the same media id is addressed
+     through a journey it does not belong to.
+  3. **Returning restores `/p/<n>`, not `/`** — by BOTH paths, because they are
+     different mechanisms. The gallery's own control is a link whose `href` is resolved
+     by the SERVER from the `from` parameter the diary's own gallery link
+     carries; the browser's Back button depends on `Book.tsx`'s
+     `history.replaceState`. A third case reads that `href` out of the raw
+     HTML, because the first design resolved it from `document.referrer` after
+     mount and a reader who clicked before hydration landed on the cover
+     (`docs/qa/2026-09-03-gallery-sweep.md`, GAL-005). `e2e/routing.spec.ts` has covered the second half against a
+     404 since Task 13; this is where it meets a real gallery.
+  4. **The lightbox's keyboard contract.** Escape closes, the arrows step, Tab stays
+     inside the dialog, and focus returns to the tile the reader STEPPED to rather than
+     the one they opened.
+
+  **`e2e/mobile.spec.ts` (Phase 1 Task 15)** covers `SCREENS.md` §1.10's mobile reading
+  mode, which below 860px replaces the book entirely. It runs at the `mobile` project
+  alone, and that project now carries a PHONE USER AGENT as well as a 390x844 viewport,
+  because which surface a request is served is decided on the server from the user agent
+  before any viewport can be measured
+  (`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`). Sixteen cases, of which
+  five could not exist anywhere else:
+
+  1. **A vertical scroll does not turn a page.** The rule is
+     `packages/domain/src/swipe.ts`'s and is unit-tested to 100%, including both
+     diagonals either side of the 1.4 ratio; `useSwipe.test.tsx` drives the binding with
+     dispatched React events. Neither can tell you whether a finger dragging DOWN the
+     page also turns it, because neither scrolls anything. These cases drag through the
+     DevTools Protocol's `Input.dispatchTouchEvent` - the same input path a finger takes,
+     so the browser scrolls the column itself - and assert BOTH halves: that the column
+     moved, and that the address did not. A run where nothing scrolled would pass the URL
+     check while proving nothing.
+  2. **Neither surface ships the other's code**, which is what two route entries bought
+     (`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`). The case fetches
+     `/p/1` twice, once with a desktop user agent and once with a phone's, collects every
+     script and stylesheet each document asks for, fetches those too, and requires that
+     none of the book's carry `mobile-module__` and none of the mobile surface's carry
+     `book-module__` — one marker per surface, because Turbopack puts a stylesheet's
+     class-name prefix in both the CSS chunk and the client chunk that imports it. It is
+     the guard on the bundling seam rather than the rendering one, and it is the case that
+     fails if a future shared import quietly pulls one surface into the other's chunk
+     group. Proved to fail first, by importing `mobile.module.css` into `Book.tsx`.
+  3. **A phone's document carries no book at all.** No design box, no leaves - the weight
+     the surface split exists to avoid, asserted rather than assumed.
+  4. **All THIRTY-THREE deep links serve their own page in raw HTML**, with no script
+     run — the mobile counterpart of `e2e/serverWindow.spec.ts`'s thirty-three-route
+     case, and the same design-spec §8 promise. **It was four hand-listed routes until
+     Phase 1's final review**, which named the gap plainly: `serverWindow.spec.ts` skips
+     below 860px, Googlebot Smartphone is served THIS surface, so the surface most likely
+     to be indexed was the only one with no per-route guarantee. It now fetches every
+     `/p/<n>` with the phone user agent and holds each document to the BOOK, fetched in
+     the same run at `?pages=all` with a desktop user agent — an independent answer,
+     since ADR 0012 made the two surfaces two route entries with two page components.
+     Each route must serve one mobile page and zero leaves and zero design boxes; its
+     `data-mobile-page` kind must equal the `data-page` kind the completed book puts at
+     that leaf; the journey its header names must be the journey the book's own bookmark
+     rail puts at that leaf; and its counter must read `NN / 33`.
+
+     **An exact text match across the two surfaces is not available, and the case does
+     not pretend otherwise.** They render the same content differently on purpose — the
+     mobile Cover carries "Start reading" and a swipe hint where the book's carries its
+     postal stamps, a mobile frames page repeats the journey's weather and mood badges
+     where the book's prints "Frames 01 – 03", and the mobile About drops the kit list.
+     So identity is asserted through what both surfaces must agree on (kind, and
+     governing journey) and substance through what only this surface can answer: all
+     thirty-three pages carry more than 50 characters, and no two of them carry the same
+     text. A route serving another route's page fails the first pair; a route thinning
+     out to nothing fails the second. Measured while writing it: thirty-three distinct
+     texts, the shortest 144 characters (the Cover).
+  5. **The correction path**, in its own browser context with a DESKTOP user agent at a
+     700px viewport - the one reader the server's hint gets wrong. It asserts that the
+     document arrived carrying the book, that the browser corrected it to the mobile
+     mode, and that the correction survives a navigation because it is remembered in a
+     cookie rather than in the address.
+
+  **NINE BOOK SPECS NOW SKIP BELOW 860px**, through one shared predicate and one line
+  each: `drawsMobileReadingMode` in `e2e/support/surface.ts`, reading the domain's own
+  `MOBILE_READING_MAX_WIDTH_PX` rather than an 860 repeated per file. A book spec's
+  mobile run had stopped describing anything a reader below the breakpoint will meet -
+  the design says there is no book there - so the skip removes a case that was no longer
+  about the product, and each carries its reason in its own `test.skip` message.
+  `e2e/layout.spec.ts` is the one file that does NOT take that route; see below.
+
+  **`e2e/layout.spec.ts` (Phase 1 Task 12, rethought in Task 15)** asserts in numbers what
+  a screenshot cannot say - that the book is on the screen. Its four cases are the record
+  of an S1 defect found at 390px (`docs/qa/2026-09-01-diary-sweep.md`), which is exactly
+  the viewport where there is now no book to place. Standing them down there would have
+  left the `mobile` project with no placement test at all, so each is PAIRED with a mobile
+  case asking the same question of the surface that is drawn instead: the surface fills
+  its viewport with no spill and no sideways scroll; `elementFromPoint` at the middle of
+  the scrolling column lands inside the page; every bookmark in the drawer receives a tap,
+  and Marrakech - the same tab the book's own case clicks - is tapped to prove it; both
+  52px bottom-bar arrows are pressable, hit-tested at their own centres rather than
+  through a Playwright click that would scroll them into view first.
+
+  **The Next dev overlay is off** (`apps/web/next.config.ts`, `devIndicators: false`).
+  It is fixed to the bottom-left of the viewport, which at 390px is where §1.10 puts the
+  previous-page arrow, and `<nextjs-portal>` intercepted every click on it - so
+  `e2e/mobile.spec.ts` and `e2e/layout.spec.ts` could not be run locally at all while the
+  same cases passed in CI, which serves a production build with no overlay. A suite that
+  only passes on the runner is one a developer learns to skip.
+
+  **`e2e/book.spec.ts` (Phase 1 Task 7)** covers what only a real layout engine can
+  answer, and deliberately nothing that `packages/domain` already proves: that a click on
+  a Contents link is not swallowed by the leaf's back face, that no back face can receive
+  pointer events at all, that the leaf transitions `transform` and nothing else, that no
+  element anywhere inside the book animates a layout property, that the design box is a
+  fixed 1300×860 scaled by a transform rather than reflowed, that it rescales when the
+  viewport changes, and that exactly one leaf is visible at rest.
+
+  Its first case is the load-bearing one. The handoff records the exact defect
+  (README, "Pointer-events warning"): with the back face clickable, Contents links and
+  gallery buttons appeared completely dead while their handlers were fine, and it cost a
+  debugging session to find. The assertion was proved able to fail — removing
+  `pointer-events: none` from `.back` in `book.module.css` and re-running the suite fails
+  it on all three viewport projects, with Playwright naming the culprit outright
+  (`<div data-face="back" …> intercepts pointer events`); restoring the rule turns it
+  green again. That is also why the back face is hidden by opacity alone and never by
+  `visibility`: a second, redundant guard would have made the rule that actually matters
+  untestable.
+
+  **`e2e/flip.spec.ts` (Phase 1 Task 8)** covers the reader's own triggers — both
+  page-edge strips, the bottom arrows, all four keyboard keys, and a bookmark jump —
+  driven as a reader drives them, plus the three things only a browser settles:
+  that a strip lying over the page stack is genuinely clickable rather than covered
+  by the leaf above it, that `prefers-reduced-motion` reaches the machine through a
+  real media query, and that hammering a key through a real 900ms transition leaves
+  the book usable rather than seized.
+
+  Two of its cases produced real findings on their first run, and both are recorded
+  where they were fixed rather than only here:
+
+  - **The handoff's own `z-index: 900` cannot work in the handoff's own DOM
+    position.** With the strips as siblings of the leaves (the prototype's
+    arrangement), Playwright timed out with `<article class=page> from <div
+    data-leaf=2> subtree intercepts pointer events` — a leaf's stacking order is
+    `1000 - i`, so the current page always paints above a strip at 900. The strips
+    became siblings of the STACK instead; see `docs/deviations.md` §8.
+  - **The bottom arrows were unclickable at 390px.** The `mobile` project caught
+    `<nav class=rail> intercepts pointer events` on the next arrow: the bar's
+    contents are 338px wide in a 232px column, and unwrapped they spilled under the
+    bookmark rail. `book.module.css`'s `.bottomBar` now wraps, with the reason at
+    the rule.
+
+  Every case in the file waits for the book to be LIVE before pressing anything
+  (`waitForLiveBook`, which watches the measured scale replace the server's
+  `scale(1)`). A page-turn trigger fired between the server's HTML arriving and
+  React hydrating is lost for good — no retry recovers it — and the two
+  reduced-motion cases, which by design do not wait out a transition, failed on all
+  three viewport projects until that wait existed. The patient cases had been
+  winning the same race by luck.
+
+  The bookmark-jump anchor is proved able to fail, the way `book.spec.ts`'s
+  pointer-events case is. Deleting the two anchoring lines from `useFlip.ts`'s
+  `jumpTo` — so the jump goes straight to the target from wherever the reader is —
+  fails three tests at three levels: `useFlip.test.tsx` reports `from: 29` where the
+  anchor rule requires `from: 3`, `Book.test.tsx` sees leaves `['2', '8']` visible
+  instead of `['2', '3']`, and this file's own in-flight read returns `['29']`
+  instead of `['2', '3']`. Restoring the lines turns all three green.
+
+  **`e2e/pages.spec.ts` (Phase 1 Task 9)** covers the Cover and Contents pages'
+  browser-only guarantees, at all three viewport projects. What the two components
+  *decide* is already covered without a browser
+  (`apps/web/components/pages/Cover.test.tsx`, `Contents.test.tsx`) and so is the
+  arithmetic behind those decisions (`packages/domain/src/coverTitle.test.ts`,
+  `contentsLayout.test.ts`), so this file asserts only what a laid-out page can answer:
+  that SCREENS.md §1's measurements stay absolute under the design box's `scale(k)`
+  (`offsetTop`/`offsetLeft`/`offsetWidth` are layout coordinates a transform does not
+  touch, so the washi strip still reports `top: 52; left: -26; 190x36` at 390px as at
+  1440px); that the cover title actually FITS (`fitTitleSize` sizes from an *estimate*
+  of Caveat's advance width, since no font metrics exist on the server, so only a
+  browser can confirm `scrollWidth <= clientWidth` and that SCREENS.md's "last-resort"
+  ellipsis never engages); and that the Contents body does not overflow its `1fr` track,
+  which is the one half of SCREENS.md §1.2's "zero overflow" claim that can be checked
+  here — the multi-column count cannot, see `docs/deviations.md` §9.
+
+  **`e2e/frames.spec.ts` and `e2e/about.spec.ts` (Phase 1 Task 11)** do the same job
+  for the three pages that carry the book's photographs. Two things in them are worth
+  knowing before editing either file.
+
+  The rotations are read to THREE DECIMAL PLACES, out of the resolved transform matrix.
+  SCREENS.md §1.4-§1.6 give each of the eight mounts its own authored angle (−1.6°,
+  −1.4°, −1.2°, −0.7°, −0.5°, +0.8°, +1.0°, +1.5°), and rounding them to whole degrees
+  — the technique `notes.spec.ts` uses for its badges at −6° and +5° — collapses six of
+  them onto −1, 0 and +1, so the cases would pass against a page that had swapped them.
+  The three mini stamps on About are the exception and are rounded, because their
+  angles are three degrees apart at the closest.
+
+  The focal point is proved on a `frame`-role slot and on the About portrait, not only
+  on the Notes hero. The portrait matters most: it is the one photograph in the diary
+  whose focal point comes from the MEDIA ITEM rather than from a `pages` slot, so it
+  travels a different path through `readBookBundle` and a wiring that held for slots
+  alone would leave it silently centred. Both use `notes.spec.ts`'s method — assert the
+  fit is `cover`, assert the computed position, screenshot the element at its focal
+  point and again forced back to `50% 50%`, and require the two buffers to differ.
+
+  **`e2e/notes.spec.ts` (Phase 1 Task 10)** does the same job for the Notes page, and
+  two of its cases exist because of defects that have already happened rather than ones
+  somebody imagined.
+
+  The first is the highlight gaps. `SCREENS.md` §1.3 records that
+  `justify-content: space-between` on the highlight list "dumped 232px into two gaps
+  when a journey had three highlights instead of four", and that the fix was structural:
+  the highlights are `flex: 0 0 auto`, sized to their content, and the ephemera slot —
+  a media element that can absorb 54px or 300px without breaking — takes the elastic
+  space. The case measures the gaps between rendered highlights on a THREE-highlight
+  journey (Lisbon, `/p/6`), because three is the case that broke; a four-highlight
+  journey filled the column by accident and never showed the defect. Measured: 13px and
+  13px in layout pixels, against a bound of 30 and a recorded defect of 232.
+
+  The second is the focal point. `SCREENS.md` is blunt about the stakes — "If this is
+  not wired through to rendering, the admin's focal-point picker is decorative — that is
+  the whole point of it" — and a test asserting only that `object-position` carries the
+  right string would pass against a stylesheet with `object-fit: fill`, where
+  `object-position` does nothing at all. So the case screenshots the hero image twice,
+  once at the slot's own focal point and once forced back to `50% 50%`, and requires the
+  two buffers to differ. `apps/web/scripts/seed-data.ts` gives Tokyo's hero slot the
+  seed's one non-default focal point (`18% 82%`) so that there is a page on which the
+  crop demonstrably moves.
+
+  Every selector in that file is scoped to one leaf via `Leaf.tsx`'s `data-leaf` index.
+  `Book.tsx` renders all thirty-three leaves at once, so `[data-page="notes"]` alone
+  matches ten sections and an unscoped locator is a strict-mode violation rather than a
+  wait.
+
+  One assertion in it records a browser fact rather than the authored one, with its
+  reason at the assertion: the left column's fit is measured from its last child's
+  untransformed `offsetTop`/`offsetHeight` rather than from `scrollHeight`, because the
+  scrollable overflow region includes the ROTATED bounding boxes of the tally ticket
+  (-0.5deg) and the ephemera scrap (+0.5deg), which makes every notes page in the book
+  report exactly 3px of "overflow" on a column whose content fits perfectly.
+
+  **`e2e/imageWindow.spec.ts` (Phase 1, the LCP fix)** covers the one thing the unit
+  suites cannot: whether the bytes actually stop arriving. `Book.tsx` renders all
+  thirty-three leaves and every leaf is absolutely positioned at `inset: 0`, so the
+  browser counts all of them as in the viewport and `loading="lazy"` defers NOTHING —
+  measured, not assumed: `/p/1` fetched all twenty of the seeded book's photographs,
+  1,820,504 bytes, with the reader on the Cover, and the LCP gate went red at 3,247ms.
+  An attribute-level assertion would have passed the whole time that was happening,
+  because the `lazy` attribute was present throughout, so the first case counts real
+  network responses and requires ZERO on `/p/1`.
+
+  The window itself is `leafPresentation.loadsImages`
+  (`packages/domain/src/pageStack.ts`), unit-tested to 100% there. Three further cases
+  guard what a browser has to settle: that a leaf inside the served document but outside
+  the image window still carries its heading, its caption and its alt text with only its
+  `src` stood in for (the bytes are deferred, never the markup); that the next
+  page's hero is already `complete` with a non-zero `naturalWidth` at the FIRST
+  animation frame of the turn that reveals it, which is the "empty frame swinging into
+  place" defect stated as an assertion; and that a bookmark jump's destination is inside
+  the window from the first frame of the jump rather than only once the turn commits.
+  The last two fire their trigger from inside `page.evaluate` and read one frame later,
+  for the reasons `flip.spec.ts`'s header sets out.
+
+  Two of this file's cases moved when the SERVER's content window landed
+  (`docs/adr/0009-server-rendered-page-window.md`), and both moves are recorded at the
+  case rather than here. The "words in the document" case now asks about leaf 4 on
+  `/p/2` rather than leaf 29 on `/p/1`, because leaf 29's face is no longer in `/p/1`'s
+  document at all until the reader turns a page — and leaf 4 on `/p/2` is the pairing
+  the case actually wants: inside the served window, outside the image window. The
+  bookmark-jump case opens the whole-book address (`wholeBookPath`), because it reads a
+  single animation frame after the click and on a bare `/p/1` that frame is the book
+  waiting for one round trip. That waiting is real behaviour, and it is asserted in
+  `e2e/serverWindow.spec.ts` rather than left out.
+
+  **`e2e/routing.spec.ts` (Phase 1 Task 13)** covers what the diary's ADDRESSES promise,
+  which is a different subject from what any page renders. Six cases assert the 404
+  boundary from outside the app — `/p/999`, `/p/34`, `/p/0` and `/p/tokyo` are 404 while
+  `/p/33` is still 200, so the boundary is off by nothing — and one requires the 404 view
+  to carry a link back to `/p/1`, because a reader who lands there has nothing else on
+  screen. Four more read raw HTML with `request.get`, never `page.goto`: a crawler runs no
+  JavaScript, so neither may the assertion standing in for one. They require each page's
+  own `<title>` and `<meta name="description">` (two deep links that are one search result
+  are most of what real paths were bought to avoid) and require `?pages=all` to declare
+  `/p/<n>` as its canonical, which is what stops the content window's own request address
+  from being duplicate content.
+
+  **Four cases were added when the two reading surfaces became two route entries**
+  (`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`). Two require `/m/<n>` —
+  the mobile surface's own route entry — to answer a direct request with a **308** to
+  `/p/<n>`, for a real page and for one the book does not have alike: it exists so the
+  bundler has two entries to split, and left reachable it would give all thirty-three
+  pages a second crawlable URL. Two more send an explicit desktop and an explicit phone
+  user agent to the SAME `/p/3` and require the two documents to agree on their title,
+  their description and their canonical. That pair is not redundant with the cases above
+  it: a mobile-user-agent crawler (Googlebot's smartphone crawler is one) is served the
+  mobile entry, so metadata that held in only one entry would be metadata half the
+  crawlers never saw.
+
+  Its last two cases are the **gallery return**, which the design spec calls out by name:
+  "returning from a gallery restores `/p/<n>`, not `/`". `/gallery/<slug>` is Task 14's to
+  build, and the cases do not wait for it — `Notes.tsx` and `FramesII.tsx` already render
+  the gallery button as a real `<a href>` (Task 10/11, deliberately), and a navigation to a
+  route that does not exist yet is still a navigation with a history entry. So the second
+  case turns two pages, clicks the real link on the leaf the reader is actually on, goes
+  back, and requires `/p/5` — the page reading took them to, not the one they arrived at.
+  It passes today against a 404 and will keep passing when Task 14 puts a gallery there.
+  What it actually guards is `Book.tsx`'s `history.replaceState`: were the book to push
+  rather than replace, or not write the address at all, both cases fail.
+
+  **One case is about a file rather than a route, and belongs here for that reason.**
+  Every promise above is that a deep link is indexable, and until Phase 1's final review
+  this repository served **no `robots.txt` at all** — permissive by omission rather than
+  by a decision anyone can read, and not what `SECURITY.md` asks for ("respect
+  `indexGalleries` in `robots.txt` **and** with `X-Robots-Tag`"). `apps/web/public/robots.txt`
+  is now served, static, and consistent with `site.indexGalleries`'s `defaultValue:
+  true` — the only honest content while nothing writes or reads that setting and the
+  Settings screen that would is Phase 4. The case requires a 200, requires `User-agent:
+  *`, `Allow: /` and `Disallow: /cms`, and requires the file NOT to carry a bare
+  `Disallow: /` or `Disallow: /p` — a line that would quietly undo every other case in
+  the file without failing one of them. `docs/security.md`'s `indexGalleries` row records
+  the two halves Phase 4 still owes: a generated `app/robots.ts` that reads the setting,
+  and the `X-Robots-Tag` header on the gallery route.
+
+  **`e2e/serverWindow.spec.ts` (the server content window)** covers the other window,
+  and its first case is the one the whole change stands or falls on: it fetches all
+  **thirty-three** `/p/<n>` routes as raw HTML with `request.get`, parses each with
+  `DOMParser` — never `page.goto`, because a crawler runs no JavaScript and neither may
+  the assertion that a crawler is served — and requires each document's own leaf to
+  match, character for character, what the completed book renders on that leaf. It
+  compares against the live book rather than a transcription, so a page whose content
+  ever thins out breaks the case instead of quietly agreeing with a stale string.
+  9,945 characters of page text across the thirty-three routes.
+
+  Its five browser cases are the other half, because a document that indexes beautifully
+  and strands a reader on a blank leaf four turns in has not solved anything. They walk
+  the reader's own path — a bare `/p/<n>`, then turns — past the window's edge forwards
+  and backwards, across the book from a bookmark tab, and, with the book's own request
+  for the rest of itself **held up on the network for six seconds** by `page.route`, four
+  turns into a three-leaf window: the reader stops at the edge on a page with content on
+  it, and the fourth turn plays itself the moment the rest arrives. That last case is the
+  empty-leaf defect stated as an assertion, and it is the only place the held-move queue
+  can be observed in a browser.
+
+  Two assertions in `pages.spec.ts` record a browser fact rather than the authored one, each with its
+  reason at the assertion: Chromium reports the inner rule's `2.5px` border as `2px`
+  (it snaps a computed border width to a whole CSS pixel, measured at
+  devicePixelRatio 1 *and* 3, so it is not a density effect), and the washi strip's
+  rotation is read back out of the resolved matrix with `atan2` rather than pinned as
+  matrix digits, which differ in the sixth decimal place between Chromium builds.
+
+  **`e2e/layout.spec.ts` (the 2026-09-01 sweep's DIARY-001/002/003)** covers where the
+  scaled book actually lands on the screen, at all three viewport projects. It exists
+  because the visual-regression suite was supposed to own this question and demonstrably
+  did not: the `mid` and `mobile` baselines were regenerated over a book that had been
+  pushed off the screen entirely and stayed green on a blank page for two commits
+  (`docs/qa/2026-09-01-diary-sweep.md`, DIARY-004). A baseline can only say "this looks
+  like it did last time"; a picture of no book is still a picture. The three cases say it
+  in numbers instead, each from the symptom a reader meets rather than from the CSS that
+  produced it: the design box's drawn rect is inside the area `useBookScale` measures and
+  concentric with it (off-centre by 0px, spilling 0px on each side, tolerant of the
+  sub-pixel remainder a fractional scale leaves); `document.elementFromPoint` at the
+  centre of that area resolves to something inside the design box, which is the one
+  assertion that separates "drawn" from "laid out somewhere off the screen" and is
+  exactly the probe that returned `null` at 390px; every `[data-bookmark]` tab hit-tests
+  to itself at its own centre and a click on one of the nine the sweep found dead reaches
+  `/p/12`; and both page-edge turn strips hit-test to themselves. That last one is the
+  case `e2e/flip.spec.ts` could not make: Playwright scrolls an element into view before
+  clicking it, so its edge-strip cases passed on a strip that had left the viewport, which
+  a reader cannot scroll back into `.stage` (`overflow: hidden`).
+
+  **`e2e/chrome.spec.ts` (Task 12, `SCREENS.md` §1.7)** covers the book's chrome in a
+  real layout engine: the bookmark rail, the bottom bar and the spine ribbon. Its
+  markup is covered three times over by `apps/web/components/chrome/`'s own jsdom
+  suites — which tab carries `aria-current`, what each tab prints, that the arrows are
+  labelled and go dead at the ends of the book — and none of those can answer the four
+  questions that actually broke: whether the ribbon takes a click meant for what is
+  under it, whether the bar is 58px, whether a control has been laid out under the rail,
+  and whether the rail scrolls without showing a scrollbar. All four are layout and
+  hit-testing, so all four run here at all three viewport projects.
+
+  Two of its cases are worth knowing about specifically. **The ribbon case asserts on a
+  live trigger, not on the hit test alone** — the first draft only asked whether the
+  element under the ribbon's centre was the ribbon, and it PASSED with
+  `pointer-events: none` deleted, because the backward page-edge strip's own
+  `z-index: 900` already sits above the ribbon's `400` and answered for it. It now clicks
+  at that point and requires the page to turn back, which is what a reader would notice.
+  **The scrollbar case reads the declared `scrollbar-width` as well as the measured
+  gutter**, for the same reason: this browser draws overlay scrollbars, so the gutter is
+  0 whether the rule is there or not — measured, with the diary-wide rule removed, rather
+  than assumed. It still asserts the content genuinely scrolls (a rail made
+  `overflow: hidden` to lose its scrollbar would fail there), on a viewport forced short
+  so the thirteen tabs overflow at every project rather than only at two of them.
+
+  `e2e/smoke.spec.ts` is the console-error gate: it loads `/cms`, `/p/1` and (Task 13)
+  the page-not-found view at `/p/999` — where the correct response is a 404, so that case
+  asserts the status rather than `ok()`, and what it is really about is that a route which
+  deliberately throws `notFound()` renders cleanly rather than logging on the way. It
+  asserts
   **zero** `console` (error level) and `pageerror` events, with both listeners attached
-  *before* `page.goto()`. This is deliberately the harness's centre of gravity, not an
+  _before_ `page.goto()`. This is deliberately the harness's centre of gravity, not an
   afterthought — the handoff's own defect log (`CLAUDE.md` §10, `SCREENS.md`) is mostly
-  *silent* failures (a swallowed click, a missing derivative, a rejected autoplay
+  _silent_ failures (a swallowed click, a missing derivative, a rejected autoplay
   promise), none of which move a pixel, so visual or manual-only QA misses them
   entirely. The test also waits `networkidle` and a fixed 500ms grace period after
   `goto()` before asserting — a real hydration-time console error was observed (in this
-  task's own planted-failure proof, see below) landing *after* the `load` event, so
+  task's own planted-failure proof, see below) landing _after_ the `load` event, so
   checking immediately on navigation would have produced a false negative on exactly the
   class of defect this suite exists to catch.
+
+  Its third case asserts that `/favicon.ico` responds `200`. Every browser asks for that
+  address without being told to, and nothing declared it — the sweep recorded the 404 as
+  a console `error` on every cold load of every route, and Lighthouse recorded it on a
+  production build (`docs/qa/2026-09-01-diary-sweep.md`, DIARY-006). It is asserted with
+  `request.get` rather than by watching a page load because whether a browser fetches
+  the address at all depends on the browser and on whether it is headed: the two cases
+  above are headless and stayed green through the whole defect.
+
+  **A CI gap this file had not recorded.** `.github/workflows/ci.yml`'s `browser` job
+  named only `smoke`, `a11y` and `visual` in its single `npx playwright test`
+  invocation, so `e2e/book.spec.ts` and `e2e/flip.spec.ts` — named by
+  `npm run test:e2e` since Tasks 7 and 8 — had never actually gated a merge. Their
+  assertions are among the most load-bearing in the repository (the back face swallowing
+  every click, the transform-and-opacity-only budget, all five turn triggers), so they
+  were passing locally and guarding nothing remotely. The job now names every spec file
+  explicitly, which is also why the list is spelled out rather than given as a
+  directory: adding a spec without adding it there is then a visible omission in a diff.
+
+  **And the list drifted again.** Task 12 found `e2e/frames.spec.ts`,
+  `e2e/about.spec.ts` (both Task 11) and `e2e/serverWindow.spec.ts` named by
+  `npm run test:e2e` but absent from the CI job, so none of them had gated a merge
+  either — `serverWindow.spec.ts` most consequentially, since it is what asserts all
+  thirty-three deep links still serve their own page. All three are named there now,
+  alongside Task 12's own `e2e/chrome.spec.ts`. Two lists that have to agree will
+  disagree eventually; until one is generated from the other, checking both is part of
+  landing a spec.
+
+  **The third time, it was made impossible instead.** Task 13 added
+  **`e2e/ciRegistration.spec.ts`**, whose whole subject is the two lists above. It
+  globs `e2e/*.spec.ts` off the filesystem, reads the `- run:` command out of
+  `.github/workflows/ci.yml`'s browser job and the `test:e2e` / `test:visual` /
+  `test:a11y` scripts out of `package.json`, and fails naming exactly which spec is
+  missing from which list. It reads the `run:` COMMAND rather than the workflow file,
+  because that file's comments name half these specs in prose and a substring search
+  over it would pass for a spec that is only ever mentioned — which is the state this
+  guard exists to end, dressed as a green test. It was proved able to fail: a throwaway
+  `e2e/dummyDrift.spec.ts` was added, both cases failed naming it, and the file was
+  deleted. It needs no browser and no `page` fixture, so it costs the run a file read.
+
+  **A third case was added in Phase 1's final review, for the same defect shape in a
+  different list.** `npm run test:perf` chains TWO `lhci autorun` invocations, one per
+  `lighthouserc*.json`, because lhci's collect settings are per-run rather than per-URL
+  and the book's 1350x940 desktop viewport cannot share a run with the gallery's phone
+  emulation (ADR 0014). Nothing enforced the pairing: collapsing the script to one
+  command — a plausible tidy-up — would have silently stopped gating the book surface,
+  the heavier of the two and the one every LCP ADR measured, while `npm run test:perf`
+  still exited 0 and CI still reported the step green. The case reads the config
+  filenames off the repository root, reads `test:perf` out of `package.json`, and fails
+  naming exactly which config nothing runs. Reading the filenames off disk rather than
+  hard-coding the pair is what makes it catch a THIRD configuration added and never run.
+  Proved able to fail: `test:perf` was collapsed to the first command alone, the case
+  failed naming `lighthouserc.book.json`, and the script was restored — both runs are
+  pasted in this task's report.
+
 - **Three viewport projects** — `desktop` (1440×900), `mid` (1000×800), `mobile`
   (390×844; `isMobile`/`hasTouch` set) — run every spec three times, once per breakpoint
   named in the Task 12 brief. All three use Chromium, not a mix of engines: this
@@ -286,8 +878,14 @@ would claim a measurement nothing performs.
   to catch the class of defect this harness targets today (console/pageerror,
   axe violations, pixel drift). Cross-browser coverage is a candidate for a later phase,
   not a Task 12 gap silently worked around — see `playwright.config.ts`'s header.
-- **Run:** `npm run test:e2e` (headless, runs `e2e/smoke.spec.ts`); `npm run
-  test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
+- **Run:** `npm run test:e2e` (headless, runs `e2e/smoke.spec.ts`,
+  `e2e/book.spec.ts`, `e2e/flip.spec.ts`, `e2e/layout.spec.ts`, `e2e/chrome.spec.ts`,
+  `e2e/pages.spec.ts`,
+  `e2e/notes.spec.ts`, `e2e/frames.spec.ts`, `e2e/about.spec.ts`,
+  `e2e/imageWindow.spec.ts`, `e2e/serverWindow.spec.ts`, `e2e/routing.spec.ts`,
+  `e2e/gallery.spec.ts`, `e2e/mobile.spec.ts` and `e2e/ciRegistration.spec.ts` — the
+  authoritative list is the script itself, and `e2e/ciRegistration.spec.ts` is what makes
+  the two agree); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.
@@ -295,35 +893,119 @@ would claim a measurement nothing performs.
   reflecting the state machine (e.g. `flipMachine`'s state), not on re-deriving the
   machine's logic in the test. Every new route gets its own `test()` in
   `e2e/smoke.spec.ts` first — a route with no console-error coverage is a route this
-  suite is silently not protecting.
+  suite is silently not protecting. A new spec file also needs adding to the
+  `test:e2e` script AND to `.github/workflows/ci.yml`'s browser job; a spec no script
+  names is a spec CI does not run, and `e2e/ciRegistration.spec.ts` now fails the build
+  when either list is missing one rather than leaving it to be noticed two tasks later.
 
 ### 5 · Visual regression
 
 - **Tool:** Playwright snapshots (`toHaveScreenshot`, `maxDiffPixelRatio: 0.01` in
   `playwright.config.ts` — the design is high-fidelity, so drift is a defect, not noise).
 - **Scope:** every page type and every admin screen, at each breakpoint. Drift from the
-  high-fidelity design is treated as a defect.
-- **Status:** the mechanism is implemented and proven; the pages it will guard (every
-  diary page type, the bespoke admin) are Phase 1+. `e2e/visual.spec.ts` snapshots the
-  one screen that exists today — `/cms` — at all three breakpoints, using the exact
-  `toHaveScreenshot`/baseline-diff machinery the real pages will use later. Baselines are
-  committed at `e2e/visual.spec.ts-snapshots/*.png`; a snapshot suite with no baseline to
-  compare against protects nothing.
-- **A real, known gap — not run in CI today:** Playwright's screenshot baselines are
-  keyed by OS and font rendering (the committed files are suffixed `-win32.png`, matching
-  the developer machine that generated them). CI's `browser` job runs on Ubuntu; a
-  Windows-generated baseline will not match there regardless of whether the page
-  genuinely changed. The standard fix — running inside Playwright's own pinned Docker
-  image (`mcr.microsoft.com/playwright`) so baselines are generated and compared in one
-  consistent environment — was out of scope to stand up and verify end-to-end for Task
-  12 without an unverified multi-gigabyte image pull; `.github/workflows/ci.yml`'s
-  `browser` job documents this exclusion at the point it would otherwise run
-  `test:visual`. `npm run test:visual` is fully functional locally today (see the Task 12
-  report for a real pass/fail/pass proof) and is what `test:e2e:headed`-driven sweeps use
-  in the meantime.
-- **Run:** `npm run test:visual`. Update baselines deliberately with `npx playwright test
-  e2e/visual.spec.ts --update-snapshots` after confirming a diff is an intended change,
-  never reflexively to make a failure go away.
+  high-fidelity design is treated as a defect. Each page type is snapshotted by the task
+  that lands its designed layout, not before — a baseline captured against provisional
+  page content would have to be thrown away and recaptured, teaching nobody to trust it
+  in between. Phase 1 Task 9 added the **Cover** and **Contents** pages
+  (`diary-cover-*.png`, `diary-contents-*.png`, all three projects), Task 10 the
+  **Notes** page (`diary-notes-*.png`) and Task 11 **Frames I**, **Frames II** and
+  **About** (`diary-frames-i-*.png`, `diary-frames-ii-*.png`, `diary-about-*.png`) —
+  every page type the book has, twenty-one files in all. All six diary cases share one `settled()` helper (wait
+  for the section, for the design box's `scale(k)`, for `document.fonts.ready`, then for
+  every image in the document to `decode()`); each of those four waits replaces a race,
+  and none of them is a timeout.
+
+  Task 14 added `diary-gallery-*.png` and `diary-lightbox-*.png` — the gallery route and
+  the lightbox open over it, three projects each. Neither is `fullPage`: sixty-one tiles
+  is several viewports of scroll, and a baseline that tall is one nobody reads a diff of;
+  the viewport carries the header, the grid's tracks and its first rows, which is every
+  rule `SCREENS.md` §1.8 states. They also do not use `settled()` — there is no scaled
+  design box on this route — and they await only the images the browser has actually
+  fetched, since the grid loads lazily by design and the rest are below the fold.
+
+  Task 13 added a twenty-second, twenty-third and twenty-fourth: `diary-not-found-*.png`,
+  the page-not-found view an address naming no page now renders. It is the one case here
+  that does not call `settled()` — there is no scaled design box on that view to wait
+  for, only the fonts. It earns a baseline because it is a view assembled from the
+  design's surface (desk gradient, paper card, hairline rule, all three type families)
+  for a screen the design does not itself specify, which is exactly the kind of thing
+  that drifts away from the rest unnoticed. Task 13 changed no page's markup, and the
+  twenty-one existing baselines came back **byte-identical** from the same
+  `--update-snapshots=all` container run that wrote the three new ones, with
+  `e2e/layout.spec.ts` green in it.
+
+  Each Task 11 baseline was captured in the same pinned-container run that regenerated
+  the six older ones, and the older six MOVED for a structural reason rather than a
+  cosmetic one: `/p/1` renders all thirty-three leaves at once, so replacing thirty
+  heading-only fallback faces with thirty designed pages changes what is drawn behind
+  the current leaf in every screenshot in this suite.
+
+  The diary cases snapshot the FULL PAGE, not the scaled design box. The box is drawn
+  with `transform: scale(k)`, so a box-only snapshot would be byte-identical at all
+  three projects and would prove nothing about the breakpoints, whereas the full page is
+  what a reader at 390px actually sees. The consequence is that these baselines also
+  carry the diary chrome outside the box (bookmark rail, bottom bar), whose designed
+  appearance is Task 12 — that task updates these nine files, which is expected and is
+  what a baseline is for. They now guard geometry AND the design's FULL typography:
+  Courier Prime 400/700 and EB Garamond's italic face were wired in and every baseline
+  was regenerated in the pinned container against them, with `e2e/layout.spec.ts` green
+  in the same run — see `docs/adr/0008-lcp-budget-and-the-framework-floor.md`.
+  `docs/deviations.md` §11, which recorded the old two-of-three state, is withdrawn.
+
+  Task 15 moved seven files, and for a structural reason rather than a cosmetic one: at
+  the `mobile` project `/p/<n>` no longer draws the book. `diary-cover-mobile`,
+  `diary-contents-mobile`, `diary-notes-mobile`, `diary-frames-i-mobile`,
+  `diary-frames-ii-mobile` and `diary-about-mobile` are now pictures of `SCREENS.md`
+  §1.10's mobile reading mode - they were previously a whole book at roughly a third
+  scale, the least useful images in this directory - and a seventh joins them,
+  `diary-mobile-drawer`, the bookmark panel, which exists at that project alone because
+  it is §1.10's replacement for the book's 158px rail. `settled()` reads WHICH surface it
+  is looking at off the document (does a `[data-design-box]` exist?) rather than off the
+  project's viewport, because it is the server that decided it.
+
+  **A baseline is only as good as the page it was captured over, and this suite has
+  already ratified an S1 defect once.** The 2026-09-01 browser sweep
+  (`docs/qa/2026-09-01-diary-sweep.md`, DIARY-001 and DIARY-004) found the book clipped
+  from about 1435px down and entirely outside the viewport at 390px — and the `mid` and
+  `mobile` Cover and Contents baselines had been regenerated over exactly that state, so
+  `diary-cover-mobile-linux.png` was a picture of a blank page with no book on it and
+  the suite stayed green against it for four tasks. That is fixed: the six diary
+  baselines were regenerated as part of the fix, and `e2e/layout.spec.ts` now asserts in
+  numbers, at all three projects, what a picture cannot say — that the design box is
+  inside the area its scale was measured from and that `elementFromPoint` at that area's
+  centre lands inside the book.
+
+  **The standing rule that came out of it:** never accept a regenerated `diary-*`
+  baseline unless `e2e/layout.spec.ts` was green in the SAME container run that produced
+  it, and never commit one without opening the image and looking at it. A green diff
+  against a wrong baseline is worth nothing.
+- **Status:** the mechanism is implemented and proven, and now runs in CI (Task 1 of
+  Phase 1 closed the gap below). `e2e/visual.spec.ts` snapshots every screen that exists
+  today — `/cms` — at all three breakpoints, alongside the diary's Cover, Contents and
+  Notes pages, using the exact `toHaveScreenshot`/baseline-diff machinery every further page
+  will use. Baselines are committed at
+  `e2e/visual.spec.ts-snapshots/*.png`; a snapshot suite with no baseline to compare
+  against protects nothing.
+- **The former gap, closed:** Playwright's screenshot baselines are keyed by OS and font
+  rendering, so the Windows-generated baselines Task 12 committed (suffixed `-win32.png`)
+  never honestly compared against CI's Ubuntu `browser` job, regardless of whether a page
+  had actually changed — that job skipped `test:visual` outright rather than run a
+  comparison that could not mean anything. The fix is the standard one: both baseline
+  generation and CI comparison now happen inside the same pinned image,
+  `mcr.microsoft.com/playwright:v<version>`, where `<version>` matches the
+  `@playwright/test` version pinned in `package-lock.json` exactly (`.github/workflows/ci.yml`'s
+  `browser` job header names the current tag; bump both together). The committed baselines
+  are now `-linux.png`, generated by running `npx playwright test e2e/visual.spec.ts
+--update-snapshots` inside that exact image (see this task's report for the pasted
+  baseline-generation and clean-comparison runs) — the old `-win32.png` files were deleted,
+  not kept alongside. `browser` no longer skips `test:visual`; it runs in the same
+  `npx playwright test` invocation as the smoke and accessibility specs.
+- **Run:** `npm run test:visual` on a developer's own machine still works for a quick
+  local check, but its baseline will not match this Ubuntu-image comparison pixel-for-pixel
+  on font rendering — treat a local mismatch as inconclusive, not as drift, and confirm
+  in the pinned image before updating a baseline. Update baselines deliberately, inside
+  the pinned image, with `npx playwright test e2e/visual.spec.ts --update-snapshots` after
+  confirming a diff is an intended change, never reflexively to make a failure go away.
 - **Add one:** one snapshot per page type per breakpoint listed in design spec §8.2
   (diary `<860px`; admin `≥1180`/`≥860`/narrow; login `<820`) as each page is built. The
   OTP-cell collapse at 819px (design spec §11) is the canonical example of a defect this
@@ -331,61 +1013,487 @@ would claim a measurement nothing performs.
 
 ### 6 · Accessibility
 
-- **Tool:** axe-core in Playwright (`@axe-core/playwright`, `e2e/a11y.spec.ts`).
+- **Tool:** axe-core in Playwright (`@axe-core/playwright`, `e2e/a11y.spec.ts`), via the
+  shared `expectNoAxeViolations` helper (`e2e/support/axe.ts`, Task 1 of Phase 1) — plus
+  `measureContrastOverGradient` (`e2e/support/coverContrast.ts`) for the one thing axe
+  will not judge: text over a gradient (finding 2 below).
 - **Scope:** every route. Contrast ratios from the handoff's token table are asserted,
   not assumed (e.g. `ink-muted` must stay opaque — an alpha version measures below
-  4.5:1, per the handoff's own note).
-- **Status:** implemented for the one route that exists, `/cms`, asserting `results.
-  violations` is empty — zero violations, not "no critical violations"; CLAUDE.md's
-  non-negotiables draw no line between severities. Running axe against `/cms` today
+  4.5:1, per the handoff's own note). Where axe returns `incomplete` rather than a
+  verdict, the ratio is measured from the rendered pixels and asserted anyway; an
+  `incomplete` is never read as a pass.
+- **Status:** implemented for every view that exists, and for each designed diary page
+  in turn — `/p/1` (Cover, Task 7), `/p/2` (Contents, Task 9), `/p/3` (Notes, Task 10)
+  and `/p/4`, `/p/5`, `/p/33` (Frames I, Frames II and About, Task 11), because each
+  page kind renders different markup on the same URL shape — plus Task 13's
+  page-not-found view (`/p/999`), the one diary view that is not a page of the book and
+  the one where an unlabelled way back would strand a reader with nothing else on
+  screen. Task 14 added two more: `/gallery/patagonia` and the same route with its
+  LIGHTBOX OPEN. The second of those is the only view in the product that traps a
+  reader's focus, and axe knows most of what that costs — `aria-dialog-name` (a dialog
+  needs an accessible name), `button-name` on its four controls, and `color-contrast` on
+  cream type over a 95%-opaque near-black scrim. It runs with no exclusions,
+  deliberately: silencing one of those rules would be silencing the only automated check
+  this project has on that view. The gallery case itself is where `image-alt` has most
+  to judge anywhere in the product, a gallery being almost entirely photographs. All
+  nine
+  call `expectNoAxeViolations(page)` with **no exclusions at all** — every rule in the
+  full ruleset applies to a route this project authored, and `/cms`'s allowances below
+  must never be inherited by them. All nine pass on all three viewport projects. The
+  Notes case is the first with anything for `image-alt`, `definition-list` or
+  `link-name` to judge: it is the first page in the diary with photographs, a
+  description list (the tally ticket) and a link styled as a button. The two Frames
+  cases are three quarters and four fifths photograph, so a slot whose alt text went
+  missing would be most of the page; the About case is the one page in the book with
+  nothing clickable on it at all, and the one whose level-one heading is a static
+  string rather than editor content — which is what keeps `page-has-heading-one` green
+  on a book whose `about` global has never been filled in. `/cms`
+  asserts `results.violations` is empty — zero violations, not "no critical violations"; CLAUDE.md's
+  non-negotiables draw no line between severities. `expectNoAxeViolations` defaults to
+  the FULL ruleset with no exclusions; a caller passes rule ids to disable only via its
+  `options.allow`, visibly, at its own call site. Running axe against `/cms` today
   surfaced two real findings that belong to Payload's own stock admin markup, not to any
   code authored in this repository: `landmark-one-main` and `page-has-heading-one`, both
   `impact: moderate`, both scoped to the bare `<html>` element. `/cms` is explicitly
   "development scaffolding ... not the product" (`apps/web/payload.config.ts`'s own
-  header) and is disabled outright in production, so `e2e/a11y.spec.ts` disables exactly
-  these two rules by id — narrowly, with the finding and the reasoning recorded in the
-  test file's own header, not by loosening the top-level assertion. Any *other* violation,
-  on this route or any future one, still fails the suite. This exclusion is revisited the
-  moment `/cms` stops being the route under test — Phase 1's bespoke `/admin` replaces it.
+  header) and is disabled outright in production, so `e2e/a11y.spec.ts` calls
+  `expectNoAxeViolations(page, { allow: ['landmark-one-main', 'page-has-heading-one'] })`
+  — narrowly, with the finding and the reasoning recorded in the test file's own header,
+  not by loosening the helper's default. Any _other_ violation, on this route or any
+  future one, still fails the suite, and a diary route calling the helper with no
+  `allow` cannot inherit `/cms`'s exclusion — each call site names its own. This
+  exclusion is revisited the moment `/cms` stops being the route under test — Phase 1's
+  bespoke `/admin` replaces it.
+- **The mobile reading mode is audited separately, because it is a separate tree**
+  (Phase 1 Task 15). Six of the diary's axe cases are the BOOK's and now skip below
+  860px; six new ones take their place at the `mobile` project - `/p/1`, `/p/2`, `/p/3`,
+  `/p/4` and `/p/33` for §1.10's four page kinds, plus the bookmark drawer OPEN over
+  `/p/3`. All six call `expectNoAxeViolations(page)` with **no exclusions**, the same bar
+  the book's pages are held to. The drawer case is the second view in this product that
+  traps a reader's focus (the lightbox is the first), so `aria-dialog-name`,
+  `button-name`, `aria-allowed-attr` on `aria-current` and `color-contrast` over
+  `#3b332a` all have something real to judge - and that last one is why the drawer's tab
+  list is not painted the way the book's paper-backed rail is: the prototype's own
+  colours measure 2.28:1 and 1.68:1 on that panel (`docs/deviations.md` §22).
+- **Proof the helper actually catches something:** verified by planting a real violation
+  (an `<img>` with no `alt`, no `aria-label`, no `title` — axe's `image-alt`, `impact:
+critical`) into the live `/cms` DOM via `page.evaluate` and calling
+  `expectNoAxeViolations(page)` with no `allow` — the assertion failed, listing
+  `image-alt` alongside the two known `/cms` findings (`region` also fired, since the
+  planted `<img>` sat outside any landmark). Removing the plant and calling
+  `expectNoAxeViolations(page, { allow: [...] })` with the two known exclusions passed
+  cleanly. See this task's report for the pasted runs.
 - **Run:** `npm run test:a11y`.
-- **Add one:** run axe against every new route as it is added; assert zero violations, and
-  only disable a specific rule id with the same standard of evidence as above (a named,
-  understood, vendor-owned finding) — never to make an inconvenient result disappear.
+- **Add one:** call `expectNoAxeViolations(page)` against every new route as it is added
+  — with no `allow`, which asserts zero violations against the full ruleset. Only pass
+  `allow` with the same standard of evidence as above (a named, understood, vendor-owned
+  finding), with a comment at the call site — never to make an inconvenient result
+  disappear, and never inherited from another spec's exclusion.
+
+#### Findings recorded here rather than silenced
+
+**1 · The `/cms` axe case had been passing vacuously.** Until Phase 1 Task 9,
+`e2e/a11y.spec.ts`'s `/cms` case called `expectNoAxeViolations` immediately after
+`page.goto`, with no wait for Payload's asynchronously-rendered login form — so axe was
+analysing a nearly empty document. The gap surfaced as an intermittent failure under
+concurrent workers that named a *different* rule on each run (`region` once, a
+keyboard finding on `.checkbox.field-type` another), while passing every time the case
+ran alone. The case now waits for the form and for Next's dev overlay, exactly as
+`e2e/visual.spec.ts`'s `/cms` case already did. With the analysis deterministic, a
+**third** Payload-owned finding is visible and is now in that call site's `allow` list:
+`region` ("All page content should be contained by landmarks"), the same landmark family
+as `landmark-one-main` and `page-has-heading-one`. The diary route carries no exclusions
+of any kind — the Cover and Contents cases call `expectNoAxeViolations(page)` with no
+`allow` argument at all — and adding one there would be a defect, not a workaround.
+
+**2 · The Cover's contrast is measured, not asserted by axe — and two handoff values were
+changed so it clears AA.** axe-core reports `color-contrast` as **incomplete** on both
+diary pages (7 nodes on the Cover, 45 on Contents), because it cannot resolve a gradient
+background. Incomplete is not a violation, so the suite is green; that is axe declining to
+judge, not a contrast pass, and `CLAUDE.md` §2 requires the ratios to be *asserted*. They
+are now asserted by a test rather than measured by hand: `e2e/a11y.spec.ts`'s cover case
+calls `measureContrastOverGradient` (`e2e/support/coverContrast.ts`), which hides each
+line with `visibility: hidden` so its box shows only the cloth it sat on, screenshots the
+cover element, takes the **lightest** pixel under each line as that line's background —
+the worst case, since the 45° texture makes the background a range rather than a value —
+flattens the line's own translucent cream onto it, and runs both through
+`packages/domain/src/contrast.ts`. It runs at all three viewport projects.
+
+Measured with SCREENS.md §1.1's literal values, four of the five lines failed. Both
+columns below are the `desktop` project's, the tightest of the three:
+
+| Cover line | Size | Before | After | Required |
+|---|---|---|---|---|
+| "Travel Diary" eyebrow | 12px | **2.86:1** | 4.52:1 | 4.5:1 |
+| "Wanderings" title | 124px | 3.81:1 | 8.13:1 | 3:1 |
+| Subtitle | 22px italic | **2.72:1** | 5.33:1 | 4.5:1 |
+| "Kept by …" | 12.5px | **2.37:1** | 4.73:1 | 4.5:1 |
+| Years | 12.5px | **1.87:1** | 5.26:1 | 4.5:1 |
+
+The 22px italic subtitle does **not** qualify for SC 1.4.3's large-text exemption, which
+needs 24px or 18.66px bold, so it is held to 4.5:1; only the 124px title is large text.
+The cause was in the specified gradient rather than in the transcription — the handoff's
+own prototype renders the same way: the cloth interpolates from an opaque colour to a
+28%-opaque black, so by mid-page the cloth is only ~72% opaque and the light paper face
+beneath washes it from `#2f4a47` up to roughly `#5e6d67`, precisely where the small
+Courier lines sit. **The user approved two value changes** (`docs/deviations.md` §12): the
+gradient's end stop is now the opaque form of that same `rgba(0,0,0,.28)` overlay, and the
+years line's alpha is `.78` rather than `.5` — the one line an opaque cloth alone does not
+rescue. No new colour was introduced, and every other §1.1 value is unchanged. The
+eyebrow's 4.52:1 is the narrowest margin on the page and must be re-measured, not reasoned
+about, after any change to the cloth, the texture over it, or that line's own alpha.
+**The Contents page needs no such note: every one of its fourteen text roles was measured
+against the darkest paper stop and clears its bar, the lowest at 4.57:1.**
+
+**3 · All three handoff fonts are self-hosted, at all five faces the design uses.**
+README.md's "Fonts are Google Fonts (Caveat, EB Garamond, Courier Prime) — self-host in
+production" is closed via `next/font/local`, with the five `.woff2` files committed and
+`next build` never touching the network (`docs/adr/0005-font-hosting.md`,
+`apps/web/app/(diary)/fonts.ts`). Courier Prime 400/700 and EB Garamond's italic face
+were deferred through Phase 1 on a real LCP measurement, and that measurement **still
+reproduces**: `/p/1` measures 2,488.2ms with two faces, 2,637.4ms with four and
+2,933.8ms with five, against CLAUDE.md §6's 2,500ms gate — the gate at the time of
+writing; **3,000ms today**, see §7.0's current-state table below. They were wired in
+anyway, because a minimal fontless route in this same app models 2,023.2ms of that
+budget on its own and the route's OBSERVED paint is ~130ms in every configuration —
+`docs/adr/0008-lcp-budget-and-the-framework-floor.md` has the floor measurement, the
+options, and the record that the gate was left **red and unraised** at the time — raised
+to 3,000ms since, and green today (§7.0). Every visual
+baseline was regenerated in the pinned container against the five-face state, with
+`e2e/layout.spec.ts` green in the same run.
 
 ### 7 · Performance
 
-- **Tool:** Lighthouse CI (`@lhci/cli`, `lighthouserc.json`) + custom probes (the custom
-  probes — 60fps flip measurement, N+1 query detection — are still not yet implemented;
-  they need the flip and data-fetching code these budgets describe).
+#### 7.0 · Current state — what is gated today
+
+**Read this table first.** Everything below it is a chronological record of how these
+numbers were arrived at, kept because the measurements are the argument for the numbers.
+That record quotes figures that have since been superseded — the 2,500ms LCP budget
+above all. **No figure beneath this section is the current gate unless this table says
+so.**
+
+| Gate | Config | Route | Limit |
+|---|---|---|---|
+| `largest-contentful-paint` | `lighthouserc.book.json` | `/p/1`, book surface (1350x940, `Cookie: td-reading-surface=book`) | **≤3000ms** |
+| `largest-contentful-paint` | `lighthouserc.json` | `/p/1`, mobile surface (Lighthouse phone emulation, no cookie) | **≤3000ms** |
+| `largest-contentful-paint` | `lighthouserc.json` | `/gallery/patagonia` | ≤4000ms |
+| `resource-summary:script:size` | both | `/p/1` (both surfaces), `/gallery/<slug>` | ≤184320 bytes (180KB, `CLAUDE.md` §6) |
+| `resource-summary:image:size` | `lighthouserc.json` | `/gallery/<slug>` | ≤600000 bytes |
+| `cumulative-layout-shift` | both | every collected URL | ≤0.1 |
+| `http-status-code` | both | every collected URL | `minScore: 1` |
+| — | `lighthouserc.json` | `/cms` | `http-status-code` and CLS only: no LCP, no script budget |
+
+Both configs collect `numberOfRuns: 5` and every `assertMatrix` entry carries
+`"aggregationMethod": "median"`. `npm run test:perf` runs **both** configs, and both are
+gates; `e2e/ciRegistration.spec.ts` asserts that the script still names both files.
+
+**Both gates are green.** Last measured at Phase 1's final review, one
+`npm run test:perf` inside `mcr.microsoft.com/playwright:v1.62.1-noble`, each config
+building the app itself first:
+
+| Route (config) | Metric | Median of 5 | Gate | Margin |
+|---|---|---|---|---|
+| `/p/1` book (`.book.json`) | LCP | **2,934.53ms** | 3000 | 65.47ms |
+| `/p/1` book | script | 142,834 B | 184,320 | 41,486 B |
+| `/p/1` mobile (`.json`) | LCP | **2,925.59ms** | 3000 | 74.41ms |
+| `/p/1` mobile | script | 144,835 B | 184,320 | 39,485 B |
+| `/gallery/patagonia` | LCP | 3,532.70ms | 4000 | 467.30ms |
+| `/gallery/patagonia` | script | 141,711 B | 184,320 | 42,609 B |
+| `/gallery/patagonia` | image | 477,329 B | 600,000 | 122,671 B |
+| `/cms` | — | — | CLS and status only | — |
+
+CLS was **0** on all twenty runs and `http-status-code` scored **1** on every one. The
+five book runs read 2,932.28 / 2,934.41 / **2,934.53** / 2,935.14 / 2,956.60ms; the five
+mobile runs 2,404.94 / 2,405.08 / **2,925.59** / 2,935.49 / 2,951.89ms — two runs of that
+set landing half a second below the rest is the spread the `median` aggregation exists to
+absorb, and is why `optimistic` (lhci's default, which takes the minimum) would have
+reported this route at 2,404.94ms and called 500ms of headroom that does not exist.
+`/cms` measured 4,880.39ms of LCP and 647,142 script bytes, neither of them gated, for
+the reason its row above gives.
+
+**Why 3000 and not 2500.** `CLAUDE.md` §6's LCP budget was 2,500ms from Phase 0 until
+Phase 1 Task 13. `docs/adr/0008-lcp-budget-and-the-framework-floor.md` measured what this
+route costs with no application code at all — 2,023.2ms and 137,986 bytes of React and
+Next App Router runtime for one styled heading — which is 81% of the old budget before
+this repository writes a line, and the budget was set to **3.0s** from that measured
+floor. `docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md` then fixed
+*where* it is measured: the book at 1350x940 with the surface cookie pinned, the mobile
+surface at Lighthouse's own phone emulation, both on the same `simulate` throttling
+(150ms RTT, 1,638Kbps, 4x CPU). The raise itself is recorded as a departure from the
+plan in `docs/deviations.md` §23 — Task 13 Step 5 said not to raise it — and the gate
+was reported red and unraised for several rounds before it moved.
+
+#### 7.1 · The record
+
+- **Tool:** Lighthouse CI (`@lhci/cli`, `lighthouserc.json` and `lighthouserc.book.json`)
+  + custom probes (the custom probes — 60fps flip measurement, N+1 query detection — are
+  still not yet implemented; they need the flip and data-fetching code these budgets
+  describe).
 - **Scope:** the hard budgets in `CLAUDE.md` §6 — 60fps flip (only `transform`/`opacity`
-  animated), diary route JS ≤180KB gzipped, admin ≤320KB, LCP ≤2.5s, CLS ≤0.1, INP
+  animated), diary route JS ≤180KB gzipped, admin ≤320KB, LCP **≤3.0s** (ADR 0008 for
+  the number, ADR 0014 for the two viewports it is measured at), CLS ≤0.1, INP
   ≤200ms, no N+1 queries, always a derivative tier never an original.
-- **Status — configured correctly, cannot yet bind meaningfully.** `lighthouserc.json`
-  asserts `largest-contentful-paint` (≤2500ms) and `cumulative-layout-shift` (≤0.1)
-  against `http://localhost:3000/cms`, the only URL that exists. Running it for real
-  (`npm run test:perf`) produces an honest, reproducible **failure**:
-  `largest-contentful-paint` measured ~11.7s against a 2500ms budget. This is not this
-  repository's diary being slow — it is Lighthouse's default simulated-mobile-network
-  throttling applied to Payload's own heavy admin-panel JavaScript bundle, which the
-  180KB/320KB budgets were never written to describe. The budget is configured correctly
-  for the route it is meant to guard; it simply has no honest target to bind to until the
-  diary route exists in Phase 1. The thresholds were **not** loosened, and no
-  `/cms`-specific carve-out was added, to make this pass — an assertion that always passes
-  because nothing real is being measured would be actively misleading. `cumulative-layout-
-  shift` does pass against `/cms` today, which is a real (if narrow) signal.
-- **Not gated in CI:** `.github/workflows/ci.yml`'s `browser` job runs `test:perf` with
-  `continue-on-error: true` — informational, visible in every run's log, not a merge
-  blocker. Hard-gating a budget that cannot currently pass for a reason unrelated to code
-  quality would train reviewers to ignore this job's failures, which is the opposite of
-  what a performance gate is for. It becomes a real, hard-gated budget the moment the
-  diary route exists to point it at.
+- **Status — hard-gated in CI as of Task 1 of Phase 1, ahead of the route it guards.**
+  `lighthouserc.json` now points `collect.url` at `http://localhost:3000/p/1` (the diary
+  route Task 13 creates) and `http://localhost:3000/cms`, with per-URL budgets via
+  `assert.assertMatrix` rather than one shared `assert.assertions` block: `/p/1` is held
+  to `http-status-code` (`minScore: 1`), `resource-summary:script:size`
+  (≤184320 bytes), `largest-contentful-paint` (≤2500ms **as landed in Task 1 — the
+  budget is 3000ms today, see §7.0**) and `cumulative-layout-shift` (≤0.1); `/cms` is
+  held to `http-status-code` and `cumulative-layout-shift` only.
+
+  **Task 14 added a third URL and a fourth budget.** `/gallery/patagonia` is collected
+  and asserted in its own `assertMatrix` entry. The gallery route is OUTSIDE the diary's
+  LCP budget - `CLAUDE.md` §6 scopes that to `/p/1` - and that is exactly why it needs a
+  gate of its own: it is a long scroll of photographs on a route no existing budget
+  watches, which is the easiest place in this product for weight to accumulate
+  unnoticed. Measured on a production build, median of five: **LCP 3,462.4ms**
+  (3,089 / 3,391 / 3,462 / 3,463 / 3,500), **script 141,551 bytes** (856 fewer than the
+  diary's own 142,407 - the gallery ships no book, no flip machine and no page faces),
+  **images 173,579 bytes in 9 requests**, CLS 0. Its budgets are set from those numbers:
+  `largest-contentful-paint` ≤4000ms (~15% over the median, and 500ms clear of the worst
+  of the five), `resource-summary:script:size` ≤184320 (the SAME number the diary route
+  carries, so drift is read against one bar rather than two),
+  `cumulative-layout-shift` ≤0.1, and `http-status-code`.
+
+  **The image budget is the one that earns its place.** `resource-summary:image:size`
+  catches the specific regression this route is exposed to: nine of the tiles are
+  fetched today because every one carries `loading="lazy"`, and if that attribute is
+  ever dropped the route fetches every tile in the gallery while every functional test
+  still passes. `e2e/gallery.spec.ts` asserts the ATTRIBUTE; only this budget asserts
+  the EFFECT. `CLAUDE.md` §6 scopes the diary LCP budget (2500ms at the time of writing;
+  3000ms today, §7.0) to the diary route specifically —
+  holding Payload's heavy admin bundle to it was the original reason this whole step
+  was informational, and giving `/cms` its own entry with no LCP assertion is what
+  stops that recurring now that `/cms` shares a config with a real route.
+  `.github/workflows/ci.yml`'s `browser` job no longer runs this step with
+  `continue-on-error` (see below).
+
+  **Update, `docs/adr/0013-gallery-image-budget.md`.** The figures above are Task 14's
+  original measurement, on the pre-PH1-002 gallery (61 tiles, one of them the Notes
+  page's ephemera scrap) and the pre-PH1-003 tile choice (every device handed the same
+  400px `thumb` regardless of viewport or density). Both changed on this branch: PH1-002
+  removed the ephemera scrap from every gallery's frame list (Patagonia is 60 tiles, not
+  61), and PH1-003 made a tile offer a `srcset` and let the browser choose, rather than
+  the server guessing one derivative for every device. The second fix is why the number
+  moved: at a one-column phone viewport the correct choice is the 800px `tile`
+  derivative, not the 400px `thumb`, so the same nine lazy-loaded requests now cost
+  477,329 bytes instead of 173,579. `resource-summary:image:size` is now `600000`, not
+  400,000 and not 477,329 — ADR 0013 records why the limit sits above the current
+  measurement (the seeded placeholders understate a real photograph's bytes) rather than
+  at it, and pins the regression this gate exists to catch: with `loading="lazy"`
+  disabled, the same route fetched all 60 tiles for **4,600,585 bytes** — 7.67× the new
+  limit, so the detector still fires with room to spare.
+- **`/p/1` was landed as a hard gate before the page existed, deliberately.** The
+  controller ruling for Task 1 was to land the gate _before_ the page it measures,
+  specifically so no later task can land a regression under a budget still marked
+  informational — Phase 0 shipped exactly that state once (`/cms` under
+  `continue-on-error`) and it hid nothing because nobody was watching an informational
+  job. The route arrived in Task 7 (see `docs/api.md`), so every assertion in this
+  entry now measures a real diary page: the first full run against it recorded
+  `http-status-code` 1, script transfer 140747 bytes, LCP **2.0s** (score 0.97) and CLS
+  **0**.
+- **The 180KB JS budget had no gate at all until Phase 1 Task 7's fix round.**
+  `CLAUDE.md` §6 calls it a hard gate, and neither `package.json` nor
+  `lighthouserc.json` asserted a single byte — the number was a documented intention,
+  which is the same failure mode as an informational job nobody watches.
+  `resource-summary:script:size` on `/p/1` now enforces it at 184320 bytes (180KB).
+
+  **Which bytes count was a controller ruling, and the mechanism delivers it by
+  construction.** Next emits a legacy polyfill bundle marked `noModule`, fetched only by
+  browsers predating ES modules. The gate measures what readers actually download, so
+  that bundle does not count — and no bespoke script or per-chunk argument is needed to
+  get that, because Chrome never requests a `noModule` script, so Lighthouse never sees
+  it. The measured run confirms the mechanism rather than assuming it: Lighthouse counts
+  **7** script requests where the page's HTML carries **8** `<script src>` tags.
+
+  Measured at 140747 bytes against the 184320 gate — 43573 bytes of headroom. The pages
+  of Tasks 9–11 are server-component markup contributing near-zero JS, and the gallery
+  and lightbox live on their own route, so the real remaining claimants are Task 8's
+  flip triggers and Task 12's chrome. Setting the gate now means whichever task breaches
+  it finds out on its own commit rather than at the end of the phase.
+
+  **Task 8 spent 838 of those bytes.** Its triggers — both edge strips, the bottom
+  arrows and counter, the bookmark rail, the window keyboard listener, `jumpTo`'s
+  anchoring and the URL write — measure **141585 bytes** over the same 7 script
+  requests, against the same 184320 gate: **42735 bytes of headroom** left for Task
+  12's chrome. LCP 2045ms (budget 2500) and CLS 0 (budget 0.1) on the same run. The
+  cost is that small because every trigger ends at `turnTo` or `jumpTo` and the
+  arithmetic behind them already shipped in `packages/domain`, which the route was
+  already pulling in.
+
+  One local-environment note, since it wasted a run: `lhci autorun` builds and starts
+  the app on port 3000 itself, and a stale `next dev` still holding that port makes
+  every audit measure ITS error page instead — 703980 bytes of script, LCP 6.3s, and
+  `http-status-code` 0 on both URLs. The status-code assertion is what makes that
+  legible rather than a mysterious tenfold regression; free the port and re-run.
+
+- **The LCP gate is asserted against the MEDIAN of five runs, not one run — and the
+  median had to be asked for explicitly, because lhci's default would have loosened the
+  gate.** `/p/1`'s LCP sits within tens of milliseconds of its 2500ms budget, and
+  `numberOfRuns: 1` made the assertion a single sample of a noisy measurement rather
+  than a measurement: one clean run after an unrelated change read 2567.7ms and failed
+  the build. A gate that fails at random on unrelated commits teaches its authors to
+  re-run CI until it passes, which is how a hard gate becomes decorative. The fix is to
+  reduce the noise, not to raise the number: `collect.numberOfRuns` is **5**, and each
+  `assertMatrix` entry carries `"aggregationMethod": "median"`.
+
+  **Both halves are load-bearing.** `@lhci/utils`'s `getStandardAssertionResults`
+  defaults `aggregationMethod` to `'optimistic'`
+  (`node_modules/@lhci/utils/src/assertions.js`), and
+  `getValueForAggregationMethod` resolves `optimistic` on any `max*` assertion to
+  `Math.min(...values)` — the **best** run of the five. Raising `numberOfRuns` alone
+  would therefore have converted a one-sample gate into a best-of-five gate, which is
+  strictly weaker than what it replaced. Verified rather than reasoned about, by
+  asserting the same five collected runs at a threshold that falls between their
+  minimum and their median (2477ms): with `aggregationMethod: "median"` lhci reports
+  `found: 2478.053` and fails; with the default it passes on `2475.156`. `median` is
+  the right basis for a budget because it asks whether a typical load is within budget,
+  and because it cannot be moved by one outlier — two of five runs may spike without
+  changing the verdict.
+
+  Measured over five runs on the same production build: LCP **2481.976 · 2478.018 ·
+  2482.933 · 2478.053 · 2475.156** ms, median **2478.1ms** against the unchanged 2500ms
+  budget (21.9ms of headroom), spread 7.8ms. Script transfer **142998 bytes** on 7
+  requests, identical on every run, against the unchanged 184320 gate — 41322 bytes of
+  headroom. CLS 0 on every run. Five rather than three because the whole step is
+  dominated by the one production build it runs first; the five audits themselves cost
+  about a minute, and five is the smallest odd count that still tolerates two outliers.
+
+  **What that 2.5s actually measures is a projection, not a paint.** `lighthouserc.json`
+  inherits Lighthouse's default `throttlingMethod: "simulate"`, so the reported LCP is
+  Lantern's model of the trace on slow 4G (150ms RTT, 1638Kbps, 4x CPU), not an observed
+  timing. Observed LCP on these five runs was 617/367/344/340/311ms, equal to observed
+  FCP in every one: the server-rendered markup paints in a single frame. The LCP element
+  is `nav.rail > button.bookmarkTab` — a bookmark tab's text, not a photograph, not the
+  cover title — and its phase split is TTFB 454ms, load delay 0, load time 0, render
+  delay **2028ms (82%)**. Nothing is render-blocking in the HTML sense
+  (`render-blocking-resources` scores 1, `font-display` passes, both self-hosted faces
+  finish inside 70ms), so that render delay is the JS: Lantern's pessimistic LCP graph
+  treats every node as render-blocking and folds in every CPU node that performed layout
+  (`@paulirish/trace_engine/models/trace/lantern/metrics/LargestContentfulPaint.js`),
+  then takes the maximum node end time — which lands on the diary route's own bundle.
+  The corroboration is that simulated LCP equals simulated TTI exactly on every run, the
+  single long task is attributed to the 72KB route chunk, and `unused-javascript` flags
+  52KiB unused across that chunk and the 43KB one beside it.
+
+  **"The lever is script weight on this route" was this entry's original conclusion, and
+  it was wrong.** It has since been tried twice and measured twice.
+  `docs/adr/0007-server-rendered-page-faces.md` removed 11,465 bytes of page components
+  from the client chunk and moved LCP by 0.3ms.
+  `docs/adr/0008-lcp-budget-and-the-framework-floor.md` then measured what the route
+  costs with NO application code at all: a minimal server component rendering one styled
+  heading, in this same app, with no font, stylesheet, image or client component, still
+  downloads **137,986 bytes of JavaScript over six chunks** and models an LCP of
+  **2,023.2ms** with a 1,571.8ms render delay — 81% of the 2,500ms budget, before this
+  repository writes a line. A plain static `.html` file with the same heading, served by
+  the same server, measures 900.8ms. The 72KB chunk this entry blames is React DOM plus
+  the Next App Router client runtime, and it loads on every route in this application
+  whether or not anything on it is interactive; the diary's OWN chunk is 3,646 bytes,
+  2.57% of the route's script transfer, with no attributable bootup time at all. Script
+  weight is not a lever this repository holds. ADR 0008 sets out what is left — accept a
+  budget chosen from the measured floor, measure against a different Lighthouse preset,
+  or accept that this stack cannot meet 2.5s — and leaves the choice to the repository
+  owner. **The gate has not been raised, downgraded or removed, and is currently red.**
+
+- **`http-status-code` exists because the LCP/CLS budgets alone measured a vacuous
+  pass, not because the route's status code is interesting on its own.** First shipped
+  without it, this gate measured Next's own 404 response for `/p/1` at `largest-
+contentful-paint` **~2039ms** (budget 2500ms) and `cumulative-layout-shift` **0** —
+  both cleared the budget, so CI reported a green "diary LCP budget verified" against a
+  page that does not exist, which is worse than the informational-red state it replaced:
+  a plausible 2039ms reads as a genuine successful measurement, where the earlier
+  `continue-on-error` at least visibly meant "not ready." `http-status-code` scores 0 for
+  any 4xx/5xx response and 1 otherwise (`node_modules/lighthouse/core/audits/seo/
+http-status-code.js`) — added to `/p/1`'s `assertMatrix` entry, it fails the whole gate
+  outright against the 404 regardless of how fast that 404 happens to render, restoring
+  the intended red-until-Task-13 state. Verified: `lhci autorun` against the current 404,
+  inside the pinned Playwright image, fails with `http-status-code failure for minScore
+assertion ... expected: >=1, found: 0` (see this task's report for the full pasted run).
+  Added to `/cms`'s entry too, for the same reason CLS is asserted there and LCP is not:
+  it costs nothing against a route that already returns 200, and catches the admin route
+  silently starting to 5xx, which is a real regression LCP/CLS alone would not surface.
+  Do not remove this assertion once `/p/1` is real and returns 200 on its own — it is the
+  reason the LCP/CLS numbers mean anything at all, not leftover noise from a
+  not-yet-built route.
+- **Requires `--no-sandbox --disable-dev-shm-usage`** (`lighthouserc.json`'s
+  `collect.settings.chromeFlags`) to launch Chrome at all inside a container running as
+  root: without `--no-sandbox`, Chrome refuses to start
+  (`Running as root without --no-sandbox is not supported`); with only `--no-sandbox` and
+  not the second flag, Chrome launched but every audit failed uniformly with
+  `CHROME_INTERSTITIAL_ERROR` — Docker's default 64MB `/dev/shm` is too small for
+  Chrome's shared memory needs and the renderer crashed to an internal error page, which
+  Lighthouse correctly reports as the page having failed to load. Verified by reproducing
+  both failures in isolation before adding the fix; see this task's report.
 - **Run:** `npm run test:perf`. Needs a system Chrome/Chromium install discoverable by
-  `chrome-launcher` (GitHub's `ubuntu-latest` runner image ships one; set `CHROME_PATH`
-  locally if none is found automatically).
+  `chrome-launcher`. Inside `mcr.microsoft.com/playwright:v<version>` (the image
+  `browser`'s CI job now runs in — see the Visual regression section above), there is no
+  system `google-chrome`/`chromium-browser` binary to auto-detect; `CHROME_PATH` must
+  point at the image's own bundled Chromium under `/ms-playwright/chromium-<build>/
+chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rather
+  than hard-coding `<build>`, an internal Playwright id that can change on an image
+  update). GitHub's plain `ubuntu-latest` (uncontainerized) ships a system Chrome
+  `chrome-launcher` finds on its own; set `CHROME_PATH` locally too if none is found
+  automatically there.
+- **The diary budget is pinned to the BOOK surface, and since ADR 0014 it is measured at
+  a viewport that is actually served the book** (Phase 1 Task 15, revised).
+  `lighthouserc.book.json` sends `Cookie: td-reading-surface=book` — that line is
+  load-bearing, because below 860px `/p/1` serves `SCREENS.md` §1.10's mobile reading
+  mode instead of the book
+  (`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`), and without the pin the
+  gate silently stopped measuring the book. **It is not enough on its own.** The same
+  file emulates a 1350x940 desktop viewport, because Lighthouse injects `extraHeaders` at
+  the network layer where `document.cookie` cannot see them: on a 412px emulated phone
+  `SurfaceCorrection` measured the viewport, disagreed with the served book, and called
+  `router.refresh()` on **every** run, so the gate was measuring the mobile surface
+  preceded by a discarded book render. See
+  `docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md` for the twenty-run
+  distribution that showed it, and for why the throttling (150ms RTT, 1,638Kbps, 4x CPU,
+  `simulate`) is identical in both files. **The step was RED as of Task 15** —
+  3,011.36ms against 3,000 — caused by the mobile surface's client half sitting in the
+  book's own chunk group, which Turbopack would not split per import. It was reported red
+  rather than raised, and the cookie was NOT removed, because removing it would have
+  turned the gate green by changing what it measured rather than by making anything
+  faster. **It went GREEN at the two-route split** — 2,932.66ms with 67.34ms of margin
+  (`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`) — and it is green and
+  **stable** now: three consecutive `npm run test:perf` invocations, each with its own
+  build, gave book medians of **2,930.5 / 2,931.1 / 2,927.8ms**, fifteen runs spanning
+  2,926.0-2,937.8ms.
+- **`npm run test:perf` runs TWO lhci configurations, and both are gates.** Collect
+  settings in lhci are per-run, not per-URL, so the diary's desktop viewport cannot share
+  a run with the gallery's: at 1350x940 `/gallery/<slug>` picks larger derivatives and
+  fetches 1,229,466 bytes of image against its 600,000 budget (ADR 0013), which would
+  re-base a budget this change has no business touching. So `lighthouserc.json` collects
+  `/p/1`, `/gallery/patagonia` and `/cms` on Lighthouse's phone emulation with no pinned
+  cookie, and `lighthouserc.book.json` collects `/p/1` alone on the desktop viewport with
+  the cookie. Both keep `numberOfRuns: 5` and `aggregationMethod: "median"`. If you add a
+  route, add it to the first file unless it needs a viewport the first file cannot give
+  it.
+- **The mobile reading surface is gated too, since ADR 0014.** Dropping
+  `collect.settings.extraHeaders` from `lighthouserc.json` means its `/p/1` entry now
+  measures what a phone is actually served: 144,835 script bytes against the 184,320
+  budget, LCP 2,926.8ms against 3,000, CLS 0, over fifteen runs spanning
+  2,924.8-2,933.4ms. ADR 0011 said the mobile surface "cannot become the binding
+  constraint while the book is gated; if that ever stops being true, measure it rather
+  than assume it". It is now measured, on every run — and it is 3.7ms lighter than the
+  book, not half its cost, because both are dominated by ADR 0008's framework floor and
+  the five font faces rather than by their own markup.
+- **A correction that was recorded as harmless was not, and this paragraph replaces the
+  claim.** Until ADR 0014 this section said the mismatched-surface refresh downloaded the
+  mobile entry's chunk and stylesheet "AFTER LCP … LCP is unaffected — the correction
+  happens after it". It was a race, not an ordering. When the book's paint won, `/p/1`
+  measured 2,932ms; when the refresh won, the book never painted at all, the first paint
+  was the mobile Cover's title at 271-1,110ms observed, the five font faces landed in the
+  first-paint graph (simulated FCP 910 -> 1,581ms), and LCP measured 3,016ms or — when
+  Lantern additionally pinned it to the end of hydration — 3,167ms. Machine state decided
+  which. The gated script figure of 149,658 was the same artefact; the book surface's own
+  transfer, which the gate now measures directly, is **142,828**.
 - **Add one:** a budget per route, enforced in CI, not measured once and forgotten.
   Measure before optimizing, and paste the measurement (`CLAUDE.md` §0.4). Add the
-  diary route's URL to `lighthouserc.json`'s `collect.url` array the moment it exists,
-  and remove `continue-on-error` once its budgets pass for a real reason.
+  route's URL to `lighthouserc.json`'s `collect.url` array and its own `assertMatrix`
+  entry the moment it exists, scoped to the budget that actually applies to it (§6's
+  180KB/320KB JS-weight split is the same reasoning: a shared bundle-agnostic entry would
+  misdescribe one route or the other).
 
 ### 8 · Security
 
@@ -420,8 +1528,8 @@ would claim a measurement nothing performs.
   first real migration, which would have made the migration decorative rather than the
   thing that actually built the tables.
 - **What the reversibility test actually does.** `collections.integration.test.ts`'s
-  last case — *"rebuilds every table a journey, its highlights and its tally need, after
-  rolling all migrations back to zero and re-applying them"* — writes a journey whose
+  last case — _"rebuilds every table a journey, its highlights and its tally need, after
+  rolling all migrations back to zero and re-applying them"_ — writes a journey whose
   values span all three shapes the initial migration creates (plain columns on
   `journeys`, a group's `furniture_*` column prefix, and the two ordered array tables
   `journeys_highlights` and `journeys_tally`), captures those values, rolls every
@@ -429,13 +1537,13 @@ would claim a measurement nothing performs.
   are gone and that no migration remains applied, re-applies every migration, writes the
   same journey again, and asserts every captured value round-trips.
 
-  It replaced a case named *"runs down and up again without loss"* that seeded nothing
+  It replaced a case named _"runs down and up again without loss"_ that seeded nothing
   and compared nothing: it asserted only that `runMigrateDown()` and `runMigrateUp()`
   did not throw, and that a subsequent `find()` was defined. Both halves of that name
   were unearned.
 
   **To zero, not one batch, and that is the point.** Payload's `migrateDown()` rolls
-  back only the most recent *batch* — every migration the last `migrate()` applied
+  back only the most recent _batch_ — every migration the last `migrate()` applied
   together. On a database brought up in one go that is all of them; on one brought up
   incrementally it is only the newest. A reversibility test built on a single
   `migrateDown()` therefore proves whatever the local batch history happens to make it
@@ -456,21 +1564,22 @@ would claim a measurement nothing performs.
   **It has failed.** Per `CLAUDE.md` §2.3, it was verified against two deliberately
   broken migrations. Deleting `DROP TABLE "journeys" CASCADE` from the initial
   migration's `down()` fails it with `cannot drop type enum_journeys_weather_glyph
-  because other objects depend on it` — the surviving `journeys` table still uses that
+because other objects depend on it` — the surviving `journeys` table still uses that
   type. Restoring the generator's original statement order in
   `20260831_161951_add_jobs`'s `down()` — the CASCADE-ordering bug that file's hand-fix
   exists to prevent — fails it with `constraint
-  "payload_locked_documents_rels_jobs_fk" of relation
-  "payload_locked_documents_rels" does not exist`. Both hand-fixes are therefore covered
+"payload_locked_documents_rels_jobs_fk" of relation
+"payload_locked_documents_rels" does not exist`. Both hand-fixes are therefore covered
   by a test that demonstrably catches their removal.
 
   **One thing to know when reading a failure.** Payload's own `migrate()` and
   `migrateDown()` call `process.exit(1)` on a failed migration rather than throwing, so
   a broken migration surfaces in Vitest as `Error: process.exit unexpectedly called with
-  "1"`, with the Postgres error above it in the log, not as an assertion diff. That is
-  why the test asserts the rollback's outcome *mid-test*, before re-applying: without
+"1"`, with the Postgres error above it in the log, not as an assertion diff. That is
+  why the test asserts the rollback's outcome _mid-test_, before re-applying: without
   those two assertions, a rollback that quietly left a table behind would kill the
   worker on the re-apply, before anything could name the problem.
+
 - **Coverage:** `migrate.ts` is reachable only from the integration-only callers above,
   so `vitest.config.ts`'s Docker-free unit pass excludes it from coverage rather than
   count it as 0%. It is gated instead by `vitest.integration.config.ts` at

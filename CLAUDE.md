@@ -87,6 +87,8 @@ Documentation is a deliverable, not an afterthought. **All of the following type
 
 **No file is in neither config's `include`.** A file no `include` matches is not reported as 0% — it is not reported at all, and an unmeasured file looks exactly like a fully-covered one. Two configs exist because no single Vitest run can execute everything: the Docker-free pass measures what it can run, and `vitest.integration.config.ts` measures what needs a real Postgres. A file unreachable from either gets one of two honest treatments, never silence: exclude-and-regate where some other pass can genuinely see it, or a `c8 ignore` carrying its reason where nothing can. Adding code in a new directory means adding that directory to an `include`, with a real threshold, in the same commit.
 
+**Narrow carve-out: a verified coverage-tooling bug, not an escape hatch.** Both honest treatments above assume the chosen mechanism actually works. It has been observed not to: `@vitest/coverage-v8`'s ignore-hint scanner does not take effect on a file whose path contains a Next.js dynamic-route bracket segment (`[...slug]`, `[[...segments]]`) — reproduced by copying such a file byte-for-byte into an unbracketed sibling directory and observing the copy get ignored correctly while the bracketed original was not (Phase 1, Task 1). A file may be absent from both configs' `include`/reachable-and-ignored set only when **all** of the following hold, each stated at the point of exclusion (the config comment and `docs/testing.md`): (1) the file is verified, by reading it, to contain zero authored logic — a pure re-export or framework passthrough, never a file with a single real branch or line of our own; (2) a specific, reproducible tooling defect is named and demonstrated, showing that neither exclude-and-regate nor `c8 ignore` can be made to work for it, not merely that neither was tried; (3) the exclusion names the file's exact path, never a directory wildcard — so a future file placed alongside it, even one sharing the same bracketed parent, is not silently swept into the same hole and must justify its own exclusion or be measured. Revisit every such exclusion when the coverage tooling's version changes, since a fixed bug removes the justification.
+
 ### 2.2 TDD cycle — mandatory
 
 1. **Red** — write the failing test. Run it. Confirm it fails *for the expected reason*.
@@ -179,7 +181,7 @@ A change is done only when **all** hold:
 | Page flip | Sustained 60fps. **Only `transform` and `opacity` animated** — never layout properties |
 | Diary route JS | ≤ 180KB gzipped |
 | Admin route JS | ≤ 320KB gzipped |
-| LCP (diary, 4G) | ≤ 2.5s |
+| LCP (`/p/1`, Lighthouse `simulate` preset: 150ms RTT, 1,638Kbps, 4x CPU, median of 5; the book surface at a 1350x940 viewport, the mobile surface at 412x823) | ≤ 3.0s — see ADR 0008 for the number, ADR 0014 for the two viewports |
 | CLS | ≤ 0.1 |
 | INP | ≤ 200ms |
 | Database queries per request | No N+1. Every list is one query with joins |
@@ -327,8 +329,9 @@ npm run dev              # Next + Payload against local Postgres  (→ apps/web)
 npm run verify           # typecheck + lint + unit tests + unit coverage gates  <- pre-commit
 npm run verify:full      # verify, plus the integration suite and its own coverage gate  <- CI
 npm run test             # every Vitest project, watch mode
-npm run test:unit        # the unit project once, with coverage
+npm run test:unit        # both Docker-free projects once — `unit` and `unit-dom` — with coverage
 npm run test:integration # the integration project once — needs the Docker Postgres
+npm run test:integration:coverage  # the same, plus the integration-only coverage gate  <- what verify:full runs
 npm run test:e2e         # Playwright
 npm run test:e2e:headed  # Playwright, visible browser — the engine for QA sweeps
 npm run test:visual      # visual regression
@@ -342,12 +345,16 @@ npm run db:seed          # seed from the handoff prototype content  (→ apps/we
 **There are two gates, deliberately, and they are not the same gate.**
 
 `npm run verify` is the pre-commit gate, run by the Husky hook. It is **typecheck, lint
-and the unit project only** — no integration tests, no Docker. That is a decision, not
+and the two Docker-free Vitest projects only** — `unit` (pure, Node) and `unit-dom`
+(`*.test.tsx`, jsdom), which `test:unit` runs together under one coverage report. No
+integration tests, no Docker. That is a decision, not
 an oversight: a pre-commit gate that fails whenever a developer's Postgres container is
 down trains its author to reach for `--no-verify`, which §8.2 forbids outright. A gate
 has to be one a developer can always pass honestly.
 
-`npm run verify:full` is the CI gate. It is `verify` plus the integration suite and the
-separate coverage pass that gates the integration-only files (`vitest.integration.config.ts`).
-It needs a running Postgres. **It is what must pass before any completion claim**, and
+`npm run verify:full` is the CI gate. It is `verify` plus **`test:integration:coverage`**,
+which runs the integration suite AND the separate coverage pass that gates the
+integration-only files (`vitest.integration.config.ts`). That is the script `verify:full`
+actually depends on — `test:integration` is the same suite without the coverage gate, kept
+for a fast local run. It needs a running Postgres. **It is what must pass before any completion claim**, and
 what a branch is merged on — `verify` alone is not evidence that the work is done.

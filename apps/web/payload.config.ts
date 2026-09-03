@@ -14,7 +14,7 @@
  * addition, not part of DATA_MODEL.md - it backs the Postgres `QueuePort`
  * adapter and must be registered here for the Local API to reach it at all.
  * Depends on: `@payloadcms/db-postgres`, `@payloadcms/richtext-lexical`, `payload`,
- * `sharp`, the validated `env` from `./lib/env.js`, `./collections/*`, `./globals/*`.
+ * `sharp`, the validated `env` from `./lib/env`, `./collections/*`, `./globals/*`.
  */
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'

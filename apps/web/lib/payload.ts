@@ -7,10 +7,10 @@
  * Local API is itself designed to be shared this way): repeatedly calling
  * `payload.init()` would open a new database pool per call, so the first call
  * initialises and every subsequent call reuses the same in-flight/resolved
- * promise. Depends on: `payload`, the sanitised config from `payload.config.js`.
+ * promise. Depends on: `payload`, the sanitised config from `payload.config`.
  */
 import { getPayload as initPayload, type Payload } from 'payload'
-import config from '../payload.config.js'
+import config from '../payload.config'
 
 let cached: Promise<Payload> | undefined
 

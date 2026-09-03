@@ -40,16 +40,16 @@
  * Depends on: `payload` (the collections from Task 6), `sharp`,
  * `stripedPlaceholder` (Task 10), `journeyAccents` from `@travel-diary/tokens`,
  * `journeyId`/`pageId` from `@travel-diary/domain/ids` (Task 4), and
- * `journeySeeds`/`bookGlobalSeed`/`aboutGlobalSeed` from `./seed-data.js`.
+ * `journeySeeds`/`bookGlobalSeed`/`aboutGlobalSeed` from `./seed-data`.
  */
 import type { Payload } from 'payload'
 import sharp from 'sharp'
 import { journeyId, pageId } from '@travel-diary/domain/ids'
 import type { Result } from '@travel-diary/domain/result'
 import { journeyAccents } from '@travel-diary/tokens/colour'
-import type { Journey, Media, Page } from '../payload-types.js'
-import { stripedPlaceholder } from './placeholder.js'
-import { aboutGlobalSeed, bookGlobalSeed, journeySeeds, type JourneySeed } from './seed-data.js'
+import type { Journey, Media, Page } from '../payload-types'
+import { stripedPlaceholder } from './placeholder'
+import { aboutGlobalSeed, bookGlobalSeed, journeySeeds, type JourneySeed, type SeedFocal } from './seed-data'
 
 /** Design-box dimensions for each slot role, lifted from the prototype (Task 11 brief). */
 const SLOT_SIZE = {
@@ -60,6 +60,26 @@ const SLOT_SIZE = {
 
 /** Every journey page comes in this fixed order: Notes, Frames I, Frames II. */
 const PAGE_TITLES = ['Notes', 'Frames I', 'Frames II'] as const
+
+/**
+ * How many of a journey's media the book itself prints: the Notes page's hero
+ * and ephemera, Frames I's three and Frames II's four. Everything past this
+ * is gallery-only (SCREENS.md §1.8), and this constant is where the two
+ * numbering runs meet - `media.order` counts through the in-book slots first
+ * and the gallery frames after them, so the gallery shows the book's own
+ * photographs before the rest.
+ */
+const IN_BOOK_SLOTS = 9
+
+/**
+ * The pixel size a gallery-only placeholder is rendered at. Larger than the
+ * prototype's own 720x720 on purpose: `media.upload.imageSizes` skips a tier
+ * whose target width exceeds the source, so a 720px square generates only
+ * `thumb` and the lightbox would have nothing bigger than a 400px image to
+ * open. At 900 it generates `thumb` AND `tile`, which is the pair the grid
+ * and the lightbox actually use.
+ */
+const GALLERY_FRAME_SIZE = { width: 900, height: 900 } as const
 
 /**
  * Derives a journey's short uppercase code from its name, e.g. `'Tokyo'` ->
@@ -202,7 +222,21 @@ const upsertSlotMedia = async (
     limit: 1,
   })
   const found = existing.docs[0]
-  if (found) return found.id
+  // An existing row has its `order` and `caption` REWRITTEN rather than
+  // returned untouched, for the reason `upsertPortraitMedia` rewrites its
+  // focal point: both fields live only on the media row, so an early return
+  // leaves a developer's store frozen at whatever an older seed wrote.
+  // `media.order` is what `readGalleryBundle` sorts a gallery by, and this
+  // task renumbered the in-book slots to run sequentially across a journey's
+  // three pages rather than restarting at zero on each - without this update
+  // a re-seeded store keeps the old, colliding numbers and its gallery is in
+  // a different order from a freshly-seeded one's, which would make a visual
+  // baseline generated locally disagree with CI's. The FILE is not
+  // re-uploaded; only these two columns are written.
+  if (found) {
+    const updated = await payload.update({ collection: 'media', id: found.id, data: { order, caption } })
+    return updated.id
+  }
 
   const png = await renderPlaceholderPng(label, tint, size)
   const filename = `${label.toLowerCase().replace(/\s+/g, '-')}.png`
@@ -259,7 +293,13 @@ const buildNotesSlots = async (
     1,
   )
   return [
-    { role: 'hero', media: heroMedia, caption: seedJourney.heroCaption, focalX: 50, focalY: 50 },
+    {
+      role: 'hero',
+      media: heroMedia,
+      caption: seedJourney.heroCaption,
+      focalX: seedJourney.heroFocal?.x ?? 50,
+      focalY: seedJourney.heroFocal?.y ?? 50,
+    },
     { role: 'ephemera', media: ephemeraMedia, caption: '', focalX: 50, focalY: 50 },
   ]
 }
@@ -272,6 +312,13 @@ const buildNotesSlots = async (
  * @param captions - This page's captions, in slot order.
  * @param slotPrefix - `'A'` for Frames I, `'B'` for Frames II, matching the prototype.
  * @param tint - The journey's accent colour.
+ * @param focals - This page's non-default focal points, keyed by 0-based slot
+ *   index; a slot named by none of them keeps the schema's own centre (50/50).
+ * @param orderFrom - Where this page's slots start in the journey's own media
+ *   order. Sequential across the three pages rather than restarting per page:
+ *   `media.order` is what the gallery sorts by, and three pages each numbering
+ *   their slots from zero would give a journey three media rows claiming
+ *   position 0.
  */
 const buildFramesSlots = async (
   payload: Payload,
@@ -280,12 +327,23 @@ const buildFramesSlots = async (
   captions: readonly string[],
   slotPrefix: 'A' | 'B',
   tint: string,
+  focals: Readonly<Record<number, SeedFocal>>,
+  orderFrom: number,
 ): Promise<readonly SeededSlot[]> => {
   const slots: SeededSlot[] = []
   for (const [index, caption] of captions.entries()) {
     const label = `${code} ${slotPrefix}${String(index + 1)}`
-    const media = await upsertSlotMedia(payload, journeyNumericId, label, caption, tint, SLOT_SIZE.frame, index)
-    slots.push({ role: 'frame', media, caption, focalX: 50, focalY: 50 })
+    const media = await upsertSlotMedia(
+      payload,
+      journeyNumericId,
+      label,
+      caption,
+      tint,
+      SLOT_SIZE.frame,
+      orderFrom + index,
+    )
+    const focal = focals[index]
+    slots.push({ role: 'frame', media, caption, focalX: focal?.x ?? 50, focalY: focal?.y ?? 50 })
   }
   return slots
 }
@@ -347,18 +405,33 @@ const upsertJourneyPage = async (
  */
 const upsertPortraitMedia = async (payload: Payload): Promise<Media['id']> => {
   const label = 'PORTRAIT'
+  // Written onto the media item, not onto a slot: the `about` global holds a
+  // bare `upload`, so there is no slot to override it with (DATA_MODEL.md,
+  // "`media.focalPoint` is the default; the slot overrides it").
+  const focal = {
+    focalX: aboutGlobalSeed.portraitFocal.x,
+    focalY: aboutGlobalSeed.portraitFocal.y,
+  }
   const existing = await payload.find({
     collection: 'media',
     where: { alt: { equals: label } },
     limit: 1,
   })
   const found = existing.docs[0]
-  if (found) return found.id
+  // Re-seeding updates the focal point rather than returning the row
+  // untouched: unlike a journey's photo slots, whose focal points live on the
+  // `pages` row `upsertJourneyPage` rewrites in full, this one has nowhere
+  // else to be written from, so an early return would leave a developer's
+  // existing store centred for good.
+  if (found) {
+    const updated = await payload.update({ collection: 'media', id: found.id, data: focal })
+    return updated.id
+  }
 
   const png = await renderPlaceholderPng(label, '#7d715c', { width: 700, height: 900 })
   const created = await payload.create({
     collection: 'media',
-    data: { kind: 'still', caption: aboutGlobalSeed.portraitCaption, alt: label, order: 0 },
+    data: { kind: 'still', caption: aboutGlobalSeed.portraitCaption, alt: label, order: 0, ...focal },
     file: { data: png, mimetype: 'image/png', name: 'portrait.png', size: png.length },
   })
   return created.id
@@ -400,6 +473,44 @@ const upsertAboutGlobal = async (payload: Payload): Promise<void> => {
       replyTo: aboutGlobalSeed.replyTo,
     },
   })
+}
+
+/**
+ * Creates the gallery-only media a journey's `gallery` seed asks for - every
+ * frame behind `/gallery/<slug>` that the book itself does not print.
+ *
+ * They are ordinary `media` rows with no `pages` slot pointing at them, which
+ * is exactly what a gallery frame IS: `readGalleryBundle` reads a journey's
+ * media directly, and `inBook` (schema default `false`) is what distinguishes
+ * the two. Keyed for idempotency by the same `journey` + `alt` natural key
+ * {@link upsertSlotMedia} uses.
+ *
+ * A journey with no `gallery` block creates none, and its gallery is then the
+ * nine frames the book prints - see `seed-data.ts`'s `gallery` field for why
+ * exactly one journey carries one.
+ * @param payload - The Payload instance.
+ * @param journeyNumericId - The owning journey's Payload id.
+ * @param seedJourney - The journey's seed data.
+ * @param code - The journey's uppercase code, e.g. `'PATAGONIA'`.
+ * @param tint - The journey's accent colour.
+ */
+const upsertGalleryMedia = async (
+  payload: Payload,
+  journeyNumericId: Journey['id'],
+  seedJourney: JourneySeed,
+  code: string,
+  tint: string,
+): Promise<void> => {
+  const gallery = seedJourney.gallery
+  if (gallery === undefined) return
+
+  for (let position = IN_BOOK_SLOTS; position < gallery.count; position += 1) {
+    const label = `${code} G${String(position + 1).padStart(3, '0')}`
+    // The prototype's own eight-caption cycle, indexed exactly as its
+    // `gallery(j)` does: `caps[i % caps.length]`.
+    const caption = gallery.captions[position % gallery.captions.length] ?? ''
+    await upsertSlotMedia(payload, journeyNumericId, label, caption, tint, GALLERY_FRAME_SIZE, position)
+  }
 }
 
 /**
@@ -447,8 +558,9 @@ const upsertJourney = async (payload: Payload, seedJourney: JourneySeed, accent:
 
 /**
  * Seeds the ten journeys the prototype ships with, their thirty pages (three
- * per journey), every photo slot's placeholder media, and the `book`/`about`
- * globals' verbatim content. Upserts throughout, so calling this twice
+ * per journey), every photo slot's placeholder media, one journey's full
+ * sixty-one-frame gallery (see {@link upsertGalleryMedia}), and the
+ * `book`/`about` globals' verbatim content. Upserts throughout, so calling this twice
  * leaves the same ten journeys and thirty pages. Cover, Contents and About
  * are not `pages` rows - see this module's own header, "CORRECTION" - so the
  * reading sequence the handoff calls "33 pages" is not this function's
@@ -479,6 +591,8 @@ export const seed = async (payload: Payload): Promise<void> => {
       seedJourney.frameOneCaptions,
       'A',
       accent,
+      seedJourney.frameOneFocals ?? {},
+      2,
     )
     const frameTwoSlots = await buildFramesSlots(
       payload,
@@ -487,6 +601,8 @@ export const seed = async (payload: Payload): Promise<void> => {
       seedJourney.frameTwoCaptions,
       'B',
       accent,
+      seedJourney.frameTwoFocals ?? {},
+      5,
     )
 
     const baseOrder = index * PAGE_TITLES.length
@@ -517,6 +633,8 @@ export const seed = async (payload: Payload): Promise<void> => {
       frameTwoSlots,
     )
     brandOrThrow(pageId(String(frameTwoPageId)))
+
+    await upsertGalleryMedia(payload, journeyNumericId, seedJourney, code, accent)
   }
 
   await upsertBookGlobal(payload)

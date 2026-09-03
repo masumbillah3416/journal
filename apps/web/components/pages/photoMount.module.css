@@ -1,0 +1,58 @@
+/**
+ * photoMount.module.css — the three rules every taped photograph shares.
+ *
+ * SCREENS.md §1.4-§1.6 repeat one shape eight times: mount paper, a
+ * photograph that takes the leftover height cropped to fill, and a caption
+ * under it. What differs between the eight is padding, rotation, drop shadow,
+ * caption size and grid placement — all of it NUMBERS, and all of it in the
+ * printing page's own stylesheet (`frames.module.css`, `about.module.css`)
+ * beside the rest of that page's absolute geometry. What is here is only what
+ * is STRUCTURAL, so that a page can no more forget it than it can forget the
+ * markup:
+ *
+ *   1. The mount is a flex column with `min-height: 0`, so the photograph's
+ *      `flex: 1` resolves against the cell rather than against the
+ *      photograph's own intrinsic height. Without `min-height: 0` a flex item
+ *      refuses to shrink below its content, and every mount in a `1fr` track
+ *      would push its row taller than the track.
+ *   2. `position: relative`, so a washi strip's own `top`/`left`/`right`
+ *      offsets are measured from the mount and not from the page.
+ *   3. The photograph is `object-fit: cover`, which is what makes
+ *      `object-position` — the slot's focal point, set inline by
+ *      `Photograph.tsx` — mean anything at all. On a `fill` image the focal
+ *      point is inert, which is precisely the failure `e2e/frames.spec.ts`
+ *      and `e2e/about.spec.ts` screenshot the crop twice to rule out.
+ *
+ * NOTHING HERE IS RESPONSIVE AND NOTHING HERE REFLOWS — see
+ * `cover.module.css`'s header for why, and do not add a media query.
+ *
+ * The caption carries only its family and its ink here; its size, leading and
+ * padding are stated per placement by SCREENS.md and belong to the page.
+ * `--td-ink-body` is the token table's own name for this colour (`#4a4232`),
+ * which is what the prototype paints every caption in.
+ * Depends on: packages/tokens/src/tokens.css, loaded by the diary layout.
+ */
+
+.mount {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+  background: var(--td-paper-mount);
+}
+
+/* "photo flex: 1; min-height: 80px; object-fit: cover" — the same three the
+ * Notes hero carries, since it is the same element in a different mount. */
+.photo {
+  display: block;
+  flex: 1;
+  min-height: 80px;
+  width: 100%;
+  object-fit: cover;
+}
+
+.caption {
+  font-family: var(--td-font-caveat);
+  color: var(--td-ink-body);
+}

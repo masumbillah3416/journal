@@ -1,0 +1,236 @@
+/**
+ * page.tsx — the `/p/<n>` diary route: one page of the book, server-rendered.
+ *
+ * The minimum route needed to host the book. It reads the `BookBundle` through
+ * the repository seam (`lib/readBookBundle.ts`), turns the URL's 1-based page
+ * number into the 0-based leaf index the stack works in
+ * (`addressedPageIndex`), renders every page's face, and hands them to
+ * `<Book>`. It holds no logic of its own on purpose: a Next.js page component
+ * cannot be run without a request context, so anything decided here would be
+ * undecidable by any test - which is why the two real decisions, what `<n>`
+ * means and which bookmark tabs are drawable, live in
+ * `@travel-diary/domain`'s `pageAddress` and `bookBundle` with their own
+ * 100%-covered suites.
+ *
+ * THE FACES ARE BUILT HERE, AND THAT IS THE WHOLE POINT OF THIS LOOP. `Book`
+ * is the diary's `'use client'` boundary; anything it IMPORTS is compiled into
+ * the route's script bundle and hydrated in the browser, so while `<PageFace>`
+ * was imported there, `Cover`, `Contents`, `Notes`, the four slot components
+ * and three stylesheets' class maps all shipped. Rendering them here instead
+ * and passing them down as `children` means they cross into the client as an
+ * already-rendered payload with no component code behind it. Measured on
+ * `/p/1`: the diary's own client chunk fell from 19,930 bytes to 8,042 (6,400
+ * to 3,646 transferred) and total script transfer from 144,386 to 141,632.
+ * LCP did not move at all - see `docs/adr/0007-server-rendered-page-faces.md`,
+ * which records both numbers, because the second one is the one a future task
+ * needs.
+ *
+ * `key={index}` is the leaf's identity, not a stand-in for one: the reading
+ * sequence is a fixed, ordered stack, and the third face is the third leaf of
+ * the book whatever page happens to be printed on it.
+ *
+ * IT RENDERS A WINDOW OF THE PAGES, NOT ALL THIRTY-THREE, and that is this
+ * file's one structural decision - taken by `servedContentWindow`
+ * and `rendersContent`
+ * (@travel-diary/domain/contentWindow), both of which have their own
+ * 100%-covered suites, so nothing is decided here. A document request gets the addressed
+ * page and three leaves either side; Next's own client render, which the
+ * book asks for once, gets the whole book. Every leaf still gets a child, so
+ * the stack's page count, z-order and geometry are untouched - a leaf outside
+ * the window carries a contentless `data-page-deferred` marker instead of a
+ * face, and that marker is also what `e2e/serverWindow.spec.ts` reads to know
+ * which document it has.
+ *
+ * WHY THIS DOES NOT COST THE DEEP LINKS THEIR INDEXABILITY, which is the
+ * reason the diary uses `/p/<n>` paths at all (design spec §8): indexability
+ * is per ROUTE. `/p/12`'s document carries page 12's content, and no crawler
+ * ever asked it to carry page 20's - `/p/20` does. All thirty-three routes
+ * are asserted, one by one, in `e2e/serverWindow.spec.ts`. See
+ * `docs/adr/0009-server-rendered-page-window.md` for the measurement that
+ * prompted it and the three alternatives it beat.
+ *
+ * AN ADDRESS THE BOOK HAS NO PAGE FOR IS A 404. `addressedPageIndex` returns
+ * `null` for `/p/999`, `/p/0`, `/p/03` and `/p/tokyo` alike, and this route
+ * turns that into `notFound()` - rendering `app/(diary)/not-found.tsx` with
+ * HTTP 404. The route previously clamped such an address onto page 33 and
+ * answered 200, which told a crawler that thirty-three synonyms for the last
+ * page were all real pages, and told a reader that a broken link had worked.
+ * The decision is `addressedPageIndex`'s (its header carries the reasoning);
+ * this file only spends it.
+ *
+ * IT DOES NOT DECLARE `generateStaticParams`, AND THAT IS A MEASUREMENT
+ * RATHER THAN AN OMISSION. Statically generating all thirty-three pages and
+ * reading `searchParams` are mutually exclusive on one path in Next 16, and
+ * `searchParams` is the only signal that can widen the window without
+ * unmounting the book (ADR 0009). The 33-route static build was BUILT and
+ * MEASURED against this dynamic one - all thirty-three prerender, and they
+ * answer in 1.7-2.6ms where this route takes 19-34ms - and LCP
+ * moved 2,931.04ms to 2,932.92ms, which is inside a single run's spread. It
+ * buys nothing the gate can see and costs the window, so it is not taken.
+ * See `docs/adr/0010-static-generation-and-the-content-window.md` for the
+ * runs and the three shapes that were considered for having both.
+ *
+ * IT RENDERS THE BOOK, AND ONLY THE BOOK. Below 860px the design replaces the
+ * book outright - "No book, no flip, no scaling" (SCREENS.md §1.10) - so the
+ * diary has a second reading surface, and it is a second ROUTE ENTRY:
+ * `app/(diary)/m/[n]/page.tsx`, reached by a rewrite in
+ * `apps/web/middleware.ts` that leaves the reader's address at `/p/<n>`.
+ * While both surfaces were chosen by an `if` inside THIS file, Turbopack
+ * compiled both component trees into this route's one chunk group, and every
+ * desktop reader downloaded the mobile mode's client half and its 23,923-byte
+ * stylesheet: LCP went 2,936.12ms to 3,011.36ms against a 3,000ms gate.
+ * Turbopack splits per route ENTRY, not per import - which is why
+ * `next/dynamic` did not split it, measured twice - so the surfaces are two
+ * entries. See `docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`
+ * for the measurement and the four alternatives it beat, and
+ * `docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md` for the
+ * decision this route no longer takes: which surface a request is served is
+ * `servedReadingSurface`'s, spent by the middleware rather than here.
+ *
+ * A SERVER GUESS IS CORRECTED IN THE BROWSER, by `<SurfaceCorrection>`, which
+ * is rendered beside whichever surface was chosen. It measures the real
+ * viewport and, where the guess was wrong - a desktop window narrowed under
+ * 860px, a tablet held the other way round - remembers the measurement and
+ * re-renders this address, which the middleware then routes afresh. This
+ * entry always passes it `"book"`, because this entry is only ever reached by
+ * a reader the middleware decided was served the book. See its own header and
+ * ADR 0011.
+ *
+ * SCOPE. On-demand revalidation on publish (design spec §8) is a later task's
+ * - nothing publishes yet. The gallery-return behaviour is the address this
+ * route writes plus `Book.tsx`'s `replaceState`, and is asserted by
+ * `e2e/routing.spec.ts` today against the real `/gallery/<slug>` link the
+ * page footers already carry.
+ * Depends on: `readBookBundle` (../../../../lib/readBookBundle),
+ * `addressedPageIndex` (@travel-diary/domain/pageAddress),
+ * `addressedPageMetadata` (@travel-diary/domain/pageMetadata),
+ * `servedContentWindow`/`rendersContent` (@travel-diary/domain/contentWindow),
+ * `deriveRail`/`derivePageLabels` (@travel-diary/domain/bookBundle),
+ * `Book` (../../../../components/book/Book),
+ * `PageFace` (../../../../components/book/PageFace),
+ * `SurfaceCorrection` (../../../../components/mobile/SurfaceCorrection),
+ * `notFound` (next/navigation).
+ */
+/* c8 ignore start -- Framework passthrough with no authored logic: await the
+ * route params and the query, read the bundle, and render the book with one
+ * face per page inside the served window and a contentless marker outside it.
+ * Its four real decisions - what `<n>` means, whether the book has such a page
+ * at all, which pages this request gets the content of, and whether a given
+ * leaf is one of them - are `addressedPageIndex`, `servedContentWindow` and
+ * `rendersContent`, each with its own 100%-covered suite in
+ * `@travel-diary/domain`, as are the title, description and canonical link
+ * `generateMetadata` returns (`addressedPageMetadata`). WHICH SURFACE this
+ * request is served is no longer decided here at all: it is
+ * `servedReadingSurface`'s, spent by `apps/web/middleware.ts`, which has its
+ * own suite that this coverage pass does run. The two values the book's chrome
+ * needs - the labelled rail and one label per page - are `deriveRail` and
+ * `derivePageLabels`, so neither is decided here either.
+ * It cannot be measured by either Vitest config (a page component needs a real
+ * Next request context, and no integration test can supply one), and this
+ * file's path contains a Next.js dynamic-route bracket segment, where
+ * `@vitest/coverage-v8`'s ignore-hint scanner is documented not to take effect
+ * (CLAUDE.md §2.1, verified in Phase 1 Task 1) - so it is ALSO named by exact
+ * path in vitest.config.ts's coverage exclude, which is the treatment that
+ * actually holds here. Both are present deliberately: the comment states the
+ * reason at the point of exclusion, and the config entry is what enforces it.
+ * Its runtime behaviour is covered in the browser by e2e/routing.spec.ts
+ * (the 404, the metadata, the canonical link), e2e/book.spec.ts,
+ * e2e/smoke.spec.ts, e2e/serverWindow.spec.ts and e2e/imageWindow.spec.ts. */
+import { derivePageLabels, deriveRail } from '@travel-diary/domain/bookBundle'
+import { rendersContent, servedContentWindow, type RouteQuery } from '@travel-diary/domain/contentWindow'
+import { addressedPageIndex } from '@travel-diary/domain/pageAddress'
+import { addressedPageMetadata } from '@travel-diary/domain/pageMetadata'
+import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import type React from 'react'
+import { Book } from '../../../../components/book/Book'
+import { PageFace } from '../../../../components/book/PageFace'
+import { SurfaceCorrection } from '../../../../components/mobile/SurfaceCorrection'
+import { readBookBundle } from '../../../../lib/readBookBundle'
+
+/** The route's own parameters. Next 15+ hands them over as promises. */
+interface DiaryPageProps {
+  readonly params: Promise<{ readonly n: string }>
+  /** The query, read only for the one signal the book sends itself - see `servedContentWindow`. */
+  readonly searchParams: Promise<RouteQuery>
+}
+
+/**
+ * The title, description and canonical link one page of the book carries.
+ *
+ * THE CANONICAL LINK IS THE POINT OF THIS FUNCTION, not decoration on it.
+ * `?pages=all` is a real, reachable URL serving the same page's content under
+ * a second address - the book puts it there itself when it asks for the rest
+ * of the book (`docs/adr/0009-server-rendered-page-window.md`), and that
+ * ADR's own concerns list asked this task for the link by name. It is
+ * declared for the plain address too, not only the widened one: a page whose
+ * canonical is itself is what makes the widened one's claim meaningful.
+ *
+ * It is a ROOT-RELATIVE path rather than an absolute URL, deliberately. An
+ * absolute one needs an origin, and this repository has no configured
+ * production origin to build one from - `MEDIA_ORIGIN` is the media bucket's,
+ * which is not the site's. A canonical resolved against `localhost:3000` at
+ * build time would be worse than none at all, and a root-relative href
+ * resolves correctly against whatever origin actually served the document.
+ *
+ * @param props - The route's own parameters, of which only `params` is read.
+ * @returns This page's own title and description, and the canonical `/p/<n>`.
+ */
+export const generateMetadata = async ({ params }: DiaryPageProps): Promise<Metadata> => {
+  const [{ n }, bundle] = await Promise.all([params, readBookBundle()])
+  const addressed = addressedPageMetadata(bundle, n)
+  // An address with no page of its own has no metadata of its own either:
+  // Next renders `not-found.tsx` for it, under the layout's own title.
+  if (addressed === null) return {}
+
+  return {
+    title: addressed.title,
+    description: addressed.description,
+    alternates: { canonical: addressed.canonical },
+  }
+}
+
+/** Renders the book, opened at `<n>`, with a window of its pages' faces. */
+const DiaryPage = async ({ params, searchParams }: DiaryPageProps): Promise<React.JSX.Element> => {
+  const [{ n }, query, bundle] = await Promise.all([params, searchParams, readBookBundle()])
+  const totalPages = bundle.pages.length
+  const openIndex = addressedPageIndex(n, totalPages)
+  if (openIndex === null) notFound()
+
+  const content = servedContentWindow(query, openIndex, totalPages)
+
+  return (
+    <>
+      <Book
+        bookmarks={deriveRail(bundle.pages, bundle.bookmarks)}
+        labels={derivePageLabels(bundle.pages)}
+        showDecorations={bundle.chrome.showDecorations}
+        initialIndex={openIndex}
+        content={content}
+      >
+        {bundle.pages.map((leafPage, index) =>
+          rendersContent(content, index) ? (
+            <PageFace
+              key={index}
+              leafIndex={index}
+              page={leafPage}
+              contents={bundle.contents}
+              chrome={bundle.chrome}
+              about={bundle.about}
+              totalPages={totalPages}
+            />
+          ) : (
+            // A leaf, but no face. The stack needs the leaf for its z-order and
+            // its page count; the reader needs the face only once they can get
+            // to it, which is what `useRestOfBook` sees to.
+            <div key={index} data-page-deferred={index} />
+          ),
+        )}
+      </Book>
+      <SurfaceCorrection served="book" />
+    </>
+  )
+}
+
+export default DiaryPage
+/* c8 ignore stop */

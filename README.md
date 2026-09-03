@@ -51,8 +51,9 @@ npm run dev              # Next + Payload against local Postgres  (→ apps/web)
 npm run verify           # typecheck + lint + unit + coverage gates  <- pre-commit
 npm run verify:full      # verify + integration tests and their coverage gate  <- CI
 npm run test             # every Vitest project, watch mode
-npm run test:unit        # unit tests only, with coverage
+npm run test:unit        # both Docker-free projects (unit + unit-dom) once, with coverage
 npm run test:integration # integration tests only (requires DATABASE_URL)
+npm run test:integration:coverage  # the same, plus their coverage gate  <- what verify:full runs
 npm run test:e2e         # Playwright
 npm run test:e2e:headed  # Playwright, visible browser — the engine for QA sweeps
 npm run test:visual      # visual regression
@@ -85,8 +86,10 @@ projects: `unit` (pure, Node) and `unit-dom` (`*.test.tsx`, jsdom).
 
 Integration tests — anything matching `*.integration.test.ts`, which require
 `DATABASE_URL` — run separately in `npm run verify:full`, which is what CI runs and what
-a completion claim needs. That run carries its own coverage gate
-(`vitest.integration.config.ts`) over the code only a real Postgres can execute:
+a completion claim needs. `verify:full` reaches them through
+**`npm run test:integration:coverage`**, not through `test:integration`: the two run the
+same suite, and only the first also enforces the gate. That run carries its own coverage
+gate (`vitest.integration.config.ts`) over the code only a real Postgres can execute:
 collections, globals, `payload.config.ts`, the migrations, and the integration-only
 `lib`/`scripts` files. This split keeps the pre-commit gate something a developer can
 always pass honestly, even with Docker down.

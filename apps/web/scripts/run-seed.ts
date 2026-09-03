@@ -27,11 +27,11 @@
  * So the honest form is an explicit ignore with its reason at the point it
  * applies, not a 0% row that reads as neglect and not an exclude-and-regate
  * that claims a measurement nothing performs.
- * Depends on: `./seed.js`, `../lib/payload.js`.
+ * Depends on: `./seed`, `../lib/payload`.
  */
 /* c8 ignore start -- CLI entry point: top-level await ending in process.exit(0), so no test can import it without seeding a real database and terminating its own worker. See this module's header for why exclude-and-regate is not available here. */
-import { getPayload } from '../lib/payload.js'
-import { seed } from './seed.js'
+import { getPayload } from '../lib/payload'
+import { seed } from './seed'
 
 const payload = await getPayload()
 await seed(payload)

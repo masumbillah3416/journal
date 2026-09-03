@@ -5,7 +5,7 @@
  * the `unit` Vitest project (see ../../../vitest.config.ts).
  */
 import { describe, expect, it } from 'vitest'
-import { stripedPlaceholder } from './placeholder.js'
+import { stripedPlaceholder } from './placeholder'
 
 describe('stripedPlaceholder', () => {
   it('names the slot it stands in for, so a missing photo is identifiable on the page', () => {

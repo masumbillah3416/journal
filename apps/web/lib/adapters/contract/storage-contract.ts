@@ -7,10 +7,10 @@
  * exists to protect. The path-traversal test in particular must pass for
  * every adapter, even one (R2) with no filesystem to protect, which is why
  * the rejection lives in the port's own `validateStorageKey`, not here.
- * Depends on: vitest, the StoragePort contract from ../../ports/storage.js.
+ * Depends on: vitest, the StoragePort contract from ../../ports/storage.
  */
 import { describe, expect, it } from 'vitest'
-import type { StoragePort } from '../../ports/storage.js'
+import type { StoragePort } from '../../ports/storage'
 
 /**
  * Registers the shared StoragePort contract as a `describe` block.

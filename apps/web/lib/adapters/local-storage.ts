@@ -12,8 +12,8 @@ import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { Result } from '@travel-diary/domain/result'
 import { ok } from '@travel-diary/domain/result'
-import type { StoragePort } from '../ports/storage.js'
-import { validateStorageKey } from '../ports/storage.js'
+import type { StoragePort } from '../ports/storage'
+import { validateStorageKey } from '../ports/storage'
 
 /**
  * Creates a StoragePort backed by the local filesystem.

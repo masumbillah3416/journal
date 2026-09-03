@@ -1,6 +1,11 @@
 /**
  * route.ts — Payload's REST API, mounted at `/api/**` (`routes.api` default).
  * Depends on: `@payloadcms/next/routes`, `payload.config.ts`.
+ *
+ * Six re-exported Payload handlers; no logic of ours, and only reachable
+ * from a real Next.js route request. Excluded from vitest.config.ts's
+ * coverage (not a `c8 ignore` comment here — see that file's own comment for
+ * why the in-source directive does not apply cleanly to this path).
  */
 import config from '@payload-config'
 import {

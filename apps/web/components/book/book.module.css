@@ -1,0 +1,314 @@
+/**
+ * book.module.css — the book's frame, page stack and leaf geometry.
+ *
+ * Every measurement here is absolute and lives inside the 1300x860 design box
+ * (`handoff/design_handoff_travel_diary/README.md`, "The book — geometry and
+ * flip", cross-checked against the prototype's own markup in
+ * `Travel Diary.dc.html`). The box is scaled as a whole by `Book.tsx`, so
+ * nothing in this file is responsive and nothing here reflows.
+ *
+ * Three rules are load-bearing, each recording a defect the handoff already
+ * paid for:
+ *
+ *   1. There is NO `backface-visibility` anywhere in this file. It was tried
+ *      in the prototype and produced blank pages. Each leaf has a real front
+ *      face and a real back face whose opacities cross-fade at the flip's
+ *      midpoint instead (`pageStack.ts` derives both).
+ *   2. `.back` and `.shade` are `pointer-events: none`, always. When the back
+ *      face was not, it silently swallowed every click on page content -
+ *      Contents links and gallery buttons appeared completely dead while
+ *      their handlers were fine, and it cost a debugging session to find.
+ *      `e2e/book.spec.ts`'s first case is the proof this stays true.
+ *   3. Only `transform` and `opacity` are ever transitioned (CLAUDE.md §6).
+ *      The PROPERTY is declared statically here and only the DURATION varies
+ *      (`Leaf.tsx` sets it inline, 0ms for a leaf that is not turning), so a
+ *      resting leaf still reports `transition-property: transform` and the
+ *      budget is assertable at any moment rather than only mid-flip. A
+ *      duration of 0ms is what stops a bookmark jump from fanning the whole
+ *      stack open at once.
+ *
+ * Rule 3 binds the trigger surfaces Task 8 added as much as the leaves. The
+ * page-edge strips fade a gradient in under the pointer, and they do it by
+ * transitioning OPACITY over a statically-declared background rather than by
+ * transitioning `background`: `e2e/book.spec.ts` walks every element inside
+ * the design box and fails on any transition property that is not `transform`
+ * or `opacity`, and a background transition is exactly the kind of thing that
+ * looks free and is not.
+ *
+ * Colours come from `@travel-diary/tokens`' `--td-*` custom properties. The
+ * four literals below - the fore-edge's two paper stops, the travelling
+ * shade's browns and the edge strips' hover wash - are handoff values that
+ * have no entry in the token table (README's own "Colour" section does not
+ * list them), so they are named here rather than invented as new tokens.
+ *
+ * THE CHROME OUTSIDE THE BOX IS NOT IN THIS FILE. The bookmark rail, the
+ * bottom bar and the spine ribbon are SCREENS.md §1.7 and live in
+ * `../chrome/chrome.module.css`, beside the three components that draw them.
+ * What stays here is `.stage`'s grid, because that is the book's constraint on
+ * them rather than their own appearance.
+ * Depends on: packages/tokens/src/tokens.css, loaded by the diary layout.
+ */
+
+/* The reading surface: the book's own measured area, the bottom bar under it,
+ * and the bookmark rail beside both. The rail and the bar sit OUTSIDE the
+ * scaled design box (the handoff's own arrangement, and the reason its 4K note
+ * exists), so they must not overlap the area `useBookScale` measures - a strip
+ * of chrome lying across the book would also lie across the page-edge turn
+ * strips and swallow their clicks. A grid, rather than absolute positioning
+ * over the book, is what makes that impossible rather than merely unlikely.
+ * Nine of thirteen bookmark tabs were dead at 1000x800 for exactly that reason
+ * (docs/qa/2026-09-01-diary-sweep.md, DIARY-002), and `e2e/layout.spec.ts` is
+ * what keeps them alive.
+ *
+ * The two areas are claimed from the other side: `chrome.module.css`'s `.rail`
+ * and `.bar` name `grid-area: rail` and `grid-area: bar`, so their designed
+ * appearance (SCREENS.md §1.7) lives with the components that draw them while
+ * this file keeps the one rule that matters - where they are allowed to be. */
+.stage {
+  position: relative;
+  display: grid;
+  grid-template-areas:
+    'book rail'
+    'bar rail';
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--td-outer);
+}
+
+/* The single track here is not a formality. With no `grid-template-*` the
+ * 1300x860 design box is auto-placed into an IMPLICIT `auto`-sized track that
+ * is itself 1300x860 and overflows this area to the right and below; centring
+ * inside a track the same size as the item is a no-op, so the box's layout
+ * origin stayed at 0,0 and `scale(k)` about its own centre pinned the drawn
+ * book's left edge at x = 650 - 650k whatever the area's own centre was.
+ * Measured: 129px of the page cut off at 1200px, 229px at 1000px, and at
+ * 390px the whole book outside the viewport and clipped away by
+ * `.stage { overflow: hidden }` (docs/qa/2026-09-01-diary-sweep.md, DIARY-001;
+ * it took the bookmark tabs and the page-edge turn strips with it, DIARY-002
+ * and DIARY-003). An EXPLICIT `minmax(0, 1fr)` track is exactly the area
+ * `useBookScale` measures, so `place-items: center` centres the box in the
+ * same rectangle the scale was fitted to and the drawn book is concentric
+ * with it at every width. `minmax(0, 1fr)` rather than `1fr`: a `1fr` track's
+ * automatic minimum is its content, which is the 1300px box again.
+ * `e2e/layout.spec.ts` is the assertion that this stays true. */
+.bookArea {
+  position: relative;
+  grid-area: book;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+.designBox {
+  position: relative;
+  flex: none;
+  width: var(--td-design-box-width);
+  height: var(--td-design-box-height);
+  transform-origin: center center;
+  /* The handoff's page-area inset ("the page area inset 14px 18px 14px 36px"),
+   * named once here because two children need it: the page stack, and the
+   * page-edge turn strips that must line up with the stack's own edges
+   * exactly. Local rather than a `--td-*` token: it is this component's
+   * internal geometry, not a value the token table publishes. */
+  --page-area-inline-start: 36px;
+  --page-area-inline-end: 18px;
+  --page-area-block: 14px;
+}
+
+.board {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--td-radius-book-board);
+  background: linear-gradient(180deg, var(--td-board-from) 0%, var(--td-board-via) 55%, var(--td-board-to) 100%);
+  box-shadow:
+    0 28px 64px -26px rgba(48, 38, 24, 0.55),
+    0 1px 0 rgba(0, 0, 0, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.spine {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 36px;
+  border-radius: 7px 0 0 7px;
+  background: linear-gradient(90deg, var(--td-spine-from) 0%, var(--td-spine-via) 48%, var(--td-spine-to) 100%);
+  box-shadow: inset -3px 0 8px rgba(0, 0, 0, 0.4);
+}
+
+/* The two dashed stitch lines, at x=9 and x=27 inside the 36px spine strip. */
+.spine::before,
+.spine::after {
+  content: '';
+  position: absolute;
+  top: 22px;
+  bottom: 22px;
+  width: 0;
+  border-left: 1px dashed var(--td-spine-stitch);
+}
+
+.spine::before {
+  left: 9px;
+}
+
+.spine::after {
+  left: 27px;
+}
+
+.foreEdge {
+  position: absolute;
+  right: 7px;
+  top: 26px;
+  bottom: 26px;
+  width: 11px;
+  border-radius: 0 4px 4px 0;
+  /* Not tokens: the handoff gives the fore-edge's two paper stops only as
+   * this gradient, and its own colour table does not name them. */
+  background: repeating-linear-gradient(90deg, #f2ebda 0 2px, #d9cdb4 2px 3px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.stack {
+  position: absolute;
+  left: var(--page-area-inline-start);
+  right: var(--page-area-inline-end);
+  top: var(--page-area-block);
+  bottom: var(--page-area-block);
+  perspective: 2800px;
+  perspective-origin: 35% 50%;
+}
+
+/* The page-edge turn strips: the handoff's 44px forward band and 30px
+ * backward band, at its own `z-index: 900`, spanning the full height of the
+ * page area and aligned to its edges. The two share everything but their side.
+ *
+ * HANDOFF-DEVIATION: the prototype makes these two divs the last CHILDREN of
+ * the perspective container, siblings of the leaves. At `z-index: 900` there
+ * they are painted UNDER the page the reader is looking at, whose own stacking
+ * order is `1000 - i` (>= 968 for any page of a 33-page book), so the current
+ * leaf's face intercepts every click meant for a strip and neither strip can
+ * ever be pressed. That is not a theory: built exactly that way, Playwright
+ * timed out on the first case of `e2e/flip.spec.ts` with "<article class=page>
+ * from <div data-leaf=2> subtree intercepts pointer events". The strips are
+ * therefore siblings of the STACK rather than of the leaves, which puts
+ * `z-index: 900` in the design box's stacking context — above the whole stack
+ * (a `z-index: auto` element) and still below anything the chrome may add
+ * later. The handoff's value, widths and position are unchanged; only the
+ * parent is. See docs/deviations.md §8. */
+.edgeLeft,
+.edgeRight {
+  position: absolute;
+  top: var(--page-area-block);
+  bottom: var(--page-area-block);
+  z-index: 900;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  opacity: 0;
+  /* See rule 3 in this file's header: the wash is a static background whose
+   * OPACITY animates. Never transition `background` here. */
+  transition-property: opacity;
+  transition-timing-function: ease-in-out;
+  transition-duration: 160ms;
+}
+
+.edgeLeft {
+  left: var(--page-area-inline-start);
+  width: 30px;
+  /* Not a token: the handoff gives the strips' hover wash only as this
+   * gradient, and its colour table does not name it. */
+  background: linear-gradient(90deg, rgba(70, 52, 24, 0.14), rgba(70, 52, 24, 0));
+}
+
+.edgeRight {
+  right: var(--page-area-inline-end);
+  width: 44px;
+  border-radius: 0 9px 9px 0;
+  background: linear-gradient(270deg, rgba(70, 52, 24, 0.14), rgba(70, 52, 24, 0));
+}
+
+.edgeLeft:hover,
+.edgeLeft:focus-visible,
+.edgeRight:hover,
+.edgeRight:focus-visible {
+  opacity: 1;
+}
+
+/* At the ends of the book the band stops responding, and stops inviting a
+ * click it would only refuse. */
+.edgeLeft:disabled,
+.edgeRight:disabled {
+  cursor: default;
+  opacity: 0;
+}
+
+.leaf {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  /* `will-change` is deliberately NOT here. Declared on `.leaf` it would ask
+   * the compositor for 33 standing layers on a book where at most one moves -
+   * memory on a phone, for no frame-rate gain, and the property's own
+   * documented misuse. Leaf.tsx sets it inline on the one leaf that is
+   * actually turning, alongside the duration it already varies there. */
+  /* See rule 3 in this file's header: the property is fixed, the duration is
+   * what Leaf.tsx varies. Never add a layout property to this list. */
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.55, 0.06, 0.28, 1);
+  transition-duration: 0ms;
+}
+
+.front {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--td-radius-page-face);
+  background:
+    radial-gradient(130% 100% at 8% 0%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 62%),
+    linear-gradient(180deg, var(--td-paper-from) 0%, var(--td-paper-to) 100%);
+  box-shadow:
+    inset 26px 0 30px -26px rgba(70, 52, 24, 0.42),
+    inset -1px 0 0 var(--td-hairline-border-min),
+    0 10px 26px -18px rgba(60, 44, 20, 0.5);
+}
+
+.back {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* The true reverse of the leaf: mirrored, so it reads the right way round
+   * once the leaf itself is at -180deg. It carries no content, which is why
+   * mirroring costs nothing. */
+  transform: rotateY(180deg);
+  border-radius: 9px 2px 2px 9px;
+  background: linear-gradient(
+    270deg,
+    var(--td-paper-back-from) 0%,
+    var(--td-paper-back-via) 78%,
+    var(--td-paper-back-to) 100%
+  );
+  box-shadow: inset -22px 0 26px -22px rgba(70, 52, 24, 0.4);
+  /* RULE 2. Never remove this. See this file's header. */
+  pointer-events: none;
+}
+
+.shade {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--td-radius-page-face);
+  /* Not tokens: the handoff gives the travelling shade only as this gradient
+   * ("flip shade" in its Shadow table), with no named colour behind it. */
+  background: linear-gradient(270deg, rgba(44, 32, 16, 0.42) 0%, rgba(44, 32, 16, 0.14) 26%, rgba(44, 32, 16, 0) 62%);
+  pointer-events: none;
+  transition-property: opacity;
+  transition-timing-function: ease-in-out;
+  transition-duration: 0ms;
+}

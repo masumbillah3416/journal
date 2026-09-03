@@ -6,7 +6,7 @@
  * degrade security (missing DATABASE_URL, an under-length PAYLOAD_SECRET).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { parseEnv } from './env.js'
+import { parseEnv } from './env'
 
 describe('parseEnv', () => {
   it('accepts a complete environment', () => {

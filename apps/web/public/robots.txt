@@ -1,0 +1,26 @@
+# robots.txt — what a crawler may read of the public diary.
+#
+# Static, and deliberately so. SECURITY.md requires `site.indexGalleries` to be
+# respected "in robots.txt AND with X-Robots-Tag, since the pages are statically
+# served", and that setting defaults to `true`
+# (apps/web/globals/site.ts). Nothing in this repository writes it yet — the
+# Settings screen that would is Phase 4 — so the only honest file to serve today
+# is the one that matches the default, which is this one. Serving nothing at all
+# was the state before Phase 1's final review: also permissive, but by omission
+# rather than by a decision anyone can read.
+#
+# PHASE 4 MUST REPLACE THIS FILE with a generated route that reads the setting
+# (`apps/web/app/robots.ts`, Next's own metadata route, is the mechanism), and
+# must set `X-Robots-Tag` on the gallery route in the same change — a static
+# file under public/ cannot consult a database, and half the requirement lives
+# in the header rather than here. docs/security.md's `indexGalleries` row is the
+# record of what is still owed.
+#
+# `/cms` is Payload's admin. It is authenticated, so nothing behind it is
+# indexable in any case; it is named here so a crawler does not spend requests
+# discovering that, and so the diary's own routes are the only thing this file
+# invites.
+
+User-agent: *
+Allow: /
+Disallow: /cms

@@ -49,13 +49,32 @@
  * finding 2) - see that module's header.
  */
 import { Client } from 'pg'
+import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { env } from '../lib/env.js'
-import { appliedMigrationCount, runMigrateDownToZero, runMigrateUp } from '../lib/migrate.js'
-import { getPayload } from '../lib/payload.js'
-import { getTestPayload } from '../lib/testPayload.js'
+import { env } from '../lib/env'
+import { appliedMigrationCount, runMigrateDownToZero, runMigrateUp } from '../lib/migrate'
+import { getPayload } from '../lib/payload'
+import { getTestPayload } from '../lib/testPayload'
 
 const FIXTURE_SLUGS = ['test-tokyo', 'test-bergen', 'test-lisbon', 'test-reversibility']
+
+/** The `alt` values the two media access fixtures are created with, so `afterAll` can find and delete them. */
+const FIXTURE_MEDIA_ALTS = ['test-access-visible', 'test-access-hidden', 'test-access-hidden-editor']
+
+/** The editor fixture's email, so `afterAll` can remove the account the access tests sign in as. */
+const FIXTURE_USER_EMAIL = 'test-access-editor@example.com'
+
+/**
+ * A real, uploadable PNG for the media access fixtures - built with the same
+ * `sharp` the media pipeline itself uses rather than a hand-rolled byte
+ * string, so what Payload stores is a genuine image. A factory, not a shared
+ * buffer (CLAUDE.md §2.3): two uploads must not share one.
+ * @returns A 100x100 grey PNG.
+ */
+const aTinyPng = (): Promise<Buffer> =>
+  sharp({ create: { width: 100, height: 100, channels: 3, background: { r: 200, g: 200, b: 200 } } })
+    .png()
+    .toBuffer()
 
 /**
  * The journey the reversibility test writes, rolls the whole schema out from
@@ -138,6 +157,20 @@ describe('collections', () => {
       for (const doc of found.docs) {
         await payload.delete({ collection: 'journeys', id: doc.id })
       }
+    }
+    // The two media access fixtures, for the same reason the journeys are
+    // removed: `seed.integration.test.ts` counts rows in the shared
+    // collections, and a fixture left behind here inflates whichever file
+    // runs second.
+    for (const alt of FIXTURE_MEDIA_ALTS) {
+      const found = await payload.find({ collection: 'media', where: { alt: { equals: alt } } })
+      for (const doc of found.docs) {
+        await payload.delete({ collection: 'media', id: doc.id })
+      }
+    }
+    const editors = await payload.find({ collection: 'users', where: { email: { equals: FIXTURE_USER_EMAIL } } })
+    for (const doc of editors.docs) {
+      await payload.delete({ collection: 'users', id: doc.id })
     }
   })
 
@@ -229,8 +262,85 @@ describe('collections', () => {
       data: { status: 'failed' },
     })
 
-    await expect(create).rejects.toThrow()
-    await expect(update).rejects.toThrow()
+    // Both assertions are attached in ONE `Promise.all`, not awaited one
+    // after the other. `expect(p).rejects` only attaches its handler when it
+    // is called, so awaiting the first assertion to completion leaves the
+    // second promise rejected-and-unhandled for as long as that takes - and
+    // Node reports it as an unhandled rejection at the next microtask drain,
+    // which Vitest surfaces as `Errors 1 error` and a non-zero exit even
+    // though every test passed. It is a latent race rather than a certainty:
+    // it depends on which of the two rejects first, and it went from silent
+    // to reproducible when Task 14 made the seed in a sibling file slower.
+    await Promise.all([expect(create).rejects.toThrow(), expect(update).rejects.toThrow()])
+  })
+
+  // `media` is the one collection a signed-out reader MUST be able to read.
+  // Payload's default access predicate is "logged in", and it gates the
+  // upload file route as well as the REST route - so with no rule of its own,
+  // every photograph in the public diary answered 403 and the page rendered
+  // with empty frames and nothing in the console but "Failed to load
+  // resource" (found by `e2e/notes.spec.ts` on the first page in the book to
+  // display a photograph at all). These two cases are the regression guard,
+  // and they are a pair on purpose: the collection has to be readable AND
+  // still has to withhold what an editor hid, since SECURITY.md's whole
+  // objection to direct media URLs is that they "invite enumeration of
+  // everything in the bucket, including anything marked hidden".
+  it('serves a media item to an unauthenticated reader, so the public diary can show a photograph', async () => {
+    const visible = await payload.create({
+      collection: 'media',
+      data: { kind: 'still', alt: 'test-access-visible', order: 0 },
+      file: { data: await aTinyPng(), mimetype: 'image/png', name: 'test-access-visible.png', size: 1 },
+    })
+
+    const read = await payload.find({
+      collection: 'media',
+      overrideAccess: false,
+      where: { id: { equals: visible.id } },
+    })
+
+    expect(read.docs).toHaveLength(1)
+  })
+
+  it('withholds a hidden media item from an unauthenticated reader, so hiding one is not merely cosmetic', async () => {
+    const concealed = await payload.create({
+      collection: 'media',
+      data: { kind: 'still', alt: 'test-access-hidden', order: 0, hidden: true },
+      file: { data: await aTinyPng(), mimetype: 'image/png', name: 'test-access-hidden.png', size: 1 },
+    })
+
+    const asReader = await payload.find({
+      collection: 'media',
+      overrideAccess: false,
+      where: { id: { equals: concealed.id } },
+    })
+    const asServer = await payload.find({ collection: 'media', where: { id: { equals: concealed.id } } })
+
+    expect(asReader.docs).toHaveLength(0)
+    // The row is still there — it is hidden from readers, not deleted.
+    expect(asServer.docs).toHaveLength(1)
+  })
+
+  it('shows a hidden media item to a signed-in editor, so the admin is not lying about what exists', async () => {
+    const concealed = await payload.create({
+      collection: 'media',
+      data: { kind: 'still', alt: 'test-access-hidden-editor', order: 0, hidden: true },
+      file: { data: await aTinyPng(), mimetype: 'image/png', name: 'test-access-hidden-editor.png', size: 1 },
+    })
+    const editor = await payload.create({
+      collection: 'users',
+      data: { email: 'test-access-editor@example.com', password: 'not-a-real-password' },
+    })
+
+    // `overrideAccess: false` WITH a user is what an admin request is; the
+    // two cases above are what a signed-out reader is.
+    const asEditor = await payload.find({
+      collection: 'media',
+      overrideAccess: false,
+      user: editor,
+      where: { id: { equals: concealed.id } },
+    })
+
+    expect(asEditor.docs).toHaveLength(1)
   })
 
   it('refuses to read otpChallenges for an unauthenticated caller, because a code hash must never be enumerable', async () => {
@@ -252,8 +362,16 @@ describe('collections', () => {
       data: { attempts: 0 },
     })
 
-    await expect(create).rejects.toThrow()
-    await expect(update).rejects.toThrow()
+    // Both assertions are attached in ONE `Promise.all`, not awaited one
+    // after the other. `expect(p).rejects` only attaches its handler when it
+    // is called, so awaiting the first assertion to completion leaves the
+    // second promise rejected-and-unhandled for as long as that takes - and
+    // Node reports it as an unhandled rejection at the next microtask drain,
+    // which Vitest surfaces as `Errors 1 error` and a non-zero exit even
+    // though every test passed. It is a latent race rather than a certainty:
+    // it depends on which of the two rejects first, and it went from silent
+    // to reproducible when Task 14 made the seed in a sibling file slower.
+    await Promise.all([expect(create).rejects.toThrow(), expect(update).rejects.toThrow()])
   })
 
   it('rebuilds every table a journey, its highlights and its tally need, after rolling all migrations back to zero and re-applying them', async () => {

@@ -24,8 +24,8 @@
  * stubbing; it is not one of our own modules).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createConsoleMailer } from './console-mailer.js'
-import { mailerContract } from './contract/mailer-contract.js'
+import { createConsoleMailer } from './console-mailer'
+import { mailerContract } from './contract/mailer-contract'
 
 mailerContract('console', () => Promise.resolve(createConsoleMailer({ isDevelopment: false })))
 
