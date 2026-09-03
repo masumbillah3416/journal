@@ -54,7 +54,8 @@
  * THE SEEDED JOURNEY IS PATAGONIA, not Tokyo, and that is deliberate:
  * Patagonia is the prototype journey whose gallery `count` is 61
  * (`Travel Diary.dc.html`), which is the number SCREENS.md verified the grid
- * at and the `003 / 061` its lightbox counter prints. Its three pages are 9,
+ * at and the `003 / 061` its lightbox counter prints. Sixty of those 61 rows
+ * are photographs and reach the grid - see `FRAMES` below. Its three pages are 9,
  * 10 and 11 of the reading sequence (Cover, Contents, then three pages per
  * journey), so page 9 is the first that carries a link to it.
  * Depends on: @playwright/test, `waitForLiveBook` (./support/liveBook), the
@@ -65,25 +66,35 @@ import { expect, test } from '@playwright/test'
 import { waitForLiveBook } from './support/liveBook'
 import { drawsMobileReadingMode } from './support/surface'
 
-/** The seeded journey whose gallery holds the sixty-one frames §1.8 was verified against. */
+/** The seeded journey whose gallery §1.8 was verified against. */
 const GALLERY = '/gallery/patagonia'
 
 /** The same gallery as the book links to it: with the page the reader left. */
 const GALLERY_FROM_NOTES = `${GALLERY}?from=9`
 
-/** How many frames that gallery holds. */
-const FRAMES = 61
+/**
+ * How many frames that gallery holds.
+ *
+ * SIXTY, not the sixty-one media rows `docs/deviations.md` §20 seeds for
+ * Patagonia: the sixty-first is the Notes page's decorative ephemera scrap,
+ * which PH1-002 took out of the grid, the census and the download because it
+ * is a texture rather than a photograph (`docs/deviations.md` §13.4, and
+ * `apps/web/lib/galleryFrames.ts`). §1.8's verification bar is "must stay
+ * square and unsqueezed at 40+", which sixty clears, and §1.9's `003 / 061`
+ * is that counter's three-digit format, which `060` still is.
+ */
+const FRAMES = 60
 
 /** Patagonia's Notes page — the first page of the book that links to its gallery. */
 const NOTES_PAGE = '/p/9'
 
-test('draws every one of the sixty-one tiles the design was verified with', async ({ page }) => {
+test('draws every one of the journey’s photographs, and nothing that is not one', async ({ page }) => {
   await page.goto(GALLERY)
 
   await expect(page.locator('[data-tile]')).toHaveCount(FRAMES)
 })
 
-test('keeps every tile square and unsqueezed at sixty-one of them', async ({ page }) => {
+test('keeps every tile square and unsqueezed at sixty of them', async ({ page }) => {
   await page.goto(GALLERY)
   await expect(page.locator('[data-tile]').first()).toBeVisible()
 

@@ -80,9 +80,23 @@ describe('readGalleryDownload', () => {
     await upload('dl-hidden', journeyId, { order: 2, hidden: true })
     await upload('dl-withheld', journeyId, { order: 3, allowDownload: false })
     await upload('dl-elsewhere', otherJourneyId, { order: 0 })
+    // PH1-002. `role` lives on the `pages` slot, not on the media row, so the
+    // only thing that makes a media item the Notes page's decorative scrap is
+    // a slot printing it as one. The row itself is an ordinary upload.
+    await upload('dl-ephemera', journeyId, { order: 4 })
+    await payload.create({
+      collection: 'pages',
+      data: {
+        journey: journeyId,
+        kind: 'notes',
+        order: 0,
+        slots: [{ role: 'ephemera', media: Number(ids['dl-ephemera']) }],
+      },
+    })
   }, SETUP_TIMEOUT_MS)
 
   afterAll(async () => {
+    await payload.delete({ collection: 'pages', where: { journey: { in: [journeyId, otherJourneyId] } } })
     await payload.delete({ collection: 'media', where: { journey: { in: [journeyId, otherJourneyId] } } })
     await payload.delete({ collection: 'journeys', where: { slug: { in: ['test-download', 'test-elsewhere'] } } })
   })
@@ -126,6 +140,17 @@ describe('readGalleryDownload', () => {
     expect(result.ok).toBe(false)
   })
 
+  it('refuses the Notes page’s ephemera scrap, so a page texture cannot be saved as a photograph', async () => {
+    // PH1-002. The gallery grid no longer lists the scrap, and this handler is
+    // the second, independent derivation of "the journey's frames" - it recounts
+    // the same query to number the filename. If only the grid excluded it, the
+    // address stayed live (`200 · attachment; filename="patagonia-004.png"`) and
+    // every filename after it named the wrong frame.
+    const result = await readGalleryDownload('test-download', ids['dl-ephemera'] ?? '')
+
+    expect(result.ok).toBe(false)
+  })
+
   it('refuses an id that names no media at all', async () => {
     const result = await readGalleryDownload('test-download', '99999999')
 
@@ -143,6 +168,7 @@ describe('readGalleryDownload', () => {
       readGalleryDownload('test-download', ids['dl-elsewhere'] ?? ''),
       readGalleryDownload('test-download', ids['dl-hidden'] ?? ''),
       readGalleryDownload('test-download', ids['dl-withheld'] ?? ''),
+      readGalleryDownload('test-download', ids['dl-ephemera'] ?? ''),
       readGalleryDownload('test-download', '99999999'),
       readGalleryDownload('no-such-journey', ids['dl-first'] ?? ''),
     ])

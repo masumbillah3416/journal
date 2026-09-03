@@ -23,24 +23,32 @@
  *      lines, the highlights, the note, the tally ticket, the sign-off and
  *      the postage stamp) - all of it lives on the journey row, so it costs
  *      no query of its own.
- *   3. `find('media')` - the gallery census: `journey` and `kind` only, for
- *      every media row of every journey in the book, so each page's footer
- *      count is DERIVED (CLAUDE.md §7) rather than stored. Two columns for
- *      the whole book, not one query per journey.
- *   4. `find('pages')` - every one of those journeys' pages together
- *      (`where: journey in [...]`), not one query per journey.
+ *   3. `find('pages')` - every one of those journeys' pages together
+ *      (`where: journey in [...]`), not one query per journey. Read BEFORE
+ *      (4) rather than after it, which is what keeps the census below at no
+ *      extra cost: `slots[].role` is the only thing in the database that says
+ *      which media rows are decorative ephemera rather than photographs, and
+ *      the census has to exclude them (`lib/galleryFrames.ts`, PH1-002). This
+ *      query already selected `slots`, so the census reads them from its
+ *      result instead of asking again.
+ *   4. `find('media')` - the gallery census: `journey` and `kind` only, for
+ *      every GALLERY FRAME of every journey in the book, so each page's
+ *      footer count is DERIVED (CLAUDE.md §7) rather than stored. Two columns
+ *      for the whole book, not one query per journey. What counts as a frame
+ *      is `galleryFrameWhere`'s, shared with the two readers of a single
+ *      gallery so a footer cannot contradict the grid it describes.
  *   5. `findGlobal('about')` - the About page's portrait, caption,
  *      paragraphs, kit list and reply-to ({@link toAboutContent}). Read
  *      BEFORE (6) so its portrait's media id joins that batch rather than
  *      costing a query of its own.
- *   6. `find('media')` - every media item referenced by any slot in (4),
+ *   6. `find('media')` - every media item referenced by any slot in (3),
  *      plus the About portrait from (5), together (`where: id in [...]`),
- *      not one query per slot or per page. Separate from (3) deliberately:
+ *      not one query per slot or per page. Separate from (4) deliberately:
  *      this one carries each row's whole `sizes` derivative map, which a
  *      census must never pay for.
  * Every one of the six sets `depth: 0` explicitly (CLAUDE.md §7: a default
  * depth walks the whole relationship graph on every request) - relationships
- * are resolved by hand from (4)'s raw `journey`/`slots[].media` ids and (5)'s
+ * are resolved by hand from (3)'s raw `journey`/`slots[].media` ids and (5)'s
  * batch, not by Payload's own population. Every query also selects only the
  * fields this module reads (CLAUDE.md §7).
  *
@@ -103,7 +111,8 @@
  * deriveBookmarks (@travel-diary/domain/bookBundle); journeyId
  * (@travel-diary/domain/ids); coverCloths (@travel-diary/tokens/colour), for
  * the one chrome field whose empty value would render nothing at all; the
- * generated Payload types.
+ * generated Payload types; ephemeraMediaIds/galleryFrameWhere
+ * (./galleryFrames), the one definition of what a gallery frame is.
  */
 import { cache } from 'react'
 import type {
@@ -126,6 +135,7 @@ import type {
   Media as PayloadMedia,
   Page as PayloadPage,
 } from '../payload-types'
+import { ephemeraMediaIds, galleryFrameWhere } from './galleryFrames'
 import { getPayload } from './payload'
 
 /** `book.journeyOrderMode`'s three values, transcribed from DATA_MODEL.md's globals section. */
@@ -567,26 +577,12 @@ export const readBookBundle = cache(async (): Promise<BookBundle> => {
   })
   const journeyNumericIds = journeysResult.docs.map((doc) => doc.id)
 
-  // The gallery census: one query for the whole book, two columns wide. It
-  // is deliberately NOT folded into the slot-media query below - that one is
-  // keyed by the slot media ids and carries every row's `sizes` map, and
-  // widening it to "every media row of every journey" to save a round trip
-  // would pull a derivative map per photograph for a number this page prints
-  // as two integers (CLAUDE.md §7, fetch narrowly).
-  const censusResult = await payload.find({
-    collection: 'media',
-    depth: 0,
-    pagination: false,
-    limit: 20_000,
-    where: { journey: { in: journeyNumericIds } },
-    select: { journey: true, kind: true },
-  })
-  const galleryByJourney = galleryCountsByJourney(censusResult.docs)
-
-  const journeys = journeysResult.docs.map((doc) =>
-    toDomainJourney(doc, galleryByJourney.get(doc.id) ?? NO_GALLERY, payload.logger),
-  )
-
+  // READ BEFORE THE CENSUS, and that ordering is the whole reason the census
+  // costs no extra query: `slots` is what says which of the book's media rows
+  // are decorative ephemera rather than photographs, and the census has to
+  // exclude them (`lib/galleryFrames.ts`, and PH1-002). This query already
+  // selected `slots` for the faces, so asking for it first turns a second
+  // `pages` read into a reordering.
   const pagesResult = await payload.find({
     collection: 'pages',
     depth: 0,
@@ -595,6 +591,34 @@ export const readBookBundle = cache(async (): Promise<BookBundle> => {
     where: { journey: { in: journeyNumericIds } },
     select: { journey: true, kind: true, order: true, slots: true },
   })
+
+  // The gallery census: one query for the whole book, two columns wide. It
+  // is deliberately NOT folded into the slot-media query below - that one is
+  // keyed by the slot media ids and carries every row's `sizes` map, and
+  // widening it to "every media row of every journey" to save a round trip
+  // would pull a derivative map per photograph for a number this page prints
+  // as two integers (CLAUDE.md §7, fetch narrowly).
+  //
+  // WHAT IT COUNTS IS `galleryFrames`' DEFINITION, NOT A FILTER OF ITS OWN.
+  // The number this produces is printed on the Notes page footer ("{n}
+  // photographs and {m} clips in the gallery") and by the gallery header, over
+  // a grid `readGalleryBundle` built - so a census with its own idea of what a
+  // frame is makes the page contradict the grid it describes. It did: it
+  // counted the ephemera scrap, and it was also the one reader that had never
+  // applied the `hidden` filter at all.
+  const censusResult = await payload.find({
+    collection: 'media',
+    depth: 0,
+    pagination: false,
+    limit: 20_000,
+    where: galleryFrameWhere(journeyNumericIds, ephemeraMediaIds(pagesResult.docs)),
+    select: { journey: true, kind: true },
+  })
+  const galleryByJourney = galleryCountsByJourney(censusResult.docs)
+
+  const journeys = journeysResult.docs.map((doc) =>
+    toDomainJourney(doc, galleryByJourney.get(doc.id) ?? NO_GALLERY, payload.logger),
+  )
 
   const about = await payload.findGlobal({
     slug: 'about',

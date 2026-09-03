@@ -9,7 +9,7 @@
  * they read a typed `GalleryBundle` (`@travel-diary/domain/gallery`) and
  * nothing else.
  *
- * Three Payload queries, always, whatever the gallery's size (CLAUDE.md §6,
+ * Four Payload queries, always, whatever the gallery's size (CLAUDE.md §6,
  * no N+1):
  *   1. `find('journeys')` - the one journey the slug names, if it is
  *      published, not soft-deleted and not archived. Same three-part filter
@@ -19,20 +19,22 @@
  *      bookmark rail.
  *   2. `findGlobal('book')` - `galleryThumbPx` alone, the grid's minimum tile
  *      track (SCREENS.md §1.8).
- *   3. `find('media')` - every one of that journey's visible frames, in one
- *      query, sorted by the media order the seed writes.
- * All three set `depth: 0` explicitly and select only the fields this module
+ *   3. `find('pages')` - `journeyPagesQuery`, to learn which of the
+ *      journey's media its pages print as decorative ephemera. One query over
+ *      three rows, not one per frame.
+ *   4. `find('media')` - every one of that journey's frames, in one query,
+ *      sorted by the media order the seed writes.
+ * All four set `depth: 0` explicitly and select only the fields this module
  * reads (CLAUDE.md §7).
  *
- * `hidden` IS FILTERED IN THE QUERY, NOT LEFT TO ACCESS CONTROL, and that is
- * a security requirement rather than a style choice. `collections/media.ts`
- * withholds a hidden row from an unauthenticated READER, but this module runs
- * through Payload's Local API with no user, where access control is
- * overridden by default - so without this `where` clause a hidden photograph
- * would appear in the public gallery. SECURITY.md's objection to direct media
- * URLs is precisely that they "invite enumeration of everything in the
- * bucket, including anything marked hidden"; a gallery that listed them would
- * be that enumeration, published.
+ * WHAT COUNTS AS A FRAME IS NOT DECIDED HERE. The `where` and the sort both
+ * come from `./galleryFrames`, because `readGalleryDownload` has to apply the
+ * identical filter in the identical order - the number in a download's
+ * filename is the frame's POSITION in this list. Two copies of that rule is
+ * what PH1-002 cost (`docs/qa/2026-09-03-phase-1-closing-sweep.md`). That
+ * module's header carries the reasoning for both exclusions - `hidden`, which
+ * is a security requirement rather than a style choice, and the Notes page's
+ * ephemera scrap, which is a texture rather than a photograph.
  *
  * THE FOCAL POINT COMES FROM THE MEDIA ITEM. DATA_MODEL.md's rule is
  * "`media.focalPoint` is the default; the slot overrides it", and a gallery
@@ -56,17 +58,20 @@
  * Wrapped in React's `cache` for the reason `readBookBundle`'s header sets
  * out at length: the route reads the bundle in `generateMetadata` and again
  * in the page component, and without deduplication that is six queries for
- * one document instead of three.
+ * one document instead of four.
  * Depends on: cache (react); getPayload (./payload); GalleryBundle,
  * GalleryFrame, galleryThumbSize (@travel-diary/domain/gallery);
  * galleryDownloadPath (@travel-diary/domain/galleryDownload); journeyId,
- * mediaId (@travel-diary/domain/ids); the generated Payload types.
+ * mediaId (@travel-diary/domain/ids); GALLERY_FRAME_SORT/ephemeraMediaIds/
+ * galleryFrameWhere/journeyPagesQuery
+ * (./galleryFrames); the generated Payload types.
  */
 import { cache } from 'react'
 import type { GalleryBundle, GalleryFrame } from '@travel-diary/domain/gallery'
 import { galleryThumbSize } from '@travel-diary/domain/gallery'
 import { galleryDownloadPath } from '@travel-diary/domain/galleryDownload'
 import { journeyId, mediaId } from '@travel-diary/domain/ids'
+import { GALLERY_FRAME_SORT, ephemeraMediaIds, galleryFrameWhere, journeyPagesQuery } from './galleryFrames'
 import type { Media as PayloadMedia } from '../payload-types'
 import { getPayload } from './payload'
 
@@ -198,17 +203,21 @@ export const readGalleryBundle = cache(async (slug: string): Promise<GalleryBund
 
   const book = await payload.findGlobal({ slug: 'book', depth: 0, select: { galleryThumbPx: true } })
 
+  // Which of this journey's media its own pages print as decorative ephemera -
+  // one query over three rows, and the only way to know, since `role` lives on
+  // the slot rather than on the media item (`./galleryFrames`).
+  const journeyPages = await payload.find(journeyPagesQuery(journeyDoc.id))
+
   const mediaResult = await payload.find({
     collection: 'media',
     depth: 0,
     pagination: false,
     limit: 20_000,
-    // Ties broken by `id` so the order is total rather than merely mostly
-    // determined: `media.order` is an editor-facing integer nothing enforces
-    // the uniqueness of, and a gallery whose tiles swapped places between two
-    // requests would make every frame number a lie.
-    sort: ['order', 'id'],
-    where: { and: [{ journey: { equals: journeyDoc.id } }, { hidden: { not_equals: true } }] },
+    // The filter and the sort both come from `galleryFrames.ts`, which is the
+    // one definition of what a gallery frame is - see its header, and
+    // `readGalleryDownload.ts`, the other reader that has to agree with it.
+    sort: [...GALLERY_FRAME_SORT],
+    where: galleryFrameWhere([journeyDoc.id], ephemeraMediaIds(journeyPages.docs)),
     select: {
       sizes: true,
       alt: true,

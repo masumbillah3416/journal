@@ -673,6 +673,16 @@ reserves its single line whether or not there is anything in it, and the element
 is always rendered. It contains no filler text — it is empty, not padded — so nothing is
 printed that an editor did not write.
 
+**What this entry does NOT say**, added when PH1-002 was triaged because the sentence
+above was being read more widely than it was written. "Nothing is printed that an editor
+did not write" is about the caption ELEMENT's geometry, and it assumes the tile is a
+photograph an editor put in the gallery. It is not a sanction for an empty caption
+wherever one appears: an empty caption on a row that no editor placed and that is not a
+photograph at all was a real defect, and the empty caption was the symptom that showed
+it (`docs/qa/2026-09-03-phase-1-closing-sweep.md` PH1-002, fixed by excluding the row
+rather than by captioning it). This entry stands unchanged for the case it examined — an
+editor who has not captioned a photograph.
+
 ---
 
 ## 20 · One journey's gallery is seeded in full, not all ten
@@ -694,6 +704,20 @@ other nine would add roughly four hundred more placeholder renders to every `npm
 db:seed` and every CI browser job, and would gate nothing that Patagonia's sixty-one
 does not already gate. `apps/web/scripts/seed-data.ts`'s `gallery` field is per-journey,
 so adding another is one object literal if a future task needs one.
+
+**Sixty of Patagonia's sixty-one rows are photographs, and the gallery shows sixty.**
+The sixty-first is the Notes page's decorative ephemera scrap. It is seeded as an
+ordinary `media` row carrying the journey (it has to be — it is an upload the page
+prints), and `IN_BOOK_SLOTS` counts it among the nine the book itself uses, so the
+prototype's count of 61 was reached with it included. It is not a photograph
+(§13.4), so it is not a gallery frame: `apps/web/lib/galleryFrames.ts` excludes it from
+the grid, from the lightbox, from the download handler and from the census the Notes
+page footer prints, and Patagonia's gallery is therefore sixty tiles. §1.8's verified
+bar — "must stay square and unsqueezed at 40+" — is still cleared, and §1.9's
+`003 / 061` was always the counter's three-digit FORMAT rather than a required total.
+The other nine journeys show eight, not nine, for the same reason. Recorded here rather
+than left to be rediscovered: the number in this entry's own heading changed meaning,
+not the seed. See `docs/qa/2026-09-03-phase-1-closing-sweep.md` PH1-002.
 
 **No clips, in any of them** — see §18.
 

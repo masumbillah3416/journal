@@ -36,8 +36,18 @@ import { seed } from '../scripts/seed'
 
 const SETUP_TIMEOUT_MS = 180_000
 
-/** The seeded journey whose full sixty-one-frame gallery SCREENS.md §1.8 verified against. */
-const VERIFIED_GALLERY = { slug: 'patagonia', frames: 61 }
+/**
+ * The seeded journey whose full gallery SCREENS.md §1.8 was verified against.
+ *
+ * `docs/deviations.md` §20 seeds the prototype's own count of 61 media rows for
+ * Patagonia. SIXTY of them are photographs: the sixty-first is the Notes page's
+ * ephemera scrap, which PH1-002 took out of the grid because it is a texture
+ * rather than one of the journey's frames (`docs/deviations.md` §13.4, and
+ * `lib/galleryFrames.ts`'s header). §1.8's verification bar is "must stay
+ * square and unsqueezed at 40+", which sixty still clears, and §1.9's
+ * `003 / 061` is that counter's three-digit FORMAT, which `060` still is.
+ */
+const VERIFIED_GALLERY = { slug: 'patagonia', frames: 60 }
 
 describe('readGalleryBundle', () => {
   let payload: Awaited<ReturnType<typeof getTestPayload>>
@@ -47,10 +57,41 @@ describe('readGalleryBundle', () => {
     await seed(payload)
   }, SETUP_TIMEOUT_MS)
 
-  it('returns the sixty-one frames SCREENS.md §1.8 records the grid as verified with', async () => {
+  it('returns every photograph of the journey SCREENS.md §1.8 records the grid as verified with', async () => {
     const bundle = await readGalleryBundle(VERIFIED_GALLERY.slug)
 
     expect(bundle?.frames).toHaveLength(VERIFIED_GALLERY.frames)
+  })
+
+  it('omits the Notes page’s ephemera scrap, which is a texture rather than one of the journey’s photographs', async () => {
+    // PH1-002. The scrap is an ordinary `media` row with the journey on it, so
+    // the gallery's `where` clause admitted it and it became frame 004 of every
+    // journey - captionless, counted in the "n photos" census and downloadable.
+    // `docs/deviations.md` §13.4 already settles what it is ("a texture behind
+    // tape rather than a photograph with a subject"), which is exactly why it
+    // does not belong in a grid of the journey's photographs. What identifies it
+    // is the `pages` slot that prints it, since `role` lives on the slot and not
+    // on the media row.
+    const bundle = await readGalleryBundle(VERIFIED_GALLERY.slug)
+    const pages = await payload.find({
+      collection: 'pages',
+      depth: 0,
+      pagination: false,
+      limit: 5000,
+      where: { journey: { equals: Number(bundle?.journey.id) } },
+      select: { slots: true },
+    })
+    const ephemeraIds = new Set(
+      pages.docs.flatMap((page) =>
+        (page.slots ?? [])
+          .filter((slot) => slot.role === 'ephemera')
+          .map((slot) => String(typeof slot.media === 'number' ? slot.media : slot.media?.id)),
+      ),
+    )
+
+    // The fixture has to actually contain one, or this test passes vacuously.
+    expect(ephemeraIds.size).toBe(1)
+    expect(bundle?.frames.filter((frame) => ephemeraIds.has(String(frame.id)))).toEqual([])
   })
 
   it('carries the journey’s own header content through', async () => {
@@ -110,9 +151,11 @@ describe('readGalleryBundle', () => {
 
     await readGalleryBundle(VERIFIED_GALLERY.slug)
 
-    // One find for the journey, one for its media; one findGlobal for the
-    // book's tile size.
-    expect(findSpy.mock.calls.length).toBe(2)
+    // One find for the journey, one for the pages that say which of its media
+    // are decorative, one for the media itself; one findGlobal for the book's
+    // tile size. The pages query is over three rows and does not grow with the
+    // sixty it filters - see `lib/galleryFrames.ts`.
+    expect(findSpy.mock.calls.length).toBe(3)
     expect(findGlobalSpy.mock.calls.length).toBe(1)
 
     findSpy.mockRestore()

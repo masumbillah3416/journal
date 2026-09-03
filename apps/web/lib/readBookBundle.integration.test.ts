@@ -43,7 +43,9 @@ import sharp from 'sharp'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { getPayload } from './payload'
 import { getTestPayload } from './testPayload'
+import { ephemeraMediaIds, galleryFrameWhere } from './galleryFrames'
 import { readBookBundle } from './readBookBundle'
+import { readGalleryBundle } from './readGalleryBundle'
 import { seed } from '../scripts/seed'
 import { aboutGlobalSeed, bookGlobalSeed, journeySeeds } from '../scripts/seed-data'
 
@@ -212,17 +214,78 @@ describe('readBookBundle', () => {
     const bundle = await readBookBundle()
     const lisbon = bundle.pages.find((page) => page.kind === 'notes' && page.slug === 'lisbon')
     const journeys = await payload.find({ collection: 'journeys', where: { slug: { equals: 'lisbon' } }, limit: 1 })
+    const journeyNumericId = journeys.docs[0]?.id
+    const pages = await payload.find({
+      collection: 'pages',
+      depth: 0,
+      pagination: false,
+      limit: 5000,
+      where: { journey: { equals: journeyNumericId } },
+      select: { slots: true },
+    })
     const media = await payload.count({
       collection: 'media',
-      where: { journey: { equals: journeys.docs[0]?.id } },
+      where: galleryFrameWhere([Number(journeyNumericId)], ephemeraMediaIds(pages.docs)),
     })
 
-    // CLAUDE.md §7: media counts are DERIVED. The seed gives every journey
-    // nine stills and no clips, so the census must add up to the collection's
-    // own count for that journey rather than to a number anybody stored.
+    // CLAUDE.md §7: media counts are DERIVED. So the census must add up to the
+    // collection's own live count of that journey's GALLERY FRAMES rather than
+    // to a number anybody stored - and "gallery frame" is one rule, held in
+    // `lib/galleryFrames.ts`, not a filter each reader restates.
     const gallery = lisbon?.kind === 'notes' ? lisbon.gallery : undefined
     expect(gallery).toBeDefined()
     expect((gallery?.photographs ?? 0) + (gallery?.clips ?? 0)).toBe(media.totalDocs)
+  })
+
+  it('counts exactly the frames the gallery grid shows, so a page footer cannot contradict it', async () => {
+    // PH1-002's third face. The footer's census and the grid were two separate
+    // derivations of "this journey's photographs", and the census was the one
+    // that counted the Notes page's decorative ephemera scrap - so the page
+    // said "9 photographs ... in the gallery" over a grid of eight. This is the
+    // cross-module invariant that keeps the two honest; it is asserted against
+    // the real reader rather than against a number, so neither can drift alone.
+    const bundle = await readBookBundle()
+    const grid = await readGalleryBundle('lisbon')
+    const notes = bundle.pages.find((page) => page.kind === 'notes' && page.slug === 'lisbon')
+    const census = notes?.kind === 'notes' ? notes.gallery : undefined
+
+    expect(grid?.frames.length).toBeGreaterThan(0)
+    expect((census?.photographs ?? 0) + (census?.clips ?? 0)).toBe(grid?.frames.length)
+  })
+
+  it('leaves a hidden photograph out of the census, as every other reader of the gallery does', async () => {
+    // The census was the one caller that never applied the `hidden` filter.
+    // Nothing in the seed is hidden, so no fixture could have shown it: this
+    // hides a real row, reads the census, and puts it back.
+    const journeys = await payload.find({ collection: 'journeys', where: { slug: { equals: 'lisbon' } }, limit: 1 })
+    const journeyNumericId = journeys.docs[0]?.id
+    const before = await readBookBundle()
+    const censusOf = (source: Awaited<ReturnType<typeof readBookBundle>>): number => {
+      const notes = source.pages.find((page) => page.kind === 'notes' && page.slug === 'lisbon')
+      const gallery = notes?.kind === 'notes' ? notes.gallery : undefined
+      return (gallery?.photographs ?? 0) + (gallery?.clips ?? 0)
+    }
+    const frames = await payload.find({
+      collection: 'media',
+      depth: 0,
+      limit: 1,
+      sort: ['-order'],
+      where: { and: [{ journey: { equals: journeyNumericId } }, { hidden: { not_equals: true } }] },
+      select: { order: true },
+    })
+    const victim = frames.docs[0]?.id
+    expect(victim).toBeDefined()
+
+    try {
+      await payload.update({ collection: 'media', id: Number(victim), data: { hidden: true } })
+      // `readBookBundle` and `readGalleryBundle` are both wrapped in React's
+      // `cache`, which dedupes within a request - so this reads them through a
+      // fresh call rather than trusting the memoized one.
+      const after = await readBookBundle()
+      expect(censusOf(after)).toBe(censusOf(before) - 1)
+    } finally {
+      await payload.update({ collection: 'media', id: Number(victim), data: { hidden: false } })
+    }
   })
 
   it('sets depth explicitly rather than letting Payload walk the graph', async () => {

@@ -21,10 +21,17 @@
  *   2. The frame belongs to THAT journey. Without it the `<slug>` segment
  *      would be decoration and any media id would be downloadable through any
  *      journey's path.
- *   3. The frame is not `hidden`. This module runs through Payload's Local
- *      API with no user, where access control is overridden, so the
- *      collection's own reader rule does not apply here - see
- *      `readGalleryBundle.ts`'s header for the same point.
+ *   3. The frame is one of the journey's gallery frames at all - not
+ *      `hidden`, and not the Notes page's decorative ephemera scrap. Both
+ *      exclusions arrive as `galleryFrameWhere`'s clause rather than as a
+ *      filter written here, so this module and `readGalleryBundle` cannot
+ *      disagree about what a frame is; PH1-002 is what that disagreement
+ *      would cost, because the filter is also what NUMBERS the frame, and a
+ *      grid that dropped the scrap while this handler kept it would have
+ *      named every download after it for the wrong photograph. This module
+ *      runs through Payload's Local API with no user, where access control is
+ *      overridden, so `hidden` has to be in the query - see
+ *      `./galleryFrames`'s header for both points.
  *   4. `allowDownload` has not been turned off for it.
  *
  * IT SERVES A DERIVATIVE, NEVER THE ORIGINAL (CLAUDE.md §6, "Always a
@@ -46,6 +53,8 @@
  * module pays a third query for the journey's ordered frame ids: the number in
  * the filename has to be the number the reader saw in the lightbox.
  * Depends on: getPayload (./payload), createLocalStorage (./adapters/local-storage),
+ * GALLERY_FRAME_SORT/ephemeraMediaIds/galleryFrameWhere/journeyPagesQuery
+ * (./galleryFrames),
  * MEDIA_DIR (../collections/media), downloadContentType/downloadFilename
  * (@travel-diary/domain/galleryDownload), Result (@travel-diary/domain/result).
  */
@@ -55,6 +64,7 @@ import type { Result } from '@travel-diary/domain/result'
 import { err, ok } from '@travel-diary/domain/result'
 import { MEDIA_DIR } from '../collections/media'
 import { createLocalStorage } from './adapters/local-storage'
+import { GALLERY_FRAME_SORT, ephemeraMediaIds, galleryFrameWhere, journeyPagesQuery } from './galleryFrames'
 import { getPayload } from './payload'
 
 /** What the route handler needs to answer a download request. */
@@ -119,15 +129,21 @@ export const readGalleryDownload = async (
   if (journey === undefined) return err(NOT_AVAILABLE)
 
   // The same ordering, filter and pagination `readGalleryBundle` uses, so the
-  // position this download names is the position the reader was shown. Ids
-  // only - one column for a number.
+  // position this download names is the position the reader was shown - taken
+  // from `./galleryFrames` rather than restated, which is what makes "the
+  // same" true by construction instead of by inspection. Ids only - one
+  // column for a number.
+  // Which of this journey's media its own pages print as decorative ephemera -
+  // see `./galleryFrames`, and `readGalleryBundle`, which asks the same thing.
+  const journeyPages = await payload.find(journeyPagesQuery(journey.id))
+
   const frames = await payload.find({
     collection: 'media',
     depth: 0,
     pagination: false,
     limit: 20_000,
-    sort: ['order', 'id'],
-    where: { and: [{ journey: { equals: journey.id } }, { hidden: { not_equals: true } }] },
+    sort: [...GALLERY_FRAME_SORT],
+    where: galleryFrameWhere([journey.id], ephemeraMediaIds(journeyPages.docs)),
     select: { order: true },
   })
   const index = frames.docs.findIndex((doc) => String(doc.id) === frameId)
