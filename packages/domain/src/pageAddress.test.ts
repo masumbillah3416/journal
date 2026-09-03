@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addressedPageIndex, pagePath } from './pageAddress'
+import { addressedPageIndex, galleryPath, pagePath, returningPagePath } from './pageAddress'
 
 describe('addressedPageIndex', () => {
   it('turns the first page number a reader sees into the first leaf index', () => {
@@ -70,5 +70,54 @@ describe('pagePath', () => {
     expect(leaves.map((leafIndex) => addressedPageIndex(pagePath(leafIndex).slice('/p/'.length), total))).toEqual(
       leaves,
     )
+  })
+})
+
+describe('galleryPath', () => {
+  it('carries the page the reader is leaving, so the back control needs no script', () => {
+    expect(galleryPath('patagonia', 8)).toBe('/gallery/patagonia?from=9')
+  })
+
+  it('numbers the first leaf as page one', () => {
+    expect(galleryPath('tokyo', 0)).toBe('/gallery/tokyo?from=1')
+  })
+
+  it('round-trips through the back control’s own reading of it', () => {
+    // The two functions are one promise seen from both ends: the link the
+    // book renders and the address the gallery sends the reader back to.
+    const leaf = 8
+    const query = galleryPath('patagonia', leaf).split('from=')[1]
+
+    expect(returningPagePath(query)).toBe(pagePath(leaf))
+  })
+})
+
+describe('returningPagePath', () => {
+  it('returns the reader to the page the link they followed named', () => {
+    expect(returningPagePath('9')).toBe('/p/9')
+  })
+
+  it('returns them to a late page of the book, not just an early one', () => {
+    expect(returningPagePath('33')).toBe('/p/33')
+  })
+
+  it('opens the book at page one for a shared gallery link that names no page', () => {
+    expect(returningPagePath(undefined)).toBe('/p/1')
+  })
+
+  it('opens the book at page one when the parameter was cleared rather than omitted', () => {
+    expect(returningPagePath(null)).toBe('/p/1')
+  })
+
+  it('opens the book at page one for a parameter that is not a page number at all', () => {
+    expect(returningPagePath('tokyo')).toBe('/p/1')
+  })
+
+  it('refuses a page number the address rules already reject, rather than trusting the query', () => {
+    expect(returningPagePath('03')).toBe('/p/1')
+  })
+
+  it('opens the book at page one for page zero, which no reader can be on', () => {
+    expect(returningPagePath('0')).toBe('/p/1')
   })
 })

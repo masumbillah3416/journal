@@ -138,8 +138,11 @@ jobs:
       # so a spec named only in the comments above does not satisfy it. Twice
       # is enough; the convention is now enforced rather than remembered.
       # Task 13's own `e2e/routing.spec.ts` (the 404, the per-page metadata,
-      # the canonical link and the gallery return) is named here too.
-      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/ciRegistration.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
+      # the canonical link and the gallery return) is named here too, and
+      # Task 14's `e2e/gallery.spec.ts` (the sixty-one-tile grid, the
+      # lightbox's keyboard contract, and the download served through our own
+      # handler rather than a bucket URL).
+      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/ciRegistration.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
       # image: chrome-launcher's own auto-detection looks for a system
       # `google-chrome`/`chromium-browser` binary, which this image does not

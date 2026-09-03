@@ -85,3 +85,61 @@ export const addressedPageIndex = (param: string, totalPages: number): number | 
  * pagePath(2) // '/p/3' - the third page a reader sees
  */
 export const pagePath = (leafIndex: number): string => `/p/${String(leafIndex + 1)}`
+
+/**
+ * The path of a journey's full gallery, carrying the page the reader is
+ * leaving from.
+ *
+ * THE PAGE NUMBER IS IN THE LINK, and that is the whole of how "returning
+ * from a gallery restores `/p/<n>`, not `/`" (design spec §8) is satisfied
+ * for the gallery's own back control. Two alternatives were built and
+ * rejected:
+ *
+ *   - **The `Referer` header, read on the server.** SECURITY.md's Public site
+ *     section requires the diary to be "static content ... served from a
+ *     CDN", and a document whose HTML varied by `Referer` cannot be: the
+ *     first reader's page number would be cached and handed to the second.
+ *   - **`document.referrer`, read on the client after mount.** Built, and it
+ *     failed in a real browser: the anchor renders with the `/p/1` fallback
+ *     and is corrected in an effect, so a reader who clicks before hydration
+ *     lands on the cover. `e2e/gallery.spec.ts`'s back-control case caught it
+ *     at two of three viewport projects. A control that goes somewhere else
+ *     depending on timing is worse than one that is visibly spent.
+ *
+ * A query parameter is rendered by the server, correct at first paint, and
+ * needs no script at all - and it puts the page the reader was on into the
+ * URL they copy, which is the other half of what the spec asks for.
+ *
+ * @param slug - The journey's slug.
+ * @param fromLeafIndex - The 0-based leaf the reader is on, as the page components know it.
+ * @returns e.g. `'/gallery/patagonia?from=9'`.
+ * @example
+ * galleryPath('patagonia', 8) // '/gallery/patagonia?from=9'
+ */
+export const galleryPath = (slug: string, fromLeafIndex: number): string =>
+  `/gallery/${slug}?from=${String(fromLeafIndex + 1)}`
+
+/**
+ * The `/p/<n>` a gallery's back control points at.
+ *
+ * @param from - The gallery route's `from` query parameter, exactly as the URL
+ *   carried it, or `undefined` when there is none (a shared or bookmarked
+ *   gallery link).
+ * @returns The `/p/<n>` the reader left, or `/p/1` when `from` names no page.
+ *   Deliberately never `/`: the spec's point is that the reader lands on a
+ *   page of the book, and page one is the only page every book has.
+ * @example
+ * returningPagePath('9') // '/p/9'
+ * returningPagePath(undefined) // '/p/1'
+ */
+export const returningPagePath = (from: string | null | undefined): string => {
+  if (from === null || from === undefined) return pagePath(0)
+
+  // Reusing the address rules rather than a second regex: `/p/03` is not an
+  // address this book serves, so `?from=03` is not one a back link may point
+  // at either. `Number.MAX_SAFE_INTEGER` stands in for "however long the book
+  // is" - this function has no bundle to count, and an out-of-range page is
+  // the route's own 404 to answer, not this link's.
+  const index = addressedPageIndex(from, Number.MAX_SAFE_INTEGER)
+  return index === null ? pagePath(0) : pagePath(index)
+}

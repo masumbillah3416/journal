@@ -1,7 +1,7 @@
 {
   "ci": {
     "collect": {
-      "url": ["http://localhost:3000/p/1", "http://localhost:3000/cms"],
+      "url": ["http://localhost:3000/p/1", "http://localhost:3000/gallery/patagonia", "http://localhost:3000/cms"],
       "numberOfRuns": 5,
       "startServerCommand": "npm run build -w apps/web && npm run start -w apps/web -- --port 3000",
       "startServerReadyPattern": "Ready in",
@@ -19,6 +19,17 @@
             "http-status-code": ["error", { "minScore": 1 }],
             "resource-summary:script:size": ["error", { "maxNumericValue": 184320 }],
             "largest-contentful-paint": ["error", { "maxNumericValue": 3000 }],
+            "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }]
+          }
+        },
+        {
+          "matchingUrlPattern": ".*/gallery/.*",
+          "aggregationMethod": "median",
+          "assertions": {
+            "http-status-code": ["error", { "minScore": 1 }],
+            "resource-summary:script:size": ["error", { "maxNumericValue": 184320 }],
+            "resource-summary:image:size": ["error", { "maxNumericValue": 400000 }],
+            "largest-contentful-paint": ["error", { "maxNumericValue": 4000 }],
             "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }]
           }
         },

@@ -371,7 +371,10 @@ test.describe('Notes — SCREENS.md §1.3’s absolute measurements', () => {
     // gallery/ })`) will press.
     const button = page.locator(TOKYO).getByRole('link', { name: /See full gallery/ })
 
-    await expect(button).toHaveAttribute('href', '/gallery/tokyo')
+    // The page's own number rides along (`galleryPath`), which is what lets
+    // the gallery's back control return the reader to page 3 rather than to
+    // the cover - server-rendered, so it is right before any script runs.
+    await expect(button).toHaveAttribute('href', '/gallery/tokyo?from=3')
   })
 
   test('prints the seeded sign-off and gallery count in the footer, verbatim', async ({ page }) => {

@@ -104,6 +104,36 @@ export interface JourneySeed {
   readonly frameOneFocals?: Readonly<Record<number, SeedFocal>>
   /** Frames II's non-default focal points, keyed by 0-based slot index. */
   readonly frameTwoFocals?: Readonly<Record<number, SeedFocal>>
+  /**
+   * This journey's FULL gallery - everything behind `/gallery/<slug>`, of
+   * which the nine in-book slots above are a subset (SCREENS.md §1.8; the
+   * About page's own copy: "Everything else goes into the gallery behind each
+   * entry - sometimes a hundred photographs, most of them of doorways").
+   *
+   * SET FOR EXACTLY ONE JOURNEY, and for one reason: SCREENS.md §1.8 records
+   * the grid as "Verified with 61 tiles; must stay square and unsqueezed at
+   * 40+", and the lightbox's own counter in §1.9 reads `003 / 061`. Patagonia
+   * is the prototype journey whose `count` is 61, so seeding its gallery in
+   * full is what gives `e2e/gallery.spec.ts` a real sixty-one-tile grid to
+   * measure. The other nine journeys keep their nine in-book frames: the
+   * prototype gives them counts too (Tokyo 52, Lisbon 46, Marrakech 38), but
+   * seeding ~400 more placeholder renders would buy no gate that this one
+   * does not already provide, and would slow every CI seed to do it.
+   *
+   * `captions` is the prototype's own eight-caption cycle for the journey,
+   * verbatim; the seed repeats it over `count` frames exactly as the
+   * prototype's `gallery(j)` does (`caps[i % caps.length]`).
+   *
+   * NO CLIPS. The prototype marks every seventh frame as a video
+   * (`vid: i % 7 === 5`). Video is deferred (docs/adr/0004-media-pipeline-mode.md,
+   * `MEDIA_PIPELINE=inline`), so seeding a `kind: 'clip'` row would be a clip
+   * that nothing can transcode, play or generate a poster for - see
+   * docs/deviations.md.
+   */
+  readonly gallery?: {
+    readonly count: number
+    readonly captions: readonly string[]
+  }
 }
 
 /**
@@ -228,6 +258,19 @@ export const journeySeeds: readonly JourneySeed[] = [
       'The trail sign nobody obeys',
       'Wind on the water, all afternoon',
     ],
+    gallery: {
+      count: 61,
+      captions: [
+        'Ridge line at dawn',
+        'Cloud over the saddle',
+        'Glacial melt, close',
+        'Refugio window',
+        'Trail marker, bent',
+        'Lake, impossible colour',
+        'Scree and shadow',
+        'Last light on the granite',
+      ],
+    },
   },
   {
     slug: 'marrakech',

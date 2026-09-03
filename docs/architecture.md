@@ -50,9 +50,11 @@ module, independently testable, named in its own header.
 | `bookScale`                             | `packages/domain`                  | `(area) → number`, `min(w/1300, h/860)` capped at 1.7                                                                                             |
 | `bookBundle`                            | `packages/domain` + `apps/web/lib` | Payload rows in, one typed `BookBundle` out. The diary client reads nothing else.                                                                 |
 | `pageStack`                             | `packages/domain`                  | `(leafIndex, FlipState, totalPages) → LeafPresentation`. Every field maps one-to-one into CSS, so the DOM layer re-derives no flip geometry. `loadsImages` extends the same idea to the image window (`docs/adr/0006-diary-image-window.md`). |
-| `pageAddress`                           | `packages/domain`                  | `('<n>', totalPages) → leafIndex \| null` and `leafIndex → '/p/<n>'`. The only translation between the 1-based page number a reader shares and the 0-based index the stack works in, in both directions. `null` is "the book has no such page", which the route spends as a `404` (Task 13; it clamped before). |
+| `pageAddress`                           | `packages/domain`                  | `('<n>', totalPages) → leafIndex \| null` and `leafIndex → '/p/<n>'`. The only translation between the 1-based page number a reader shares and the 0-based index the stack works in, in both directions. `null` is "the book has no such page", which the route spends as a `404` (Task 13; it clamped before). Task 14 added the other direction of the same translation: `galleryPath(slug, leafIndex)` writes the reader's page into the gallery link the book renders, and `returningPagePath(from)` reads it back out for the gallery's back control - server-rendered at both ends, because the two alternatives (the `Referer` header; `document.referrer` after mount) are ruled out by SECURITY.md and by a measured hydration race respectively. |
 | `pageMetadata`                          | `packages/domain`                  | `(BookPage, {chrome, about, pageNumber, totalPages}) → {title, description}`. What one indexable deep link tells a crawler about itself. Every field it reads is optional in the schema, so the fallbacks are the module: a blank subtitle must not become `undefined · Wanderings` or a description that is one full stop. |
 | `contentWindow`                         | `packages/domain`                  | `(addressedIndex, totalPages) → ContentWindow`. Which leaves' faces a `/p/<n>` document carries — the SERVER's window, a function of the address, where `pageStack.loadsImages` is a function of the flip machine. Also owns the one search parameter with which the book asks for the rest (`docs/adr/0009-server-rendered-page-window.md`). |
+| `gallery`                               | `packages/domain` + `apps/web/lib` | Payload `media` rows in, one typed `GalleryBundle` out — the gallery's counterpart to `bookBundle`, and the same rule: `components/gallery/` reads nothing else. The pure half also owns the two decisions the handoff records as having been got wrong: the open frame is addressed by `MediaId` (`openFrameById`, `stepFrame` — the index is DERIVED, for the `003 / 061` counter and nothing else), and the grid is windowed only past a hundred tiles (`tileWindow`). |
+| `galleryDownload`                       | `packages/domain` + `apps/web/lib` | The download action's rules, kept out of the route handler so they can be tested at all: a root-relative path with no scheme and no authority (so it can never resolve to a bucket origin), a three-value `Content-Type` allowlist that refuses `image/svg+xml` by name, and a filename derived from the journey slug and the frame's number rather than from the stored key. `SECURITY.md`'s "downloads through your own handler" requirement lives here and in `apps/web/lib/readGalleryDownload.ts`. |
 | `storage` / `mailer` / `transcodeQueue` | `apps/web/lib`                     | Ports with local and production adapters, one shared contract suite run against both                                                              |
 
 ### The book's DOM binding (`apps/web/components/book/`)
@@ -189,6 +191,21 @@ only `inline` deploys until video is turned back on.
 4. The client takes over only for scaling (`bookScale`) and flipping (`flipMachine`);
    it never re-fetches page content mid-session — real paths (`/p/<n>`, `/gallery/<slug>`)
    are written on every turn so deep links stay indexable and shareable.
+   4a. A gallery is a SEPARATE route, outside the book's flip sequence: `/gallery/<slug>`
+   assembles its own `GalleryBundle` (three Payload queries, whatever the gallery's
+   size) and renders a header plus a grid. Returning from it restores `/p/<n>` by two
+   independent paths — the browser's Back button, which works because `Book.tsx` writes
+   the reader's page onto the CURRENT history entry with `replaceState` rather than
+   pushing a new one, and the gallery's own back link, whose `href` the server renders
+   from the `from` parameter the book's own gallery link carries (`galleryPath` writes
+   it, `returningPagePath` reads it). Neither the `Referer` header (a document that
+   varied by it could not be served from a CDN) nor `document.referrer` after mount (a
+   reader who clicked before hydration landed on the cover) survived contact — see
+   `docs/qa/2026-09-03-gallery-sweep.md`, GAL-005.
+   4b. A download from that gallery goes through `/gallery/<slug>/download/<id>`, an
+   application route that reads a derivative's bytes back out of the store through the
+   `StoragePort` and serves them as an attachment. Never a bucket URL — see
+   `docs/security.md`.
 5. Uploads go straight from the browser to R2 via a presigned URL (never through Vercel,
    which caps request bodies at ~4.5MB); a server action creates the `media` row and
    runs the `MediaProcessor` port's `inline` adapter in-process (the `sharp` still

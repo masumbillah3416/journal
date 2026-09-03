@@ -22,10 +22,10 @@ updating its row in the same commit that changes the code (`CLAUDE.md` §1.3).
 
 ## Status
 
-Six route handlers exist today: Payload's own four, mounted under the `(payload)` route
-group, and two of the diary's own — `/p/<n>`, added with the book itself in Phase 1
-Task 7, and the gallery's download handler `/gallery/<slug>/download/<id>`, added in
-Task 14 ahead of the gallery page that links to it. `/p/<n>` was completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
+Seven route handlers exist today: Payload's own four, mounted under the `(payload)` route
+group, and three of the diary's own — `/p/<n>`, added with the book itself in Phase 1
+Task 7 and completed in Task 13; and `/gallery/<slug>` with its download handler
+`/gallery/<slug>/download/<id>`, added in Task 14. `/p/<n>` was completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
 metadata and a canonical link, and settled in
 `docs/adr/0010-static-generation-and-the-content-window.md` why it stays dynamic. Both sets are documented in full below. Everything still unbuilt is
 listed further down as **planned**, using only what the design spec (§8) already
@@ -209,6 +209,28 @@ for a different reason — see its row.
   Nothing publishes yet, so there is nothing to revalidate; it is named here so the gap
   between this row and the design spec is a recorded decision rather than an omission.
 
+### `GET /gallery/<slug>`
+
+- **Method:** `GET`.
+- **Input:** `slug` — the journey's slug, path parameter (`journeys.slug`, unique,
+  indexed). No query, no body, no header is read.
+- **Output:** an HTML document: that journey's gallery (`SCREENS.md` §1.8) — the header's
+  back control, "Full gallery" eyebrow, the journey's name with `{place} · {dates}`
+  beside it and a `{n} photos · {m} clips` census, then a `repeat(auto-fill,
+  minmax({thumbSize}px, 1fr))` grid of one square tile per visible frame. Its content is
+  `apps/web/lib/readGalleryBundle.ts`'s `GalleryBundle`. `generateMetadata` returns the
+  page's own title (`{name} — Full gallery`), description and a canonical
+  `/gallery/<slug>`.
+- **Errors:** `404` for a slug naming no journey, and for a journey that is unpublished,
+  archived or soft-deleted — one response for all four, rendered by
+  `app/(diary)/not-found.tsx`. `hidden` media items are excluded from the grid
+  regardless of slug validity, in the query rather than by access control (the Local API
+  overrides access control, so a reader rule alone would not exclude them).
+- **Auth requirement:** none. Subject to the same `site.passwordProtect` gate as
+  `/p/<n>` once that setting exists, and to `site.indexGalleries` governing whether this
+  route is crawlable — neither setting is written by anything yet, so neither is wired
+  (`docs/security.md`).
+
 ### `GET /gallery/<slug>/download/<id>`
 
 - **Method:** `GET`.
@@ -240,11 +262,8 @@ for a different reason — see its row.
 
 ## Planned routes (Phase 1)
 
-### `GET /gallery/<slug>`
-
-The page the download handler above belongs to. Built in the next commit, and its row
-lands with it - this document's own contract is that a route is documented in the
-commit that adds it, not before.
+None. Task 14 built the last of them (`/gallery/<slug>` and its download handler, both
+documented above); everything remaining is a later phase's, listed below.
 
 ## Planned server actions (later phases)
 

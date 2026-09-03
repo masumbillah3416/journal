@@ -252,11 +252,13 @@ export default defineConfig({
         // vitest.integration.config.ts instead, same reasoning as the queue
         // files and testPayload.ts above.
         'apps/web/lib/readBookBundle.ts',
-        // readGalleryDownload.ts (Task 14 of Phase 1) is reachable only from
-        // its own `*.integration.test.ts` - it needs a real Payload/Postgres
-        // AND the derivative files the media collection wrote to disk - so it
-        // is gated by vitest.integration.config.ts instead, same reasoning as
-        // readBookBundle.ts above.
+        // readGalleryBundle.ts and readGalleryDownload.ts (Task 14 of Phase
+        // 1) are reachable only from their own `*.integration.test.ts` files
+        // - both need a real Payload/Postgres, and readGalleryDownload also
+        // needs the derivative files the media collection wrote to disk - so
+        // they are gated by vitest.integration.config.ts instead, same
+        // reasoning as readBookBundle.ts above.
+        'apps/web/lib/readGalleryBundle.ts',
         'apps/web/lib/readGalleryDownload.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
@@ -309,19 +311,26 @@ export default defineConfig({
         // and e2e/smoke.spec.ts. Revisit when @vitest/coverage-v8's version
         // changes - a fixed scanner removes the justification.
         'apps/web/app/(diary)/p/\\[n\\]/page.tsx',
-        // The gallery's download route (Task 14 of Phase 1) is excluded on the
-        // same three counts CLAUDE.md §2.1's carve-out requires, re-verified
-        // against the control in this same run rather than inherited. (1) It
-        // was read and holds zero authored logic: await two params, call
-        // `readGalleryDownload`, turn a `Result` into a `Response` with four
-        // fixed headers - every decision is that module's (integration-tested
-        // against a real Payload) or `@travel-diary/domain/galleryDownload`'s
-        // (gated at 100%). (2) The tooling defect is the one named above and
-        // is a property of the path shape, which this file shares (`[slug]`,
+        // Task 14 of Phase 1 adds the gallery route and its download handler
+        // to this list, on the same three counts CLAUDE.md §2.1's carve-out
+        // requires - re-verified against the control in this same run rather
+        // than inherited. (1) Both were read and hold zero authored logic:
+        // the page awaits its param, reads `readGalleryBundle`, 404s when
+        // there is none and renders two components; the route handler awaits
+        // its two params, calls `readGalleryDownload` and turns a `Result`
+        // into a `Response` with four fixed headers. Every decision either
+        // appears to take belongs to a module with its own suite -
+        // `readGalleryBundle`/`readGalleryDownload` (integration, against a
+        // real Payload), `GalleryHeader`/`Grid`/`Tile`/`Lightbox` (jsdom),
+        // and `@travel-diary/domain`'s `gallery`/`galleryDownload`, gated at
+        // 100%. (2) The tooling defect is the one named above and is a
+        // property of the path shape, which both of these share (`[slug]`,
         // `[id]`); `(diary)/layout.tsx` remains the control that is correctly
-        // ignored with no config entry. (3) It names its exact path, so a
-        // future file placed beside it is not swept into the same hole. Its
-        // runtime behaviour is covered in a real browser by e2e/gallery.spec.ts.
+        // ignored without a config entry. (3) Each names its exact path, so a
+        // future file placed beside either is not swept into the same hole.
+        // Their runtime behaviour is covered in a real browser by
+        // e2e/gallery.spec.ts and e2e/a11y.spec.ts.
+        'apps/web/app/(diary)/gallery/\\[slug\\]/page.tsx',
         'apps/web/app/(diary)/gallery/\\[slug\\]/download/\\[id\\]/route.ts',
         'apps/web/app/(payload)/api/\\[...slug\\]/route.ts',
         'apps/web/app/(payload)/cms/\\[\\[...segments\\]\\]/page.tsx',

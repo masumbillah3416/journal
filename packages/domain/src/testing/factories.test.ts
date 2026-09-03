@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aBookChrome, anAboutContent, aPortrait, aJourney } from './factories'
+import { aBookChrome, aGalleryBundle, aGalleryFrame, anAboutContent, aPortrait, aJourney, galleryFrames } from './factories'
 
 describe('aJourney', () => {
   it('builds a journey with sensible defaults when called with no overrides', () => {
@@ -80,5 +80,58 @@ describe('anAboutContent', () => {
 
     expect(first.portrait).not.toBe(second.portrait)
     expect(first.portrait).toEqual(second.portrait)
+  })
+})
+
+describe('aGalleryFrame', () => {
+  it('names the frame by the id the call site gave it', () => {
+    expect(aGalleryFrame('market').id).toBe('market')
+  })
+
+  it('builds a still by default, since no clip can exist yet', () => {
+    const frame = aGalleryFrame('market')
+
+    expect(frame.kind).toBe('still')
+    expect(frame.durationSec).toBeUndefined()
+  })
+
+  it('merges overrides shallowly over the defaults', () => {
+    const frame = aGalleryFrame('reel', { kind: 'clip', durationSec: 18 })
+
+    expect(frame).toMatchObject({ id: 'reel', kind: 'clip', durationSec: 18, downloadable: true })
+  })
+})
+
+describe('aGalleryBundle', () => {
+  it('builds the seeded journey’s own header values by default', () => {
+    expect(aGalleryBundle().journey).toMatchObject({ slug: 'tokyo', name: 'Tokyo', place: 'Japan' })
+  })
+
+  it('merges overrides shallowly over the defaults', () => {
+    const bundle = aGalleryBundle({ thumbSize: 300, frames: [] })
+
+    expect(bundle.thumbSize).toBe(300)
+    expect(bundle.frames).toEqual([])
+    expect(bundle.journey.name).toBe('Tokyo')
+  })
+
+  it('gives every call its own journey object, never a shared reference', () => {
+    const first = aGalleryBundle()
+    const second = aGalleryBundle()
+
+    expect(first.journey).not.toBe(second.journey)
+    expect(first.journey).toEqual(second.journey)
+  })
+})
+
+describe('galleryFrames', () => {
+  it('builds as many frames as the case asks for', () => {
+    expect(galleryFrames(61)).toHaveLength(61)
+  })
+
+  it('gives every frame an id of its own, so an assertion can tell them apart', () => {
+    const ids = galleryFrames(61).map((frame) => frame.id)
+
+    expect(new Set(ids).size).toBe(61)
   })
 })

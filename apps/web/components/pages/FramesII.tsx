@@ -23,7 +23,10 @@
  * rule and the same reason as `Notes.tsx`'s, which its header records at
  * length: the handoff's own defect log has gallery buttons that "appeared
  * dead while their handlers were fine", and README.md requires the deep links
- * to be real, indexable paths. `/gallery/<slug>` is the path Task 14 builds.
+ * to be real, indexable paths. It carries this page's own number
+ * (`galleryPath`), which is what lets the gallery's back control return the
+ * reader to this page rather than to the cover. `/gallery/<slug>` is the path
+ * Task 14 builds.
  *
  * THE COUNT IS THE JOURNEY'S, NOT THE PAGE'S. `page.gallery` is a census of
  * the journey's whole media library taken by `readBookBundle` (CLAUDE.md §7,
@@ -35,6 +38,7 @@
  * ./PhotoMount, ./frames.module.css.
  */
 import type { JourneyPage } from '@travel-diary/domain/bookBundle'
+import { galleryPath } from '@travel-diary/domain/pageAddress'
 import type React from 'react'
 import { PhotoMount, type PhotoMountClasses } from './PhotoMount'
 import styles from './frames.module.css'
@@ -122,7 +126,7 @@ export const FramesII = ({ page, showDecorations, leafIndex }: FramesIIProps): R
     </div>
 
     <footer className={styles.footer}>
-      <a className={styles.galleryButton} href={`/gallery/${page.slug}`}>
+      <a className={styles.galleryButton} href={galleryPath(page.slug, leafIndex)}>
         See full gallery
         <span aria-hidden="true" className={styles.galleryArrow}>
           &#8594;

@@ -372,7 +372,38 @@ would claim a measurement nothing performs.
   sign-in + OTP, upload round-trip.
 - **Status:** the harness is implemented, and the first real journey it guards is the
   book. The bespoke `/admin` panel and sign-in are still later phases; the routes this
-  app serves today are Payload's own admin at `/cms` and the diary's `/p/<n>`.
+  app serves today are Payload's own admin at `/cms`, the diary's `/p/<n>`, and — since
+  Phase 1 Task 14 — `/gallery/<slug>` with its download handler.
+
+  **`e2e/gallery.spec.ts` (Phase 1 Task 14)** covers the four things about the gallery
+  and its lightbox that only a served, laid-out page can answer, and deliberately
+  nothing that `packages/domain/src/gallery.ts` (100%) or
+  `apps/web/components/gallery/*.test.tsx` already prove.
+
+  1. **The tiles stay square and unsqueezed at sixty-one of them.** `SCREENS.md` §1.8
+     records the grid as "Verified with 61 tiles; must stay square and unsqueezed at
+     40+", which is a statement about `aspect-ratio: 1/1` and `object-fit: cover` under
+     a `repeat(auto-fill, minmax(...))` track — none of which exists until a browser
+     lays it out. `apps/web/scripts/seed.ts` seeds Patagonia's full sixty-one-frame
+     gallery so this case has the number the design was verified at (see
+     `docs/deviations.md` §20 for why one journey and not ten).
+  2. **The download is served by us.** `SECURITY.md`'s requirement has a half that no
+     unit test can see: the RESPONSE headers. This suite issues the real request and
+     asserts `Content-Disposition: attachment`, the strict `Content-Type`,
+     `X-Content-Type-Options: nosniff`, and a `404` when the same media id is addressed
+     through a journey it does not belong to.
+  3. **Returning restores `/p/<n>`, not `/`** — by BOTH paths, because they are
+     different mechanisms. The gallery's own control is a link whose `href` is resolved
+     by the SERVER from the `from` parameter the diary's own gallery link
+     carries; the browser's Back button depends on `Book.tsx`'s
+     `history.replaceState`. A third case reads that `href` out of the raw
+     HTML, because the first design resolved it from `document.referrer` after
+     mount and a reader who clicked before hydration landed on the cover
+     (`docs/qa/2026-09-03-gallery-sweep.md`, GAL-005). `e2e/routing.spec.ts` has covered the second half against a
+     404 since Task 13; this is where it meets a real gallery.
+  4. **The lightbox's keyboard contract.** Escape closes, the arrows step, Tab stays
+     inside the dialog, and focus returns to the tile the reader STEPPED to rather than
+     the one they opened.
 
   **`e2e/book.spec.ts` (Phase 1 Task 7)** covers what only a real layout engine can
   answer, and deliberately nothing that `packages/domain` already proves: that a click on
@@ -727,6 +758,14 @@ would claim a measurement nothing performs.
   every image in the document to `decode()`); each of those four waits replaces a race,
   and none of them is a timeout.
 
+  Task 14 added `diary-gallery-*.png` and `diary-lightbox-*.png` — the gallery route and
+  the lightbox open over it, three projects each. Neither is `fullPage`: sixty-one tiles
+  is several viewports of scroll, and a baseline that tall is one nobody reads a diff of;
+  the viewport carries the header, the grid's tracks and its first rows, which is every
+  rule `SCREENS.md` §1.8 states. They also do not use `settled()` — there is no scaled
+  design box on this route — and they await only the images the browser has actually
+  fetched, since the grid loads lazily by design and the rest are below the fold.
+
   Task 13 added a twenty-second, twenty-third and twenty-fourth: `diary-not-found-*.png`,
   the page-not-found view an address naming no page now renders. It is the one case here
   that does not call `settled()` — there is no scaled design box on that view to wait
@@ -821,10 +860,18 @@ would claim a measurement nothing performs.
   page kind renders different markup on the same URL shape — plus Task 13's
   page-not-found view (`/p/999`), the one diary view that is not a page of the book and
   the one where an unlabelled way back would strand a reader with nothing else on
-  screen. All seven
+  screen. Task 14 added two more: `/gallery/patagonia` and the same route with its
+  LIGHTBOX OPEN. The second of those is the only view in the product that traps a
+  reader's focus, and axe knows most of what that costs — `aria-dialog-name` (a dialog
+  needs an accessible name), `button-name` on its four controls, and `color-contrast` on
+  cream type over a 95%-opaque near-black scrim. It runs with no exclusions,
+  deliberately: silencing one of those rules would be silencing the only automated check
+  this project has on that view. The gallery case itself is where `image-alt` has most
+  to judge anywhere in the product, a gallery being almost entirely photographs. All
+  nine
   call `expectNoAxeViolations(page)` with **no exclusions at all** — every rule in the
   full ruleset applies to a route this project authored, and `/cms`'s allowances below
-  must never be inherited by them. All seven pass on all three viewport projects. The
+  must never be inherited by them. All nine pass on all three viewport projects. The
   Notes case is the first with anything for `image-alt`, `definition-list` or
   `link-name` to judge: it is the first page in the diary with photographs, a
   description list (the tally ticket) and a link styled as a button. The two Frames
@@ -949,7 +996,28 @@ baseline was regenerated in the pinned container against the five-face state, wi
   to `http-status-code` (`minScore: 1`), `resource-summary:script:size`
   (≤184320 bytes), `largest-contentful-paint` (≤2500ms) and
   `cumulative-layout-shift` (≤0.1); `/cms` is held to `http-status-code` and
-  `cumulative-layout-shift` only. `CLAUDE.md` §6 scopes the 2500ms LCP budget to "diary,
+  `cumulative-layout-shift` only.
+
+  **Task 14 added a third URL and a fourth budget.** `/gallery/patagonia` is collected
+  and asserted in its own `assertMatrix` entry. The gallery route is OUTSIDE the diary's
+  LCP budget - `CLAUDE.md` §6 scopes that to `/p/1` - and that is exactly why it needs a
+  gate of its own: it is a long scroll of photographs on a route no existing budget
+  watches, which is the easiest place in this product for weight to accumulate
+  unnoticed. Measured on a production build, median of five: **LCP 3,462.4ms**
+  (3,089 / 3,391 / 3,462 / 3,463 / 3,500), **script 141,551 bytes** (856 fewer than the
+  diary's own 142,407 - the gallery ships no book, no flip machine and no page faces),
+  **images 173,579 bytes in 9 requests**, CLS 0. Its budgets are set from those numbers:
+  `largest-contentful-paint` ≤4000ms (~15% over the median, and 500ms clear of the worst
+  of the five), `resource-summary:script:size` ≤184320 (the SAME number the diary route
+  carries, so drift is read against one bar rather than two),
+  `cumulative-layout-shift` ≤0.1, and `http-status-code`.
+
+  **The image budget is the one that earns its place.** `resource-summary:image:size`
+  ≤400000 bytes catches the specific regression this route is exposed to: nine of
+  sixty-one tiles are fetched today because every one carries `loading="lazy"`, and if
+  that attribute is ever dropped the route fetches all sixty-one - roughly 1.2MB - while
+  every functional test still passes. `e2e/gallery.spec.ts` asserts the ATTRIBUTE; only
+  this budget asserts the EFFECT. `CLAUDE.md` §6 scopes the 2500ms LCP budget to "diary,
   4G" specifically — holding Payload's heavy admin bundle to it was the original reason
   this whole step was informational, and giving `/cms` its own entry with no LCP
   assertion is what stops that recurring now that `/cms` shares a config with a real

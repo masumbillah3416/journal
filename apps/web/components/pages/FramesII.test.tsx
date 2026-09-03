@@ -199,7 +199,8 @@ describe('FramesII — the footer', () => {
   it('links the gallery button to the journey’s own gallery path', () => {
     const host = renderFramesII(aFramesIIPage(fourSlots(), { slug: 'lisbon' }))
 
-    expect(host.querySelector('footer a')?.getAttribute('href')).toBe('/gallery/lisbon')
+    // As `Notes.test.tsx`: the page's own number rides along.
+    expect(host.querySelector('footer a')?.getAttribute('href')).toBe('/gallery/lisbon?from=1')
   })
 
   it('prints the journey’s derived gallery census, not a stored total', () => {

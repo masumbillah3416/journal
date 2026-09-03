@@ -399,7 +399,12 @@ test.describe('Frames II — SCREENS.md §1.5', () => {
     // "Footer: gallery button, count, and "Only a few frames live in the
     // book"." The button is an anchor to a real path, never a click handler —
     // see `Notes.tsx`'s header for the defect that rule comes from.
-    await expect(footer.getByRole('link', { name: /See full gallery/ })).toHaveAttribute('href', '/gallery/tokyo')
+    // As `e2e/notes.spec.ts`: this page's own number rides along, so the
+    // gallery's back control returns the reader to page 5.
+    await expect(footer.getByRole('link', { name: /See full gallery/ })).toHaveAttribute(
+      'href',
+      '/gallery/tokyo?from=5',
+    )
     await expect(footer).toContainText('photographs and')
     await expect(footer).toContainText('clips in the gallery')
     await expect(footer).toContainText('Only a few frames live in the book')

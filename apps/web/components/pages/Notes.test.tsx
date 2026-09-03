@@ -367,7 +367,9 @@ describe('Notes — the footer', () => {
     const host = renderNotes(aNotesPage({ slug: 'patagonia' }))
     const link = host.querySelector('footer a')
 
-    expect(link?.getAttribute('href')).toBe('/gallery/patagonia')
+    // The page's own number rides along, so the gallery's back control can
+    // return the reader here rather than to the cover, with no script at all.
+    expect(link?.getAttribute('href')).toBe('/gallery/patagonia?from=1')
     expect(link?.textContent).toContain('See full gallery')
   })
 

@@ -10,7 +10,8 @@
  *
  * Two routes exist today: `/cms` (Payload's own admin, mounted per
  * `apps/web/payload.config.ts`'s `routes.admin`) and `/p/<n>`, the public
- * diary page added with the book itself (Task 7). Add one `test()` per route
+ * diary page added with the book itself (Task 7), and the gallery route and
+ * its lightbox (Task 14). Add one `test()` per route
  * as routes are built; do not assert against a route that does not exist yet.
  *
  * The last case covers an address no route file declares and every browser
@@ -77,6 +78,40 @@ test('loads /p/1 without console errors or page errors', async ({ page }) => {
   // sets a scale; a hydration mismatch between the server's unmeasured render
   // and the client's would surface here, a beat after networkidle, and
   // nowhere else.
+  await page.waitForTimeout(500)
+
+  expect(errors).toEqual([])
+})
+
+test('loads a journey’s gallery, and its open lightbox, without console errors', async ({ page }) => {
+  const errors: string[] = []
+
+  // Attached before goto(), for the same reason as the two cases above.
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      errors.push(message.text())
+    }
+  })
+  page.on('pageerror', (error) => {
+    errors.push(error.message)
+  })
+
+  const response = await page.goto('/gallery/patagonia', { waitUntil: 'networkidle' })
+
+  expect(response?.ok(), `expected the gallery to respond 2xx, got ${String(response?.status())}`).toBe(true)
+
+  // THE LIGHTBOX IS OPENED INSIDE THIS CASE, not left to
+  // `e2e/gallery.spec.ts`. It is a client component that mounts a document
+  // key listener, moves focus and reads `navigator`; every one of those is a
+  // way to throw at mount rather than at assertion time, and this is the only
+  // suite watching `pageerror` at all. The grid's own hydration - sixty-one
+  // tiles arriving as props into a `'use client'` boundary - is what the
+  // first half of the case covers.
+  await page.locator('[data-tile]').nth(2).click()
+  await expect(page.locator('[data-lightbox]')).toBeVisible()
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('Escape')
+
   await page.waitForTimeout(500)
 
   expect(errors).toEqual([])

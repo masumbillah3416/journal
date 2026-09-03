@@ -33,7 +33,11 @@
  * own defect log records gallery buttons that "appeared dead while their
  * handlers were fine", and README.md requires the deep links to be real,
  * indexable paths ("In production use real paths (`/p/12`, `/gallery/tokyo`)
- * rather than hashes"). `/gallery/<slug>` is the path Task 14 builds; until
+ * rather than hashes"). IT CARRIES THIS PAGE'S OWN NUMBER (`galleryPath`,
+ * @travel-diary/domain/pageAddress), which is what lets the gallery's back
+ * control return the reader to this page rather than to the cover -
+ * server-rendered, so it is right before any script runs.
+ * `/gallery/<slug>` is the path Task 14 builds; until
  * then the link is a real, inspectable target rather than a click that does
  * nothing, which is the failure mode this project has already paid for once.
  *
@@ -72,6 +76,7 @@
  * ./notes.module.css.
  */
 import type { JourneyPage, Slot } from '@travel-diary/domain/bookBundle'
+import { galleryPath } from '@travel-diary/domain/pageAddress'
 import type React from 'react'
 import { EphemeraSlot } from './EphemeraSlot'
 import { MoodBadge } from './MoodBadge'
@@ -198,7 +203,7 @@ export const Notes = ({ page, showDecorations, leafIndex }: NotesProps): React.J
       </div>
 
       <footer className={styles.footer}>
-        <a className={styles.galleryButton} href={`/gallery/${page.slug}`}>
+        <a className={styles.galleryButton} href={galleryPath(page.slug, leafIndex)}>
           See full gallery
           <span aria-hidden="true" className={styles.galleryArrow}>
             &#8594;

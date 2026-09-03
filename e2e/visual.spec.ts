@@ -227,3 +227,38 @@ test('matches the baseline screenshot of the page-not-found view', async ({ page
 
   await expect(page).toHaveScreenshot('diary-not-found.png', { fullPage: true })
 })
+
+test('matches the baseline screenshot of a journey’s full gallery', async ({ page }) => {
+  // A route with no book on it, so `settled` - which waits for the scaled
+  // design box - does not apply. What has to be settled here is the type and
+  // the tiles: the grid loads lazily (SCREENS.md §1.8), so only the images
+  // the browser has actually decided to fetch are awaited, and the rest are
+  // below the fold and outside the shot.
+  await page.goto('/gallery/patagonia', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-tile]').first()).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+  await page.evaluate(async () => {
+    await Promise.all(
+      [...document.images].filter((image) => image.complete && image.src !== '').map((image) => image.decode()),
+    )
+  })
+
+  // Not `fullPage`: sixty-one tiles is several viewports of scroll, and a
+  // baseline that tall is a baseline nobody reads a diff of. The viewport is
+  // the header, the tracks and the first rows - which is every rule §1.8
+  // states.
+  await expect(page).toHaveScreenshot('diary-gallery.png')
+})
+
+test('matches the baseline screenshot of the lightbox over that gallery', async ({ page }) => {
+  await page.goto('/gallery/patagonia', { waitUntil: 'networkidle' })
+  await page.locator('[data-tile]').nth(2).click()
+  await expect(page.locator('[data-lightbox]')).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+  await page.evaluate(async () => {
+    const open = document.querySelector('[data-lightbox-image]')
+    if (open instanceof HTMLImageElement) await open.decode()
+  })
+
+  await expect(page).toHaveScreenshot('diary-lightbox.png')
+})

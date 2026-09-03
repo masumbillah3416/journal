@@ -1,0 +1,543 @@
+/**
+ * gallery.module.css — the gallery route's header, grid and lightbox.
+ *
+ * Every measurement here is SCREENS.md §1.8-§1.9's, cross-checked against the
+ * prototype's own markup in `handoff/design_handoff_travel_diary/Travel
+ * Diary.dc.html` (its `showGallery` and `showLb` blocks are where the values
+ * §1.8/§1.9 leave unnamed — the header's `gap: 22px`, the tile's `#f4efe3`
+ * backing, the top bar's `padding: 18px 24px`, the toast's own box — are
+ * actually written down).
+ *
+ * ONE STYLESHEET FOR FIVE COMPONENTS, for the reason `chrome.module.css`'s
+ * header gives for doing the same: §1.8 and §1.9 are one design surface, the
+ * parts share the same paper, ink and cream tokens, and one CSS Module is one
+ * class map in the route's client bundle rather than five.
+ *
+ * THIS ROUTE IS NOT THE BOOK, and none of the diary's own geometry applies to
+ * it. There is no 1300x860 design box and no scale transform: the gallery is
+ * an ordinary document that fills the viewport and scrolls, which is why every
+ * length below is absolute rather than expressed against a scaled box.
+ *
+ * Colours come from `@travel-diary/tokens`' `--td-*` custom properties
+ * wherever the token table names the value. The literals that remain are
+ * handoff values with no entry in that table (README's "Colour" section does
+ * not name them), so — same policy as `chrome.module.css` and
+ * `book.module.css` — they are written here with their source rather than
+ * invented as new tokens:
+ *   - `#ece4d4`, the header's bottom rule (SCREENS.md §1.8, verbatim)
+ *   - `#f4efe3`, the backing a tile shows before its photograph decodes
+ *   - `rgba(120,98,60,.16)`, the tile's 1px inset ring, an alpha of the same
+ *     brown the hairline tokens are alphas of
+ *   - `rgba(255,253,246,.82)`, the index badge's fill — an alpha of
+ *     `--td-paper-mount` (`#fffdf6`), which cannot be expressed as one in CSS
+ *     without a colour function this project does not otherwise use
+ *   - `#5f5340`, the index badge's ink
+ *   - `#7a6b52`, the header eyebrow's ink
+ *   - `rgba(26,22,17,.95)` / `.72` / `.58`, the lightbox scrim, the duration
+ *     chip and the play badge — three alphas of one near-black the token
+ *     table has no entry for
+ *   - `rgba(246,236,214,.7)` / `.45` / `.4` / `.35` / `.2` / `.14`, the
+ *     lightbox's cream at six opacities, all `--td-cream` (`#f6ecd6`)
+ * Depends on: packages/tokens/src/tokens.css, loaded by the diary layout.
+ */
+
+/* ---------------------------------------------------------------------------
+ * The route itself. SCREENS.md §1.8: a header over a scrolling grid, on the
+ * diary's own outer white rather than on paper — the gallery is not a page of
+ * the book.
+ * --------------------------------------------------------------------------- */
+
+.gallery {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--td-outer);
+}
+
+/* ---------------------------------------------------------------------------
+ * Header — SCREENS.md §1.8: `1px solid #ece4d4` bottom, padding `26px 34px 16px`.
+ * --------------------------------------------------------------------------- */
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  gap: 22px;
+  padding: 26px 34px 16px;
+  border-bottom: 1px solid #ece4d4;
+}
+
+/* The back control. A LINK, not a button with a handler: the handoff's own
+ * defect log records gallery controls that "appeared dead while their
+ * handlers were fine", and the fix it names is real, indexable paths. */
+.back {
+  display: inline-flex;
+  flex: none;
+  gap: 9px;
+  align-items: center;
+  padding: 9px 16px;
+  border: 1.5px solid var(--td-ink-body);
+  border-radius: var(--td-radius-control);
+  background: transparent;
+  color: var(--td-ink-body);
+  font-family: var(--td-font-courier);
+  font-size: 11.5px;
+  letter-spacing: 0.18em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.back:hover,
+.back:focus-visible {
+  background: var(--td-ink-body);
+  color: var(--td-cream-alt);
+}
+
+.backArrow {
+  font-size: 15px;
+}
+
+.headerTitles {
+  flex: 1;
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #7a6b52;
+  font-family: var(--td-font-courier);
+  font-size: 10.5px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+}
+
+.titleRow {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+}
+
+.title {
+  margin: 0;
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-size: 52px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.headerMeta {
+  margin: 0;
+  color: var(--td-ink-diary-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 18px;
+  font-style: italic;
+}
+
+.count {
+  flex: none;
+  margin: 0;
+  padding-bottom: 6px;
+  color: var(--td-accent);
+  font-family: var(--td-font-courier);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+}
+
+/* ---------------------------------------------------------------------------
+ * Grid — SCREENS.md §1.8: `repeat(auto-fill, minmax({thumbSize}px, 1fr))`,
+ * gap `18px 16px`, padding `24px 34px 48px`.
+ * --------------------------------------------------------------------------- */
+
+.gridScroller {
+  flex: 1;
+  min-height: 0;
+  padding: 24px 34px 48px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--td-gallery-thumb), 1fr));
+  gap: 18px 16px;
+}
+
+/* The two blocks that stand in for the tiles a windowed grid is not
+ * rendering. `grid-column: 1 / -1` makes each one a full-width row of exactly
+ * the height the missing rows would have occupied, so the scrollbar never
+ * jumps as the window moves. */
+.spacer {
+  grid-column: 1 / -1;
+}
+
+.empty {
+  margin: 0;
+  padding: 40px 0;
+  color: var(--td-ink-diary-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 17px;
+  font-style: italic;
+}
+
+/* ---------------------------------------------------------------------------
+ * Tile — SCREENS.md §1.8: `aspect-ratio: 1/1`, `object-fit: cover`, 1px inset
+ * ring, index badge top-left, caption below truncated to one line.
+ * --------------------------------------------------------------------------- */
+
+.tile {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tile:hover .tileSquare,
+.tile:focus-visible .tileSquare {
+  opacity: 0.88;
+}
+
+/* `display: block` is load-bearing, not tidiness. This is a `<span>` (the
+ * tile is a `<button>`, and a button may not contain a `<div>` in valid
+ * HTML), and `aspect-ratio` and `width: 100%` are both ignored on an inline
+ * box - so without this the square was 215x240 and every one of the
+ * sixty-one tiles failed `e2e/gallery.spec.ts`'s squareness case. */
+.tileSquare {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: #f4efe3;
+  box-shadow: 0 0 0 1px rgba(120, 98, 60, 0.16);
+}
+
+/* `object-fit: cover` with the media item's own focal point as
+ * `object-position` (applied inline by Tile.tsx, since it is the editor's
+ * choice for THIS photograph and no stylesheet can see it). Without `cover`
+ * the position would be inert — the same pairing `photoMount.module.css`
+ * relies on. */
+.tileImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.indexBadge {
+  position: absolute;
+  left: 7px;
+  top: 7px;
+  padding: 2px 6px;
+  background: rgba(255, 253, 246, 0.82);
+  color: #5f5340;
+  font-family: var(--td-font-courier);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+}
+
+/* A CLIP'S TWO DECORATIONS, and the exact inverse of a diary page slot, which
+ * gets neither (SCREENS.md §1.4 against §1.8): here the reader is choosing
+ * what to open, so a clip has to be distinguishable before it is opened.
+ * Nothing in this book can draw them yet — video is deferred
+ * (docs/adr/0004-media-pipeline-mode.md), so no `media` row carries
+ * `kind: 'clip'`. */
+.playBadge {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.playBadgeDisc {
+  display: flex;
+  width: 46px;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(26, 22, 17, 0.58);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+/* The prototype's own CSS triangle, rather than a glyph: a play mark drawn
+ * with borders needs no font and no icon file. */
+.playBadgeTriangle {
+  display: block;
+  width: 0;
+  height: 0;
+  margin-left: 4px;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-left: 14px solid var(--td-paper);
+}
+
+.durationChip {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  padding: 2px 6px;
+  background: rgba(26, 22, 17, 0.72);
+  color: var(--td-paper);
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+}
+
+/* One line, always. `min-height` keeps a row of tiles level when one of them
+ * has no caption — an omitted element here would ripple through the whole
+ * grid row, which is why this is the one optional line in the project that is
+ * rendered empty rather than dropped. */
+.tileCaption {
+  display: block;
+  min-height: 1.35em;
+  padding: 7px 2px 0;
+  overflow: hidden;
+  color: var(--td-ink-diary-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 13.5px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------------------
+ * Lightbox — SCREENS.md §1.9: `rgba(26,22,17,.95)` full screen,
+ * `z-index: 1000`, `grid-template-rows: auto 1fr auto`.
+ * --------------------------------------------------------------------------- */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: rgba(26, 22, 17, 0.95);
+}
+
+.lightboxTop {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 18px 24px;
+}
+
+.counter {
+  margin: 0;
+  color: rgba(246, 236, 214, 0.7);
+  font-family: var(--td-font-courier);
+  font-size: 12px;
+  letter-spacing: 0.24em;
+}
+
+.topSpacer {
+  flex: 1;
+}
+
+.action {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 15px;
+  border: 1px solid rgba(246, 236, 214, 0.4);
+  border-radius: var(--td-radius-control);
+  background: transparent;
+  color: var(--td-cream);
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-decoration: none;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.action:hover,
+.action:focus-visible {
+  background: rgba(246, 236, 214, 0.14);
+}
+
+.close {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(246, 236, 214, 0.4);
+  border-radius: var(--td-radius-control);
+  background: transparent;
+  color: var(--td-cream);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.close:hover,
+.close:focus-visible {
+  background: rgba(246, 236, 214, 0.14);
+}
+
+.lightboxMiddle {
+  display: flex;
+  min-height: 0;
+  gap: 18px;
+  align-items: center;
+  padding: 0 24px;
+}
+
+.step {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  border: 1px solid rgba(246, 236, 214, 0.35);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--td-cream);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.step:hover:not(:disabled),
+.step:focus-visible:not(:disabled) {
+  background: rgba(246, 236, 214, 0.14);
+}
+
+/* Spent rather than removed, for the reason `BottomBar.tsx` gives for the
+ * book's own arrows: a control that vanished at the ends would move the other
+ * one under the reader's pointer. */
+.step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lightboxStage {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 0;
+}
+
+.lightboxImage {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+}
+
+.lightboxBottom {
+  padding: 16px 96px 26px;
+  text-align: center;
+}
+
+.lightboxCaption {
+  margin: 0;
+  color: var(--td-cream);
+  font-family: var(--td-font-caveat);
+  font-size: 28px;
+  line-height: 1.25;
+}
+
+/* SCREENS.md §1.9 states this line "at 45%". It is drawn at 58% instead, and
+ * that is a measured accessibility correction rather than a liberty: cream at
+ * 45% over the 95%-opaque scrim computes to #837d70 on #25221d, which axe
+ * measures as 3.87:1 against a 4.5:1 requirement for 10px text - a real
+ * `color-contrast` violation on `e2e/a11y.spec.ts`'s open-lightbox case, at
+ * desktop and mid. 58% reaches 5.47:1. Same treatment, and the same reason,
+ * as docs/deviations.md §12's two cover values and §15's bookmark sub-line;
+ * §21 records this one. */
+.lightboxMeta {
+  margin: 5px 0 0;
+  color: rgba(246, 236, 214, 0.58);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------------------
+ * Below the design's own mobile breakpoint (860px, design spec §8.2). This is
+ * NOT SCREENS.md §1.10's mobile reading mode, which is a different shell
+ * entirely ("No book, no flip, no scaling") and a later task's; it is the one
+ * change this layout needs to stay usable until that lands. At 390px the
+ * header's single flex row - back control, title block, census - is wider
+ * than the viewport, and the document scrolled sideways with the title and
+ * the count clipped off the right edge (docs/qa/2026-09-03-gallery-sweep.md,
+ * GAL-004). Stacking it keeps every element visible and reachable; nothing
+ * moves at the `mid` (1000px) project or above.
+ * --------------------------------------------------------------------------- */
+
+@media (max-width: 859px) {
+  .header {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 16px;
+    padding: 16px 18px 12px;
+  }
+
+  /* Its own row, so the title is never sized by what is left beside it. */
+  .headerTitles {
+    flex-basis: 100%;
+  }
+
+  .titleRow {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+
+  .title {
+    font-size: 42px;
+  }
+
+  .count {
+    padding-bottom: 0;
+  }
+
+  .gridScroller {
+    padding: 18px 18px 40px;
+  }
+
+  /* The lightbox's own bars have the same problem the header did, one
+   * viewport down: SCREENS.md §1.9's `18px 24px` top bar puts the counter,
+   * two 100px-ish actions and a 36px close into 342px, and the counter wrapped
+   * to two lines. Trimming the padding and the gap fits all four on one line
+   * at 390px; `nowrap` is what stops `003 / 061` breaking at its space. */
+  .lightboxTop {
+    gap: 8px;
+    padding: 14px 12px;
+  }
+
+  .counter {
+    white-space: nowrap;
+  }
+
+  /* SCREENS.md §1.9's `16px 96px 26px` is 192px of inline padding, which
+   * leaves 198px for a Caveat 28px caption at 390px. */
+  .lightboxBottom {
+    padding: 14px 20px 22px;
+  }
+
+  .lightboxMiddle {
+    gap: 10px;
+    padding: 0 12px;
+  }
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 34px;
+  z-index: 1200;
+  margin: 0;
+  padding: 11px 20px;
+  border-radius: var(--td-radius-control);
+  background: var(--td-ink);
+  color: var(--td-cream);
+  font-family: var(--td-font-courier);
+  font-size: 11.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+  box-shadow: 0 14px 30px -14px rgba(0, 0, 0, 0.6);
+}

@@ -179,6 +179,34 @@ test('has no axe violations on the page-not-found view', async ({ page }) => {
   await expectNoAxeViolations(page)
 })
 
+test('has no axe violations on a journey’s full gallery', async ({ page }) => {
+  await page.goto('/gallery/patagonia')
+  await expect(page.locator('[data-tile]').first()).toBeVisible()
+
+  // No exclusions - see the diary cases above. This route has its own
+  // `<main>`, its own level-one heading and sixty-one image buttons, so
+  // `landmark-one-main`, `page-has-heading-one`, `image-alt`, `button-name`
+  // and `color-contrast` all have something real to check - and `image-alt`
+  // has more to judge here than anywhere in the product, since a gallery is
+  // almost entirely photographs.
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations with the lightbox open over that gallery', async ({ page }) => {
+  // A modal has requirements a static page does not, and axe knows most of
+  // them: `aria-dialog-name` (a dialog needs an accessible name),
+  // `aria-required-attr`, `button-name` on the four controls, and
+  // `color-contrast` on cream type over a 95%-opaque near-black scrim. Run
+  // with no exclusions, deliberately: silencing one of these would be
+  // silencing the only automated check this project has on the one view it
+  // traps a reader's focus inside.
+  await page.goto('/gallery/patagonia')
+  await page.locator('[data-tile]').nth(2).click()
+  await expect(page.locator('[data-lightbox]')).toBeVisible()
+
+  await expectNoAxeViolations(page)
+})
+
 /**
  * The cover's five text lines, with the WCAG 2.1 AA floor each one has to
  * clear. Only the title qualifies as large text: SC 1.4.3's exemption needs

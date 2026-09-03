@@ -618,3 +618,117 @@ the bytes. Redirecting to a signed URL after all that adds an expiry window to r
 about and a second origin to configure, and removes no hop. When the store becomes
 Cloudflare R2 in Phase 3 the trade may change — `StoragePort.signedUrl` already exists
 for exactly that — and this entry is where to start when it does.
+
+---
+
+## 18 · The lightbox's clip transport is not built, and lands with video
+
+**Handoff, `SCREENS.md` §1.9:** "Clip transport (clips only): 44px play/pause (two 4×15px
+bars, or a 13px triangle), a 3px scrub track with a `#c9b48a` fill, elapsed/total in
+Courier 11.5px."
+
+**What was built:** nothing. `Lightbox.tsx` renders an `<img>` and no transport.
+
+**Why.** Video is deferred behind one flag (`docs/adr/0004-media-pipeline-mode.md`,
+`MEDIA_PIPELINE=inline`): there is no transcode worker, no poster extraction and no
+`durationSec` written by anything, so no `media` row can carry `kind: 'clip'`. A play
+button, a scrub track and an elapsed readout over a photograph would be three controls
+that do nothing, wired to a `<video>` element with no source — untestable in a browser,
+and exactly the "dead control" class of defect the handoff's own log is full of. It is
+not a smaller version of the feature; it is furniture.
+
+**What WAS built, so the seam is real rather than notional.** The two decorations
+`SCREENS.md` §1.8 gives a clip in the GRID — the 46px play badge and the duration chip —
+are implemented in `Tile.tsx` behind `frame.kind === 'clip'`, and the format they print
+is `clipDuration` in `packages/domain/src/gallery.ts`. Both are covered by
+`Tile.test.tsx` and `gallery.test.ts` against clip-shaped fixtures. Neither can be
+reached in a browser today, and no clip was faked in the database to pretend otherwise:
+`apps/web/scripts/seed.ts` seeds every gallery frame as `kind: 'still'`, even though the
+prototype marks every seventh as a video (`vid: i % 7 === 5`).
+
+**When it lands:** with the transcode worker, when `MEDIA_PIPELINE=worker` is switched
+on. `Lightbox.tsx`'s header names this deferral at the point a future reader would look
+for the transport.
+
+---
+
+## 19 · The gallery tile's caption element is rendered even when the caption is empty
+
+**Handoff, `SCREENS.md` §1.8:** "caption below truncated to one line."
+
+**The project's own standing policy**, applied by `Cover.tsx`, `Notes.tsx`,
+`PhotoMount.tsx` and `About.tsx`: an empty optional line prints *nothing* — not an empty
+element — because none of those fields is `required: true` and an editor who has not
+filled one in is an ordinary state, not a corrupted row.
+
+**The gallery tile is the one place that policy is not applied**, and the reason is
+geometry rather than content. The tiles sit in a `repeat(auto-fill, minmax(...))` grid
+whose rows size to their tallest item. Dropping the caption element from one tile makes
+that tile shorter than its neighbours, and the whole ROW of tiles then sits in a track
+sized by the captioned ones, with the uncaptioned tile's square floating in it. One
+uncaptioned photograph would therefore change the layout of four or five others.
+
+`gallery.module.css`'s `.tileCaption` carries `min-height: 1.35em`, so the element
+reserves its single line whether or not there is anything in it, and the element itself
+is always rendered. It contains no filler text — it is empty, not padded — so nothing is
+printed that an editor did not write.
+
+---
+
+## 20 · One journey's gallery is seeded in full, not all ten
+
+**Handoff, the prototype (`Travel Diary.dc.html`):** every journey carries a gallery
+`count` — Tokyo 52, Lisbon 46, Patagonia 61, Marrakech 38, and a value per row in its
+`MORE` table — and `gallery(j)` generates that many frames, cycling an eight-caption
+list.
+
+**What was seeded:** Patagonia's 61, verbatim (its own eight captions, cycled exactly as
+`caps[i % caps.length]`). The other nine journeys keep the nine frames their book pages
+print, so their galleries hold nine.
+
+**Why.** `SCREENS.md` §1.8 records one number as verified — "Verified with 61 tiles;
+must stay square and unsqueezed at 40+" — and §1.9 prints `003 / 061`. Patagonia is the
+prototype journey whose count is that number, so seeding it in full is what gives
+`e2e/gallery.spec.ts` the grid the design was actually verified against. Seeding the
+other nine would add roughly four hundred more placeholder renders to every `npm run
+db:seed` and every CI browser job, and would gate nothing that Patagonia's sixty-one
+does not already gate. `apps/web/scripts/seed-data.ts`'s `gallery` field is per-journey,
+so adding another is one object literal if a future task needs one.
+
+**No clips, in any of them** — see §18.
+
+
+---
+
+## 21 · The lightbox's metadata line is cream at 58%, not 45%
+
+**Handoff, `SCREENS.md` §1.9:** "then metadata in Courier 10px `.24em` uppercase at 45%
+— `{Journey} · {Place} · frame 007`."
+
+**What was built:** the same line at **58%**.
+
+**Why.** At 45%, `--td-cream` (`#f6ecd6`) over the lightbox's own
+`rgba(26,22,17,.95)` scrim — itself over the gallery's white `--td-outer` — computes to
+`#837d70` on `#25221d`. axe measures that at **3.87:1**, against the 4.5:1 WCAG 2.1 AA
+minimum for 10px text (the large-text exemption needs 24px, or 18.66px bold, so a 10px
+line does not qualify for 3:1). It is a real violation, found by
+`e2e/a11y.spec.ts`'s "has no axe violations with the lightbox open over that gallery"
+case at the `desktop` and `mid` projects, and CLAUDE.md §2 requires the handoff's
+contrast to be **asserted, not assumed**.
+
+58% reaches **5.47:1** over the same stack. The intermediate values were computed rather
+than guessed: 50% is 4.44:1 (still short), 52% is 4.68:1 (clears, with no margin at all),
+55% is 5.07:1. 58% was chosen for margin against a future change to the scrim's own
+opacity, while staying at the "dimmed, secondary" weight the design is asking for — it is
+still visibly quieter than the counter above it (cream at 70%) and the caption beside it
+(cream at 100%).
+
+**Precedent, and the reason this is a deviation entry rather than a silent edit:** §12
+did the same for two of the cover's own values and §15 for the bookmark tab's sub-line.
+The handoff's colour choices are design decisions and are followed everywhere they clear
+AA; where a stated value measurably does not, the value moves and the change is written
+down here with the measurement that forced it.
+
+**Not changed:** the counter (cream at 70%, 12px), the Download and Share controls (cream
+at 100% with a 40% border) and the caption (cream at 100%, Caveat 28px) all clear AA at
+the handoff's own values, and axe flagged none of them.

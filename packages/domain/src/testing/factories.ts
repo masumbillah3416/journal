@@ -6,10 +6,12 @@
  * call `aJourney()` and then mutate their own copy can never see each
  * other's changes. `Partial<Journey>` overrides merge shallowly over
  * sensible defaults, so a test's `aJourney({ slug: 'tokyo' })` names only the
- * field it cares about. Depends on: Journey and BookChrome, from ../bookBundle.
+ * field it cares about. Depends on: Journey and BookChrome, from ../bookBundle;
+ * GalleryBundle and GalleryFrame, from ../gallery.
  */
 import type { AboutContent, BookChrome, Journey, Slot } from '../bookBundle'
-import type { JourneyId } from '../ids'
+import type { GalleryBundle, GalleryFrame } from '../gallery'
+import type { JourneyId, MediaId } from '../ids'
 
 // Test-only default id. The literal below is a fixed, non-empty string, so
 // routing it through the fallible `journeyId()` constructor would only add a
@@ -102,3 +104,61 @@ export const anAboutContent = (overrides: Partial<AboutContent> = {}): AboutCont
   replyTo: 'hello@wanderings.travel',
   ...overrides,
 })
+
+/**
+ * Builds a {@link GalleryFrame} for tests.
+ *
+ * `id` is the ONLY parameter that is not an override, because it is the
+ * fixture's identity: every case that matters in the gallery is about which
+ * frame is open, and naming that frame at the call site is what makes those
+ * cases readable (`aGalleryFrame('market')` rather than an anonymous frame
+ * whose id has to be looked up).
+ * @param id - The media id this frame is addressed by, e.g. `'market'`.
+ * @param overrides - Fields to override on the default frame.
+ * @returns A fresh frame, shared with no other call's result.
+ */
+export const aGalleryFrame = (id: string, overrides: Partial<GalleryFrame> = {}): GalleryFrame => ({
+  // As DEFAULT_JOURNEY_ID above: a non-empty literal cannot fail the
+  // fallible constructor, so the direct cast adds no unreachable branch.
+  id: id as MediaId,
+  tileSrc: `/api/media/file/tokyo-${id}-400x400.png`,
+  fullSrc: `/api/media/file/tokyo-${id}-2000x1500.png`,
+  downloadHref: `/gallery/tokyo/download/${id}`,
+  alt: `Tokyo, ${id}`,
+  caption: `A ${id} in the rain`,
+  kind: 'still',
+  durationSec: undefined,
+  focalX: 50,
+  focalY: 50,
+  downloadable: true,
+  ...overrides,
+})
+
+/**
+ * Builds a {@link GalleryBundle} for tests, with the seeded Tokyo journey's
+ * own header values as defaults so a fixture reads like the real gallery.
+ * @param overrides - Fields to override. Merged shallowly over the defaults.
+ * @returns A fresh bundle, shared with no other call's result.
+ */
+export const aGalleryBundle = (overrides: Partial<GalleryBundle> = {}): GalleryBundle => ({
+  journey: {
+    id: DEFAULT_JOURNEY_ID,
+    slug: 'tokyo',
+    name: 'Tokyo',
+    place: 'Japan',
+    dates: '4 - 13 Apr 2024',
+  },
+  frames: [aGalleryFrame('doorway'), aGalleryFrame('market'), aGalleryFrame('ferry')],
+  thumbSize: 200,
+  ...overrides,
+})
+
+/**
+ * Builds a gallery of `count` frames, numbered so each one is distinguishable
+ * in an assertion - the shape SCREENS.md §1.8's "Verified with 61 tiles" case
+ * needs.
+ * @param count - How many frames the gallery holds.
+ * @returns That many frames, in order.
+ */
+export const galleryFrames = (count: number): readonly GalleryFrame[] =>
+  Array.from({ length: count }, (_unused, index) => aGalleryFrame(`frame-${String(index + 1)}`))
