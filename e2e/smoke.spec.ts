@@ -84,6 +84,39 @@ test('loads /p/1 without console errors or page errors', async ({ page }) => {
   expect(errors).toEqual([])
 })
 
+test('preloads no stylesheet the page then never uses', async ({ page, viewport }) => {
+  // PH1-005, and the same class as DIARY-006 (docs/qa/2026-09-01-diary-sweep.md),
+  // which was fixed rather than tolerated: a clean load prints nothing to the
+  // console. Chrome warns when a `link rel=preload` goes unused "within a few
+  // seconds from the window's load event", so the wait below is the warning's
+  // own window rather than a guess - the assertion is the ABSENCE of output,
+  // which needs a bounded one.
+  //
+  // WARNING level, not error: this is the level the sweep found it at, and
+  // nothing else in this suite watches it. Filtered to the preload warning
+  // rather than asserting an empty array, so an unrelated third-party notice
+  // does not make this case about something else.
+  if (drawsMobileReadingMode(viewport)) {
+    // The mobile surface is a different route entry with its own document
+    // (docs/adr/0012), and its console is silent - this defect was the book
+    // surface's. `/p/<n>` at this project serves the mobile mode, so there is
+    // no book document here to instrument.
+    test.skip()
+  }
+
+  const warnings: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'warning') {
+      warnings.push(message.text())
+    }
+  })
+
+  await page.goto('/p/3', { waitUntil: 'load' })
+  await page.waitForTimeout(4_000)
+
+  expect(warnings.filter((text) => text.includes('was preloaded using link preload but not used'))).toEqual([])
+})
+
 test('walks every page kind of the mobile reading mode without console errors', async ({ page, viewport }) => {
   // The `/p/1` case above already instruments the mobile surface's Cover at
   // the `mobile` project, since that route serves whichever surface the

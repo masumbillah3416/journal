@@ -1,5 +1,6 @@
 /**
- * diary.css — the document-level reset the diary route group needs.
+ * diary.css — the document-level reset the diary route group needs, plus the
+ * one view in the group that is not a page of the book.
  *
  * Deliberately tiny. The book is a fixed 1300x860 box scaled by a transform,
  * so the only thing the document itself has to get right is to stop adding
@@ -42,8 +43,13 @@
  * `next/font`-generated variable name into it would couple that package to
  * one app's build tool. This override lives in the one app that actually
  * loads the fonts.
+ * THE 404's RULES ARE AT THE BOTTOM OF THIS FILE, and the block above them
+ * says why they are not in a CSS module: a module imported by
+ * `not-found.tsx` was preloaded on every page of the book and used by none of
+ * them.
  * Depends on: packages/tokens/src/tokens.css, ./fonts.ts (via layout.tsx's
- * `.variable` classes on `<html>`).
+ * `.variable` classes on `<html>`). Read by: ./not-found.tsx, for the
+ * `notFound*` classes.
  */
 @import '@travel-diary/tokens/tokens.css';
 
@@ -88,4 +94,99 @@ body {
 
 *::-webkit-scrollbar {
   display: none;
+}
+
+/* THE PAGE-NOT-FOUND VIEW'S RULES LIVE HERE, IN THIS STYLESHEET, RATHER THAN
+ * IN A CSS MODULE OF THEIR OWN - and that is a fix rather than a filing
+ * choice. `not-found.tsx` is a sibling slot of `children` in this group's
+ * layout tree, so Next collected its CSS module as part of the SEGMENT's
+ * stylesheets and emitted a `<link rel="preload" as="style">` for it in the
+ * head of every page of the book. A page that is found never uses it, so
+ * Chrome logged "The resource ... was preloaded using link preload but not
+ * used within a few seconds from the window's load event" on every cold load
+ * of every `/p/<n>` at `desktop` and `mid` - bytes and a warning on every
+ * reader's first paint, for a stylesheet only the 404 wants
+ * (docs/qa/2026-09-03-phase-1-closing-sweep.md PH1-005, and the same class as
+ * that sweep's DIARY-006, which was fixed rather than tolerated). Folded into
+ * the stylesheet this group already loads on every route, there is no second
+ * chunk to preload, nothing to leave unused, and nothing to warn about.
+ *
+ * The class names carry a `notFound` prefix because these are GLOBAL names
+ * now, not module-scoped ones. Nothing outside this route group can collide
+ * with them - the diary group has its own root layout and Payload's admin
+ * loads none of this - but the prefix is what makes that legible at the point
+ * of use.
+ *
+ * Every colour, font and radius below is a `--td-*` token, never a literal -
+ * the same rule the page components follow, and what keeps
+ * `e2e/a11y.spec.ts`'s contrast assertions meaningful across a token change.
+ * The view is deliberately NOT the book: drawing a scaled 1300x860 paper
+ * object around a "no such page" message would be a second, half-working
+ * book, and the design has no such screen (CLAUDE.md §4). What it takes from
+ * the design is its surface - the desk gradient, the paper card, the hairline
+ * and the three type families - so the 404 does not read as a different site. */
+.notFoundStage {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: linear-gradient(160deg, var(--td-desk-from), var(--td-desk-to));
+}
+
+.notFoundCard {
+  max-width: 520px;
+  padding: 48px 44px;
+  border: 1px solid var(--td-hairline-border-max);
+  border-radius: 2px;
+  background: linear-gradient(160deg, var(--td-paper-from), var(--td-paper-to));
+  box-shadow: 0 18px 40px rgb(0 0 0 / 12%);
+  text-align: center;
+}
+
+.notFoundEyebrow {
+  margin: 0;
+  font-family: var(--td-font-courier);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+.notFoundTitle {
+  margin: 14px 0 0;
+  font-family: var(--td-font-caveat);
+  font-size: 58px;
+  font-weight: 400;
+  line-height: 1.05;
+  color: var(--td-ink);
+}
+
+.notFoundRule {
+  width: 56px;
+  height: 1px;
+  margin: 20px auto;
+  border: 0;
+  background: var(--td-hairline-border-max);
+}
+
+.notFoundBody {
+  margin: 0;
+  font-family: var(--td-font-garamond);
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--td-ink-body);
+}
+
+.notFoundBack {
+  display: inline-block;
+  margin-top: 28px;
+  font-family: var(--td-font-courier);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--td-accent);
+}
+
+.notFoundBack:hover {
+  color: var(--td-accent-hover);
 }

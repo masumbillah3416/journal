@@ -17,13 +17,23 @@
  * `pagePath` rather than as a literal so it cannot drift from the route it
  * names.
  *
+ * ITS STYLES ARE IN `diary.css`, NOT IN A CSS MODULE OF ITS OWN, which is
+ * PH1-005's fix rather than a filing preference. This file is a sibling slot
+ * of `children` in the group's layout tree, so Next collected a CSS module
+ * imported here as part of the SEGMENT's stylesheets and preloaded it in the
+ * head of every `/p/<n>` - a stylesheet a page that is found never uses, which
+ * Chrome logged a warning for on every cold load. `diary.css` is loaded on
+ * every route of this group already, so folding the rules in leaves no second
+ * chunk to preload and nothing to warn about; that file's own bottom block
+ * carries the full reasoning and the `notFound` class-name prefix.
+ *
  * `<main>` and the `<h1>` are load-bearing rather than decorative. axe's
  * `landmark-one-main` and `page-has-heading-one` are asserted on this route
  * with no exclusions at all (`e2e/routing.spec.ts`), which is the same bar
  * every diary route is held to and one the `/cms` case has to be excused
  * from.
- * Depends on: `pagePath` (@travel-diary/domain/pageAddress),
- * ./notFound.module.css.
+ * Depends on: `pagePath` (@travel-diary/domain/pageAddress), and the
+ * `notFound*` classes in ./diary.css (loaded by ./layout.tsx).
  */
 /* c8 ignore start -- A Next.js convention file: it is never imported by any
  * test in either Vitest config (rendering one needs a real Next request and
@@ -37,23 +47,22 @@
  * unimported file's imports are themselves uncovered lines. */
 import { pagePath } from '@travel-diary/domain/pageAddress'
 import type React from 'react'
-import styles from './notFound.module.css'
 
 /** The address of the Cover — where a reader with a bad address is sent. */
 const COVER = pagePath(0)
 
 /** Renders the diary's page-not-found view. */
 const DiaryNotFound = (): React.JSX.Element => (
-  <main className={styles.stage}>
-    <div className={styles.card}>
-      <p className={styles.eyebrow}>No such page</p>
-      <h1 className={styles.title}>This page isn’t in the book</h1>
-      <hr className={styles.rule} />
-      <p className={styles.body}>
+  <main className="notFoundStage">
+    <div className="notFoundCard">
+      <p className="notFoundEyebrow">No such page</p>
+      <h1 className="notFoundTitle">This page isn’t in the book</h1>
+      <hr className="notFoundRule" />
+      <p className="notFoundBody">
         The address you followed doesn’t name a page of this diary. It may have been a typo, or the page may have been
         taken out since the link was made.
       </p>
-      <a className={styles.back} href={COVER}>
+      <a className="notFoundBack" href={COVER}>
         Open the diary
       </a>
     </div>
