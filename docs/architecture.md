@@ -97,6 +97,20 @@ there is no media query in `book.module.css` and there must not be one - the two
 never share a document. Which one a request gets is decided before either is rendered; see
 `docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`.
 
+**The two surfaces are two ROUTE ENTRIES, and that is a bundling seam, not only a
+rendering one.** `app/(diary)/p/[n]/page.tsx` imports `Book`; `app/(diary)/m/[n]/page.tsx`
+imports `MobileDiary`; neither imports the other's tree. While one route branched
+between them, Turbopack compiled both into that route's single client chunk group —
+its split is per route entry, not per import — so every desktop reader downloaded the
+mobile mode's client half and its 23,923-byte stylesheet, and the LCP gate went red.
+`apps/web/middleware.ts` is what joins the two entries back into one address: it reads
+the cookie and the user agent, asks the same `servedReadingSurface`, and REWRITES
+`/p/<n>` onto `/m/<n>` for a reader served the mobile surface, so the reader's address
+never moves. `/m/<n>` is not an address — a direct request for it is answered with a
+308 back to `/p/<n>`, so no page in the book has two URLs. See
+`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md` for the measurement and
+the six alternatives it beat.
+
 | File                    | Responsibility                                                                                                                                                                                                    |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MobileDiary.tsx`       | The surface's single `'use client'` boundary. Composes the header, the scrolling column, the bottom bar and the drawer, and owns two facts: whether the drawer is open, and the two page indices either side of this one. It does not render the page - it is handed one, exactly as `Book.tsx` is handed its faces. |

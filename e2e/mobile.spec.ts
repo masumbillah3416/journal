@@ -31,7 +31,7 @@
  * diary (`npm run db:seed`) whose thirteen bookmarks include Marrakech at
  * index 11.
  */
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import { drawsMobileReadingMode } from './support/surface'
 
 test.skip(({ viewport }) => !drawsMobileReadingMode(viewport), 'the mobile reading mode is not drawn at or above 860px')
@@ -85,6 +85,40 @@ const dragFinger = async (page: Page, from: Point, to: Point, steps = 10): Promi
 const scrollOffset = (page: Page): Promise<number> =>
   page.evaluate(() => document.querySelector('[data-mobile-content]')?.scrollTop ?? -1)
 
+/**
+ * The class-name prefix Turbopack gives every rule and every class-map entry
+ * of one surface's stylesheet. It appears in that surface's CSS chunk AND in
+ * the client chunk that imports it, so one marker settles both halves.
+ */
+const MOBILE_STYLESHEET_MARKER = 'mobile-module__'
+
+/** The same, for the book's own stylesheet - see {@link MOBILE_STYLESHEET_MARKER}. */
+const BOOK_STYLESHEET_MARKER = 'book-module__'
+
+/** A phone's user agent, which is served the mobile reading surface's route entry. */
+const PHONE_USER_AGENT =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+
+/** A desktop browser's user agent, which names no device kind and so is served the book. */
+const DESKTOP_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+
+/** Every script and stylesheet `/p/1`'s document asks a reader with this user agent to fetch. */
+const assetsOf = async (request: APIRequestContext, userAgent: string): Promise<readonly string[]> => {
+  const html = await (await request.get('/p/1', { headers: { 'user-agent': userAgent } })).text()
+  return [...new Set([...html.matchAll(/\/_next\/static\/chunks\/[\w.-]+\.(?:js|css)/g)].map(([asset]) => asset))]
+}
+
+/** Which of `assets` carry `marker` in their bytes - named, so a failure says which chunk. */
+const assetsContaining = async (
+  request: APIRequestContext,
+  assets: readonly string[],
+  marker: string,
+): Promise<readonly string[]> => {
+  const bodies = await Promise.all(assets.map(async (asset) => (await request.get(asset)).text()))
+  return assets.filter((_asset, index) => (bodies[index] ?? '').includes(marker))
+}
+
 test('serves a phone the mobile reading mode, and no book at all', async ({ page }) => {
   await page.goto('/p/1')
 
@@ -93,6 +127,25 @@ test('serves a phone the mobile reading mode, and no book at all', async ({ page
   // no leaves and no page stack.
   await expect(page.locator('[data-design-box]')).toHaveCount(0)
   await expect(page.locator('[data-leaf]')).toHaveCount(0)
+})
+
+test('ships neither surface the other’s code, which is what two route entries bought', async ({ request }) => {
+  // The markup split above was never the whole promise. While one route
+  // branched between the two surfaces, Turbopack compiled BOTH component trees
+  // into that route's single chunk group, so every desktop reader downloaded
+  // this surface's client half and its stylesheet and LCP went over its gate
+  // (docs/adr/0012-two-route-entries-for-two-reading-surfaces.md). Two entries
+  // split it; this case is what fails if they are ever merged back, or if a
+  // shared import quietly pulls one surface into the other's chunk.
+  const [bookAssets, mobileAssets] = await Promise.all([
+    assetsOf(request, DESKTOP_USER_AGENT),
+    assetsOf(request, PHONE_USER_AGENT),
+  ])
+
+  expect(bookAssets.length).toBeGreaterThan(0)
+  expect(mobileAssets.length).toBeGreaterThan(0)
+  expect(await assetsContaining(request, bookAssets, MOBILE_STYLESHEET_MARKER)).toEqual([])
+  expect(await assetsContaining(request, mobileAssets, BOOK_STYLESHEET_MARKER)).toEqual([])
 })
 
 test('carries one page rather than a window of seven, which is the smallest document the diary serves', async ({

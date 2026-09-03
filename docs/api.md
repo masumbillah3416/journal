@@ -160,15 +160,25 @@ for a different reason — see its row.
   (`useFlip`). Below 860px it is `SCREENS.md` §1.10's mobile reading mode - a header, the
   ONE addressed page, a bottom bar and a bookmark drawer - and the client takes over only
   for the swipe and the drawer. The two are never both in a document: the mobile one is
-  22,481 raw bytes on `/p/3` against the book's 89,589. Which one this request gets is
+  22,259 raw bytes on `/p/3` against the book's 89,269. Which one this request gets is
   `servedReadingSurface`'s (`packages/domain/src/readingSurface.ts`); see
   `docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`.
-- **Request headers read:** two, both handed straight to the domain without
-  interpretation. `Cookie` - for `td-reading-surface`, the session cookie a previous
-  correction wrote (`docs/security.md`); and `User-Agent` - for its device kind, through
-  Next's own `userAgent()` parser, which is what gets a phone the mobile surface on its
-  first paint rather than a flash of the book. Reading either makes the route dynamic; it
-  already was.
+- **Which route entry answers:** the two surfaces are **two route entries**, and this one
+  path serves both. `apps/web/middleware.ts` takes the decision above and, for a reader
+  served the mobile surface, REWRITES the request onto `app/(diary)/m/[n]/page.tsx` —
+  a rewrite, so the reader's address stays `/p/<n>` and the page keeps one shareable,
+  indexable, canonical URL. They are separate entries because Turbopack's client split is
+  per route entry, not per import: one entry importing both trees shipped each surface the
+  other's chunk and stylesheet, and took the LCP gate red. Both entries answer with the
+  same title, description and canonical link, from the same `addressedPageMetadata` —
+  a mobile-user-agent crawler (Googlebot's smartphone crawler is one) is served the mobile
+  entry. See `docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`.
+- **Request headers read:** two, both read by the middleware and handed straight to the
+  domain without interpretation. `Cookie` - for `td-reading-surface`, the session cookie a
+  previous correction wrote (`docs/security.md`); and `User-Agent` - for its device kind,
+  through Next's own `userAgent()` parser, which is what gets a phone the mobile surface
+  on its first paint rather than a flash of the book. The page components themselves read
+  no request headers at all; `/p/[n]` is dynamic because it reads `searchParams`.
 - **Errors:** `404` for any `n` the book has no page for — outside `1..33`, padded with a
   leading zero, or not a whole page number at all. `addressedPageIndex` returns `null` and
   the route calls `notFound()`, which renders `app/(diary)/not-found.tsx` under the
@@ -204,8 +214,8 @@ for a different reason — see its row.
 - **Metadata:** each page carries its own `<title>`, `<meta name="description">` and
   `<link rel="canonical">`, derived by `addressedPageMetadata`
   (`packages/domain/src/pageMetadata.ts`, which composes the address lookup with
-  `pageMetadata`'s own derivation so a route holds no part of the decision) from the page
-  and the book global — the page's
+  `pageMetadata`'s derivation so that BOTH route entries can declare the same three
+  without either holding a decision to drift on) from the page and the book global — the page's
   own label before the book's title (`Tokyo — Notes · Wanderings`), and the editor's own
   words as the description where there are any. Thirty-three deep links sharing one title
   are thirty-three results nobody can tell apart, which throws away most of what real
@@ -225,6 +235,25 @@ for a different reason — see its row.
 - **Still to come:** on-demand revalidation of affected paths on publish (design spec §8).
   Nothing publishes yet, so there is nothing to revalidate; it is named here so the gap
   between this row and the design spec is a recorded decision rather than an omission.
+
+### `GET /m/<n>` — the mobile surface's route entry, which is not an address
+
+- **Path:** `apps/web/app/(diary)/m/[n]/page.tsx`.
+- **Method:** `GET` — a React Server Component route.
+- **Reached by:** a rewrite from `/p/<n>` in `apps/web/middleware.ts`, and by nothing
+  else. Nothing in the diary links to it and no sitemap names it. It exists so the
+  bundler has two route entries to split (`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`);
+  served through the rewrite it renders `SCREENS.md` §1.10's mobile reading mode under the
+  reader's own `/p/<n>` address, with that page's title, description and canonical.
+- **Direct request:** **`308 Permanent Redirect` to `/p/<n>`**, for every `n`, including
+  one the book has no page for. Next.js does not re-run middleware on its own rewrites, so
+  a `/m/<n>` request the middleware sees came from outside — a crawler that found the path
+  or a reader who typed it — and is sent to the page's one public address rather than
+  answered there. Left reachable, it would give all thirty-three pages a second crawlable
+  URL. Asserted in `e2e/routing.spec.ts`.
+- **Input, output, errors, auth:** as `GET /p/<n>` above, except that it reads no query at
+  all: the mobile surface changes page by navigating, so its document carries the ONE
+  addressed page and never `servedContentWindow`'s seven.
 
 ### `GET /gallery/<slug>`
 

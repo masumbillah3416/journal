@@ -102,6 +102,24 @@ and needs no config entry: it is not under a bracketed directory, so its `c8 ign
 start`/`stop` wrapping takes effect, and it holds no branch of its own — the only value
 on it is `pagePath(0)`.
 
+`(diary)/m/[n]/page.tsx` — the mobile reading surface's own route entry, added when the
+two surfaces were split across two entries
+(`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`) — joined the same
+exclusion list on the same three counts, re-verified against the same control in the same
+run rather than inherited. It holds zero authored logic: await the params, read the
+bundle, render `<MobileDiary>` around the ONE addressed page. What `<n>` means is
+`addressedPageIndex`'s; its title, description and canonical are `addressedPageMetadata`'s
+(both `packages/domain`, gated at 100%); its chrome's three values are `deriveRail`,
+`mobileHeading` and `pageLabel`'s. And **which readers reach it at all** — the one
+decision the split actually moved — is `servedReadingSurface`'s, spent by
+`apps/web/middleware.ts`, which is NOT excluded: it sits at the app's own root, is named
+in `vitest.config.ts`'s coverage `include` (no `lib/**` or `app/**` glob reaches it) and
+is gated at **100/100/100**, met by ten cases in `apps/web/middleware.test.ts` driving a
+plain `NextRequest` — a desktop and a phone user agent, both cookie values, a query
+carried across the rewrite, and the 308 off `/m/<n>`. That test file needed its own glob
+(`apps/web/*.test.ts`) on the `unit` project, because a test file no project's `include`
+matches is collected by nobody and its absence is silent.
+
 `apps/web/components/**` was genuinely empty until Phase 1 Task 7 (`.gitkeep` only) and
 carried no per-glob threshold override until then — a threshold against zero files is the
 vacuous pass CLAUDE.md's controller ruling for Task 1 explicitly forbade adding. Task 7,
@@ -410,8 +428,8 @@ would claim a measurement nothing performs.
   alone, and that project now carries a PHONE USER AGENT as well as a 390x844 viewport,
   because which surface a request is served is decided on the server from the user agent
   before any viewport can be measured
-  (`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`). Fifteen cases, of which
-  four could not exist anywhere else:
+  (`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`). Sixteen cases, of which
+  five could not exist anywhere else:
 
   1. **A vertical scroll does not turn a page.** The rule is
      `packages/domain/src/swipe.ts`'s and is unit-tested to 100%, including both
@@ -422,12 +440,22 @@ would claim a measurement nothing performs.
      so the browser scrolls the column itself - and assert BOTH halves: that the column
      moved, and that the address did not. A run where nothing scrolled would pass the URL
      check while proving nothing.
-  2. **A phone's document carries no book at all.** No design box, no leaves - the weight
+  2. **Neither surface ships the other's code**, which is what two route entries bought
+     (`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`). The case fetches
+     `/p/1` twice, once with a desktop user agent and once with a phone's, collects every
+     script and stylesheet each document asks for, fetches those too, and requires that
+     none of the book's carry `mobile-module__` and none of the mobile surface's carry
+     `book-module__` — one marker per surface, because Turbopack puts a stylesheet's
+     class-name prefix in both the CSS chunk and the client chunk that imports it. It is
+     the guard on the bundling seam rather than the rendering one, and it is the case that
+     fails if a future shared import quietly pulls one surface into the other's chunk
+     group. Proved to fail first, by importing `mobile.module.css` into `Book.tsx`.
+  3. **A phone's document carries no book at all.** No design box, no leaves - the weight
      the surface split exists to avoid, asserted rather than assumed.
-  3. **Every deep link still serves its own page's words in raw HTML**, with no script
+  4. **Every deep link still serves its own page's words in raw HTML**, with no script
      run: the mobile counterpart of `e2e/serverWindow.spec.ts`'s thirty-three-route case,
      and the same design-spec §8 promise.
-  4. **The correction path**, in its own browser context with a DESKTOP user agent at a
+  5. **The correction path**, in its own browser context with a DESKTOP user agent at a
      700px viewport - the one reader the server's hint gets wrong. It asserts that the
      document arrived carrying the book, that the browser corrected it to the mobile
      mode, and that the correction survives a navigation because it is remembered in a
@@ -634,6 +662,18 @@ would claim a measurement nothing performs.
   are most of what real paths were bought to avoid) and require `?pages=all` to declare
   `/p/<n>` as its canonical, which is what stops the content window's own request address
   from being duplicate content.
+
+  **Four cases were added when the two reading surfaces became two route entries**
+  (`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`). Two require `/m/<n>` —
+  the mobile surface's own route entry — to answer a direct request with a **308** to
+  `/p/<n>`, for a real page and for one the book does not have alike: it exists so the
+  bundler has two entries to split, and left reachable it would give all thirty-three
+  pages a second crawlable URL. Two more send an explicit desktop and an explicit phone
+  user agent to the SAME `/p/3` and require the two documents to agree on their title,
+  their description and their canonical. That pair is not redundant with the cases above
+  it: a mobile-user-agent crawler (Googlebot's smartphone crawler is one) is served the
+  mobile entry, so metadata that held in only one entry would be metadata half the
+  crawlers never saw.
 
   Its last two cases are the **gallery return**, which the design spec calls out by name:
   "returning from a gallery restores `/p/<n>`, not `/`". `/gallery/<slug>` is Task 14's to
@@ -1262,11 +1302,27 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   budget, because a budget guards the worst case and the book is the heavier surface.
   The mobile surface is less than half the document, so it cannot become the binding
   constraint while the book is gated; if that ever stops being true, measure it rather
-  than assume it. **The step is RED as of Task 15** — 3,011.36ms against 3,000, +75.24ms,
-  caused by the 6,371 bytes of mobile-surface client code that Turbopack will not split
-  out of the book's chunk. It is reported red rather than raised, and removing the cookie
-  above would turn it green by changing what it measures rather than by making anything
-  faster; see `docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`'s consequences.
+  than assume it. **The step was RED as of Task 15** — 3,011.36ms against 3,000,
+  +75.24ms, caused by the mobile surface's client half and its 23,923-byte stylesheet
+  sitting in the book's own chunk group, which Turbopack would not split per import. It
+  was reported red rather than raised, and the cookie above was NOT removed, because
+  removing it would have turned the gate green by changing what it measured rather than
+  by making anything faster. **It is GREEN again as of the two-route split** —
+  **2,932.66ms** (5 runs: 2,930.69 / 2,932.46 / 2,932.66 / 2,935.45 / 2,962.96), 67.34ms
+  of margin, with the pinned cookie still in place and the book still the surface
+  measured. The mobile surface, measured separately in the same container, is 2,929.58ms
+  with 144,826 script bytes. See
+  `docs/adr/0012-two-route-entries-for-two-reading-surfaces.md` for the per-chunk figures
+  and the six alternatives it beat.
+- **The gated script figure carries a known, harmless inflation, and it is not the book's
+  weight.** Lighthouse emulates a 412px-wide phone, and `extraHeaders`' cookie is injected
+  at the network layer where `document.cookie` cannot see it — so `SurfaceCorrection`
+  measures 412px, disagrees with the served book, and refreshes, and the run downloads the
+  mobile entry's chunk and stylesheet AFTER LCP. That is the mismatched reader's path
+  (`docs/adr/0011`), not a desktop reader's. The gated number is 149,658; the book
+  surface's own transfer on the same build, with no correction in the run, is 142,818
+  script and 9,046 stylesheet. Both are far inside the 184,320 budget, and LCP is
+  unaffected — the correction happens after it.
 - **Add one:** a budget per route, enforced in CI, not measured once and forgotten.
   Measure before optimizing, and paste the measurement (`CLAUDE.md` §0.4). Add the
   route's URL to `lighthouserc.json`'s `collect.url` array and its own `assertMatrix`

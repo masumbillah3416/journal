@@ -70,33 +70,31 @@
  * See `docs/adr/0010-static-generation-and-the-content-window.md` for the
  * runs and the three shapes that were considered for having both.
  *
- * IT SERVES ONE OF TWO READING SURFACES, AND EXACTLY ONE. Below 860px the
- * design replaces the book outright - "No book, no flip, no scaling"
- * (SCREENS.md §1.10) - so this route renders either `<Book>` with a window of
- * page faces or `<MobileDiary>` with the single addressed page, never both.
- * Serving both and hiding one would put the mobile mode's markup and script in
- * front of every desktop reader (against a 3,000ms LCP gate with ~69ms of
- * margin) and the book's thirty-three-leaf stack in front of every phone. The
- * choice is `servedReadingSurface`'s
- * (@travel-diary/domain/readingSurface, 100%-covered), from two signals this
- * route reads off the request and hands over without interpreting: the
- * `Cookie` header, parsed by `rememberedSurface`, and the user-agent's device
- * kind, parsed by Next's own `userAgent`. Nothing about the breakpoint is
- * decided here.
- *
- * THE MOBILE DOCUMENT CARRIES ONE PAGE, not `contentWindow`'s seven, and that
- * is not a second window - it is the absence of one. The window exists because
- * the book keeps thirty-three leaves in a single document and turns them
- * without navigating (ADR 0009); the mobile surface changes page by pressing a
- * link, so its document only ever needs the page the address names.
- * `servedContentWindow` is therefore not consulted on that branch at all.
+ * IT RENDERS THE BOOK, AND ONLY THE BOOK. Below 860px the design replaces the
+ * book outright - "No book, no flip, no scaling" (SCREENS.md §1.10) - so the
+ * diary has a second reading surface, and it is a second ROUTE ENTRY:
+ * `app/(diary)/m/[n]/page.tsx`, reached by a rewrite in
+ * `apps/web/middleware.ts` that leaves the reader's address at `/p/<n>`.
+ * While both surfaces were chosen by an `if` inside THIS file, Turbopack
+ * compiled both component trees into this route's one chunk group, and every
+ * desktop reader downloaded the mobile mode's client half and its 23,923-byte
+ * stylesheet: LCP went 2,936.12ms to 3,011.36ms against a 3,000ms gate.
+ * Turbopack splits per route ENTRY, not per import - which is why
+ * `next/dynamic` did not split it, measured twice - so the surfaces are two
+ * entries. See `docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`
+ * for the measurement and the four alternatives it beat, and
+ * `docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md` for the
+ * decision this route no longer takes: which surface a request is served is
+ * `servedReadingSurface`'s, spent by the middleware rather than here.
  *
  * A SERVER GUESS IS CORRECTED IN THE BROWSER, by `<SurfaceCorrection>`, which
  * is rendered beside whichever surface was chosen. It measures the real
  * viewport and, where the guess was wrong - a desktop window narrowed under
  * 860px, a tablet held the other way round - remembers the measurement and
- * re-renders this route. See its own header and
- * `docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`.
+ * re-renders this address, which the middleware then routes afresh. This
+ * entry always passes it `"book"`, because this entry is only ever reached by
+ * a reader the middleware decided was served the book. See its own header and
+ * ADR 0011.
  *
  * SCOPE. On-demand revalidation on publish (design spec §8) is a later task's
  * - nothing publishes yet. The gallery-return behaviour is the address this
@@ -106,36 +104,27 @@
  * Depends on: `readBookBundle` (../../../../lib/readBookBundle),
  * `addressedPageIndex` (@travel-diary/domain/pageAddress),
  * `addressedPageMetadata` (@travel-diary/domain/pageMetadata),
- * `servedContentWindow`/`rendersContent`
- * (@travel-diary/domain/contentWindow),
- * `servedReadingSurface`/`rememberedSurface` (@travel-diary/domain/readingSurface),
- * `deriveRail`/`derivePageLabels`/`pageLabel`/`mobileHeading`
- * (@travel-diary/domain/bookBundle), `Book` (../../../../components/book/Book),
+ * `servedContentWindow`/`rendersContent` (@travel-diary/domain/contentWindow),
+ * `deriveRail`/`derivePageLabels` (@travel-diary/domain/bookBundle),
+ * `Book` (../../../../components/book/Book),
  * `PageFace` (../../../../components/book/PageFace),
- * `MobileDiary`/`MobilePage`/`SurfaceCorrection` (../../../../components/mobile/),
- * `headers` (next/headers), `userAgent` (next/server), `notFound` (next/navigation).
+ * `SurfaceCorrection` (../../../../components/mobile/SurfaceCorrection),
+ * `notFound` (next/navigation).
  */
 /* c8 ignore start -- Framework passthrough with no authored logic: await the
- * route params, the query and the request headers, read the bundle, and render
- * whichever surface `servedReadingSurface` names - the mobile mode with the
- * one addressed page, or the book with one face per page inside the served
- * window and a contentless marker outside it. Its five real decisions - what
- * `<n>` means, whether the book has such a page at all, which surface this
- * request is served, which pages it gets the content of, and whether a given
- * leaf is one of them - are `addressedPageIndex`, `servedReadingSurface`
- * (with `rememberedSurface`), `servedContentWindow` and `rendersContent`, each
- * with its own 100%-covered suite in `@travel-diary/domain`, as are the title,
- * description and canonical link `generateMetadata` returns
- * (`addressedPageMetadata`). The five values
- * the two surfaces' chrome needs - the labelled rail, one label per page, this
- * page's own label, its short mobile heading, and whether decorations are on -
- * are `deriveRail`, `derivePageLabels`, `pageLabel`, `mobileHeading` and a
- * field off the `book` global, so none of them is decided here either. The one
- * `if` this file adds spends a decision rather than taking one, exactly as the
- * `rendersContent` ternary beside it does, and BOTH of its arms are asserted
- * in a real browser: the book arm by every spec that opens `/p/<n>` at the
- * `desktop` and `mid` projects, and the mobile arm by `e2e/mobile.spec.ts` at
- * the `mobile` project, whose user-agent is a phone's.
+ * route params and the query, read the bundle, and render the book with one
+ * face per page inside the served window and a contentless marker outside it.
+ * Its four real decisions - what `<n>` means, whether the book has such a page
+ * at all, which pages this request gets the content of, and whether a given
+ * leaf is one of them - are `addressedPageIndex`, `servedContentWindow` and
+ * `rendersContent`, each with its own 100%-covered suite in
+ * `@travel-diary/domain`, as are the title, description and canonical link
+ * `generateMetadata` returns (`addressedPageMetadata`). WHICH SURFACE this
+ * request is served is no longer decided here at all: it is
+ * `servedReadingSurface`'s, spent by `apps/web/middleware.ts`, which has its
+ * own suite that this coverage pass does run. The two values the book's chrome
+ * needs - the labelled rail and one label per page - are `deriveRail` and
+ * `derivePageLabels`, so neither is decided here either.
  * It cannot be measured by either Vitest config (a page component needs a real
  * Next request context, and no integration test can supply one), and this
  * file's path contains a Next.js dynamic-route bracket segment, where
@@ -146,22 +135,16 @@
  * reason at the point of exclusion, and the config entry is what enforces it.
  * Its runtime behaviour is covered in the browser by e2e/routing.spec.ts
  * (the 404, the metadata, the canonical link), e2e/book.spec.ts,
- * e2e/smoke.spec.ts, e2e/serverWindow.spec.ts, e2e/imageWindow.spec.ts and
- * e2e/mobile.spec.ts. */
-import { derivePageLabels, deriveRail, mobileHeading, pageLabel } from '@travel-diary/domain/bookBundle'
+ * e2e/smoke.spec.ts, e2e/serverWindow.spec.ts and e2e/imageWindow.spec.ts. */
+import { derivePageLabels, deriveRail } from '@travel-diary/domain/bookBundle'
 import { rendersContent, servedContentWindow, type RouteQuery } from '@travel-diary/domain/contentWindow'
 import { addressedPageIndex } from '@travel-diary/domain/pageAddress'
 import { addressedPageMetadata } from '@travel-diary/domain/pageMetadata'
-import { rememberedSurface, servedReadingSurface } from '@travel-diary/domain/readingSurface'
 import type { Metadata } from 'next'
-import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
-import { userAgent } from 'next/server'
 import type React from 'react'
 import { Book } from '../../../../components/book/Book'
 import { PageFace } from '../../../../components/book/PageFace'
-import { MobileDiary } from '../../../../components/mobile/MobileDiary'
-import { MobilePage } from '../../../../components/mobile/MobilePage'
 import { SurfaceCorrection } from '../../../../components/mobile/SurfaceCorrection'
 import { readBookBundle } from '../../../../lib/readBookBundle'
 
@@ -207,46 +190,12 @@ export const generateMetadata = async ({ params }: DiaryPageProps): Promise<Meta
   }
 }
 
-/** Renders whichever reading surface this request is served, opened at `<n>`. */
+/** Renders the book, opened at `<n>`, with a window of its pages' faces. */
 const DiaryPage = async ({ params, searchParams }: DiaryPageProps): Promise<React.JSX.Element> => {
-  const [{ n }, query, requestHeaders, bundle] = await Promise.all([params, searchParams, headers(), readBookBundle()])
+  const [{ n }, query, bundle] = await Promise.all([params, searchParams, readBookBundle()])
   const totalPages = bundle.pages.length
   const openIndex = addressedPageIndex(n, totalPages)
   if (openIndex === null) notFound()
-  const page = bundle.pages[openIndex]
-  // Unreachable for an index `addressedPageIndex` returned, which is in range
-  // by construction; `noUncheckedIndexedAccess` needs it said out loud.
-  if (page === undefined) notFound()
-
-  const surface = servedReadingSurface({
-    remembered: rememberedSurface(requestHeaders.get('cookie') ?? undefined),
-    device: userAgent({ headers: requestHeaders }).device.type,
-  })
-
-  if (surface === 'mobile') {
-    return (
-      <>
-        <MobileDiary
-          bookTitle={bundle.chrome.title}
-          heading={mobileHeading(page)}
-          label={pageLabel(page)}
-          bookmarks={deriveRail(bundle.pages, bundle.bookmarks)}
-          pageIndex={openIndex}
-          totalPages={totalPages}
-        >
-          <MobilePage
-            page={page}
-            contents={bundle.contents}
-            chrome={bundle.chrome}
-            about={bundle.about}
-            leafIndex={openIndex}
-            totalPages={totalPages}
-          />
-        </MobileDiary>
-        <SurfaceCorrection served={surface} />
-      </>
-    )
-  }
 
   const content = servedContentWindow(query, openIndex, totalPages)
 
@@ -278,7 +227,7 @@ const DiaryPage = async ({ params, searchParams }: DiaryPageProps): Promise<Reac
           ),
         )}
       </Book>
-      <SurfaceCorrection served={surface} />
+      <SurfaceCorrection served="book" />
     </>
   )
 }

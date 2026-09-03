@@ -17,7 +17,18 @@
  *   3. **Every page has a title and a description of its own.** Thirty-three
  *      results wearing one title are thirty-three results nobody can tell
  *      apart, which throws away most of what real paths bought.
- *   4. **`?pages=all` points back at `/p/<n>`.** The book asks for the rest
+ *   4. **`/m/<n>` is not an address.** Since the split of the two reading
+ *      surfaces across two route entries
+ *      (`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`), the
+ *      mobile surface has a route of its own, reached by a rewrite that
+ *      leaves the reader's address at `/p/<n>`. Left reachable, it would be
+ *      a second address for every page in the book - so `apps/web/middleware.ts`
+ *      sends it back to the first, and BOTH entries answer `/p/<n>` with the
+ *      same title, description and canonical link. A mobile-user-agent
+ *      crawler (Googlebot's smartphone crawler is one) is served the mobile
+ *      entry, so metadata that held in only one of them would be metadata
+ *      half the crawlers never saw.
+ *   5. **`?pages=all` points back at `/p/<n>`.** The book asks for the rest
  *      of itself by putting that query on the address it is already on
  *      (`docs/adr/0009-server-rendered-page-window.md`), which makes it a
  *      real, reachable URL serving the same page under a second address. A
@@ -54,6 +65,19 @@ import { WHOLE_BOOK_QUERY } from '@travel-diary/domain/contentWindow'
 import { expect, test } from '@playwright/test'
 import { waitForLiveBook } from './support/liveBook'
 import { drawsMobileReadingMode } from './support/surface'
+
+/**
+ * A phone's user agent, which is what gets a request served the mobile
+ * reading surface's own route entry (@travel-diary/domain/readingSurface).
+ * Named here rather than taken from the project, so the two cases about the
+ * two surfaces' agreement ask BOTH questions wherever they run.
+ */
+const PHONE_USER_AGENT =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+
+/** A desktop browser's user agent, which names no device kind and so gets the book. */
+const DESKTOP_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
 
 /** The flip's own duration, plus the arming and settling either side of it. */
 const A_WHOLE_TURN_MS = 1_100
@@ -126,6 +150,39 @@ test('describes each page for what is printed on it, so two deep links are not o
   expect(notes).toContain('Tokyo')
   expect(framesI).toContain('Tokyo')
   expect(notes).not.toBe(framesI)
+})
+
+test('sends the mobile surface’s own route back to the page’s one public address', async ({ request }) => {
+  // `/m/<n>` is where the mobile reading surface's route entry lives so the
+  // bundler has two entries to split (ADR 0012); it is not an address. Left
+  // reachable it would give every page in the book a second URL.
+  const response = await request.get('/m/3', { maxRedirects: 0 })
+
+  expect(response.status()).toBe(308)
+  expect(new URL(response.headers()['location'] ?? '', 'http://localhost').pathname).toBe('/p/3')
+})
+
+test('answers /m/<n> for a page the book does not have with a redirect, not a second 404 path', async ({ request }) => {
+  expect((await request.get('/m/999', { maxRedirects: 0 })).status()).toBe(308)
+})
+
+test('titles a page the same on both reading surfaces, since a crawler may be served either', async ({ request }) => {
+  const book = await (await request.get('/p/3', { headers: { 'user-agent': DESKTOP_USER_AGENT } })).text()
+  const mobile = await (await request.get('/p/3', { headers: { 'user-agent': PHONE_USER_AGENT } })).text()
+
+  expect(documentTitle(mobile)).toBe(documentTitle(book))
+  expect(documentTitle(mobile)).toBe('Tokyo — Notes · Wanderings')
+})
+
+test('describes a page the same on both reading surfaces, and points both at the same canonical', async ({
+  request,
+}) => {
+  const book = await (await request.get('/p/3', { headers: { 'user-agent': DESKTOP_USER_AGENT } })).text()
+  const mobile = await (await request.get('/p/3', { headers: { 'user-agent': PHONE_USER_AGENT } })).text()
+
+  expect(metaContent(mobile, 'description')).toBe(metaContent(book, 'description'))
+  expect(canonicalHref(mobile)).toBe('/p/3')
+  expect(canonicalHref(book)).toBe('/p/3')
 })
 
 test('points the whole-book address back at the page’s own URL, so it is not duplicate content', async ({

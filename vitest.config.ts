@@ -121,7 +121,16 @@ export default defineConfig({
       {
         test: {
           name: 'unit',
-          include: ['packages/*/src/**/*.test.ts', 'apps/web/lib/**/*.test.ts', 'apps/web/scripts/**/*.test.ts'],
+          include: [
+            'packages/*/src/**/*.test.ts',
+            'apps/web/lib/**/*.test.ts',
+            'apps/web/scripts/**/*.test.ts',
+            // `apps/web/middleware.ts` sits at the app's own root, where
+            // Next.js requires it - see its header. Without this glob its
+            // test file would be collected by nobody, which is the exact
+            // failure mode this config's header exists to prevent.
+            'apps/web/*.test.ts',
+          ],
           exclude: ['**/*.integration.test.ts', '**/node_modules/**'],
           env: {
             DATABASE_URL: 'postgres://unit-test:unused@localhost:5432/unit-test',
@@ -210,6 +219,11 @@ export default defineConfig({
         'apps/web/app/**/*.tsx',
         'apps/web/components/**/*.ts',
         'apps/web/components/**/*.tsx',
+        // Next.js requires the middleware at the app's own root, so no
+        // `apps/web/lib/**` or `apps/web/app/**` glob above reaches it -
+        // and an unmeasured file looks exactly like a fully-covered one
+        // (CLAUDE.md §2.1). It is named here, and gated at 100% below.
+        'apps/web/middleware.ts',
       ],
       exclude: [
         '**/*.test.ts',
@@ -311,6 +325,23 @@ export default defineConfig({
         // and e2e/smoke.spec.ts. Revisit when @vitest/coverage-v8's version
         // changes - a fixed scanner removes the justification.
         'apps/web/app/(diary)/p/\\[n\\]/page.tsx',
+        // Task 15's follow-up (docs/adr/0012) splits the diary's two reading
+        // surfaces across two route entries so neither ships the other's
+        // client chunk, which adds a second page component under a bracketed
+        // directory. It qualifies on the same three counts as the one above,
+        // re-verified in the same run against the unbracketed control
+        // `(diary)/layout.tsx` rather than inherited: (1) it was read and holds
+        // zero authored logic - await the params, read the bundle, render
+        // `<MobileDiary>` around the one addressed page - with what `<n>` means
+        // delegated to `addressedPageIndex`, its metadata to
+        // `addressedPageMetadata`, its chrome to `deriveRail`/`mobileHeading`/
+        // `pageLabel`, and WHICH READERS REACH IT AT ALL to
+        // `apps/web/middleware.ts`, which this pass does measure, at 100%;
+        // (2) the tooling defect is the one named above and is a property of the
+        // path shape, which this file shares; (3) it names its exact path. Its
+        // runtime behaviour is covered in a real browser by e2e/mobile.spec.ts,
+        // e2e/routing.spec.ts, e2e/layout.spec.ts and e2e/a11y.spec.ts.
+        'apps/web/app/(diary)/m/\\[n\\]/page.tsx',
         // Task 14 of Phase 1 adds the gallery route and its download handler
         // to this list, on the same three counts CLAUDE.md §2.1's carve-out
         // requires - re-verified against the control in this same run rather
@@ -392,6 +423,17 @@ export default defineConfig({
           lines: 90,
           branches: 90,
           functions: 90,
+        },
+        // The middleware takes no decision of its own - which surface a
+        // request is served is `servedReadingSurface`'s, gated at 100% in the
+        // domain - so what is left in it is three routing outcomes and a
+        // matcher, every one of them reachable from a plain `NextRequest`
+        // (apps/web/middleware.test.ts). 100% is the number that is actually
+        // achieved there, not a rounded-up one.
+        'apps/web/middleware.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
         },
       },
     },

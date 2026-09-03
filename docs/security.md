@@ -63,7 +63,7 @@ discovered, not because `SECURITY.md` has a row for it.
 | Written by | `apps/web/components/mobile/SurfaceCorrection.tsx`, in the browser, and only when the measured viewport disagrees with the surface the server served |
 | Lifetime | the browsing session — no `Max-Age`, no `Expires` |
 | Flags | `Path=/`, `SameSite=Lax`. **No `Secure`**, deliberately: it must also be set over plain HTTP on a developer's machine, and it carries no secret |
-| Read by | `app/(diary)/p/[n]/page.tsx`, from the request's `Cookie` header, and handed to `servedReadingSurface` without interpretation |
+| Read by | `apps/web/middleware.ts`, on the server, for `/p/<n>` and nothing else — it is the one signal that decides which of the two route entries answers (`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`). It was read by the `/p/[n]` page component until that split; the value read, and what it is read for, are unchanged. |
 
 **What it is not.** It is not an identifier, it is not a session, it is not personal data,
 it cannot be used to recognise a returning reader, and nothing else in the product reads
@@ -74,7 +74,7 @@ page they turn. Its whole reason for existing is
 `docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`, and if that decision is
 reversed the cookie goes with it.
 
-The route also reads `User-Agent`, through Next's own `userAgent()` parser, for its
+The middleware also reads `User-Agent`, through Next's own `userAgent()` parser, for its
 device kind alone (`mobile`/`tablet`/absent). It is a first-paint guess, corrected by the
 browser's own measurement, and it is neither stored nor logged.
 

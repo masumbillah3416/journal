@@ -119,6 +119,17 @@ script runs. The swipe is the fourth and the only one that cannot be.
    route's client references into one chunk whichever way it is written, so the boundary
    bought nothing and cost its own wrapper. Reverted, and the probe deleted.
 
+   **AMENDED, and the split is now done — by a different mechanism.** Turbopack's client
+   split is per route ENTRY, not per import, which is why no import-level boundary could
+   ever have moved it. `docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`
+   gives each surface its own route entry and joins them with a rewrite in
+   `apps/web/middleware.ts`: the book entry's chunk fell 20,161 → 11,474 raw bytes and its
+   stylesheet 41,704 → 28,599, and the gated LCP fell **3,011.36ms → 2,932.66ms, green
+   against 3,000 with the pinned cookie still in place**. Everything in THIS document
+   stands unchanged — the decision, the cookie, the correction and its readback guard;
+   only *where the decision is spent* moved, from the `/p/[n]` page component to the
+   middleware, which calls the same `servedReadingSurface`.
+
 ## Consequences
 
 - **The markup is split; the script is not.** A phone's document is a quarter the size of
