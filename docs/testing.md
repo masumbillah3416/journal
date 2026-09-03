@@ -461,9 +461,31 @@ would claim a measurement nothing performs.
      group. Proved to fail first, by importing `mobile.module.css` into `Book.tsx`.
   3. **A phone's document carries no book at all.** No design box, no leaves - the weight
      the surface split exists to avoid, asserted rather than assumed.
-  4. **Every deep link still serves its own page's words in raw HTML**, with no script
-     run: the mobile counterpart of `e2e/serverWindow.spec.ts`'s thirty-three-route case,
-     and the same design-spec §8 promise.
+  4. **All THIRTY-THREE deep links serve their own page in raw HTML**, with no script
+     run — the mobile counterpart of `e2e/serverWindow.spec.ts`'s thirty-three-route
+     case, and the same design-spec §8 promise. **It was four hand-listed routes until
+     Phase 1's final review**, which named the gap plainly: `serverWindow.spec.ts` skips
+     below 860px, Googlebot Smartphone is served THIS surface, so the surface most likely
+     to be indexed was the only one with no per-route guarantee. It now fetches every
+     `/p/<n>` with the phone user agent and holds each document to the BOOK, fetched in
+     the same run at `?pages=all` with a desktop user agent — an independent answer,
+     since ADR 0012 made the two surfaces two route entries with two page components.
+     Each route must serve one mobile page and zero leaves and zero design boxes; its
+     `data-mobile-page` kind must equal the `data-page` kind the completed book puts at
+     that leaf; the journey its header names must be the journey the book's own bookmark
+     rail puts at that leaf; and its counter must read `NN / 33`.
+
+     **An exact text match across the two surfaces is not available, and the case does
+     not pretend otherwise.** They render the same content differently on purpose — the
+     mobile Cover carries "Start reading" and a swipe hint where the book's carries its
+     postal stamps, a mobile frames page repeats the journey's weather and mood badges
+     where the book's prints "Frames 01 – 03", and the mobile About drops the kit list.
+     So identity is asserted through what both surfaces must agree on (kind, and
+     governing journey) and substance through what only this surface can answer: all
+     thirty-three pages carry more than 50 characters, and no two of them carry the same
+     text. A route serving another route's page fails the first pair; a route thinning
+     out to nothing fails the second. Measured while writing it: thirty-three distinct
+     texts, the shortest 144 characters (the Cover).
   5. **The correction path**, in its own browser context with a DESKTOP user agent at a
      700px viewport - the one reader the server's hint gets wrong. It asserts that the
      document arrived carrying the book, that the browser corrected it to the mobile

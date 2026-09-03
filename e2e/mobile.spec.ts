@@ -21,17 +21,28 @@
  *
  * IT ALSO ASSERTS WHAT THE SURFACE COSTS AND WHAT IT KEEPS: that a phone's
  * document carries the mobile mode and no book at all (the weight this split
- * exists to avoid), that each `/p/<n>` still serves its own page's words in
- * raw HTML with no script run (design spec §8's indexability, the same promise
- * `e2e/serverWindow.spec.ts` makes for the book), and that a reader whose
- * user agent and viewport disagree — a desktop browser at a narrowed window —
- * is corrected onto the right surface rather than left on the wrong one.
+ * exists to avoid), that ALL THIRTY-THREE `/p/<n>` routes serve their own page
+ * in raw HTML with no script run, and that a reader whose user agent and
+ * viewport disagree — a desktop browser at a narrowed window — is corrected
+ * onto the right surface rather than left on the wrong one.
+ *
+ * THE THIRTY-THREE-ROUTE CASE IS NOT OPTIONAL COVERAGE, IT IS THE ONE THAT
+ * MATTERS MOST. Design spec §8 requires the deep links to be indexable, and
+ * `e2e/serverWindow.spec.ts` proves that per route for the book — but it skips
+ * below 860px, because there is no book there. Googlebot Smartphone is served
+ * THIS surface, so until the Phase 1 final review the surface most likely to be
+ * indexed was the only one with no such guarantee. That case now stands here,
+ * held against the book fetched in the same run rather than against a
+ * transcription; see its own comment for what the two surfaces can and cannot
+ * be compared on.
  * Depends on: @playwright/test, `drawsMobileReadingMode` (./support/surface),
- * the running app from playwright.config.ts's `webServer`, and the seeded
- * diary (`npm run db:seed`) whose thirteen bookmarks include Marrakech at
- * index 11.
+ * `wholeBookPath` (./support/liveBook), the running app from
+ * playwright.config.ts's `webServer`, and the seeded diary
+ * (`npm run db:seed`): 10 journeys, 33 pages, thirteen bookmarks including
+ * Marrakech at index 11.
  */
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { wholeBookPath } from './support/liveBook'
 import { drawsMobileReadingMode } from './support/surface'
 
 test.skip(({ viewport }) => !drawsMobileReadingMode(viewport), 'the mobile reading mode is not drawn at or above 860px')
@@ -295,25 +306,149 @@ test('traps focus inside the open drawer and gives it back to the burger on clos
   await expect(page.locator('[data-burger]')).toBeFocused()
 })
 
-test('serves every deep link its own page’s words in raw HTML, for a crawler that runs no script', async ({ page }) => {
-  // The mobile counterpart of `e2e/serverWindow.spec.ts`'s thirty-three-route
-  // case. The surface renders one page per document, so indexability per ROUTE
-  // is not merely preserved here - it is the only thing the document contains.
-  const wanted = [
-    { path: '/p/1', text: 'Wanderings' },
-    { path: '/p/2', text: 'Contents' },
-    { path: '/p/3', text: 'Tokyo' },
-    { path: '/p/33', text: 'About' },
-  ] as const
+/** What one mobile document says about itself, read out of raw HTML with no JavaScript run. */
+interface ServedPage {
+  /** How many mobile pages the document carries - one, on this surface, always. */
+  readonly pages: number
+  /** How many of the book's leaves it carries - none, on this surface, ever. */
+  readonly leaves: number
+  /** How many design boxes it carries - none, on this surface, ever. */
+  readonly designBoxes: number
+  /** Which kind of page it is, from `data-mobile-page`. */
+  readonly kind: string
+  /** The journey or section the header names. */
+  readonly name: string
+  /** The counter the header prints, e.g. `03 / 33`. */
+  readonly counter: string
+  /** The page's own text, whitespace-collapsed - the header and bottom bar excluded. */
+  readonly text: string
+}
 
-  const served = await Promise.all(
-    wanted.map(async ({ path, text }) => {
-      const html = await (await page.request.get(path)).text()
-      return { path, carriesItsOwnPage: html.includes(text), carriesTheBook: html.includes('data-design-box') }
+/** What the BOOK surface says the book is, which is what the mobile documents are held to. */
+interface BookShape {
+  /** Every leaf's page kind, in reading order, from the completed book's own `data-page`. */
+  readonly kinds: readonly string[]
+  /** The bookmark tab governing each leaf, as its full text - the rail's own answer to "which journey is this". */
+  readonly governingTab: readonly string[]
+}
+
+test('serves every one of the thirty-three deep links its own page, in raw HTML', async ({ page, request }) => {
+  // THE MOBILE COUNTERPART OF `e2e/serverWindow.spec.ts`'s thirty-three-route
+  // case, and the reason it had to exist: Googlebot Smartphone is served THIS
+  // surface, so the one most likely to be indexed was the one with no
+  // equivalent guarantee. That file's case skips below 860px
+  // (`e2e/support/surface.ts`), and this one is what stands in its place.
+  //
+  // IT DOES NOT COMPARE AGAINST A TRANSCRIPTION, for the same reason that one
+  // does not: a list of expected words rots the moment the seed changes, and
+  // rots silently. It compares against the BOOK, fetched in the same run with
+  // a desktop user agent, which is a genuinely independent answer - since
+  // `docs/adr/0012-two-route-entries-for-two-reading-surfaces.md` the two
+  // surfaces are two route entries with two page components, so agreement
+  // between them is a real check rather than a tautology. The book's completed
+  // render (`?pages=all`, the same address `useRestOfBook` asks with) says what
+  // kind of page sits at each of the thirty-three leaves; its bookmark rail
+  // says which journey governs each leaf. Both are read off the document.
+  //
+  // AN EXACT TEXT MATCH ACROSS THE TWO IS NOT AVAILABLE, and pretending
+  // otherwise would have produced a test that asserts a coincidence. The
+  // surfaces render the same content differently on purpose - the mobile Cover
+  // carries "Start reading" and a swipe hint where the book's carries its
+  // postal stamps, a mobile frames page repeats the journey's weather and mood
+  // badges where the book's prints "Frames 01 - 03", and the mobile About
+  // drops the kit list. So the identity of each page is asserted through what
+  // both surfaces must agree on (its kind, and the journey that governs it),
+  // and the SUBSTANCE of each page is asserted where only this surface can
+  // speak: every one of the thirty-three carries real text, and no two of them
+  // carry the same text. A route serving another route's page fails the first
+  // pair; a route thinning out to nothing fails the second.
+  test.setTimeout(120_000)
+
+  const asPhone = { headers: { 'user-agent': PHONE_USER_AGENT } }
+  const asDesktop = { headers: { 'user-agent': DESKTOP_USER_AGENT } }
+
+  const bookHtml = await (await request.get(wholeBookPath(1), asDesktop)).text()
+  const book = await page.evaluate((source: string): BookShape => {
+    const parsed = new DOMParser().parseFromString(source, 'text/html')
+    const leaves = [...parsed.querySelectorAll('[data-leaf]')]
+    const tabs = [...parsed.querySelectorAll('[data-bookmark]')].map((tab) => ({
+      leaf: Number(tab.getAttribute('data-bookmark')),
+      text: tab.textContent.replace(/\s+/g, ' ').trim(),
+    }))
+
+    return {
+      kinds: leaves.map((leaf) => leaf.querySelector('[data-page]')?.getAttribute('data-page') ?? 'none'),
+      governingTab: leaves.map((_leaf, index) => {
+        const governing = tabs.filter((tab) => tab.leaf <= index)
+        return governing[governing.length - 1]?.text ?? 'none'
+      }),
+    }
+  }, bookHtml)
+
+  expect(book.kinds, 'the completed book served no leaves to hold the mobile surface to').not.toHaveLength(0)
+  expect(book.kinds).not.toContain('none')
+  expect(book.governingTab).not.toContain('none')
+
+  const documents = await Promise.all(
+    book.kinds.map(async (_kind, leaf) => {
+      const path = `/p/${String(leaf + 1)}`
+      const response = await request.get(path, asPhone)
+      expect(response.status(), `${path} did not serve a document`).toBe(200)
+      return response.text()
     }),
   )
 
-  expect(served).toEqual(wanted.map(({ path }) => ({ path, carriesItsOwnPage: true, carriesTheBook: false })))
+  // One trip into the browser for all thirty-three, not thirty-three trips.
+  const served = await page.evaluate(
+    (sources: readonly string[]): readonly ServedPage[] =>
+      sources.map((source) => {
+        const parsed = new DOMParser().parseFromString(source, 'text/html')
+        const own = parsed.querySelector('[data-mobile-page]')
+
+        return {
+          pages: parsed.querySelectorAll('[data-mobile-page]').length,
+          leaves: parsed.querySelectorAll('[data-leaf]').length,
+          designBoxes: parsed.querySelectorAll('[data-design-box]').length,
+          kind: own?.getAttribute('data-mobile-page') ?? 'none',
+          name: (parsed.querySelector('[data-header-name]')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+          counter: (parsed.querySelector('[data-counter]')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+          text: (own?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+        }
+      }),
+    documents,
+  )
+
+  const total = book.kinds.length
+
+  // One page per document, and no book anywhere in it - the whole reason this
+  // surface has its own route entry.
+  expect(served.map(({ pages, leaves, designBoxes }) => ({ pages, leaves, designBoxes }))).toEqual(
+    book.kinds.map(() => ({ pages: 1, leaves: 0, designBoxes: 0 })),
+  )
+
+  // Each route serves the kind of page the book puts at that leaf...
+  expect(served.map(({ kind }) => kind)).toEqual(book.kinds)
+
+  // ...belonging to the journey the book's own rail says governs that leaf...
+  const misattributed = served
+    .map(({ name }, leaf) => ({ path: `/p/${String(leaf + 1)}`, name, tab: book.governingTab[leaf] ?? '' }))
+    .filter(({ name, tab }) => name === '' || !tab.includes(name))
+  expect(misattributed, 'these routes name a journey the book’s bookmark rail does not put at that leaf').toEqual([])
+
+  // ...printing its own place in the book, which is arithmetic the document
+  // has to have got right on its own before a crawler can trust the rest.
+  expect(served.map(({ counter }) => counter)).toEqual(
+    book.kinds.map((_kind, leaf) => `${String(leaf + 1).padStart(2, '0')} / ${String(total)}`),
+  )
+
+  // And every one of them carries real, page-specific text: none thinned out,
+  // and no two the same. This is the half only this surface can answer, and it
+  // is what fails if a route ever starts serving an empty or a borrowed page.
+  const thin = served
+    .map(({ text }, leaf) => ({ path: `/p/${String(leaf + 1)}`, characters: text.length }))
+    .filter(({ characters }) => characters <= 50)
+  expect(thin, 'these routes served a page with almost nothing on it').toEqual([])
+  expect(new Set(served.map(({ text }) => text)).size, 'two routes served the same page').toBe(total)
 })
 
 test('corrects a desktop browser at a narrowed window onto the mobile reading mode', async ({ browser }) => {
