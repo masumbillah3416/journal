@@ -50,7 +50,9 @@
  * is free - Phase 2's access control and Phase 4's hooks land in
  * `collections/`, and a threshold set after that code arrives is a threshold
  * negotiated down to whatever it happens to score. The one exclusion is
- * `apps/web/migrations/index.ts`, a generated barrel Payload never imports.
+ * `apps/web/migrations/index.ts`, a generated barrel Payload never imports -
+ * measured instead by `vitest.config.ts`'s `unit` project (see this file's
+ * coverage `exclude` for the detail).
  *
  * `apps/web/app/**` is NOT included here, and that is settled, not stale:
  * Task 1 of Phase 1 added it to `vitest.config.ts`'s unit coverage include
@@ -118,13 +120,24 @@ export default defineConfig({
         'apps/web/migrations/**/*.ts',
       ],
       // `apps/web/migrations/index.ts` is a generated barrel that Payload
-      // never imports - `readMigrationFiles` reads the migration files off
-      // disk directly - so it is 0% by construction, not by neglect. Named by
-      // its exact path, not as `**/index.ts`: CLAUDE.md §2.1 requires an
+      // never imports - `readMigrationFiles` filters `index.ts`/`index.js`
+      // out and reads every other migration file off disk directly - so
+      // nothing THIS pass runs ever executes it either; it is excluded here
+      // rather than left at a false 0%. It is not left unmeasured: a
+      // dedicated `apps/web/lib/migrationsIndex.test.ts` - a plain import and
+      // an array-shape assertion, no Postgres needed - runs in
+      // `vitest.config.ts`'s Docker-free `unit` project instead, and that
+      // config's own coverage `include`/threshold gate it at 100% there. That
+      // test deliberately does NOT live inside `apps/web/migrations/` itself:
+      // `readMigrationFiles` treats every `.ts`/`.js` file in `migrationDir`
+      // other than `index.ts`/`index.js` as a migration to dynamically
+      // import, so a colocated test file gets self-migrated as if it were one
+      // (reproduced - it broke every integration test that bootstraps
+      // Payload, each of which self-migrates on first connect). Named by its
+      // exact path, not as `**/index.ts`: CLAUDE.md §2.1 requires an
       // exclusion to name the file it excuses, so that a future `index.ts`
       // anywhere in this repository has to justify its own exclusion rather
-      // than inherit this one. `vitest.config.ts`'s coverage excludes the same
-      // exact path for the same reason.
+      // than inherit this one.
       exclude: ['**/*.test.ts', '**/*.d.ts', 'apps/web/migrations/index.ts'],
       thresholds: {
         // postgres-queue.ts's two error-catch branches (an unexpected DB
