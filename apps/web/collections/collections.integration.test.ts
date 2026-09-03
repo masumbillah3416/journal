@@ -262,8 +262,16 @@ describe('collections', () => {
       data: { status: 'failed' },
     })
 
-    await expect(create).rejects.toThrow()
-    await expect(update).rejects.toThrow()
+    // Both assertions are attached in ONE `Promise.all`, not awaited one
+    // after the other. `expect(p).rejects` only attaches its handler when it
+    // is called, so awaiting the first assertion to completion leaves the
+    // second promise rejected-and-unhandled for as long as that takes - and
+    // Node reports it as an unhandled rejection at the next microtask drain,
+    // which Vitest surfaces as `Errors 1 error` and a non-zero exit even
+    // though every test passed. It is a latent race rather than a certainty:
+    // it depends on which of the two rejects first, and it went from silent
+    // to reproducible when Task 14 made the seed in a sibling file slower.
+    await Promise.all([expect(create).rejects.toThrow(), expect(update).rejects.toThrow()])
   })
 
   // `media` is the one collection a signed-out reader MUST be able to read.
@@ -354,8 +362,16 @@ describe('collections', () => {
       data: { attempts: 0 },
     })
 
-    await expect(create).rejects.toThrow()
-    await expect(update).rejects.toThrow()
+    // Both assertions are attached in ONE `Promise.all`, not awaited one
+    // after the other. `expect(p).rejects` only attaches its handler when it
+    // is called, so awaiting the first assertion to completion leaves the
+    // second promise rejected-and-unhandled for as long as that takes - and
+    // Node reports it as an unhandled rejection at the next microtask drain,
+    // which Vitest surfaces as `Errors 1 error` and a non-zero exit even
+    // though every test passed. It is a latent race rather than a certainty:
+    // it depends on which of the two rejects first, and it went from silent
+    // to reproducible when Task 14 made the seed in a sibling file slower.
+    await Promise.all([expect(create).rejects.toThrow(), expect(update).rejects.toThrow()])
   })
 
   it('rebuilds every table a journey, its highlights and its tally need, after rolling all migrations back to zero and re-applying them', async () => {
