@@ -1,6 +1,12 @@
 import { typeScale } from '@travel-diary/tokens/type'
 import { describe, expect, it } from 'vitest'
-import { COVER_TITLE_AVAILABLE_PX, COVER_TITLE_SIZE, fitTitleSize } from './coverTitle'
+import {
+  COVER_TITLE_AVAILABLE_PX,
+  COVER_TITLE_SIZE,
+  fitMobileTitleSize,
+  fitTitleSize,
+  MOBILE_COVER_TITLE_SIZE,
+} from './coverTitle'
 
 describe('fitTitleSize', () => {
   it('renders the handoff default title "Wanderings" at its designed 124px', () => {
@@ -65,5 +71,37 @@ describe('COVER_TITLE_AVAILABLE_PX', () => {
   it('is the page area inside the design box less the cover column padding', () => {
     // 1300 design box - 36px/18px page-area inset - 2 x 70px cover padding.
     expect(COVER_TITLE_AVAILABLE_PX).toBe(1106)
+  })
+})
+
+describe('fitMobileTitleSize', () => {
+  it('renders the handoff default title "Wanderings" at the size the prototype draws it', () => {
+    // The prototype's own mobile formula, floor(260 / (10 x 0.4)) = 65.
+    expect(fitMobileTitleSize('Wanderings')).toBe(65)
+  })
+
+  it('shrinks a longer title so it still fits the phone', () => {
+    // floor(260 / (20 x 0.4)) = 32, held at the 38px floor.
+    expect(fitMobileTitleSize('a'.repeat(20))).toBe(38)
+  })
+
+  it('holds a short title at the mobile maximum, not the book cover’s 124px', () => {
+    // floor(260 / (3 x 0.4)) = 216, clamped to 74 - a 124px title would be
+    // the desktop cover's size printed on a 390px screen.
+    expect(fitMobileTitleSize('Rio')).toBe(74)
+  })
+
+  it('returns the mobile maximum for an empty title rather than a division-by-zero result', () => {
+    expect(fitMobileTitleSize('')).toBe(74)
+  })
+
+  it('never falls below the floor, however long the title', () => {
+    expect(fitMobileTitleSize('a'.repeat(400))).toBe(38)
+  })
+})
+
+describe('MOBILE_COVER_TITLE_SIZE', () => {
+  it('clamps between the prototype’s 38px floor and its 74px mobile maximum', () => {
+    expect(MOBILE_COVER_TITLE_SIZE).toEqual({ min: 38, max: 74 })
   })
 })

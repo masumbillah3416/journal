@@ -201,7 +201,8 @@ export interface JourneyPage extends JourneyPageInfo {
  * journey - the union makes reading `.slug` off one of them a compile error
  * rather than a runtime `undefined`.
  */
-export type BookPage = { readonly kind: 'cover' } | { readonly kind: 'contents' } | { readonly kind: 'about' } | JourneyPage
+export type BookPage =
+  { readonly kind: 'cover' } | { readonly kind: 'contents' } | { readonly kind: 'about' } | JourneyPage
 
 /** One row in the Contents index: a journey's display fields and the page its notes page occupies. */
 export interface ContentsEntry {
@@ -310,28 +311,26 @@ export const derivePages = (journeys: readonly Journey[]): readonly BookPage[] =
   { kind: 'cover' },
   { kind: 'contents' },
   ...journeys.flatMap((journey) =>
-    JOURNEY_PAGE_KINDS.map(
-      (kind): BookPage => ({
-        kind,
-        journeyId: journey.id,
-        slug: journey.slug,
-        name: journey.name,
-        place: journey.place,
-        dates: journey.dates,
-        accent: journey.furniture.accent,
-        hiddenFromBookmarks: journey.hiddenFromBookmarks,
-        weather: journey.weather,
-        mood: journey.mood,
-        weatherGlyph: journey.weatherGlyph,
-        highlights: journey.highlights,
-        note: journey.note,
-        tally: journey.tally,
-        signoff: journey.furniture.signoff,
-        stampCountry: journey.furniture.stampCountry,
-        stampValue: journey.furniture.stampValue,
-        gallery: journey.gallery,
-      }),
-    ),
+    JOURNEY_PAGE_KINDS.map((kind): BookPage => ({
+      kind,
+      journeyId: journey.id,
+      slug: journey.slug,
+      name: journey.name,
+      place: journey.place,
+      dates: journey.dates,
+      accent: journey.furniture.accent,
+      hiddenFromBookmarks: journey.hiddenFromBookmarks,
+      weather: journey.weather,
+      mood: journey.mood,
+      weatherGlyph: journey.weatherGlyph,
+      highlights: journey.highlights,
+      note: journey.note,
+      tally: journey.tally,
+      signoff: journey.furniture.signoff,
+      stampCountry: journey.furniture.stampCountry,
+      stampValue: journey.furniture.stampValue,
+      gallery: journey.gallery,
+    })),
   ),
   { kind: 'about' },
 ]
@@ -555,3 +554,30 @@ export const pageLabel = (page: BookPage): string => {
  * derivePageLabels(derivePages([tokyo])) // ['Cover', 'Contents', 'Tokyo — Notes', ...]
  */
 export const derivePageLabels = (pages: readonly BookPage[]): readonly string[] => pages.map(pageLabel)
+
+/**
+ * The one line the mobile reading mode's header prints over the page counter
+ * (SCREENS.md §1.10: "Caveat 26px name, truncated").
+ *
+ * A journey's three pages all head with the journey's NAME alone, where
+ * {@link pageLabel} would say "Tokyo — Frames I". The header has one truncating
+ * line of room on a phone, and the page under it already says which of the
+ * three it is; the bottom bar is where the full label goes.
+ *
+ * @param page - The page the reader is on.
+ * @returns e.g. `'Tokyo'`, or `'Cover'` for a book-wide page.
+ * @example
+ * mobileHeading({ kind: 'frames-i', name: 'Tokyo', ... }) // 'Tokyo'
+ */
+export const mobileHeading = (page: BookPage): string => {
+  switch (page.kind) {
+    case 'cover':
+      return 'Cover'
+    case 'contents':
+      return 'Contents'
+    case 'about':
+      return 'About'
+    default:
+      return page.name
+  }
+}

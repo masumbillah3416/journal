@@ -6,6 +6,7 @@ import {
   derivePages,
   deriveRail,
   isRailTabActive,
+  mobileHeading,
   pageCounter,
   pageLabel,
 } from './bookBundle'
@@ -56,11 +57,18 @@ describe('derivePages', () => {
         note: 'Every street in Lisbon is either up or down.',
         tally: [{ key: 'Days', value: '11' }],
         gallery: { photographs: 41, clips: 6 },
-        furniture: { accent: '#a06b3e', signoff: 'nineteen tarts, no regrets', stampCountry: 'PORTUGAL', stampValue: '85' },
+        furniture: {
+          accent: '#a06b3e',
+          signoff: 'nineteen tarts, no regrets',
+          stampCountry: 'PORTUGAL',
+          stampValue: '85',
+        },
       }),
     ]
 
-    const journeyPages = derivePages(journeys).filter((page) => page.kind !== 'cover' && page.kind !== 'contents' && page.kind !== 'about')
+    const journeyPages = derivePages(journeys).filter(
+      (page) => page.kind !== 'cover' && page.kind !== 'contents' && page.kind !== 'about',
+    )
 
     expect(journeyPages).toHaveLength(3)
     for (const page of journeyPages) {
@@ -239,7 +247,13 @@ describe('deriveRail', () => {
     // rail (`Travel Diary.dc.html`, `tabDef`) is what says which strings
     // those are: the journey's name, the last two words of its free-text
     // dates, and its own accent as the tint.
-    const pages = derivePages([aJourney({ name: 'Tokyo', dates: '12 – 24 March 2025', furniture: { accent: '#3d817e', signoff: 's', stampCountry: 'NIPPON', stampValue: '120' } })])
+    const pages = derivePages([
+      aJourney({
+        name: 'Tokyo',
+        dates: '12 – 24 March 2025',
+        furniture: { accent: '#3d817e', signoff: 's', stampCountry: 'NIPPON', stampValue: '120' },
+      }),
+    ])
 
     expect(deriveRail(pages, deriveBookmarks(pages))[2]).toEqual({
       startIndex: 2,
@@ -290,5 +304,37 @@ describe('deriveRail', () => {
 
   it('draws no rail at all for a book with no bookmarks', () => {
     expect(deriveRail(derivePages([]), [])).toEqual([])
+  })
+})
+
+describe('mobileHeading', () => {
+  // One test per BookPage kind. The mobile header has room for one line
+  // (SCREENS.md §1.10), so a journey's three pages share its name rather than
+  // repeating "Frames I" over a page that already says so.
+  it('heads the cover page "Cover"', () => {
+    expect(mobileHeading(must(derivePages([])[0]))).toBe('Cover')
+  })
+
+  it('heads the contents page "Contents"', () => {
+    expect(mobileHeading(must(derivePages([])[1]))).toBe('Contents')
+  })
+
+  it('heads the about page "About"', () => {
+    expect(mobileHeading(must(derivePages([]).at(-1)))).toBe('About')
+  })
+
+  it('heads a notes page with the journey name alone', () => {
+    const pages = derivePages([aJourney({ name: 'Tokyo' })])
+    expect(mobileHeading(must(pages.find((p) => p.kind === 'notes')))).toBe('Tokyo')
+  })
+
+  it('heads the first frames page with the journey name alone', () => {
+    const pages = derivePages([aJourney({ name: 'Tokyo' })])
+    expect(mobileHeading(must(pages.find((p) => p.kind === 'frames-i')))).toBe('Tokyo')
+  })
+
+  it('heads the second frames page with the journey name alone', () => {
+    const pages = derivePages([aJourney({ name: 'Tokyo' })])
+    expect(mobileHeading(must(pages.find((p) => p.kind === 'frames-ii')))).toBe('Tokyo')
   })
 })

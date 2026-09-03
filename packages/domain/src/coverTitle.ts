@@ -92,3 +92,44 @@ export const fitTitleSize = (text: string, availablePx: number): number => {
 
   return Math.max(COVER_TITLE_SIZE.min, Math.min(COVER_TITLE_SIZE.max, fitted))
 }
+
+/**
+ * The mobile reading mode's own clamp on the cover title. SCREENS.md §1.10
+ * asks only for a "fitted title" and gives no numbers, so both bounds are
+ * the handoff prototype's for the same block (`Travel Diary.dc.html`'s
+ * mobile cover: `Math.max(38, Math.min(74, ...))`). The maximum is NOT
+ * {@link COVER_TITLE_SIZE}'s 124px: that is the size the title is drawn at
+ * inside a 1300px design box, and printing it on a 390px screen is a
+ * different design.
+ */
+export const MOBILE_COVER_TITLE_SIZE = Object.freeze({ min: 38, max: 74 } as const)
+
+/**
+ * The horizontal room the mobile cover's title has, in CSS pixels, already
+ * carrying its own safety margin. The handoff prototype's own figure for this
+ * block, taken rather than re-derived: the mobile cover is fluid, so there is
+ * no design box to compute an available width from, and a number that changed
+ * with the viewport would move the title's size as a reader rotated the phone.
+ */
+const MOBILE_COVER_TITLE_AVAILABLE_PX = 260
+
+/**
+ * The font size, in px, at which a cover title fits the mobile reading mode's
+ * cloth block (SCREENS.md §1.10).
+ *
+ * The same estimate-and-clamp shape as {@link fitTitleSize} - see that
+ * function for why the width is estimated rather than measured - against the
+ * mobile bounds and the mobile width instead of the design box's.
+ *
+ * @param text - The cover title, as the `book` global supplies it.
+ * @returns A font size in px, between {@link MOBILE_COVER_TITLE_SIZE}.min and
+ *   its `.max` inclusive.
+ * @example
+ * fitMobileTitleSize('Wanderings') // 65
+ * fitMobileTitleSize('Rio') // 74 - the mobile maximum, not the cover's 124
+ */
+export const fitMobileTitleSize = (text: string): number => {
+  const fitted = Math.floor(MOBILE_COVER_TITLE_AVAILABLE_PX / (text.length * CAVEAT_EM_PER_CHARACTER))
+
+  return Math.max(MOBILE_COVER_TITLE_SIZE.min, Math.min(MOBILE_COVER_TITLE_SIZE.max, fitted))
+}
