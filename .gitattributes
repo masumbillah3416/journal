@@ -1,0 +1,27 @@
+# .gitattributes — settle line-ending handling on this repository.
+#
+# There was none before this file, and the checked-out Windows environment's
+# core.autocrlf=true has no per-repo override to consult. The observed
+# symptom: `apps/web/payload-types.ts` (a file Payload regenerates during a
+# build) reported as modified with a blob byte-identical to HEAD -
+# `docs/qa/2026-09-03-phase-1-closing-sweep.md`'s finding. Without this file,
+# any generated or hand-edited text file is at the mercy of whatever
+# core.autocrlf happens to be set to on the machine that touches it, which is
+# not a property of this repository and should not decide what git considers
+# "changed" in it.
+#
+# `text=auto` normalises every text file to LF in the repository itself,
+# regardless of a contributor's own `core.autocrlf`, so the stored history is
+# stable and a build tool that writes LF (as Payload's codegen does) cannot
+# disagree with what git already has. Genuinely binary paths are marked
+# explicitly so they are never run through a text filter at all - `-linux.png`
+# is Playwright's visual-regression baseline set, and a filter-mangled byte in
+# one of those would fail the visual suite in a way that reads as a design
+# regression, not as a line-ending accident.
+* text=auto
+
+*.woff2 binary
+*.png binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
