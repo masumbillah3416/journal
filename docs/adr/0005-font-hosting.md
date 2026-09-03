@@ -109,10 +109,21 @@ mechanism — is most of what this document exists to record.
   variable file's 74.9KB; EB Garamond 400: 23.8KB vs. the 400-600 variable file's
   44.3KB) — CLAUDE.md §4's YAGNI applied to bytes, with the variable file named in
   `fonts.ts`'s comments as the one-line upgrade the moment a heavier weight is used.
-- **Wiring.** `apps/web/app/(diary)/fonts.ts` calls `localFont` once per loaded family
-  and exports a `.variable` class per family; `apps/web/app/(diary)/layout.tsx` applies
-  both classes to `<html>`; `apps/web/app/(diary)/diary.css` redefines
-  `--td-font-caveat` and `--td-font-garamond` (not `--td-font-courier`, left untouched)
+- **SUPERSEDED IN PART BY ADR 0008, exactly as the bullet above it is — all three
+  families are wired today, not two.** `apps/web/app/(diary)/fonts.ts` now calls
+  `localFont` a third time for Courier Prime (400 and 700), `layout.tsx` applies all
+  three `.variable` classes, and `apps/web/app/(diary)/diary.css` redefines all three
+  `--td-font-*` tokens, `--td-font-courier` among them. The mechanism this bullet
+  describes is unchanged; only the count is. What follows is kept as written because the
+  measurement that produced the two-family decision still reproduces — see the
+  Consequences, which carry both the reproduction and the reason the deferral was lifted
+  anyway.
+
+  *As originally decided:* `apps/web/app/(diary)/fonts.ts` calls `localFont` once per
+  loaded family and exports a `.variable` class per family;
+  `apps/web/app/(diary)/layout.tsx` applies both classes to `<html>`;
+  `apps/web/app/(diary)/diary.css` redefines `--td-font-caveat` and
+  `--td-font-garamond` (not `--td-font-courier`, left untouched)
   to `var(--font-caveat), 'Caveat', cursive` and the Garamond equivalent — layering the
   self-hosted face and next/font's own fallback in front of the handoff's original
   stack rather than replacing it. `packages/tokens/src/tokens.css` itself is unchanged:
@@ -140,9 +151,12 @@ mechanism — is most of what this document exists to record.
   multi-run table for every configuration tried, including the ones that failed). A
   single `lhci autorun` run near this margin is not reliable evidence either way — the
   same code measured as low as 1,962ms in one clean run and as high as 2,496ms in
-  another; `lighthouserc.json`'s `numberOfRuns: 1` is unchanged by this task, but this
-  route's true position relative to the gate should be read as "usually passes" rather
-  than "comfortably passes" until the next item lands.
+  another; this route's true position relative to the gate should be read as "usually
+  passes" rather than "comfortably passes" until the next item lands. (This sentence
+  originally added that `lighthouserc.json`'s `numberOfRuns: 1` was unchanged by this
+  task. It has not been true since the LCP gate moved to a five-run median: both configs
+  now carry `numberOfRuns: 5` and `aggregationMethod: "median"` — `docs/testing.md` §7.0
+  is the current-state table.)
 - **The fix named here as "the real fix for headroom" has since been built, measured,
   and did not work.** This ADR expected that moving the page faces out of `Book.tsx`'s
   client boundary into server-rendered children would shrink the JS competing with these
