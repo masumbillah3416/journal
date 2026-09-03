@@ -154,6 +154,55 @@ test('a bookmark jump departs from the page beside its target, not from across t
   expect(inFlight).toEqual(['2', '3'])
 })
 
+test('publishes no page but the one it left and the one it was asked for, for the whole of a bookmark jump', async ({
+  page,
+}) => {
+  // PH1-001 (docs/qa/2026-09-03-phase-1-closing-sweep.md, S2), read the way
+  // the sweep read it: poll the four places the diary names the reader's own
+  // page — the counter, the page label under it, the tab the rail marks
+  // `aria-current`, and the ADDRESS — every 40ms from the click until well
+  // past the 970ms turn. A jump is anchored one leaf from its target so the
+  // animation plays as a single turn, and that anchor used to be committed as
+  // the reader's index: clicking Contents from `/p/29` read
+  // `03 / 33 · Tokyo — Notes` at `/p/3`, with Tokyo's tab lit, for 981ms.
+  //
+  // Polled rather than read once mid-flight, because the defect is a WINDOW
+  // and a single sample could fall either side of it. The two ends are read
+  // out of the page rather than written down here, so the case cannot drift
+  // from the seed; what it asserts is that the set of everything published
+  // between them is empty.
+  await page.goto(wholeBookPath(30))
+  await waitForLiveBook(page)
+
+  const published = await page.evaluate(
+    async (): Promise<{ readonly origin: string; readonly seen: readonly string[] }> => {
+      const read = (): string =>
+        [
+          document.querySelector('[data-counter]')?.textContent ?? 'no counter',
+          document.querySelector('[data-page-label]')?.textContent ?? 'no label',
+          document.querySelector('[data-bookmark][aria-current="page"]')?.getAttribute('data-bookmark') ?? 'no tab',
+          location.pathname,
+        ].join(' | ')
+
+      const origin = read()
+      const tabs = [...document.querySelectorAll<HTMLButtonElement>('[data-bookmark]')]
+      const contents = tabs.find((tab) => tab.textContent.includes('Contents'))
+      if (contents === undefined) return { origin, seen: ['no Contents bookmark tab in the rail'] }
+
+      contents.click()
+      const readings = [read()]
+      for (let waited = 0; waited < 1_400; waited += 40) {
+        await new Promise((resolve) => setTimeout(resolve, 40))
+        readings.push(read())
+      }
+      return { origin, seen: [...new Set(readings)] }
+    },
+  )
+
+  // The Contents is page 2 of the book, and tab 1 of the rail spans it.
+  expect(published.seen).toEqual([published.origin, '02 / 33 | Contents | 1 | /p/2'])
+})
+
 test('changes page instantly under prefers-reduced-motion', async ({ browser }) => {
   const context = await browser.newContext({ reducedMotion: 'reduce' })
   // The whole-book address, for the same reason the bookmark-anchor case

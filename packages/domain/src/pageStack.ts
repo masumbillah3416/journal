@@ -48,6 +48,13 @@
  *     alone left backward turns animating an inert leaf while the one that
  *     should move held at -180 until commit and then snapped.
  *
+ * IT READS `state.anchor`, NEVER `state.index`. The machine carries two
+ * positions - where the reader is, and where the stack is laid out from -
+ * and this module is the whole of the second one's audience. A bookmark jump
+ * is the one event that separates them (flip.ts's header); every other turn
+ * and every resting book has them equal, so nothing else in this file needed
+ * to change when they were split apart.
+ *
  * Depends on FlipState from ./flip.ts; depends on nothing else, no DOM, no
  * framework.
  */
@@ -105,8 +112,9 @@ export interface LeafPresentation {
  * Computes how one leaf should present, given the book's current flip state.
  *
  * @param leafIndex - The zero-based position of the leaf in the book.
- * @param state - The flip machine's current state (see `./flip.ts`).
- * @param totalPages - The book's current page count. A `state.index` at or
+ * @param state - The flip machine's current state (see `./flip.ts`). Its
+ *   `anchor` is what the stack is laid out from here, never its `index`.
+ * @param totalPages - The book's current page count. A `state.anchor` at or
  *   past this count (for example a stale FlipState left over after a journey
  *   was deleted and the book got shorter) is clamped to the last real page,
  *   so a reader in that situation lands on a live page rather than a book
@@ -117,7 +125,13 @@ export interface LeafPresentation {
  */
 export const leafPresentation = (leafIndex: number, state: FlipState, totalPages: number): LeafPresentation => {
   const inBounds = leafIndex < totalPages
-  const currentIndex = Math.min(state.index, totalPages - 1)
+  // `anchor`, NOT `index`: this module lays the stack out, and a bookmark
+  // jump lays it out one leaf from its target rather than at the page the
+  // reader is leaving (flip.ts's own two field docs). The two are the same
+  // leaf for every other turn and at rest. Reading `index` here would put a
+  // twenty-seven-leaf turn back into the stack; reading `anchor` anywhere
+  // that names the reader's LOCATION is PH1-001.
+  const currentIndex = Math.min(state.anchor, totalPages - 1)
 
   // `go` - not `half` - is what starts the CSS transition (flip.ts's own
   // field doc: "drives the CSS transform; false during arming so the

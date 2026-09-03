@@ -48,6 +48,7 @@ import {
   type Slot,
 } from '@travel-diary/domain/bookBundle'
 import { contentWindow, rendersContent, wholeBook, type ContentWindow } from '@travel-diary/domain/contentWindow'
+import { pagePath } from '@travel-diary/domain/pageAddress'
 import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
 import { aBookChrome, anAboutContent, aJourney } from '@travel-diary/domain/testing/factories'
 import { act } from 'react'
@@ -248,6 +249,36 @@ const click = (host: HTMLElement, selector: string): void => {
     control.click()
   })
 }
+
+/** Lets `ms` of real time - and the animation frames inside it - pass, flushing React's work. */
+const elapse = async (ms: number): Promise<void> => {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, ms))
+  })
+}
+
+/**
+ * Everything the diary publishes as the reader's own location, read in one
+ * go: the counter, the page label under it, the tab the rail marks
+ * `aria-current`, and the address bar. PH1-001 is these four naming a page
+ * the reader never asked for, so they are read together rather than one per
+ * case - what is asserted is not four values but one answer to "where does
+ * the diary say the reader is".
+ */
+interface PublishedLocation {
+  readonly counter: string
+  readonly label: string
+  readonly activeTab: string
+  readonly path: string
+}
+
+/** Reads {@link PublishedLocation} out of the rendered book. */
+const publishedLocation = (host: HTMLElement): PublishedLocation => ({
+  counter: one(host, '[data-counter]').textContent,
+  label: one(host, '[data-page-label]').textContent,
+  activeTab: host.querySelector<HTMLElement>('[data-bookmark][aria-current="page"]')?.dataset['bookmark'] ?? 'none',
+  path: window.location.pathname,
+})
 
 /** Presses one key on the document, the way a reader with focus nowhere in particular would. */
 const pressKey = (key: string): void => {
@@ -542,6 +573,65 @@ describe('Book', () => {
     click(host, '[data-bookmark="2"]')
 
     expect(visibleLeaves(host)).toEqual(['2', '3'])
+  })
+
+  it('names only the page the reader left or the page they asked for, at every instant of a bookmark jump', async () => {
+    // PH1-001 (docs/qa/2026-09-03-phase-1-closing-sweep.md, S2). A jump is
+    // anchored one leaf from its target so the animation plays as a single
+    // turn - and the anchor was being COMMITTED as the reader's index, so the
+    // counter, the page label, the rail's active tab and the address bar all
+    // named the anchor for the whole 970ms of the turn. Clicking "Contents"
+    // from page 29 read "Tokyo - Notes / 03 / 33" at `/p/3`.
+    //
+    // Polled rather than sampled once, at the sweep's own 40ms, because the
+    // defect is a WINDOW: any single reading could fall either side of it.
+    // The anchor here is leaf 3, whose counter, label, tab and path are all
+    // distinct from both ends of the jump, so a published anchor cannot hide
+    // inside a value that was going to be right anyway.
+    const bundle = aBundle()
+    const origin = bundle.pages.length - 1
+    const destination = 2
+    const labels = derivePageLabels(bundle.pages)
+    const allowed = [origin, destination].map((index) => ({
+      counter: pageCounter(index + 1, bundle.pages.length),
+      label: labels[index] ?? '',
+      path: pagePath(index),
+    }))
+    const host = renderBook(origin)
+
+    click(host, '[data-bookmark="2"]')
+    const seen: PublishedLocation[] = [publishedLocation(host)]
+    for (let waited = 0; waited < 1_100; waited += 40) {
+      await elapse(40)
+      seen.push(publishedLocation(host))
+    }
+
+    expect(
+      seen.filter(
+        (at) => !allowed.some((end) => end.counter === at.counter && end.label === at.label && end.path === at.path),
+      ),
+    ).toEqual([])
+  })
+
+  it('marks the rail tab of the page the reader left or the page they asked for, never the anchor between them', async () => {
+    // The fourth publication PH1-001 names, and the one that is not a string
+    // the reader could copy: `isRailTabActive` reads the machine's committed
+    // index, so an anchor committed there lit the wrong journey's tab. From
+    // the last page of this book to Tokyo, the anchor's tab (leaf 3, inside
+    // Tokyo's own span) is deliberately NOT distinct from the destination's -
+    // what is asserted is that Lisbon's tab, the one the reader is leaving,
+    // hands over only when the jump lands.
+    const host = renderBook(aBundle().pages.length - 1)
+    const lisbon = publishedLocation(host).activeTab
+
+    click(host, '[data-bookmark="2"]')
+    const seen: string[] = [publishedLocation(host).activeTab]
+    for (let waited = 0; waited < 1_100; waited += 40) {
+      await elapse(40)
+      seen.push(publishedLocation(host).activeTab)
+    }
+
+    expect([...new Set(seen)]).toEqual([lisbon, '2'])
   })
 
   it('shows the page counter the handoff puts under the book', () => {

@@ -23,12 +23,13 @@
  * behaviour, which is why `useFlip.test.tsx` asserts the frame count stops
  * growing rather than merely that the page changed.
  *
- * `jumpTo` is the one place this file composes the machine rather than merely
- * driving it, and the composition is the handoff's own rule (README,
- * "Triggers"): "Bookmark jumps set an anchor page one step from the target,
- * then flip, so the animation always plays in the right direction." See its
- * own doc comment for what goes wrong without it, and for why the latch is
- * still the only thing deciding whether a jump happens at all.
+ * `jumpTo` and `turnTo` are one call apiece over the same machine, and the
+ * difference between them is the handoff's own rule (README, "Triggers"):
+ * "Bookmark jumps set an anchor page one step from the target, then flip, so
+ * the animation always plays in the right direction." WHERE that anchor comes
+ * from is the machine's business rather than this file's — see `jumpTo`'s own
+ * doc comment for what goes wrong without an anchor, and for what went wrong
+ * when this file built one by re-seeding the reducer.
  *
  * Depends on: react, and `flipReducer`/`initialFlipState`/`FlipState` from
  * `@travel-diary/domain/flip`.
@@ -97,8 +98,8 @@ export const useFlip = (initialIndex: number, config: FlipConfiguration): FlipCo
   )
 
   /**
-   * A bookmark jump: land on an anchor one page from the target, then turn
-   * the single leaf between them.
+   * A bookmark jump: lay the page stack out one leaf from the target, then
+   * turn the single leaf between them.
    *
    * Without the anchor, a jump from page 30 to page 3 hands the machine
    * `from: 29, to: 2` — one turn spanning twenty-seven leaves. `leafPresentation`
@@ -109,29 +110,29 @@ export const useFlip = (initialIndex: number, config: FlipConfiguration): FlipCo
    * already performs, played in the direction of travel — which is exactly
    * what the handoff asks for.
    *
-   * The latch stays the only authority on whether a jump happens. The request
-   * is put to the reducer FIRST against the state the book is actually in, and
-   * only re-issued from the anchor if the reducer accepted it; a jump arriving
-   * mid-turn, or aimed at the page already open, comes back as the same state
-   * object and is dropped here too. Anchoring first and asking afterwards
-   * would have let a bookmark tab walk straight through a turn in flight.
+   * THE ANCHOR IS THE MACHINE'S, NOT THIS FILE'S, and that is the whole of
+   * the difference from the revision PH1-001 was filed against
+   * (docs/qa/2026-09-03-phase-1-closing-sweep.md). This hook used to build the
+   * anchor itself, by re-seeding the reducer from `initialFlipState(anchor)`
+   * — a settled book resting ON the anchor. That made the anchor the machine's
+   * committed index, so everything deriving from it named a page the reader
+   * never asked for until the turn landed: the counter, the page label, the
+   * active rail tab and the address bar. The machine now carries where the
+   * reader is and where the stack is laid out from as two fields (`flip.ts`'s
+   * header), and this hook only says which kind of turn it is.
+   *
+   * The latch stays the only authority on whether a jump happens: the request
+   * is put to the reducer against the state the book is actually in, so a jump
+   * arriving mid-turn, or aimed at the page already open, comes back as the
+   * same state object and changes nothing.
    */
   const jumpTo = useCallback(
     (index: number): void => {
       if (index < 0 || index >= totalPages) return
 
-      setState((previous) => {
-        const request = { type: 'start', to: index, now: performance.now() } as const
-        const machine = { durationMs, reducedMotion }
-
-        const asked = flipReducer(previous, request, machine)
-        if (asked === previous) return previous
-
-        // One step from the target, on the side the reader is arriving from,
-        // so `dir` comes out the same as it would for a neighbouring page.
-        const anchor = index > previous.index ? index - 1 : index + 1
-        return flipReducer(initialFlipState(anchor), request, machine)
-      })
+      setState((previous) =>
+        flipReducer(previous, { type: 'jump', to: index, now: performance.now() }, { durationMs, reducedMotion }),
+      )
     },
     [durationMs, reducedMotion, totalPages],
   )

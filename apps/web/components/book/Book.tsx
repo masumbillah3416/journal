@@ -70,7 +70,17 @@
  * THE URL IS WRITTEN ON EVERY PAGE CHANGE, from one effect keyed on the
  * machine's committed index - which is the only moment the reader's page
  * actually changes, whether that came from a turn, a bookmark jump or an
- * instant reduced-motion change. `history.replaceState` rather than a router
+ * instant reduced-motion change. THE COMMITTED INDEX IS NOT THE PAGE STACK'S
+ * ANCHOR, and the distinction is this component's whole navigation contract:
+ * a bookmark jump lays the stack out one leaf from its target so the turn
+ * plays in the right direction, and the four things below that name where the
+ * READER is - this effect, the counter, the page label and the rail's active
+ * tab - all read `state.index`, which goes from the page they left to the
+ * page they asked for and names nothing in between. `state.anchor` is the
+ * stack's, and `leafPresentation` is its only reader
+ * (`@travel-diary/domain/flip`, and
+ * docs/qa/2026-09-03-phase-1-closing-sweep.md PH1-001, which is what the two
+ * fields being one field cost). `history.replaceState` rather than a router
  * navigation: a navigation would re-render the route and take the book's own
  * state with it, which is the difference between writing the address and
  * throwing the reading position away. It replaces rather than pushes so that

@@ -220,15 +220,17 @@ describe('leafPresentation', () => {
     expect(leafPresentation(19, distant, TOTAL).loadsImages).toBe(false)
   })
 
-  it("opens the window around a bookmark jump's anchor, not the page it left", () => {
-    // `useFlip.jumpTo` lands on an anchor one page from the target and turns
-    // the single leaf between them; this is the state it builds. A jump from
-    // page 31 to page 4 must therefore fetch the destination's photographs
-    // and drop the ones twenty-seven pages behind it.
-    const jumped = flipReducer(initialFlipState(2), { type: 'start', to: 3, now: 0 }, config)
+  it("opens the window around a bookmark jump's anchor, not around the page the reader is still on", () => {
+    // A jump lays the stack out one leaf from its target and turns the single
+    // leaf between them, so the window follows the ANCHOR - even though the
+    // reader's own `index` is still twenty-seven pages away and stays there
+    // until the jump commits (flip.ts's two position fields). A jump from
+    // page 31 to page 4 must fetch the destination's photographs and drop the
+    // ones behind it.
+    const jumped = flipReducer(initialFlipState(30), { type: 'jump', to: 3, now: 0 }, config)
 
     expect(leafPresentation(3, jumped, TOTAL).loadsImages).toBe(true)
-    expect(leafPresentation(2, jumped, TOTAL).loadsImages).toBe(true)
+    expect(leafPresentation(4, jumped, TOTAL).loadsImages).toBe(true)
     expect(leafPresentation(30, jumped, TOTAL).loadsImages).toBe(false)
   })
 

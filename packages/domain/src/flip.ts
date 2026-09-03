@@ -9,7 +9,17 @@
  * past the commit boundary AND for any non-finite or non-positive
  * `config.durationMs` (a `NaN` duration makes every `elapsed >= threshold`
  * comparison false, which would otherwise park the machine in `turning`
- * forever) — see the guard at the top of the `tick` branch below. Depends on
+ * forever) — see the guard at the top of the `tick` branch below.
+ *
+ * TWO POSITIONS, DELIBERATELY, AND THEY ARE NOT THE SAME POSITION. `index`
+ * is where the READER is; `anchor` is where the page STACK is laid out from.
+ * They agree on every ordinary turn and part company for exactly one event —
+ * a bookmark jump, which the handoff requires to be anchored one leaf from
+ * its target so the animation plays as a single turn (README, "Triggers").
+ * Folding the two into one field is what made the counter, the page label,
+ * the active rail tab and the address bar publish a page the reader never
+ * asked for, for the whole length of a jump
+ * (docs/qa/2026-09-03-phase-1-closing-sweep.md, PH1-001). Depends on
  * nothing.
  */
 
@@ -26,8 +36,28 @@ export type FlipDirection = 'forward' | 'backward'
 /** The complete state of the page stack at one instant. */
 export interface FlipState {
   readonly phase: FlipPhase
-  /** The committed page. Only changes when a turn commits, never mid-flip. */
+  /**
+   * WHERE THE READER IS. The committed page, and the only field anything
+   * that names the reader's location may read - the counter, the page label,
+   * the active bookmark tab and the address bar all derive from it. It goes
+   * from the page the reader left to the page they asked for and takes no
+   * value in between, however far apart the two are: a jump's anchor is a
+   * leaf the STACK passes through, never a page the reader visits, and is
+   * carried by {@link FlipState.anchor} for exactly that reason
+   * (docs/qa/2026-09-03-phase-1-closing-sweep.md, PH1-001).
+   */
   readonly index: number
+  /**
+   * WHERE THE PAGE STACK IS LAID OUT FROM, which is the same leaf as
+   * {@link FlipState.index} for every turn except a bookmark jump.
+   *
+   * A jump is anchored one leaf from its target so that however far it
+   * travels it is drawn as the single page turn the rest of the book already
+   * performs (handoff README, "Triggers"). `leafPresentation` reads THIS
+   * field to decide each leaf's resting angle, visibility and image window;
+   * nothing that names the reader's location may read it.
+   */
+  readonly anchor: number
   /** The page the current turn left, or `null` when idle. */
   readonly from: number | null
   /** The page the current turn is headed to, or `null` when idle. */
@@ -47,6 +77,7 @@ export interface FlipState {
 /** What can happen to the machine. */
 export type FlipEvent =
   | { readonly type: 'start'; readonly to: number; readonly now: number }
+  | { readonly type: 'jump'; readonly to: number; readonly now: number }
   | { readonly type: 'tick'; readonly now: number }
 
 /** Reader-configurable behaviour. */
@@ -61,6 +92,7 @@ export interface FlipConfig {
 export const initialFlipState = (index: number): FlipState => ({
   phase: 'idle',
   index,
+  anchor: index,
   from: null,
   to: null,
   dir: null,
@@ -75,23 +107,41 @@ const settled = (index: number): FlipState => initialFlipState(index)
 /**
  * Advances the machine.
  * @param state - Current state.
- * @param event - A `start` request or a clock tick.
+ * @param event - A `start` request (an ordinary one-leaf turn), a `jump`
+ *   request (a bookmark tab's anchored turn), or a clock tick.
  * @param config - Duration and reduced-motion preference.
  * @returns The next state, or the same object when nothing changes.
  */
 export const flipReducer = (state: FlipState, event: FlipEvent, config: FlipConfig): FlipState => {
-  if (event.type === 'start') {
+  if (event.type === 'start' || event.type === 'jump') {
     // The latch. A turn in flight swallows further requests, which is what
-    // stops a fast reader double-turning past a page.
+    // stops a fast reader double-turning past a page. It is the ONLY
+    // authority on whether a turn or a jump happens, and it is asked against
+    // the state the book is actually in - which is why a jump's anchor is
+    // computed below rather than before this guard.
     if (state.busy || event.to === state.index) return state
     if (config.reducedMotion) return settled(event.to)
 
+    const dir = event.to > state.index ? 'forward' : 'backward'
+    // A jump lays the stack out one leaf from its target, on the side the
+    // reader is arriving from, so the turn between them is the same one-leaf
+    // turn the rest of the book performs - played in the direction of
+    // travel. An ordinary turn is already one leaf, so its anchor is simply
+    // where the reader is. `to` is never `state.index` here (the latch above
+    // returned), so a forward jump's anchor cannot fall before the start of
+    // the book nor a backward jump's past its end.
+    const anchor = event.type === 'jump' ? (dir === 'forward' ? event.to - 1 : event.to + 1) : state.index
+
     return {
       phase: 'arming',
+      // NOT the anchor. See `index`'s own field doc: this is where the reader
+      // is, and a reader in the middle of a jump is still on the page they
+      // left until it commits.
       index: state.index,
-      from: state.index,
+      anchor,
+      from: anchor,
       to: event.to,
-      dir: event.to > state.index ? 'forward' : 'backward',
+      dir,
       go: false,
       half: false,
       busy: true,

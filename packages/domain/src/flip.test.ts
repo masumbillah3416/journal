@@ -6,6 +6,8 @@ const start = (state: FlipState, to: number, now = 0): FlipState =>
   flipReducer(state, { type: 'start', to, now }, config)
 const tick = (state: FlipState, now: number): FlipState =>
   flipReducer(state, { type: 'tick', now }, config)
+const jump = (state: FlipState, to: number, now = 0): FlipState =>
+  flipReducer(state, { type: 'jump', to, now }, config)
 
 describe('flipReducer', () => {
   it('arms without moving, so the CSS transition has a frame to attach to', () => {
@@ -135,5 +137,57 @@ describe('flipReducer', () => {
       expect(state.busy, `durationMs ${String(durationMs)} left the book seized`).toBe(false)
       expect(state.index).toBe(4)
     }
+  })
+})
+
+describe('flipReducer, jumping', () => {
+  it('anchors the page stack one leaf from its target, so a jump of twenty-seven leaves is drawn as one turn', () => {
+    // THE ANCHOR RULE (handoff README, "Triggers"): "Bookmark jumps set an
+    // anchor page one step from the target, then flip, so the animation
+    // always plays in the right direction."
+    const jumped = jump(initialFlipState(29), 2)
+
+    expect(jumped).toMatchObject({ anchor: 3, from: 3, to: 2, dir: 'backward', busy: true })
+  })
+
+  it('leaves the reader on the page they came from until the jump commits, so nothing can publish the anchor', () => {
+    // PH1-001 (docs/qa/2026-09-03-phase-1-closing-sweep.md). The anchor is an
+    // ANIMATION DEVICE. Everything that names where the READER is - the
+    // counter, the page label, the active rail tab and the address bar -
+    // reads `index`, so an anchor committed there is published as a page the
+    // reader never asked for.
+    const jumped = jump(initialFlipState(29), 2)
+
+    expect(jumped.index).toBe(29)
+  })
+
+  it('commits a jump to the page the tab addresses, never to the anchor it turned through', () => {
+    const landed = tick(jump(initialFlipState(29), 2), ARM_MS + config.durationMs + SETTLE_MS)
+
+    expect(landed).toMatchObject({ phase: 'idle', index: 2, anchor: 2, busy: false })
+  })
+
+  it('anchors a forward jump on the near side of its target, so the turn plays forwards', () => {
+    const jumped = jump(initialFlipState(2), 29)
+
+    expect(jumped).toMatchObject({ anchor: 28, from: 28, to: 29, dir: 'forward' })
+  })
+
+  it('ignores a jump while a turn is in flight, so a bookmark tab cannot walk through the latch', () => {
+    const armed = start(initialFlipState(3), 4)
+
+    expect(jump(armed, 20, 10)).toBe(armed)
+  })
+
+  it('ignores a jump to the page already open, so a tab cannot re-turn its own page', () => {
+    const idle = initialFlipState(3)
+
+    expect(jump(idle, 3)).toBe(idle)
+  })
+
+  it('changes the page instantly under reduced motion, with no anchor to pass through at all', () => {
+    const instant = flipReducer(initialFlipState(29), { type: 'jump', to: 2, now: 0 }, { ...config, reducedMotion: true })
+
+    expect(instant).toMatchObject({ phase: 'idle', index: 2, anchor: 2, busy: false })
   })
 })
