@@ -122,6 +122,7 @@ export const aGalleryFrame = (id: string, overrides: Partial<GalleryFrame> = {})
   // fallible constructor, so the direct cast adds no unreachable branch.
   id: id as MediaId,
   tileSrc: `/api/media/file/tokyo-${id}-400x400.png`,
+  tileSrcSet: `/api/media/file/tokyo-${id}-400x400.png 400w, /api/media/file/tokyo-${id}-800x800.png 800w`,
   fullSrc: `/api/media/file/tokyo-${id}-2000x1500.png`,
   downloadHref: `/gallery/tokyo/download/${id}`,
   alt: `Tokyo, ${id}`,

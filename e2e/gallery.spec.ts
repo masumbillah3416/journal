@@ -148,6 +148,94 @@ test('defers the tiles below the fold to the browser’s own lazy loading', asyn
   expect(eager).toBe(0)
 })
 
+test('gives the browser a choice of derivative for every tile, rather than one size for every screen', async ({
+  page,
+}) => {
+  // PH1-003. No image on any route carried a `srcset` or a `sizes`, so the
+  // browser was never given a choice: `readGalleryBundle`'s `TILE_TIERS` asked
+  // for the 400px `thumb` first, unconditionally, on the reasoning that "a tile
+  // is at most 300 CSS pixels wide". Both halves were measurably wrong - the
+  // `1fr` in `repeat(auto-fill, minmax(thumbSize, 1fr))` lets a tile grow past
+  // the minimum TRACK, and the widest tile therefore occurs at the NARROWEST
+  // viewport, which is the device class with the highest DPR.
+  await page.goto(GALLERY)
+  await expect(page.locator('[data-tile]').first()).toBeVisible()
+
+  const choiceless = await page.$$eval('[data-tile] img', (images) =>
+    images
+      .filter((image) => {
+        const candidates = image.getAttribute('srcset')?.split(',').length ?? 0
+        return candidates < 2 || image.getAttribute('sizes') === null
+      })
+      .map((image) => image.getAttribute('src')),
+  )
+
+  expect(choiceless).toEqual([])
+})
+
+test('picks the derivative this screen needs — no soft upscale, and no waste either', async ({ page }) => {
+  // The measurement PH1-003 was filed on, asked of the browser rather than of
+  // the markup, and asserted at every project because the defect and its
+  // opposite live at different ones. At `mobile` the grid is one column, so the
+  // tile is 354 CSS px at DPR 3 - 1,062 device pixels - and the 400px `thumb`
+  // it used to be handed at EVERY viewport is a 2.66x upscale. At `desktop` the
+  // tile is 215px at DPR 1 and that same 400px thumb is exactly right, so a fix
+  // that simply served something bigger would have traded a soft phone for a
+  // wasteful desktop.
+  //
+  // `naturalWidth` is deliberately NOT the measurement. Once an image is chosen
+  // from a `srcset` with `w` descriptors the browser reports its intrinsic size
+  // CORRECTED for the resulting pixel density, so a correctly-served 800px tile
+  // in a 354px box reports 354 - the same number a wrong one would. What is
+  // observable, and what actually matters, is WHICH candidate the browser took.
+  await page.goto(GALLERY)
+  await expect(page.locator('[data-tile]').first()).toBeVisible()
+
+  const measured = await page.$$eval('[data-tile] img', (images) => {
+    const parse = (srcset: string): { url: string; width: number }[] =>
+      srcset
+        .split(',')
+        .map((part) => part.trim())
+        .flatMap((part) => {
+          const [url, descriptor] = part.split(/\s+/)
+          const width = Number.parseInt(descriptor ?? '', 10)
+          return url === undefined || Number.isNaN(width) ? [] : [{ url, width }]
+        })
+
+    // Narrowed with `instanceof` rather than a type assertion: `currentSrc` is
+    // an HTMLImageElement property and `$$eval` hands back the union
+    // `SVGElement | HTMLElement` (CLAUDE.md §3.1 - no loosening casts).
+    const loaded = images
+      .filter((image): image is HTMLImageElement => image instanceof HTMLImageElement)
+      .filter((image) => image.currentSrc !== '' && image.getBoundingClientRect().width > 0)
+
+    return {
+      loaded: loaded.length,
+      wrong: loaded.flatMap((image) => {
+        const candidates = parse(image.getAttribute('srcset') ?? '').sort((a, b) => a.width - b.width)
+        const chosen = candidates.find((candidate) => image.currentSrc.endsWith(candidate.url))
+        const css = image.getBoundingClientRect().width
+        const needed = css * window.devicePixelRatio
+        const largest = candidates[candidates.length - 1]
+        // The smallest candidate that covers the tile at this density, or the
+        // largest that exists when none does - which is the honest answer for
+        // a row whose source was too small to derive a bigger tier from.
+        const right = candidates.find((candidate) => candidate.width >= needed) ?? largest
+
+        return chosen !== undefined && right !== undefined && chosen.width === right.width
+          ? []
+          : [{ css, needed, chose: chosen?.width, shouldHaveChosen: right?.width, src: image.currentSrc }]
+      }),
+    }
+  })
+
+  // `loading="lazy"` leaves every tile below the fold unfetched, which is not a
+  // wrong choice - it is no choice yet. The count keeps this from passing on an
+  // empty set.
+  expect(measured.loaded).toBeGreaterThan(0)
+  expect(measured.wrong).toEqual([])
+})
+
 test('answers a slug naming no journey with a 404 rather than an empty gallery', async ({ request }) => {
   expect((await request.get('/gallery/no-such-journey')).status()).toBe(404)
 })

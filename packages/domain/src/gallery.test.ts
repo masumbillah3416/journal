@@ -22,6 +22,7 @@ import {
   frameShareUrl,
   clipDuration,
   galleryThumbSize,
+  galleryTileSizes,
   openFrameById,
   stepFrame,
   tileWindow,
@@ -50,6 +51,7 @@ const anId = (raw: string): MediaId => {
 const aFrame = (id: string, overrides: Partial<GalleryFrame> = {}): GalleryFrame => ({
   id: anId(id),
   tileSrc: `/api/media/file/${id}-400x400.png`,
+  tileSrcSet: `/api/media/file/${id}-400x400.png 400w, /api/media/file/${id}-800x800.png 800w`,
   fullSrc: `/api/media/file/${id}.png`,
   downloadHref: `/gallery/tokyo/download/${id}`,
   alt: `alt for ${id}`,
@@ -64,6 +66,54 @@ const aFrame = (id: string, overrides: Partial<GalleryFrame> = {}): GalleryFrame
 
 /** Three frames, in the order the grid first showed them. */
 const threeFrames = (): readonly GalleryFrame[] => [aFrame('doorway'), aFrame('market'), aFrame('ferry')]
+
+describe('galleryTileSizes', () => {
+  // PH1-003. The grid is `repeat(auto-fill, minmax({thumbSize}px, 1fr))`, so a
+  // tile is NOT `thumbSize` wide - `1fr` lets it grow past the minimum track,
+  // and the widest tile therefore occurs at the NARROWEST viewport, which is
+  // the device class with the highest pixel ratio. `sizes` is what tells the
+  // browser that, and without it no `srcset` can choose correctly.
+  it('gives the one-column case the viewport minus the grid’s own padding, which is where the widest tile is', () => {
+    // Below 860px `.gridScroller` is padded `18px 18px 40px`, so a 390px phone
+    // has a 354px tile - the figure the sweep measured.
+    expect(galleryTileSizes(200)).toContain('calc(100vw - 36px)')
+  })
+
+  it('switches off the one-column rule exactly where a second column first fits', () => {
+    // Two columns need `2 * thumbSize + columnGap` of content box, so the last
+    // one-column viewport is that plus the 36px padding, minus one.
+    expect(galleryTileSizes(200)).toContain('(max-width: 451px)')
+  })
+
+  it('moves that boundary with the thumb size an editor chose, rather than pinning it to the default', () => {
+    expect(galleryTileSizes(140)).toContain('(max-width: 331px)')
+    expect(galleryTileSizes(300)).toContain('(max-width: 651px)')
+  })
+
+  it('bounds a multi-column tile by what the track can actually grow to, not by the track minimum', () => {
+    // With `auto-fill`, k columns are drawn only while a (k+1)th does not fit,
+    // so a tile is always under `(k+1)/k * thumbSize`; the tightest bound that
+    // holds for every k >= 2 is 1.5x, at k = 2.
+    expect(galleryTileSizes(200).endsWith('300px')).toBe(true)
+    expect(galleryTileSizes(140).endsWith('210px')).toBe(true)
+  })
+
+  it('never asks for a fraction of a pixel, whatever thumb size it is given', () => {
+    expect(galleryTileSizes(141)).not.toContain('.')
+  })
+
+  it('is short enough to repeat on every tile of a sixty-tile grid', () => {
+    // It is an attribute on every `img`, so length is a document-size cost
+    // paid sixty times over - the reason this is two entries and not the grid's
+    // whole column arithmetic enumerated per breakpoint.
+    expect(galleryTileSizes(200).length).toBeLessThan(80)
+  })
+
+  it('clamps a thumb size outside the schema’s range the same way galleryThumbSize does', () => {
+    expect(galleryTileSizes(9_000)).toBe(galleryTileSizes(GALLERY_THUMB_SIZE.max))
+    expect(galleryTileSizes(1)).toBe(galleryTileSizes(GALLERY_THUMB_SIZE.min))
+  })
+})
 
 describe('galleryThumbSize', () => {
   it('uses the handoff default when the book global has never been set', () => {

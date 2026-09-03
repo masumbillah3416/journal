@@ -38,7 +38,7 @@
  * ./gallery.module.css.
  */
 import type { GalleryFrame, GalleryJourney } from '@travel-diary/domain/gallery'
-import { VIRTUALIZE_ABOVE, frameIdFromHash, tileWindow } from '@travel-diary/domain/gallery'
+import { VIRTUALIZE_ABOVE, frameIdFromHash, galleryTileSizes, tileWindow } from '@travel-diary/domain/gallery'
 import type { MediaId } from '@travel-diary/domain/ids'
 import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -102,6 +102,10 @@ export const Grid = ({ journey, frames, thumbSize }: GridProps): React.JSX.Eleme
   // a gallery below the windowing threshold - so an unwindowed grid draws no
   // spacers at all.
   const columns = Math.max(1, geometry.columns)
+  // Derived once per grid, not once per tile: it is a function of the track
+  // this component sets, and every tile in the grid gets the same answer
+  // (PH1-003, and `galleryTileSizes`'s own header for the arithmetic).
+  const tileSizes = galleryTileSizes(thumbSize)
   const leading = (rendered.from / columns) * geometry.rowHeight
   const trailing = Math.ceil((frames.length - rendered.to) / columns) * geometry.rowHeight
 
@@ -126,6 +130,7 @@ export const Grid = ({ journey, frames, thumbSize }: GridProps): React.JSX.Eleme
             index={rendered.from + offset}
             total={frames.length}
             onOpen={setOpenId}
+            sizes={tileSizes}
             ref={(element) => {
               if (element === null) tiles.current.delete(frame.id)
               else tiles.current.set(frame.id, element)

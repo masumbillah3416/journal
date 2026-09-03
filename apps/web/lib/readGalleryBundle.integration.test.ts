@@ -122,6 +122,25 @@ describe('readGalleryBundle', () => {
     expect(bundle?.frames.filter((frame) => originalUrls.has(frame.fullSrc))).toEqual([])
   })
 
+  it('offers every tile derivative the row carries, with the width Payload actually generated', async () => {
+    // PH1-003. The `w` descriptor has to be the DERIVATIVE's own width, not the
+    // ladder's configured target: Payload skips a tier whose target exceeds the
+    // source, and preserves aspect ratio, so a tier's real width is a property
+    // of the file. A descriptor that lied would make the browser's choice worse
+    // than no choice. The seeded gallery placeholders are 900px squares, so
+    // Payload generates `thumb` (400) and `tile` (800) and nothing above them.
+    const bundle = await readGalleryBundle(VERIFIED_GALLERY.slug)
+    const frames = bundle?.frames ?? []
+
+    expect(frames).not.toEqual([])
+    // Every frame, not just the first: a `w` descriptor missing from one row is
+    // a wrong choice on one tile, which is exactly the kind of gap a
+    // spot-check misses.
+    expect(frames.filter((frame) => !/^\S+ 400w, \S+ 800w$/.test(frame.tileSrcSet))).toEqual([])
+    // The `src` stays the smallest, for a browser that reads no `srcset`.
+    expect(frames.filter((frame) => !frame.tileSrcSet.startsWith(`${frame.tileSrc} 400w`))).toEqual([])
+  })
+
   it('points every download at a handler of ours rather than at the store', async () => {
     const bundle = await readGalleryBundle(VERIFIED_GALLERY.slug)
 
@@ -220,6 +239,16 @@ describe('readGalleryBundle', () => {
       const bundle = await readGalleryBundle('test-gallery')
 
       expect(bundle?.frames.map((frame) => frame.alt)).not.toContain('test-hidden')
+    })
+
+    it('offers no srcset for a row carrying a single derivative, since one candidate is not a choice', async () => {
+      // `test-visible` is a 900px upload, so it has two tiers; a row with only
+      // `thumb` would have one. The 400px-and-under case is covered by
+      // `test-no-derivative`, which has none at all and is omitted entirely.
+      const bundle = await readGalleryBundle('test-gallery')
+      const visible = bundle?.frames.find((frame) => frame.alt === 'test-visible')
+
+      expect(visible?.tileSrcSet.split(', ')).toHaveLength(2)
     })
 
     it('omits a frame with no derivative rather than failing the whole gallery', async () => {

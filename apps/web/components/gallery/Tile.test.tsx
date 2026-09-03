@@ -37,18 +37,22 @@ const roots: Root[] = []
  * @param onOpen - Called with the frame's id when the tile is picked.
  * @returns The host element the tile was rendered into.
  */
+/** The `sizes` `Grid.tsx` derives for the seeded 200px thumb track. */
+const SIZES = '(max-width: 451px) calc(100vw - 36px), 300px'
+
 const renderTile = (
   frame: GalleryFrame,
   index = 6,
   total = 61,
   onOpen: (id: MediaId) => void = () => undefined,
+  sizes = SIZES,
 ): HTMLElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
   roots.push(root)
   act(() => {
-    root.render(<Tile frame={frame} index={index} total={total} onOpen={onOpen} />)
+    root.render(<Tile frame={frame} index={index} total={total} onOpen={onOpen} sizes={sizes} />)
   })
   return host
 }
@@ -91,6 +95,30 @@ describe('Tile', () => {
     const host = renderTile(frame)
 
     expect(host.querySelector('img')?.getAttribute('src')).toBe(frame.tileSrc)
+  })
+
+  it('offers every derivative the row carries, so the browser picks for this screen', () => {
+    // PH1-003. The server cannot see a pixel ratio, so it stopped choosing:
+    // the tile used to be handed the 400px `thumb` at every viewport, which at
+    // 390px - one column, a 354px tile, DPR 3 - is a 2.66x upscale.
+    const frame = aGalleryFrame('market')
+    const host = renderTile(frame)
+
+    expect(host.querySelector('img')?.getAttribute('srcset')).toBe(frame.tileSrcSet)
+  })
+
+  it('tells the browser how wide the tile will actually be, without which a srcset cannot choose', () => {
+    const host = renderTile(aGalleryFrame('market'))
+
+    expect(host.querySelector('img')?.getAttribute('sizes')).toBe(SIZES)
+  })
+
+  it('omits the srcset for a row carrying one derivative, rather than printing a list of one', () => {
+    // An unprocessed upload whose only tier is `thumb`. One candidate is not a
+    // choice, and sixty single-entry lists are document bytes for nothing.
+    const host = renderTile(aGalleryFrame('market', { tileSrcSet: '' }))
+
+    expect(host.querySelector('img')?.hasAttribute('srcset')).toBe(false)
   })
 
   it('loads lazily, because a gallery is a long scroll of photographs', () => {

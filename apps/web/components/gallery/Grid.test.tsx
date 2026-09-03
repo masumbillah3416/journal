@@ -20,6 +20,7 @@
  * Depends on: react, react-dom/client, @travel-diary/domain, vitest (jsdom).
  */
 import type { GalleryFrame } from '@travel-diary/domain/gallery'
+import { galleryTileSizes } from '@travel-diary/domain/gallery'
 import { aGalleryBundle, aGalleryFrame, galleryFrames } from '@travel-diary/domain/testing/factories'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -69,6 +70,23 @@ afterEach(() => {
 })
 
 describe('Grid', () => {
+  it('gives every tile the sizes the grid’s own track arithmetic implies', () => {
+    // PH1-003. `Grid` is the only component that knows `thumbSize`, so it is
+    // where `sizes` is derived - once per grid rather than once per tile, and
+    // from the same number that sets the track it describes.
+    const { host } = renderGrid(galleryFrames(4), 200)
+    const images = [...host.querySelectorAll('[data-tile] img')]
+
+    expect(images.length).toBeGreaterThan(0)
+    expect(images.map((image) => image.getAttribute('sizes'))).toEqual(images.map(() => galleryTileSizes(200)))
+  })
+
+  it('moves that sizes with the thumb size an editor chose', () => {
+    const { host } = renderGrid(galleryFrames(4), 140)
+
+    expect(host.querySelector('[data-tile] img')?.getAttribute('sizes')).toBe(galleryTileSizes(140))
+  })
+
   it('renders every one of the sixty-one tiles the handoff verified', () => {
     const { host } = renderGrid(galleryFrames(61))
 

@@ -53,8 +53,20 @@ export type GalleryFrameKind = 'still' | 'clip'
 export interface GalleryFrame {
   /** The media row's own id. The lightbox's whole identity model - see this module's header. */
   readonly id: MediaId
-  /** The square-tile derivative the grid draws. */
+  /**
+   * The square-tile derivative the grid draws - the SMALLEST of the tiers
+   * below, and the `src` a browser with no `srcset` support would take.
+   */
   readonly tileSrc: string
+  /**
+   * Every square-tile derivative the row carries, as a `srcset` with `w`
+   * descriptors, so the browser picks one against this screen's width AND
+   * pixel ratio rather than being handed the server's one guess (PH1-003).
+   * `''` for a row with a single derivative, where a `srcset` would offer no
+   * choice - the grid then omits the attribute rather than printing a
+   * one-candidate list on every tile.
+   */
+  readonly tileSrcSet: string
   /** The largest derivative available, which the lightbox draws at `object-fit: contain`. */
   readonly fullSrc: string
   /** The path our own download handler serves this frame's derivative from. */
@@ -121,6 +133,68 @@ export const galleryThumbSize = (configured: number | null | undefined): number 
     return GALLERY_THUMB_SIZE.default
   }
   return Math.min(GALLERY_THUMB_SIZE.max, Math.max(GALLERY_THUMB_SIZE.min, Math.round(configured)))
+}
+
+/**
+ * The grid's own measurements, from SCREENS.md §1.8 and
+ * `components/gallery/gallery.module.css`, which is the only other place they
+ * are written. `columnGap` is the `16px` of `gap: 18px 16px`; the two paddings
+ * are `.gridScroller`'s, which is `24px 34px 48px` and `18px 18px 40px` below
+ * the 860px breakpoint - so the INLINE padding a tile competes with is 68px on
+ * the book's viewports and 36px on a phone's.
+ */
+const GALLERY_GRID = Object.freeze({ columnGap: 16, sidePaddingWide: 68, sidePaddingNarrow: 36 } as const)
+
+/**
+ * The `sizes` attribute every grid tile carries, derived from the thumb size
+ * the editor chose.
+ *
+ * WITHOUT THIS A `srcset` CANNOT WORK, which is what PH1-003 measured: the
+ * grid is `repeat(auto-fill, minmax({thumbSize}px, 1fr))`, and `1fr` lets a
+ * tile grow well past the minimum TRACK. `readGalleryBundle` used to reason
+ * that "a tile is at most 300 CSS pixels wide" and hand every screen the 400px
+ * `thumb`; at 390px there is one column, so the tile is 354px, and at that
+ * viewport's DPR of 3 the 400px thumb is a 2.66x upscale. The widest tile
+ * occurs at the NARROWEST viewport - which is the device class with the
+ * highest pixel ratio - so the assumption was not merely optimistic, it was
+ * inverted.
+ *
+ * TWO ENTRIES, NOT THE WHOLE COLUMN ARITHMETIC, and that is a deliberate
+ * trade rather than an approximation nobody checked. `sizes` is an attribute
+ * on every `img`, so a string enumerating a breakpoint per column count would
+ * be ~900 characters repeated sixty times in one document. The two cases
+ * below cover every viewport within a few percent:
+ *
+ *   1. ONE COLUMN, where the tile is the whole content box and the error would
+ *      be largest: `calc(100vw - 36px)` is exact. One column is drawn while a
+ *      second does not fit, so this holds up to
+ *      `2 * thumbSize + columnGap + 36 - 1` - always below 860px for any
+ *      thumb size the schema admits, which is why the narrow padding is the
+ *      right one here.
+ *   2. EVERY OTHER VIEWPORT, bounded by `1.5 * thumbSize`. With `auto-fill`,
+ *      k columns are drawn only while a (k+1)th does not fit, so a tile is
+ *      always under `(k + 1) / k * thumbSize + columnGap / k`; that bound is
+ *      tightest at k = 2 and shrinks towards `thumbSize` as k grows, so 1.5x
+ *      is correct at the top of the range and generous by at most a third at
+ *      the bottom. Generous costs nothing here: at 1440px the tile is 215px, a
+ *      `sizes` of 300px still selects the 400px `thumb` at 1x, and
+ *      `e2e/gallery.spec.ts` pins that - a fix that traded a soft phone for a
+ *      wasteful desktop would not be one.
+ *
+ * @param configured - The `book` global's `galleryThumbPx`, clamped by {@link galleryThumbSize}.
+ * @returns A `sizes` attribute value, in whole pixels.
+ * @example
+ * galleryTileSizes(200) // '(max-width: 451px) calc(100vw - 36px), 300px'
+ */
+export const galleryTileSizes = (configured: number | null | undefined): string => {
+  const thumb = galleryThumbSize(configured)
+  const lastSingleColumn = 2 * thumb + GALLERY_GRID.columnGap + GALLERY_GRID.sidePaddingNarrow - 1
+  const multiColumnBound = Math.ceil(thumb * 1.5)
+
+  return [
+    `(max-width: ${String(lastSingleColumn)}px) calc(100vw - ${String(GALLERY_GRID.sidePaddingNarrow)}px)`,
+    `${String(multiColumnBound)}px`,
+  ].join(', ')
 }
 
 /** The smallest number of digits a frame number is printed with (SCREENS.md §1.9's `003 / 061`). */

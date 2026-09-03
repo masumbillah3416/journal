@@ -63,6 +63,14 @@ export interface TileProps {
   /** Called with the frame's id - never its index - when the reader picks it. */
   readonly onOpen: (id: MediaId) => void
   /**
+   * The `sizes` attribute for the tile's image, derived once per grid by
+   * `Grid.tsx` from the thumb-size track it also sets
+   * (`galleryTileSizes`). Required rather than defaulted: without it a
+   * `srcset` has nothing to choose against and the browser assumes `100vw`,
+   * which is how PH1-003's soft tiles would come back.
+   */
+  readonly sizes: string
+  /**
    * The button element, published to `Grid.tsx` so it can put focus back on
    * this tile when the lightbox closes. A plain prop rather than
    * `forwardRef`: React 19 passes `ref` through as one for a function
@@ -77,9 +85,9 @@ export interface TileProps {
  * @param props - The frame, where it currently sits, how large the gallery is, and what to do when it is picked.
  * @returns The tile, as a button carrying the frame's id.
  * @example
- * <Tile frame={frame} index={6} total={61} onOpen={setOpenId} />
+ * <Tile frame={frame} index={6} total={61} onOpen={setOpenId} sizes={galleryTileSizes(200)} />
  */
-export const Tile = ({ frame, index, total, onOpen, ref }: TileProps): React.JSX.Element => {
+export const Tile = ({ frame, index, total, onOpen, sizes, ref }: TileProps): React.JSX.Element => {
   const ordinal = frameOrdinal(index, total)
   const duration = frame.kind === 'clip' ? clipDuration(frame.durationSec) : null
 
@@ -101,6 +109,12 @@ export const Tile = ({ frame, index, total, onOpen, ref }: TileProps): React.JSX
         <img
           className={styles.tileImage}
           src={frame.tileSrc}
+          // `undefined`, not `''`, for a row with a single derivative: React
+          // omits the attribute entirely, and an empty `srcset` is not the
+          // same thing - it would leave the browser with no candidate list at
+          // all rather than falling back to `src`.
+          srcSet={frame.tileSrcSet === '' ? undefined : frame.tileSrcSet}
+          sizes={sizes}
           alt={frame.alt}
           loading="lazy"
           decoding="async"

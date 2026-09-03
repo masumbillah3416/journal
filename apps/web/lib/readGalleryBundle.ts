@@ -36,6 +36,13 @@
  * is a security requirement rather than a style choice, and the Notes page's
  * ephemera scrap, which is a texture rather than a photograph.
  *
+ * A TILE OFFERS EVERY TIER AND CHOOSES NONE. `tileSrc` is the smallest
+ * derivative, for a browser reading no `srcset`; `tileSrcSet` is all of them
+ * with their real widths, and `galleryTileSizes` (in the domain, next to the
+ * track it describes) tells the browser how wide the tile will be. The server
+ * cannot see a pixel ratio, so it no longer guesses at one - which is what
+ * PH1-003 measured, at 2.66x on a 390px phone. See {@link TILE_TIERS}.
+ *
  * THE FOCAL POINT COMES FROM THE MEDIA ITEM. DATA_MODEL.md's rule is
  * "`media.focalPoint` is the default; the slot overrides it", and a gallery
  * frame has no slot - it is a media item shown on its own. This is the second
@@ -85,10 +92,25 @@ type SelectedMediaDoc = Pick<
 type DerivativeTier = keyof NonNullable<SelectedMediaDoc['sizes']>
 
 /**
- * The tiers a GRID tile prefers, smallest first. A tile is at most 300 CSS
- * pixels wide (`GALLERY_THUMB_SIZE.max`), so the 400px `thumb` already covers
- * it at better than 1x and comfortably at 2x on the smallest tile - anything
- * larger is bytes a reader scrolling past sixty of them never sees.
+ * The tiers a GRID tile OFFERS, smallest first. All of them are offered, as a
+ * `srcset`, and the browser picks - which is the fix for PH1-003 and a change
+ * of kind, not of order.
+ *
+ * This list used to be a preference walked smallest-first, so every screen was
+ * handed the 400px `thumb`, on the reasoning that "a tile is at most 300 CSS
+ * pixels wide (`GALLERY_THUMB_SIZE.max`)". That was measurably wrong twice
+ * over: `GALLERY_THUMB_SIZE.max` is the grid's minimum TRACK and the `1fr` in
+ * `repeat(auto-fill, minmax(thumbSize, 1fr))` lets a tile grow past it, so at
+ * 390px - one column - the tile is 354px; and the widest tile therefore occurs
+ * at the NARROWEST viewport, which is the device class with the highest pixel
+ * ratio, making a 400px thumb a 2.66x upscale at DPR 3. A server that cannot
+ * see the pixel ratio cannot make this choice at all, so it no longer tries:
+ * `galleryTileSizes` tells the browser how wide the tile will be and this list
+ * tells it what exists.
+ *
+ * `hero2x` is still not offered. The widest tile the grid can draw is under
+ * `2 * GALLERY_THUMB_SIZE.max + 16` = 616 CSS px, so `hero`'s 2000px already
+ * covers it past DPR 3; a 4000px file is never the right answer for a tile.
  */
 const TILE_TIERS: readonly DerivativeTier[] = ['thumb', 'tile', 'frame', 'hero']
 
@@ -121,6 +143,34 @@ const derivativeUrl = (media: SelectedMediaDoc, tiers: readonly DerivativeTier[]
 }
 
 /**
+ * The `srcset` for a grid tile: every tier the row actually carries, with the
+ * derivative's own width as its `w` descriptor.
+ *
+ * The width comes from Payload's stored `sizes[tier].width` rather than from
+ * `media.ts`'s configured ladder, because the two disagree by design - Payload
+ * SKIPS a tier whose target width exceeds the source, and it also preserves
+ * aspect ratio, so a tier's real width is a property of the file rather than
+ * of the config. A `w` descriptor that lied would make the browser's choice
+ * worse than no choice at all.
+ * @param media - The media row (only `sizes` is read).
+ * @returns A `srcset` value, or `''` when fewer than two tiers exist - one
+ *   candidate is not a choice, and the grid omits the attribute rather than
+ *   printing a single-entry list on every one of sixty tiles.
+ */
+const tileSrcSet = (media: SelectedMediaDoc): string => {
+  const candidates = TILE_TIERS.flatMap((tier) => {
+    const size = media.sizes?.[tier]
+    const url = size?.url
+    const width = size?.width
+    return url === null || url === undefined || width === null || width === undefined
+      ? []
+      : [`${url} ${String(width)}w`]
+  })
+
+  return candidates.length > 1 ? candidates.join(', ') : ''
+}
+
+/**
  * Converts one `media` row into a {@link GalleryFrame}.
  * @param doc - The media row, `depth: 0`.
  * @param journeySlug - The journey the frame belongs to, for its download path.
@@ -148,6 +198,7 @@ const toGalleryFrame = (
   return {
     id: brandedId.value,
     tileSrc,
+    tileSrcSet: tileSrcSet(doc),
     fullSrc,
     downloadHref: galleryDownloadPath(journeySlug, brandedId.value),
     alt: doc.alt ?? '',
