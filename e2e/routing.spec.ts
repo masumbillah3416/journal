@@ -3,7 +3,7 @@
  *
  * The design spec's §8 makes `/p/<n>` a REAL, 1-indexed path rather than a
  * hash, for one reason: the deep links have to be indexable and shareable.
- * That promise has four observable parts, and this file is one case per part:
+ * That promise has six observable parts, and this file is one case per part:
  *
  *   1. **The content is in the HTML.** Asserted with `request.get`, never
  *      `page.goto` — a crawler runs no JavaScript, so neither may the
@@ -34,6 +34,13 @@
  *      real, reachable URL serving the same page under a second address. A
  *      canonical link is what stops that from being duplicate content, and
  *      ADR 0009's own concerns list asked Task 13 for it by name.
+ *   6. **There is a `robots.txt`, and it invites the diary in.** Every promise
+ *      above is about being indexable; serving no robots.txt at all leaves
+ *      that permissive by omission rather than by decision, which is not what
+ *      `SECURITY.md` asks for. `apps/web/public/robots.txt` is the file, and
+ *      its own header records what Phase 4 owes: a generated route that reads
+ *      `site.indexGalleries`, plus the `X-Robots-Tag` half of the same
+ *      requirement.
  *
  * THE GALLERY CASE IS THE ONE THAT WILL OUTLIVE THIS TASK. The spec calls it
  * out specifically — "returning from a gallery restores `/p/<n>`, not `/`" —
@@ -104,6 +111,31 @@ test('serves a page’s own content in the HTML, for a crawler that runs no scri
   const html = await (await request.get('/p/3')).text()
 
   expect(html).toContain('Tokyo')
+})
+
+test('serves a robots.txt, and one that lets a crawler read the diary', async ({ request }) => {
+  // Every promise above is about a deep link being indexable, and until the
+  // Phase 1 final review this repository served no robots.txt at all. That is
+  // permissive by omission rather than by decision, and it is not what
+  // SECURITY.md asks for: it requires `site.indexGalleries` respected "in
+  // robots.txt AND with X-Robots-Tag". The setting defaults to true
+  // (apps/web/globals/site.ts) and the Settings screen that could change it is
+  // Phase 4, so the file that matches the default is the only honest one to
+  // serve today - and this case is what says so out loud, and what fails if the
+  // file is ever dropped. Phase 4 replaces the static file with a generated
+  // route that reads the setting; docs/security.md's own row records that debt.
+  const response = await request.get('/robots.txt')
+  const body = await response.text()
+
+  expect(response.status()).toBe(200)
+  expect(body).toContain('User-agent: *')
+  expect(body).toContain('Allow: /')
+  // The admin is authenticated, so nothing behind it is indexable anyway; it is
+  // named so a crawler does not spend requests finding that out.
+  expect(body).toContain('Disallow: /cms')
+  // Nothing here may forbid the diary itself. A `Disallow: /p/` would undo
+  // every other case in this file without failing one of them.
+  expect(body).not.toMatch(/^Disallow: \/(p|gallery)?$/m)
 })
 
 test('answers an out-of-range page number with a 404 rather than a page the reader did not ask for', async ({

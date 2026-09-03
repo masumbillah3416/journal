@@ -717,6 +717,20 @@ would claim a measurement nothing performs.
   What it actually guards is `Book.tsx`'s `history.replaceState`: were the book to push
   rather than replace, or not write the address at all, both cases fail.
 
+  **One case is about a file rather than a route, and belongs here for that reason.**
+  Every promise above is that a deep link is indexable, and until Phase 1's final review
+  this repository served **no `robots.txt` at all** — permissive by omission rather than
+  by a decision anyone can read, and not what `SECURITY.md` asks for ("respect
+  `indexGalleries` in `robots.txt` **and** with `X-Robots-Tag`"). `apps/web/public/robots.txt`
+  is now served, static, and consistent with `site.indexGalleries`'s `defaultValue:
+  true` — the only honest content while nothing writes or reads that setting and the
+  Settings screen that would is Phase 4. The case requires a 200, requires `User-agent:
+  *`, `Allow: /` and `Disallow: /cms`, and requires the file NOT to carry a bare
+  `Disallow: /` or `Disallow: /p` — a line that would quietly undo every other case in
+  the file without failing one of them. `docs/security.md`'s `indexGalleries` row records
+  the two halves Phase 4 still owes: a generated `app/robots.ts` that reads the setting,
+  and the `X-Robots-Tag` header on the gallery route.
+
   **`e2e/serverWindow.spec.ts` (the server content window)** covers the other window,
   and its first case is the one the whole change stands or falls on: it fetches all
   **thirty-three** `/p/<n>` routes as raw HTML with `request.get`, parses each with
