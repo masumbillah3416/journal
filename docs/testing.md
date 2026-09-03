@@ -1130,16 +1130,32 @@ baseline was regenerated in the pinned container against the five-face state, wi
   `cumulative-layout-shift` ≤0.1, and `http-status-code`.
 
   **The image budget is the one that earns its place.** `resource-summary:image:size`
-  ≤400000 bytes catches the specific regression this route is exposed to: nine of
-  sixty-one tiles are fetched today because every one carries `loading="lazy"`, and if
-  that attribute is ever dropped the route fetches all sixty-one - roughly 1.2MB - while
-  every functional test still passes. `e2e/gallery.spec.ts` asserts the ATTRIBUTE; only
-  this budget asserts the EFFECT. `CLAUDE.md` §6 scopes the 2500ms LCP budget to "diary,
-  4G" specifically — holding Payload's heavy admin bundle to it was the original reason
-  this whole step was informational, and giving `/cms` its own entry with no LCP
-  assertion is what stops that recurring now that `/cms` shares a config with a real
-  route. `.github/workflows/ci.yml`'s `browser` job no longer runs this step with
+  catches the specific regression this route is exposed to: nine of the tiles are
+  fetched today because every one carries `loading="lazy"`, and if that attribute is
+  ever dropped the route fetches every tile in the gallery while every functional test
+  still passes. `e2e/gallery.spec.ts` asserts the ATTRIBUTE; only this budget asserts
+  the EFFECT. `CLAUDE.md` §6 scopes the 2500ms LCP budget to "diary, 4G" specifically —
+  holding Payload's heavy admin bundle to it was the original reason this whole step
+  was informational, and giving `/cms` its own entry with no LCP assertion is what
+  stops that recurring now that `/cms` shares a config with a real route.
+  `.github/workflows/ci.yml`'s `browser` job no longer runs this step with
   `continue-on-error` (see below).
+
+  **Update, `docs/adr/0013-gallery-image-budget.md`.** The figures above are Task 14's
+  original measurement, on the pre-PH1-002 gallery (61 tiles, one of them the Notes
+  page's ephemera scrap) and the pre-PH1-003 tile choice (every device handed the same
+  400px `thumb` regardless of viewport or density). Both changed on this branch: PH1-002
+  removed the ephemera scrap from every gallery's frame list (Patagonia is 60 tiles, not
+  61), and PH1-003 made a tile offer a `srcset` and let the browser choose, rather than
+  the server guessing one derivative for every device. The second fix is why the number
+  moved: at a one-column phone viewport the correct choice is the 800px `tile`
+  derivative, not the 400px `thumb`, so the same nine lazy-loaded requests now cost
+  477,329 bytes instead of 173,579. `resource-summary:image:size` is now `600000`, not
+  400,000 and not 477,329 — ADR 0013 records why the limit sits above the current
+  measurement (the seeded placeholders understate a real photograph's bytes) rather than
+  at it, and pins the regression this gate exists to catch: with `loading="lazy"`
+  disabled, the same route fetched all 60 tiles for **4,600,585 bytes** — 7.67× the new
+  limit, so the detector still fires with room to spare.
 - **`/p/1` was landed as a hard gate before the page existed, deliberately.** The
   controller ruling for Task 1 was to land the gate _before_ the page it measures,
   specifically so no later task can land a regression under a budget still marked
