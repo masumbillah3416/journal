@@ -6,10 +6,11 @@
  * timers. The handoff specifies four explicit timers and "a `_busy` latch that
  * always releases"; expressing that as phases derived from elapsed time makes a
  * seized book unrepresentable rather than a bug to hunt, for any tick at or
- * past the commit boundary AND for any non-finite or non-positive
- * `config.durationMs` (a `NaN` duration makes every `elapsed >= threshold`
+ * past the commit boundary, for any non-finite or non-positive
+ * `config.durationMs`, AND for a non-finite `elapsed` however it arose (a
+ * `NaN` on either side of the subtraction makes every `elapsed >= threshold`
  * comparison false, which would otherwise park the machine in `turning`
- * forever) — see the guard at the top of the `tick` branch below.
+ * forever) — see the two guards in the `tick` branch below.
  *
  * TWO POSITIONS, DELIBERATELY, AND THEY ARE NOT THE SAME POSITION. `index`
  * is where the READER is; `anchor` is where the page STACK is laid out from.
@@ -160,6 +161,17 @@ export const flipReducer = (state: FlipState, event: FlipEvent, config: FlipConf
   if (!Number.isFinite(config.durationMs) || config.durationMs <= 0) return settled(state.to)
 
   const elapsed = event.now - state.startedAt
+
+  // The same seizure as the duration guard above, arriving through the other
+  // input. `now` has exactly one source today - `performance.now()` in
+  // `useFlip`, finite by specification - but `flipReducer` is this package's
+  // PUBLIC API, and the promise in this module's header that a seized book is
+  // unrepresentable is made to every caller, not only to the one that exists.
+  // A non-finite `now` here, or a `startedAt` that was non-finite when the
+  // turn started, makes `elapsed` NaN and every comparison below false
+  // forever. Commit immediately, exactly as a broken duration does.
+  if (!Number.isFinite(elapsed)) return settled(state.to)
+
   const halfAt = ARM_MS + config.durationMs / 2
   const commitAt = ARM_MS + config.durationMs + SETTLE_MS
 

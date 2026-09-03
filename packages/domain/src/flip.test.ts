@@ -138,6 +138,34 @@ describe('flipReducer', () => {
       expect(state.index).toBe(4)
     }
   })
+
+  it('releases the latch immediately for a broken clock, so neither input can strand it', () => {
+    // The duration guard above closes one half of the same seizure; this is
+    // the other. `elapsed` is `now - startedAt`, so a non-finite value on
+    // EITHER side makes every `elapsed >= threshold` comparison false forever.
+    // `useFlip` passes `performance.now()`, which is finite by specification -
+    // but `flipReducer` is exported from this package and its header promises
+    // every caller that a seized book is unrepresentable, so the promise is
+    // kept against the argument, not against the one call site that exists.
+    const brokenTick = [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]
+    for (const now of brokenTick) {
+      const turning = start(initialFlipState(3), 4)
+      const struck = flipReducer(turning, { type: 'tick', now }, config)
+
+      expect(struck.busy, `a tick at ${String(now)} left the book seized`).toBe(false)
+      expect(struck.index).toBe(4)
+    }
+
+    // And from the other side: the turn itself started on a broken clock, so
+    // `startedAt` is the non-finite half and the tick is ordinary.
+    for (const now of brokenTick) {
+      const turning = flipReducer(initialFlipState(3), { type: 'start', to: 4, now }, config)
+      const struck = flipReducer(turning, { type: 'tick', now: ARM_MS }, config)
+
+      expect(struck.busy, `a turn started at ${String(now)} left the book seized`).toBe(false)
+      expect(struck.index).toBe(4)
+    }
+  })
 })
 
 describe('flipReducer, jumping', () => {
