@@ -52,6 +52,19 @@
  * with `e2e/layout.spec.ts` green in the same run (see below) and every
  * resulting image opened and looked at before being committed.
  *
+ * THE `mobile` PROJECT NOW PHOTOGRAPHS A DIFFERENT SURFACE, and that is what
+ * moved seven of these files in Phase 1 Task 15. Below 860px the diary draws
+ * SCREENS.md §1.10's mobile reading mode instead of the book - no design box,
+ * no leaves, no scaling - so `diary-cover-mobile`, `diary-contents-mobile`,
+ * `diary-notes-mobile`, `diary-frames-i-mobile`, `diary-frames-ii-mobile` and
+ * `diary-about-mobile` are now pictures of that surface, and a seventh case
+ * joins them: `diary-mobile-drawer`, the bookmark panel, which exists at the
+ * `mobile` project alone because it is §1.10's replacement for the book's
+ * 158px rail. Those six images were the least useful in this directory - a
+ * whole book at roughly a third scale - and are now the only baseline the
+ * mobile mode has. `settled` reads WHICH surface it is looking at off the
+ * document rather than off the project's viewport; see its own comment.
+ *
  * BASELINES ARE GENERATED INSIDE `mcr.microsoft.com/playwright:v1.62.1-noble`,
  * never on a developer's Windows or macOS host (Task 1). Font rasterisation,
  * subpixel rounding and scrollbar metrics differ enough between platforms that
@@ -127,6 +140,7 @@
  * `webServer`, and the seeded diary (`npm run db:seed`).
  */
 import { expect, test, type Page } from '@playwright/test'
+import { drawsMobileReadingMode } from './support/surface'
 
 /**
  * Waits for a diary page to be drawn, scaled, fonted and decoded before it is
@@ -144,9 +158,21 @@ import { expect, test, type Page } from '@playwright/test'
  * @param page - The Playwright page, already navigated.
  * @param selector - The page section to wait for, scoped to its own leaf.
  */
-const settled = async (page: Page, selector: string): Promise<void> => {
-  await expect(page.locator(selector)).toBeVisible()
-  await expect(page.locator('[data-design-box]')).toHaveAttribute('style', /scale\(/)
+const settled = async (page: Page, selectors: { readonly book: string; readonly mobile: string }): Promise<void> => {
+  // WHICH SURFACE THIS DOCUMENT IS is read off the document rather than off
+  // the project's viewport, because it is the server that decided it: below
+  // 860px `/p/<n>` renders SCREENS.md §1.10's mobile reading mode instead of
+  // the book, so there is no design box to wait for and a different marker to
+  // wait on. Both are server-rendered, so this count is settled before the
+  // first paint and is not a race.
+  const designBox = page.locator('[data-design-box]')
+  if ((await designBox.count()) > 0) {
+    await expect(page.locator(selectors.book)).toBeVisible()
+    await expect(designBox).toHaveAttribute('style', /scale\(/)
+  } else {
+    await expect(page.locator(selectors.mobile)).toBeVisible()
+  }
+
   await page.evaluate(() => document.fonts.ready)
   await page.evaluate(async () => {
     await Promise.all([...document.images].filter((image) => image.src !== '').map((image) => image.decode()))
@@ -174,14 +200,14 @@ test('matches the baseline screenshot of /cms', async ({ page }) => {
 
 test('matches the baseline screenshot of the Cover page', async ({ page }) => {
   await page.goto('/p/1', { waitUntil: 'networkidle' })
-  await settled(page, '[data-page="cover"]')
+  await settled(page, { book: '[data-page="cover"]', mobile: '[data-mobile-page="cover"]' })
 
   await expect(page).toHaveScreenshot('diary-cover.png', { fullPage: true })
 })
 
 test('matches the baseline screenshot of the Contents page', async ({ page }) => {
   await page.goto('/p/2', { waitUntil: 'networkidle' })
-  await settled(page, '[data-page="contents"]')
+  await settled(page, { book: '[data-page="contents"]', mobile: '[data-mobile-page="contents"]' })
 
   await expect(page).toHaveScreenshot('diary-contents.png', { fullPage: true })
 })
@@ -191,28 +217,28 @@ test('matches the baseline screenshot of a journey’s Notes page', async ({ pag
   // Scoped to leaf 2: all ten notes pages are in the document at once (see
   // e2e/notes.spec.ts's header), so an unscoped locator is a strict-mode
   // violation rather than a wait.
-  await settled(page, '[data-leaf="2"] [data-page="notes"]')
+  await settled(page, { book: '[data-leaf="2"] [data-page="notes"]', mobile: '[data-mobile-page="notes"]' })
 
   await expect(page).toHaveScreenshot('diary-notes.png', { fullPage: true })
 })
 
 test('matches the baseline screenshot of a journey’s Frames I page', async ({ page }) => {
   await page.goto('/p/4', { waitUntil: 'networkidle' })
-  await settled(page, '[data-leaf="3"] [data-page="frames-i"]')
+  await settled(page, { book: '[data-leaf="3"] [data-page="frames-i"]', mobile: '[data-mobile-page="frames-i"]' })
 
   await expect(page).toHaveScreenshot('diary-frames-i.png', { fullPage: true })
 })
 
 test('matches the baseline screenshot of a journey’s Frames II page', async ({ page }) => {
   await page.goto('/p/5', { waitUntil: 'networkidle' })
-  await settled(page, '[data-leaf="4"] [data-page="frames-ii"]')
+  await settled(page, { book: '[data-leaf="4"] [data-page="frames-ii"]', mobile: '[data-mobile-page="frames-ii"]' })
 
   await expect(page).toHaveScreenshot('diary-frames-ii.png', { fullPage: true })
 })
 
 test('matches the baseline screenshot of the About page', async ({ page }) => {
   await page.goto('/p/33', { waitUntil: 'networkidle' })
-  await settled(page, '[data-leaf="32"] [data-page="about"]')
+  await settled(page, { book: '[data-leaf="32"] [data-page="about"]', mobile: '[data-mobile-page="about"]' })
 
   await expect(page).toHaveScreenshot('diary-about.png', { fullPage: true })
 })
@@ -261,4 +287,23 @@ test('matches the baseline screenshot of the lightbox over that gallery', async 
   })
 
   await expect(page).toHaveScreenshot('diary-lightbox.png')
+})
+
+test('matches the baseline screenshot of the bookmark drawer over the mobile reading mode', async ({
+  page,
+  viewport,
+}) => {
+  // The one view in this suite that exists at a single project. The drawer is
+  // SCREENS.md §1.10's replacement for the book's 158px bookmark rail, so
+  // there is no wider-viewport counterpart of it to baseline - and it is the
+  // only part of the mobile surface that never appears in the six diary
+  // baselines above, since it is drawn only when a reader asks for it.
+  test.skip(!drawsMobileReadingMode(viewport), 'the bookmark drawer belongs to the mobile reading mode')
+
+  await page.goto('/p/3', { waitUntil: 'networkidle' })
+  await settled(page, { book: '[data-leaf="2"] [data-page="notes"]', mobile: '[data-mobile-page="notes"]' })
+  await page.locator('[data-burger]').click()
+  await expect(page.locator('[data-drawer]')).toBeVisible()
+
+  await expect(page).toHaveScreenshot('diary-mobile-drawer.png')
 })

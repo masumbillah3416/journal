@@ -33,6 +33,13 @@
  * asserted below is `apps/web/scripts/seed-data.ts`'s `bookGlobalSeed`.
  */
 import { expect, test } from '@playwright/test'
+import { drawsMobileReadingMode } from './support/surface'
+
+// SCREENS.md §1.10 replaces the book below 860px - "No book, no flip, no
+// scaling" - so this file's subject does not exist at the `mobile` project.
+// The mobile reading mode has its own suite in `e2e/mobile.spec.ts`; see
+// `e2e/support/surface.ts` for why this is a skip rather than a rewrite.
+test.skip(({ viewport }) => drawsMobileReadingMode(viewport), 'the book is not drawn below 860px')
 
 /** The seeded `book` global's cover copy, asserted verbatim — this copy is final. */
 const SEEDED = {

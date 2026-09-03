@@ -26,6 +26,7 @@
  * `webServer`.
  */
 import { expect, test } from '@playwright/test'
+import { drawsMobileReadingMode } from './support/surface'
 
 test('loads /cms without console errors or page errors', async ({ page }) => {
   const errors: string[] = []
@@ -81,6 +82,55 @@ test('loads /p/1 without console errors or page errors', async ({ page }) => {
   await page.waitForTimeout(500)
 
   expect(errors).toEqual([])
+})
+
+test('walks every page kind of the mobile reading mode without console errors', async ({ page, viewport }) => {
+  // The `/p/1` case above already instruments the mobile surface's Cover at
+  // the `mobile` project, since that route serves whichever surface the
+  // reader's device asks for (SCREENS.md §1.10,
+  // docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md). What it
+  // cannot cover is the surface's OTHER three page kinds, its drawer and its
+  // one hydration-time swap - a phone reader meets all of them and none of
+  // them was instrumented until this case existed. Every failure this suite
+  // exists to catch on this surface is silent: a hydration mismatch between
+  // the server's `served` surface and the client's measured one, an image
+  // whose derivative 404s behind a mount that still lays out perfectly, a
+  // drawer that throws on open.
+  test.skip(!drawsMobileReadingMode(viewport), 'the mobile reading mode is not drawn at or above 860px')
+
+  const errors: string[] = []
+  const failed: string[] = []
+
+  // Attached before the first goto(), for the same reason as the cases above.
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      errors.push(message.text())
+    }
+  })
+  page.on('pageerror', (error) => {
+    errors.push(error.message)
+  })
+  page.on('response', (response) => {
+    if (response.status() >= 400) failed.push(`${String(response.status())} ${response.url()}`)
+  })
+
+  // Cover, Contents, a Notes page, a Frames page and About - §1.10's four
+  // kinds, with both of the journey page's shapes.
+  for (const path of ['/p/1', '/p/2', '/p/3', '/p/4', '/p/33']) {
+    const response = await page.goto(path, { waitUntil: 'networkidle' })
+    expect(response?.ok(), `expected ${path} to respond 2xx, got ${String(response?.status())}`).toBe(true)
+    await expect(page.locator('[data-mobile-page]')).toBeVisible()
+  }
+
+  await page.locator('[data-burger]').click()
+  await expect(page.locator('[data-drawer]')).toBeVisible()
+
+  // The same grace period the cases above use: a hydration-time error lands a
+  // beat after `networkidle`, and there is no DOM signal for "hydration
+  // finished" to wait on instead.
+  await page.waitForTimeout(500)
+
+  expect({ errors, failed }).toEqual({ errors: [], failed: [] })
 })
 
 test('loads a journey’s gallery, and its open lightbox, without console errors', async ({ page }) => {

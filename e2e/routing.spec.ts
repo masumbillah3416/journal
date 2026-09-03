@@ -53,6 +53,7 @@
 import { WHOLE_BOOK_QUERY } from '@travel-diary/domain/contentWindow'
 import { expect, test } from '@playwright/test'
 import { waitForLiveBook } from './support/liveBook'
+import { drawsMobileReadingMode } from './support/surface'
 
 /** The flip's own duration, plus the arming and settling either side of it. */
 const A_WHOLE_TURN_MS = 1_100
@@ -143,13 +144,21 @@ test('gives the page’s own URL the same canonical, so the two addresses agree 
   expect(canonicalHref(plain)).toBe('/p/3')
 })
 
-test('returning from a gallery restores the page the reader was on, not the cover', async ({ page }) => {
+test('returning from a gallery restores the page the reader was on, not the cover', async ({ page, viewport }) => {
+  // Below 860px there is no book to wait for: the diary draws SCREENS.md
+  // §1.10's mobile reading mode, where the same promise is kept by ordinary
+  // navigation and is asserted in `e2e/mobile.spec.ts`.
+  test.skip(drawsMobileReadingMode(viewport), 'the book is not drawn below 860px')
+
   // Page 3 is the first journey's Notes page, which is the first page of the
   // book carrying a gallery link at all.
   await page.goto('/p/3')
   await waitForLiveBook(page)
 
-  await page.getByRole('link', { name: /See full gallery/ }).first().click()
+  await page
+    .getByRole('link', { name: /See full gallery/ })
+    .first()
+    .click()
   await page.goBack()
 
   await expect(page).toHaveURL(/\/p\/3$/)
@@ -157,7 +166,10 @@ test('returning from a gallery restores the page the reader was on, not the cove
 
 test('returning from a gallery restores the page the reader turned to, not the one they arrived on', async ({
   page,
+  viewport,
 }) => {
+  test.skip(drawsMobileReadingMode(viewport), 'the book is not drawn below 860px')
+
   // The stronger half of the same promise: the address the reader shares has
   // to be where READING took them, which is `history.replaceState`'s job on
   // every committed turn, not the address the document was served at.
@@ -175,7 +187,10 @@ test('returning from a gallery restores the page the reader turned to, not the o
   // Scoped to the leaf the reader is actually on. Every leaf of the window is
   // in the document, so an unscoped locator would find page 3's gallery link
   // as well - on a leaf that has already been turned over.
-  await page.locator('[data-leaf="4"]').getByRole('link', { name: /See full gallery/ }).click()
+  await page
+    .locator('[data-leaf="4"]')
+    .getByRole('link', { name: /See full gallery/ })
+    .click()
   await page.goBack()
 
   await expect(page).toHaveURL(/\/p\/5$/)

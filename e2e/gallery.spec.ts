@@ -63,6 +63,7 @@
  */
 import { expect, test } from '@playwright/test'
 import { waitForLiveBook } from './support/liveBook'
+import { drawsMobileReadingMode } from './support/surface'
 
 /** The seeded journey whose gallery holds the sixty-one frames §1.8 was verified against. */
 const GALLERY = '/gallery/patagonia'
@@ -231,7 +232,12 @@ test('refuses a download addressed through a journey the frame does not belong t
   expect(wrongJourney.status()).toBe(404)
 })
 
-test('returns the reader to the page they left the book from, by the gallery’s own control', async ({ page }) => {
+test('returns the reader to the page they left the book from, by the gallery’s own control', async ({ page, viewport }) => {
+  // Below 860px the reader left the MOBILE reading mode, which has no leaves
+  // and no design box to wait for; the same promise is asserted on that
+  // surface by `e2e/mobile.spec.ts`.
+  test.skip(drawsMobileReadingMode(viewport), 'the book is not drawn below 860px')
+
   await page.goto(NOTES_PAGE)
   await waitForLiveBook(page)
 
@@ -244,7 +250,12 @@ test('returns the reader to the page they left the book from, by the gallery’s
   await expect(page).toHaveURL(/\/p\/9$/)
 })
 
-test('returns the reader to that same page by the browser’s own Back button', async ({ page }) => {
+test('returns the reader to that same page by the browser’s own Back button', async ({ page, viewport }) => {
+  // Below 860px the reader left the MOBILE reading mode, which has no leaves
+  // and no design box to wait for; the same promise is asserted on that
+  // surface by `e2e/mobile.spec.ts`.
+  test.skip(drawsMobileReadingMode(viewport), 'the book is not drawn below 860px')
+
   await page.goto(NOTES_PAGE)
   await waitForLiveBook(page)
 

@@ -61,6 +61,7 @@
 import { expect, test } from '@playwright/test'
 import { expectNoAxeViolations } from './support/axe'
 import { measureContrastOverGradient } from './support/coverContrast'
+import { drawsMobileReadingMode } from './support/surface'
 
 test('has no axe violations on /cms', async ({ page }) => {
   await page.goto('/cms')
@@ -87,7 +88,12 @@ test('has no axe violations on /cms', async ({ page }) => {
   await expectNoAxeViolations(page, { allow: ['landmark-one-main', 'page-has-heading-one', 'region'] })
 })
 
-test('has no axe violations on /p/1, the Cover page', async ({ page }) => {
+test('has no axe violations on /p/1, the Cover page', async ({ page, viewport }) => {
+  // Below 860px this route draws SCREENS.md §1.10's mobile reading mode
+  // instead of the book. That surface is audited by its own cases at the foot
+  // of this file, with the same helper and the same absence of exclusions.
+  test.skip(drawsMobileReadingMode(viewport), 'the book is not drawn below 860px')
+
   await page.goto('/p/1')
   await expect(page.locator('[data-page="cover"]')).toBeVisible()
 
@@ -100,7 +106,12 @@ test('has no axe violations on /p/1, the Cover page', async ({ page }) => {
   await expectNoAxeViolations(page)
 })
 
-test('has no axe violations on /p/2, the Contents page', async ({ page }) => {
+test('has no axe violations on /p/2, the Contents page', async ({ page, viewport }) => {
+  // Below 860px this route draws SCREENS.md §1.10's mobile reading mode
+  // instead of the book. That surface is audited by its own cases at the foot
+  // of this file, with the same helper and the same absence of exclusions.
+  test.skip(drawsMobileReadingMode(viewport), 'the book is not drawn below 860px')
+
   await page.goto('/p/2')
   await expect(page.locator('[data-page="contents"]')).toBeVisible()
 
@@ -110,7 +121,12 @@ test('has no axe violations on /p/2, the Contents page', async ({ page }) => {
   await expectNoAxeViolations(page)
 })
 
-test('has no axe violations on /p/3, a journey’s Notes page', async ({ page }) => {
+test('has no axe violations on /p/3, a journey’s Notes page', async ({ page, viewport }) => {
+  // Below 860px this route draws SCREENS.md §1.10's mobile reading mode
+  // instead of the book. That surface is audited by its own cases at the foot
+  // of this file, with the same helper and the same absence of exclusions.
+  test.skip(drawsMobileReadingMode(viewport), 'the book is not drawn below 860px')
+
   await page.goto('/p/3')
   await expect(page.locator('[data-leaf="2"] [data-page="notes"]')).toBeVisible()
 
@@ -127,7 +143,12 @@ test('has no axe violations on /p/3, a journey’s Notes page', async ({ page })
   await expectNoAxeViolations(page)
 })
 
-test('has no axe violations on /p/4, a journey’s Frames I page', async ({ page }) => {
+test('has no axe violations on /p/4, a journey’s Frames I page', async ({ page, viewport }) => {
+  // Below 860px this route draws SCREENS.md §1.10's mobile reading mode
+  // instead of the book. That surface is audited by its own cases at the foot
+  // of this file, with the same helper and the same absence of exclusions.
+  test.skip(drawsMobileReadingMode(viewport), 'the book is not drawn below 860px')
+
   await page.goto('/p/4')
   await expect(page.locator('[data-leaf="3"] [data-page="frames-i"]')).toBeVisible()
 
@@ -138,7 +159,12 @@ test('has no axe violations on /p/4, a journey’s Frames I page', async ({ page
   await expectNoAxeViolations(page)
 })
 
-test('has no axe violations on /p/5, a journey’s Frames II page', async ({ page }) => {
+test('has no axe violations on /p/5, a journey’s Frames II page', async ({ page, viewport }) => {
+  // Below 860px this route draws SCREENS.md §1.10's mobile reading mode
+  // instead of the book. That surface is audited by its own cases at the foot
+  // of this file, with the same helper and the same absence of exclusions.
+  test.skip(drawsMobileReadingMode(viewport), 'the book is not drawn below 860px')
+
   await page.goto('/p/5')
   await expect(page.locator('[data-leaf="4"] [data-page="frames-ii"]')).toBeVisible()
 
@@ -148,7 +174,12 @@ test('has no axe violations on /p/5, a journey’s Frames II page', async ({ pag
   await expectNoAxeViolations(page)
 })
 
-test('has no axe violations on /p/33, the About page', async ({ page }) => {
+test('has no axe violations on /p/33, the About page', async ({ page, viewport }) => {
+  // Below 860px this route draws SCREENS.md §1.10's mobile reading mode
+  // instead of the book. That surface is audited by its own cases at the foot
+  // of this file, with the same helper and the same absence of exclusions.
+  test.skip(drawsMobileReadingMode(viewport), 'the book is not drawn below 860px')
+
   await page.goto('/p/33')
   await expect(page.locator('[data-leaf="32"] [data-page="about"]')).toBeVisible()
 
@@ -208,6 +239,62 @@ test('has no axe violations with the lightbox open over that gallery', async ({ 
 })
 
 /**
+ * Every page kind of SCREENS.md §1.10's mobile reading mode, by the address
+ * that draws it and the marker it publishes. Four kinds, five addresses: a
+ * journey's three pages share one renderer, and both a Notes page and a
+ * Frames page are audited because only one of them draws the highlights, the
+ * note and the tally card.
+ */
+const MOBILE_PAGES = [
+  { path: '/p/1', kind: 'cover' },
+  { path: '/p/2', kind: 'contents' },
+  { path: '/p/3', kind: 'notes' },
+  { path: '/p/4', kind: 'frames-i' },
+  { path: '/p/33', kind: 'about' },
+] as const
+
+for (const { path, kind } of MOBILE_PAGES) {
+  test(`has no axe violations on ${path}, the mobile reading mode's ${kind} page`, async ({ page, viewport }) => {
+    // The mirror of the six book cases above, on the surface a reader below
+    // 860px actually gets - a different component tree, different markup and
+    // a different stylesheet, so it needs its own audit rather than
+    // inheriting the book's (SCREENS.md §1.10,
+    // docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md).
+    test.skip(!drawsMobileReadingMode(viewport), 'the mobile reading mode is not drawn at or above 860px')
+
+    await page.goto(path)
+    await expect(page.locator(`[data-mobile-page="${kind}"]`)).toBeVisible()
+
+    // No exclusions, deliberately - the same bar the book's own pages are
+    // held to. This surface has its own `<main>` and its own level-one
+    // heading, a 44px burger and two 52px arrows for `button-name` and
+    // `link-name`, cream type on `#3b332a` in the header and dark ink on
+    // paper below it for `color-contrast`, and - on a journey page - the
+    // photographs and description list `image-alt` and `definition-list`
+    // judge.
+    await expectNoAxeViolations(page)
+  })
+}
+
+test('has no axe violations with the bookmark drawer open over the mobile reading mode', async ({ page, viewport }) => {
+  // The second modal in this product, and the second view that traps a
+  // reader's focus. axe knows most of what that costs - `aria-dialog-name` (a
+  // dialog needs an accessible name), `button-name` on the burger and the
+  // close control, `aria-allowed-attr` on `aria-current`, and
+  // `color-contrast` on a whole tab list drawn on `#3b332a`, which is the
+  // reason those tabs are not painted the way the book's paper-backed rail is
+  // (docs/deviations.md §22). Run with no exclusions: silencing one of them
+  // would be silencing the only automated check this project has on this view.
+  test.skip(!drawsMobileReadingMode(viewport), 'the mobile reading mode is not drawn at or above 860px')
+
+  await page.goto('/p/3')
+  await page.locator('[data-burger]').click()
+  await expect(page.locator('[data-drawer]')).toBeVisible()
+
+  await expectNoAxeViolations(page)
+})
+
+/**
  * The cover's five text lines, with the WCAG 2.1 AA floor each one has to
  * clear. Only the title qualifies as large text: SC 1.4.3's exemption needs
  * 24px, or 18.66px at bold, and the 22px italic subtitle is neither — so it
@@ -221,7 +308,9 @@ const COVER_LINES = [
   { name: 'years (Courier 12.5px)', selector: '[data-page="cover"] p:nth-of-type(4)', minimumRatio: 4.5 },
 ] as const
 
-test('meets AA contrast on every line of the cover, which axe cannot judge', async ({ page }) => {
+test('meets AA contrast on every line of the cover, which axe cannot judge', async ({ page, viewport }) => {
+  test.skip(drawsMobileReadingMode(viewport), 'the book is not drawn below 860px')
+
   // The case above cannot cover this. axe reports `color-contrast` as
   // INCOMPLETE on this route rather than as a pass — it reads a computed
   // `background-color`, and the cloth is a gradient — so `expectNoAxeViolations`

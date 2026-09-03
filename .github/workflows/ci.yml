@@ -142,7 +142,13 @@ jobs:
       # Task 14's `e2e/gallery.spec.ts` (the sixty-one-tile grid, the
       # lightbox's keyboard contract, and the download served through our own
       # handler rather than a bucket URL).
-      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/ciRegistration.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
+      # Task 15 adds `e2e/mobile.spec.ts` — SCREENS.md §1.10's mobile reading
+      # mode, which below 860px replaces the book entirely. It runs at the
+      # `mobile` project alone, and every swipe in it is a real touch driven
+      # through the DevTools Protocol rather than a dispatched event, because
+      # the rule it proves — that a vertical scroll never turns a page — is
+      # only meaningful against a column the browser actually scrolls.
+      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/ciRegistration.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
       # image: chrome-launcher's own auto-detection looks for a system
       # `google-chrome`/`chromium-browser` binary, which this image does not

@@ -11,7 +11,11 @@
  *
  * Three viewport projects — `desktop`, `mid`, `mobile` — match the
  * breakpoints named in the Task 12 brief (design spec §8.2): 1440×900,
- * 1000×800 and 390×844. All three run Chromium rather than mixing engines:
+ * 1000×800 and 390×844. `desktop` and `mid` are where the book is drawn;
+ * `mobile` is below the design's 860px breakpoint, so it is where
+ * SCREENS.md §1.10's mobile reading mode is drawn INSTEAD of the book — see
+ * that project's own note, and `e2e/support/surface.ts`, which is how a spec
+ * about the book says so rather than failing at 390px. All three run Chromium rather than mixing engines:
  * this environment's WebKit/Firefox binaries are an unverified download in
  * CI and are not needed to catch the class of defect this harness targets
  * (silent console/pageerror failures, a11y violations, pixel drift) — see
@@ -71,9 +75,24 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], viewport: { width: 1000, height: 800 } },
     },
     {
+      // THE ONLY PROJECT THAT EMULATES A PHONE RATHER THAN A NARROW WINDOW,
+      // and since Phase 1 Task 15 that includes its USER AGENT. Below 860px
+      // the diary replaces the book with SCREENS.md §1.10's mobile reading
+      // mode, and which surface a request is served is decided on the server
+      // from the user-agent's device kind before a viewport can be measured
+      // (`@travel-diary/domain/readingSurface`, and
+      // `docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`). With
+      // `devices['Desktop Chrome']`'s user agent this project was a phone in
+      // every respect the browser could see and a desktop in the one respect
+      // the server could - so it would have been served the book and then
+      // corrected to the mobile mode a round trip later, which is the
+      // MISMATCHED reader's path, not the phone's. The correction path is
+      // still covered, deliberately and by itself, in `e2e/mobile.spec.ts`.
       name: 'mobile',
       use: {
         ...devices['Desktop Chrome'],
+        userAgent:
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
         viewport: { width: 390, height: 844 },
         isMobile: true,
         hasTouch: true,

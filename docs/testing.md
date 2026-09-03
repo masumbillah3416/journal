@@ -405,6 +405,61 @@ would claim a measurement nothing performs.
      inside the dialog, and focus returns to the tile the reader STEPPED to rather than
      the one they opened.
 
+  **`e2e/mobile.spec.ts` (Phase 1 Task 15)** covers `SCREENS.md` §1.10's mobile reading
+  mode, which below 860px replaces the book entirely. It runs at the `mobile` project
+  alone, and that project now carries a PHONE USER AGENT as well as a 390x844 viewport,
+  because which surface a request is served is decided on the server from the user agent
+  before any viewport can be measured
+  (`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`). Fifteen cases, of which
+  four could not exist anywhere else:
+
+  1. **A vertical scroll does not turn a page.** The rule is
+     `packages/domain/src/swipe.ts`'s and is unit-tested to 100%, including both
+     diagonals either side of the 1.4 ratio; `useSwipe.test.tsx` drives the binding with
+     dispatched React events. Neither can tell you whether a finger dragging DOWN the
+     page also turns it, because neither scrolls anything. These cases drag through the
+     DevTools Protocol's `Input.dispatchTouchEvent` - the same input path a finger takes,
+     so the browser scrolls the column itself - and assert BOTH halves: that the column
+     moved, and that the address did not. A run where nothing scrolled would pass the URL
+     check while proving nothing.
+  2. **A phone's document carries no book at all.** No design box, no leaves - the weight
+     the surface split exists to avoid, asserted rather than assumed.
+  3. **Every deep link still serves its own page's words in raw HTML**, with no script
+     run: the mobile counterpart of `e2e/serverWindow.spec.ts`'s thirty-three-route case,
+     and the same design-spec §8 promise.
+  4. **The correction path**, in its own browser context with a DESKTOP user agent at a
+     700px viewport - the one reader the server's hint gets wrong. It asserts that the
+     document arrived carrying the book, that the browser corrected it to the mobile
+     mode, and that the correction survives a navigation because it is remembered in a
+     cookie rather than in the address.
+
+  **NINE BOOK SPECS NOW SKIP BELOW 860px**, through one shared predicate and one line
+  each: `drawsMobileReadingMode` in `e2e/support/surface.ts`, reading the domain's own
+  `MOBILE_READING_MAX_WIDTH_PX` rather than an 860 repeated per file. A book spec's
+  mobile run had stopped describing anything a reader below the breakpoint will meet -
+  the design says there is no book there - so the skip removes a case that was no longer
+  about the product, and each carries its reason in its own `test.skip` message.
+  `e2e/layout.spec.ts` is the one file that does NOT take that route; see below.
+
+  **`e2e/layout.spec.ts` (Phase 1 Task 12, rethought in Task 15)** asserts in numbers what
+  a screenshot cannot say - that the book is on the screen. Its four cases are the record
+  of an S1 defect found at 390px (`docs/qa/2026-09-01-diary-sweep.md`), which is exactly
+  the viewport where there is now no book to place. Standing them down there would have
+  left the `mobile` project with no placement test at all, so each is PAIRED with a mobile
+  case asking the same question of the surface that is drawn instead: the surface fills
+  its viewport with no spill and no sideways scroll; `elementFromPoint` at the middle of
+  the scrolling column lands inside the page; every bookmark in the drawer receives a tap,
+  and Marrakech - the same tab the book's own case clicks - is tapped to prove it; both
+  52px bottom-bar arrows are pressable, hit-tested at their own centres rather than
+  through a Playwright click that would scroll them into view first.
+
+  **The Next dev overlay is off** (`apps/web/next.config.ts`, `devIndicators: false`).
+  It is fixed to the bottom-left of the viewport, which at 390px is where §1.10 puts the
+  previous-page arrow, and `<nextjs-portal>` intercepted every click on it - so
+  `e2e/mobile.spec.ts` and `e2e/layout.spec.ts` could not be run locally at all while the
+  same cases passed in CI, which serves a production build with no overlay. A suite that
+  only passes on the runner is one a developer learns to skip.
+
   **`e2e/book.spec.ts` (Phase 1 Task 7)** covers what only a real layout engine can
   answer, and deliberately nothing that `packages/domain` already proves: that a click on
   a Contents link is not swallowed by the leaf's back face, that no back face can receive
@@ -795,6 +850,17 @@ would claim a measurement nothing performs.
   in the same run — see `docs/adr/0008-lcp-budget-and-the-framework-floor.md`.
   `docs/deviations.md` §11, which recorded the old two-of-three state, is withdrawn.
 
+  Task 15 moved seven files, and for a structural reason rather than a cosmetic one: at
+  the `mobile` project `/p/<n>` no longer draws the book. `diary-cover-mobile`,
+  `diary-contents-mobile`, `diary-notes-mobile`, `diary-frames-i-mobile`,
+  `diary-frames-ii-mobile` and `diary-about-mobile` are now pictures of `SCREENS.md`
+  §1.10's mobile reading mode - they were previously a whole book at roughly a third
+  scale, the least useful images in this directory - and a seventh joins them,
+  `diary-mobile-drawer`, the bookmark panel, which exists at that project alone because
+  it is §1.10's replacement for the book's 158px rail. `settled()` reads WHICH surface it
+  is looking at off the document (does a `[data-design-box]` exist?) rather than off the
+  project's viewport, because it is the server that decided it.
+
   **A baseline is only as good as the page it was captured over, and this suite has
   already ratified an S1 defect once.** The 2026-09-01 browser sweep
   (`docs/qa/2026-09-01-diary-sweep.md`, DIARY-001 and DIARY-004) found the book clipped
@@ -896,6 +962,17 @@ would claim a measurement nothing performs.
   `allow` cannot inherit `/cms`'s exclusion — each call site names its own. This
   exclusion is revisited the moment `/cms` stops being the route under test — Phase 1's
   bespoke `/admin` replaces it.
+- **The mobile reading mode is audited separately, because it is a separate tree**
+  (Phase 1 Task 15). Six of the diary's axe cases are the BOOK's and now skip below
+  860px; six new ones take their place at the `mobile` project - `/p/1`, `/p/2`, `/p/3`,
+  `/p/4` and `/p/33` for §1.10's four page kinds, plus the bookmark drawer OPEN over
+  `/p/3`. All six call `expectNoAxeViolations(page)` with **no exclusions**, the same bar
+  the book's pages are held to. The drawer case is the second view in this product that
+  traps a reader's focus (the lightbox is the first), so `aria-dialog-name`,
+  `button-name`, `aria-allowed-attr` on `aria-current` and `color-contrast` over
+  `#3b332a` all have something real to judge - and that last one is why the drawer's tab
+  list is not painted the way the book's paper-backed rail is: the prototype's own
+  colours measure 2.28:1 and 1.68:1 on that panel (`docs/deviations.md` §22).
 - **Proof the helper actually catches something:** verified by planting a real violation
   (an `<img>` with no `alt`, no `aria-label`, no `title` — axe's `image-alt`, `impact:
 critical`) into the live `/cms` DOM via `page.evaluate` and calling
@@ -1174,6 +1251,22 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   update). GitHub's plain `ubuntu-latest` (uncontainerized) ships a system Chrome
   `chrome-launcher` finds on its own; set `CHROME_PATH` locally too if none is found
   automatically there.
+- **The diary budget is pinned to the BOOK surface** (Phase 1 Task 15).
+  `lighthouserc.json`'s `collect.settings.extraHeaders` sends
+  `Cookie: td-reading-surface=book`, and that one line is load-bearing: Lighthouse
+  emulates a phone by default, and below 860px `/p/1` now serves `SCREENS.md` §1.10's
+  mobile reading mode instead of the book
+  (`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`). Without the pin the
+  gate silently stopped measuring the book — the document it saw fell from 11,454 to
+  5,208 transferred bytes — which is a truer picture of a phone reader and a worse
+  budget, because a budget guards the worst case and the book is the heavier surface.
+  The mobile surface is less than half the document, so it cannot become the binding
+  constraint while the book is gated; if that ever stops being true, measure it rather
+  than assume it. **The step is RED as of Task 15** — 3,011.36ms against 3,000, +75.24ms,
+  caused by the 6,371 bytes of mobile-surface client code that Turbopack will not split
+  out of the book's chunk. It is reported red rather than raised, and removing the cookie
+  above would turn it green by changing what it measures rather than by making anything
+  faster; see `docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`'s consequences.
 - **Add one:** a budget per route, enforced in CI, not measured once and forgotten.
   Measure before optimizing, and paste the measurement (`CLAUDE.md` §0.4). Add the
   route's URL to `lighthouserc.json`'s `collect.url` array and its own `assertMatrix`

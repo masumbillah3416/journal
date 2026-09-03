@@ -63,6 +63,13 @@
  * non-default focal point.
  */
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { drawsMobileReadingMode } from './support/surface'
+
+// SCREENS.md §1.10 replaces the book below 860px - "No book, no flip, no
+// scaling" - so this file's subject does not exist at the `mobile` project.
+// The mobile reading mode has its own suite in `e2e/mobile.spec.ts`; see
+// `e2e/support/surface.ts` for why this is a skip rather than a rewrite.
+test.skip(({ viewport }) => drawsMobileReadingMode(viewport), 'the book is not drawn below 860px')
 
 /** Tokyo's notes page: the first journey's first page, four highlights. */
 const TOKYO_NOTES_PAGE = 3
