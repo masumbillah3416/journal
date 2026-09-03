@@ -202,8 +202,10 @@ for a different reason — see its row.
   state with it. Returning from `/gallery/<slug>` must restore the `/p/<n>` the reader was
   on, not `/`.
 - **Metadata:** each page carries its own `<title>`, `<meta name="description">` and
-  `<link rel="canonical">`, derived by `pageMetadata`
-  (`packages/domain/src/pageMetadata.ts`) from the page and the book global — the page's
+  `<link rel="canonical">`, derived by `addressedPageMetadata`
+  (`packages/domain/src/pageMetadata.ts`, which composes the address lookup with
+  `pageMetadata`'s own derivation so a route holds no part of the decision) from the page
+  and the book global — the page's
   own label before the book's title (`Tokyo — Notes · Wanderings`), and the editor's own
   words as the description where there are any. Thirty-three deep links sharing one title
   are thirty-three results nobody can tell apart, which throws away most of what real

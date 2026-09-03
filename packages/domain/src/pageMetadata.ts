@@ -35,10 +35,24 @@
  * description longer than it is cut at a word and closed with an ellipsis
  * rather than rejected, because the editor's note is not wrong for being
  * long — it is just longer than a search result prints.
- * Depends on: BookPage, BookChrome, AboutContent, pageLabel (./bookBundle).
+ * {@link addressedPageMetadata} IS THE WHOLE OF WHAT A ROUTE NEEDS, and it
+ * exists because there are now TWO routes that need it. The diary serves one
+ * of two reading surfaces from two separate route entries so that neither
+ * ships the other's code (`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`),
+ * and both entries must answer a crawler with the same title, the same
+ * description and the same canonical link - a mobile-user-agent crawler
+ * (Googlebot's is one) is served the mobile entry, so metadata that lived in
+ * only one of them would be metadata half the crawlers never saw. Composing
+ * the address lookup and the derivation here rather than in each route means
+ * the two `generateMetadata` functions hold no decision of their own to drift
+ * apart on: they await a promise, call this, and shape the result into Next's
+ * `Metadata`.
+ * Depends on: BookBundle, BookPage, BookChrome, AboutContent, pageLabel
+ * (./bookBundle); addressedPageIndex, pagePath (./pageAddress).
  */
-import type { AboutContent, BookChrome, BookPage } from './bookBundle'
+import type { AboutContent, BookBundle, BookChrome, BookPage } from './bookBundle'
 import { pageLabel } from './bookBundle'
+import { addressedPageIndex, pagePath } from './pageAddress'
 
 /**
  * How many characters of description a search result prints before cutting it
@@ -174,3 +188,51 @@ export const pageMetadata = (page: BookPage, context: PageMetadataContext): Page
  */
 const sentenceTitle = (label: string, bookTitle: string): string =>
   bookTitle === '' ? label : `${label} · ${bookTitle}`
+
+/** One page's metadata, together with the address it is the metadata of. */
+export interface AddressedPageMetadata extends PageMetadata {
+  /**
+   * The one address this page's content belongs at, root-relative. Both
+   * reading surfaces are served from `/p/<n>`, so both declare the same
+   * canonical - see {@link addressedPageMetadata}'s own notes.
+   */
+  readonly canonical: string
+}
+
+/**
+ * Derives the title, description and canonical link for the page a `/p/<n>`
+ * address names.
+ *
+ * @param bundle - The whole book, as a route reads it.
+ * @param param - The raw `<n>` of the URL, exactly as the route received it.
+ * @returns The page's metadata, or `null` when the book has no page at that
+ *   address - which the route turns into "no metadata of its own", because
+ *   Next renders `not-found.tsx` under the layout's title for it.
+ * @example
+ * addressedPageMetadata(bundle, '3')
+ * // { title: 'Tokyo — Notes · Wanderings', description: '…', canonical: '/p/3' }
+ * addressedPageMetadata(bundle, '999') // null
+ */
+export const addressedPageMetadata = (bundle: BookBundle, param: string): AddressedPageMetadata | null => {
+  const openIndex = addressedPageIndex(param, bundle.pages.length)
+  // The index and its page are taken out of ONE search rather than out of an
+  // index lookup, so "the book has no such page" is a single reachable state.
+  // Written as `addressedPageIndex` then `pages[openIndex]`, it would be two -
+  // a `null` index, and an in-range index whose lookup somehow came back
+  // undefined - and the second is unreachable by construction, so no test
+  // could ever cover it and this package is gated at 100%.
+  const found = [...bundle.pages.entries()].find(([index]) => index === openIndex)
+  if (found === undefined) return null
+
+  const [index, page] = found
+
+  return {
+    ...pageMetadata(page, {
+      chrome: bundle.chrome,
+      about: bundle.about,
+      pageNumber: index + 1,
+      totalPages: bundle.pages.length,
+    }),
+    canonical: pagePath(index),
+  }
+}

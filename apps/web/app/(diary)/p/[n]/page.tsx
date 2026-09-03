@@ -104,8 +104,8 @@
  * `e2e/routing.spec.ts` today against the real `/gallery/<slug>` link the
  * page footers already carry.
  * Depends on: `readBookBundle` (../../../../lib/readBookBundle),
- * `addressedPageIndex`/`pagePath` (@travel-diary/domain/pageAddress),
- * `pageMetadata` (@travel-diary/domain/pageMetadata),
+ * `addressedPageIndex` (@travel-diary/domain/pageAddress),
+ * `addressedPageMetadata` (@travel-diary/domain/pageMetadata),
  * `servedContentWindow`/`rendersContent`
  * (@travel-diary/domain/contentWindow),
  * `servedReadingSurface`/`rememberedSurface` (@travel-diary/domain/readingSurface),
@@ -124,8 +124,9 @@
  * request is served, which pages it gets the content of, and whether a given
  * leaf is one of them - are `addressedPageIndex`, `servedReadingSurface`
  * (with `rememberedSurface`), `servedContentWindow` and `rendersContent`, each
- * with its own 100%-covered suite in `@travel-diary/domain`, as is the title
- * and description `generateMetadata` returns (`pageMetadata`). The five values
+ * with its own 100%-covered suite in `@travel-diary/domain`, as are the title,
+ * description and canonical link `generateMetadata` returns
+ * (`addressedPageMetadata`). The five values
  * the two surfaces' chrome needs - the labelled rail, one label per page, this
  * page's own label, its short mobile heading, and whether decorations are on -
  * are `deriveRail`, `derivePageLabels`, `pageLabel`, `mobileHeading` and a
@@ -149,8 +150,8 @@
  * e2e/mobile.spec.ts. */
 import { derivePageLabels, deriveRail, mobileHeading, pageLabel } from '@travel-diary/domain/bookBundle'
 import { rendersContent, servedContentWindow, type RouteQuery } from '@travel-diary/domain/contentWindow'
-import { addressedPageIndex, pagePath } from '@travel-diary/domain/pageAddress'
-import { pageMetadata } from '@travel-diary/domain/pageMetadata'
+import { addressedPageIndex } from '@travel-diary/domain/pageAddress'
+import { addressedPageMetadata } from '@travel-diary/domain/pageMetadata'
 import { rememberedSurface, servedReadingSurface } from '@travel-diary/domain/readingSurface'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
@@ -194,20 +195,16 @@ interface DiaryPageProps {
  */
 export const generateMetadata = async ({ params }: DiaryPageProps): Promise<Metadata> => {
   const [{ n }, bundle] = await Promise.all([params, readBookBundle()])
-  const openIndex = addressedPageIndex(n, bundle.pages.length)
+  const addressed = addressedPageMetadata(bundle, n)
   // An address with no page of its own has no metadata of its own either:
   // Next renders `not-found.tsx` for it, under the layout's own title.
-  const page = openIndex === null ? undefined : bundle.pages[openIndex]
-  if (openIndex === null || page === undefined) return {}
+  if (addressed === null) return {}
 
-  const { title, description } = pageMetadata(page, {
-    chrome: bundle.chrome,
-    about: bundle.about,
-    pageNumber: openIndex + 1,
-    totalPages: bundle.pages.length,
-  })
-
-  return { title, description, alternates: { canonical: pagePath(openIndex) } }
+  return {
+    title: addressed.title,
+    description: addressed.description,
+    alternates: { canonical: addressed.canonical },
+  }
 }
 
 /** Renders whichever reading surface this request is served, opened at `<n>`. */

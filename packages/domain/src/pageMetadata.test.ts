@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { derivePages, type BookPage } from './bookBundle'
-import { pageMetadata } from './pageMetadata'
+import { deriveBookmarks, deriveContents, derivePages, type BookBundle, type BookPage } from './bookBundle'
+import { addressedPageMetadata, pageMetadata } from './pageMetadata'
 import { aBookChrome, anAboutContent, aJourney } from './testing/factories'
 
 const pages = derivePages([aJourney()])
@@ -15,6 +15,15 @@ const pageOfKind = (kind: BookPage['kind']): BookPage => {
   const found = pages.find((page) => page.kind === kind)
   if (found === undefined) throw new Error(`no ${kind} page in the derived sequence`)
   return found
+}
+
+/** The six-page book `pages` describes, assembled the way a route receives it. */
+const bundle: BookBundle = {
+  pages,
+  contents: deriveContents(pages),
+  bookmarks: deriveBookmarks(pages),
+  chrome: aBookChrome(),
+  about: anAboutContent(),
 }
 
 describe('pageMetadata', () => {
@@ -81,9 +90,7 @@ describe('pageMetadata', () => {
     it('describes a notes page with the journey it is about and the note printed on it', () => {
       const { description } = pageMetadata(pageOfKind('notes'), { ...context, pageNumber: 3 })
 
-      expect(description).toBe(
-        'Tokyo, Japan — 3–9 Mar 2025. Tokyo is loud in a way that never quite becomes noise.',
-      )
+      expect(description).toBe('Tokyo, Japan — 3–9 Mar 2025. Tokyo is loud in a way that never quite becomes noise.')
     })
 
     it('describes a frames page by what is on it, not by the note on a different page', () => {
@@ -195,5 +202,31 @@ describe('pageMetadata', () => {
         'Page 5 of 6 of Wanderings.',
       )
     })
+  })
+})
+
+describe('addressedPageMetadata', () => {
+  it('describes the page the address names, and no other', () => {
+    const found = addressedPageMetadata(bundle, '3')
+
+    expect(found?.title).toBe(pageMetadata(pageOfKind('notes'), { ...context, pageNumber: 3 }).title)
+  })
+
+  it('numbers the page from the address rather than from the array it was found in', () => {
+    expect(addressedPageMetadata(bundle, '2')?.description).toBe(
+      pageMetadata(pageOfKind('contents'), { ...context, pageNumber: 2 }).description,
+    )
+  })
+
+  it('points the canonical link at the address it was asked about', () => {
+    expect(addressedPageMetadata(bundle, '4')?.canonical).toBe('/p/4')
+  })
+
+  it('reports nothing for an address the book has no page for', () => {
+    expect(addressedPageMetadata(bundle, '999')).toBeNull()
+  })
+
+  it('reports nothing for an address that is not a page number at all', () => {
+    expect(addressedPageMetadata(bundle, 'tokyo')).toBeNull()
   })
 })
