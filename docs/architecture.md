@@ -69,7 +69,26 @@ deliberately thin, and every file in it names what it is allowed to decide:
 | `useFlip.ts`      | Injects a real clock into `flipReducer` from a single `requestAnimationFrame` loop that stops when the book settles. `jumpTo` anchors a bookmark jump one page from its target before turning.         |
 | `useBookScale.ts` | Feeds `bookScale` a measurement, re-measured on resize and through a `ResizeObserver`, always inside one animation frame.                                                                              |
 | `useRestOfBook.ts` | The one request that turns a windowed document into the whole book, made on the reader's first turn. A `router.replace` onto the SAME path with a query added — measured to be the only re-render that does not unmount the book (`docs/adr/0009-server-rendered-page-window.md`). |
-| `book.module.css` | The handoff's absolute geometry. Holds the three rules that record real defects: no `backface-visibility`, back faces always `pointer-events: none`, and only `transform`/`opacity` ever transitioned. |
+| `book.module.css` | The handoff's absolute geometry, plus `.stage`'s grid — the one rule that keeps the chrome BESIDE the book rather than over it. Holds the three rules that record real defects: no `backface-visibility`, back faces always `pointer-events: none`, and only `transform`/`opacity` ever transitioned. |
+
+### The chrome outside the box (`apps/web/components/chrome/`)
+
+Phase 1 Task 12 added `SCREENS.md` §1.7 — the three parts of the reading surface that
+are not the book. None of them decides anything: each is handed a fact `Book.tsx` or the
+server already knows, and turns it into markup.
+
+| File                | Responsibility                                                                                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BookmarkRail.tsx`  | The 158px column, as a named navigation landmark over a list of buttons. Which tab is active is `isRailTabActive` reading `deriveBookmarks`' own spans — never `[start, start + 3)` re-derived here. `aria-current="page"` is what makes the active tab's lift legible without sight. |
+| `BottomBar.tsx`     | The 58px bar: two labelled arrows and the `NN / NN` counter over the page label. Both strings are derived — `pageCounter` and `derivePageLabels` — so the bar computes nothing.                                            |
+| `Ribbon.tsx`        | The spine ribbon. The one piece of chrome that lies OVER the page, hence `pointer-events: none` and its own browser test; drawn only when the book's `decorations` flag is on.                                             |
+| `chrome.module.css` | §1.7's measurements. One stylesheet for the three components: one class map in the route's bundle rather than three, and §1.7 is one design section. Carries the `HANDOFF-DEVIATION` at `.tabSub` (`docs/deviations.md` §15). |
+
+The rail and the bar claim `grid-area: rail` and `grid-area: bar` from `.stage` rather
+than being positioned over the book, and that is structural rather than cosmetic: a
+strip of chrome over the book is also a strip of chrome over the page-edge turn strips,
+which then swallow their clicks in silence — nine of thirteen tabs were dead at
+1000×800 for exactly that reason (`docs/qa/2026-09-01-diary-sweep.md`, DIARY-002).
 
 **A `.js` import specifier does not survive Turbopack, and is banned repository-wide.**
 Next's bundler resolves `./payload.js` to nothing when the file on disk is `payload.ts`;

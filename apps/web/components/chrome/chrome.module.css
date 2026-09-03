@@ -1,0 +1,320 @@
+/**
+ * chrome.module.css — the book's chrome: bookmark rail, bottom bar, ribbon.
+ *
+ * Every measurement here is SCREENS.md §1.7's, cross-checked against the
+ * prototype's own markup in `handoff/design_handoff_travel_diary/Travel
+ * Diary.dc.html` (its `tabDef`/`navBtn` blocks are where §1.7's unnamed
+ * values — the tab's `gap: 9px`, the inactive ring, the arrow glyphs — are
+ * actually written down).
+ *
+ * ONE STYLESHEET FOR THREE COMPONENTS, deliberately: §1.7 is one design
+ * section, the three parts share the same paper, ink and hairline tokens, and
+ * a single CSS Module is one class map in the route's client bundle rather
+ * than three (this task is the first client-JS addition in a while and the
+ * LCP gate had 73ms of margin — see `docs/adr/0008-lcp-budget-and-the-
+ * framework-floor.md`).
+ *
+ * THE RAIL AND THE BAR SIT OUTSIDE THE SCALED DESIGN BOX and must never lie
+ * across it. They claim their own grid areas from `book.module.css`'s
+ * `.stage`, and the reason that is structural rather than cosmetic is written
+ * out in that file's header: a strip of chrome over the book is also a strip
+ * of chrome over the page-edge turn strips, which then swallow their clicks
+ * in silence. Nine of thirteen tabs were dead at 1000x800 for exactly that
+ * reason (docs/qa/2026-09-01-diary-sweep.md, DIARY-002); `e2e/layout.spec.ts`
+ * is what keeps it fixed. Nothing in this file may be positioned over
+ * `.bookArea`.
+ *
+ * THE RIBBON IS THE EXCEPTION, and it is why `pointer-events: none` on it is
+ * not decoration but the rule that lets it exist at all: it is the one piece
+ * of chrome that DOES lie over the page, hanging off the top of the design
+ * box at `z-index: 400`. This project has already lost a debugging session to
+ * a transparent element swallowing clicks (`book.module.css`'s rule 2), so
+ * `e2e/chrome.spec.ts` hit-tests the ribbon's own centre and fails if
+ * anything but the page beneath it answers.
+ *
+ * Colours come from `@travel-diary/tokens`' `--td-*` custom properties. The
+ * four literals below — the inactive tab's fill and ring alpha, the active
+ * tab's inset ring, the book-wide tabs' default tint and the disabled arrow's
+ * two values — are handoff values with no entry in the token table (README's
+ * "Colour" section does not name them), so they are written here with their
+ * source rather than invented as new tokens. Same policy as
+ * `book.module.css`'s fore-edge and shade gradients.
+ * Depends on: packages/tokens/src/tokens.css, loaded by the diary layout;
+ * `book.module.css`'s `.stage` grid, which owns the `rail` and `bar` areas.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Bookmark rail — SCREENS.md §1.7: 158px, `flex: none`, `padding-top: 4px`.
+ * --------------------------------------------------------------------------- */
+
+.rail {
+  grid-area: rail;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 158px;
+  min-height: 0;
+  padding-top: 4px;
+}
+
+.eyebrow {
+  flex: none;
+  margin: 0;
+  padding: 0 0 9px 6px;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* The scrolling column. Thirteen tabs do not fit a short viewport, so this is
+ * the one part of the diary a reader genuinely scrolls — and its scrollbar is
+ * hidden by the diary-wide rule in `app/(diary)/diary.css`, not here, because
+ * SCREENS.md's "scrollbars hidden throughout" is a property of the surface
+ * rather than of this component. `min-height: 0` is what actually lets it
+ * scroll: a flex item's automatic minimum is its content, so without it the
+ * column grows past the rail instead of overflowing inside it. */
+.tabs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  margin: 0;
+  padding: 0 0 8px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px 9px 0;
+  border: 0;
+  border-radius: 0 6px 6px 0;
+  /* Not tokens: the handoff gives the inactive tab's fill and its hairline
+   * ring only as these two alphas, and README's colour table names neither. */
+  background: rgba(120, 98, 60, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(120, 98, 60, 0.14);
+  color: var(--td-ink-diary-muted);
+  cursor: pointer;
+  text-align: left;
+  /* SCREENS.md §1.7 names both properties. This is chrome OUTSIDE the design
+   * box, so it is not bound by `book.module.css`'s rule 3 (only `transform`
+   * and `opacity` inside the box, which `e2e/book.spec.ts` audits) — the flip
+   * budget is about the sixty frames of a turning leaf, and a tab is not one. */
+  transition-property: transform, background;
+  transition-duration: 180ms;
+  transition-timing-function: ease;
+}
+
+/* The active tab is lifted OUT of the rail and onto the page: `#fbf6e9` is the
+ * page's own paper, so the tab reads as part of the sheet the reader is on
+ * rather than as part of the rail. */
+.tabActive {
+  background: var(--td-paper);
+  /* Not a token: the handoff gives the active tab's inset ring only as this
+   * alpha, a step up from the inactive `.14`. */
+  box-shadow:
+    0 3px 12px -5px rgba(60, 44, 20, 0.5),
+    inset 0 0 0 1px rgba(120, 98, 60, 0.22);
+  color: var(--td-ink);
+  transform: translateX(-6px);
+}
+
+/* Every part of a tab and of an arrow is the CONTROL, never a target of its
+ * own. Without this, `document.elementFromPoint` at a tab's centre answers
+ * with the inner `<span>` rather than the button — which is not a dead click
+ * (the event still bubbles) but IS what `e2e/layout.spec.ts` reads to prove
+ * no tab is covered by the book, and a probe that cannot name the tab it hit
+ * cannot tell "covered by the cover page" from "covered by my own label".
+ * That census is the one that found nine dead tabs
+ * (docs/qa/2026-09-01-diary-sweep.md, DIARY-002), so it has to stay legible. */
+.tab *,
+.navButton * {
+  pointer-events: none;
+}
+
+.tabTint {
+  align-self: stretch;
+  flex: none;
+  width: 6px;
+  border-radius: 0 2px 2px 0;
+  /* The default for Cover, Contents and About, which have no journey and so
+   * no accent behind them; a journey tab overrides it inline with its own.
+   * Not a token: the handoff gives this tint only as a literal in the
+   * prototype's `tabDef`, and README's colour table does not name it. */
+  background: #8a7a5f;
+  opacity: 0.5;
+}
+
+.tabActive .tabTint {
+  opacity: 1;
+}
+
+/* `min-width: 0` so the two lines can ellipsis inside the 158px rail rather
+ * than forcing the tab wider than the column that holds it. */
+.tabText {
+  flex: 1;
+  min-width: 0;
+}
+
+.tabName {
+  display: block;
+  overflow: hidden;
+  font-family: var(--td-font-caveat);
+  font-size: 24px;
+  line-height: 1.05;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* HANDOFF-DEVIATION: SCREENS.md §1.7 puts this line at `opacity: .62` over the
+ * tab's inherited ink, which measures 2.38:1 inactive and 3.50:1 active
+ * against WCAG 2.1 AA's 4.5:1 for 8.5px text - axe-core fails every diary
+ * route on it. Its colour is pinned to `--td-ink-body` and its opacity raised
+ * to `.78`, which measures ~5.0:1 in both states. Same lever and the same
+ * number as docs/deviations.md §12 used for the cover's years line. See
+ * docs/deviations.md §15 for the measurements and the two alternatives. */
+.tabSub {
+  display: block;
+  overflow: hidden;
+  color: var(--td-ink-body);
+  font-family: var(--td-font-courier);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.78;
+}
+
+/* ---------------------------------------------------------------------------
+ * Bottom bar — SCREENS.md §1.7: 58px, centred, gap 20px.
+ * --------------------------------------------------------------------------- */
+
+/* THE HANDOFF'S LITERAL 58px, restored. Task 8 made this bar `flex-wrap: wrap`
+ * with a `min-height` that could grow past 58px, because at the mobile
+ * project's 390px the 158px rail leaves the bar 232px while a hard 210px
+ * counter column plus two 44px arrows and two 20px gaps needs 338px — the next
+ * arrow spilled out of the row and UNDER the rail, which then intercepted
+ * every click on it. Wrapping fixed the dead control and lost the stated
+ * height. The height is kept AND the control stays reachable by letting the
+ * readout column shrink instead of the row wrap: see `.readout`.
+ *
+ * The prototype's `padding: 0 20px` is dropped, and only because of the same
+ * width. SCREENS.md §1.7 does not state a padding for this bar, and 40px of
+ * inline padding on a centred row changes nothing at any width that has room
+ * to spare - but at 390px it is 40px of the 232px the bar has, and it was the
+ * difference between a counter reading `01 / 33` and one reading `01 / …`. */
+.bar {
+  grid-area: bar;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  height: 58px;
+}
+
+.navButton {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--td-min-hit-target);
+  height: var(--td-min-hit-target);
+  padding: 0;
+  border: 1.5px solid var(--td-ink-body);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--td-ink-body);
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* At the ends of the book the arrow stops inviting a click it would refuse.
+ * Not tokens: §1.7 gives the disabled border as `rgba(120,98,60,.25)` and the
+ * prototype gives its glyph as `rgba(120,98,60,.35)`; README's colour table
+ * names neither, and a disabled control is exempt from WCAG's contrast floor. */
+.navButton:disabled {
+  border-color: rgba(120, 98, 60, 0.25);
+  color: rgba(120, 98, 60, 0.35);
+  cursor: default;
+}
+
+/* The handoff's 210px column as a flex BASIS rather than a floor: at 390px it
+ * shrinks to whatever is left between the two arrows instead of pushing one of
+ * them out of the bar. Below 860px the specified layout is the mobile reading
+ * mode (SCREENS.md §1.10) and not this bar at all, so a squeezed readout there
+ * is a transitional state, never a dead control. */
+.readout {
+  display: flex;
+  flex: 0 1 210px;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.counter {
+  max-width: 100%;
+  overflow: hidden;
+  margin: 0;
+  color: var(--td-ink-body);
+  font-family: var(--td-font-courier);
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pageLabel {
+  max-width: 100%;
+  overflow: hidden;
+  margin: 0;
+  color: var(--td-ink-diary-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 14px;
+  font-style: italic;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Every control in the chrome is reachable by keyboard, so every control shows
+ * where the keyboard is. `:focus-visible` rather than `:focus` so a pointer
+ * click does not leave a ring behind it. */
+.tab:focus-visible,
+.navButton:focus-visible {
+  outline: 2px solid var(--td-accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Ribbon — SCREENS.md §1.7. See this file's header for why `pointer-events`
+ * is the load-bearing line here.
+ * --------------------------------------------------------------------------- */
+
+.ribbon {
+  position: absolute;
+  top: -7px;
+  left: 42px;
+  z-index: 400;
+  width: 22px;
+  /* A third of the design box, so it grows and shrinks with the scaled book
+   * exactly as the board does. */
+  height: 33%;
+  background: linear-gradient(90deg, var(--td-ribbon-from), var(--td-ribbon-via) 45%, var(--td-ribbon-to));
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+  /* Not a token: the handoff gives the ribbon's shadow only as this filter,
+   * and README's shadow table does not name its colour. */
+  filter: drop-shadow(0 6px 8px rgba(40, 20, 12, 0.35));
+  /* NEVER REMOVE THIS. The ribbon lies over the page; without it, it swallows
+   * every click inside its own 22px column, silently — the same failure mode
+   * `book.module.css`'s rule 2 records for the back face. `e2e/chrome.spec.ts`
+   * hit-tests it. */
+  pointer-events: none;
+}

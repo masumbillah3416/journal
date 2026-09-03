@@ -122,7 +122,14 @@ jobs:
       # been in `npm run test:e2e` since Task 10 without being in this job,
       # so the focal-point and highlight-gap cases had never gated a merge —
       # exactly the omission this list exists to make visible.
-      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/imageWindow.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
+      # Task 12 adds its own `e2e/chrome.spec.ts` and, in the same line, the
+      # three this list had drifted past: `e2e/frames.spec.ts` and
+      # `e2e/about.spec.ts` (Task 11) and `e2e/serverWindow.spec.ts` (the
+      # server content window), all three named by `npm run test:e2e` and
+      # none of them gating a merge until now. `serverWindow.spec.ts` is the
+      # one that matters most of the three - it is what asserts all
+      # thirty-three deep links still serve their own page.
+      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
       # image: chrome-launcher's own auto-detection looks for a system
       # `google-chrome`/`chromium-browser` binary, which this image does not

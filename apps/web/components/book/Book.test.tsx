@@ -10,6 +10,14 @@
  * frame parts all present, a single `main` landmark around the whole book -
  * and, from Task 8, that every trigger is actually WIRED to the machine.
  *
+ * From Task 12 the chrome is three components of its own
+ * (`../chrome/BookmarkRail`, `BottomBar`, `Ribbon`), each with its own suite,
+ * so what those files assert is deliberately NOT repeated here. What is
+ * asserted here is the wiring between them and the flip machine: that the
+ * rail is told the machine's committed index rather than the page the reader
+ * arrived on, that the bar prints the label belonging to that same index, and
+ * that the ribbon hangs inside the scaled design box.
+ *
  * A wiring test asserts the turn has STARTED, not that it has finished: the
  * book turns at the handoff's 900ms default, and a suite that waited a second
  * per trigger to watch a committed index would be a slow way to re-test
@@ -30,6 +38,7 @@
 import {
   deriveBookmarks,
   deriveContents,
+  derivePageLabels,
   derivePages,
   deriveRail,
   pageCounter,
@@ -165,7 +174,13 @@ const renderBook = (
   roots.push(root)
   act(() => {
     root.render(
-      <Book bookmarks={bookmarks} initialIndex={initialIndex} content={wholeBook(bundle.pages.length)}>
+      <Book
+        bookmarks={bookmarks}
+        labels={derivePageLabels(bundle.pages)}
+        showDecorations
+        initialIndex={initialIndex}
+        content={wholeBook(bundle.pages.length)}
+      >
         {facesOf(bundle)}
       </Book>,
     )
@@ -195,7 +210,13 @@ const renderWindowedBook = (
   const render = (window: ContentWindow, faces: React.JSX.Element[]): void => {
     act(() => {
       root.render(
-        <Book bookmarks={bookmarks} initialIndex={initialIndex} content={window}>
+        <Book
+          bookmarks={bookmarks}
+          labels={derivePageLabels(bundle.pages)}
+          showDecorations
+          initialIndex={initialIndex}
+          content={window}
+        >
           {faces}
         </Book>,
       )
@@ -408,13 +429,106 @@ describe('Book', () => {
     expect(host.querySelectorAll('[data-bookmark]')).toHaveLength(aBundle().bookmarks.length)
   })
 
-  it('prints the label the rail carries, rather than deriving one of its own', () => {
+  it('draws the rail it was handed, rather than deriving one of its own', () => {
     // The book is handed a labelled rail and never sees the pages behind it -
     // dropping a tab that addresses a page the book does not have is
-    // `deriveRail`'s job now, proved in packages/domain/src/bookBundle.test.ts.
-    const host = renderBook(0, aBundle(), [{ startIndex: 2, label: 'Tokyo — Notes' }])
+    // `deriveRail`'s job now, proved in packages/domain/src/bookBundle.test.ts,
+    // and what each tab PRINTS is `BookmarkRail`'s, proved in its own suite.
+    const host = renderBook(0, aBundle(), [
+      { startIndex: 2, span: 3, name: 'Tokyo', sub: 'March 2025', tint: '#3d817e' },
+    ])
 
-    expect([...host.querySelectorAll('[data-bookmark]')].map((tab) => tab.textContent)).toEqual(['Tokyo — Notes'])
+    expect([...host.querySelectorAll('[data-bookmark]')].map((tab) => tab.getAttribute('data-bookmark'))).toEqual(['2'])
+  })
+
+  it('tells the rail which page the reader is on, so the right tab is marked', () => {
+    // The rail decides which tab that lights (`isRailTabActive`); the book is
+    // the only one who knows the page to decide it against. Asserted on the
+    // middle of a journey's span, where a book passing its own `initialIndex`
+    // instead of the machine's committed index would still look right.
+    const host = renderBook(3)
+
+    expect(one(host, '[aria-current="page"]').getAttribute('data-bookmark')).toBe('2')
+  })
+
+  it('moves the marked tab only once the turn onto the next journey has committed', () => {
+    // The rail is told the machine's COMMITTED index, so the tab a reader is
+    // still looking at stays lit for the whole 900ms of the turn and hands
+    // over at the end of it - never at the start, which would light the
+    // destination's tab while the destination is still edge-on. Reduced
+    // motion commits instantly, which is what makes both halves of that
+    // observable in one test.
+    stubReducedMotion()
+    const host = renderBook(4)
+    expect(one(host, '[aria-current="page"]').getAttribute('data-bookmark')).toBe('2')
+
+    click(host, '[data-nav="next"]')
+
+    expect(one(host, '[aria-current="page"]').getAttribute('data-bookmark')).toBe('5')
+  })
+
+  it('prints the label the server derived for the page the reader is on', () => {
+    const host = renderBook(3)
+
+    expect(one(host, '[data-page-label]').textContent).toBe('Tokyo — Frames I')
+  })
+
+  it('prints an empty label when the book was handed none for this page', () => {
+    // The labels cross the same serialization boundary the rail does, so a
+    // labels array shorter than the book is a state this surface can be
+    // handed. An empty line is the honest result; a crash is not.
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    roots.push(root)
+    const bundle = aBundle()
+    act(() => {
+      root.render(
+        <Book
+          bookmarks={deriveRail(bundle.pages, bundle.bookmarks)}
+          labels={[]}
+          showDecorations
+          initialIndex={3}
+          content={wholeBook(bundle.pages.length)}
+        >
+          {facesOf(bundle)}
+        </Book>,
+      )
+    })
+
+    expect(one(host, '[data-page-label]').textContent).toBe('')
+  })
+
+  it('hangs the spine ribbon inside the scaled design box, so it scales with the book', () => {
+    const host = renderBook(0)
+
+    expect(one(host, '[data-design-box] > [data-ribbon]')).toBeTruthy()
+  })
+
+  it('draws no ribbon at all when the book’s decorations are off', () => {
+    // The prototype puts the ribbon behind the same `decorations` flag as the
+    // cover's washi strip and airmail stamp: an editor who turns them off
+    // turns off all of them.
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    roots.push(root)
+    const bundle = aBundle()
+    act(() => {
+      root.render(
+        <Book
+          bookmarks={deriveRail(bundle.pages, bundle.bookmarks)}
+          labels={derivePageLabels(bundle.pages)}
+          showDecorations={false}
+          initialIndex={0}
+          content={wholeBook(bundle.pages.length)}
+        >
+          {facesOf(bundle)}
+        </Book>,
+      )
+    })
+
+    expect(host.querySelectorAll('[data-ribbon]')).toHaveLength(0)
   })
 
   it('anchors a bookmark jump one page from its target, so the turn plays in the direction of travel', () => {

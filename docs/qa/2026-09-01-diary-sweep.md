@@ -221,8 +221,34 @@ left as they were written.
 | DIARY-002 | S2 | **Fixed by DIARY-001**, verified rather than assumed: 0 of 13 tabs blocked at every viewport, and a click on `[data-bookmark="11"]` reaches `/p/12`. No separate change was needed — with the book inside its own grid column it cannot lie over the rail. | same commit |
 | DIARY-003 | S2 | **Fixed by DIARY-001**, verified: both `[data-edge]` strips hit-test to themselves at 1440, 1000 and 390. | same commit |
 | DIARY-004 | S2 | **Fixed.** All six `diary-*` baselines regenerated in `mcr.microsoft.com/playwright:v1.62.1-noble` and asserted to show a book before being accepted. | `test(diary): regenerate the visual baselines over a book that is on the screen` |
-| DIARY-005 | S3 | **Deferred to Task 12**, which owns SCREENS.md §1.7's appearance and already lists the `[start, start + 3)` span, the counter's page label and the rail's active state as its own steps. Landing the `aria-current` alone would ship half of §1.7 and move these six baselines twice. Recorded on the task brief. | Task 12 |
+| DIARY-005 | S3 | **Deferred to Task 12** at triage, and **fixed there.** See the note under this table. | `feat(diary): add the bookmark rail, bottom bar and ribbon` |
 | DIARY-006 | S4 | **Fixed.** `apps/web/app/favicon.ico` added; `/favicon.ico` responds 200 on every route. | `fix(diary): serve an icon at /favicon.ico` |
+
+**DIARY-005, closed 2026-09-03 (Task 12).** Deferring it was the right call and the
+reason is worth keeping: landing the `aria-current` alone would have shipped half of
+`SCREENS.md` §1.7 and moved the six `diary-*` visual baselines twice. Every item the
+defect listed is now on screen and asserted:
+
+- **No tab ever active.** `deriveRail` now carries each tab's `span` from
+  `deriveBookmarks`, and `isRailTabActive` (`packages/domain/src/bookBundle.ts`, 100%
+  covered) answers `index ∈ [start, start + span)`. The active tab carries
+  `aria-current="page"`, `#fbf6e9`, `translateX(-6px)`, the drop shadow and the 1px inset
+  ring; the tint bar goes to `opacity: 1`. Asserted at all three viewport projects in
+  `e2e/chrome.spec.ts` — one tab stays marked across `/p/3`, `/p/4` and `/p/5` and hands
+  over on `/p/6` — and per-page in
+  `apps/web/components/chrome/BookmarkRail.test.tsx`.
+- **The `"Bookmarks"` eyebrow.** Rendered, in Courier 9.5px `.22em`, and it is also what
+  names the navigation landmark (`aria-labelledby`), so a screen reader announces
+  "Bookmarks" once rather than twice.
+- **The page label under the counter.** `derivePageLabels` derives one label per page on
+  the server; the bar prints the one for the page the reader is on.
+  `e2e/chrome.spec.ts` opens `/p/13` and requires `13 / 33` over
+  `Marrakech — Frames I` — a page whose label a rail-derived string could not produce.
+
+One thing the defect did not record and the fix found: the handoff's `opacity: .62` on
+each tab's sub-line fails WCAG AA (2.38:1 inactive, 3.50:1 active, measured by axe-core),
+which failed 18 of `e2e/a11y.spec.ts`'s 24 cases before it was changed. See
+`docs/deviations.md` §15.
 
 The LCP prediction in DIARY-001 held. On five production runs of `npm run test:perf`
 after the fix, `/p/1`'s LCP element is the cover title

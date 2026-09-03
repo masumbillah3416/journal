@@ -67,3 +67,25 @@ body {
 *::after {
   box-sizing: border-box;
 }
+
+/* SCROLLBARS ARE HIDDEN THROUGHOUT THE DIARY (SCREENS.md §1.7). A visible
+ * scrollbar breaks the paper illusion the whole design is built on - the book
+ * is a photographed object, and objects do not have scrollbars down their
+ * side. Content still SCROLLS: nothing here is `overflow: hidden`, only the
+ * indicator is suppressed. Two declarations because no single one is
+ * universal - `scrollbar-width` is the standard property (Firefox, and Chrome
+ * 121+), the pseudo-element is what older WebKit and Blink read.
+ *
+ * Declared once, here, rather than per component: it is a property of this
+ * surface rather than of any one part of it, and the diary route group has its
+ * own root layout (see layout.tsx), so nothing outside it - Payload's admin
+ * above all - inherits this. The rail is the first element that actually
+ * scrolls (thirteen bookmark tabs do not fit a short viewport); the mobile
+ * reading mode's scrolling content will be the second. */
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}

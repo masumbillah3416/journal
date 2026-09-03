@@ -578,6 +578,29 @@ would claim a measurement nothing performs.
   clicking it, so its edge-strip cases passed on a strip that had left the viewport, which
   a reader cannot scroll back into `.stage` (`overflow: hidden`).
 
+  **`e2e/chrome.spec.ts` (Task 12, `SCREENS.md` §1.7)** covers the book's chrome in a
+  real layout engine: the bookmark rail, the bottom bar and the spine ribbon. Its
+  markup is covered three times over by `apps/web/components/chrome/`'s own jsdom
+  suites — which tab carries `aria-current`, what each tab prints, that the arrows are
+  labelled and go dead at the ends of the book — and none of those can answer the four
+  questions that actually broke: whether the ribbon takes a click meant for what is
+  under it, whether the bar is 58px, whether a control has been laid out under the rail,
+  and whether the rail scrolls without showing a scrollbar. All four are layout and
+  hit-testing, so all four run here at all three viewport projects.
+
+  Two of its cases are worth knowing about specifically. **The ribbon case asserts on a
+  live trigger, not on the hit test alone** — the first draft only asked whether the
+  element under the ribbon's centre was the ribbon, and it PASSED with
+  `pointer-events: none` deleted, because the backward page-edge strip's own
+  `z-index: 900` already sits above the ribbon's `400` and answered for it. It now clicks
+  at that point and requires the page to turn back, which is what a reader would notice.
+  **The scrollbar case reads the declared `scrollbar-width` as well as the measured
+  gutter**, for the same reason: this browser draws overlay scrollbars, so the gutter is
+  0 whether the rule is there or not — measured, with the diary-wide rule removed, rather
+  than assumed. It still asserts the content genuinely scrolls (a rail made
+  `overflow: hidden` to lose its scrollbar would fail there), on a viewport forced short
+  so the thirteen tabs overflow at every project rather than only at two of them.
+
   `e2e/smoke.spec.ts` is the console-error gate: it loads `/cms` and `/p/1` and asserts
   **zero** `console` (error level) and `pageerror` events, with both listeners attached
   _before_ `page.goto()`. This is deliberately the harness's centre of gravity, not an
@@ -608,6 +631,15 @@ would claim a measurement nothing performs.
   explicitly, which is also why the list is spelled out rather than given as a
   directory: adding a spec without adding it there is then a visible omission in a diff.
 
+  **And the list drifted again.** Task 12 found `e2e/frames.spec.ts`,
+  `e2e/about.spec.ts` (both Task 11) and `e2e/serverWindow.spec.ts` named by
+  `npm run test:e2e` but absent from the CI job, so none of them had gated a merge
+  either — `serverWindow.spec.ts` most consequentially, since it is what asserts all
+  thirty-three deep links still serve their own page. All three are named there now,
+  alongside Task 12's own `e2e/chrome.spec.ts`. Two lists that have to agree will
+  disagree eventually; until one is generated from the other, checking both is part of
+  landing a spec.
+
 - **Three viewport projects** — `desktop` (1440×900), `mid` (1000×800), `mobile`
   (390×844; `isMobile`/`hasTouch` set) — run every spec three times, once per breakpoint
   named in the Task 12 brief. All three use Chromium, not a mix of engines: this
@@ -616,7 +648,8 @@ would claim a measurement nothing performs.
   axe violations, pixel drift). Cross-browser coverage is a candidate for a later phase,
   not a Task 12 gap silently worked around — see `playwright.config.ts`'s header.
 - **Run:** `npm run test:e2e` (headless, runs `e2e/smoke.spec.ts`,
-  `e2e/book.spec.ts`, `e2e/flip.spec.ts`, `e2e/layout.spec.ts`, `e2e/pages.spec.ts`,
+  `e2e/book.spec.ts`, `e2e/flip.spec.ts`, `e2e/layout.spec.ts`, `e2e/chrome.spec.ts`,
+  `e2e/pages.spec.ts`,
   `e2e/notes.spec.ts`, `e2e/frames.spec.ts`, `e2e/about.spec.ts`,
   `e2e/imageWindow.spec.ts` and `e2e/serverWindow.spec.ts`); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.

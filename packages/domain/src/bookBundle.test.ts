@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { deriveBookmarks, deriveContents, derivePages, deriveRail, pageCounter, pageLabel } from './bookBundle'
+import {
+  deriveBookmarks,
+  deriveContents,
+  derivePageLabels,
+  derivePages,
+  deriveRail,
+  isRailTabActive,
+  pageCounter,
+  pageLabel,
+} from './bookBundle'
 import { aJourney } from './testing/factories'
 
 /**
@@ -159,16 +168,111 @@ describe('pageLabel', () => {
   })
 })
 
-describe('deriveRail', () => {
-  it('labels every tab with the label of the page it opens', () => {
+describe('derivePageLabels', () => {
+  it('labels every page in the reading sequence, in reading order', () => {
+    // The bottom bar prints the label of whatever page the reader is on
+    // (SCREENS.md §1.7), and the bar is inside the book's client boundary
+    // while `BookPage` is not - so the labels are derived once on the server
+    // and handed over as strings, rather than the whole reading sequence
+    // being serialized a second time just to be relabelled in the browser.
     const pages = derivePages([aJourney({ name: 'Tokyo' })])
 
-    expect(deriveRail(pages, deriveBookmarks(pages))).toEqual([
-      { startIndex: 0, label: 'Cover' },
-      { startIndex: 1, label: 'Contents' },
-      { startIndex: 2, label: 'Tokyo — Notes' },
-      { startIndex: 5, label: 'About' },
+    expect(derivePageLabels(pages)).toEqual([
+      'Cover',
+      'Contents',
+      'Tokyo — Notes',
+      'Tokyo — Frames I',
+      'Tokyo — Frames II',
+      'About',
     ])
+  })
+
+  it('labels no page at all for a book with no pages', () => {
+    expect(derivePageLabels([])).toEqual([])
+  })
+})
+
+describe('isRailTabActive', () => {
+  // SCREENS.md §1.7: "Journey tabs span 3 pages, so a tab is active when
+  // `index ∈ [start, start+3)`. Cover, Contents and About span 1." The span
+  // comes off the tab rather than being re-derived from its kind, so a book
+  // whose journeys ever ran to a different number of pages could not
+  // disagree with `deriveBookmarks` about where a tab ends.
+  const railOf = (name: string) => {
+    const pages = derivePages([aJourney({ name })])
+    return deriveRail(pages, deriveBookmarks(pages))
+  }
+
+  it('marks a journey tab active on the first of its three pages', () => {
+    expect(isRailTabActive(must(railOf('Tokyo')[2]), 2)).toBe(true)
+  })
+
+  it('marks a journey tab active on the second of its three pages', () => {
+    expect(isRailTabActive(must(railOf('Tokyo')[2]), 3)).toBe(true)
+  })
+
+  it('marks a journey tab active on the third of its three pages', () => {
+    expect(isRailTabActive(must(railOf('Tokyo')[2]), 4)).toBe(true)
+  })
+
+  it('leaves a journey tab inactive on the page after its span ends', () => {
+    // The exclusive end of `[start, start+3)`, which is the off-by-one this
+    // rule exists to pin down: page 5 is About, not the journey's.
+    expect(isRailTabActive(must(railOf('Tokyo')[2]), 5)).toBe(false)
+  })
+
+  it('leaves a journey tab inactive on the page before its span begins', () => {
+    expect(isRailTabActive(must(railOf('Tokyo')[2]), 1)).toBe(false)
+  })
+
+  it('marks a one-page tab active only on its own page', () => {
+    const cover = must(railOf('Tokyo')[0])
+
+    expect([isRailTabActive(cover, 0), isRailTabActive(cover, 1)]).toEqual([true, false])
+  })
+})
+
+describe('deriveRail', () => {
+  it('draws a journey tab with the journey’s name, its dates and its accent', () => {
+    // SCREENS.md §1.7 gives each tab a name in Caveat 24px over a sub in
+    // Courier 8.5px uppercase, beside a 6px tint bar. The prototype's own
+    // rail (`Travel Diary.dc.html`, `tabDef`) is what says which strings
+    // those are: the journey's name, the last two words of its free-text
+    // dates, and its own accent as the tint.
+    const pages = derivePages([aJourney({ name: 'Tokyo', dates: '12 – 24 March 2025', furniture: { accent: '#3d817e', signoff: 's', stampCountry: 'NIPPON', stampValue: '120' } })])
+
+    expect(deriveRail(pages, deriveBookmarks(pages))[2]).toEqual({
+      startIndex: 2,
+      span: 3,
+      name: 'Tokyo',
+      sub: 'March 2025',
+      tint: '#3d817e',
+    })
+  })
+
+  it('draws the three book-wide tabs with their own names and subs, and no tint of their own', () => {
+    // Cover, Contents and About have no journey behind them, so they have no
+    // accent either; the rail paints them in its own default tint. Their
+    // subs are the prototype's copy, deliberate like every other string in
+    // this design.
+    const pages = derivePages([aJourney({ name: 'Tokyo' })])
+
+    const rail = deriveRail(pages, deriveBookmarks(pages))
+
+    expect([rail[0], rail[1], rail[3]]).toEqual([
+      { startIndex: 0, span: 1, name: 'Cover', sub: 'the front', tint: undefined },
+      { startIndex: 1, span: 1, name: 'Contents', sub: 'index', tint: undefined },
+      { startIndex: 5, span: 1, name: 'About', sub: 'colophon', tint: undefined },
+    ])
+  })
+
+  it('uses the whole of a one-word date range as the tab’s sub', () => {
+    // The sub is the last two words of the dates, and a shorter line has
+    // fewer than two - `slice(-2)` on a one-word range must yield that word
+    // rather than an empty string.
+    const pages = derivePages([aJourney({ name: 'Tokyo', dates: 'Undated' })])
+
+    expect(must(deriveRail(pages, deriveBookmarks(pages))[2]).sub).toBe('Undated')
   })
 
   it('drops a tab that addresses a page the book does not have', () => {

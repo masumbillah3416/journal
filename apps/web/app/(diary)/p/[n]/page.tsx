@@ -58,7 +58,7 @@
  * Depends on: `readBookBundle` (../../../../lib/readBookBundle),
  * `pageIndexFromParam` (@travel-diary/domain/pageAddress),
  * `servedContentWindow`/`rendersContent`
- * (@travel-diary/domain/contentWindow), `deriveRail`
+ * (@travel-diary/domain/contentWindow), `deriveRail`/`derivePageLabels`
  * (@travel-diary/domain/bookBundle), `Book` (../../../../components/book/Book),
  * `PageFace` (../../../../components/book/PageFace).
  */
@@ -68,7 +68,10 @@
  * the book. Its three real decisions - what `<n>` means, which pages this
  * request gets the content of, and whether a given leaf is one of them - are
  * `pageIndexFromParam`, `servedContentWindow` and `rendersContent`, each with
- * its own covered suite elsewhere.
+ * its own covered suite elsewhere. The three values the chrome needs - the
+ * labelled rail, one label per page, and whether decorations are on - are
+ * `deriveRail`, `derivePageLabels` and a field off the `book` global, so none
+ * of them is decided here either.
  * It cannot be measured by either Vitest config (a page component needs a real
  * Next request context, and no integration test can supply one), and this
  * file's path contains a Next.js dynamic-route bracket segment, where
@@ -79,7 +82,7 @@
  * reason at the point of exclusion, and the config entry is what enforces it.
  * Its runtime behaviour is covered in the browser by e2e/book.spec.ts,
  * e2e/smoke.spec.ts and e2e/imageWindow.spec.ts. */
-import { deriveRail } from '@travel-diary/domain/bookBundle'
+import { derivePageLabels, deriveRail } from '@travel-diary/domain/bookBundle'
 import { rendersContent, servedContentWindow, type RouteQuery } from '@travel-diary/domain/contentWindow'
 import { pageIndexFromParam } from '@travel-diary/domain/pageAddress'
 import type React from 'react'
@@ -102,7 +105,13 @@ const DiaryPage = async ({ params, searchParams }: DiaryPageProps): Promise<Reac
   const content = servedContentWindow(query, openIndex, totalPages)
 
   return (
-    <Book bookmarks={deriveRail(bundle.pages, bundle.bookmarks)} initialIndex={openIndex} content={content}>
+    <Book
+      bookmarks={deriveRail(bundle.pages, bundle.bookmarks)}
+      labels={derivePageLabels(bundle.pages)}
+      showDecorations={bundle.chrome.showDecorations}
+      initialIndex={openIndex}
+      content={content}
+    >
       {bundle.pages.map((page, index) =>
         rendersContent(content, index) ? (
           <PageFace

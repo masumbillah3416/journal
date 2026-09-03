@@ -40,6 +40,12 @@
  * shade's browns and the edge strips' hover wash - are handoff values that
  * have no entry in the token table (README's own "Colour" section does not
  * list them), so they are named here rather than invented as new tokens.
+ *
+ * THE CHROME OUTSIDE THE BOX IS NOT IN THIS FILE. The bookmark rail, the
+ * bottom bar and the spine ribbon are SCREENS.md §1.7 and live in
+ * `../chrome/chrome.module.css`, beside the three components that draw them.
+ * What stays here is `.stage`'s grid, because that is the book's constraint on
+ * them rather than their own appearance.
  * Depends on: packages/tokens/src/tokens.css, loaded by the diary layout.
  */
 
@@ -50,7 +56,14 @@
  * of chrome lying across the book would also lie across the page-edge turn
  * strips and swallow their clicks. A grid, rather than absolute positioning
  * over the book, is what makes that impossible rather than merely unlikely.
- * Its designed sizes and spacing are Task 12. */
+ * Nine of thirteen bookmark tabs were dead at 1000x800 for exactly that reason
+ * (docs/qa/2026-09-01-diary-sweep.md, DIARY-002), and `e2e/layout.spec.ts` is
+ * what keeps them alive.
+ *
+ * The two areas are claimed from the other side: `chrome.module.css`'s `.rail`
+ * and `.bar` name `grid-area: rail` and `grid-area: bar`, so their designed
+ * appearance (SCREENS.md §1.7) lives with the components that draw them while
+ * this file keeps the one rule that matters - where they are allowed to be. */
 .stage {
   position: relative;
   display: grid;
@@ -298,93 +311,4 @@
   transition-property: opacity;
   transition-timing-function: ease-in-out;
   transition-duration: 0ms;
-}
-
-/* ---------------------------------------------------------------------------
- * The chrome outside the scaled box. BEHAVIOUR ONLY - SCREENS.md §1.7's
- * designed appearance (the rail's tint bars and active-tab shift, the 44px
- * circular arrows' 1.5px rules, the counter over its page label, the spine
- * ribbon) is Task 12. What is here exists so Task 8's triggers have something
- * to click, and it commits to nothing Task 12 has to undo: sizes come from the
- * handoff (158px rail, 44px hit target, 58px bar), colours from tokens, and no
- * rule below transitions anything at all.
- * --------------------------------------------------------------------------- */
-
-/* `flex-wrap` is not cosmetic here. At the mobile project's 390px the 158px
- * rail leaves the bar 232px, and its own contents are 338px wide (44 + 20 +
- * the handoff's 210px counter column + 20 + 44); unwrapped, `justify-content:
- * center` spilled the next arrow out of the column and UNDER the rail, which
- * then intercepted every click on it - caught by e2e/flip.spec.ts's bottom-arrow
- * case on the mobile project, not by eye. The handoff's answer below 860px is
- * a different layout entirely (SCREENS.md §1.10, mobile reading mode: "No book,
- * no flip, no scaling"), which is a later task; wrapping is the correct
- * behaviour to hold until then, because it keeps every control reachable at
- * every width instead of hiding one under another. */
-.bottomBar {
-  grid-area: bar;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  min-height: 58px;
-}
-
-.navButton {
-  display: grid;
-  place-items: center;
-  width: var(--td-min-hit-target);
-  height: var(--td-min-hit-target);
-  padding: 0;
-  border: 1.5px solid var(--td-ink-body);
-  border-radius: 50%;
-  background: transparent;
-  color: var(--td-ink-body);
-  font-family: var(--td-font-garamond);
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.navButton:disabled {
-  border-color: var(--td-hairline-border-max);
-  color: var(--td-ink-muted);
-  cursor: default;
-}
-
-.counter {
-  /* The handoff's 210px column, but never wider than the space there is: a
-   * hard 210px floor is what pushed the arrows out of the bar at 390px. */
-  min-width: min(210px, 100%);
-  margin: 0;
-  color: var(--td-ink-body);
-  font-family: var(--td-font-courier);
-  font-size: 13px;
-  letter-spacing: var(--td-letter-spacing-max);
-  text-align: center;
-}
-
-.rail {
-  grid-area: rail;
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: 6px;
-  width: 158px;
-  min-height: 0;
-  padding-top: 4px;
-  overflow-y: auto;
-}
-
-.bookmarkTab {
-  border: 0;
-  border-radius: 0 6px 6px 0;
-  padding: 9px 10px 9px 8px;
-  background: var(--td-hairline-border-min);
-  color: var(--td-ink);
-  font-family: var(--td-font-caveat);
-  font-size: 24px;
-  line-height: 1.1;
-  text-align: left;
-  cursor: pointer;
 }

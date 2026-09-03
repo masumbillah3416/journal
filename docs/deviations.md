@@ -4,7 +4,8 @@ Every departure from `handoff/design_handoff_travel_diary/` — and every delibe
 documented exception to `CLAUDE.md` itself — is recorded here, per `CLAUDE.md` §1.1
 (`// HANDOFF-DEVIATION: <reason>` in code) and §1.2. Entries 1–4 come from design spec
 §15, which cross-references §2.1–2.3 and §7.1 for the detail; 5 onward were added as
-later tasks found them. §5 is a correction record rather than an active deviation.
+later tasks found them. §5 and §16 are correction records rather than active
+deviations, and §11 is a withdrawn one.
 
 ## 1 · Payload auth instead of Auth.js
 
@@ -474,3 +475,104 @@ there rather than silently overflow.
 `apps/web/components/pages/MoodBadge.tsx` and `WeatherBadge.tsx`'s headers;
 `apps/web/components/pages/notes.module.css`'s `.badgeLabel` comment;
 `e2e/notes.spec.ts`'s "a long badge label shrinks to fit" cases.
+
+---
+
+## 15 · The bookmark tab's sub-line is `--td-ink-body` at `.78`, not the tab's ink at `.62`
+
+**What changed:** one value pair on one element — the second line of a bookmark rail tab
+(`SCREENS.md` §1.7: "sub in Courier 8.5px `.14em` uppercase at `opacity .62`"). It now
+carries an explicit `color: var(--td-ink-body)` and `opacity: .78`, instead of inheriting
+the tab's own ink at `.62`.
+
+Everything else in §1.7 is unchanged and literal: the 158px rail, the `padding-top: 4px`,
+the Courier 9.5px `.22em` eyebrow, the 6px gap, `border-radius: 0 6px 6px 0`, padding
+`9px 10px 9px 0`, the 6px tint bar at `opacity 1`/`.5`, the name in Caveat 24px, the
+active tab's `#fbf6e9` fill, `translateX(-6px)`, `0 3px 12px -5px rgba(60,44,20,.5)` and
+1px inset ring, the inactive `rgba(120,98,60,.07)`, and `transform 180ms, background
+180ms`. The bar's 58px and the ribbon's every value are also unchanged — see below for
+why the 58px one is called out.
+
+**Rationale:** the handoff's literal value fails WCAG 2.1 AA, and it fails it on every
+diary route at every viewport. Measured by axe-core in the pinned Playwright container
+(`mcr.microsoft.com/playwright:v1.62.1-noble`), not estimated — the run failed 18 of 24
+cases in `e2e/a11y.spec.ts` with two distinct findings, one per tab state:
+
+| Tab state | Composite foreground | Background | Measured | Required |
+|---|---|---|---|---|
+| Inactive (`--td-ink-diary-muted` at `.62`) | `#a99f8d` | `#f6f4f1` | **2.38:1** | 4.5:1 |
+| Active (`--td-ink` at `.62`) | `#7f857e` | `#fbf6e9` | **3.50:1** | 4.5:1 |
+
+8.5px is not large text under SC 1.4.3 by any reading, so 4.5:1 is the floor. Raising the
+opacity alone cannot reach it: the inherited inactive ink (`#7a6b50`) measures 4.43:1
+*solid*, so no opacity at all clears 4.5 over paper. The colour therefore had to move too.
+`--td-ink-body` at `.78` measures ~5.0:1 in both states, and `.78` is the same lever and
+the same number §12 above used for the cover's years line, so no new value enters the
+palette.
+
+**What was rejected:** (1) leaving the handoff's value and adding `color-contrast` to
+`expectNoAxeViolations`' `allow` list — that list is scoped to Payload's own generated
+markup and `e2e/a11y.spec.ts` says in three places that a diary route must never inherit
+it; silencing a rule on our own markup is the opposite of what it is for. (2) Dropping the
+opacity entirely and using a solid `--td-ink-body`, which measures 9.05:1 — accessible,
+but it makes the sub as loud as the name and loses the hierarchy §1.7 is describing. `.78`
+keeps the line quieter than the name while clearing the floor.
+
+**Who decided:** this one has NOT been put to the owner, unlike §12 and §14. It is
+recorded as a measurement-forced change rather than a design choice: `CLAUDE.md` §2
+requires the handoff's contrast ratios to be asserted rather than assumed and
+`e2e/a11y.spec.ts` to be green with no exclusions on any diary route, and there is no
+value of `opacity` that satisfies both those rules and §1.7's literal colour. If the owner
+prefers a different resolution — a darker base ink for the whole rail, or a larger sub —
+this entry is the place to change.
+
+**Consequence a future task needs:** the mobile reading mode's drawer (`SCREENS.md` §1.10)
+renders the same tab list on `#3b332a` at 26px Caveat with 13px rows. That is a different
+background and a different size, so it needs its own measurement rather than this value
+copied across.
+
+**Recorded as:** `apps/web/components/chrome/chrome.module.css`'s `HANDOFF-DEVIATION`
+comment at `.tabSub`; `e2e/a11y.spec.ts`'s six diary cases, which are what failed.
+
+---
+
+## 16 · NOT a deviation — the bottom bar is `SCREENS.md` §1.7's literal 58px again
+
+Recorded here because the departure it closes was carried for two tasks with only a code
+comment behind it, and a reviewer was right to say that is how drift accumulates.
+
+**What happened:** Task 8 gave the bar `flex-wrap: wrap` and `min-height: 58px` in place
+of §1.7's `58px`, so at the `mobile` project's 390px it could grow past the stated height.
+That was a real fix for a real defect: the 158px rail leaves the bar 232px, its contents
+need 338px (44 + 20 + the handoff's 210px readout + 20 + 44), and unwrapped the next arrow
+spilled out of the centred row and **under the rail**, which then intercepted every click
+on it. It was caught by `e2e/flip.spec.ts`'s bottom-arrow case on the `mobile` project,
+not by eye.
+
+**What Task 12 changed:** the height is back to a literal `height: 58px`, and the control
+stays reachable because the READOUT shrinks instead of the row wrapping —
+`flex: 0 1 210px` with `min-width: 0`, so the handoff's 210px is a basis rather than a
+floor, and the counter and page label ellipsis inside whatever is left. At 390px that
+leaves the readout roughly 104px between two 44px arrows that are both fully in the bar.
+
+The prototype's `padding: 0 20px` on the bar went with it — `SCREENS.md` §1.7 states no
+padding for this bar, and 40px of inline padding on a centred row changes nothing at any
+width with room to spare. At 390px it was 40px of the 232px the bar has, and the
+difference between a counter reading `01 / 33` and one reading `01 / …`; the first
+regenerated `mobile` baseline is what showed it.
+
+**Why this is the right resolution rather than a deviation entry:** §1.7's chrome is the
+layout for the desktop book, and below 860px the specified layout is not this bar at all
+but `SCREENS.md` §1.10's mobile reading mode ("No book, no flip, no scaling"), which has
+its own bar. A squeezed readout at 390px is therefore a transitional state on a screen
+whose real design has not been built yet, and it costs no control and no stated
+measurement. Wrapping cost a stated measurement; shrinking does not.
+
+**Proof, at all three viewport projects:**
+`e2e/chrome.spec.ts`'s "keeps the bottom bar at the handoff's 58px, and both arrows
+reachable inside it" asserts the measured row height and a hit test on each arrow's own
+centre **in one assertion**, because a 58px bar with an arrow under the rail and a
+reachable arrow in a bar that grew are the two failures it exists to tell apart. Verified
+red before green: with Task 8's `flex-wrap` and `min-width: min(210px, 100%)` restored,
+that case fails on `mobile` and passes on `desktop` and `mid`, which is exactly the shape
+of the original defect.

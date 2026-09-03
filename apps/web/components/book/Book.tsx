@@ -133,24 +133,37 @@
  * per ROUTE and not per document - `/p/12` serves page 12, which is all
  * anything ever asked of it.
  *
- * SCOPE. The bookmark rail, bottom bar and page counter are rendered here
- * because Task 8's triggers are useless without something to click, but only
- * their BEHAVIOUR is finished: their designed appearance (SCREENS.md §1.7 -
- * the 158px rail with its tint bars and active-tab shift, the 44px circular
- * arrows, the counter over its page label, the spine ribbon) is Task 12, and
- * so is the mobile reading mode below 860px. Metadata,
- * `generateStaticParams` and the out-of-range 404 are Task 13.
- * Depends on: react, `pageCounter`/`RailTab` (@travel-diary/domain/bookBundle),
+ * THE CHROME IS THREE COMPONENTS, AND THIS FILE DRAWS NONE OF IT. SCREENS.md
+ * §1.7's bookmark rail, bottom bar and spine ribbon live under
+ * `../chrome/`; what this file contributes is the only thing they cannot know
+ * for themselves - where the flip machine is. It hands the rail the page
+ * index (the rail asks `isRailTabActive` which tab that lights, using
+ * `deriveBookmarks`' own spans), the bar the 1-based page number and the
+ * label the server derived for it, and the ribbon nothing at all. Two of the
+ * three claim their own grid areas from `.stage` rather than being positioned
+ * over the book, which is what stops a strip of chrome from lying across the
+ * page-edge turn strips and swallowing their clicks (`book.module.css`'s
+ * `.stage`, and docs/qa/2026-09-01-diary-sweep.md DIARY-002). The ribbon is
+ * the one piece that DOES lie over the page, and is `pointer-events: none`
+ * for exactly that reason.
+ *
+ * SCOPE. The mobile reading mode below 860px (SCREENS.md §1.10) is a later
+ * task; metadata, `generateStaticParams` and the out-of-range 404 are Task 13.
+ * Depends on: react, `RailTab` (@travel-diary/domain/bookBundle),
  * `pagePath` (@travel-diary/domain/pageAddress), `leafPresentation`
- * (@travel-diary/domain/pageStack), ../pages/Photograph, ./useFlip,
- * ./useTurnKeys, ./useBookScale, ./EdgeStrip, ./Leaf, ./book.module.css.
+ * (@travel-diary/domain/pageStack), ../pages/Photograph, ../chrome/BookmarkRail,
+ * ../chrome/BottomBar, ../chrome/Ribbon, ./useFlip, ./useTurnKeys,
+ * ./useBookScale, ./EdgeStrip, ./Leaf, ./book.module.css.
  */
-import { pageCounter, type RailTab } from '@travel-diary/domain/bookBundle'
+import type { RailTab } from '@travel-diary/domain/bookBundle'
 import { isWholeBook, rendersContent, type ContentWindow } from '@travel-diary/domain/contentWindow'
 import { pagePath } from '@travel-diary/domain/pageAddress'
 import { leafPresentation } from '@travel-diary/domain/pageStack'
 import type React from 'react'
 import { Children, useCallback, useEffect, useRef, useState } from 'react'
+import { BookmarkRail } from '../chrome/BookmarkRail'
+import { BottomBar } from '../chrome/BottomBar'
+import { Ribbon } from '../chrome/Ribbon'
 import { ImageWindow } from '../pages/Photograph'
 import styles from './book.module.css'
 import { EdgeStrip } from './EdgeStrip'
@@ -175,8 +188,24 @@ interface HeldMove {
 
 /** What the book needs to render itself. */
 export interface BookProps {
-  /** The bookmark rail, already labelled and filtered by `deriveRail` on the server. */
+  /** The bookmark rail, already labelled, spanned and filtered by `deriveRail` on the server. */
   readonly bookmarks: readonly RailTab[]
+  /**
+   * One label per page, in reading order, from `derivePageLabels` on the
+   * server - the line the bottom bar prints under the counter. Handed over as
+   * strings rather than as the reading sequence itself: this component is the
+   * diary's `'use client'` boundary, and serializing thirty-three pages a
+   * second time to relabel them in the browser is what that boundary exists
+   * to avoid (docs/adr/0007-server-rendered-page-faces.md).
+   */
+  readonly labels: readonly string[]
+  /**
+   * Whether the book's decorations are on (`BookChrome.showDecorations`).
+   * The spine ribbon is behind the same flag as the cover's washi strip and
+   * airmail stamp in the handoff prototype, so an editor who turns
+   * decorations off turns off all of them.
+   */
+  readonly showDecorations: boolean
   /** The 0-based page the reader opens on, from the `/p/<n>` URL. */
   readonly initialIndex: number
   /**
@@ -202,9 +231,16 @@ export interface BookProps {
  *   server-rendered face per page.
  * @returns The diary's reading surface.
  * @example
- * <Book bookmarks={deriveRail(bundle.pages, bundle.bookmarks)} initialIndex={2}>{faces}</Book>
+ * <Book bookmarks={rail} labels={labels} showDecorations initialIndex={2}>{faces}</Book>
  */
-export const Book = ({ bookmarks, initialIndex, content, children }: BookProps): React.JSX.Element => {
+export const Book = ({
+  bookmarks,
+  labels,
+  showDecorations,
+  initialIndex,
+  content,
+  children,
+}: BookProps): React.JSX.Element => {
   const bookArea = useRef<HTMLDivElement | null>(null)
   const scale = useBookScale(bookArea)
   const reducedMotion = usePrefersReducedMotion()
@@ -328,56 +364,41 @@ export const Book = ({ bookmarks, initialIndex, content, children }: BookProps):
               docs/deviations.md §8. */}
           <EdgeStrip edge="left" canTurn={canGoBack} onTurn={turnBackward} />
           <EdgeStrip edge="right" canTurn={canGoForward} onTurn={turnForward} />
+
+          {/* Inside the design box, so it scales with the book, and above the
+              stack but below the turn strips at `z-index: 400`. It is the one
+              piece of chrome that lies over the page rather than beside it,
+              and is `pointer-events: none` so it never takes a click meant
+              for what is under it. */}
+          {showDecorations && <Ribbon />}
         </div>
       </div>
 
-      <div className={styles.bottomBar}>
-        <button
-          type="button"
-          data-nav="prev"
-          className={styles.navButton}
-          aria-label="Previous page"
-          disabled={!canGoBack}
-          onClick={turnBackward}
-        >
-          &#8249;
-        </button>
+      <BottomBar
+        pageNumber={state.index + 1}
+        totalPages={totalPages}
+        // A label the book was not handed is an empty line, not a crash: the
+        // labels cross the same serialization boundary the rail does, so a
+        // rail and a reading sequence that disagree is a state this surface
+        // can be handed (see `deriveRail`'s own note on it).
+        label={labels[state.index] ?? ''}
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
+        onBack={turnBackward}
+        onForward={turnForward}
+      />
 
-        <p data-counter="" className={styles.counter}>
-          {pageCounter(state.index + 1, totalPages)}
-        </p>
+      {/* The rail decides nothing: which tab is active is `isRailTabActive`
+          reading `deriveBookmarks`' spans, and the page it reads them against
+          is the machine's committed index. */}
+      <BookmarkRail
+        tabs={bookmarks}
+        pageIndex={state.index}
+        onJump={(startIndex) => {
+          request({ kind: 'jump', target: startIndex })
+        }}
+      />
 
-        <button
-          type="button"
-          data-nav="next"
-          className={styles.navButton}
-          aria-label="Next page"
-          disabled={!canGoForward}
-          onClick={turnForward}
-        >
-          &#8250;
-        </button>
-      </div>
-
-      <nav className={styles.rail} aria-label="Bookmarks">
-        {/* A tab is addressed by the page it opens, never by its position in
-            the rail (CLAUDE.md §7). A rail that disagreed with the reading
-            sequence used to be dropped here, in JSX; it is dropped by
-            `deriveRail` now, where a test can prove it. */}
-        {bookmarks.map((tab) => (
-          <button
-            key={tab.startIndex}
-            type="button"
-            data-bookmark={tab.startIndex}
-            className={styles.bookmarkTab}
-            onClick={() => {
-              request({ kind: 'jump', target: tab.startIndex })
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
     </main>
   )
 }

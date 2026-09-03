@@ -396,16 +396,88 @@ export const deriveBookmarks = (pages: readonly BookPage[]): readonly BookmarkTa
 
 /**
  * One tab of the bookmark rail as the reading surface actually draws it: the
- * page it opens, and the words printed on it. {@link BookmarkTab} carries the
- * journey fields an editor's rail is derived FROM; this carries only what a
- * tab needs to be drawn and clicked.
+ * pages it covers, the two lines printed on it, and the colour of its tint
+ * bar. {@link BookmarkTab} carries the journey fields an editor's rail is
+ * derived FROM; this carries only what a tab needs to be drawn, clicked and
+ * marked active.
  */
 export interface RailTab {
-  /** The 0-based page index this tab jumps to. */
+  /** The 0-based page index this tab jumps to, and the first page it covers. */
   readonly startIndex: number
-  /** The label printed on the tab, from {@link pageLabel}. */
-  readonly label: string
+  /**
+   * How many consecutive pages this tab covers - three for a journey, one
+   * for Cover, Contents and About. Carried rather than re-derived by the
+   * rail, so the drawn active state and {@link deriveBookmarks}'s spans
+   * cannot disagree (SCREENS.md §1.7).
+   */
+  readonly span: number
+  /** The tab's first line, in Caveat 24px: a journey's name, or 'Cover'/'Contents'/'About'. */
+  readonly name: string
+  /** The tab's second line, in uppercase Courier 8.5px - see {@link railSub}. */
+  readonly sub: string
+  /**
+   * The 6px tint bar's colour: a journey's own accent. `undefined` for the
+   * three book-wide tabs, which have no journey behind them and are painted
+   * in the rail's own default tint.
+   */
+  readonly tint: string | undefined
 }
+
+/** The first line of a rail tab: a journey's name, or the book-wide page's own. */
+const railName = (page: BookPage): string => {
+  switch (page.kind) {
+    case 'cover':
+      return 'Cover'
+    case 'contents':
+      return 'Contents'
+    case 'about':
+      return 'About'
+    default:
+      return page.name
+  }
+}
+
+/**
+ * The second line of a rail tab. The three book-wide tabs carry the
+ * prototype's own copy; a journey carries the last two words of its
+ * free-text `dates`, which for every seeded range ("12 – 24 March 2025") is
+ * the month and the year. Taken from the prototype's `tabDef`
+ * (`handoff/design_handoff_travel_diary/Travel Diary.dc.html`), which is
+ * where SCREENS.md §1.7's unnamed "sub" is actually specified.
+ */
+const railSub = (page: BookPage): string => {
+  switch (page.kind) {
+    case 'cover':
+      return 'the front'
+    case 'contents':
+      return 'index'
+    case 'about':
+      return 'colophon'
+    default:
+      return page.dates.split(' ').slice(-2).join(' ')
+  }
+}
+
+/** A journey tab's tint bar colour - its own accent. The book-wide tabs have none. */
+const railTint = (page: BookPage): string | undefined =>
+  page.kind === 'cover' || page.kind === 'contents' || page.kind === 'about' ? undefined : page.accent
+
+/**
+ * Whether a rail tab covers the page the reader is on, and so is drawn
+ * active (SCREENS.md §1.7: "a tab is active when `index ∈ [start, start+3)`").
+ *
+ * The interval is half-open, and that is the whole of the rule: a journey's
+ * tab covers its notes page and both frames pages and stops, so the page
+ * after them belongs to the next tab.
+ * @param tab - The tab being drawn.
+ * @param pageIndex - The 0-based page the reader is on.
+ * @returns `true` when `pageIndex` falls inside the tab's span.
+ * @example
+ * isRailTabActive({ startIndex: 2, span: 3, ... }, 4) // true - the last of Tokyo's three
+ * isRailTabActive({ startIndex: 2, span: 3, ... }, 5) // false - the span is exclusive
+ */
+export const isRailTabActive = (tab: RailTab, pageIndex: number): boolean =>
+  pageIndex >= tab.startIndex && pageIndex < tab.startIndex + tab.span
 
 /**
  * Labels the bookmark rail, dropping any tab that addresses a page the book
@@ -423,7 +495,17 @@ export interface RailTab {
 export const deriveRail = (pages: readonly BookPage[], bookmarks: readonly BookmarkTab[]): readonly RailTab[] =>
   bookmarks.flatMap((tab) => {
     const page = pages[tab.startIndex]
-    return page === undefined ? [] : [{ startIndex: tab.startIndex, label: pageLabel(page) }]
+    if (page === undefined) return []
+
+    return [
+      {
+        startIndex: tab.startIndex,
+        span: tab.span,
+        name: railName(page),
+        sub: railSub(page),
+        tint: railTint(page),
+      },
+    ]
   })
 
 /**
@@ -458,3 +540,18 @@ export const pageLabel = (page: BookPage): string => {
       return `${page.name} — Frames II`
   }
 }
+
+/**
+ * Labels every page in the reading sequence, in reading order, for the bottom
+ * bar's line under the page counter (SCREENS.md §1.7).
+ *
+ * Derived on the server and handed to the reading surface as plain strings:
+ * the bar lives inside the book's `'use client'` boundary and `BookPage` does
+ * not, so relabelling in the browser would mean serializing the whole reading
+ * sequence a second time to produce thirty-three short strings.
+ * @param pages - The reading sequence from {@link derivePages}.
+ * @returns One label per page, positionally matching `pages`.
+ * @example
+ * derivePageLabels(derivePages([tokyo])) // ['Cover', 'Contents', 'Tokyo — Notes', ...]
+ */
+export const derivePageLabels = (pages: readonly BookPage[]): readonly string[] => pages.map(pageLabel)
