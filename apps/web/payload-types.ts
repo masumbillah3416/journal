@@ -316,6 +316,7 @@ export interface OtpChallenge {
   id: number;
   user: number | User;
   codeHash: string;
+  sessionHash: string;
   expiresAt: string;
   attempts?: number | null;
   consumedAt?: string | null;
@@ -634,6 +635,7 @@ export interface UsersSelect<T extends boolean = true> {
 export interface OtpChallengesSelect<T extends boolean = true> {
   user?: T;
   codeHash?: T;
+  sessionHash?: T;
   expiresAt?: T;
   attempts?: T;
   consumedAt?: T;

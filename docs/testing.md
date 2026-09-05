@@ -356,12 +356,13 @@ would claim a measurement nothing performs.
   `npm run verify:full` / `npm run test:integration`.
 - **Coverage for integration-only code:** `npm run verify`'s coverage pass runs without
   a database, so `postgres-queue.ts`, `queue-contract.ts`, `queue-fixtures.ts`,
-  `seed.ts`, `seed-data.ts`, `testPayload.ts` and `migrate.ts` — reachable exclusively
+  `seed.ts`, `seed-data.ts`, `testPayload.ts`, `migrate.ts` and — from Phase 2 Task 3 —
+  `auth/otpService.ts` and `auth/testing/otpProbes.ts` — reachable exclusively
   from an `*.integration.test.ts` — are excluded from `vitest.config.ts`'s coverage
   `include` rather than counted as 0%-covered there. They are gated instead by a second,
   dedicated pass, `vitest.integration.config.ts`, run via
   `npm run test:integration:coverage` (chained into `npm run verify:full`) — it runs the
-  same integration test files with `--coverage` scoped to those seven, plus
+  same integration test files with `--coverage` scoped to those nine, plus
   `apps/web/collections/**`, `apps/web/globals/**`, `apps/web/payload.config.ts` and
   `apps/web/migrations/**` (all four at 100%; see Coverage gates above).
   Thresholds are set per-file to what is genuinely achieved, not aspirational:
@@ -385,6 +386,18 @@ would claim a measurement nothing performs.
   Payload itself just generated, an out-of-bounds accent-tint index that can't happen for
   a fixed 5-element tuple); see `seed.ts`'s own `c8 ignore` comments and
   `vitest.integration.config.ts`'s threshold comment for the full list.
+  `auth/otpService.ts` (Phase 2 Task 3) is 100% lines/statements/functions and **93%
+  branches**. The two arms it is short of are unreachable rather than untested, and both
+  are named at the threshold so a third cannot hide behind them: `deriveKey`'s `reject`
+  path, which `node:crypto`'s `scrypt` takes only for invalid cost parameters or an
+  exceeded memory limit (the parameters are module constants, and the line carries a
+  `c8 ignore` that removes the statement but not the `if`'s branch), and the
+  `attempts ?? 0` fallback, which exists for the generated Payload type on a column
+  declared `defaultValue: 0`. `auth/testing/otpProbes.ts` is **100% on every axis**,
+  like `queue-fixtures.ts` and for the same reason: the probes are what make the OTP
+  security assertions non-vacuous, so each of their own refusals — an empty outbox, a
+  message with no six-digit run, an account with no challenge — is exercised rather than
+  assumed.
 - **Add one:** write `apps/web/lib/ports/<name>.ts` (the interface, plus any guard every
   adapter must share - see `validateStorageKey` above), then
   `apps/web/lib/adapters/contract/<name>-contract.ts` (the shared suite) before any
@@ -1500,8 +1513,18 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
 - **Tool:** Vitest + scripted probes.
 - **Scope:** rate limits, lockout, OTP single-use, SVG rejection, EXIF stripping,
   authorization on every mutation.
-- **Status:** not yet implemented — this suite exercises the auth service (Phase 2) and
-  the upload worker (Phase 3), neither of which exists yet.
+- **Status:** partly implemented. The OTP half of it exists as of Phase 2 Task 3:
+  `apps/web/lib/auth/otpService.integration.test.ts` is nineteen cases against a real
+  Payload and a real Postgres, one per `SECURITY.md` bullet under the first prototype
+  hole plus the resend limits — the code is never returned, never logged and never
+  stored in the clear; a code issued for one session is refused in another; a correct
+  code works exactly once; a third wrong guess kills the challenge even for the correct
+  code; expiry is derived from `createdAt` rather than the stored `expiresAt`; and the
+  comparison is `crypto.timingSafeEqual`. Each of those was verified by **mutation** —
+  ten deliberate breakages, each failing exactly the case that names it and no other
+  (the runs are pasted in that task's report). What is still outstanding is rate
+  limiting and lockout (Phase 2 Task 4), anti-enumeration (Task 5) and the upload
+  worker's SVG and EXIF probes (Phase 3).
 - **Run (once added):** included in `npm run test:integration` (these probes need a real
   database and, for the upload cases, the worker), so they run under `verify:full`.
 - **Add one (once added):** each row of `docs/security.md` that names a behaviour (not
@@ -1514,9 +1537,16 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
 
 - **Tool:** Vitest.
 - **Scope:** every migration runs up, down, and up again against a seeded database.
-- **Status:** implemented. `apps/web/migrations/` holds two migrations:
-  `20260831_154311_initial` (every collection and global's schema) and
-  `20260831_161951_add_jobs` (the `jobs` table backing the `queue` port, Task 9).
+- **Status:** implemented. `apps/web/migrations/` holds three migrations:
+  `20260831_154311_initial` (every collection and global's schema),
+  `20260831_161951_add_jobs` (the `jobs` table backing the `queue` port, Task 9) and
+  `20260905_202028_add_otp_session_hash` (the OTP challenge's session binding, Phase 2
+  Task 3 — `docs/deviations.md` §25). Each of the two later ones has its **own** up/down/up
+  case in `collections.integration.test.ts` rather than sharing one, because they fail
+  differently: a case that proves tables come back would still pass with a column
+  silently missing from a rebuilt table, so the `session_hash` case writes a row only
+  that column makes storable, rolls every migration to zero, re-applies, and writes it
+  again.
   `apps/web/lib/migrate.ts` wraps Payload's migration runner as `runMigrateUp`,
   `runMigrateDown`, `appliedMigrationCount` and `runMigrateDownToZero`.
   `apps/web/lib/testPayload.ts`'s `getTestPayload()` calls `runMigrateUp` once, on

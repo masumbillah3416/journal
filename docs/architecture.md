@@ -14,7 +14,7 @@ apps/
     app/(admin)/admin/    the bespoke ten-screen panel    → authenticated
     app/(auth)/signin/    password, OTP, reset
     app/(payload)/cms/    Payload's stock admin — dev only, disabled in production
-    lib/                  repositories, server actions, adapters
+    lib/                  repositories, server actions, adapters, auth/
   transcoder/             Node + sharp + ffmpeg worker, queue consumer  → DEFERRED (ADR 0004)
 packages/
   domain/                 pure logic — no I/O, no framework. 100% coverage.
@@ -55,6 +55,7 @@ module, independently testable, named in its own header.
 | `contentWindow`                         | `packages/domain`                  | `(addressedIndex, totalPages) → ContentWindow`. Which leaves' faces a `/p/<n>` document carries — the SERVER's window, a function of the address, where `pageStack.loadsImages` is a function of the flip machine. Also owns the one search parameter with which the book asks for the rest (`docs/adr/0009-server-rendered-page-window.md`). |
 | `gallery`                               | `packages/domain` + `apps/web/lib` | Payload `media` rows in, one typed `GalleryBundle` out — the gallery's counterpart to `bookBundle`, and the same rule: `components/gallery/` reads nothing else. The pure half also owns the two decisions the handoff records as having been got wrong: the open frame is addressed by `MediaId` (`openFrameById`, `stepFrame` — the index is DERIVED, for the `003 / 061` counter and nothing else), and the grid is windowed only past a hundred tiles (`tileWindow`). |
 | `galleryDownload`                       | `packages/domain` + `apps/web/lib` | The download action's rules, kept out of the route handler so they can be tested at all: a root-relative path with no scheme and no authority (so it can never resolve to a bucket origin), a three-value `Content-Type` allowlist that refuses `image/svg+xml` by name, and a filename derived from the journey slug and the frame's number rather than from the stored key. `SECURITY.md`'s "downloads through your own handler" requirement lives here and in `apps/web/lib/readGalleryDownload.ts`. |
+| `otpChallenge` / `otpService`           | `packages/domain` + `apps/web/lib` | The sign-in code's lifecycle, split so the rules are pure and the I/O is not. `challengeState`/`canResend` decide validity, exhaustion and whether a resend may be sent, from three persisted numbers and an injected clock; `apps/web/lib/auth/otpService.ts` is the only place an `otpChallenges` row is read or written, and the only place a code exists at all — CSPRNG generation, a scrypt hash with a per-row salt, a SHA-256 session binding used as the lookup key, and `crypto.timingSafeEqual` for the comparison (`docs/adr/0015-otp-challenge-hashing.md`). The domain half never sees the hash, which is what keeps a test or a log line from printing one. |
 | `storage` / `mailer` / `transcodeQueue` | `apps/web/lib`                     | Ports with local and production adapters, one shared contract suite run against both                                                              |
 
 ### The book's DOM binding (`apps/web/components/book/`)

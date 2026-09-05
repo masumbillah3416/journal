@@ -114,6 +114,8 @@ export default defineConfig({
         'apps/web/lib/readBookBundle.ts',
         'apps/web/lib/readGalleryBundle.ts',
         'apps/web/lib/readGalleryDownload.ts',
+        'apps/web/lib/auth/otpService.ts',
+        'apps/web/lib/auth/testing/otpProbes.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
         'apps/web/payload.config.ts',
@@ -160,6 +162,26 @@ export default defineConfig({
         // that has already bootstrapped `diary_test` once genuinely
         // measures, not what a first-ever run would.
         'apps/web/lib/testPayload.ts': { lines: 93, branches: 75, functions: 100 },
+        // otpService.ts (Phase 2 Task 3). 100% lines/statements/functions;
+        // 93% branches is the measured number, and the two arms it is short
+        // of are both unreachable rather than untested, named here so a third
+        // one cannot hide behind them. (1) `deriveKey`'s `reject` arm:
+        // `node:crypto`'s `scrypt` reports an error only for invalid cost
+        // parameters or an exceeded memory limit, and the parameters are
+        // module constants - it carries a `c8 ignore` on the line, which
+        // removes the statement but not the branch the `if` above it counts.
+        // (2) the `attempts ?? 0` fallback: the column is declared with
+        // `defaultValue: 0`, so Payload never returns null for it; the
+        // fallback exists for the generated type. Both were read before being
+        // excused, and neither can be reached without breaking the module
+        // under test - which CLAUDE.md §2.3 forbids ("no mocking what we
+        // own"). Raise this the moment a reachable branch is added.
+        'apps/web/lib/auth/otpService.ts': { lines: 100, branches: 93, functions: 100 },
+        // The probes are gated at 100% on every axis, like queue-fixtures.ts
+        // above and for the same reason: they are what makes every security
+        // assertion in otpService.integration.test.ts non-vacuous, so each of
+        // their own refusals is exercised rather than assumed.
+        'apps/web/lib/auth/testing/otpProbes.ts': { lines: 100, branches: 100, functions: 100 },
         // readBookBundle.ts (Task 6 of Phase 1; Task 6 review fix round 1;
         // Task 11): 100% lines/statements/functions. 83% branches is the
         // real, measured number, RAISED again from 81% by Task 11, whose

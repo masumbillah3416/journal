@@ -324,3 +324,12 @@ screens (Phase 4), each requiring Payload access-control authorization per
 `docs/security.md`'s "Authorization on every mutation" row — checked on every mutation,
 never inherited from the page it was reached from. Each of these gets a full row in this
 document, in the commit that adds it.
+
+One of those actions now has its logic waiting for it, which is worth naming so nobody
+looks for a route that does not exist: Phase 2 Task 3 built
+`apps/web/lib/auth/otpService.ts` — `issueChallenge(user, session, ip)` and
+`verifyChallenge(session, code)`. It is a module, **not** a route and not a server
+action, and deliberately so: nothing about the OTP flow is reachable from the Payload
+REST or GraphQL API (the `otpChallenges` collection returns `false` from every access
+predicate), so the only way to reach it is a server action that has not been written yet.
+When that action lands it gets its own full row here, and this paragraph goes with it.

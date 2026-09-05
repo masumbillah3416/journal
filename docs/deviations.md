@@ -912,3 +912,47 @@ justification, both point here, and this entry is the single place the reasoning
 
 **What would reverse this.** Either element moving inside the design box, or a
 `SCREENS.md` revision dropping `background` from §1.7's transition. Neither exists today.
+
+## 25 · `otpChallenges` gains a `sessionHash` column the handoff never lists
+
+**What changed:** `DATA_MODEL.md` specifies the `otpChallenges` collection as `user`,
+`codeHash`, `expiresAt`, `attempts`, `consumedAt`, `ip` — six fields, none of them a
+session. This project adds a seventh: `sessionHash`, an indexed, required text column
+holding SHA-256 of the pre-auth session identifier
+(`apps/web/collections/otpChallenges.ts`, migration
+`apps/web/migrations/20260905_202028_add_otp_session_hash.ts`).
+
+**Rationale:** the handoff contradicts itself here, and the contradiction is load-bearing.
+`SECURITY.md`'s first prototype hole requires, in its own words, "Bind the challenge to
+the session that started it, so a code issued for one browser can't be redeemed in
+another" — and `DATA_MODEL.md`'s field list for the very collection that binding lives in
+has nowhere to put a session. Phase 0 implemented the field list faithfully, so the gap is
+inherited rather than introduced. Building `issueChallenge(user, session, ip)` against
+that schema would leave the `session` parameter accepted, ignored and untested: the
+binding requirement failing while appearing to hold, which is the exact failure mode the
+phase's Ruling F1 was written to prevent one task earlier. Between a field list and a
+hardening requirement, the hardening requirement wins — the same precedence
+`docs/adr/0002-auth-mechanism.md` already applied when the three handoff documents
+disagreed about auth.
+
+**Why hashed, and why not a relationship to `sessions`:** the column sits in the same row
+as `ip`, and a table that already hashes one secret should not keep the other in
+cleartext — `SECURITY.md` rotates the pre-auth session id away on login precisely because
+it is untrusted. It is SHA-256 rather than the slow, salted hash used for `codeHash`
+because this column is the *lookup key* and must be deterministic and indexable; the
+input is a high-entropy identifier, so unlike a six-digit code there is no dictionary to
+run against it. It is not a relationship to `sessions` because at issue time the visitor
+is unauthenticated: minting `sessions` rows for pre-auth visitors would bloat that table
+and would put unauthenticated entries into the Account screen's "Where you are signed in"
+list, which is backed by real `sessions` rows. The full reasoning, including the options
+rejected, is `docs/adr/0015-otp-challenge-hashing.md`.
+
+**What would reverse this:** a `DATA_MODEL.md` revision that either adds the field or
+drops `SECURITY.md`'s session-binding requirement. Neither exists today, and the
+migration is reversible in both directions if one ever does — asserted by
+`apps/web/collections/collections.integration.test.ts`, which rolls every migration back
+to zero and re-applies it.
+
+**Recorded as:** `docs/adr/0015-otp-challenge-hashing.md`; the phase ledger's rulings
+F11 and F12; `// HANDOFF-DEVIATION` on the field itself in
+`apps/web/collections/otpChallenges.ts`.

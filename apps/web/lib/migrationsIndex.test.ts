@@ -2,7 +2,8 @@
  * migrationsIndex.test.ts — unit coverage for the generated migrations barrel.
  *
  * `apps/web/migrations/index.ts` is a `payload migrate:create` barrel with
- * zero authored logic of its own: two imports and an array literal wiring
+ * zero authored logic of its own: one import per migration and an array
+ * literal wiring
  * each migration file's `up()`/`down()` to its own name. Nothing in this
  * repository imports it at runtime - Payload's own `readMigrationFiles`
  * explicitly filters `index.ts`/`index.js` out and reads every OTHER file
@@ -15,7 +16,7 @@
  *
  * This is that file's only test, and its only job is to prove the array is
  * right - the same function references, in the same order, under the same
- * names, as the two migration files beside it. It needs neither Docker nor
+ * names, as the migration files beside it. It needs neither Docker nor
  * a real Postgres connection (the migration files' own `up()`/`down()` are
  * never called here, only referenced), so it runs in the Docker-free `unit`
  * project, matched by that project's existing `apps/web/lib` test glob (no
@@ -39,12 +40,18 @@ import { describe, expect, it } from 'vitest'
 import { migrations } from '../migrations/index'
 import * as initial from '../migrations/20260831_154311_initial'
 import * as addJobs from '../migrations/20260831_161951_add_jobs'
+import * as addOtpSessionHash from '../migrations/20260905_202028_add_otp_session_hash'
 
 describe('migrations barrel', () => {
-  it('lists both migrations, in order, wired to the right module', () => {
+  it('lists every migration, in order, wired to the right module', () => {
     expect(migrations).toEqual([
       { up: initial.up, down: initial.down, name: '20260831_154311_initial' },
       { up: addJobs.up, down: addJobs.down, name: '20260831_161951_add_jobs' },
+      {
+        up: addOtpSessionHash.up,
+        down: addOtpSessionHash.down,
+        name: '20260905_202028_add_otp_session_hash',
+      },
     ])
   })
 })

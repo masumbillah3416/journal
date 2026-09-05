@@ -92,9 +92,25 @@ deleted, not moved, per `SECURITY.md`), `notifyOnPublish`, `notifyWeekly`.
 
 `access: { read: () => false, create: () => false, update: () => false }` — server-only,
 by design; nothing about the OTP flow is reachable from the Payload REST/GraphQL API a
-client could call directly. Fields: `user` (relationship, indexed), `codeHash` (hashed,
-never plaintext), `expiresAt` (now + 5 minutes), `attempts` (default 0), `consumedAt`,
+client could call directly. Fields: `user` (relationship, indexed), `codeHash` (scrypt
+with a per-row salt, never plaintext), `sessionHash` (indexed — SHA-256 of the pre-auth
+session identifier), `expiresAt` (now + 5 minutes), `attempts` (default 0), `consumedAt`,
 `ip`.
+
+`sessionHash` is **not** in `DATA_MODEL.md`'s field list. It is the deviation recorded as
+`docs/deviations.md` §25: `SECURITY.md` requires the challenge to be bound to the session
+that started it and the handoff's own field list has nowhere to put one, so the column was
+added by migration `20260905_202028_add_otp_session_hash`. Why the two hashed columns use
+two different algorithms — a slow salted hash for the code, a fast indexable one for the
+lookup key — is `docs/adr/0015-otp-challenge-hashing.md`.
+
+`expiresAt` is a **purge index, not an authorization input.** It is written as
+`createdAt + EXPIRY_MS` so that expiring old challenges is one indexed
+`DELETE WHERE expires_at < now()`; whether a challenge is still usable is derived from
+`createdAt` and the domain's `EXPIRY_MS` (`packages/domain/src/auth/otpChallenge.ts`),
+never read back off this column. Two sources of truth for one fact would make `EXPIRY_MS`
+decorative and would let a bad write to `expiresAt` silently extend a challenge's life.
+The behaviour lives in `apps/web/lib/auth/otpService.ts`.
 
 ### `sessions`
 
@@ -172,6 +188,7 @@ From design spec §5.1:
 |---|---|
 | `20260831_154311_initial` | Creates all six collections and three globals above, with `deletedAt` (indexed) on `journeys` and `versions: { drafts: true }` on `journeys` and `pages` from the start — both are painful to retrofit onto a collection with existing rows, per the note above. `pages` deliberately has drafts but no `deleted_at`: a page is not independently trashed, it is deleted with the journey that owns it, which matches `DATA_MODEL.md`'s own schema and rule 4 above. Verified reversible by `collections.integration.test.ts`, which rolls **every** migration back to zero — so this file's own `down()` runs regardless of how the batches were applied — then re-applies them and asserts a journey's fields, highlights and tally round-trip through the rebuilt schema. Rows do not survive a `DROP TABLE`; what is restored is the schema's ability to hold them. See `docs/testing.md` §9. |
 | `20260831_161951_add_jobs` | Creates the `jobs` table (Task 9) backing the Postgres `QueuePort` adapter, and the `payload_locked_documents_rels.jobs_id` column/FK Payload adds for its own admin document-locking feature. Verified reversible by the same test; see the statement-order note below. |
+| `20260905_202028_add_otp_session_hash` | Adds `otp_challenges.session_hash` (`varchar NOT NULL`) and its btree index — the session binding `SECURITY.md` requires and `DATA_MODEL.md` omits (`docs/deviations.md` §25, `docs/adr/0015-otp-challenge-hashing.md`). Its `up()` carries one hand-added statement, `DELETE FROM "otp_challenges"`, before the `ALTER`: a `NOT NULL` column with no default cannot be added to a table that has rows, and every pre-existing challenge is one the new rule can never honour anyway — it has no session binding, so it could not be redeemed. Challenges are five-minute ephemera, so nothing of value is discarded and no default has to be invented. Verified reversible by its own case in `collections.integration.test.ts`, separate from the journey case above because the two fail differently: the journey case proves tables come back and would still pass with this column silently missing. The `down()` drops the index before the column, so a re-apply's `CREATE INDEX` cannot collide with a leftover. |
 
 Generated with `npm run db:migrate:create -w apps/web -- <name>`, applied with
 `npm run db:migrate -w apps/web`. Payload's generator emits a plain (non-type-only) import

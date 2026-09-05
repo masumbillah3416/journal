@@ -310,6 +310,16 @@ export default defineConfig({
         // reasoning as readBookBundle.ts above.
         'apps/web/lib/readGalleryBundle.ts',
         'apps/web/lib/readGalleryDownload.ts',
+        // otpService.ts and its test-side probes (Phase 2 Task 3) are
+        // reachable only from otpService.integration.test.ts - every one of
+        // this module's operations reads or writes an `otpChallenges` row
+        // through a real Payload, and the whole point of testing it against a
+        // real Postgres is that "only a hash was stored" and "the challenge is
+        // now consumed" are claims about a database, not about a mock. Gated
+        // by vitest.integration.config.ts instead, same reasoning as
+        // readBookBundle.ts above.
+        'apps/web/lib/auth/otpService.ts',
+        'apps/web/lib/auth/testing/otpProbes.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by

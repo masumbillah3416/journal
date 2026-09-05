@@ -9,7 +9,13 @@
  * Named `*.integration.test.ts` so it runs only under the `integration` Vitest
  * project (see vitest.config.ts), never in `npm run verify` (pre-commit).
  *
- * The last case is the Migration suite of CLAUDE.md §2. It replaced one named
+ * The last TWO cases are the Migration suite of CLAUDE.md §2, one per shape
+ * of migration this repository has: the journey case covers a migration that
+ * creates tables, and the `otpChallenges` case covers one that adds a column
+ * and an index to a table that already exists. They are separate because they
+ * fail differently - see the comment on the second.
+ *
+ * The first of them replaced one named
  * "runs down and up again without loss" that seeded nothing and compared
  * nothing: it called `runMigrateDown()` and `runMigrateUp()`, asserted neither
  * threw, and asserted a subsequent `find()` was defined. Both halves of its
@@ -139,6 +145,36 @@ const existingTablesAmong = async (names: readonly string[]): Promise<string[]> 
   }
 }
 
+/** The email the OTP migration fixture's account uses, so `afterAll` can remove it. */
+const FIXTURE_REVERSIBILITY_EMAIL = 'test-otp-reversibility@example.com'
+
+/** A stand-in SHA-256 hex value for the fixture challenge's session binding. */
+const FIXTURE_SESSION_HASH = 'f'.repeat(64)
+
+/**
+ * A challenge row for the `sessionHash` reversibility case.
+ *
+ * A factory, not a shared literal (CLAUDE.md §2.3): the test writes it twice,
+ * either side of a full schema rollback, and a shared object would let the
+ * first write's Payload-assigned id leak into the second. The hashes are
+ * fixed stand-ins rather than real ones - this case is about the column
+ * surviving a rollback, and `apps/web/lib/auth/otpService.integration.test.ts`
+ * is where what goes IN the column is asserted.
+ * @param account - The id of the user the challenge belongs to.
+ * @returns The row's data.
+ */
+const anOtpChallengeFor = (account: number): {
+  user: number
+  codeHash: string
+  sessionHash: string
+  expiresAt: string
+} => ({
+  user: account,
+  codeHash: 'a'.repeat(96),
+  sessionHash: FIXTURE_SESSION_HASH,
+  expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+})
+
 /** The three tables a journey's own fields, highlights and tally live in. */
 const JOURNEY_TABLES = ['journeys', 'journeys_highlights', 'journeys_tally'] as const
 
@@ -170,6 +206,26 @@ describe('collections', () => {
     }
     const editors = await payload.find({ collection: 'users', where: { email: { equals: FIXTURE_USER_EMAIL } } })
     for (const doc of editors.docs) {
+      await payload.delete({ collection: 'users', id: doc.id })
+    }
+    // The OTP reversibility case creates one account either side of the
+    // rollback, and the rollback destroys the first - so the address is
+    // matched rather than a single id remembered. Its challenge row goes
+    // FIRST: `otp_challenges.user_id` is NOT NULL, and Payload's own delete
+    // hook nulls the relationship rather than cascading, so removing the
+    // account while a challenge still points at it fails the constraint.
+    const otpFixtures = await payload.find({
+      collection: 'users',
+      where: { email: { equals: FIXTURE_REVERSIBILITY_EMAIL } },
+    })
+    for (const doc of otpFixtures.docs) {
+      const challenges = await payload.find({
+        collection: 'otpChallenges',
+        where: { user: { equals: doc.id } },
+      })
+      for (const challenge of challenges.docs) {
+        await payload.delete({ collection: 'otpChallenges', id: challenge.id })
+      }
       await payload.delete({ collection: 'users', id: doc.id })
     }
   })
@@ -353,7 +409,12 @@ describe('collections', () => {
     const create = payload.create({
       collection: 'otpChallenges',
       overrideAccess: false,
-      data: { user: 1, codeHash: 'never-stored-in-plaintext', expiresAt: new Date().toISOString() },
+      data: {
+        user: 1,
+        codeHash: 'never-stored-in-plaintext',
+        sessionHash: FIXTURE_SESSION_HASH,
+        expiresAt: new Date().toISOString(),
+      },
     })
     const update = payload.update({
       collection: 'otpChallenges',
@@ -420,5 +481,47 @@ describe('collections', () => {
       highlights: (restored.highlights ?? []).map((highlight) => highlight.text),
       tally: (restored.tally ?? []).map((row) => `${row.key ?? ''}=${row.value ?? ''}`),
     }).toEqual(captured)
+  })
+
+  // The `sessionHash` column added by `20260905_202028_add_otp_session_hash`
+  // (Phase 2 Task 3, docs/deviations.md §25) gets its own up/down/up case
+  // rather than riding on the journey one above, because the two migrations
+  // fail differently: the journey case proves tables come BACK, and would
+  // still pass with `session_hash` silently missing from the rebuilt
+  // `otp_challenges` - the column is not one it writes. This case writes a
+  // challenge row that only the new column makes storable, rolls every
+  // migration to zero, re-applies, and writes it again. Its `down()` is what
+  // that round trip exercises: a `down()` that failed to drop the index would
+  // make the re-apply's `CREATE INDEX` fail with "relation already exists",
+  // which is the specific way this migration can be irreversible.
+  it('rebuilds the otpChallenges session binding after rolling all migrations back to zero and re-applying them', async () => {
+    const account = await payload.create({
+      collection: 'users',
+      data: { email: FIXTURE_REVERSIBILITY_EMAIL, password: 'not-a-real-password' },
+    })
+    const written = await payload.create({ collection: 'otpChallenges', data: anOtpChallengeFor(account.id) })
+
+    expect(written.sessionHash).toBe(FIXTURE_SESSION_HASH)
+
+    await runMigrateDownToZero()
+
+    // Asserted mid-test for the same reason as the case above: Payload's
+    // migrate() calls process.exit(1) on a failed migration, so a rollback
+    // that left the index behind would kill this worker on the re-apply
+    // before any assertion could name what went wrong.
+    expect(await appliedMigrationCount()).toBe(0)
+    expect(await existingTablesAmong(['otp_challenges'])).toEqual([])
+
+    await runMigrateUp()
+    const rebuiltAccount = await payload.create({
+      collection: 'users',
+      data: { email: FIXTURE_REVERSIBILITY_EMAIL, password: 'not-a-real-password' },
+    })
+    const restored = await payload.create({
+      collection: 'otpChallenges',
+      data: anOtpChallengeFor(rebuiltAccount.id),
+    })
+
+    expect(restored.sessionHash).toBe(FIXTURE_SESSION_HASH)
   })
 })
