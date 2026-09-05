@@ -103,6 +103,26 @@ already hashes one secret has no business keeping the other in the clear.
   denial-of-service lever, and it makes a crash mid-verification a free guess.
   `issueChallenge` inverts the same trade — it derives *before* taking its per-account
   advisory lock, so the lock spans only a count and an insert.
+- **That advisory lock is transaction-scoped and timeout-bounded, and both halves were
+  corrections.** The first version used the session-scoped
+  `pg_advisory_lock`/`pg_advisory_unlock` pair with the unlock in a `finally`, which is
+  correct only while that `finally` can actually reach the database. The lock is held by
+  the *connection*, and the connection is pooled, so any path that cannot send the unlock
+  leaves the lock held on a connection that outlives the request: every later issue for
+  that account then waits on a lock owned by a request several ago, and the symptom is a
+  hang with no visible cause. `pg_advisory_xact_lock` inside an explicit transaction is
+  released by the server on commit, rollback *or disconnection* — release stops depending
+  on a statement of ours succeeding. `SET LOCAL lock_timeout` then bounds the wait for a
+  request queued behind a holder, because an unbounded wait is not one slow request: it
+  holds a connection out of a pool of ten (`apps/web/payload.config.ts`) for as long as
+  the holder lasts, and ten of them is the whole application stopped. Three seconds is
+  three orders of magnitude above what the critical section costs, so it never fires on
+  honest contention. A timeout surfaces as a thrown Postgres error rather than a fifth
+  `IssueFailure`: a reader can act on `'cooldown'`, and there is nothing they can do
+  about database contention — inventing a refusal for it would put a message about our
+  infrastructure on the sign-in screen. Pinned by two tests (a fault injected inside the
+  critical section leaves zero rows in `pg_locks` for that key; a request queued behind an
+  externally-held lock is refused rather than hanging) and by three mutations.
 - **The constant-time comparison cannot be verified by a timing test here, and is
   asserted structurally instead.** The comparison runs on two 32-byte buffers behind a
   ~30ms scrypt derivation and a Postgres round trip; the leak a naive `===` produces

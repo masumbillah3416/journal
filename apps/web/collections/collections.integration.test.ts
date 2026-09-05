@@ -258,6 +258,19 @@ describe('collections', () => {
 
   beforeAll(async () => {
     payload = await getTestPayload()
+    // Repairs the ONE inconsistent state this file's own reversibility case
+    // can leave behind, and nothing else: `session_hash` dropped while
+    // `payload_migrations` still records its migration as applied, which
+    // `getTestPayload()`'s own `runMigrateUp()` cannot fix because it has
+    // nothing pending to apply. The `finally` in that case makes this
+    // unreachable in the ordinary way; it exists for the way a `finally`
+    // cannot cover, which is the worker being killed outright between the
+    // `down` and the `up`. Narrow on purpose: it re-runs one migration's own
+    // `up()` when the schema and the bookkeeping disagree in exactly this
+    // way, so it cannot mask a migration that genuinely failed to apply.
+    if ((await sessionHashSchema()).length === 0) {
+      await runMigrationDirection(SESSION_HASH_MIGRATION, 'up', payload)
+    }
   })
 
   afterAll(async () => {
@@ -558,17 +571,6 @@ describe('collections', () => {
     }).toEqual(captured)
   })
 
-  // The `sessionHash` column added by `20260905_202028_add_otp_session_hash`
-  // (Phase 2 Task 3, docs/deviations.md §25) gets its own up/down/up case
-  // rather than riding on the journey one above, because the two migrations
-  // fail differently: the journey case proves tables come BACK, and would
-  // still pass with `session_hash` silently missing from the rebuilt
-  // `otp_challenges` - the column is not one it writes. This case writes a
-  // challenge row that only the new column makes storable, rolls every
-  // migration to zero, re-applies, and writes it again. Its `down()` is what
-  // that round trip exercises: a `down()` that failed to drop the index would
-  // make the re-apply's `CREATE INDEX` fail with "relation already exists",
-  // which is the specific way this migration can be irreversible.
   // The `session_hash` column added by `20260905_202028_add_otp_session_hash`
   // (Phase 2 Task 3, docs/deviations.md §25) gets its own case, and that case
   // rolls back THAT MIGRATION ALONE rather than reusing the roll-to-zero
@@ -587,14 +589,27 @@ describe('collections', () => {
     expect(await sessionHashSchema()).toEqual(['column', 'index'])
 
     await runMigrationDirection(SESSION_HASH_MIGRATION, 'down', payload)
-
-    expect(await sessionHashSchema()).toEqual([])
-    // The table itself must survive: this migration adds a column to a table
-    // it did not create, so a `down()` that took the table with it would be a
-    // different and much worse kind of reversible.
-    expect(await existingTablesAmong(['otp_challenges'])).toEqual(['otp_challenges'])
-
-    await runMigrationDirection(SESSION_HASH_MIGRATION, 'up', payload)
+    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS. Between the
+    // `down` above and the `up` below, `diary_test` is in a state
+    // `payload_migrations` does not describe: the column is gone while the
+    // bookkeeping still records the migration as applied, so the next run's
+    // `runMigrateUp()` is a no-op and EVERY subsequent integration run fails
+    // against a database with no way to repair itself. Without this, one
+    // failing assertion in here stops being a red test and becomes a session
+    // in which nothing at all can be verified - and the damage presents as a
+    // broken fixture, several files away from the test that caused it. The
+    // version this replaced rolled every migration to zero, which was
+    // worthless as a test (see below) but was at least self-healing; the
+    // narrower test must not buy its precision with that blast radius.
+    try {
+      expect(await sessionHashSchema()).toEqual([])
+      // The table itself must survive: this migration adds a column to a table
+      // it did not create, so a `down()` that took the table with it would be a
+      // different and much worse kind of reversible.
+      expect(await existingTablesAmong(['otp_challenges'])).toEqual(['otp_challenges'])
+    } finally {
+      await runMigrationDirection(SESSION_HASH_MIGRATION, 'up', payload)
+    }
 
     expect(await sessionHashSchema()).toEqual(['column', 'index'])
     // And the rebuilt column still holds what it is for. A migration that

@@ -44,10 +44,15 @@
  *      consumed_at IS NULL RETURNING id`. Zero rows means another request won
  *      the race, so this one reports `'consumed'`.
  *   3. **`issueChallenge` serialises its count-and-insert per account** with
- *      a Postgres advisory lock, because counting rows and then inserting one
- *      cannot be made atomic by a single statement under READ COMMITTED —
- *      each racer's `count(*)` simply cannot see the others' uncommitted
- *      rows.
+ *      a **transaction-scoped**, **timeout-bounded** Postgres advisory lock,
+ *      because counting rows and then inserting one cannot be made atomic by
+ *      a single statement under READ COMMITTED — each racer's `count(*)`
+ *      simply cannot see the others' uncommitted rows. Transaction-scoped so
+ *      the server releases it on commit, rollback or disconnect rather than
+ *      it depending on a statement of ours reaching the database; bounded so
+ *      a request queued behind a stalled holder fails instead of holding a
+ *      connection out of a pool of ten indefinitely. See the comment at the
+ *      lock itself.
  *
  * CLAIM-THEN-COMPARE, NOT A LOCK HELD ACROSS THE COMPARISON, and both halves
  * of that are deliberate. A guess must cost an attempt even if this process
@@ -150,7 +155,20 @@ const RESEND_WINDOW_MS = 60 * 60_000
  * changing it while a deploy is half-rolled-out would leave old and new
  * processes locking different keys, which is a silently unserialised window.
  */
-const ISSUE_LOCK_NAMESPACE = 831
+export const ISSUE_LOCK_NAMESPACE = 831
+
+/**
+ * How long a request will wait for another request's hold on the same
+ * account's lock before giving up.
+ *
+ * Generous by three orders of magnitude against what the critical section
+ * actually costs — one indexed `count(*)` and one `INSERT`, sub-millisecond —
+ * so it never fires on honest contention, including the ten-deep burst
+ * `otpService.integration.test.ts` fires at one account. It is a ceiling on
+ * pathology, not a tuning knob: see the comment at the `SET LOCAL` below for
+ * why an unbounded wait is the worse failure.
+ */
+const ISSUE_LOCK_TIMEOUT_MS = 3_000
 
 /** Why {@link OtpService.issueChallenge} refused to issue or send a code. */
 export type IssueFailure = ResendRefusal | 'unknown-account' | 'delivery-failed'
@@ -418,12 +436,41 @@ export const createOtpService = ({ payload, mailer, now }: OtpServiceDependencie
     const client = await payload.db.pool.connect()
     let refusal: ResendRefusal | undefined
     try {
-      // Session-level, not transaction-level: no transaction is opened here
-      // at all, so each statement below autocommits on its own and a process
-      // that dies mid-sequence leaves no half-open transaction behind. A
-      // connection that breaks releases the lock with it.
-      await client.query('SELECT pg_advisory_lock($1, $2)', [ISSUE_LOCK_NAMESPACE, accountId])
+      await client.query('BEGIN')
       try {
+        // TRANSACTION-SCOPED, AND BOUNDED. Both halves are corrections to a
+        // session-scoped `pg_advisory_lock`/`pg_advisory_unlock` pair, and
+        // both are about what happens when something goes wrong rather than
+        // when it goes right.
+        //
+        // `pg_advisory_xact_lock` is released by Postgres on COMMIT or
+        // ROLLBACK, and on the connection dropping — by the server, not by a
+        // statement we have to successfully send. A session-scoped lock is
+        // only released by our own `pg_advisory_unlock`, so any path that
+        // cannot run that statement leaves the lock held on a POOLED
+        // connection, which outlives the request: every later issue for that
+        // account then waits on a lock owned by a request three ago, and the
+        // symptom is a hang with no visible cause.
+        //
+        // `lock_timeout` bounds the wait a request behind the lock will
+        // accept. Unbounded, one stalled holder does not delay one request:
+        // it holds a connection out of a pool of ten (see
+        // `apps/web/payload.config.ts`) for as long as it lasts, and ten such
+        // waits is the whole application stopped. A timeout turns that into a
+        // failed request, which is recoverable. `SET LOCAL`, so the setting
+        // reverts with this transaction rather than riding the pooled
+        // connection into whatever runs next; interpolated rather than bound
+        // because Postgres's `SET` takes no parameters, and the value is a
+        // module constant, never caller input.
+        //
+        // A timeout surfaces as a thrown Postgres error rather than one of
+        // the four `IssueFailure` refusals, deliberately: a reader can act on
+        // 'cooldown', and there is nothing they can do about database
+        // contention. Inventing a fifth refusal would put a message about our
+        // infrastructure on the sign-in screen (CLAUDE.md §3.1 — exceptions
+        // stay exceptional). See docs/adr/0015-otp-challenge-hashing.md.
+        await client.query(`SET LOCAL lock_timeout = '${String(ISSUE_LOCK_TIMEOUT_MS)}ms'`)
+        await client.query('SELECT pg_advisory_xact_lock($1, $2)', [ISSUE_LOCK_NAMESPACE, accountId])
         // One query answers both halves of the resend rule: how many codes
         // this account has already had in the rolling hour, and when the most
         // recent of them was sent. Inside the lock, because a count taken
@@ -471,8 +518,15 @@ export const createOtpService = ({ payload, mailer, now }: OtpServiceDependencie
         } else {
           refusal = allowed.error
         }
-      } finally {
-        await client.query('SELECT pg_advisory_unlock($1, $2)', [ISSUE_LOCK_NAMESPACE, accountId])
+        await client.query('COMMIT')
+      } catch (error) {
+        // The lock is already released by the ROLLBACK itself; this is here
+        // so the CONNECTION goes back to the pool without an open, aborted
+        // transaction on it. The error is rethrown untouched - it is an
+        // unexpected database failure, not one of the refusals a caller
+        // handles.
+        await client.query('ROLLBACK')
+        throw error
       }
     } finally {
       client.release()

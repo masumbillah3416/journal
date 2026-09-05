@@ -13,7 +13,7 @@
  * that was told the answer.
  *
  * EVERY TEST HERE IS A SECURITY REQUIREMENT, AND EACH FAILS WHEN ITS
- * MECHANISM IS REMOVED. Verified by running sixteen mutations, not assumed -
+ * MECHANISM IS REMOVED. Verified by running nineteen mutations, not assumed -
  * the pasted output is in `task-3-report.md`, and every one failed exactly
  * the cases named below and no others. Dropping `session_hash` from the
  * claim's lookup fails the two binding cases; storing the code instead of its
@@ -31,6 +31,10 @@
  * dropping the `consumed_at IS NULL` guard from the consumption fails the
  * parallel-redemption case; dropping the `COALESCE` fails the null-count
  * case; and letting a non-numeric id through fails the not-an-account case.
+ * Making the advisory lock session-scoped again without its compensating
+ * unlock fails the lock-leak case and the ceiling burst; dropping
+ * `lock_timeout` fails the bounded-wait case; dropping the lock entirely
+ * fails both of those.
  *
  * TIME IS INJECTED, NEVER FROZEN. The service's clock is a parameter
  * (CLAUDE.md §2.3), but the clocks these tests pass are always REAL time plus
@@ -56,7 +60,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createConsoleMailer } from '../adapters/console-mailer'
 import type { MailerPort } from '../ports/mailer'
 import { getTestPayload } from '../testPayload'
-import { type OtpService, createOtpService } from './otpService'
+import { ISSUE_LOCK_NAMESPACE, type OtpService, createOtpService } from './otpService'
 import {
   aDifferentCode,
   challengeCountSince,
@@ -193,6 +197,32 @@ const removeFixtureAccounts = async (payload: Awaited<ReturnType<typeof getTestP
     }
     await payload.delete({ collection: 'users', id: account.id })
   }
+}
+
+/**
+ * The Payload row id behind a fixture's branded {@link UserId}.
+ * @param user - The branded id, which for a fixture is always numeric.
+ * @returns The numeric row id.
+ */
+const accountRowId = (user: UserId): number => Number(user)
+
+/**
+ * How many advisory locks are currently held on an account's issue key.
+ *
+ * Read straight out of `pg_locks` rather than inferred from behaviour: a
+ * leaked advisory lock is invisible from the outside for as long as the pool
+ * keeps handing the leaking connection back to the same caller, since advisory
+ * locks are re-entrant within one session.
+ * @param accountId - The account whose lock key to look for.
+ * @returns The number of matching lock rows, across every session.
+ */
+const advisoryLocksHeldFor = async (accountId: number): Promise<number> => {
+  const held = await payload.db.pool.query<{ locks: string }>(
+    `SELECT count(*) AS locks FROM pg_locks
+      WHERE locktype = 'advisory' AND classid = $1 AND objid = $2`,
+    [ISSUE_LOCK_NAMESPACE, accountId],
+  )
+  return held.rows.reduce((total, row) => total + Number(row.locks), 0)
 }
 
 /** The shared test Payload instance, assigned by the file-level `beforeAll`. */
@@ -612,6 +642,75 @@ describe('otpService', () => {
     await payload.update({ collection: 'otpChallenges', id: row.id, data: { attempts: null } })
 
     expect(await service.verifyChallenge(session, code)).toEqual({ ok: true, value: { userId: user } })
+  })
+
+  // THE TWO LOCK CASES. `issueChallenge` serialises its count-and-insert on a
+  // Postgres advisory lock, and an advisory lock is a shared, database-wide
+  // resource: the failure modes that matter are not "does it serialise" (the
+  // ceiling burst above answers that) but "what happens when the request
+  // holding it does not finish normally", and "what happens to the request
+  // waiting behind one". Both are latent - neither shows up in a green suite,
+  // and both present, later and elsewhere, as a hang nobody can trace.
+
+  it('releases the lock when the request holding it fails, so the next one is not blocked', async () => {
+    const { user } = await aSignInAccount()
+    const session = aSessionId('a')
+    // A clock that answers NaN is an unexpected fault injected through an
+    // already-injected dependency, rather than a hook added to the service to
+    // make it breakable. It survives every earlier check and fails INSIDE the
+    // critical section: `new Date(NaN - RESEND_WINDOW_MS)` reaches Postgres as
+    // a malformed timestamp on the very first statement after the lock is
+    // taken. That it throws rather than returning a Result is the point -
+    // the guarantee being tested is about UNEXPECTED failures, which are the
+    // only ones that can leak a lock.
+    const faulting = await anOtpService(() => Number.NaN)
+    await expect(faulting.service.issueChallenge(user, session, FIXTURE_IP)).rejects.toThrow()
+
+    // Asked of `pg_locks` directly, and this is the assertion that actually
+    // discriminates. Going only through the service does NOT: the pool hands
+    // the just-released connection straight back, and an advisory lock is
+    // re-entrant within one session, so a request that inherits the leaking
+    // connection sails past a lock that is still held - which is precisely
+    // why a leaked lock is a production hang rather than a test failure. The
+    // consequence for the NEXT request is asserted below as well, because
+    // that is what a reader experiences, but the lock table is what proves it.
+    expect(await advisoryLocksHeldFor(accountRowId(user))).toBe(0)
+
+    // Same account, so the same lock key.
+    const { service } = await anOtpService()
+
+    expect(await service.issueChallenge(user, session, FIXTURE_IP)).toEqual({
+      ok: true,
+      value: { maskedTo: MASKED_FIXTURE_ADDRESS },
+    })
+  })
+
+  it('gives up rather than waiting forever when another request holds the lock', async () => {
+    const { user } = await aSignInAccount()
+    const { service } = await anOtpService()
+    const accountId = accountRowId(user)
+
+    // Hold the account's lock from outside the service, the way a stalled
+    // sibling request would. The pool defaults to ten connections
+    // (apps/web/payload.config.ts), so an unbounded wait here is not one slow
+    // request - it is a connection held out of a pool of ten for as long as
+    // the holder lasts, and ten of them is the whole application stopped.
+    const holder = await payload.db.pool.connect()
+    try {
+      await holder.query('BEGIN')
+      await holder.query('SELECT pg_advisory_xact_lock($1, $2)', [ISSUE_LOCK_NAMESPACE, accountId])
+
+      // Bounded: `lock_timeout` turns the wait into a refusal. It surfaces as
+      // a thrown Postgres error rather than one of the four Result refusals,
+      // deliberately - see the module header. A reader can act on 'cooldown';
+      // there is nothing they can do about database contention, and inventing
+      // a fifth refusal for it would put a message on the sign-in screen that
+      // describes our infrastructure.
+      await expect(service.issueChallenge(user, aSessionId('a'), FIXTURE_IP)).rejects.toThrow(/lock timeout/i)
+    } finally {
+      await holder.query('ROLLBACK')
+      holder.release()
+    }
   })
 
   it('refuses to issue a challenge for an id that is not an account id at all', async () => {
