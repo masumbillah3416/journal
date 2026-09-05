@@ -31,38 +31,38 @@ describe('distributePaste', () => {
 
 describe('nextCell', () => {
   it('advances to the next cell when a digit is typed', () => {
-    expect(nextCell('digit', 2, 6, false)).toBe(3)
+    expect(nextCell('digit', 2, 6, { cellIsEmpty: false })).toBe(3)
   })
 
   it('does not advance past the last cell when typing', () => {
-    expect(nextCell('digit', 5, 6, false)).toBe(5)
+    expect(nextCell('digit', 5, 6, { cellIsEmpty: false })).toBe(5)
   })
 
   it('retreats on Backspace when the current cell is already empty', () => {
-    expect(nextCell('backspace', 3, 6, true)).toBe(2)
+    expect(nextCell('backspace', 3, 6, { cellIsEmpty: true })).toBe(2)
   })
 
   it('does not retreat past the first cell on Backspace', () => {
-    expect(nextCell('backspace', 0, 6, true)).toBe(0)
+    expect(nextCell('backspace', 0, 6, { cellIsEmpty: true })).toBe(0)
   })
 
   it('stays put on Backspace when the current cell is filled, so the clear-in-place lands first', () => {
-    expect(nextCell('backspace', 3, 6, false)).toBe(3)
+    expect(nextCell('backspace', 3, 6, { cellIsEmpty: false })).toBe(3)
   })
 
   it('moves left with the left arrow', () => {
-    expect(nextCell('left', 3, 6, false)).toBe(2)
+    expect(nextCell('left', 3, 6, { cellIsEmpty: false })).toBe(2)
   })
 
   it('does not move left past the first cell', () => {
-    expect(nextCell('left', 0, 6, false)).toBe(0)
+    expect(nextCell('left', 0, 6, { cellIsEmpty: false })).toBe(0)
   })
 
   it('moves right with the right arrow', () => {
-    expect(nextCell('right', 3, 6, false)).toBe(4)
+    expect(nextCell('right', 3, 6, { cellIsEmpty: false })).toBe(4)
   })
 
   it('does not move right past the last cell', () => {
-    expect(nextCell('right', 5, 6, false)).toBe(5)
+    expect(nextCell('right', 5, 6, { cellIsEmpty: false })).toBe(5)
   })
 })

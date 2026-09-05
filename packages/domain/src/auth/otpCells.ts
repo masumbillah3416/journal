@@ -2,10 +2,17 @@
  * otpCells — how the six one-time-code cells (SCREENS.md §3 "2 · One-time
  * code") absorb a paste and move focus.
  *
- * Pure functions (CLAUDE.md §3.2), read by
- * `apps/web/components/auth/OtpCells.tsx`'s `onPaste` and `onKeyDown`
- * handlers, which hold no arithmetic of their own — every decision below is
- * stated once, in the one place a test can see every branch of it.
+ * State machine pattern (CLAUDE.md §3.3), applied to {@link nextCell}:
+ * "which cell is focused" is a state with one live value, and `nextCell` is
+ * its transition function, `(state, event) -> state`, at the same small
+ * scale as `flip.ts`'s page-flip machine. {@link distributePaste} is not
+ * itself an instance of the pattern — it is a plain pure function that maps
+ * a pasted string straight to the six cells' new values with no state of
+ * its own — and is co-located here rather than split out because both
+ * functions serve the same component (`apps/web/components/auth/OtpCells.tsx`'s
+ * `onPaste` and `onKeyDown` handlers) and neither holds any arithmetic of
+ * its own: every decision either function makes is stated once, in the one
+ * place a test can see every branch of it.
  *
  * WHY PASTE NEEDS ITS OWN HANDLER. Each cell is `maxLength="1"`, and the
  * browser truncates a pasted string to one character *before* the `change`
@@ -62,8 +69,26 @@ export const distributePaste = (raw: string, focusedCell: number, cellCount: num
 /** A keyboard interaction the OTP cells respond to. */
 export type OtpCellEvent = 'digit' | 'backspace' | 'left' | 'right'
 
+/** Options for {@link nextCell}, carrying its one non-obvious parameter by name. */
+export interface NextCellOptions {
+  /**
+   * Whether the current cell holds no digit. Only consulted for
+   * `backspace`: on an empty cell it retreats (there is nothing left in this
+   * cell to clear); on a filled cell it clears in place and stays, so a
+   * second Backspace is what moves focus back.
+   */
+  readonly cellIsEmpty: boolean
+}
+
 /**
  * Decides which cell has focus after one keyboard interaction.
+ *
+ * State machine pattern (CLAUDE.md §3.3): the six cells' focus is a state
+ * with one live value — "which cell" — and this is its transition function,
+ * `(state, event) -> state`, over the four events a reader can raise. It
+ * takes no ownership of that state; the caller holds `current` and re-calls
+ * this on every keystroke, same as `flip.ts`'s page-flip machine does for
+ * its own state.
  *
  * The clearing itself — writing `''` into the current cell on a `backspace`
  * over a filled cell — is the caller's job; this function only ever answers
@@ -73,18 +98,22 @@ export type OtpCellEvent = 'digit' | 'backspace' | 'left' | 'right'
  *   pressed an arrow key.
  * @param current - The 0-based index of the currently focused cell.
  * @param cellCount - How many cells the code has.
- * @param cellIsEmpty - Whether the current cell holds no digit. Only
- *   consulted for `backspace`: on an empty cell it retreats (there is nothing
- *   left in this cell to clear); on a filled cell it clears in place and
- *   stays, so a second Backspace is what moves focus back.
+ * @param options - Named rather than a bare boolean (CLAUDE.md §3.2 bans
+ *   boolean parameters in public APIs) — `nextCell(i, k, true)` reads as
+ *   nothing at a call site, `nextCell(i, k, { cellIsEmpty: true })` does.
  * @returns The 0-based index of the cell that should be focused next. Never
  *   below `0` or at/above `cellCount` — neither end of the row overruns.
  * @example
- * nextCell('digit', 2, 6, false) // 3 — typing advances
- * nextCell('backspace', 3, 6, true) // 2 — empty cell, Backspace retreats
- * nextCell('backspace', 3, 6, false) // 3 — filled cell, Backspace clears in place and stays
+ * nextCell('digit', 2, 6, { cellIsEmpty: false }) // 3 — typing advances
+ * nextCell('backspace', 3, 6, { cellIsEmpty: true }) // 2 — empty cell, Backspace retreats
+ * nextCell('backspace', 3, 6, { cellIsEmpty: false }) // 3 — filled cell, Backspace clears in place and stays
  */
-export const nextCell = (event: OtpCellEvent, current: number, cellCount: number, cellIsEmpty: boolean): number => {
+export const nextCell = (
+  event: OtpCellEvent,
+  current: number,
+  cellCount: number,
+  { cellIsEmpty }: NextCellOptions,
+): number => {
   switch (event) {
     case 'digit':
     case 'right':
