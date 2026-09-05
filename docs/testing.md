@@ -45,6 +45,14 @@ Enforced by TWO configs, because no single Vitest run can execute everything:
   `scripts` files listed under Contract and Migration below, plus
   `apps/web/collections/**`, `apps/web/globals/**`, `apps/web/payload.config.ts` and
   `apps/web/migrations/**`, each gated per-file at what it genuinely measures.
+  `apps/web/lib/auth/otpService.ts` (Phase 2 Task 3) and `apps/web/lib/auth/rateLimit.ts`
+  (Task 4) are in this pass rather than the Docker-free one for the same reason: every
+  operation either module performs writes and then re-reads a row, and the claims their
+  tests make — "only a hash was stored", "a concurrent burst was admitted in arrival
+  order up to the limit and no further" — are claims about what Postgres did, not about
+  what a mock agreed to. Both are gated at **100/100/100**. Their pure arithmetic lives
+  in `packages/domain/src/auth/`, which the Docker-free pass measures at the domain's
+  own 100% bar.
 
 **Nothing is allowed to be in neither.** That is not a stylistic preference: a file no
 config's `include` matches is not reported as 0%, it is not reported at all, and a gap
@@ -1541,24 +1549,33 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   each is now pinned to the mechanism that fixes it — a conditional `UPDATE` for the
   attempt and for consumption, a per-account advisory lock for the count-and-insert.
 
-  **The account lockout is exercised for the first time in Phase 2 Task 4**, by
-  `apps/web/collections/users.lockout.integration.test.ts`, which trips Payload's
-  `maxLoginAttempts`/`lockTime` on the `users` collection — declared in Phase 0 and never
-  tested since. Its load-bearing case is **the correct password being refused**: a case
-  that only checked wrong passwords still failing would pass with the lockout entirely
-  absent, because wrong passwords are refused either way. Writing it found a real defect —
-  Payload takes `lockTime` in milliseconds while taking `tokenExpiration`, on the same
-  object, in seconds, so `15 * 60` had been asking for a 900-millisecond cooling-off
-  period. Nothing behavioural distinguished it, which is why only a case asserting the
-  lock's DURATION could catch it. Verified by mutation, three ways: restoring
-  `lockTime: 15 * 60` fails the duration case alone; raising `maxLoginAttempts` to 500
-  fails three cases; removing the collection's `auth` lockout options entirely fails only
-  the duration case, because Payload's own defaults are `maxLoginAttempts: 5` and a
-  ten-minute lock — so the explicit configuration is observably different from the
-  default only in its duration.
+  **Rate limiting and lockout land in Phase 2 Task 4, and they are two files.**
+  `apps/web/lib/auth/rateLimit.integration.test.ts` is ten cases over the sliding window
+  `SECURITY.md` requires per account and per IP, and the two that carry it are real
+  `Promise.all` bursts proving each dimension **independently**: twenty-eight concurrent
+  attempts from ONE address against TWENTY-EIGHT accounts admit exactly twenty (so
+  nothing but the address can be refusing them), and eighteen concurrent attempts against
+  ONE account from EIGHTEEN addresses admit exactly ten (so nothing but the account can
+  be). Limiting only one dimension is the common mistake and it is invisible from a
+  single-dimension test — per-account alone lets a botnet spray, per-IP alone lets one
+  host grind a single account behind rotating proxies. Verified by mutation: removing the
+  per-address condition fails the address burst and NOT the account burst, and removing
+  the per-account condition fails the account cases and NOT the address burst. Removing
+  the rank ordering — so the whole window is counted rather than the attempts at or
+  before this one — fails both bursts, because an unranked limiter refuses a burst all
+  together instead of admitting the first N in arrival order.
 
-  What is still outstanding is rate
-  limiting (Phase 2 Task 4), anti-enumeration (Task 5) and the upload
+  `apps/web/collections/users.lockout.integration.test.ts` is the other file, and it
+  exercises Payload's `maxLoginAttempts`/`lockTime` for the first time since Phase 0
+  declared them. Its load-bearing case is **the correct password being refused**: a case
+  that only checked wrong passwords still failing would pass with the lockout entirely
+  absent. Writing it found a real defect — Payload takes `lockTime` in milliseconds while
+  taking `tokenExpiration`, on the same object, in seconds, so `15 * 60` had been asking
+  for a 900-millisecond cooling-off period since Phase 0. Nothing behavioural
+  distinguished it, which is why only a case asserting the lock's DURATION could catch
+  it (`docs/adr/0016-rate-limit-window-storage.md`).
+
+  What is still outstanding is anti-enumeration (Task 5) and the upload
   worker's SVG and EXIF probes (Phase 3).
 - **Run (once added):** included in `npm run test:integration` (these probes need a real
   database and, for the upload cases, the worker), so they run under `verify:full`.
@@ -1572,12 +1589,28 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
 
 - **Tool:** Vitest.
 - **Scope:** every migration runs up, down, and up again against a seeded database.
-- **Status:** implemented. `apps/web/migrations/` holds three migrations:
+- **Status:** implemented. `apps/web/migrations/` holds four migrations:
   `20260831_154311_initial` (every collection and global's schema),
-  `20260831_161951_add_jobs` (the `jobs` table backing the `queue` port, Task 9) and
+  `20260831_161951_add_jobs` (the `jobs` table backing the `queue` port, Task 9),
   `20260905_202028_add_otp_session_hash` (the OTP challenge's session binding, Phase 2
-  Task 3 — `docs/deviations.md` §25). Each of the two later ones has its **own** case in
-  `collections.integration.test.ts` rather than sharing one.
+  Task 3 — `docs/deviations.md` §25) and `20260905_230601_add_sign_in_attempts` (the
+  sliding window's own table, Phase 2 Task 4 — `docs/deviations.md` §27). Each of the
+  three later ones has its **own** case in `collections.integration.test.ts` rather than
+  sharing one.
+
+  The `sign_in_attempts` case asserts on **all five** artefacts its migration creates —
+  the table, its compound index, its two enum types, and the column Payload adds to
+  `payload_locked_documents_rels` — rather than on the table alone. A `down()` that
+  dropped the table and left the enum types behind would satisfy a table-only assertion
+  and then fail its own re-apply with "type already exists", which is exactly the class
+  of bug the hand-fixed statement order in that file's `down()` exists to prevent.
+  Verified by making `down()` a no-op and watching it fail. **A warning for whoever runs
+  that mutation next:** a no-op `down()` also breaks the roll-to-zero case in the same
+  file, which then leaves `diary_test` holding the orphaned table and types while
+  `payload_migrations` no longer records the migration as applied — every later run then
+  fails to re-apply it. Repair by dropping `sign_in_attempts`, both
+  `enum_sign_in_attempts_*` types and the `payload_locked_documents_rels` column by hand,
+  and letting the next run apply `up()` again.
 
   The `session_hash` case is also the one worth reading before writing another migration
   test, because its first version was worthless and looked fine. It rolled every

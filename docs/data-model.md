@@ -90,7 +90,7 @@ line read `lockTime: 15 * 60` from Phase 0 until Phase 2 Task 4, which asked for
 cooling-off period of 900 milliseconds and got one; nothing behavioural distinguished it,
 since the account still locked and wrong passwords were still refused. Found and fixed
 when `apps/web/collections/users.lockout.integration.test.ts` first asserted the lock's
-DURATION rather than its existence. Fields: `displayName` (printed on the cover),
+DURATION rather than its existence (`docs/adr/0016-rate-limit-window-storage.md`). Fields: `displayName` (printed on the cover),
 `signoffDefault`, `timeZone`, `otpRequired` (checkbox, default `true` — **the only**
 source of truth for whether the OTP step runs; the prototype's `localStorage` flag is
 deleted, not moved, per `SECURITY.md`), `notifyOnPublish`, `notifyWeekly`.
@@ -137,6 +137,29 @@ isolation from a real media row. Fields: `kind` (`transcode`), `mediaId` (text),
 `status` (`queued` | `claimed` | `completed` | `failed`, indexed, defaults to `queued`),
 `reason` (why a job failed, surfaced on the admin's Media screen in a later phase),
 `claimedAt`.
+
+### `signInAttempts`
+
+Backs the sliding window `SECURITY.md` requires per account and per IP
+(`apps/web/lib/auth/rateLimit.ts`, Phase 2 Task 4): one row per sign-in attempt, admitted
+or refused. `access: { read: () => false, create: () => false, update: () => false }` —
+server-only, like `otpChallenges`, `sessions` and `jobs`. Fields: `dimension`
+(`ip` | `account`), `endpoint` (`password` | `code`), `subject` (the address, or the
+account's id — never both in one row), `attemptedAt`. One compound index over all four, in
+the order a lookup filters them.
+
+**Not in `DATA_MODEL.md`**, and recorded as the deviation `docs/deviations.md` §27: the
+handoff requires the window and provides nowhere to keep it. Why it is a table rather than
+a process-local `Map` — the app deploys to serverless invocations that do not share
+memory — and why it is one row per attempt rather than a counter is
+`docs/adr/0016-rate-limit-window-storage.md`.
+
+`attemptedAt` is stamped with Postgres's `clock_timestamp()`, and decides **only** whether
+an attempt is still inside the window. What orders one attempt against another is the
+row's own `id`: a `date` field is `timestamp(3)`, so two attempts can share a millisecond,
+and two attempts sharing a rank would let a limit of N admit N+1. Rows older than the
+window are pruned for the key being touched, in the same statement that records the new
+attempt, so the table stays bounded without a scheduler.
 
 ## Globals
 
@@ -196,6 +219,7 @@ From design spec §5.1:
 | `20260831_154311_initial` | Creates all six collections and three globals above, with `deletedAt` (indexed) on `journeys` and `versions: { drafts: true }` on `journeys` and `pages` from the start — both are painful to retrofit onto a collection with existing rows, per the note above. `pages` deliberately has drafts but no `deleted_at`: a page is not independently trashed, it is deleted with the journey that owns it, which matches `DATA_MODEL.md`'s own schema and rule 4 above. Verified reversible by `collections.integration.test.ts`, which rolls **every** migration back to zero — so this file's own `down()` runs regardless of how the batches were applied — then re-applies them and asserts a journey's fields, highlights and tally round-trip through the rebuilt schema. Rows do not survive a `DROP TABLE`; what is restored is the schema's ability to hold them. See `docs/testing.md` §9. |
 | `20260831_161951_add_jobs` | Creates the `jobs` table (Task 9) backing the Postgres `QueuePort` adapter, and the `payload_locked_documents_rels.jobs_id` column/FK Payload adds for its own admin document-locking feature. Verified reversible by the same test; see the statement-order note below. |
 | `20260905_202028_add_otp_session_hash` | Adds `otp_challenges.session_hash` (`varchar NOT NULL`) and its btree index — the session binding `SECURITY.md` requires and `DATA_MODEL.md` omits (`docs/deviations.md` §25, `docs/adr/0015-otp-challenge-hashing.md`). Its `up()` carries one hand-added statement, `DELETE FROM "otp_challenges"`, before the `ALTER`: a `NOT NULL` column with no default cannot be added to a table that has rows, and every pre-existing challenge is one the new rule can never honour anyway — it has no session binding, so it could not be redeemed. Challenges are five-minute ephemera, so nothing of value is discarded and no default has to be invented. Verified reversible by its own case in `collections.integration.test.ts`, separate from the journey case above because the two fail differently: the journey case proves tables come back and would still pass with this column silently missing. The `down()` drops the index before the column, so a re-apply's `CREATE INDEX` cannot collide with a leftover. |
+| `20260905_230601_add_sign_in_attempts` | Creates the `sign_in_attempts` table and its two enum types (Phase 2 Task 4) backing the sliding window `SECURITY.md` requires per account and per IP (`docs/deviations.md` §27, `docs/adr/0016-rate-limit-window-storage.md`), plus the compound index over `(dimension, endpoint, subject, attempted_at)` and the `payload_locked_documents_rels.sign_in_attempts_id` column/FK Payload adds for its own document-locking feature. Its `down()` carries the same hand-fixed statement order as `20260831_161951_add_jobs`, for the same reason — see the note beneath this table. Verified reversible by its own case in `collections.integration.test.ts`, which asserts on **all five** artefacts the migration creates rather than on the table alone — a `down()` that dropped the table and left the enum types behind would satisfy a table-only assertion and then fail its own re-apply with "type already exists". |
 
 Generated with `npm run db:migrate:create -w apps/web -- <name>`, applied with
 `npm run db:migrate -w apps/web`. Payload's generator emits a plain (non-type-only) import

@@ -208,6 +208,56 @@ const sessionHashSchema = async (): Promise<string[]> => {
   }
 }
 
+/** The migration that adds the sliding window's own table (Phase 2 Task 4). */
+const SIGN_IN_ATTEMPTS_MIGRATION = '20260905_230601_add_sign_in_attempts'
+
+/**
+ * Which of the five schema artefacts `20260905_230601_add_sign_in_attempts`
+ * is responsible for currently exist.
+ *
+ * All five, not just the table: this migration creates two Postgres enum
+ * types and adds a column and an index to `payload_locked_documents_rels`
+ * besides, and a `down()` that dropped the table alone would leave a database
+ * its own `up()` could not be re-applied to - which is the failure the
+ * generated statement order produced for `add_jobs` and the reason that file
+ * carries a hand-fixed `down()`.
+ * @returns The names of the artefacts that exist, sorted, so an assertion
+ *   reads as a set.
+ */
+const signInAttemptsSchema = async (): Promise<string[]> => {
+  const client = new Client({ connectionString: env.DATABASE_URL })
+  await client.connect()
+  try {
+    const found = await client.query<{ artefact: string }>(
+      `SELECT 'table' AS artefact FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'sign_in_attempts'
+       UNION ALL
+       SELECT 'index' FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = 'dimension_endpoint_subject_attemptedAt_idx'
+       UNION ALL
+       SELECT 'dimension-type' FROM pg_type WHERE typname = 'enum_sign_in_attempts_dimension'
+       UNION ALL
+       SELECT 'endpoint-type' FROM pg_type WHERE typname = 'enum_sign_in_attempts_endpoint'
+       UNION ALL
+       SELECT 'locked-documents-column' FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'payload_locked_documents_rels'
+          AND column_name = 'sign_in_attempts_id'`,
+    )
+    return found.rows.map((row) => row.artefact).sort()
+  } finally {
+    await client.end()
+  }
+}
+
+/** Every artefact `signInAttemptsSchema` looks for, when the migration is applied. */
+const SIGN_IN_ATTEMPTS_SCHEMA = [
+  'dimension-type',
+  'endpoint-type',
+  'index',
+  'locked-documents-column',
+  'table',
+]
+
 /**
  * Runs one migration's own `up()` or `down()`, outside Payload's batch
  * bookkeeping.
@@ -622,5 +672,68 @@ describe('collections', () => {
     const restored = await payload.create({ collection: 'otpChallenges', data: anOtpChallengeFor(account.id) })
 
     expect(restored.sessionHash).toBe(FIXTURE_SESSION_HASH)
+  })
+
+  it('refuses to read signInAttempts for an unauthenticated caller, because a sign-in history must never be enumerable', async () => {
+    const read = payload.find({ collection: 'signInAttempts', overrideAccess: false })
+
+    await expect(read).rejects.toThrow()
+  })
+
+  it('refuses to write signInAttempts for an unauthenticated caller, so nobody can clear or forge their own window', async () => {
+    const create = payload.create({
+      collection: 'signInAttempts',
+      overrideAccess: false,
+      data: { dimension: 'ip', endpoint: 'code', subject: '198.51.100.254', attemptedAt: new Date().toISOString() },
+    })
+    const update = payload.update({
+      collection: 'signInAttempts',
+      id: '1',
+      overrideAccess: false,
+      data: { subject: '198.51.100.253' },
+    })
+
+    // Both assertions attached in ONE `Promise.all`, for the reason spelled
+    // out on the otpChallenges case above: awaiting them one after the other
+    // leaves the second promise rejected-and-unhandled while the first
+    // settles, which Node reports as an unhandled rejection.
+    await Promise.all([expect(create).rejects.toThrow(), expect(update).rejects.toThrow()])
+  })
+
+  // The sliding window's own table gets the same per-migration treatment the
+  // `session_hash` column above does, and for the same reason: rolling every
+  // migration to zero would drop this table as a side effect of the INITIAL
+  // migration's `DROP TABLE`s, so it would say nothing about whether THIS
+  // migration's `down()` did anything. This case runs that migration's own
+  // `up()`/`down()` and asserts on all five artefacts it is responsible for -
+  // the table, its compound index, its two enum types, and the column it adds
+  // to `payload_locked_documents_rels`. Verified by mutation: replacing
+  // `down()` with a no-op fails it (see the task report).
+  it('drops and restores the whole sign-in attempt window, enum types included, when its own migration is reversed', async () => {
+    expect(await signInAttemptsSchema()).toEqual(SIGN_IN_ATTEMPTS_SCHEMA)
+
+    await runMigrationDirection(SIGN_IN_ATTEMPTS_MIGRATION, 'down', payload)
+    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS - see the
+    // otpChallenges case above. Between the `down` and the `up`, `diary_test`
+    // is in a state `payload_migrations` does not describe, and the next
+    // run's `runMigrateUp()` would be a no-op against a database with no way
+    // to repair itself.
+    try {
+      expect(await signInAttemptsSchema()).toEqual([])
+    } finally {
+      await runMigrationDirection(SIGN_IN_ATTEMPTS_MIGRATION, 'up', payload)
+    }
+
+    expect(await signInAttemptsSchema()).toEqual(SIGN_IN_ATTEMPTS_SCHEMA)
+    // And the rebuilt table still holds what it is for. A migration that
+    // restored a column of the wrong type, or an enum missing a value, would
+    // satisfy every assertion above and fail the first time anything wrote.
+    const restored = await payload.create({
+      collection: 'signInAttempts',
+      data: { dimension: 'account', endpoint: 'password', subject: 'test-reversibility', attemptedAt: new Date().toISOString() },
+    })
+    await payload.delete({ collection: 'signInAttempts', id: restored.id })
+
+    expect(restored.dimension).toBe('account')
   })
 })

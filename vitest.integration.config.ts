@@ -116,6 +116,7 @@ export default defineConfig({
         'apps/web/lib/readGalleryDownload.ts',
         'apps/web/lib/auth/otpService.ts',
         'apps/web/lib/auth/testing/otpProbes.ts',
+        'apps/web/lib/auth/rateLimit.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
         'apps/web/payload.config.ts',
@@ -182,6 +183,17 @@ export default defineConfig({
         // assertion in otpService.integration.test.ts non-vacuous, so each of
         // their own refusals is exercised rather than assumed.
         'apps/web/lib/auth/testing/otpProbes.ts': { lines: 100, branches: 100, functions: 100 },
+        // rateLimit.ts (Phase 2 Task 4): 100% on every axis, and honestly so
+        // rather than by construction. The module has no defensive arm to
+        // excuse: its two single-row folds are TOTAL (`Math.max` over the
+        // returned rows, with initial values that make an impossible empty
+        // result fail closed through the domain's own guards), so there is no
+        // `if (row === undefined)` here whose branch nothing could take -
+        // which is exactly how otpService.ts arrived at an honest 100 after
+        // two corrections. Every remaining branch is a real decision: the two
+        // dimensions of `admitCodeAttempt`, and the `byAddress.ok` that
+        // decides which refusal a caller is told about.
+        'apps/web/lib/auth/rateLimit.ts': { lines: 100, branches: 100, functions: 100 },
         // readBookBundle.ts (Task 6 of Phase 1; Task 6 review fix round 1;
         // Task 11): 100% lines/statements/functions. 83% branches is the
         // real, measured number, RAISED again from 81% by Task 11, whose

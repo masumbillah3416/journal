@@ -42,9 +42,9 @@ exposure surface nobody reviews.
 
 **Authorization, for all of them.** None of these routes carries its own auth check.
 Every one runs Payload's collection- and global-level access control on the operation it
-performs. No collection in `apps/web/collections/` declares `access` except `jobs` and
-`otpChallenges` (both `() => false` on read/create/update — server-only, reachable only
-through the Local API); every other collection and global therefore inherits Payload's
+performs. No collection in `apps/web/collections/` declares `access` except `jobs`,
+`otpChallenges` and `signInAttempts` (all `() => false` on read/create/update —
+server-only, reachable only through the Local API); every other collection and global therefore inherits Payload's
 default access, `({ req: { user } }) => Boolean(user)` — **signed in, or refused**.
 Sign-in itself is `users`' auth collection, whose login/refresh/logout operations are
 public by construction. Phase 2 and Phase 4 tighten these per `docs/security.md`; until
@@ -75,8 +75,8 @@ for a different reason — see its row.
   `403` when access control refuses, `404` for an unknown collection/global/document,
   `500` on an unhandled failure.
 - **Auth requirement:** signed in, for every collection and global — see the paragraph
-  above. `jobs` and `otpChallenges` refuse every request through this route regardless
-  of who is signed in.
+  above. `jobs`, `otpChallenges` and `signInAttempts` refuse every request through this
+  route regardless of who is signed in.
 
 ### `POST /api/graphql`
 
@@ -333,3 +333,12 @@ action, and deliberately so: nothing about the OTP flow is reachable from the Pa
 REST or GraphQL API (the `otpChallenges` collection returns `false` from every access
 predicate), so the only way to reach it is a server action that has not been written yet.
 When that action lands it gets its own full row here, and this paragraph goes with it.
+
+Phase 2 Task 4 added a second such module for the same reason:
+`apps/web/lib/auth/rateLimit.ts` — `admitPasswordAttempt({ ip })` and
+`admitCodeAttempt({ ip, account })`, the sliding window `SECURITY.md` requires per
+account and per IP (`docs/adr/0016-rate-limit-window-storage.md`). Also a module, also
+not a route: its `signInAttempts` collection returns `false` from every access predicate
+too, so the sign-in and code-verification actions of Task 5 are the only things that will
+ever call it. Whichever route ends up in front of it is what supplies the `ip`, and it
+gets its row here when it lands.

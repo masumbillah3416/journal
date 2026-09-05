@@ -124,8 +124,8 @@ backup mechanism itself):
 1. Provision a scratch Postgres instance and a scratch bucket — never restore over the
    production database or bucket during a drill.
 2. Restore the most recent Postgres dump into the scratch instance. Confirm: the
-   `journeys`, `pages`, `media`, `users`, `otpChallenges` and `sessions` tables are
-   present, row counts are plausible against the last known-good count, and a spot-check
+   `journeys`, `pages`, `media`, `users`, `otpChallenges`, `signInAttempts` and
+   `sessions` tables are present, row counts are plausible against the last known-good count, and a spot-check
    query against a specific journey returns the expected pages and ordering.
 3. Restore the most recent bucket backup into the scratch bucket. Confirm: file count
    and total size are plausible against the last known-good figures, and a spot-check of

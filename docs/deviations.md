@@ -994,3 +994,51 @@ it keeps the one-run-of-digits invariant, or updates the tests that depend on it
 same commit.
 
 **Recorded as:** the comment on the `text` field in `apps/web/lib/auth/otpService.ts`.
+
+## 27 · A `signInAttempts` collection the data model does not describe
+
+**What changed:** this repository adds a collection `DATA_MODEL.md` does not list —
+`signInAttempts`, one row per sign-in attempt, with `dimension` (`ip` | `account`),
+`endpoint` (`password` | `code`), `subject` and `attemptedAt`
+(`apps/web/collections/signInAttempts.ts`, migration
+`apps/web/migrations/20260905_230601_add_sign_in_attempts.ts`). It is written and read
+only by `apps/web/lib/auth/rateLimit.ts`, and its access rules are `() => false` on every
+operation, matching `otpChallenges`, `sessions` and `jobs`.
+
+**Rationale:** `SECURITY.md`'s third prototype hole requires "Rate limit per account **and**
+per IP — a sliding window on both the password and code endpoints", and a sliding window
+has to count something that outlives the request. `DATA_MODEL.md` provides nowhere to
+count it: `otpChallenges` records codes being *issued* rather than attempts being *made*,
+exists only for the code endpoint, and carries no per-address index. As with
+`sessionHash` (§25), the handoff's two documents disagree — one asks for a behaviour, the
+other omits the state it needs — and the hardening requirement wins, the same precedence
+`docs/adr/0002-auth-mechanism.md` applied when the three handoff documents disagreed
+about auth.
+
+**Why a table and not memory:** the obvious implementation, a `Map` of key to timestamps
+inside the process, is correct on a machine that runs one process and wrong on the host
+this project deploys to. `docs/adr/0001-hosting-and-cost.md` puts the app on Vercel, where
+each serverless invocation has its own memory, so an attacker cycling instances would
+never meet a refusal — while every local test passed, because locally there is one
+process. A limiter green in CI and absent in production is worse than none, because
+nobody looks at it again. A shared cache would also work and was rejected on cost and
+operational surface for a single-author diary, not on the merits; the full options list is
+`docs/adr/0016-rate-limit-window-storage.md`.
+
+**Why one row per attempt rather than a counter:** a counter row is a *fixed* window,
+which an attacker straddles at the boundary to get twice the limit in a moment;
+`SECURITY.md` asks for a sliding window by name. One row per attempt also makes the
+counting race-free without a lock, which is the other half of the decision: each request
+inserts its own row and is then ranked among the rows at or before it, so there is no
+interval between a check and a write for a racer to occupy. That is the direct correction
+of the defect `docs/adr/0015-otp-challenge-hashing.md` records, where twelve parallel
+guesses were evaluated against a three-attempt budget.
+
+**What would reverse this:** a `DATA_MODEL.md` revision that either adds the collection or
+drops `SECURITY.md`'s rate-limiting requirement. Neither exists today, and the migration
+is reversible in both directions if one ever does — asserted on all five schema artefacts
+it creates by `apps/web/collections/collections.integration.test.ts`.
+
+**Recorded as:** `docs/adr/0016-rate-limit-window-storage.md`; the phase ledger's rulings
+F26 (storage), F27 (the limits) and F28 (rank, not read-then-count); a
+`// HANDOFF-DEVIATION` in the module header of `apps/web/collections/signInAttempts.ts`.

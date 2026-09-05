@@ -320,6 +320,16 @@ export default defineConfig({
         // readBookBundle.ts above.
         'apps/web/lib/auth/otpService.ts',
         'apps/web/lib/auth/testing/otpProbes.ts',
+        // rateLimit.ts (Phase 2 Task 4) is reachable only from
+        // rateLimit.integration.test.ts, for the same reason otpService.ts
+        // is: every one of its operations writes and then ranks a
+        // `signInAttempts` row, and the whole claim being tested - that a
+        // concurrent burst is admitted in arrival order up to the limit and
+        // no further - is a claim about what Postgres did, not about what a
+        // mock agreed to. Gated by vitest.integration.config.ts instead. Its
+        // pure arithmetic lives in `packages/domain/src/auth/rateWindow.ts`,
+        // which this pass DOES measure, at the domain's 100% bar.
+        'apps/web/lib/auth/rateLimit.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by

@@ -73,6 +73,7 @@ export interface Config {
     users: User;
     otpChallenges: OtpChallenge;
     sessions: Session;
+    signInAttempts: SignInAttempt;
     jobs: Job;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -87,6 +88,7 @@ export interface Config {
     users: UsersSelect<false> | UsersSelect<true>;
     otpChallenges: OtpChallengesSelect<false> | OtpChallengesSelect<true>;
     sessions: SessionsSelect<false> | SessionsSelect<true>;
+    signInAttempts: SignInAttemptsSelect<false> | SignInAttemptsSelect<true>;
     jobs: JobsSelect<false> | JobsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -341,6 +343,19 @@ export interface Session {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "signInAttempts".
+ */
+export interface SignInAttempt {
+  id: number;
+  dimension: 'ip' | 'account';
+  endpoint: 'password' | 'code';
+  subject: string;
+  attemptedAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "jobs".
  */
 export interface Job {
@@ -400,6 +415,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'sessions';
         value: number | Session;
+      } | null)
+    | ({
+        relationTo: 'signInAttempts';
+        value: number | SignInAttempt;
       } | null)
     | ({
         relationTo: 'jobs';
@@ -654,6 +673,18 @@ export interface SessionsSelect<T extends boolean = true> {
   location?: T;
   lastSeenAt?: T;
   revokedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "signInAttempts_select".
+ */
+export interface SignInAttemptsSelect<T extends boolean = true> {
+  dimension?: T;
+  endpoint?: T;
+  subject?: T;
+  attemptedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
