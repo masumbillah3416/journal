@@ -7,8 +7,10 @@
  * other's changes. `Partial<Journey>` overrides merge shallowly over
  * sensible defaults, so a test's `aJourney({ slug: 'tokyo' })` names only the
  * field it cares about. Depends on: Journey and BookChrome, from ../bookBundle;
- * GalleryBundle and GalleryFrame, from ../gallery.
+ * GalleryBundle and GalleryFrame, from ../gallery; ChallengeRecord, from
+ * ../auth/otpChallenge.
  */
+import type { ChallengeRecord } from '../auth/otpChallenge'
 import type { AboutContent, BookChrome, Journey, Slot } from '../bookBundle'
 import type { GalleryBundle, GalleryFrame } from '../gallery'
 import type { JourneyId, MediaId } from '../ids'
@@ -163,3 +165,16 @@ export const aGalleryBundle = (overrides: Partial<GalleryBundle> = {}): GalleryB
  */
 export const galleryFrames = (count: number): readonly GalleryFrame[] =>
   Array.from({ length: count }, (_unused, index) => aGalleryFrame(`frame-${String(index + 1)}`))
+
+/**
+ * Builds a {@link ChallengeRecord} for tests, with defaults for a challenge
+ * freshly issued at `createdAt: 0`, with no attempts spent and not consumed.
+ * @param overrides - Fields to override. Merged shallowly over the defaults.
+ * @returns A fresh challenge record, shared with no other call's result.
+ */
+export const aChallenge = (overrides: Partial<ChallengeRecord> = {}): ChallengeRecord => ({
+  createdAt: 0,
+  attempts: 0,
+  consumedAt: null,
+  ...overrides,
+})
