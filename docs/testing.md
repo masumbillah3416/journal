@@ -1539,8 +1539,26 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   The rule this leaves behind: **any limit expressed as read-check-write gets a parallel
   test, and that test is confirmed to fail before the fix.** All three failed first, and
   each is now pinned to the mechanism that fixes it — a conditional `UPDATE` for the
-  attempt and for consumption, a per-account advisory lock for the count-and-insert. What is still outstanding is rate
-  limiting and lockout (Phase 2 Task 4), anti-enumeration (Task 5) and the upload
+  attempt and for consumption, a per-account advisory lock for the count-and-insert.
+
+  **The account lockout is exercised for the first time in Phase 2 Task 4**, by
+  `apps/web/collections/users.lockout.integration.test.ts`, which trips Payload's
+  `maxLoginAttempts`/`lockTime` on the `users` collection — declared in Phase 0 and never
+  tested since. Its load-bearing case is **the correct password being refused**: a case
+  that only checked wrong passwords still failing would pass with the lockout entirely
+  absent, because wrong passwords are refused either way. Writing it found a real defect —
+  Payload takes `lockTime` in milliseconds while taking `tokenExpiration`, on the same
+  object, in seconds, so `15 * 60` had been asking for a 900-millisecond cooling-off
+  period. Nothing behavioural distinguished it, which is why only a case asserting the
+  lock's DURATION could catch it. Verified by mutation, three ways: restoring
+  `lockTime: 15 * 60` fails the duration case alone; raising `maxLoginAttempts` to 500
+  fails three cases; removing the collection's `auth` lockout options entirely fails only
+  the duration case, because Payload's own defaults are `maxLoginAttempts: 5` and a
+  ten-minute lock — so the explicit configuration is observably different from the
+  default only in its duration.
+
+  What is still outstanding is rate
+  limiting (Phase 2 Task 4), anti-enumeration (Task 5) and the upload
   worker's SVG and EXIF probes (Phase 3).
 - **Run (once added):** included in `npm run test:integration` (these probes need a real
   database and, for the upload cases, the worker), so they run under `verify:full`.

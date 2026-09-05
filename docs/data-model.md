@@ -82,8 +82,15 @@ it onto the media row rather than onto a `pages` slot for the same reason.
 ### `users`
 
 One row in practice. `auth: { tokenExpiration: 60 * 60 * 24 * 7, maxLoginAttempts: 5,
-lockTime: 15 * 60 }` — see `docs/adr/0002-auth-mechanism.md` for why this, and not
-Auth.js, is the credential store. Fields: `displayName` (printed on the cover),
+lockTime: 15 * 60_000 }` — see `docs/adr/0002-auth-mechanism.md` for why this, and not
+Auth.js, is the credential store. **The two durations are in different units**, which is
+Payload's API rather than a typo: `tokenExpiration` is seconds (its default is `7200`,
+two hours) and `lockTime` is milliseconds (its default is `600000`, ten minutes). This
+line read `lockTime: 15 * 60` from Phase 0 until Phase 2 Task 4, which asked for a
+cooling-off period of 900 milliseconds and got one; nothing behavioural distinguished it,
+since the account still locked and wrong passwords were still refused. Found and fixed
+when `apps/web/collections/users.lockout.integration.test.ts` first asserted the lock's
+DURATION rather than its existence. Fields: `displayName` (printed on the cover),
 `signoffDefault`, `timeZone`, `otpRequired` (checkbox, default `true` — **the only**
 source of truth for whether the OTP step runs; the prototype's `localStorage` flag is
 deleted, not moved, per `SECURITY.md`), `notifyOnPublish`, `notifyWeekly`.
