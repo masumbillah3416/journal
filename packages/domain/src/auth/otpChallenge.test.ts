@@ -45,6 +45,15 @@ describe('challengeState', () => {
     ).toBe('consumed')
   })
 
+  it('is still valid at MAX_ATTEMPTS - 1, the last wrong guess a reader is still allowed to make', () => {
+    // Pins the boundary from the other side: the exhaustion test above proves
+    // attempts === MAX_ATTEMPTS is exhausted, but nothing previously proved
+    // that one attempt fewer is still valid. A threshold shifted one guess
+    // too early would refuse this — the single most common near-limit call —
+    // while every existing test (which uses attempts: 0) stays green.
+    expect(challengeState(aChallenge({ attempts: MAX_ATTEMPTS - 1, consumedAt: null }), 0)).toBe('valid')
+  })
+
   it('clamps elapsed time at zero when createdAt is in the future, so ordinary clock skew between servers does not expire a legitimate challenge', () => {
     expect(challengeState(aChallenge({ createdAt: 10_000, attempts: 0, consumedAt: null }), 5_000)).toBe('valid')
   })
@@ -93,5 +102,25 @@ describe('canResend', () => {
 
   it('fails closed when now is not finite', () => {
     expect(canResend(0, Number.POSITIVE_INFINITY, 1)).toEqual({ ok: false, error: 'hourly-cap' })
+  })
+
+  it('allows the first resend of the hour, when none have been sent yet', () => {
+    // The fail-closed sanity guard is `Number.isInteger(sentThisHour) &&
+    // sentThisHour >= 0`. Every existing fixture for that guard uses 1, 1.5,
+    // -1, NaN or Infinity — none of them is 0, so the guard's own `>= 0`
+    // boundary was covered on both sides without ever being pinned at the
+    // value that matters: sentThisHour === 0 is the single most common call
+    // this function will ever receive, the first resend of an hour.
+    expect(canResend(0, RESEND_COOLDOWN_MS, 0)).toEqual({ ok: true, value: undefined })
+  })
+
+  it('allows the last resend before the hourly ceiling, one fewer than HOURLY_RESEND_CAP', () => {
+    // Mirrors the attempts boundary above: the existing hourly-ceiling test
+    // proves sentThisHour === HOURLY_RESEND_CAP is refused, but nothing
+    // proved sentThisHour === HOURLY_RESEND_CAP - 1 is still allowed. A
+    // threshold shifted one resend too early would refuse a legitimate
+    // reader's resend while every value-1 fixture (1.5, -1, NaN...) stays
+    // green.
+    expect(canResend(0, 60_000, HOURLY_RESEND_CAP - 1)).toEqual({ ok: true, value: undefined })
   })
 })

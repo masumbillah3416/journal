@@ -40,7 +40,11 @@
  * later. Comparing with `>` instead would let `attempts === MAX_ATTEMPTS`
  * still read `'valid'`, silently turning a three-attempt limit into a
  * four-attempt one — exactly the off-by-one the exhaustion test in
- * `otpChallenge.test.ts` exists to catch.
+ * `otpChallenge.test.ts` exists to catch. That test alone only pins one side
+ * of the threshold, though: `otpChallenge.test.ts` also pins
+ * `attempts === MAX_ATTEMPTS - 1` as `'valid'`, so a threshold shifted one
+ * guess too early — refusing the last attempt a reader is actually still
+ * owed — fails too, not only a threshold shifted one guess too late.
  *
  * A FUTURE `createdAt` READS AS `'valid'`, DELIBERATELY, NOT FAILED CLOSED.
  * `now < createdAt` clamps the elapsed time at zero rather than going
@@ -170,10 +174,22 @@ export const canResend = (lastSentAt: number, now: number, sentThisHour: number)
   // than by any code that says so. Reporting `'hourly-cap'` for all of these
   // — the stricter of the two refusals — keeps a limiter that fails open
   // from being a limiter in name only.
+  //
+  // THE GUARD'S OWN `>= 0` BOUNDARY IS PINNED SEPARATELY FROM THE BRANCH.
+  // Every fixture that exercises this guard (1, 1.5, -1, NaN, Infinity)
+  // happens to run both sides of `>= 0` without ever supplying the value
+  // that actually matters: `sentThisHour === 0`, the first resend of an
+  // hour and the single most common call this function will ever receive.
+  // `otpChallenge.test.ts` pins that value directly, so mutating `>= 0` to
+  // `> 0` — which leaves every other fixture green — is still caught.
   const sentThisHourIsSane = Number.isInteger(sentThisHour) && sentThisHour >= 0
   if (!sentThisHourIsSane || !Number.isFinite(lastSentAt) || !Number.isFinite(now)) return err('hourly-cap')
 
   if (now - lastSentAt < RESEND_COOLDOWN_MS) return err('cooldown')
+  // As with `attempts` above, `otpChallenge.test.ts` pins both sides of this
+  // threshold: `sentThisHour === HOURLY_RESEND_CAP` refused, and
+  // `sentThisHour === HOURLY_RESEND_CAP - 1` — the last resend a reader is
+  // actually still owed — allowed.
   if (sentThisHour >= HOURLY_RESEND_CAP) return err('hourly-cap')
   return ok(undefined)
 }
