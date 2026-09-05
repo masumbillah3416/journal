@@ -18,6 +18,46 @@
  * refusal. Value objects: `UserId` and `SessionId` are branded, so binding a
  * challenge to the wrong one of them is a compile error.
  *
+ * EVERY LIMIT HERE IS ENFORCED BY THE DATABASE, NOT BY THIS PROCESS. That is
+ * the difference between a limit and the appearance of one, and it is why
+ * three of the queries below are hand-written SQL rather than Local API
+ * calls. An earlier version of this module read `attempts`, compared it in
+ * JavaScript, spent ~30ms deriving a scrypt key, then wrote `attempts + 1`
+ * back. Twelve guesses fired at once all read the same zero: all twelve were
+ * evaluated, the stored counter finished at two, and the correct code still
+ * worked afterwards. Two simultaneous correct codes both redeemed the same
+ * challenge. Ten simultaneous requests all sent a code. A three-attempt
+ * budget, single use and an hourly ceiling each fall to a parallel burst, and
+ * an attacker who can fan out does not need three guesses against a million
+ * combinations. The three fixes, each pinned by a `Promise.all` test in
+ * `otpService.integration.test.ts`:
+ *
+ *   1. **The attempt is CLAIMED before the code is compared** — one
+ *      conditional `UPDATE ... SET attempts = attempts + 1 WHERE attempts <
+ *      MAX_ATTEMPTS AND consumed_at IS NULL AND created_at > <floor>
+ *      RETURNING ...`. Postgres locks the row for the duration of that one
+ *      statement and re-evaluates the `WHERE` against the committed version,
+ *      so concurrent claimants serialise and see each other's increments.
+ *      Zero rows returned is an ANSWER, not an error: the row is re-read to
+ *      say which of exhausted/consumed/expired it was.
+ *   2. **Consumption is claimed the same way** — `UPDATE ... WHERE
+ *      consumed_at IS NULL RETURNING id`. Zero rows means another request won
+ *      the race, so this one reports `'consumed'`.
+ *   3. **`issueChallenge` serialises its count-and-insert per account** with
+ *      a Postgres advisory lock, because counting rows and then inserting one
+ *      cannot be made atomic by a single statement under READ COMMITTED —
+ *      each racer's `count(*)` simply cannot see the others' uncommitted
+ *      rows.
+ *
+ * CLAIM-THEN-COMPARE, NOT A LOCK HELD ACROSS THE COMPARISON, and both halves
+ * of that are deliberate. A guess must cost an attempt even if this process
+ * dies mid-verification, or a crash loop becomes free guesses. And holding a
+ * row lock across ~30ms of scrypt would tie up a database connection per
+ * guess, which is its own denial-of-service lever. For the same reason
+ * {@link issueChallenge} derives its hash OUTSIDE the advisory lock, so the
+ * lock spans a count and an insert (sub-millisecond) rather than the
+ * derivation.
+ *
  * THE TWO STORED HASHES ARE DELIBERATELY DIFFERENT ALGORITHMS. `sessionHash`
  * is SHA-256, because it is the LOOKUP KEY — it must be deterministic and
  * indexable, and a session identifier is high-entropy, so there is no
@@ -30,15 +70,13 @@
  *
  * INVARIANT — `expiresAt` IS A PURGE INDEX AND IS NEVER READ TO DECIDE
  * VALIDITY. It is written as `createdAt + EXPIRY_MS` so a purge can be one
- * indexed `DELETE WHERE expires_at < now()`. Authorization asks
- * `challengeState` instead, which derives expiry from `createdAt` and the
- * domain's {@link EXPIRY_MS}. Two sources of truth for one fact (CLAUDE.md
- * §7) would make `EXPIRY_MS` decorative and would let a bad write to
- * `expiresAt` silently extend a challenge's life. Relied upon at
- * {@link createOtpService}'s `verifyChallenge`, which selects `createdAt` and
- * never `expiresAt`; pinned by the "decides expiry from createdAt" test,
- * which moves the stored column a year into the future and still expects the
- * challenge to be expired.
+ * indexed `DELETE WHERE expires_at < now()`. Authorization compares
+ * `created_at` against `now - EXPIRY_MS` — in the claim's own `WHERE`, and in
+ * `challengeState` on the re-read. Two sources of truth for one fact
+ * (CLAUDE.md §7) would make `EXPIRY_MS` decorative and would let a bad write
+ * to `expiresAt` silently extend a challenge's life. Pinned by the "decides
+ * expiry from createdAt" test, which moves the stored column a year into the
+ * future and still expects the challenge to be expired.
  *
  * INVARIANT — NOTHING HERE EVER LOGS, RETURNS OR THROWS THE CODE. The code
  * exists in exactly two places: the local `code` binding in
@@ -46,18 +84,21 @@
  * never interpolated into an error, a log line or a returned value
  * (CLAUDE.md §7).
  *
- * Depends on: `payload` (the Local API instance, injected), the Mailer port,
- * `node:crypto`, and `@travel-diary/domain`'s `challengeState`, `canResend`,
- * `EXPIRY_MS`, `maskEmail`, the branded ids and `Result`.
+ * Depends on: `payload` (the Local API instance, injected) and its Postgres
+ * pool, the Mailer port, `node:crypto`, and
+ * `@travel-diary/domain`'s `challengeState`, `canResend`, `EXPIRY_MS`,
+ * `MAX_ATTEMPTS`, `maskEmail`, the branded ids and `Result`.
  */
 import { createHash, randomBytes, randomInt, scrypt, timingSafeEqual } from 'node:crypto'
+import { maskEmail } from '@travel-diary/domain/auth/mask'
 import {
+  type ChallengeState,
   EXPIRY_MS,
+  MAX_ATTEMPTS,
   type ResendRefusal,
   canResend,
   challengeState,
 } from '@travel-diary/domain/auth/otpChallenge'
-import { maskEmail } from '@travel-diary/domain/auth/mask'
 import { type SessionId, type UserId, userId } from '@travel-diary/domain/ids'
 import { type Result, err, isOk, ok } from '@travel-diary/domain/result'
 import type { Payload } from 'payload'
@@ -99,6 +140,18 @@ const SCRYPT_COST = { N: 16_384, r: 8, p: 1 } as const
  */
 const RESEND_WINDOW_MS = 60 * 60_000
 
+/**
+ * The first half of the advisory-lock key `issueChallenge` serialises on; the
+ * second half is the account id, so two accounts never contend.
+ *
+ * Postgres advisory locks share one global two-integer namespace across the
+ * whole database, so this number's only job is to be a value no other part of
+ * this application uses. It is arbitrary and stable, and it must stay stable:
+ * changing it while a deploy is half-rolled-out would leave old and new
+ * processes locking different keys, which is a silently unserialised window.
+ */
+const ISSUE_LOCK_NAMESPACE = 831
+
 /** Why {@link OtpService.issueChallenge} refused to issue or send a code. */
 export type IssueFailure = ResendRefusal | 'unknown-account' | 'delivery-failed'
 
@@ -130,13 +183,19 @@ export interface OtpService {
    *   redeemed in another (`SECURITY.md`).
    * @param ip - The requesting address, recorded on the row for abuse review.
    * @returns `ok` with the masked address the code went to — never the code,
-   *   and never the full address — or `err` naming the refusal.
+   *   and never the full address — or `err` naming the refusal. The resend
+   *   cooldown and hourly ceiling hold under concurrent requests, not merely
+   *   sequential ones: the count and the insert are serialised per account.
    */
   issueChallenge(user: UserId, session: SessionId, ip: string): Promise<Result<{ maskedTo: string }, IssueFailure>>
 
   /**
    * Checks `code` against the challenge bound to `session`, consuming it on
-   * success and spending one attempt on failure.
+   * success and spending one attempt on every evaluated guess.
+   *
+   * The attempt is spent BEFORE the comparison and by the database, so
+   * simultaneous guesses cannot exceed {@link MAX_ATTEMPTS} between them and
+   * simultaneous correct codes cannot both redeem one challenge.
    *
    * @param session - The session the code must have been issued for.
    * @param code - The six digits the reader typed.
@@ -146,6 +205,48 @@ export interface OtpService {
    *   would tell an attacker which sessions have a live challenge.
    */
   verifyChallenge(session: SessionId, code: string): Promise<Result<{ userId: UserId }, VerifyFailure>>
+}
+
+/**
+ * What a claimed attempt hands back: enough to check the code and, if it
+ * matches, to consume the row and name its owner.
+ */
+interface ClaimedAttempt {
+  readonly id: number
+  readonly user_id: number
+  readonly code_hash: string
+}
+
+/** The three facts `challengeState` needs, read back after a claim was refused. */
+interface RefusedChallenge {
+  readonly attempts: string
+  readonly consumed_at: Date | null
+  readonly created_at: Date
+}
+
+/** One row of the account's recent issuing history. */
+interface IssueHistory {
+  readonly sent_this_hour: number
+  readonly last_sent_at: Date | null
+}
+
+/**
+ * How a lifecycle state is reported to a caller who offered a code.
+ *
+ * A total mapping rather than a chain of `if`s, so there is no branch and no
+ * unreachable arm. `'valid'` maps to `'invalid'`, which is the fail-closed
+ * answer to the one race that can produce it: a concurrent
+ * {@link OtpService.issueChallenge} inserting a NEWER challenge for the same
+ * session between a refused claim and the re-read below. The code offered was
+ * never compared against that new row, so it has not been accepted — and
+ * saying `'invalid'` rather than trusting the fresh row is the difference
+ * between a refusal and an accidental bypass.
+ */
+const REFUSAL_FOR_STATE: Record<ChallengeState, VerifyFailure> = {
+  valid: 'invalid',
+  expired: 'expired',
+  exhausted: 'exhausted',
+  consumed: 'consumed',
 }
 
 /**
@@ -160,21 +261,60 @@ const hashSession = (session: SessionId): string => createHash('sha256').update(
 /**
  * Derives a scrypt key from a code and a salt.
  *
- * @param code - The six digits, as typed or as generated.
+ * THE `c8 ignore` BELOW IS THE LAST RESORT, NOT THE FIRST CHOICE, AND HERE IS
+ * WHAT WAS TRIED. (1) `promisify(scrypt)` — which would have no error arm at
+ * all — was written and reverted: `@types/node` declares no `__promisify__`
+ * overload for `scrypt` (unlike `randomBytes` and the keypair generators), so
+ * `promisify` falls back to its generic form and the derived key arrives as
+ * `unknown`, which would cost an assertion on a secret-bearing buffer to
+ * recover from. (2) Reaching the arm from a test was tried and cannot be
+ * done without changing the module under test: `scrypt` invokes its callback
+ * with an error only for cost parameters it rejects or a memory limit it
+ * exceeds, and {@link SCRYPT_COST} and {@link KEY_BYTES} are module
+ * constants — no value a CALLER supplies (`code`, `salt`) can make it fail,
+ * since `scrypt` accepts a password of any length and a salt of any length.
+ * Mocking `node:crypto` to force it would be mocking to prove a mock. (3) A
+ * branch-free settle (`resolve(error === null ? derived : ...)`) is the same
+ * branch spelled differently.
+ *
+ * Revisit if `@types/node` gains a `scrypt.__promisify__` declaration: the
+ * arm disappears entirely at that point, and so should this comment.
+ *
+ * @param code - The six digits, as generated or as typed.
  * @param salt - This row's salt.
  * @returns The {@link KEY_BYTES}-byte derived key.
  */
 const deriveKey = (code: string, salt: Buffer): Promise<Buffer> =>
   new Promise((resolve, reject) => {
     scrypt(code, salt, KEY_BYTES, SCRYPT_COST, (error, derived) => {
-      if (error === null) {
-        resolve(derived)
+      /* c8 ignore start -- see this function's own comment for the three things tried before excusing this arm */
+      if (error !== null) {
+        reject(error)
         return
       }
-      /* c8 ignore next -- scrypt reports an error only for invalid cost parameters or a memory limit, and the parameters here are module constants; reaching this would mean changing SCRYPT_COST, not exercising a path a caller can take */
-      reject(error)
+      /* c8 ignore stop */
+      resolve(derived)
     })
   })
+
+/**
+ * The six digits, drawn from the CSPRNG.
+ *
+ * `crypto.randomInt` is what `SECURITY.md` requires and `Math.random` is what
+ * it forbids: `Math.random` is a seeded, non-cryptographic generator whose
+ * future output is recoverable from a handful of observed values, which for
+ * a sign-in code means an attacker who requests two codes of their own can
+ * predict everyone else's. A swap to `Math.random` passes every functional
+ * test in this repository — the result is still six digits, still hashes,
+ * still verifies — so `otpService.integration.test.ts` asserts on this
+ * function's own source that `randomInt` is the source, the same structural
+ * technique used for {@link codeMatches}'s constant-time comparison and for
+ * the same reason: the property is invisible to behaviour.
+ *
+ * @returns Six decimal digits, zero-padded, uniformly distributed over all
+ *   1,000,000 values (`randomInt` rejects modulo bias internally).
+ */
+const generateCode = (): string => String(randomInt(CODE_UPPER_BOUND)).padStart(CODE_DIGITS, '0')
 
 /**
  * Whether `candidate` is the code `stored` was derived from.
@@ -208,17 +348,32 @@ const codeMatches = async (stored: string, candidate: string): Promise<boolean> 
 }
 
 /**
+ * The Payload row id an account's branded {@link UserId} names.
+ *
+ * @param user - The branded id.
+ * @returns The numeric row id, or `undefined` when `user` is not one. The
+ *   brand only promises a non-empty string, so a caller *can* hand over
+ *   something that is not a Payload id — and the alternative to answering
+ *   `undefined` here is `Number('nonsense')` reaching the driver as `NaN` and
+ *   escaping as a raw `Failed query: … params: NaN`, past the `Result`
+ *   contract and into whatever surfaces it.
+ */
+const accountRowId = (user: UserId): number | undefined => {
+  const parsed = Number(user)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
+/**
  * The branded account id a challenge row belongs to.
  *
- * @param owner - The row's `user` relationship value.
+ * @param rawId - The row's `user_id` column.
  * @returns The branded {@link UserId}.
  */
-const accountOf = (owner: number | { id: number }): UserId => {
-  /* c8 ignore next -- every query in this module sets `depth: 0`, so Payload returns the relationship's id and never the populated row; this narrowing satisfies the generated type rather than handling a case that can occur */
-  const rawId = typeof owner === 'number' ? owner : owner.id
+const accountOf = (rawId: number): UserId => {
   const branded = userId(String(rawId))
-  /* c8 ignore next 2 -- `userId` refuses only an empty or whitespace-only string, and `String` of a number is neither; the guard exists because the constructor returns a Result, not because this row can be nameless */
+  /* c8 ignore start -- `userId` refuses only an empty or whitespace-only string and `String` of a number is neither, so this guard cannot fire. It was not merely assumed: the constructor was read, and the only input reaching it is `user_id`, a `NOT NULL integer` column. The guard exists because the constructor returns a Result that has to be unwrapped, not because a row can be nameless; revisit if `userId` ever rejects more than emptiness. */
   if (!isOk(branded)) throw new Error('an otpChallenges row has no account id')
+  /* c8 ignore stop */
   return branded.value
 }
 
@@ -238,65 +393,105 @@ export const createOtpService = ({ payload, mailer, now }: OtpServiceDependencie
   async issueChallenge(user, session, ip) {
     const issuedAt = now()
 
+    const accountId = accountRowId(user)
+    if (accountId === undefined) return err('unknown-account')
+
     const accounts = await payload.find({
       collection: 'users',
-      where: { id: { equals: Number(user) } },
+      where: { id: { equals: accountId } },
       limit: 1,
       depth: 0,
     })
     const account = accounts.docs[0]
     if (account === undefined) return err('unknown-account')
 
-    // One query answers both halves of the resend rule: `totalDocs` is how
-    // many codes this account has already had in the rolling hour, and the
-    // single returned row is the most recent of them.
-    const history = await payload.find({
-      collection: 'otpChallenges',
-      where: {
-        user: { equals: Number(user) },
-        createdAt: { greater_than: new Date(issuedAt - RESEND_WINDOW_MS).toISOString() },
-      },
-      sort: '-createdAt',
-      limit: 1,
-      depth: 0,
-    })
-    const mostRecent = history.docs[0]
-    if (mostRecent !== undefined) {
-      const allowed = canResend(Date.parse(mostRecent.createdAt), issuedAt, history.totalDocs)
-      if (!allowed.ok) return err(allowed.error)
-    }
-
-    // `randomInt` is the CSPRNG SECURITY.md requires. `Math.random` is
-    // seeded, predictable, and would make every code guessable from a
-    // handful of observed ones.
-    const code = String(randomInt(CODE_UPPER_BOUND)).padStart(CODE_DIGITS, '0')
+    // Derived BEFORE the lock is taken. ~30ms of scrypt inside a lock held
+    // per account would serialise a burst into a queue rather than refusing
+    // it, and would hold a database connection for the duration. The cost of
+    // deriving a hash this call may then be refused for is real but bounded:
+    // it is one derivation per request, and Task 4's per-account and per-IP
+    // rate limiting is what bounds the number of requests.
+    const code = generateCode()
     const salt = randomBytes(SALT_BYTES)
     const derived = await deriveKey(code, salt)
 
-    // The row is written BEFORE the send, so a code that reaches a reader
-    // always has a challenge behind it. A row whose send then fails is dead
-    // weight that still counts against the resend cap — failing closed on
-    // the mailbomb ceiling is the right side to err on.
-    await payload.create({
-      collection: 'otpChallenges',
-      data: {
-        user: Number(user),
-        codeHash: salt.toString('hex') + derived.toString('hex'),
-        sessionHash: hashSession(session),
-        // Written from the same instant as `createdAt` so the invariant in
-        // this module's header — `expiresAt === createdAt + EXPIRY_MS` — is
-        // exact rather than approximately true.
-        createdAt: new Date(issuedAt).toISOString(),
-        expiresAt: new Date(issuedAt + EXPIRY_MS).toISOString(),
-        attempts: 0,
-        ip,
-      },
-      depth: 0,
-    })
+    const client = await payload.db.pool.connect()
+    let refusal: ResendRefusal | undefined
+    try {
+      // Session-level, not transaction-level: no transaction is opened here
+      // at all, so each statement below autocommits on its own and a process
+      // that dies mid-sequence leaves no half-open transaction behind. A
+      // connection that breaks releases the lock with it.
+      await client.query('SELECT pg_advisory_lock($1, $2)', [ISSUE_LOCK_NAMESPACE, accountId])
+      try {
+        // One query answers both halves of the resend rule: how many codes
+        // this account has already had in the rolling hour, and when the most
+        // recent of them was sent. Inside the lock, because a count taken
+        // outside it is a count of what the other racers had not committed
+        // yet.
+        const history = await client.query<IssueHistory>(
+          `SELECT count(*)::int AS sent_this_hour, max(created_at) AS last_sent_at
+             FROM otp_challenges
+            WHERE user_id = $1 AND created_at > $2`,
+          [accountId, new Date(issuedAt - RESEND_WINDOW_MS)],
+        )
+        // `count(*)`/`max()` with no GROUP BY always return exactly one row,
+        // but `noUncheckedIndexedAccess` cannot know that. Folding over the
+        // rows says the same thing as reading `rows[0]` without a defensive
+        // `?.` whose empty arm no test can ever take - the same shape
+        // `apps/web/lib/migrate.ts` uses for its own single-row count. The
+        // `??` inside the fold is not that kind of arm: `max()` really is
+        // NULL on an account's first code and a Date on every resend, and
+        // both cases are exercised.
+        const sentThisHour = history.rows.reduce((total, row) => total + row.sent_this_hour, 0)
+        const lastSentAt = history.rows.reduce<Date | null>((latest, row) => row.last_sent_at ?? latest, null)
+        const allowed = lastSentAt === null ? ok(undefined) : canResend(lastSentAt.getTime(), issuedAt, sentThisHour)
+
+        if (allowed.ok) {
+          // The row is written BEFORE the send, so a code that reaches a
+          // reader always has a challenge behind it. A row whose send then
+          // fails is dead weight that still counts against the resend cap —
+          // failing closed on the mailbomb ceiling is the right side to err
+          // on. `created_at` is written explicitly, from the same instant as
+          // `expires_at`, so this module's `expiresAt === createdAt +
+          // EXPIRY_MS` invariant is exact rather than approximately true.
+          await client.query(
+            `INSERT INTO otp_challenges
+               (user_id, code_hash, session_hash, expires_at, attempts, ip, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, 0, $5, $6, $6)`,
+            [
+              accountId,
+              salt.toString('hex') + derived.toString('hex'),
+              hashSession(session),
+              new Date(issuedAt + EXPIRY_MS),
+              ip,
+              new Date(issuedAt),
+            ],
+          )
+        } else {
+          refusal = allowed.error
+        }
+      } finally {
+        await client.query('SELECT pg_advisory_unlock($1, $2)', [ISSUE_LOCK_NAMESPACE, accountId])
+      }
+    } finally {
+      client.release()
+    }
+
+    if (refusal !== undefined) return err(refusal)
 
     const delivery = await mailer.send({
       to: account.email,
       subject: 'Your travel diary sign-in code',
+      // INVARIANT — THIS BODY CARRIES EXACTLY ONE RUN OF DIGITS, THE CODE.
+      // The "never writes the code to the log" and "never returns the code"
+      // assertions read the issued code back out of this body and then check
+      // that those digits appear nowhere else. Add "expires in 5 minutes"
+      // here and the outbox reader can pick up the wrong number, and the leak
+      // detectors start passing or failing for reasons that have nothing to
+      // do with a leak. "five minutes" is spelled out for that reason, not
+      // for style. This copy is ours, not the handoff's — see
+      // docs/deviations.md §26.
       text: `${code}\n\nThat code signs you in to the travel diary. It expires in five minutes.\nIf you did not ask for it, nothing has happened and you can ignore this.`,
     })
     if (!delivery.ok) return err('delivery-failed')
@@ -306,56 +501,84 @@ export const createOtpService = ({ payload, mailer, now }: OtpServiceDependencie
 
   async verifyChallenge(session, code) {
     const checkedAt = now()
+    const sessionHash = hashSession(session)
+    // `created_at`, never the stored `expires_at` — see this module's header.
+    // `challengeState` treats a challenge as valid while elapsed time is
+    // strictly under EXPIRY_MS, so the floor below is strictly exclusive too.
+    const expiryFloor = new Date(checkedAt - EXPIRY_MS)
 
-    const found = await payload.find({
-      collection: 'otpChallenges',
-      where: { sessionHash: { equals: hashSession(session) } },
-      sort: '-createdAt',
-      limit: 1,
-      depth: 0,
-    })
-    const challenge = found.docs[0]
-    // No challenge for this session reads as `'invalid'`, the same refusal a
-    // wrong code gets: a distinct error here would tell an attacker which
-    // sessions currently hold a live challenge.
-    if (challenge === undefined) return err('invalid')
-
-    const consumedAt = challenge.consumedAt ?? null
-    // Read once, used twice: `attempts` is declared with `defaultValue: 0`,
-    // so the nullish fallback is for the generated type rather than for a row
-    // this module can produce, and repeating it would repeat an arm no test
-    // can reach.
-    const spentAttempts = challenge.attempts ?? 0
-    const state = challengeState(
-      {
-        // `createdAt`, never the stored `expiresAt` — see this module's header.
-        createdAt: Date.parse(challenge.createdAt),
-        attempts: spentAttempts,
-        consumedAt: consumedAt === null ? null : Date.parse(consumedAt),
-      },
-      checkedAt,
+    // THE CLAIM. One statement: find this session's newest challenge, and if
+    // it is still claimable, spend an attempt on it and hand back what is
+    // needed to check the code. `COALESCE` so a row whose counter was never
+    // written reads as none spent rather than as NULL, which would make every
+    // comparison against it neither true nor false and quietly render the row
+    // unusable.
+    const claim = await payload.db.pool.query<ClaimedAttempt>(
+      `UPDATE otp_challenges
+          SET attempts = COALESCE(attempts, 0) + 1, updated_at = now()
+        WHERE id = (
+                SELECT id FROM otp_challenges
+                 WHERE session_hash = $1
+                 ORDER BY created_at DESC
+                 LIMIT 1
+              )
+          AND COALESCE(attempts, 0) < $2
+          AND consumed_at IS NULL
+          AND created_at > $3
+      RETURNING id, user_id, code_hash`,
+      [sessionHash, MAX_ATTEMPTS, expiryFloor],
     )
-    if (state !== 'valid') return err(state)
+    const claimed = claim.rows[0]
 
-    if (!(await codeMatches(challenge.codeHash, code))) {
-      await payload.update({
-        collection: 'otpChallenges',
-        id: challenge.id,
-        data: { attempts: spentAttempts + 1 },
-        depth: 0,
-      })
-      return err('invalid')
+    if (claimed === undefined) {
+      // Nothing was claimable. Re-read the row to say WHY, rather than
+      // reporting one refusal for four different situations.
+      const refused = await payload.db.pool.query<RefusedChallenge>(
+        `SELECT COALESCE(attempts, 0) AS attempts, consumed_at, created_at
+           FROM otp_challenges
+          WHERE session_hash = $1
+          ORDER BY created_at DESC
+          LIMIT 1`,
+        [sessionHash],
+      )
+      const row = refused.rows[0]
+      // No challenge for this session at all reads as `'invalid'`, the same
+      // refusal a wrong code gets: a distinct error here would tell an
+      // attacker which sessions currently hold a live challenge.
+      if (row === undefined) return err('invalid')
+
+      return err(
+        REFUSAL_FOR_STATE[
+          challengeState(
+            {
+              createdAt: row.created_at.getTime(),
+              // `attempts` is a Postgres `numeric`, which the driver hands
+              // back as a string to avoid silently rounding values wider than
+              // a JS number.
+              attempts: Number(row.attempts),
+              consumedAt: row.consumed_at === null ? null : row.consumed_at.getTime(),
+            },
+            checkedAt,
+          )
+        ],
+      )
     }
 
-    // Consumption is a write, not a flag held in memory: single use has to
-    // survive the request that spent it, or a replayed code works twice.
-    await payload.update({
-      collection: 'otpChallenges',
-      id: challenge.id,
-      data: { consumedAt: new Date(checkedAt).toISOString() },
-      depth: 0,
-    })
+    if (!(await codeMatches(claimed.code_hash, code))) return err('invalid')
 
-    return ok({ userId: accountOf(challenge.user) })
+    // THE CONSUMPTION, claimed the same way the attempt was. Single use has to
+    // survive the request that spent it — and, as of the concurrency fix, the
+    // request racing it: two simultaneous correct codes both reach this line,
+    // and `consumed_at IS NULL` is what decides which of them signs in.
+    const consumed = await payload.db.pool.query<{ id: number }>(
+      `UPDATE otp_challenges
+          SET consumed_at = $2, updated_at = now()
+        WHERE id = $1 AND consumed_at IS NULL
+      RETURNING id`,
+      [claimed.id, new Date(checkedAt)],
+    )
+    if (consumed.rows.length === 0) return err('consumed')
+
+    return ok({ userId: accountOf(claimed.user_id) })
   },
 })

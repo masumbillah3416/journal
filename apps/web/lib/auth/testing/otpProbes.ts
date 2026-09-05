@@ -18,8 +18,8 @@
  * was sent", "no six-digit code in the message body") rather than echoing the
  * message they searched, since a helper that dumps the outbox on failure is a
  * helper that writes a live one-time code into CI output (CLAUDE.md §7).
- * Depends on: the test Payload instance (`../../testPayload`), the branded
- * `UserId` (`@travel-diary/domain/ids`) and the mailer port's `SentMessage`.
+ * Depends on: the test Payload instance (`../../testPayload`) and the branded
+ * `UserId` (`@travel-diary/domain/ids`).
  */
 import type { UserId } from '@travel-diary/domain/ids'
 import { getTestPayload } from '../../testPayload'
@@ -91,6 +91,50 @@ export const readCodeFromOutbox = (mailer: { readonly sent: readonly { readonly 
   if (code === undefined) throw new Error('no six-digit code in the message body')
   return code
 }
+
+/**
+ * How many challenge rows an account has been issued since a given instant.
+ *
+ * Counts ROWS rather than believing the service's own return values, which is
+ * the whole point when the question is whether a ceiling actually held: a
+ * count-then-insert that is not serialised reports refusals it never applied.
+ * @param user - The account to count for.
+ * @param sinceMs - Epoch milliseconds; rows created strictly after this count.
+ * @returns How many challenges exist in that window.
+ */
+export const challengeCountSince = async (user: UserId, sinceMs: number): Promise<number> => {
+  const payload = await getTestPayload()
+  const found = await payload.find({
+    collection: 'otpChallenges',
+    where: { user: { equals: Number(user) }, createdAt: { greater_than: new Date(sinceMs).toISOString() } },
+    limit: 0,
+    depth: 0,
+  })
+  return found.totalDocs
+}
+
+/**
+ * A pattern matching `code`'s digits in order, however they are separated.
+ *
+ * A bare `/\d{6}/` is a weaker leak detector than it reads: a body that
+ * printed `1 2 3 4 5 6`, or `1-2-3-4-5-6`, or the code split across a line
+ * break has leaked the whole code and matches no six-digit run. This matches
+ * the issued code's own digits with anything non-numeric allowed between
+ * them, so a re-encoded or interleaved leak is caught too.
+ *
+ * False positives are the safe direction for a leak detector, and here they
+ * are impossible in practice: the fixture address this file uses is
+ * deliberately free of digits (see `aSignInAccount`), so any digit at all in
+ * a response or a log line came from the code.
+ * @param code - The code actually issued, read from the outbox.
+ * @returns The pattern.
+ */
+export const scatteredCodePattern = (code: string): RegExp =>
+  // Inserted BETWEEN digits by a lookahead rather than by spreading or
+  // splitting the string: `@typescript-eslint/no-misused-spread` bans both,
+  // since either decomposes text by code point or code unit, and this needs
+  // no branch to say "every digit but the last".
+  new RegExp(code.replace(/([0-9])(?=[0-9])/gu, '$1[^0-9]*'), 'u')
 
 /**
  * A code that is certainly wrong, whatever the service happened to issue.

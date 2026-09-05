@@ -162,21 +162,21 @@ export default defineConfig({
         // that has already bootstrapped `diary_test` once genuinely
         // measures, not what a first-ever run would.
         'apps/web/lib/testPayload.ts': { lines: 93, branches: 75, functions: 100 },
-        // otpService.ts (Phase 2 Task 3). 100% lines/statements/functions;
-        // 93% branches is the measured number, and the two arms it is short
-        // of are both unreachable rather than untested, named here so a third
-        // one cannot hide behind them. (1) `deriveKey`'s `reject` arm:
-        // `node:crypto`'s `scrypt` reports an error only for invalid cost
-        // parameters or an exceeded memory limit, and the parameters are
-        // module constants - it carries a `c8 ignore` on the line, which
-        // removes the statement but not the branch the `if` above it counts.
-        // (2) the `attempts ?? 0` fallback: the column is declared with
-        // `defaultValue: 0`, so Payload never returns null for it; the
-        // fallback exists for the generated type. Both were read before being
-        // excused, and neither can be reached without breaking the module
-        // under test - which CLAUDE.md §2.3 forbids ("no mocking what we
-        // own"). Raise this the moment a reachable branch is added.
-        'apps/web/lib/auth/otpService.ts': { lines: 100, branches: 93, functions: 100 },
+        // otpService.ts (Phase 2 Task 3): 100% on every axis, and it took
+        // two corrections to get an honest 100 rather than a lowered bar.
+        // The first version of this entry sat at 93% branches and claimed
+        // both missing arms were unreachable. One of them was not: a reviewer
+        // reached `attempts ?? 0` with a plain
+        // `payload.update({ data: { attempts: null } })`, no mocking - a
+        // threshold lowered on a reason that is not true is worse than one
+        // lowered honestly, because the comment stops the next reader from
+        // checking. Both arms are gone rather than excused: the attempt count
+        // is now `COALESCE`d in SQL (with a test that writes a NULL count and
+        // expects the challenge to still work), and the single-row `count(*)`
+        // is folded over its rows instead of read through a `?.`. The one
+        // `c8 ignore` left in the file, on `deriveKey`'s error arm, records
+        // the three things tried before it was excused.
+        'apps/web/lib/auth/otpService.ts': { lines: 100, branches: 100, functions: 100 },
         // The probes are gated at 100% on every axis, like queue-fixtures.ts
         // above and for the same reason: they are what makes every security
         // assertion in otpService.integration.test.ts non-vacuous, so each of

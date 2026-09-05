@@ -386,18 +386,24 @@ would claim a measurement nothing performs.
   Payload itself just generated, an out-of-bounds accent-tint index that can't happen for
   a fixed 5-element tuple); see `seed.ts`'s own `c8 ignore` comments and
   `vitest.integration.config.ts`'s threshold comment for the full list.
-  `auth/otpService.ts` (Phase 2 Task 3) is 100% lines/statements/functions and **93%
-  branches**. The two arms it is short of are unreachable rather than untested, and both
-  are named at the threshold so a third cannot hide behind them: `deriveKey`'s `reject`
-  path, which `node:crypto`'s `scrypt` takes only for invalid cost parameters or an
-  exceeded memory limit (the parameters are module constants, and the line carries a
-  `c8 ignore` that removes the statement but not the `if`'s branch), and the
-  `attempts ?? 0` fallback, which exists for the generated Payload type on a column
-  declared `defaultValue: 0`. `auth/testing/otpProbes.ts` is **100% on every axis**,
-  like `queue-fixtures.ts` and for the same reason: the probes are what make the OTP
-  security assertions non-vacuous, so each of their own refusals — an empty outbox, a
-  message with no six-digit run, an account with no challenge — is exercised rather than
-  assumed.
+  `auth/otpService.ts` (Phase 2 Task 3) is **100% on every axis**, and it is worth
+  recording that it took two corrections to get there honestly. Its first threshold was
+  93% branches with a comment claiming both missing arms were unreachable; the review
+  reached one of them (`attempts ?? 0`) with a plain
+  `payload.update({ data: { attempts: null } })` and no mocking at all. A threshold
+  lowered on a reason that is not true is worse than one lowered honestly, because the
+  comment is what stops the next reader from checking. Both arms are gone rather than
+  excused: the attempt count is `COALESCE`d in SQL, with a test that writes a NULL count
+  and expects the challenge to still verify, and the single-row `count(*)` is folded over
+  its rows rather than read through a `?.` whose empty arm nothing can take. One
+  `c8 ignore` remains, on `deriveKey`'s error arm, and its comment records the three
+  things tried before it was excused — `promisify` (no `scrypt.__promisify__` in
+  `@types/node`, so the key arrives as `unknown`), reaching it from a test (`scrypt`
+  errors only on cost parameters, which are module constants), and a branch-free settle.
+  `auth/testing/otpProbes.ts` is 100% on every axis too, like `queue-fixtures.ts` and for
+  the same reason: the probes are what make the OTP security assertions non-vacuous, so
+  each of their own refusals — an empty outbox, a message with no six-digit run, an
+  account with no challenge — is exercised rather than assumed.
 - **Add one:** write `apps/web/lib/ports/<name>.ts` (the interface, plus any guard every
   adapter must share - see `validateStorageKey` above), then
   `apps/web/lib/adapters/contract/<name>-contract.ts` (the shared suite) before any
@@ -1519,10 +1525,21 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   hole plus the resend limits — the code is never returned, never logged and never
   stored in the clear; a code issued for one session is refused in another; a correct
   code works exactly once; a third wrong guess kills the challenge even for the correct
-  code; expiry is derived from `createdAt` rather than the stored `expiresAt`; and the
-  comparison is `crypto.timingSafeEqual`. Each of those was verified by **mutation** —
-  ten deliberate breakages, each failing exactly the case that names it and no other
-  (the runs are pasted in that task's report). What is still outstanding is rate
+  code; expiry is derived from `createdAt` rather than the stored `expiresAt`; the
+  comparison is `crypto.timingSafeEqual`; and the code is drawn from `crypto.randomInt`.
+  Each of those was verified by **mutation** — deliberate breakages, each failing exactly
+  the case that names it and no other (the runs are pasted in that task's report).
+
+  **Three of those cases are `Promise.all` bursts, and they are the ones that found a
+  real hole.** A limit that holds one request at a time can be nothing at all: the first
+  version of the service read the attempt count, spent ~30ms hashing, and wrote the count
+  back, so twelve parallel guesses were all evaluated against a three-attempt budget, two
+  parallel correct codes both redeemed one challenge, and ten parallel requests all
+  mailed a code past an hourly ceiling of five. Every sequential test passed throughout.
+  The rule this leaves behind: **any limit expressed as read-check-write gets a parallel
+  test, and that test is confirmed to fail before the fix.** All three failed first, and
+  each is now pinned to the mechanism that fixes it — a conditional `UPDATE` for the
+  attempt and for consumption, a per-account advisory lock for the count-and-insert. What is still outstanding is rate
   limiting and lockout (Phase 2 Task 4), anti-enumeration (Task 5) and the upload
   worker's SVG and EXIF probes (Phase 3).
 - **Run (once added):** included in `npm run test:integration` (these probes need a real
@@ -1541,12 +1558,23 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   `20260831_154311_initial` (every collection and global's schema),
   `20260831_161951_add_jobs` (the `jobs` table backing the `queue` port, Task 9) and
   `20260905_202028_add_otp_session_hash` (the OTP challenge's session binding, Phase 2
-  Task 3 — `docs/deviations.md` §25). Each of the two later ones has its **own** up/down/up
-  case in `collections.integration.test.ts` rather than sharing one, because they fail
-  differently: a case that proves tables come back would still pass with a column
-  silently missing from a rebuilt table, so the `session_hash` case writes a row only
-  that column makes storable, rolls every migration to zero, re-applies, and writes it
-  again.
+  Task 3 — `docs/deviations.md` §25). Each of the two later ones has its **own** case in
+  `collections.integration.test.ts` rather than sharing one.
+
+  The `session_hash` case is also the one worth reading before writing another migration
+  test, because its first version was worthless and looked fine. It rolled every
+  migration back to zero and asserted the *table* came back — which the INITIAL
+  migration's `down()`/`up()` does on its own, so the case passed with this migration's
+  `down()` replaced by a no-op. It now rolls back **that migration alone** (through the
+  same `up`/`down` functions Payload itself loads, via `readMigrationFiles` — a static
+  import would register a second copy of the file and wreck its coverage report, measured
+  at 60% branches purely from adding one) and asserts on the **column and its index**,
+  which are the only two facts this migration is responsible for. Verified by making
+  `down()` a no-op and watching it fail.
+
+  The general rule: assert on what the migration under test actually changes, and
+  reverse only that migration. A reversibility test that leans on a wider rollback is
+  measuring the wider rollback.
   `apps/web/lib/migrate.ts` wraps Payload's migration runner as `runMigrateUp`,
   `runMigrateDown`, `appliedMigrationCount` and `runMigrateDownToZero`.
   `apps/web/lib/testPayload.ts`'s `getTestPayload()` calls `runMigrateUp` once, on

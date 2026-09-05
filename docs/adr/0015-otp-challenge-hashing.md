@@ -92,6 +92,17 @@ already hashes one secret has no business keeping the other in the clear.
 - **A row is found by `sessionHash` and only then does anything touch the code.** A
   request carrying no valid session hash costs one indexed lookup and no derivation,
   which keeps the expensive path behind the cheap one.
+- **The 30ms derivation forced the concurrency design, and is the reason the attempt is
+  claimed rather than checked.** A read-check-derive-write sequence leaves a ~30ms window
+  in which every concurrent guess has read the same attempt count; measured, twelve
+  parallel guesses were all evaluated against a three-attempt budget and the stored
+  counter finished at two. The fix is to spend the attempt with one conditional `UPDATE`
+  *before* deriving anything, so the database arbitrates and the derivation happens
+  outside any lock. Holding a row lock across the derivation instead would have been the
+  other obvious answer and is worse: it ties up a connection per guess, which is a
+  denial-of-service lever, and it makes a crash mid-verification a free guess.
+  `issueChallenge` inverts the same trade — it derives *before* taking its per-account
+  advisory lock, so the lock spans only a count and an insert.
 - **The constant-time comparison cannot be verified by a timing test here, and is
   asserted structurally instead.** The comparison runs on two 32-byte buffers behind a
   ~30ms scrypt derivation and a Postgres round trip; the leak a naive `===` produces

@@ -54,7 +54,9 @@
  * database, never the developer's own dev database (Task 10/11 review
  * finding 2) - see that module's header.
  */
+import type { MigrateUpArgs } from '@payloadcms/db-postgres'
 import { Client } from 'pg'
+import { type PayloadRequest, readMigrationFiles } from 'payload'
 import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { env } from '../lib/env'
@@ -145,6 +147,9 @@ const existingTablesAmong = async (names: readonly string[]): Promise<string[]> 
   }
 }
 
+/** The migration whose own reversibility the last case below asserts. */
+const SESSION_HASH_MIGRATION = '20260905_202028_add_otp_session_hash'
+
 /** The email the OTP migration fixture's account uses, so `afterAll` can remove it. */
 const FIXTURE_REVERSIBILITY_EMAIL = 'test-otp-reversibility@example.com'
 
@@ -174,6 +179,76 @@ const anOtpChallengeFor = (account: number): {
   sessionHash: FIXTURE_SESSION_HASH,
   expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
 })
+
+/**
+ * Which of the `session_hash` column and its index currently exist.
+ *
+ * Asked of `information_schema` rather than of Payload, and asked for the
+ * COLUMN rather than the table: this migration adds a column to a table it
+ * did not create, so "the table is gone" says nothing about whether its
+ * `down()` did anything at all.
+ * @returns `['column', 'index']` when both exist, a subset otherwise, sorted
+ *   so an assertion reads as a set.
+ */
+const sessionHashSchema = async (): Promise<string[]> => {
+  const client = new Client({ connectionString: env.DATABASE_URL })
+  await client.connect()
+  try {
+    const column = await client.query(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'otp_challenges' AND column_name = 'session_hash'`,
+    )
+    const index = await client.query(
+      `SELECT 1 FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = 'otp_challenges_session_hash_idx'`,
+    )
+    return [...column.rows.map(() => 'column'), ...index.rows.map(() => 'index')].sort()
+  } finally {
+    await client.end()
+  }
+}
+
+/**
+ * Runs one migration's own `up()` or `down()`, outside Payload's batch
+ * bookkeeping.
+ *
+ * `payload.db.migrateDown()` rolls back a whole BATCH, and every migration in
+ * this repository is applied in one batch, so it cannot reverse a single
+ * migration - which is precisely what a per-migration reversibility assertion
+ * needs. Running one migration's own `up`/`down` is the narrowest way to ask
+ * "does THIS migration's down() undo THIS migration's up()".
+ *
+ * The functions come from Payload's own `readMigrationFiles`, NOT from an
+ * `import` of the migration module, and that is deliberate. A static import
+ * makes Vitest transform and register a SECOND instance of a file Payload
+ * also loads straight off disk, and `@vitest/coverage-v8` then merges two
+ * unrelated range sets into one nonsensical report: measured, the file's
+ * branch coverage fell from 100% to 60% with a synthetic "branch" map
+ * spanning its own import lines, purely from adding the import. Asking
+ * Payload for the same functions it runs itself keeps one instance and one
+ * honest measurement.
+ * @param name - The migration's name, as `payload_migrations` records it.
+ * @param direction - Which of the two to run.
+ * @param payload - The test Payload instance, for its Drizzle handle.
+ */
+const runMigrationDirection = async (
+  name: string,
+  direction: 'up' | 'down',
+  payload: Awaited<ReturnType<typeof getPayload>>,
+): Promise<void> => {
+  const files = await readMigrationFiles({ payload })
+  const migration = files.find((file) => file.name === name)
+  if (migration === undefined) throw new Error(`no migration on disk named ${name}`)
+  const run: (args: MigrateUpArgs) => Promise<void> = direction === 'up' ? migration.up : migration.down
+  await run({
+    db: payload.db.drizzle,
+    payload,
+    // Cast justified: this migration's signature destructures `req` and its
+    // body never reads it (it is declared `_req`), so the alternative is
+    // assembling a whole PayloadRequest to hand to a discarded parameter.
+    req: {} as PayloadRequest,
+  })
+}
 
 /** The three tables a journey's own fields, highlights and tally live in. */
 const JOURNEY_TABLES = ['journeys', 'journeys_highlights', 'journeys_tally'] as const
@@ -494,33 +569,42 @@ describe('collections', () => {
   // that round trip exercises: a `down()` that failed to drop the index would
   // make the re-apply's `CREATE INDEX` fail with "relation already exists",
   // which is the specific way this migration can be irreversible.
-  it('rebuilds the otpChallenges session binding after rolling all migrations back to zero and re-applying them', async () => {
+  // The `session_hash` column added by `20260905_202028_add_otp_session_hash`
+  // (Phase 2 Task 3, docs/deviations.md §25) gets its own case, and that case
+  // rolls back THAT MIGRATION ALONE rather than reusing the roll-to-zero
+  // above. The first version of it did reuse it, and was worthless: a
+  // reviewer replaced the migration's `down()` with a no-op and every test
+  // here still passed. Rolling to zero means the INITIAL migration's
+  // `DROP TABLE` removes `otp_challenges` outright, so "the column is gone"
+  // was true whatever this migration's `down()` did - and the assertion was
+  // on the TABLE, which the initial migration rebuilds, not on the column.
+  //
+  // This version calls the migration file's own `up()` and `down()` directly
+  // and asserts on the COLUMN and its INDEX, which is the only pair of facts
+  // this migration is responsible for. Verified by mutation: replacing
+  // `down()` with a no-op fails it (see the task report).
+  it('drops and restores only the otpChallenges session binding when its own migration is reversed', async () => {
+    expect(await sessionHashSchema()).toEqual(['column', 'index'])
+
+    await runMigrationDirection(SESSION_HASH_MIGRATION, 'down', payload)
+
+    expect(await sessionHashSchema()).toEqual([])
+    // The table itself must survive: this migration adds a column to a table
+    // it did not create, so a `down()` that took the table with it would be a
+    // different and much worse kind of reversible.
+    expect(await existingTablesAmong(['otp_challenges'])).toEqual(['otp_challenges'])
+
+    await runMigrationDirection(SESSION_HASH_MIGRATION, 'up', payload)
+
+    expect(await sessionHashSchema()).toEqual(['column', 'index'])
+    // And the rebuilt column still holds what it is for. A migration that
+    // restored a column of the wrong type or nullability would satisfy every
+    // assertion above and fail the first time anything wrote to it.
     const account = await payload.create({
       collection: 'users',
       data: { email: FIXTURE_REVERSIBILITY_EMAIL, password: 'not-a-real-password' },
     })
-    const written = await payload.create({ collection: 'otpChallenges', data: anOtpChallengeFor(account.id) })
-
-    expect(written.sessionHash).toBe(FIXTURE_SESSION_HASH)
-
-    await runMigrateDownToZero()
-
-    // Asserted mid-test for the same reason as the case above: Payload's
-    // migrate() calls process.exit(1) on a failed migration, so a rollback
-    // that left the index behind would kill this worker on the re-apply
-    // before any assertion could name what went wrong.
-    expect(await appliedMigrationCount()).toBe(0)
-    expect(await existingTablesAmong(['otp_challenges'])).toEqual([])
-
-    await runMigrateUp()
-    const rebuiltAccount = await payload.create({
-      collection: 'users',
-      data: { email: FIXTURE_REVERSIBILITY_EMAIL, password: 'not-a-real-password' },
-    })
-    const restored = await payload.create({
-      collection: 'otpChallenges',
-      data: anOtpChallengeFor(rebuiltAccount.id),
-    })
+    const restored = await payload.create({ collection: 'otpChallenges', data: anOtpChallengeFor(account.id) })
 
     expect(restored.sessionHash).toBe(FIXTURE_SESSION_HASH)
   })

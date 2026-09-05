@@ -956,3 +956,41 @@ to zero and re-applies it.
 **Recorded as:** `docs/adr/0015-otp-challenge-hashing.md`; the phase ledger's rulings
 F11 and F12; `// HANDOFF-DEVIATION` on the field itself in
 `apps/web/collections/otpChallenges.ts`.
+
+## 26 · The sign-in email's subject and body are ours, not the handoff's
+
+**What changed:** `apps/web/lib/auth/otpService.ts` sends a message with the subject
+`Your travel diary sign-in code` and a body reading, in full:
+
+```
+<the six digits>
+
+That code signs you in to the travel diary. It expires in five minutes.
+If you did not ask for it, nothing has happened and you can ignore this.
+```
+
+None of that copy comes from the handoff.
+
+**Rationale:** `SCREENS.md` §3.2 specifies the one-time-code *screen* verbatim, down to
+the ring widths on the six cells and the wording of "A six-digit code went to {masked}.
+It expires in {m:ss}." — and says nothing whatsoever about the email that carries the
+code. The message has to say something, so this is invented text written to echo the
+screen's own language rather than to introduce a second voice. It is recorded here
+because `CLAUDE.md` §9 Pass 3 asks every copy string to be diffed against the handoff,
+and a later reader diffing this one would otherwise waste time looking for a source that
+does not exist — or, worse, "correct" it to match something.
+
+**One invariant travels with it, and it is not stylistic.** The body carries **exactly
+one run of digits, the code**. `otpService.integration.test.ts` reads the issued code
+back out of the outbox the way a reader reads it out of an inbox, then asserts those
+digits appear in no response and no log line. Adding "expires in 5 minutes" to this body
+gives the outbox reader a second number to pick up and turns those leak assertions into
+tests of the fixture rather than of the service. "five minutes" is spelled out for that
+reason. The invariant is stated at the string itself, in `otpService.ts`.
+
+**What would reverse this:** the repository owner supplying their own copy, which is
+theirs to write — this entry exists so they know it is theirs to write. Whatever replaces
+it keeps the one-run-of-digits invariant, or updates the tests that depend on it in the
+same commit.
+
+**Recorded as:** the comment on the `text` field in `apps/web/lib/auth/otpService.ts`.

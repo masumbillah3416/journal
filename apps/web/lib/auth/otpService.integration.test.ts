@@ -13,19 +13,24 @@
  * that was told the answer.
  *
  * EVERY TEST HERE IS A SECURITY REQUIREMENT, AND EACH FAILS WHEN ITS
- * MECHANISM IS REMOVED. Verified by running ten mutations, not assumed - the
- * pasted output is in `task-3-report.md`. Looking the row up without
- * `sessionHash` fails the cross-session case; storing the code instead of its
- * hash fails the hash case; dropping the `consumedAt` write fails the
- * single-use case; not incrementing `attempts` fails both the attempt-count
- * and the exhaustion case; deriving `createdAt` from the stored `expiresAt`
+ * MECHANISM IS REMOVED. Verified by running sixteen mutations, not assumed -
+ * the pasted output is in `task-3-report.md`, and every one failed exactly
+ * the cases named below and no others. Dropping `session_hash` from the
+ * claim's lookup fails the two binding cases; storing the code instead of its
+ * hash fails the hash case; dropping the `consumed_at` write fails single
+ * use; not incrementing `attempts` fails the attempt-count, exhaustion and
+ * parallel-guess cases; deriving `created_at` from the stored `expires_at`
  * fails the purge-column case; replacing `timingSafeEqual` with `===` fails
- * the constant-time case; removing the `canResend` guard fails the cooldown
- * and hourly-ceiling cases; storing the session id unhashed fails the
- * session-hash case; appending the code to the returned value fails the
- * never-returned case; and printing the code on the mailer's terminal line
- * fails the never-logged case. Each mutation failed exactly the tests named
- * and no others.
+ * the constant-time case; swapping `randomInt` for `Math.random` fails the
+ * CSPRNG case; removing the `canResend` guard fails all three resend cases;
+ * storing the session id unhashed fails the session-hash case; appending the
+ * code to the returned value fails the never-returned case; printing the code
+ * on the mailer's terminal line fails the never-logged case; removing the
+ * advisory lock fails the ceiling burst; widening the claim's
+ * `MAX_ATTEMPTS` ceiling fails the exhaustion and parallel-guess cases;
+ * dropping the `consumed_at IS NULL` guard from the consumption fails the
+ * parallel-redemption case; dropping the `COALESCE` fails the null-count
+ * case; and letting a non-numeric id through fails the not-an-account case.
  *
  * TIME IS INJECTED, NEVER FROZEN. The service's clock is a parameter
  * (CLAUDE.md §2.3), but the clocks these tests pass are always REAL time plus
@@ -52,16 +57,62 @@ import { createConsoleMailer } from '../adapters/console-mailer'
 import type { MailerPort } from '../ports/mailer'
 import { getTestPayload } from '../testPayload'
 import { type OtpService, createOtpService } from './otpService'
-import { aDifferentCode, latestChallenge, readCodeFromOutbox } from './testing/otpProbes'
+import {
+  aDifferentCode,
+  challengeCountSince,
+  latestChallenge,
+  readCodeFromOutbox,
+  scatteredCodePattern,
+} from './testing/otpProbes'
 
-/** Every fixture account this file creates carries this, so `afterAll` can find them all. */
+/**
+ * Every fixture account this file creates carries this, so `afterAll` can find
+ * them all — and it is **deliberately free of digits**, as is the local part
+ * every account is given (see {@link aSignInAccount}).
+ *
+ * That is a load-bearing property, not an accident of naming. The leak
+ * assertions in this file say "no digit appears here at all", which is only a
+ * meaningful statement about the CODE if nothing else in the string could
+ * contribute one. Put a digit in this domain and those assertions still pass,
+ * but they stop testing what they claim to.
+ */
 const FIXTURE_EMAIL_DOMAIN = 'otp-service-fixture.example'
 
-/** What {@link maskEmail} makes of a fixture address — asserted rather than recomputed. */
+/** What `maskEmail` makes of a fixture address — asserted rather than recomputed. */
 const MASKED_FIXTURE_ADDRESS = `re•••@${FIXTURE_EMAIL_DOMAIN}`
+
+/** The requesting address every case records on its challenge row. */
+const FIXTURE_IP = '203.0.113.7'
+
+/** One rolling hour, for the ceiling assertions. */
+const HOUR_MS = 60 * 60_000
+
+/**
+ * How many wrong guesses the parallel-burst case fires at once. Four times
+ * the attempt budget, so an unserialised read-check-write is caught by a wide
+ * margin rather than by one lucky interleaving.
+ */
+const PARALLEL_GUESSES = 12
+
+/** How many simultaneous requests race for the hourly ceiling's last slot. */
+const PARALLEL_ISSUES = 10
 
 /** Distinguishes one fixture account from the next within a single run. */
 let fixtureCount = 0
+
+/**
+ * A digit-free label for a fixture address, derived from a counter.
+ *
+ * Two letters rather than the count itself: `reader-12@…` would put digits in
+ * an address the leak assertions need to be digit-free (see
+ * {@link FIXTURE_EMAIL_DOMAIN}), and a digit smuggled in through a fixture
+ * name is exactly the way those assertions would quietly stop meaning
+ * anything.
+ * @param count - The fixture's ordinal within this run.
+ * @returns Two lowercase letters, unique for the first 676 fixtures.
+ */
+const alphabeticLabel = (count: number): string =>
+  String.fromCharCode(97 + Math.floor(count / 26)) + String.fromCharCode(97 + (count % 26))
 
 /**
  * A fresh sign-in account, so no two tests share a challenge history.
@@ -75,7 +126,7 @@ let fixtureCount = 0
 const aSignInAccount = async (): Promise<{ user: UserId; email: string }> => {
   const payload = await getTestPayload()
   fixtureCount += 1
-  const email = `reader-${String(fixtureCount)}@${FIXTURE_EMAIL_DOMAIN}`
+  const email = `reader-${alphabeticLabel(fixtureCount)}@${FIXTURE_EMAIL_DOMAIN}`
   const created = await payload.create({
     collection: 'users',
     data: { email, password: 'not-a-real-password' },
@@ -91,7 +142,7 @@ const aSignInAccount = async (): Promise<{ user: UserId; email: string }> => {
  * @returns The branded id.
  */
 const aSessionId = (label: string): SessionId => {
-  const branded = sessionId(`session-${label}-${String(fixtureCount)}`)
+  const branded = sessionId(`session-${label}-${alphabeticLabel(fixtureCount)}`)
   if (!isOk(branded)) throw new Error('the fixture session id is empty')
   return branded.value
 }
@@ -115,50 +166,100 @@ const anOtpService = async (
   return { service: createOtpService({ payload, mailer, now: clock }), mailer }
 }
 
-describe('otpService', () => {
-  let payload: Awaited<ReturnType<typeof getTestPayload>>
-
-  beforeAll(async () => {
-    payload = await getTestPayload()
+/**
+ * Deletes every account this file creates, and their challenges.
+ *
+ * Challenges go first: `otp_challenges.user_id` is `NOT NULL` and Payload's
+ * delete hook nulls the relationship rather than cascading, so removing an
+ * account while a challenge still points at it fails the constraint.
+ * @param payload - The test Payload instance.
+ */
+const removeFixtureAccounts = async (payload: Awaited<ReturnType<typeof getTestPayload>>): Promise<void> => {
+  const accounts = await payload.find({
+    collection: 'users',
+    where: { email: { like: FIXTURE_EMAIL_DOMAIN } },
+    limit: 500,
+    depth: 0,
   })
-
-  afterAll(async () => {
-    const accounts = await payload.find({
-      collection: 'users',
-      where: { email: { like: FIXTURE_EMAIL_DOMAIN } },
-      limit: 200,
+  for (const account of accounts.docs) {
+    const challenges = await payload.find({
+      collection: 'otpChallenges',
+      where: { user: { equals: account.id } },
+      limit: 500,
       depth: 0,
     })
-    for (const account of accounts.docs) {
-      const challenges = await payload.find({
-        collection: 'otpChallenges',
-        where: { user: { equals: account.id } },
-        limit: 200,
-        depth: 0,
-      })
-      for (const challenge of challenges.docs) {
-        await payload.delete({ collection: 'otpChallenges', id: challenge.id })
-      }
-      await payload.delete({ collection: 'users', id: account.id })
+    for (const challenge of challenges.docs) {
+      await payload.delete({ collection: 'otpChallenges', id: challenge.id })
     }
-  })
+    await payload.delete({ collection: 'users', id: account.id })
+  }
+}
+
+/** The shared test Payload instance, assigned by the file-level `beforeAll`. */
+let payload: Awaited<ReturnType<typeof getTestPayload>>
+
+// FILE-LEVEL, not inside `describe('otpService')`, and that is the fix for a
+// real leak rather than a stylistic preference: Vitest runs a describe's
+// `afterAll` when THAT describe's tests finish, so a cleanup hook inside the
+// first describe ran before the `otpProbes` describe below had created its
+// own fixture account - which was then left in the shared `diary_test`
+// database every single run. Found by counting: cleanup reported 23 accounts
+// where 24 existed, every time, and the survivor was always the last one
+// created.
+beforeAll(async () => {
+  payload = await getTestPayload()
+  // Cleaned at BOTH ends, not just after. Fixture addresses are derived from
+  // a counter, so they repeat run to run - and `users.email` is unique, so a
+  // single row left behind by an interrupted run makes the NEXT run fail
+  // inside a fixture factory, with "the following field is invalid: email"
+  // and no hint that the cause is a crash days ago. A run has to be able to
+  // start from whatever the last one left.
+  await removeFixtureAccounts(payload)
+})
+
+afterAll(async () => {
+  await removeFixtureAccounts(payload)
+})
+
+/**
+ * The service's own source text, for the two properties no behavioural test
+ * can observe: that the comparison is constant-time, and that the code comes
+ * from the CSPRNG. See the comments on those two cases for why each is
+ * asserted structurally rather than measured.
+ * @returns The contents of `otpService.ts`.
+ */
+const readServiceSource = (): string =>
+  readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'otpService.ts'), 'utf8')
+
+describe('otpService', () => {
 
   it('never returns the code in any response', async () => {
     const { user } = await aSignInAccount()
-    const { service } = await anOtpService()
+    const { service, mailer } = await anOtpService()
 
-    const issued = await service.issueChallenge(user, aSessionId('a'), '203.0.113.7')
+    const issued = await service.issueChallenge(user, aSessionId('a'), FIXTURE_IP)
+    const serialised = JSON.stringify(issued)
 
     // The prototype held the expected code in component state. That is a demo
     // of the interaction, not authentication.
-    expect(JSON.stringify(issued)).not.toMatch(/\d{6}/)
+    //
+    // Three assertions, weakest to strongest, because a leak detector that is
+    // easy to slip past is worse than none - it reads like a guarantee. A bare
+    // six-digit run misses `1 2 3 4 5 6` and misses a code split across a
+    // separator; the scattered pattern catches those; and the last one holds
+    // only because the fixture address is deliberately digit-free
+    // (FIXTURE_EMAIL_DOMAIN), which makes ANY digit in this response
+    // necessarily the code's.
+    expect(serialised).not.toMatch(/\d{6}/)
+    expect(serialised).not.toMatch(scatteredCodePattern(readCodeFromOutbox(mailer)))
+    expect(serialised).not.toMatch(/[0-9]/)
   })
 
   it('tells the caller which address the code went to, masked', async () => {
     const { user, email } = await aSignInAccount()
     const { service } = await anOtpService()
 
-    const issued = await service.issueChallenge(user, aSessionId('a'), '203.0.113.7')
+    const issued = await service.issueChallenge(user, aSessionId('a'), FIXTURE_IP)
 
     expect(issued).toEqual({ ok: true, value: { maskedTo: MASKED_FIXTURE_ADDRESS } })
     expect(MASKED_FIXTURE_ADDRESS).not.toBe(email)
@@ -168,7 +269,7 @@ describe('otpService', () => {
     const { user } = await aSignInAccount()
     const { service, mailer } = await anOtpService()
 
-    await service.issueChallenge(user, aSessionId('a'), '203.0.113.7')
+    await service.issueChallenge(user, aSessionId('a'), FIXTURE_IP)
     const row = await latestChallenge(user)
 
     expect(row.codeHash).not.toMatch(/^\d{6}$/)
@@ -181,9 +282,9 @@ describe('otpService', () => {
     const { user: second } = await aSignInAccount()
     const { service } = await anOtpService()
 
-    await service.issueChallenge(first, aSessionId('a'), '203.0.113.7')
+    await service.issueChallenge(first, aSessionId('a'), FIXTURE_IP)
     const firstRow = await latestChallenge(first)
-    await service.issueChallenge(second, aSessionId('b'), '203.0.113.7')
+    await service.issueChallenge(second, aSessionId('b'), FIXTURE_IP)
     const secondRow = await latestChallenge(second)
 
     // A rainbow table over a million six-digit codes is a laptop's afternoon.
@@ -197,11 +298,26 @@ describe('otpService', () => {
     const { service } = await anOtpService()
     const session = aSessionId('a')
 
-    await service.issueChallenge(user, session, '203.0.113.7')
+    await service.issueChallenge(user, session, FIXTURE_IP)
     const row = await latestChallenge(user)
 
     expect(row.sessionHash).not.toContain(session)
     expect(row.sessionHash).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it('accepts the code in the session it was issued for', async () => {
+    const { user } = await aSignInAccount()
+    const { service, mailer } = await anOtpService()
+    const session = aSessionId('a')
+
+    await service.issueChallenge(user, session, FIXTURE_IP)
+    const code = readCodeFromOutbox(mailer)
+
+    // The positive half of the binding, paired with the refusal below on
+    // purpose. Alone, the refusal is satisfied by a service that refuses
+    // EVERYTHING - a lookup keyed on a constant, or a binding that never
+    // matches, passes it and fails no other case in this file.
+    expect(await service.verifyChallenge(session, code)).toEqual({ ok: true, value: { userId: user } })
   })
 
   it('refuses a code issued for a different session', async () => {
@@ -210,7 +326,7 @@ describe('otpService', () => {
 
     // Binds the challenge to the session that started it, so a code issued for
     // one browser cannot be redeemed in another.
-    await service.issueChallenge(user, aSessionId('a'), '203.0.113.7')
+    await service.issueChallenge(user, aSessionId('a'), FIXTURE_IP)
     const code = readCodeFromOutbox(mailer)
 
     expect(await service.verifyChallenge(aSessionId('b'), code)).toEqual({ ok: false, error: 'invalid' })
@@ -221,7 +337,7 @@ describe('otpService', () => {
     const { service, mailer } = await anOtpService()
     const session = aSessionId('a')
 
-    await service.issueChallenge(user, session, '203.0.113.7')
+    await service.issueChallenge(user, session, FIXTURE_IP)
     const code = readCodeFromOutbox(mailer)
 
     expect(await service.verifyChallenge(session, code)).toEqual({ ok: true, value: { userId: user } })
@@ -233,7 +349,7 @@ describe('otpService', () => {
     const { service, mailer } = await anOtpService()
     const session = aSessionId('a')
 
-    await service.issueChallenge(user, session, '203.0.113.7')
+    await service.issueChallenge(user, session, FIXTURE_IP)
     const wrong = aDifferentCode(readCodeFromOutbox(mailer))
     await service.verifyChallenge(session, wrong)
     await service.verifyChallenge(session, wrong)
@@ -246,7 +362,7 @@ describe('otpService', () => {
     const { service, mailer } = await anOtpService()
     const session = aSessionId('a')
 
-    await service.issueChallenge(user, session, '203.0.113.7')
+    await service.issueChallenge(user, session, FIXTURE_IP)
     const code = readCodeFromOutbox(mailer)
     const wrong = aDifferentCode(code)
     for (let attempt = 0; attempt < MAX_ATTEMPTS - 1; attempt += 1) {
@@ -263,7 +379,7 @@ describe('otpService', () => {
     const { service, mailer } = await anOtpService()
     const session = aSessionId('a')
 
-    await service.issueChallenge(user, session, '203.0.113.7')
+    await service.issueChallenge(user, session, FIXTURE_IP)
     const code = readCodeFromOutbox(mailer)
     const wrong = aDifferentCode(code)
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
@@ -278,7 +394,7 @@ describe('otpService', () => {
     const { user } = await aSignInAccount()
     const issuing = await anOtpService()
     const session = aSessionId('a')
-    await issuing.service.issueChallenge(user, session, '203.0.113.7')
+    await issuing.service.issueChallenge(user, session, FIXTURE_IP)
     const code = readCodeFromOutbox(issuing.mailer)
 
     const { service } = await anOtpService(() => Date.now() + EXPIRY_MS)
@@ -290,7 +406,7 @@ describe('otpService', () => {
     const { user } = await aSignInAccount()
     const issuing = await anOtpService()
     const session = aSessionId('a')
-    await issuing.service.issueChallenge(user, session, '203.0.113.7')
+    await issuing.service.issueChallenge(user, session, FIXTURE_IP)
     const code = readCodeFromOutbox(issuing.mailer)
 
     // `expiresAt` is a purge index, not an authorization input. Moving it a
@@ -321,7 +437,7 @@ describe('otpService', () => {
     const { user } = await aSignInAccount()
     const { service } = await anOtpService()
 
-    await service.issueChallenge(user, aSessionId('a'), '203.0.113.7')
+    await service.issueChallenge(user, aSessionId('a'), FIXTURE_IP)
     const row = await latestChallenge(user)
 
     expect(row.expiresAt - row.createdAt).toBe(EXPIRY_MS)
@@ -331,11 +447,17 @@ describe('otpService', () => {
     const { user } = await aSignInAccount()
     const { service, mailer } = await anOtpService()
 
-    await service.issueChallenge(user, aSessionId('a'), '203.0.113.7')
+    await service.issueChallenge(user, aSessionId('a'), FIXTURE_IP)
+    const printed = mailer.logLines.join('\n')
 
-    expect(mailer.logLines.join('\n')).not.toMatch(/\d{6}/)
-    // The line has to exist for the assertion above to mean anything: a mailer
-    // that logged nothing at all would pass it vacuously.
+    // Same three strengths as the never-returned case above, and for the same
+    // reason: a line that printed the code spaced or hyphenated has leaked all
+    // of it while matching no six-digit run.
+    expect(printed).not.toMatch(/\d{6}/)
+    expect(printed).not.toMatch(scatteredCodePattern(readCodeFromOutbox(mailer)))
+    expect(printed).not.toMatch(/[0-9]/)
+    // The line has to exist for the assertions above to mean anything: a mailer
+    // that logged nothing at all would pass them vacuously.
     expect(mailer.logLines).toHaveLength(1)
   })
 
@@ -344,9 +466,9 @@ describe('otpService', () => {
     const { service } = await anOtpService()
     const session = aSessionId('a')
 
-    await service.issueChallenge(user, session, '203.0.113.7')
+    await service.issueChallenge(user, session, FIXTURE_IP)
 
-    expect(await service.issueChallenge(user, session, '203.0.113.7')).toEqual({ ok: false, error: 'cooldown' })
+    expect(await service.issueChallenge(user, session, FIXTURE_IP)).toEqual({ ok: false, error: 'cooldown' })
   })
 
   it('refuses the sixth code within one hour, once the cooldown has cleared each time', async () => {
@@ -362,14 +484,95 @@ describe('otpService', () => {
     // out of their own diary.
     for (let sent = 1; sent <= HOURLY_RESEND_CAP; sent += 1) {
       elapsedMs = sent * (RESEND_COOLDOWN_MS + 1_000)
-      expect(await service.issueChallenge(user, session, '203.0.113.7')).toEqual({
+      expect(await service.issueChallenge(user, session, FIXTURE_IP)).toEqual({
         ok: true,
         value: { maskedTo: MASKED_FIXTURE_ADDRESS },
       })
     }
     elapsedMs = (HOURLY_RESEND_CAP + 1) * (RESEND_COOLDOWN_MS + 1_000)
 
-    expect(await service.issueChallenge(user, session, '203.0.113.7')).toEqual({ ok: false, error: 'hourly-cap' })
+    expect(await service.issueChallenge(user, session, FIXTURE_IP)).toEqual({ ok: false, error: 'hourly-cap' })
+  })
+
+  // THE PARALLEL CASES. Every assertion above this point fires one request at
+  // a time, and a limit that holds one request at a time can still be nothing
+  // at all: read the counter, think for thirty milliseconds, write the
+  // counter back, and a dozen racers all read the same zero. Six digits is a
+  // million combinations, and an attacker who can fan out does not need three
+  // guesses. These three cases are the same three limits as above - the
+  // attempt budget, single use, and the resend ceiling - asked the only
+  // question that matters for a limit: does it hold when the requests arrive
+  // together?
+  //
+  // `Promise.all` over one service instance is a real burst here, not a
+  // simulated one: each call is its own round trip to the same Postgres, so
+  // the interleaving is the database's, not the test's.
+
+  it('evaluates only three of a dozen simultaneous wrong guesses, and kills the challenge', async () => {
+    const { user } = await aSignInAccount()
+    const { service, mailer } = await anOtpService()
+    const session = aSessionId('a')
+    await service.issueChallenge(user, session, FIXTURE_IP)
+    const code = readCodeFromOutbox(mailer)
+    const wrong = aDifferentCode(code)
+
+    const outcomes = await Promise.all(
+      Array.from({ length: PARALLEL_GUESSES }, () => service.verifyChallenge(session, wrong)),
+    )
+
+    // Exactly MAX_ATTEMPTS guesses may be evaluated - those come back
+    // 'invalid', having actually been compared. Every other racer must be
+    // turned away as 'exhausted' without its code ever being checked.
+    expect(outcomes.filter((outcome) => !outcome.ok && outcome.error === 'invalid')).toHaveLength(MAX_ATTEMPTS)
+    expect(outcomes.filter((outcome) => !outcome.ok && outcome.error === 'exhausted')).toHaveLength(
+      PARALLEL_GUESSES - MAX_ATTEMPTS,
+    )
+    expect(Number((await latestChallenge(user)).attempts)).toBe(MAX_ATTEMPTS)
+    // And the challenge is dead afterwards, not merely bruised.
+    expect(await service.verifyChallenge(session, code)).toEqual({ ok: false, error: 'exhausted' })
+  })
+
+  it('lets exactly one of two simultaneous correct codes redeem the challenge', async () => {
+    const { user } = await aSignInAccount()
+    const { service, mailer } = await anOtpService()
+    const session = aSessionId('a')
+    await service.issueChallenge(user, session, FIXTURE_IP)
+    const code = readCodeFromOutbox(mailer)
+
+    const outcomes = await Promise.all([
+      service.verifyChallenge(session, code),
+      service.verifyChallenge(session, code),
+    ])
+
+    expect(outcomes.filter((outcome) => outcome.ok)).toEqual([{ ok: true, value: { userId: user } }])
+    expect(outcomes.filter((outcome) => !outcome.ok && outcome.error === 'consumed')).toHaveLength(1)
+  })
+
+  it('never issues more than the hourly ceiling, however many requests race for the last slot', async () => {
+    const { user } = await aSignInAccount()
+    const session = aSessionId('a')
+    let elapsedMs = 0
+    const { service } = await anOtpService(() => Date.now() + elapsedMs)
+
+    // Four codes sent one at a time, each past the previous cooldown, so the
+    // account arrives at the burst one short of its ceiling.
+    for (let sent = 1; sent < HOURLY_RESEND_CAP; sent += 1) {
+      elapsedMs = sent * (RESEND_COOLDOWN_MS + 1_000)
+      await service.issueChallenge(user, session, FIXTURE_IP)
+    }
+    elapsedMs = HOURLY_RESEND_CAP * (RESEND_COOLDOWN_MS + 1_000)
+
+    const outcomes = await Promise.all(
+      Array.from({ length: PARALLEL_ISSUES }, () => service.issueChallenge(user, session, FIXTURE_IP)),
+    )
+
+    // One of the burst may win the fifth and last slot; the rest are refused,
+    // and the account must never end the hour holding more codes than the
+    // ceiling allows. Counting the ROWS, not the successes, is the point: a
+    // count-then-insert that is not serialised reports refusals it did not
+    // actually apply.
+    expect(outcomes.filter((outcome) => outcome.ok)).toHaveLength(1)
+    expect(await challengeCountSince(user, Date.now() + elapsedMs - HOUR_MS)).toBe(HOURLY_RESEND_CAP)
   })
 
   it('refuses to issue a challenge for an account that does not exist', async () => {
@@ -377,7 +580,51 @@ describe('otpService', () => {
     const missing = userId('999999999')
     if (!isOk(missing)) throw new Error('the fixture id is empty')
 
-    expect(await service.issueChallenge(missing.value, aSessionId('a'), '203.0.113.7')).toEqual({
+    expect(await service.issueChallenge(missing.value, aSessionId('a'), FIXTURE_IP)).toEqual({
+      ok: false,
+      error: 'unknown-account',
+    })
+    expect(mailer.sent).toHaveLength(0)
+  })
+
+  it('treats a challenge whose attempt count was never written as having spent none', async () => {
+    const { user } = await aSignInAccount()
+    const { service, mailer } = await anOtpService()
+    const session = aSessionId('a')
+    await service.issueChallenge(user, session, FIXTURE_IP)
+    const code = readCodeFromOutbox(mailer)
+
+    // A NULL attempt count is not a row this module writes - it always writes
+    // zero - but it is a row the database can hold, and SQL's answer to
+    // `NULL < 3` is neither true nor false. Without the COALESCE in the claim,
+    // such a row matches nothing, and a reader with a perfectly good code is
+    // told their challenge is invalid forever. Zero, not MAX_ATTEMPTS, is the
+    // right reading: a counter that was never written records no guess spent.
+    const found = await payload.find({
+      collection: 'otpChallenges',
+      where: { user: { equals: Number(user) } },
+      sort: '-createdAt',
+      limit: 1,
+      depth: 0,
+    })
+    const row = found.docs[0]
+    if (row === undefined) throw new Error('no challenge row to clear the attempt count on')
+    await payload.update({ collection: 'otpChallenges', id: row.id, data: { attempts: null } })
+
+    expect(await service.verifyChallenge(session, code)).toEqual({ ok: true, value: { userId: user } })
+  })
+
+  it('refuses to issue a challenge for an id that is not an account id at all', async () => {
+    const { service, mailer } = await anOtpService()
+    // `UserId` is branded on non-emptiness alone, so a caller CAN hand over a
+    // string that is not a Payload row id. Before this was guarded, it reached
+    // the driver as `NaN` and came back as a raw `Failed query: ... params:
+    // NaN` - an exception past the Result contract, with SQL in it, for
+    // whatever surfaces the error to decide what to do with.
+    const notAnId = userId('not-a-payload-id')
+    if (!isOk(notAnId)) throw new Error('the fixture id is empty')
+
+    expect(await service.issueChallenge(notAnId.value, aSessionId('a'), FIXTURE_IP)).toEqual({
       ok: false,
       error: 'unknown-account',
     })
@@ -394,7 +641,7 @@ describe('otpService', () => {
     const refusingMailer: MailerPort = { send: () => Promise.resolve(err('the mail provider refused')) }
     const service = createOtpService({ payload: payloadInstance, mailer: refusingMailer, now: Date.now })
 
-    expect(await service.issueChallenge(user, aSessionId('a'), '203.0.113.7')).toEqual({
+    expect(await service.issueChallenge(user, aSessionId('a'), FIXTURE_IP)).toEqual({
       ok: false,
       error: 'delivery-failed',
     })
@@ -425,12 +672,35 @@ describe('otpService', () => {
   // fails this test, which is the property the brief asked for, even though
   // it is reached by reading rather than by timing.
   it('compares the stored hash with a constant-time comparison, not with ===', () => {
-    const source = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'otpService.ts'), 'utf8')
+    const source = readServiceSource()
     const comparison = /^const codeMatches = [\s\S]*?^}/m.exec(source)?.[0]
 
     expect(comparison).toBeDefined()
     expect(comparison).toContain('timingSafeEqual(')
     expect(comparison).not.toMatch(/[=!]==/)
+  })
+
+  // The CSPRNG is `SECURITY.md`'s FIRST required bullet and the one property
+  // in this file that no behavioural test can see: swap `crypto.randomInt`
+  // for `Math.random` and every other case here still passes, because the
+  // result is still six digits, still hashes, still verifies, and still
+  // arrives in the outbox. What changes is invisible from outside and total -
+  // `Math.random` is a seeded, non-cryptographic generator whose future
+  // output is recoverable from a handful of observed values, so an attacker
+  // who requests two codes for their own account can predict everyone
+  // else's. The same structural technique as the constant-time case above,
+  // for the same reason, and verified the same way: mutating the generator
+  // fails this and nothing else.
+  it('draws the code from the CSPRNG, not from Math.random', () => {
+    const source = readServiceSource()
+    const generator = /^const generateCode = .*$/m.exec(source)?.[0]
+
+    expect(generator).toBeDefined()
+    expect(generator).toContain('randomInt(')
+    expect(generator).not.toContain('Math.random')
+    // The identifier alone is not enough - a local `randomInt` shadowing the
+    // import would satisfy the line above and be any generator at all.
+    expect(source).toMatch(/^import \{[^}]*\brandomInt\b[^}]*\} from 'node:crypto'$/m)
   })
 })
 
