@@ -4,10 +4,15 @@
  *
  * Transcribed from DATA_MODEL.md's `sessions` section: `{ user, tokenHash,
  * device, location, createdAt, lastSeenAt, revokedAt }`, plus the one column
- * that section omits (see the deviation at `expiresAt`). `createdAt` is not
- * declared as a field here — Payload adds it automatically to every collection
- * (`timestamps` defaults to `true`) — so `sessions.createdAt` still exists on
- * every row, it is just not a hand-written field. Without real rows here,
+ * that section omits (see the deviation at `expiresAt`). `createdAt` and
+ * `updatedAt` ARE declared here, deliberately, though Payload would add both
+ * on its own (`timestamps` defaults to `true`): a field Payload injects during
+ * sanitisation carries no access rule, so while they were left implicit an
+ * owner could rewrite their own row's `createdAt` and falsify the very list
+ * this collection exists to back. Declaring them is what gives them a rule.
+ * `index: true` is not decoration on those two — omitting it drops
+ * `sessions_created_at_idx` and `sessions_updated_at_idx`. Without real rows
+ * here,
  * "Revoke" and "Sign out everywhere" are decorative. The behaviour over these
  * rows is `apps/web/lib/auth/sessions.ts` (Phase 2, Task 6), and the shape of
  * the layer as a whole is `docs/adr/0017-session-store-and-rotation.md`.
