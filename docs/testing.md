@@ -2391,6 +2391,48 @@ baselines were a picture of a condition that only holds before anyone signs up. 
 were opened and compared — same unstyled treatment, only the screen differs — and
 `e2e/layout.spec.ts` was green in the run that produced them, per the standing rule.
 
+#### Task 11: the log, and the browser sweep
+
+**`apps/web/lib/auth/logSafety.integration.test.ts`** is the one security assertion that
+belongs to no single module: nothing this surface hands to a log carries a secret, a code, a
+token or a whole email address (`CLAUDE.md` §7). Every service already asserts its own call
+site — `otpService`'s suite that the mailer's terminal line carries no code, `signIn`'s that
+the credential-store report names neither address nor password. What none of them can see is
+the union, and two things had no assertion at all before this file: **reset tokens** and
+**session identifiers**.
+
+It drives one whole journey — unknown address, wrong password, correct password, wrong code,
+right code, session started, authenticated and revoked, reset link, credential-store outage —
+with both sinks recording: all six levels of `payload.logger`, and the mailer's own
+`logLines`. There is no third sink, and that is enforced rather than assumed:
+`eslint.config.js` sets `no-console: 'error'` repository-wide with one path-scoped exception,
+the console mailer. That is also why this file does not patch `console` — doing so would need
+the very override whose absence is the guarantee.
+
+**Every case reads the transcript through a guard that refuses to hand it over unless both
+sinks are demonstrably in it.** Six negatives over a string are six assertions that hold
+trivially when the string is empty, which is this phase's most-repeated defective test shape.
+Break the drive and all six fail, rather than all six passing.
+
+Four mutations, each watched to fail the case named for it:
+
+```
+console-mailer prints message.text on the non-development branch  -> code case, reset-token case
+signIn.ts appends the address to the credential-store report      -> address case
+sessions.ts logs the identifier it has just minted                -> session case
+signIn.ts's credential-store report deleted entirely              -> all six, through the guard
+```
+
+**The browser sweep** is `docs/qa/2026-09-07-sign-in-sweep.md`: seven addresses at three
+viewports plus one driven journey, with `console`, `pageerror`, `requestfailed` and every
+response >= 400 attached before every `goto`, and 21 axe analyses with no exclusions and no
+violations. It found three defects, all on `/admin/sign-in/code`, none of them visible to any
+assertion in this repository — the exhausted-challenge screen resets to the no-challenge
+placeholder, that placeholder re-anchors both countdowns on every render, and the component's
+own "Three wrong codes" message is consequently unreachable in the delivered app while its
+jsdom case stays green. The sweep driver was a temporary spec, deleted once the report was
+written; `e2e/ciRegistration.test.ts` correctly failed while it existed and passes now.
+
 ### 9 · Migration
 
 - **Tool:** Vitest.
