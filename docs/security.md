@@ -62,7 +62,7 @@ discovered, not because `SECURITY.md` has a row for it.
 | Value | exactly one of two literal strings, `book` or `mobile` — validated by `rememberedSurface` (`packages/domain/src/readingSurface.ts`) on read, never cast |
 | Written by | `apps/web/components/mobile/SurfaceCorrection.tsx`, in the browser, and only when the measured viewport disagrees with the surface the server served |
 | Lifetime | the browsing session — no `Max-Age`, no `Expires` |
-| Flags | `Path=/`, `SameSite=Lax`. **No `Secure`**, deliberately: it must also be set over plain HTTP on a developer's machine, and it carries no secret |
+| Flags | `Path=/`, `SameSite=Lax`, `Secure`. `Secure` was added in Phase 2 Task 6, the phase that owns cookies; Phase 1 shipped it without, on the reasoning that it carries no secret. It carries no secret and it is not inert either — it is the one signal `apps/web/middleware.ts` reads to decide which reading surface answers, so anything able to write it chooses what a reader sees, and over plain HTTP an intermediary can. The attribute needs no environment switch: every current browser treats `http://localhost` as a secure context, so it is still set and returned in local development, and making it conditional would leave the deployed configuration the one never exercised |
 | Read by | `apps/web/middleware.ts`, on the server, for `/p/<n>` and nothing else — it is the one signal that decides which of the two route entries answers (`docs/adr/0012-two-route-entries-for-two-reading-surfaces.md`). It was read by the `/p/[n]` page component until that split; the value read, and what it is read for, are unchanged. |
 
 **What it is not.** It is not an identifier, it is not a session, it is not personal data,

@@ -42,11 +42,11 @@
  *
  * IT IS A SESSION COOKIE, deliberately. What it remembers is the size of the
  * window in front of the reader right now, which is not a fact worth carrying
- * into next month; a session's length is as long as it is true for. It carries
- * no `Secure` flag because it must also be set over plain HTTP on a
- * developer's machine, and it holds no secret, no identifier and nothing
- * personal - it holds one of two literal strings, `book` or `mobile`
- * (docs/security.md).
+ * into next month; a session's length is as long as it is true for. It holds
+ * no secret, no identifier and nothing personal - one of two literal strings,
+ * `book` or `mobile` (docs/security.md) - but it IS marked `Secure`, which it
+ * was not in Phase 1: see {@link surfaceCookie} for why "carries no secret" is
+ * not the same as "cannot do harm if written".
  * Depends on nothing.
  */
 
@@ -158,10 +158,22 @@ export const rememberedSurface = (header: string | undefined): ReadingSurface | 
  * The `document.cookie` assignment that remembers a measured surface for the
  * rest of this browsing session.
  *
+ * `Secure` IS PRESENT AND UNCONDITIONAL, and it was not in Phase 1. This
+ * cookie carries no secret, which is why it shipped without the attribute and
+ * why `docs/security.md` said so — but it is not inert either: it is the one
+ * signal `apps/web/middleware.ts` reads to decide which of the two reading
+ * surfaces answers a request, so anything able to write it chooses what a
+ * reader sees. Over plain HTTP an intermediary can write it. The attribute
+ * needs no environment switch: every current browser treats `http://localhost`
+ * as a secure context, so a `Secure` cookie is still set and returned in local
+ * development, and making it conditional would leave the deployed
+ * configuration the one never exercised. Logged in Phase 1 for the phase that
+ * owns cookies, and closed there (Phase 2 Task 6).
+ *
  * @param surface - The surface the browser actually measured.
  * @returns The cookie string to assign to `document.cookie`.
  * @example
  * document.cookie = surfaceCookie('mobile')
  */
 export const surfaceCookie = (surface: ReadingSurface): string =>
-  `${SURFACE_COOKIE_NAME}=${surface}; Path=/; SameSite=Lax`
+  `${SURFACE_COOKIE_NAME}=${surface}; Path=/; SameSite=Lax; Secure`
