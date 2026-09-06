@@ -2511,24 +2511,48 @@ The sweep driver was a temporary spec, deleted once the report was written;
 
 #### `apps/web/lib/auth/securityCitations.test.ts` — the citation column checks itself
 
-`docs/security.md`'s table quotes 109 test case names. Task 11 wrote them and claimed none
+`docs/security.md`'s table quotes 113 test case names. Task 11 wrote them and claimed none
 was paraphrased; its review found three that were, plus nine more carrying Markdown the
-source does not (backticks inside the quotation, restyled quotes), so twelve of the 109 could
-not be found by a reader who searched for them. Every one pointed at a real, correct,
-covering case — which is what makes it dangerous rather than obvious: nothing was wrong with
-the discharge, only with the citation.
+source does not (backticks inside the quotation, restyled quotes), so twelve could not be
+found by a reader who searched for them. Every one pointed at a real, correct, covering case
+— which is what makes it dangerous rather than obvious: nothing was wrong with the discharge,
+only with the citation.
 
-Nobody can hold 109 strings in their head across a rewrite. This unit test reads the document
-and every `.ts`/`.tsx` file under `apps/`, `packages/` and `e2e/`, and requires every
-quotation to appear verbatim. It normalises exactly two things, both notation rather than
-words: the backslash TypeScript needs before an apostrophe inside a single-quoted literal,
-and the curly apostrophe. It is non-vacuous three ways — a floor on the number of quotations
-found, a sentinel string required to be ABSENT (so the search is proved able to say no), and
-a case name owned by another file required to be PRESENT (so an empty file walk fails). It
-excludes its own source from the corpus, which is what keeps the sentinel meaningful.
+Nobody can hold 113 strings in their head across a rewrite. This unit test reads the document
+and every `.ts`/`.tsx` file under `apps/`, `packages/` and `e2e/`, extracts the first
+argument of every `it(...)` and `test(...)` it finds, and requires each citation to be one of
+those names. It normalises exactly two things, both notation rather than words: the backslash
+TypeScript needs before an apostrophe inside a single-quoted literal, and the curly
+apostrophe. Nothing else — so a paraphrase of any kind still fails.
 
-Proved able to fail: one citation was reworded from "not from Math.random" to "rather than
-Math.random" and the case failed naming it.
+**Two things about it were weaker than it read, and were tightened in the same round it was
+written.** It matched only curly `“…”` runs, so a citation typed with straight quotes was not
+checked at all — and not checked SILENTLY, which is the failure mode it exists to end. And
+its corpus was every source file's whole TEXT, so a quotation that appeared only inside a
+module header comment resolved, while the case was named "are all real". It now reads both
+quote characters and matches against declarations, and it separates citations from quoted
+PROSE — the ten fragments in that table which quote the handoff, the UI or a dependency's
+message rather than a test — by an explicit list rather than by which quote character
+somebody typed. Every entry of that list must still appear in the document and must not be a
+declared case name, so an exemption cannot outlive the sentence it exempts or quietly excuse
+a real citation.
+
+Non-vacuous five ways: a floor on the number of citations found; a floor on the number of
+declarations extracted (the corpus is an extraction now, so a pattern that stopped matching
+must say so in one failure rather than 113); a sentinel string required to be ABSENT from the
+declarations, so the search is proved able to say no; a case name owned by another file
+required to be PRESENT, so an extraction that returned nothing fails here; and the
+exemption-list checks above. It excludes its own source from the corpus, which is what keeps
+the sentinel meaningful.
+
+Proved able to fail, four ways, each failing the case named for it:
+
+```
+a curly citation reworded "not from" -> "rather than"            -> unfindable
+a bogus citation typed with STRAIGHT quotes                      -> unfindable (silently ignored before)
+a citation that exists only in a module header comment           -> unfindable (resolved before)
+the sentence one prose exemption covers, deleted                 -> stale exemption
+```
 
 ### 9 · Migration
 
