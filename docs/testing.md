@@ -1716,7 +1716,12 @@ Fixed by giving `(admin)` its own font declarations. `/p/1` measures **2,926.1ms
 2,925.8ms** across two runs, within 1.8ms of `main`. **The budget was never moved.**
 
 **How to check this one first, next time:** count the `<link rel="stylesheet">` elements a
-production `/p/1` serves before looking at the LCP number. Two is the shape.
+production `/p/1` serves before looking at the LCP number. **Three is the shape** — the
+shared token chunk (2,467 B), `diary.css` merged with the diary's own `@font-face` rules
+(3,338 B), and the diary's CSS modules (28,599 B). A **fourth** means something new is
+shared across the route-group seam; two would mean the token crossing had been closed, which
+nothing has decided to do. `docs/adr/0019-the-admin-performance-gate-and-the-css-seam.md`
+names all three and why the first of them is deliberate.
 
 ### `test:perf` stopped being a `&&` chain, because the chain hid the new gate
 

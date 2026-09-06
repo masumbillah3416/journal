@@ -205,6 +205,23 @@ and the temporary copy that produced the third row was deleted.
   `scripts/run-lighthouse.mjs`, which runs every config it is named and exits non-zero if
   any failed. The configs stay named in `package.json` rather than discovered, so
   `e2e/ciRegistration.test.ts`'s guard against an unrun config keeps working.
-- **What to do if this recurs:** count the `<link rel="stylesheet">` elements `/p/1`
-  serves from a production build before reaching for the LCP number. Two is the shape;
-  more than two means something new is shared across the seam.
+- **What to do if this recurs: count the `<link rel="stylesheet">` elements `/p/1` serves
+  from a production build, before reaching for the LCP number. THREE is the shape** — and
+  the count is only a signal if the three are named, so here they are, measured off the
+  shipped build rather than inferred from the table above:
+
+  ```
+  2,467 B  packages/tokens/src/tokens.css        SHARED with (admin), deliberately - see the Decision
+  3,338 B  app/(diary)/diary.css + the diary's own next/font @font-face rules, merged
+ 28,599 B  the diary's CSS modules
+  ```
+
+  `/admin/sign-in` serves three of the same shape: the same shared token chunk, its own
+  `admin.css` + `@font-face` merge, and its own modules.
+
+  **A FOURTH stylesheet on `/p/1` means something new is shared across the seam.** Two would
+  mean the token crossing had been closed, which nothing has decided to do. Writing "two" here
+  first — while §"The cause" three paragraphs above measures three — is worth recording as
+  the error it was: a heuristic written from the intent of the fix rather than from the
+  measurement sitting beside it, which is the same species as the four documents that once
+  asserted `() => false` on a collection that permitted `delete`.
