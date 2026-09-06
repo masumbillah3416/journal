@@ -293,14 +293,44 @@ export const CodeStep = ({ maskedAddress, issuedAt, attemptsSpent }: CodeStepPro
     setShaking(true)
   }
 
-  const takeDigit = (index: number, typed: string): void => {
-    // The LAST character, not the first: a cell that already holds a digit is
-    // selected on focus, so a reader retyping over it produces a two-character
-    // value for the instant before React writes the controlled value back.
-    const digit = typed.replace(/\D/g, '').slice(-1)
-    setCells(withCell(cells, index, digit))
+  /**
+   * Puts a run of digits across the cells and leaves the reader after them.
+   *
+   * Shared by the paste handler and by {@link takeDigit}, because a browser
+   * has TWO ways of putting a whole code into one cell and only one of them is
+   * a paste: an OTP autofill sets the value and fires `input`, which arrives
+   * as an ordinary change. Both end up here, so neither can drift from the
+   * other.
+   */
+  const spreadDigits = (index: number, raw: string): void => {
+    const spread = distributePaste(raw, index, CELL_COUNT)
+    // Nothing usable in it at all - a stray Ctrl+V, a copied sentence.
+    // `distributePaste` answers six empty cells for that, which would wipe a
+    // code the reader had already typed.
+    if (spread.every((value) => value === '')) return
+
+    setCells(spread)
     clearMessage()
-    if (digit !== '') focusCell(nextCell('digit', index, CELL_COUNT, { cellIsEmpty: false }))
+    focusCell(landingCell(spread))
+  }
+
+  const takeDigit = (index: number, typed: string): void => {
+    const digits = typed.replace(/\D/g, '')
+
+    // MORE THAN ONE DIGIT IN ONE CELL IS NOT TYPING. `maxLength="1"` stops a
+    // reader ever producing it, so what produces it is an autofill writing the
+    // whole code into the first cell and firing `input` - the path an iOS or
+    // Chrome one-time-code suggestion takes, which never raises a `paste`
+    // event and so never reaches the handler below. Spread it exactly as a
+    // paste is spread; the prototype's own `setCell` makes the same split.
+    if (digits.length > 1) {
+      spreadDigits(index, typed)
+      return
+    }
+
+    setCells(withCell(cells, index, digits))
+    clearMessage()
+    if (digits !== '') focusCell(nextCell('digit', index, CELL_COUNT, { cellIsEmpty: false }))
   }
 
   const pressKey = (index: number, held: string, event: React.KeyboardEvent<HTMLInputElement>): void => {
@@ -333,15 +363,7 @@ export const CodeStep = ({ maskedAddress, issuedAt, attemptsSpent }: CodeStepPro
     // Prevented first and unconditionally: whatever the clipboard held, one
     // character of it landing in this cell is never what the reader meant.
     event.preventDefault()
-    const spread = distributePaste(event.clipboardData.getData('text'), index, CELL_COUNT)
-    // A paste with no digits in it at all - a stray Ctrl+V, a copied sentence.
-    // `distributePaste` answers six empty cells for it, which would wipe a code
-    // the reader had already typed.
-    if (spread.every((value) => value === '')) return
-
-    setCells(spread)
-    clearMessage()
-    focusCell(landingCell(spread))
+    spreadDigits(index, event.clipboardData.getData('text'))
   }
 
   const checkBeforeSending = (event: React.SyntheticEvent<HTMLFormElement>): void => {
@@ -407,6 +429,18 @@ export const CodeStep = ({ maskedAddress, issuedAt, attemptsSpent }: CodeStepPro
               value={held}
               maxLength={1}
               inputMode="numeric"
+              // Beyond SCREENS.md, which names no autofill: on iOS and in
+              // Chrome this is what offers the code from the message it
+              // arrived in, and it costs a reader six manual keystrokes if it
+              // is absent. It takes a path `onPaste` never sees - the browser
+              // writes the value and fires `input` - which is why
+              // `takeDigit` spreads a multi-digit value rather than trusting
+              // that only a paste can produce one. THE GAP, STATED: no
+              // browser automation API can trigger a real OTP autofill, so
+              // `e2e/codeStep.spec.ts` drives the value-and-`input` pair
+              // autofill produces rather than the suggestion itself. What is
+              // proven is the handler path; what is not is the browser's own
+              // decision to offer the code.
               autoComplete={index === 0 ? 'one-time-code' : 'off'}
               // SCREENS.md §3.2: the reader arrives here to type a code and
               // there is nothing else on the pane to do first.
@@ -454,6 +488,17 @@ export const CodeStep = ({ maskedAddress, issuedAt, attemptsSpent }: CodeStepPro
           {`${String(attemptsSpent)} of ${String(MAX_ATTEMPTS)} tried`}
         </p>
       </div>
+
+      {/* THE PANE ENDS HERE, and the prototype's does not. It carries one more
+       * rule and the line "Turn this step off under Account -> Getting in, if
+       * you would rather sign in with a password alone." SCREENS.md §3.2 ends
+       * at the resend and the counter, and puts a footer line on §3.1's
+       * password step instead - where it is implemented, mark and all. That
+       * sentence is also `SECURITY.md`'s second prototype hole in prose: the
+       * prototype could honour it instantly because the flag was a
+       * `localStorage` key, and here it is `users.otpRequired`, changeable
+       * only from an Account screen Phase 4 builds. Recorded in
+       * docs/deviations.md §35 rather than left to look like an oversight. */}
     </div>
   )
 }

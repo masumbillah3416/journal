@@ -709,10 +709,20 @@
  *
  * The whole `margin`, not just `margin-bottom`: this label is a `<p>` (it
  * names a GROUP of six inputs, which is not something a `<label>` can do), and
- * a paragraph's own `1em 0` default would put an extra 9.5px above it that the
- * prototype's `<div>` does not have. `.label` sets only `margin-bottom`,
- * because on the password step it is applied to a `<label>`, which has no
- * default margin to override. */
+ * a paragraph's own `1em 0` default puts 9.5px above it that the prototype's
+ * `<div>` does not have. `.label` sets only `margin-bottom`, because on the
+ * password step it is applied to a `<label>`, which has no default margin to
+ * override.
+ *
+ * MEASURED, THAT 9.5px CURRENTLY MOVES NOTHING, and saying so is the point of
+ * this note. It collapses through the zero-height top edge of the `<form>`
+ * this label opens and then with the rule's own 20px `margin-bottom`, so the
+ * rendered gap is 20px with or without this rule and every box below sits at
+ * the same y. This is therefore a rule that removes a margin the design never
+ * asked for, not a rendering fix - a collapse is what is holding the layout,
+ * and a border or padding on that form, or a rule margin under 9.5px, ends
+ * the collapse and starts the drift. `e2e/codeStep.spec.ts` pins the gap at
+ * 20px and this margin at 0. */
 .labelAboveCells {
   margin: 0 0 8px;
 }

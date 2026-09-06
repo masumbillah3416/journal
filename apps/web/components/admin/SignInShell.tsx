@@ -150,7 +150,13 @@ export const SignInShell = ({ book, children }: SignInShellProps): React.JSX.Ele
       </div>
 
       <div data-sign-in-form-panel className={styles.formPanel}>
-        <div className={styles.pane}>{children}</div>
+        {/* Named so a browser test can measure against the box whose padding
+         * SCREENS.md §3 calls REQUIRED: the pane's CONTENT box is what the
+         * one-time-code cells have to fit inside, and it is not the form
+         * panel's border box (`e2e/codeStep.spec.ts`). */}
+        <div data-sign-in-pane className={styles.pane}>
+          {children}
+        </div>
       </div>
     </div>
   </main>

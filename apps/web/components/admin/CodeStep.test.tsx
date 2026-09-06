@@ -395,6 +395,20 @@ describe('CodeStep', () => {
     expect(document.activeElement).toBe(cellAt(host, 5))
   })
 
+  it('spreads a whole code written into one cell, which is what an autofill does', () => {
+    const host = renderStep()
+
+    // An OTP autofill sets the value and fires `input`; it raises no `paste`
+    // event at all, so the paste handler never sees it. Without the
+    // multi-digit branch in `takeDigit` this lands one digit and drops five,
+    // which is the same defect the paste handler exists to stop, reached by
+    // the one door that handler does not cover.
+    typeInto(cellAt(host, 0), '123456')
+
+    expect(cellsIn(host).map((cell) => cell.value)).toEqual(['1', '2', '3', '4', '5', '6'])
+    expect(document.activeElement).toBe(cellAt(host, 5))
+  })
+
   it('leaves the cells alone when the pasted text holds no digits', () => {
     const host = renderStep()
     typeInto(cellAt(host, 0), '7')
@@ -478,15 +492,26 @@ describe('CodeStep', () => {
     )
   })
 
-  it('spells “Three” in that message because three is the budget the domain sets', () => {
-    // The copy names the number in words, so it cannot follow MAX_ATTEMPTS on
-    // its own. This pins the two together: change the budget and this fails,
-    // rather than the screen quietly saying "Three" about a budget of five.
+  it('spells the budget as a word in that message, and pins the budget it spells', () => {
+    // BOTH halves, because either alone is a test that cannot fail for the
+    // reason its name gives. The copy names the number in WORDS, and no
+    // expression turns MAX_ATTEMPTS into "Three" - so the rendered word is
+    // asserted here, and the constant it is meant to agree with is asserted
+    // beside it. Raise the budget and this fails, rather than the screen
+    // quietly saying "Three" about a budget of five.
+    expect(alertIn(renderStep({ attemptsSpent: MAX_ATTEMPTS }))).toContain('Three wrong codes.')
     expect(MAX_ATTEMPTS).toBe(3)
   })
 
   it('says nothing at all when no guess has been spent', () => {
-    expect(renderStep({ attemptsSpent: 0 }).querySelector('[role="alert"]')).toBeNull()
+    const host = renderStep({ attemptsSpent: 0 })
+
+    // The pane really did render, and really did draw the row the message
+    // would sit under - without this, "there is no message" is trivially true
+    // of a component that produced nothing at all.
+    expect(paneIn(host)).not.toBeNull()
+    expect(cellsIn(host)).toHaveLength(CELL_COUNT)
+    expect(host.querySelector('[role="alert"]')).toBeNull()
   })
 
   it('shakes on arrival when the server has just refused a code', () => {

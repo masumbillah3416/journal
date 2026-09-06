@@ -73,4 +73,16 @@ describe('formatCountdown', () => {
   it('prints minutes above ten without truncating them', () => {
     expect(formatCountdown(3_599)).toBe('59:59')
   })
+
+  it('prints a fractional second as the whole second it is inside', () => {
+    // `secondsRemaining` never hands it one, but the guard that makes this
+    // true is documented behaviour and documented behaviour with no test
+    // behind it is a comment, not a guarantee.
+    expect(formatCountdown(59.9)).toBe('0:59')
+  })
+
+  it('prints a negative window as zero rather than as negative minutes', () => {
+    // Without the clamp this reads '-1:-5'.
+    expect(formatCountdown(-65)).toBe('0:00')
+  })
 })

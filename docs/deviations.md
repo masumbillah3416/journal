@@ -1372,6 +1372,15 @@ was drawn rather than from the instant a code was issued. The two forms on the p
 to `/admin/sign-in/code/verify` and `/admin/sign-in/code/resend`, neither of which is
 mounted, so both currently resolve to a `404`.
 
+**What that means today, plainly, rather than by implication:** `GET
+/admin/sign-in/code` **returns 200 to anyone who asks for it** and draws a complete
+second-factor screen — nobody has to have signed in, or typed a password, or been issued
+a code. Reloading it restarts the displayed expiry. It is not "unmounted"; it is mounted
+and unguarded. What it discloses is nothing: no address (the mask is a fixed bullet run),
+no code, no account, no session, and both of its forms post to paths that do not exist.
+The guard belongs with the cookie, and **Phase 2 Task 10's review is where it has to be
+confirmed landing** — this entry is the record that it is owed.
+
 **Rationale:** the same shape of gap `/admin/sign-in`'s own form already carries, and for
 the same reason. Everything this screen would need to say for real — which address the
 code went to, when it was issued, how many guesses the server has spent — lives in the
@@ -1430,3 +1439,37 @@ verbatim, which is theirs to decide.
 `apps/web/components/admin/CodeStep.tsx`, and the two cases in
 `apps/web/components/admin/CodeStep.test.tsx` that assert the plural and the singular
 form separately.
+
+## 35 · The prototype's trailing rule and "Turn this step off…" line are not on the code screen
+
+**What changed:** the handoff's login prototype ends its one-time-code pane with a
+hairline rule (`margin: 20px 0 14px`) and an italic Garamond 15px line: "Turn this step
+off under Account → Getting in, if you would rather sign in with a password alone."
+Neither is rendered by `apps/web/components/admin/CodeStep.tsx`.
+
+**Rationale:** `SCREENS.md` §3.2 ends the pane at "a resend button … opposite an attempts
+counter", and it ends §3.1 with "then a rule and a footer line with a 9px mark stating
+whether the code step is on" — so the specification asks for a footer line on the
+PASSWORD step and asks for none on this one. §3.1's line is implemented, mark and all.
+Following the specification here rather than the prototype is the ordinary reading of
+which artefact binds (the same call the cloth gradient made, §32 point 2).
+
+There is a second reason not to reach for the prototype's line in particular, and it is
+the one that settles it: that sentence tells a reader to turn the second factor off. It
+is `SECURITY.md`'s second prototype hole in prose — the prototype could honour it
+instantly because the flag was a `localStorage` key anyone could set to `0`, and here it
+is `users.otpRequired`, read on the server, changeable only from an Account screen that
+Phase 4 builds. Printing an instruction to a screen that cannot be reached from it, in the
+middle of a challenge, is worse than printing nothing.
+
+**Recorded here because an unrecorded difference from the prototype is indistinguishable
+from an oversight**, which is the whole reason this file exists. It is not a deviation
+from `SCREENS.md` — nothing in §3.2 is missing — and the spec sweep for this screen found
+64 of 64 values matching.
+
+**What would reverse this:** Phase 4 shipping the Account → Getting in screen, after
+which the line names a place a reader can actually go; or the repository owner asking for
+the prototype's tail verbatim.
+
+**Recorded as:** this entry, and the note at the foot of `CodeStep.tsx`'s render, which
+names what the prototype has there and why it is not drawn.

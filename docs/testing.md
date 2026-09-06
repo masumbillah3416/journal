@@ -548,8 +548,19 @@ would claim a measurement nothing performs.
      anything derived from the stylesheet, because a floor compared against the value it
      is meant to hold still moves with it and can never fail. Restoring `40px 42px`
      failed it at **35.5px**; the correct padding measures **42.83px**. A second case
-     asserts the row does not OVERFLOW the pane either, which is the other half of the
-     same defect and which a width floor alone would pass.
+     covers the other half of the same defect, which a width floor alone would pass:
+     cells that refuse to shrink do not collapse, they overflow.
+
+     **That second case was decorative when it was first written, and the fix is worth
+     recording.** It measured the flex CONTAINER against the form panel — and a
+     block-level container is sized by its parent whatever its children do, so it could
+     never fail. Under `.cell { flex: none }` it reported the row comfortably inside the
+     panel while the row's own `scrollWidth` was 2,043 against a `clientWidth` of 302 and
+     the last cell stood 1,741px past the pane. It now measures each CELL's edges against
+     the pane's CONTENT box — which is the box the required padding actually creates —
+     and `flex: none` fails it at `pastTheRightEdge: 1741` against a floor of `0.5`. The
+     lesson generalises: a test written to cover another test's blind spot needs its own
+     mutation, or it inherits the blind spot and adds confidence on top of it.
   2. **The paste.** Each cell is `maxLength="1"`, and the browser truncates a pasted
      string to one character before `change` fires — so a jsdom case proves the handler
      spreads digits and NOT that a reader pasting a code gets six of them (jsdom performs
@@ -567,10 +578,22 @@ would claim a measurement nothing performs.
      `none`.
 
   The same file also pins §3.2's own measurements from the RENDERED page rather than
-  from the stylesheet — the title at 50px, the row's 9px gap, each cell's 25px Courier,
-  `13px 0` padding and centred text, and the two rings side by side in one row (`1.5px`
-  `#a34434` on a filled cell against `1px rgba(120,98,60,.34)` on an empty one). Reading
-  the computed style is what makes a rule that is present but overridden fail.
+  from the stylesheet — the title at 50px, the 20px gap between the rule and the "The
+  code" label, the row's 9px gap, each cell's 25px Courier, `13px 0` padding and centred
+  text, and the two rings side by side in one row (`1.5px` `#a34434` on a filled cell
+  against `1px rgba(120,98,60,.34)` on an empty one). Reading the computed style is what
+  makes a rule that is present but overridden fail.
+
+  One of those assertions is a DECLARATION rather than a rendered outcome, and it says
+  so: `.labelAboveCells` sets the whole `margin` because the label is a `<p>` whose
+  default `1em 0` puts 9.5px above it, and measured, **that 9.5px currently moves
+  nothing** — it collapses through the zero-height top edge of the `<form>` the label
+  opens and then with the rule's own 20px `margin-bottom`, so every box below sits at the
+  same y to the pixel with or without the rule. It is kept because a collapse is what is
+  holding that layout: a border or a padding on that form, the wrapper going away, or the
+  rule's margin dropping under 9.5px each end the collapse and start a real drift. The
+  gap assertion beside it is the rendered one, and it is the one that would catch that
+  day.
 
   Each shake case clicks and reads inside ONE `page.evaluate`: the flag is cleared 420ms
   later, and a click followed by a separate round trip is a race that fails under load
@@ -1262,6 +1285,42 @@ would claim a measurement nothing performs.
   30s". The comparison run before the update was green on all 46 existing baselines and
   failed only on the three missing ones; the `changed` update wrote exactly those three
   and `git status` showed nothing else had moved.
+- **WHAT `maxDiffPixelRatio: 0.01` DOES AND DOES NOT CATCH — measured, because "the
+  visual suite passed" keeps being read as more than it is.** The threshold is a
+  proportion of the frame, so the licence it grants is an area: at the `desktop`
+  project's 1440×940 full-page frame, 1% is roughly **13,500 pixels**. A narrow column
+  of type displaced vertically is cheap in pixels, and vertical displacement of a narrow
+  column is the most common CSS regression this codebase produces — which is precisely
+  the class these baselines are assumed to cover.
+
+  **The worked example, run in the pinned container against the committed baselines.** A
+  `margin-top` was added to `.cells` on the one-time-code screen, moving everything below
+  it down, and the suite was run at each magnitude:
+
+  | Shift | `desktop` (1440×940) | `mid` (1000×800) | `mobile` (390×844, DPR 3) |
+  |---|---|---|---|
+  | **10px** | **passes** | **passes** | fails — 3,323px, ratio 0.02 |
+  | **20px** | **passes** | fails — 9,865px | fails — 16,096px |
+  | **40px** | fails — 18,958px, ratio 0.02 | fails | fails |
+
+  So the `desktop` baseline absorbs a **20px** vertical displacement of an entire pane
+  without a word, and only starts objecting somewhere between 20px and 40px. `mobile`
+  catches ten times less because its frame is small and its device pixel ratio is 3.
+
+  **Do not tighten the threshold.** It exists to absorb encoder and anti-aliasing noise,
+  and that noise was measured at 14-15 files varying per run (Task 7) — tightening it
+  buys a suite that cries wolf, which is how a real diff stops being read. **The rule
+  that follows instead: spacing that matters gets a numeric assertion, not a baseline.**
+  `e2e/codeStep.spec.ts`'s measurements case is the pattern — a `getComputedStyle` /
+  `getBoundingClientRect` read of the value itself, which fails on a one-pixel change at
+  every project at once.
+
+  This is the second time in two screens that the threshold has hidden something a reader
+  assumed it covered. Task 7's sub-threshold gradient change was the first, where
+  `--update-snapshots=changed` would have left three baselines stale because the
+  comparison never flagged them. A gate whose real coverage is undocumented is how "the
+  visual suite passed" becomes evidence for something it never checked.
+
 - **Add one:** one snapshot per page type per breakpoint listed in design spec §8.2
   (diary `<860px`; admin `≥1180`/`≥860`/narrow; login `<820`) as each page is built. The
   OTP-cell collapse at 819px (design spec §11) is the canonical example of a defect this

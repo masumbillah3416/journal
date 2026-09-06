@@ -77,25 +77,48 @@ test('gives every code cell a usable width in the narrow shell', async ({ page, 
   for (const width of widths) expect(width).toBeGreaterThan(MINIMUM_CELL_WIDTH_PX)
 })
 
-test('keeps the whole code row inside the pane rather than overflowing it', async ({ page, viewport }) => {
+test('keeps every code cell inside the pane rather than overflowing it', async ({ page, viewport }) => {
   test.skip(viewport?.width !== 390, 'SCREENS.md §3 records the collapse in the narrow shell')
 
   await page.goto(CODE_STEP_PATH, { waitUntil: 'networkidle' })
   await expect(page.locator('[data-code-cell]')).toHaveCount(6)
 
   // The other half of the same defect: cells that refuse to shrink do not
-  // collapse, they overflow, and a width assertion alone would pass on a row
+  // collapse, they overflow, and the width case above would pass on a row
   // running out of the pane.
-  const fits = await page.evaluate(() => {
-    const row = document.querySelector('[data-code-cell]')?.parentElement
-    const panel = document.querySelector('[data-sign-in-form-panel]')
-    if (row === null || row === undefined || panel === null) return null
-    const rowBox = row.getBoundingClientRect()
-    const panelBox = panel.getBoundingClientRect()
-    return { left: rowBox.left >= panelBox.left, right: rowBox.right <= panelBox.right }
+  //
+  // THE CELLS ARE MEASURED, NOT THE ROW. An earlier version of this case
+  // measured the flex CONTAINER against the form panel, which cannot fail:
+  // a block-level container is sized by its parent whatever its children do,
+  // so under `.cell { flex: none }` the row still reported itself inside the
+  // panel while its own cells stood 1,721px past the pane's edge. What has to
+  // be inside the pane is each CELL, and the box it has to be inside is the
+  // pane's CONTENT box - the padding SCREENS.md §3 calls required is exactly
+  // what that padding is.
+  const measured = await page.evaluate(() => {
+    const cells = [...document.querySelectorAll('[data-code-cell]')]
+    const pane = document.querySelector('[data-sign-in-pane]')
+    const first = cells.at(0)
+    const last = cells.at(-1)
+    if (pane === null || first === undefined || last === undefined) return null
+
+    const paneBox = pane.getBoundingClientRect()
+    const padding = getComputedStyle(pane)
+    return {
+      cellCount: cells.length,
+      // Positive means the cell stands outside the pane's content box on that
+      // side; zero or negative means it fits.
+      pastTheLeftEdge: paneBox.left + Number.parseFloat(padding.paddingLeft) - first.getBoundingClientRect().left,
+      pastTheRightEdge: last.getBoundingClientRect().right - (paneBox.right - Number.parseFloat(padding.paddingRight)),
+    }
   })
 
-  expect(fits).toEqual({ left: true, right: true })
+  // Six cells were actually measured, so the two assertions below are about a
+  // row that exists.
+  expect(measured?.cellCount).toBe(6)
+  // Half a pixel of tolerance for sub-pixel layout, and no more.
+  expect(measured?.pastTheLeftEdge).toBeLessThanOrEqual(0.5)
+  expect(measured?.pastTheRightEdge).toBeLessThanOrEqual(0.5)
 })
 
 test('spreads a pasted six-digit code across all six cells, past maxLength', async ({ page, context }) => {
@@ -178,6 +201,38 @@ test('does not shake at all for a reader who has asked for less motion', async (
   expect(observed.name).toBe('none')
 })
 
+test('spreads a whole code written into the first cell, as an OTP autofill does', async ({ page }) => {
+  await page.goto(CODE_STEP_PATH, { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-code-cell]')).toHaveCount(6)
+
+  // WHAT THIS DOES AND DOES NOT PROVE, because the difference matters. No
+  // browser automation API can trigger a real one-time-code suggestion - the
+  // browser decides to offer it, from a message this test cannot send. What
+  // IS driven here is the pair an autofill produces once the reader accepts
+  // it: the value written straight onto the input, and an `input` event. That
+  // reaches `onChange` and never raises `paste`, so it is the one door the
+  // paste handler does not cover; with `takeDigit`'s multi-digit branch
+  // removed it lands one digit and drops five. What is not proven is the
+  // browser's own decision to offer the code at all.
+  await page.evaluate((code: string) => {
+    const cell = document.querySelector('[data-code-cell="0"]')
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- capturing the prototype's setter is the point: it is re-invoked below with `.call(cell, ...)`, which is the receiver the rule exists to protect. Writing through it rather than through `cell.value` is what a browser's own autofill does, and what React's value tracker has to see to fire `onChange`.
+    const write = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    if (!(cell instanceof HTMLInputElement) || write === undefined) throw new Error('no first cell')
+    cell.focus()
+    write.call(cell, code)
+    cell.dispatchEvent(new Event('input', { bubbles: true }))
+  }, PASTED_CODE)
+
+  await expect
+    .poll(async () =>
+      page.locator('[data-code-cell]').evaluateAll((nodes) =>
+        nodes.map((node) => (node instanceof HTMLInputElement ? node.value : '')),
+      ),
+    )
+    .toEqual(['1', '2', '3', '4', '5', '6'])
+})
+
 test('advances through the cells as the reader types the code', async ({ page }) => {
   await page.goto(CODE_STEP_PATH, { waitUntil: 'networkidle' })
   await expect(page.locator('[data-code-cell="0"]')).toBeFocused()
@@ -206,8 +261,33 @@ test('draws SCREENS.md §3.2’s own measurements, and rings a filled cell diffe
     const filled = document.querySelector('[data-code-cell="1"]')
     if (title === null || row === null || row === undefined || empty === null || filled === null) return null
     const cell = getComputedStyle(empty)
+    const label = [...document.querySelectorAll('[data-code-step-pane] p')].find(
+      (paragraph) => paragraph.textContent === 'The code',
+    )
+    const rule = document.querySelector('[data-code-step-pane] hr')
+    if (label === undefined || rule === null) return null
     return {
       titleSize: getComputedStyle(title).fontSize,
+      // The gap between the rule and the label it introduces, and the
+      // label's own two margins.
+      //
+      // WHAT THE MARGINS ARE DOING HERE, because it is not what it looks
+      // like. The label is a `<p>`, so a paragraph's default `1em 0` puts
+      // 9.5px on top of it unless `.labelAboveCells` sets the whole `margin`.
+      // MEASURED, that 9.5px currently moves NOTHING: it collapses through
+      // the zero-height top edge of the `<form>` the label opens and then
+      // with the rule's own 20px `margin-bottom`, so the rendered gap is 20px
+      // either way and every box below sits at the same y to the pixel. So
+      // `labelMarginTop` is a declaration assertion, not a rendered one, and
+      // it is kept for one honest reason: the collapse is doing the work, and
+      // the collapse is broken by any of a border on the form, a padding on
+      // it, the wrapper going away, or the rule's margin dropping below
+      // 9.5px - after which the drift becomes real AND is small enough for a
+      // baseline to miss. `ruleToLabelGap` beside it is the rendered
+      // assertion, and it is the one that would catch that day.
+      ruleToLabelGap: Math.round(label.getBoundingClientRect().top - rule.getBoundingClientRect().bottom),
+      labelMarginTop: getComputedStyle(label).marginTop,
+      labelMarginBottom: getComputedStyle(label).marginBottom,
       gap: getComputedStyle(row).columnGap,
       cellSize: cell.fontSize,
       cellPadding: `${cell.paddingTop} ${cell.paddingRight} ${cell.paddingBottom} ${cell.paddingLeft}`,
@@ -221,6 +301,9 @@ test('draws SCREENS.md §3.2’s own measurements, and rings a filled cell diffe
   // that is present but overridden fails here.
   expect(measured).toEqual({
     titleSize: '50px',
+    ruleToLabelGap: 20,
+    labelMarginTop: '0px',
+    labelMarginBottom: '8px',
     gap: '9px',
     cellSize: '25px',
     cellPadding: '13px 0px 13px 0px',
