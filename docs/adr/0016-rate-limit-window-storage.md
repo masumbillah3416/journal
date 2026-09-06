@@ -54,8 +54,10 @@ shape any rate limiter naturally takes if nobody thinks about it.
 **A `signInAttempts` collection, one row per attempt**, written and read only by
 `apps/web/lib/auth/rateLimit.ts`. `DATA_MODEL.md` describes no such collection, so it is a
 recorded deviation (`docs/deviations.md` §27), exactly as `otpChallenges.sessionHash` was
-one task earlier. Access is `() => false` on every operation, matching `otpChallenges`,
-`sessions` and `jobs`.
+one task earlier. Access is `() => false` on **every** operation, matching `otpChallenges`
+and `jobs` — `delete` included, which the handoff's own access block omits for all three
+and which Payload therefore left open to any signed-in caller until this task closed it
+(`docs/deviations.md` §28).
 
 **Each request records its own attempt first and is ranked second.** The insert happens
 before anything is counted; the limiter then asks how many rows for that key stand at or

@@ -13,10 +13,16 @@
  * so an attacker cycling instances never meets a refusal while every local
  * test passes.
  *
- * Access is `() => false` on every operation, matching `otpChallenges`,
- * `sessions` and `jobs`: this collection is server-only, written and read
- * exclusively through `apps/web/lib/auth/rateLimit.ts`, never through the
- * REST/GraphQL API a client could reach.
+ * Access is `() => false` on **every** operation - `delete` included, which
+ * the handoff's own schema omits (see the HANDOFF-DEVIATION at the predicate
+ * and docs/deviations.md §28) - matching `otpChallenges` and `jobs`. This
+ * collection is server-only, written and read exclusively through
+ * `apps/web/lib/auth/rateLimit.ts`, never through the REST/GraphQL API a
+ * client could reach. `sessions` is NOT in that list: it declares no access
+ * rule at all today and so inherits Payload's "signed in, or refused"
+ * default. Phase 2 Task 6 builds it; this comment named it as a peer before
+ * anyone had checked, which is the same species of unverified claim §28
+ * records.
  *
  * THE ROWS ARE COUNTED BY RANK, NEVER READ AND THEN COUNTED, and the schema
  * is shaped for that: `attemptedAt` is stamped by Postgres's
@@ -41,6 +47,17 @@ export const SignInAttempts: CollectionConfig = {
     read: () => false,
     create: () => false,
     update: () => false,
+    // HANDOFF-DEVIATION: `DATA_MODEL.md` writes this access block as
+    // `{ read, create, update }` and comments it `// server only`. It is not:
+    // Payload applies its `defaultAccess` to any operation the block omits, so
+    // `delete` fell through to "any signed-in user" — verified, an
+    // authenticated caller could delete rows here while every other operation
+    // was refused. The handoff's own comment is false of the schema printed
+    // beside it, which is the second time a handoff document has specified
+    // something its own schema cannot deliver (after the missing session
+    // column, §25). `delete: () => false` is this repository's addition. See
+    // docs/deviations.md §28.
+    delete: () => false,
   },
   // The four columns every lookup filters on, in the order it filters them:
   // three equalities that pick one key, then the timestamp the window is

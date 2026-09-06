@@ -256,12 +256,28 @@ would claim a measurement nothing performs.
   today — `packages/domain` and `packages/tokens` are pure, no I/O).
   `collections.integration.test.ts` (Task 6) exercises the schema
   rules from `DATA_MODEL.md`, the migration reversibility case (§9 below), and the
-  access control on the two server-only collections — `jobs` and `otpChallenges` declare
-  `access: { read/create/update: () => false }`, and those predicates had no test at all
-  because Payload's Local API defaults to `overrideAccess: true` and so never ran them.
-  The four cases pass `overrideAccess: false`, which is what a REST or GraphQL request
-  does, and assert every one is refused; `seed.integration.test.ts` (Task 11) exercises
-  `apps/web/scripts/seed.ts` against real `journeys`, `pages`, `media` rows and the
+  access control on the three server-only collections — `jobs`, `otpChallenges` and
+  `signInAttempts` declare `access: () => false` on read, create, update **and delete**,
+  and those predicates had no test at all because Payload's Local API defaults to
+  `overrideAccess: true` and so never ran them. One case per collection passes
+  `overrideAccess: false`, which is what a REST or GraphQL request does, and asserts that
+  **no** operation is permitted — to a signed-in caller as well as a signed-out one, and
+  against **real rows**.
+
+  Both of those qualifiers were added after a review found what their absence hid. The
+  first version of these cases asserted read, create and update for a signed-out caller
+  only, and one of them was named "so nobody can clear or forge their own window" while
+  checking two thirds of that. Payload applies its `defaultAccess` — "signed in, or
+  refused" — to any operation an access block omits, and all three blocks omitted
+  `delete`, so an authenticated caller could delete rows in every one of them: their own
+  rate-limit window, their own OTP attempt counter, the queue. The signed-out half could
+  never have caught it, because `defaultAccess` refuses a signed-out caller anyway. Real
+  rows matter for the same class of reason: an `update` or `delete` aimed at an id that
+  does not exist is refused for being absent rather than forbidden, so a guard written
+  against `id: '1'` passes with or without the rule. The predicate was added and the gap
+  recorded as `docs/deviations.md` §28; removing it again fails all three cases, each
+  naming `delete` in the operations it was allowed. `seed.integration.test.ts` (Task 11)
+  exercises `apps/web/scripts/seed.ts` against real `journeys`, `pages`, `media` rows and the
   `book`/`about` globals, including its idempotency (running it twice leaves the same
   ten journeys, not twenty) and the thirty-row page count (ten journeys × three — Cover,
   Contents and About are globals/derived, not `pages` rows; see `docs/deviations.md` §5).
@@ -1607,7 +1623,7 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   Verified by making `down()` a no-op and watching it fail. **A warning for whoever runs
   that mutation next:** a no-op `down()` also breaks the roll-to-zero case in the same
   file, which then leaves `diary_test` holding the orphaned table and types while
-  `payload_migrations` no longer records the migration as applied — every later run then
+  `payload_migrations` no longer records the migration as applied - every later run then
   fails to re-apply it. Repair by dropping `sign_in_attempts`, both
   `enum_sign_in_attempts_*` types and the `payload_locked_documents_rels` column by hand,
   and letting the next run apply `up()` again.

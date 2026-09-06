@@ -1003,7 +1003,9 @@ same commit.
 (`apps/web/collections/signInAttempts.ts`, migration
 `apps/web/migrations/20260905_230601_add_sign_in_attempts.ts`). It is written and read
 only by `apps/web/lib/auth/rateLimit.ts`, and its access rules are `() => false` on every
-operation, matching `otpChallenges`, `sessions` and `jobs`.
+operation — `delete` included, which the handoff omits from all three server-only access
+blocks and which §28 records — matching `otpChallenges` and `jobs`. Not `sessions`, which
+declares no access rule at all yet; Phase 2 Task 6 builds it.
 
 **Rationale:** `SECURITY.md`'s third prototype hole requires "Rate limit per account **and**
 per IP — a sliding window on both the password and code endpoints", and a sliding window
@@ -1042,3 +1044,45 @@ it creates by `apps/web/collections/collections.integration.test.ts`.
 **Recorded as:** `docs/adr/0016-rate-limit-window-storage.md`; the phase ledger's rulings
 F26 (storage), F27 (the limits) and F28 (rank, not read-then-count); a
 `// HANDOFF-DEVIATION` in the module header of `apps/web/collections/signInAttempts.ts`.
+
+## 28 · `delete` is refused on the three server-only collections, which the handoff's own schema does not do
+
+**What changed:** `jobs`, `otpChallenges` and `signInAttempts` each declare
+`delete: () => false` alongside their `read`, `create` and `update` predicates
+(`apps/web/collections/jobs.ts`, `otpChallenges.ts`, `signInAttempts.ts`).
+
+**Rationale:** `DATA_MODEL.md:174` writes the access block for `otpChallenges` as
+`access: { read: () => false, create: () => false, update: () => false }` and comments it
+`// server only`. **It is not server-only.** Payload applies its `defaultAccess` —
+`({ req: { user } }) => Boolean(user)`, "signed in, or refused" — to any operation an
+access block omits, so `delete` fell through to *any authenticated caller*. Verified
+against a real Payload rather than reasoned about: with the predicate absent, a signed-out
+delete is refused and a **signed-in delete succeeds**.
+
+The consequence differs per collection and is worst for the newest one. A caller who can
+delete `signInAttempts` rows can clear their own sliding window, which is not a rate limit
+at all; a caller who can delete an `otpChallenges` row can throw away the attempt counter
+bounding guesses against their own challenge. The collections were transcribed faithfully
+from the handoff in Phase 0, so the gap is inherited rather than introduced — this is the
+second time a handoff document has specified something its own schema cannot deliver,
+after the missing session column (§25). As there, the stated intent wins over the printed
+field list.
+
+**What this cost, recorded because the cost is the lesson:** four documents — the module
+headers, `docs/deviations.md` §27, `docs/security.md`'s rate-limit row and
+`docs/adr/0016-rate-limit-window-storage.md` — each asserted `() => false` on *every*
+operation, and a guard test sat beside them named "so nobody can clear or forge their own
+window" while asserting read, create and update for a **signed-out** caller only. The
+signed-out half could never have caught this: `defaultAccess` refuses a signed-out caller
+regardless. Those cases now assert all four operations for a signed-in caller as well, on
+**real rows** — an `update` or `delete` aimed at a non-existent id is refused for being
+absent rather than forbidden, so a guard written against `id: '1'` passes with or without
+the rule.
+
+**What would reverse this:** a `DATA_MODEL.md` revision that either adds `delete` to that
+access block or states that deletion by a signed-in user is intended. Neither exists, and
+the second would contradict the `// server only` comment beside it.
+
+**Recorded as:** a `// HANDOFF-DEVIATION` at the predicate in each of the three
+collections; three cases in `apps/web/collections/collections.integration.test.ts`, each
+verified to fail when the predicate is removed.

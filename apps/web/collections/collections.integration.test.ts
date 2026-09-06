@@ -147,6 +147,56 @@ const existingTablesAmong = async (names: readonly string[]): Promise<string[]> 
   }
 }
 
+/**
+ * The marker every fixture row the access-guard cases create carries, so
+ * `afterAll` can find them all and no other suite's rows are ever matched.
+ *
+ * Those cases must operate on REAL rows. An `update` or `delete` aimed at an
+ * id that does not exist is refused by Payload for being absent rather than
+ * for being forbidden, so a guard written against `id: '1'` passes whether or
+ * not the access rule exists — which is how the missing `delete` predicate
+ * survived a test named for it.
+ */
+const GUARD_FIXTURE_MARKER = 'test-access-guard'
+
+/** The account the access-guard cases sign in as, so `afterAll` can remove it. */
+const GUARD_EDITOR_EMAIL = 'test-access-guard-editor@example.com'
+
+/** The four operations a server-only collection must refuse, whoever asks. */
+interface GuardedOperations {
+  readonly read: () => Promise<unknown>
+  readonly create: () => Promise<unknown>
+  readonly update: () => Promise<unknown>
+  readonly delete: () => Promise<unknown>
+}
+
+/**
+ * Which of the four operations a caller was actually allowed to perform.
+ *
+ * Reports the operations that SUCCEEDED rather than asserting each rejection
+ * separately, for two reasons. A failure then names the leak ("delete") rather
+ * than saying one of four assertions failed. And every promise is given its
+ * handler in the same tick it is created, so none is ever left
+ * rejected-and-unhandled while another settles - the latent race recorded on
+ * the `Promise.all` below.
+ * @param operations - The four attempts to make, each already carrying
+ *   `overrideAccess: false` and whichever caller is under test.
+ * @returns The names of the operations that were permitted, sorted. An empty
+ *   array is the only passing answer for a server-only collection.
+ */
+const operationsAllowedBy = async (operations: GuardedOperations): Promise<(keyof GuardedOperations)[]> => {
+  const names = ['read', 'create', 'update', 'delete'] as const
+  const outcomes = await Promise.all(
+    names.map((name) =>
+      operations[name]().then(
+        () => name,
+        () => undefined,
+      ),
+    ),
+  )
+  return outcomes.filter((name): name is keyof GuardedOperations => name !== undefined).sort()
+}
+
 /** The migration whose own reversibility the last case below asserts. */
 const SESSION_HASH_MIGRATION = '20260905_202028_add_otp_session_hash'
 
@@ -305,6 +355,50 @@ const JOURNEY_TABLES = ['journeys', 'journeys_highlights', 'journeys_tally'] as 
 
 describe('collections', () => {
   let payload: Awaited<ReturnType<typeof getPayload>>
+  /** The signed-in caller the three access-guard cases share. */
+  let guardEditor: Awaited<ReturnType<typeof aGuardEditor>>
+
+  /**
+   * Creates the signed-in caller the access-guard cases use.
+   *
+   * A function rather than an inline `payload.create` so the account's type is
+   * inferred for the `user:` argument below, without this file having to name
+   * any of Payload's generated types - `payload.create`'s own signature is
+   * generic over the collection slug, so there is no way to write that type
+   * down here without naming the generated `User`. The return type is
+   * therefore inferred rather than annotated, which is what makes
+   * `Awaited<ReturnType<typeof aGuardEditor>>` above say the right thing. It
+   * lives inside the describe because it needs the `payload` binding above,
+   * unlike the module-level helpers that open a `pg` client of their own.
+   * @returns The created account.
+   */
+  const aGuardEditor = async () =>
+    payload.create({
+      collection: 'users',
+      data: { email: GUARD_EDITOR_EMAIL, password: 'not-a-real-password' },
+    })
+
+  /** Removes every row and account the access-guard cases create. */
+  const removeGuardFixtures = async (): Promise<void> => {
+    const jobs = await payload.find({ collection: 'jobs', where: { mediaId: { equals: GUARD_FIXTURE_MARKER } } })
+    for (const doc of jobs.docs) await payload.delete({ collection: 'jobs', id: doc.id })
+
+    const attempts = await payload.find({
+      collection: 'signInAttempts',
+      where: { subject: { equals: GUARD_FIXTURE_MARKER } },
+    })
+    for (const doc of attempts.docs) await payload.delete({ collection: 'signInAttempts', id: doc.id })
+
+    const editors = await payload.find({ collection: 'users', where: { email: { equals: GUARD_EDITOR_EMAIL } } })
+    for (const doc of editors.docs) {
+      // Challenges first: `otp_challenges.user_id` is NOT NULL and Payload's
+      // delete hook nulls the relationship rather than cascading, so removing
+      // the account while a challenge still points at it fails the constraint.
+      const challenges = await payload.find({ collection: 'otpChallenges', where: { user: { equals: doc.id } } })
+      for (const challenge of challenges.docs) await payload.delete({ collection: 'otpChallenges', id: challenge.id })
+      await payload.delete({ collection: 'users', id: doc.id })
+    }
+  }
 
   beforeAll(async () => {
     payload = await getTestPayload()
@@ -321,9 +415,17 @@ describe('collections', () => {
     if ((await sessionHashSchema()).length === 0) {
       await runMigrationDirection(SESSION_HASH_MIGRATION, 'up', payload)
     }
+
+    // Cleaned at BOTH ends, and the editor minted ONCE: `users.email` is
+    // unique, so a row left behind by an interrupted run - or a second case
+    // minting the same address - fails inside the fixture rather than in the
+    // assertion it was written for.
+    await removeGuardFixtures()
+    guardEditor = await aGuardEditor()
   })
 
   afterAll(async () => {
+    await removeGuardFixtures()
     // "test-marrakech" is deliberately absent: that test's create() is
     // expected to reject (the highlights-cap case), so no row ever exists.
     for (const slug of FIXTURE_SLUGS) {
@@ -429,43 +531,68 @@ describe('collections', () => {
     expect(created.tally?.[1]?.value).toBe('plenty')
   })
 
-  // `jobs` and `otpChallenges` declare `access: { read/create/update: () =>
-  // false }` - they are server-only, reached through the Local API and never
-  // through the REST or GraphQL routes a client can call (docs/api.md). Those
-  // predicates had no test: Payload's Local API defaults to
-  // `overrideAccess: true`, so nothing in this suite ever ran them, and the
-  // one part of the schema with a deliberate access rule was the one part
-  // whose access rule was unmeasured. `overrideAccess: false` makes Payload
-  // enforce them, which is what a REST or GraphQL request does.
-  it('refuses to read jobs for an unauthenticated caller, because the queue is server-only', async () => {
-    const read = payload.find({ collection: 'jobs', overrideAccess: false })
-
-    await expect(read).rejects.toThrow()
-  })
-
-  it('refuses to write jobs for an unauthenticated caller, so a client cannot enqueue or re-status work', async () => {
-    const create = payload.create({
+  // THE THREE SERVER-ONLY COLLECTIONS - `jobs`, `otpChallenges` and
+  // `signInAttempts` - declare an access rule of their own, and every other
+  // collection inherits Payload's default ("signed in, or refused").
+  // `overrideAccess: false` is what makes Payload run those rules at all: the
+  // Local API defaults to `true`, so nothing in this suite ever executed them
+  // and the one part of the schema with a deliberate access rule was the one
+  // part whose rule was unmeasured.
+  //
+  // EACH CASE NOW ASSERTS ALL FOUR OPERATIONS, AND FOR A SIGNED-IN CALLER AS
+  // WELL AS A SIGNED-OUT ONE. The version this replaces asserted read, create
+  // and update for a signed-out caller only, and was named "so nobody can
+  // clear or forge their own window" while checking two thirds of that - which
+  // is exactly how a missing `delete` predicate survived beside it. Payload
+  // applies `defaultAccess` to any operation an access block omits, so `delete`
+  // fell through to "any signed-in user", and a limiter whose subject can
+  // delete its own rows is not a limiter. The signed-out half of each case
+  // could never have caught it: `defaultAccess` refuses a signed-out caller
+  // anyway.
+  //
+  // THE ROWS ARE REAL. An `update` or `delete` aimed at an id that does not
+  // exist is refused for being absent rather than for being forbidden, so a
+  // guard written against `id: '1'` passes with or without the rule.
+  it('refuses every operation on jobs, signed in or out, because the queue is reached only through the adapter', async () => {
+    const row = await payload.create({
       collection: 'jobs',
-      overrideAccess: false,
-      data: { kind: 'transcode', mediaId: 'test-media-access', status: 'queued' },
+      data: { kind: 'transcode', mediaId: GUARD_FIXTURE_MARKER, status: 'queued' },
     })
-    const update = payload.update({
-      collection: 'jobs',
-      id: '1',
-      overrideAccess: false,
-      data: { status: 'failed' },
+    const editor = guardEditor
+
+    const signedOut = await operationsAllowedBy({
+      read: () => payload.find({ collection: 'jobs', overrideAccess: false }),
+      create: () =>
+        payload.create({
+          collection: 'jobs',
+          overrideAccess: false,
+          data: { kind: 'transcode', mediaId: GUARD_FIXTURE_MARKER, status: 'queued' },
+        }),
+      update: () =>
+        payload.update({ collection: 'jobs', id: row.id, overrideAccess: false, data: { status: 'failed' } }),
+      delete: () => payload.delete({ collection: 'jobs', id: row.id, overrideAccess: false }),
+    })
+    const signedIn = await operationsAllowedBy({
+      read: () => payload.find({ collection: 'jobs', overrideAccess: false, user: editor }),
+      create: () =>
+        payload.create({
+          collection: 'jobs',
+          overrideAccess: false,
+          user: editor,
+          data: { kind: 'transcode', mediaId: GUARD_FIXTURE_MARKER, status: 'queued' },
+        }),
+      update: () =>
+        payload.update({
+          collection: 'jobs',
+          id: row.id,
+          overrideAccess: false,
+          user: editor,
+          data: { status: 'failed' },
+        }),
+      delete: () => payload.delete({ collection: 'jobs', id: row.id, overrideAccess: false, user: editor }),
     })
 
-    // Both assertions are attached in ONE `Promise.all`, not awaited one
-    // after the other. `expect(p).rejects` only attaches its handler when it
-    // is called, so awaiting the first assertion to completion leaves the
-    // second promise rejected-and-unhandled for as long as that takes - and
-    // Node reports it as an unhandled rejection at the next microtask drain,
-    // which Vitest surfaces as `Errors 1 error` and a non-zero exit even
-    // though every test passed. It is a latent race rather than a certainty:
-    // it depends on which of the two rejects first, and it went from silent
-    // to reproducible when Task 14 made the seed in a sibling file slower.
-    await Promise.all([expect(create).rejects.toThrow(), expect(update).rejects.toThrow()])
+    expect({ signedOut, signedIn }).toEqual({ signedOut: [], signedIn: [] })
   })
 
   // `media` is the one collection a signed-out reader MUST be able to read.
@@ -537,40 +664,42 @@ describe('collections', () => {
     expect(asEditor.docs).toHaveLength(1)
   })
 
-  it('refuses to read otpChallenges for an unauthenticated caller, because a code hash must never be enumerable', async () => {
-    const read = payload.find({ collection: 'otpChallenges', overrideAccess: false })
+  it('refuses every operation on otpChallenges, signed in or out, so a code hash is neither enumerable nor resettable', async () => {
+    const account = guardEditor
+    const row = await payload.create({ collection: 'otpChallenges', data: anOtpChallengeFor(account.id) })
 
-    await expect(read).rejects.toThrow()
-  })
-
-  it('refuses to write otpChallenges for an unauthenticated caller, so nobody can mint or reset a challenge', async () => {
-    const create = payload.create({
-      collection: 'otpChallenges',
-      overrideAccess: false,
-      data: {
-        user: 1,
-        codeHash: 'never-stored-in-plaintext',
-        sessionHash: FIXTURE_SESSION_HASH,
-        expiresAt: new Date().toISOString(),
-      },
+    const signedOut = await operationsAllowedBy({
+      read: () => payload.find({ collection: 'otpChallenges', overrideAccess: false }),
+      create: () =>
+        payload.create({ collection: 'otpChallenges', overrideAccess: false, data: anOtpChallengeFor(account.id) }),
+      update: () =>
+        payload.update({ collection: 'otpChallenges', id: row.id, overrideAccess: false, data: { attempts: 0 } }),
+      delete: () => payload.delete({ collection: 'otpChallenges', id: row.id, overrideAccess: false }),
     })
-    const update = payload.update({
-      collection: 'otpChallenges',
-      id: '1',
-      overrideAccess: false,
-      data: { attempts: 0 },
+    const signedIn = await operationsAllowedBy({
+      read: () => payload.find({ collection: 'otpChallenges', overrideAccess: false, user: account }),
+      create: () =>
+        payload.create({
+          collection: 'otpChallenges',
+          overrideAccess: false,
+          user: account,
+          data: anOtpChallengeFor(account.id),
+        }),
+      update: () =>
+        payload.update({
+          collection: 'otpChallenges',
+          id: row.id,
+          overrideAccess: false,
+          user: account,
+          data: { attempts: 0 },
+        }),
+      delete: () => payload.delete({ collection: 'otpChallenges', id: row.id, overrideAccess: false, user: account }),
     })
 
-    // Both assertions are attached in ONE `Promise.all`, not awaited one
-    // after the other. `expect(p).rejects` only attaches its handler when it
-    // is called, so awaiting the first assertion to completion leaves the
-    // second promise rejected-and-unhandled for as long as that takes - and
-    // Node reports it as an unhandled rejection at the next microtask drain,
-    // which Vitest surfaces as `Errors 1 error` and a non-zero exit even
-    // though every test passed. It is a latent race rather than a certainty:
-    // it depends on which of the two rejects first, and it went from silent
-    // to reproducible when Task 14 made the seed in a sibling file slower.
-    await Promise.all([expect(create).rejects.toThrow(), expect(update).rejects.toThrow()])
+    // A signed-in `delete` here is the sharpest of the four: it would let the
+    // holder of an account throw away the attempt counter that limits guesses
+    // against their own challenge.
+    expect({ signedOut, signedIn }).toEqual({ signedOut: [], signedIn: [] })
   })
 
   it('rebuilds every table a journey, its highlights and its tally need, after rolling all migrations back to zero and re-applying them', async () => {
@@ -674,30 +803,56 @@ describe('collections', () => {
     expect(restored.sessionHash).toBe(FIXTURE_SESSION_HASH)
   })
 
-  it('refuses to read signInAttempts for an unauthenticated caller, because a sign-in history must never be enumerable', async () => {
-    const read = payload.find({ collection: 'signInAttempts', overrideAccess: false })
-
-    await expect(read).rejects.toThrow()
-  })
-
-  it('refuses to write signInAttempts for an unauthenticated caller, so nobody can clear or forge their own window', async () => {
-    const create = payload.create({
+  it('refuses every operation on signInAttempts, signed in or out, so nobody can clear or forge their own window', async () => {
+    const attempted = new Date().toISOString()
+    const row = await payload.create({
       collection: 'signInAttempts',
-      overrideAccess: false,
-      data: { dimension: 'ip', endpoint: 'code', subject: '198.51.100.254', attemptedAt: new Date().toISOString() },
+      data: { dimension: 'ip', endpoint: 'code', subject: GUARD_FIXTURE_MARKER, attemptedAt: attempted },
     })
-    const update = payload.update({
-      collection: 'signInAttempts',
-      id: '1',
-      overrideAccess: false,
-      data: { subject: '198.51.100.253' },
+    const editor = guardEditor
+
+    const signedOut = await operationsAllowedBy({
+      read: () => payload.find({ collection: 'signInAttempts', overrideAccess: false }),
+      create: () =>
+        payload.create({
+          collection: 'signInAttempts',
+          overrideAccess: false,
+          data: { dimension: 'ip', endpoint: 'code', subject: GUARD_FIXTURE_MARKER, attemptedAt: attempted },
+        }),
+      update: () =>
+        payload.update({
+          collection: 'signInAttempts',
+          id: row.id,
+          overrideAccess: false,
+          data: { endpoint: 'password' },
+        }),
+      delete: () => payload.delete({ collection: 'signInAttempts', id: row.id, overrideAccess: false }),
+    })
+    const signedIn = await operationsAllowedBy({
+      read: () => payload.find({ collection: 'signInAttempts', overrideAccess: false, user: editor }),
+      create: () =>
+        payload.create({
+          collection: 'signInAttempts',
+          overrideAccess: false,
+          user: editor,
+          data: { dimension: 'ip', endpoint: 'code', subject: GUARD_FIXTURE_MARKER, attemptedAt: attempted },
+        }),
+      update: () =>
+        payload.update({
+          collection: 'signInAttempts',
+          id: row.id,
+          overrideAccess: false,
+          user: editor,
+          data: { endpoint: 'password' },
+        }),
+      delete: () => payload.delete({ collection: 'signInAttempts', id: row.id, overrideAccess: false, user: editor }),
     })
 
-    // Both assertions attached in ONE `Promise.all`, for the reason spelled
-    // out on the otpChallenges case above: awaiting them one after the other
-    // leaves the second promise rejected-and-unhandled while the first
-    // settles, which Node reports as an unhandled rejection.
-    await Promise.all([expect(create).rejects.toThrow(), expect(update).rejects.toThrow()])
+    // `delete` is the operation this collection cannot afford to leak: a
+    // signed-in caller who can remove their own rows has no rate limit at all,
+    // and every one of the bursts in `rateLimit.integration.test.ts` would
+    // still pass.
+    expect({ signedOut, signedIn }).toEqual({ signedOut: [], signedIn: [] })
   })
 
   // The sliding window's own table gets the same per-migration treatment the

@@ -142,8 +142,12 @@ isolation from a real media row. Fields: `kind` (`transcode`), `mediaId` (text),
 
 Backs the sliding window `SECURITY.md` requires per account and per IP
 (`apps/web/lib/auth/rateLimit.ts`, Phase 2 Task 4): one row per sign-in attempt, admitted
-or refused. `access: { read: () => false, create: () => false, update: () => false }` —
-server-only, like `otpChallenges`, `sessions` and `jobs`. Fields: `dimension`
+or refused. `access: { read, create, update, delete }`, every one `() => false` —
+server-only, like `otpChallenges` and `jobs`. The `delete` predicate is this
+repository's addition: `DATA_MODEL.md` omits it from all three access blocks
+and Payload applies its "signed in, or refused" default to whatever an access
+block leaves out, so deletion fell through to any authenticated caller
+(`docs/deviations.md` §28). Fields: `dimension`
 (`ip` | `account`), `endpoint` (`password` | `code`), `subject` (the address, or the
 account's id — never both in one row), `attemptedAt`. One compound index over all four, in
 the order a lookup filters them.
