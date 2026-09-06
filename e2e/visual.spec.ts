@@ -142,6 +142,28 @@
 import { expect, test, type Page } from '@playwright/test'
 import { drawsMobileReadingMode } from './support/surface'
 
+// OFF LINUX THIS FILE SKIPS, AND SAYING SO IS THE POINT.
+//
+// Every baseline here is `-linux.png`, generated in the pinned container for
+// the reason given at the top of this file. Playwright names the file it wants
+// after the host platform, so a Windows or macOS run asks for `-win32.png` or
+// `-darwin.png`, finds nothing, WRITES one, and every run after that compares
+// the host against itself and passes. That is not a hypothetical: 31 such
+// files were found untracked in this directory, and a full local suite
+// reported "394 passed" while these cases compared against baselines the host
+// had quietly minted for itself. The committed baselines - the ones CI gates
+// on - were never read.
+//
+// Skipping rather than failing is deliberate. On a Windows host there is no
+// correct baseline to compare against, so a failure would be noise a developer
+// learns to scroll past, and a pass is a lie. "Not run here, and here is how
+// to run it" is the only honest third option. `.gitignore` refuses the
+// host-platform files as well, so they cannot come back and be believed.
+test.skip(
+  process.platform !== 'linux',
+  'visual baselines are -linux.png, generated in mcr.microsoft.com/playwright:v1.62.1-noble — run this suite in that container (see the header) rather than on the host',
+)
+
 /**
  * Waits for a diary page to be drawn, scaled, fonted and decoded before it is
  * screenshotted.

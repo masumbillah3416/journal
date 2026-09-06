@@ -43,3 +43,12 @@ npm-debug.log*
 
 # The handoff archive — the extracted folder is tracked instead
 *.zip
+
+# Visual baselines are generated in the pinned Playwright container and
+# committed as `-linux.png` only. A run on a developer's host asks for a
+# `-win32`/`-darwin` name, finds none, and WRITES one — after which every
+# later run compares the host against itself and passes while the committed
+# baselines go unread. 31 such files were found untracked here. e2e/visual
+# .spec.ts skips off Linux; this refuses the files if it is ever bypassed.
+e2e/**/*-win32.png
+e2e/**/*-darwin.png
