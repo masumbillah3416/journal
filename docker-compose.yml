@@ -108,10 +108,35 @@ services:
 
   # Regenerates them. `npm run test:visual:container:update`.
   #
-  # `--update-snapshots=all`, never the default `changed` mode: a diff that comes in UNDER
-  # `maxDiffPixelRatio` is left unwritten by `changed`, so a genuinely stale baseline can
-  # survive a regeneration while the run still reports a pass.
+  # `changed`, WHICH IS A GATE RATHER THAN A PREFERENCE. This service ran
+  # `--update-snapshots=all` first, and on its very first use it rewrote fifteen
+  # `diary-*` baselines that no change in the commit could have touched and that the
+  # comparison run immediately before had just passed. They were caught and reverted by
+  # hand — and a rule that depends on somebody remembering to revert is a rule that
+  # describes the next recurrence rather than preventing it (review round 1, finding 5).
+  # `changed` writes a baseline only when the diff EXCEEDS `maxDiffPixelRatio`, plus any
+  # that are missing entirely, so a new screen's baselines still land and unrelated ones
+  # cannot be churned.
   visual-update:
+    <<: *visual
+    command:
+      [
+        'sh',
+        '-c',
+        'npm ci --no-audit --no-fund && npx playwright test e2e/layout.spec.ts e2e/visual.spec.ts --update-snapshots=changed',
+      ]
+
+  # The opt-in. `npm run test:visual:container:update:all`.
+  #
+  # THERE IS EXACTLY ONE CASE THAT NEEDS THIS, and naming it is the point of a separate
+  # service: a baseline whose diff is UNDER `maxDiffPixelRatio` but which is nonetheless
+  # wrong — `changed` leaves such a file alone and still reports a pass, so the stale
+  # image survives the regeneration. That is not hypothetical either: the cover-contrast
+  # change (docs/deviations.md §12) moved the `mobile` cover by less than the threshold,
+  # and `changed` would have left that one baseline showing the old, failing cover.
+  # Reach for this when you have INTENDED a visual change that a comparison run did not
+  # flag — and then read `git status`, because it rewrites everything.
+  visual-update-all:
     <<: *visual
     command:
       [

@@ -66,7 +66,19 @@ describe('SignInShell', () => {
   })
 
   it('draws the step it is given inside the form panel', () => {
-    expect(renderShell().querySelector('[data-test-pane]')?.textContent).toBe('the pane')
+    const host = renderShell()
+    const panel = host.querySelector('[data-sign-in-form-panel]')
+
+    // WHERE, not just whether. This case was named "inside the form panel"
+    // while asserting only that the child rendered somewhere in the subtree
+    // (review round 1, finding 3) - so it would have passed with the step
+    // drawn over the cloth, which is a different screen. The panel is
+    // asserted to exist first, because `panel?.contains(...)` on a null panel
+    // is `undefined`, not a failure anybody would read.
+    expect(panel).not.toBeNull()
+    const pane = host.querySelector('[data-test-pane]')
+    expect(pane?.textContent).toBe('the pane')
+    expect(panel?.contains(pane ?? null)).toBe(true)
   })
 
   it('paints both cloth blocks in the cloth colour the editor chose', () => {

@@ -51,10 +51,16 @@
  * Depends on: packages/tokens/src/tokens.css, loaded by the admin layout.
  */
 
-/* HANDOFF-DEVIATION (docs/deviations.md §32): TWO of the handoff prototype's
- * own values are changed here, and only these two, to bring the cloth panel's
- * text to WCAG AA. Both are the same changes `cover.module.css` had to make
- * for the same reason (docs/deviations.md §12).
+/* HANDOFF-DEVIATION (docs/deviations.md §32): ONE value is changed here, and
+ * only one - the alpha on the two Courier lines - to bring the cloth panel's
+ * text to WCAG AA. It is the same change, for the same reason,
+ * `cover.module.css` had to make to the years line (docs/deviations.md §12).
+ *
+ * The gradient's opaque end stop below is NOT a second deviation of this
+ * screen's: it is §12's, applied to the same "cover treatment" SCREENS.md §3
+ * refers this panel to, and its base value is §1.1's `.28` rather than the
+ * login prototype's `.3` - see the `.cloth, .masthead` rule for that
+ * distinction, which the first implementation of this file got wrong.
  *
  * WHY AXE CANNOT SETTLE THIS. The cloth is a gradient, so axe-core reports
  * `color-contrast` as INCOMPLETE over it rather than as a pass or a violation
@@ -69,20 +75,23 @@
  *
  *   Cloth panel line      Size    Before   After    Needs
  *   --------------------  ------  -------  -------  -----
- *   Travel Diary          10.5px  4.447    4.924    4.5
- *   Wanderings            75px    -        7.974    3      (large text)
- *   subtitle              17px    -        5.275    4.5
- *   The back room         10.5px  -        5.163    4.5
+ *   Travel Diary          10.5px  4.429    4.865    4.5
+ *   Wanderings            75px    7.877    7.877    3      (large text)
+ *   subtitle              17px    5.269    5.269    4.5
+ *   The back room         10.5px  4.640    5.102    4.5
  *
- * Only the eyebrow was below its floor, and only narrowly; the other three
- * are the prototype's own values, measured and left alone. Figures are the
+ * "Before" is the FULLY undeviated screen - SCREENS.md §1.1's own `.28` end
+ * stop, left translucent, with the prototype's `.72` alpha on the two Courier
+ * lines. Only the eyebrow was below its floor, and only narrowly. The title
+ * and subtitle do not move at all, because neither change touches them; "The
+ * back room" moves because it shares the eyebrow's rule. Figures are the
  * `desktop` project's; `mid` measures the same lines within 0.003.
  *
- * THE TWO CHANGES, each at the rule it affects:
- *   1. The gradient's end stop is opaque - see `.cloth, .masthead` below.
- *   2. `.clothEyebrow`/`.clothBackRoom`'s alpha rises from `.72` to `.78`.
- * No new colour is introduced by either, and every other value on this screen
- * is still the handoff's own. */
+ * THE ONE CHANGE, at the rule it affects:
+ *   `.clothEyebrow`/`.clothBackRoom`'s alpha rises from `.72` to `.78`.
+ * No new colour is introduced, and every other value on this screen is still
+ * the handoff's own. The gradient's opacity is NOT a deviation from
+ * SCREENS.md - see `.cloth, .masthead` below for what it is instead. */
 
 .stage {
   display: flex;
@@ -116,22 +125,36 @@
     0 0 0 1px rgba(120, 98, 60, 0.18);
 }
 
-/* The cloth gradient both blocks share: SCREENS.md §1.1's "cover treatment",
- * which §3 refers this panel to, over the 45deg texture.
+/* The cloth gradient both blocks share.
  *
- * HANDOFF-DEVIATION change 1 (see this file's header): the end stop is the
- * OPAQUE form of the prototype's `rgba(0,0,0,.3)` - the colour that overlay
- * resolves to ON the cloth - rather than the translucent value itself. The
- * translucent one interpolates from an opaque colour to a 30%-opaque black,
- * so the cloth's own alpha falls to about 0.7 by mid-block and the desk
- * behind the shell shows through, lifting the background exactly where the
- * small Courier lines sit. `color-mix` rather than a literal, so it still
- * follows whichever cloth an editor picks. */
+ * TWO THINGS ABOUT THIS ONE LINE, and only the second is a deviation.
+ *
+ * THE BASE VALUE IS `72%`, WHICH IS SCREENS.md §1.1's `rgba(0,0,0,.28)`, NOT
+ * the login prototype's `rgba(0,0,0,.3)`. SCREENS.md §3 describes this panel
+ * as "the cover treatment", and §1.1 is where that treatment is specified -
+ * so the binding value arrives by cross-reference from the spec, not from
+ * `Travel Diary Login.dc.html`, whose `.3` is an inconsistency between two of
+ * the handoff's own artefacts. `cover.module.css` uses the same `72%` for the
+ * same colour, so the two cloth surfaces in this product are now literally
+ * one treatment rather than two that look alike. This is a correction of the
+ * first implementation, which took the login prototype's `.3` and did not say
+ * that it differed (review round 1, finding 1); measured, the difference is
+ * worth 0.06 of a contrast ratio and no line's verdict.
+ *
+ * THE OPACITY IS THE DEVIATION, and it is `cover.module.css`'s (deviations
+ * §12), not one of this screen's own: the end stop is the OPAQUE form of
+ * §1.1's `rgba(0,0,0,.28)` - the colour that overlay resolves to ON the cloth
+ * - rather than the translucent value itself. The translucent one interpolates
+ * from an opaque colour to a 28%-opaque black, so the cloth's own alpha falls
+ * to about 0.72 by mid-block and the desk behind the shell shows through,
+ * lifting the background exactly where the small Courier lines sit.
+ * `color-mix` rather than a literal, so it still follows whichever cloth an
+ * editor picks. */
 .cloth,
 .masthead {
   background:
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.035) 0 2px, rgba(0, 0, 0, 0.03) 2px 4px),
-    linear-gradient(160deg, var(--sign-in-cloth) 0%, color-mix(in srgb, var(--sign-in-cloth) 70%, #000) 130%);
+    linear-gradient(160deg, var(--sign-in-cloth) 0%, color-mix(in srgb, var(--sign-in-cloth) 72%, #000) 130%);
 }
 
 /* "Cloth panel (wide only, display: none below the breakpoint)". */
@@ -201,8 +224,8 @@
 }
 
 /* HANDOFF-DEVIATION (docs/deviations.md §32): the alpha is `.78`, not the
- * prototype's `.72`. At `.72` the eyebrow measured 4.447:1 against the
- * LIGHTEST pixel under it (`#334b49`) - below AA's 4.5:1 for text this size,
+ * prototype's `.72`. At `.72` the eyebrow measured 4.429:1 against the
+ * LIGHTEST pixel under it (`#334c49`) - below AA's 4.5:1 for text this size,
  * and the only one of the panel's four lines that was. `.78` is the alpha
  * `.clothSubtitle` already uses, so no new colour is introduced. See this
  * file's header for why axe cannot judge these lines and
@@ -337,7 +360,7 @@
   color: rgba(238, 220, 180, 0.75);
 }
 
-/* `.7` is the prototype's, kept: measured at 4.577:1 over the masthead's own
+/* `.7` is the prototype's, kept: measured at 4.562:1 over the masthead's own
  * background, which clears AA's 4.5:1 - but by the narrowest margin on this
  * screen. Any change to this alpha, to the gradient above, or to the
  * masthead's inset shadow has to be RE-MEASURED (`e2e/a11y.spec.ts`'s

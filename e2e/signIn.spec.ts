@@ -62,6 +62,18 @@ const CODE_STEP_ON_NOTICE =
  * made during the initial load - the exact placement `e2e/smoke.spec.ts`
  * attaches its console listeners at, for the same reason.
  *
+ * WHAT IT DOES NOT SEE, STATED SO NOBODY READS IT AS TOTAL: direct property
+ * access. `localStorage.omDiaryOtp` goes through the Storage object's own
+ * named-property getter, not through `getItem`, so this recorder is blind to
+ * it. Replacing `window.localStorage` with a Proxy would close that and would
+ * also change the behaviour under test on a screen whose whole subject is
+ * that it does not touch storage, which is a poor trade for a gap the third
+ * case below already covers from the other side: a page reading a key by
+ * property access still has to NAME that key in a script, and that case
+ * downloads every script the page fetched and searches each one. Between them
+ * the two cases cover both spellings; neither does alone (review round 1,
+ * finding 7).
+ *
  * @param page - The page to instrument, before it is navigated.
  */
 const recordStorageReads = async (page: Page): Promise<void> => {

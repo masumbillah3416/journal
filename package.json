@@ -23,6 +23,7 @@
     "test:visual": "playwright test e2e/visual.spec.ts",
     "test:visual:container": "docker compose run --rm visual",
     "test:visual:container:update": "docker compose run --rm visual-update",
+    "test:visual:container:update:all": "docker compose run --rm visual-update-all",
     "test:a11y": "playwright test e2e/a11y.spec.ts",
     "test:perf": "lhci autorun --config=lighthouserc.json && lhci autorun --config=lighthouserc.book.json",
     "verify": "npm run typecheck && npm run lint && npm run test:unit",

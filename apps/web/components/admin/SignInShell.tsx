@@ -149,7 +149,7 @@ export const SignInShell = ({ book, children }: SignInShellProps): React.JSX.Ele
         </div>
       </div>
 
-      <div className={styles.formPanel}>
+      <div data-sign-in-form-panel className={styles.formPanel}>
         <div className={styles.pane}>{children}</div>
       </div>
     </div>

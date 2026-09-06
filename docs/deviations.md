@@ -1287,42 +1287,57 @@ and this entry move with it.
 `apps/web/lib/auth/passwordReset.integration.test.ts` that follows the link's token
 through a completed reset.
 
-## 32 · The sign-in cloth stays opaque across its gradient, and its eyebrow's alpha is `.78`
+## 32 · The sign-in cloth's eyebrow alpha is `.78`, and its gradient follows §1.1 rather than the login prototype
 
-**What changed:** two values on the sign-in screen's cloth panel, and nothing else on
-that screen.
+**What changed, and what only looks changed.** Three values on the sign-in screen's two
+cloth blocks are worth writing down; exactly one of them is a departure from the
+handoff's specification.
 
-1. `SCREENS.md` §3 refers the cloth panel to "the cover treatment", and the handoff's own
-   login prototype draws it as `linear-gradient(160deg, {cloth} 0%, rgba(0,0,0,.3) 130%)`.
-   `apps/web/components/admin/signIn.module.css` uses the OPAQUE form of that end stop —
-   `color-mix(in srgb, var(--sign-in-cloth) 70%, #000)`, which is the colour
-   `rgba(0,0,0,.3)` resolves to on the cloth — so the desk behind the shell no longer
-   shows through the middle of the gradient.
-2. `.clothEyebrow`/`.clothBackRoom`'s colour is `rgba(238,220,180,.78)`, where the
-   prototype has `.72`. `.78` is the alpha `.clothSubtitle` already uses, so no new colour
-   is introduced.
+1. **A deviation.** `.clothEyebrow`/`.clothBackRoom`'s colour is `rgba(238,220,180,.78)`,
+   where the handoff's login prototype has `.72`. `.78` is the alpha `.clothSubtitle`
+   already uses, so no new colour is introduced.
+2. **Not a deviation from `SCREENS.md`, but a departure from the login prototype, and the
+   first implementation of this file failed to say so.** The gradient's end stop is built
+   from `72%` — `SCREENS.md` §1.1's `rgba(0,0,0,.28)` — not from the login prototype's
+   `rgba(0,0,0,.3)`. §3 describes this panel as "the cover treatment", and §1.1 is where
+   that treatment is specified, so the binding value arrives by cross-reference from the
+   spec; the prototype's `.3` is an inconsistency between two of the handoff's own
+   artefacts, and following the spec is what the standing rule asks for. It also makes the
+   two cloth surfaces in this product literally one treatment rather than two that look
+   alike: `cover.module.css` uses the same `72%` for the same colour. **This entry
+   originally recorded the opacity change and not this base value at all, while the
+   stylesheet used `70%`** (review round 1, finding 1). Measured, the difference between
+   the two bases is worth about 0.06 of a contrast ratio and changes no line's verdict —
+   which is exactly why it could have sat there unnoticed.
+3. **`docs/deviations.md` §12's deviation, inherited rather than made again.** That end
+   stop is written as the OPAQUE form of §1.1's `rgba(0,0,0,.28)` —
+   `color-mix(in srgb, var(--sign-in-cloth) 72%, #000)`, the colour that overlay resolves
+   to on the cloth — rather than as the translucent value itself, so the desk behind the
+   shell no longer shows through the middle of the gradient. §12 is where that decision
+   and its measurements live; this screen applies it to the same treatment.
 
-**Rationale:** identical, in cause and in remedy, to §12's for the cover — this is the
-same treatment on a smaller panel, and it inherits the same defect. A gradient
-interpolating from an opaque colour to a 30%-opaque black falls to about 70% opacity by
-mid-block, and the light desk under it lifts the background exactly where the small
-Courier lines sit. Measured from the rendered pixels (see below), the eyebrow came in at
-**4.447:1** against WCAG 2.1 AA's 4.5:1 for text that size. Making the end stop opaque
-and raising that one alpha brings every line clear:
+**Rationale for (1).** A gradient interpolating from an opaque colour to a 28%-opaque
+black falls to about 72% opacity by mid-block, and the light desk under it lifts the
+background exactly where the small Courier lines sit. Even with §12's opaque end stop
+applied, the eyebrow measured **4.429:1** at the prototype's `.72`, against WCAG 2.1 AA's
+4.5:1 for text that size. Raising that one alpha brings both Courier lines clear:
 
 | Cloth panel line | Size | Before | After | Needs |
 |---|---|---|---|---|
-| Travel Diary | 10.5px | 4.447 | **4.924** | 4.5 |
-| Wanderings | 75px (fitted) | — | **7.974** | 3 (large text) |
-| subtitle | 17px italic | — | **5.275** | 4.5 |
-| The back room | 10.5px | — | **5.163** | 4.5 |
+| Travel Diary | 10.5px | 4.429 | **4.865** | 4.5 |
+| Wanderings | 75px (fitted) | 7.877 | 7.877 | 3 (large text) |
+| subtitle | 17px italic | 5.269 | 5.269 | 4.5 |
+| The back room | 10.5px | 4.640 | **5.102** | 4.5 |
 
-Only the eyebrow was ever below its floor; the other three are the prototype's own values,
-measured and left alone. Figures are the `desktop` project's; `mid` measures the same
-lines within 0.003. The narrow **masthead** is a separate block over the same gradient at
-a different inset shadow and needed no change at all — its three lines measure 4.805,
-7.974 and **4.577**, all clear, the last of them by the narrowest margin on this screen,
-which its own rule records.
+"Before" is the fully undeviated screen — §1.1's `.28` end stop left translucent, with the
+prototype's `.72` alpha — measured, not reasoned about. The title and subtitle do not move,
+because neither change touches them; "The back room" moves because it shares the eyebrow's
+rule. Figures are the `desktop` project's; `mid` measures the same lines within 0.003.
+
+The narrow **masthead** is a separate block over the same gradient at a different inset
+shadow and needed no change at all — its three lines measure 4.785, 7.877 and **4.562**,
+all clear, the last of them by the narrowest margin on this screen, which its own rule
+records with an instruction to re-measure rather than reason about any future change.
 
 **Why axe cannot settle it:** axe-core reports `color-contrast` as INCOMPLETE over a
 gradient rather than as a pass or a violation, so a green axe run on `/admin/sign-in` means
@@ -1335,11 +1350,14 @@ texture makes the background a range rather than a value), and flattens the line
 translucent cream onto it with `packages/domain/src/contrast.ts`.
 
 **What would reverse this:** a change to the cloth gradient, to the texture overlay, to
-either alpha, or to the panel's inset shadow — any of which has to be re-measured rather
-than reasoned about. If a future design makes the desk behind the shell dark, the opaque
-end stop stops being necessary and the prototype's own value can come back.
+the alpha, or to either block's inset shadow — any of which has to be re-measured rather
+than reasoned about. If a future design makes the desk behind the shell dark, §12's opaque
+end stop stops being necessary on this screen too, and the specified translucent value can
+come back. If the handoff ever reconciles its own two artefacts on `.3` versus `.28`,
+point (2) above is what records which one this repository followed and why.
 
-**Recorded as:** the two `HANDOFF-DEVIATION` comments in
-`apps/web/components/admin/signIn.module.css` (its header and the
-`.clothEyebrow`/`.clothBackRoom` rule), the note on `.mastheadBackRoom`, and the two
-contrast cases at the foot of `e2e/a11y.spec.ts`.
+**Recorded as:** the `HANDOFF-DEVIATION` comment in
+`apps/web/components/admin/signIn.module.css`'s header and at the
+`.clothEyebrow`/`.clothBackRoom` rule, the note at the `.cloth, .masthead` rule that
+distinguishes (2) and (3) from (1), the note on `.mastheadBackRoom`, and the two contrast
+cases at the foot of `e2e/a11y.spec.ts`.

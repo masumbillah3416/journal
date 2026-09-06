@@ -1127,7 +1127,8 @@ would claim a measurement nothing performs.
   npm run db:migrate && npm run db:seed          # once, on the host — these run the
                                                  # suite, not the fixtures
   npm run test:visual:container                  # compare against the committed baselines
-  npm run test:visual:container:update           # regenerate them
+  npm run test:visual:container:update           # regenerate the ones that actually moved
+  npm run test:visual:container:update:all       # regenerate every one — opt-in, see below
   ```
 
   Both are `docker compose run --rm` against the `visual`/`visual-update` services in
@@ -1152,17 +1153,28 @@ would claim a measurement nothing performs.
   - **`e2e/layout.spec.ts` runs in the same invocation**, because of the standing rule
     below: never accept a regenerated `diary-*` baseline unless that suite was green in
     the run that produced it.
-  - **The update service passes `--update-snapshots=all`**, never the default `changed`
-    mode, for the reason the cover-contrast regeneration found the hard way — and that
-    choice has a cost that has to be paid deliberately every time. `all` rewrites EVERY
-    baseline, including the ones whose diff was under `maxDiffPixelRatio` and which the
-    comparison run had just passed. On the run that added the sign-in baselines it
-    rewrote fifteen unrelated `diary-*` files that no change in that commit could have
-    touched. **So the order is: compare first, then update, then `git checkout` every
-    baseline you did not intend to change.** The compare run is what licenses that — a
-    file it passed and the update run rewrote moved by less than the threshold, which is
-    encoder and anti-aliasing noise, not drift. Committing that churn would make the next
-    real diff unreadable.
+  - **`--update-snapshots=changed` is the default, and `all` is a separate, named
+    service.** This started the other way round and the first use proved why it should
+    not: `all` rewrote fifteen unrelated `diary-*` baselines that no change in that commit
+    could have touched and that the comparison run immediately before had just passed —
+    encoder and anti-aliasing noise under `maxDiffPixelRatio`, not drift, and committing
+    it would have made the next real diff unreadable. They were caught and reverted by
+    hand, which is a rule that describes the next recurrence rather than preventing one.
+    `changed` writes only baselines whose diff EXCEEDS the threshold, plus any that are
+    missing entirely, so a new screen's baselines still land on the first run and nothing
+    else moves.
+
+    **The one case that needs `all`** — and the reason the opt-in exists rather than the
+    flag being deleted — is a baseline whose diff is UNDER the threshold and which is
+    nonetheless wrong, because `changed` leaves it alone while still reporting a pass. The
+    cover-contrast change (`docs/deviations.md` §12) is the real instance: it moved the
+    `mobile` cover by less than the threshold, and `changed` would have left that one file
+    showing the old, failing cover. Reach for
+    `npm run test:visual:container:update:all` when you have INTENDED a visual change that
+    a comparison run did not flag, and read `git status` afterwards.
+
+    Either way the order is the same: **compare first, then update.** The comparison run is
+    what tells you which files are supposed to move.
 
   `npm run test:visual` on a developer's own machine is still there, and on Linux it is
   the quick local check; off Linux it now skips with a message naming the container

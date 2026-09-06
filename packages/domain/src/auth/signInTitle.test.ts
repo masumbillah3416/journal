@@ -13,6 +13,15 @@
  * The masthead's bounds are the one pair SCREENS.md §3 states in prose —
  * "fitted title (28-44px)" — so they are asserted as the boundary values
  * they are, not merely as "some number".
+ *
+ * EVERY CLAMPED RESULT IS PINNED TO A LITERAL, never to the exported bound it
+ * is supposed to produce. `expect(fitSignInTitleSize('Rio')).toBe(
+ * SIGN_IN_TITLE_SIZE.max)` reads like an assertion and is not one: it moves
+ * with the constant, so editing `max` from 84 to 8 leaves it green and the
+ * clamp unguarded. The exported bounds are asserted separately, once each,
+ * against the numbers the handoff prototype gives — which is the only place
+ * either value is held still (review round 1, finding 4; the same defect this
+ * phase has now found three times).
  * Depends on: vitest, ./signInTitle.
  */
 import { describe, expect, it } from 'vitest'
@@ -30,15 +39,25 @@ describe('fitSignInTitleSize', () => {
   })
 
   it('holds a short title at the cloth panel’s maximum rather than growing past it', () => {
-    expect(fitSignInTitleSize('Rio')).toBe(SIGN_IN_TITLE_SIZE.max)
+    // floor(300 / (3 * 0.4)) = 250, clamped to 84.
+    expect(fitSignInTitleSize('Rio')).toBe(84)
   })
 
   it('holds a long title at the floor rather than shrinking it away', () => {
-    expect(fitSignInTitleSize('a'.repeat(80))).toBe(SIGN_IN_TITLE_SIZE.min)
+    // floor(300 / (80 * 0.4)) = 9, clamped up to 30.
+    expect(fitSignInTitleSize('a'.repeat(80))).toBe(30)
   })
 
   it('gives a title with nothing in it the maximum, never a division by zero', () => {
-    expect(fitSignInTitleSize('')).toBe(SIGN_IN_TITLE_SIZE.max)
+    expect(fitSignInTitleSize('')).toBe(84)
+  })
+
+  it('publishes the cloth panel’s bounds as the prototype’s own numbers', () => {
+    // The one place these two are held still. Every case above pins a
+    // literal rather than reading them back, so a change to either fails
+    // here AND wherever it changes a result.
+    expect(SIGN_IN_TITLE_SIZE.min).toBe(30)
+    expect(SIGN_IN_TITLE_SIZE.max).toBe(84)
   })
 })
 
@@ -65,6 +84,6 @@ describe('fitSignInMastheadTitleSize', () => {
   })
 
   it('gives a title with nothing in it the maximum, never a division by zero', () => {
-    expect(fitSignInMastheadTitleSize('')).toBe(SIGN_IN_MASTHEAD_TITLE_SIZE.max)
+    expect(fitSignInMastheadTitleSize('')).toBe(44)
   })
 })
