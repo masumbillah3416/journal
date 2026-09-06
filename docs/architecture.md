@@ -151,7 +151,7 @@ request for /admin/…
   │
   ├─ apps/web/middleware.ts  (EDGE runtime: no pg, no Payload, no node:crypto)
   │    ├─ isCrossSiteMutation → 403, empty body, admin headers on it
-  │    ├─ ADMIN_SECURITY_HEADERS on every response
+  │    ├─ adminSecurityHeaders({ development }) on every response
   │    └─ mints a pre-auth td-session for an anonymous browser on a public GET
   │
   └─ the route  (NODE runtime)

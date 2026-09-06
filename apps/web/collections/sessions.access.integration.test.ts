@@ -358,7 +358,7 @@ describe('the sessions access rule', () => {
   // including any a future field adds, rather than the ones a reader thought to
   // name. `updated_at` is excluded because Payload stamps it on any accepted
   // update, which is not a field write.
-  it('leaves every column of the reader own row untouched by any update they can make', async () => {
+  it('leaves every column of the reader\'s own row untouched by any update they can make', async () => {
     const before = await storedRow(aliceSession.id)
 
     for (const field of writableFieldNames()) {

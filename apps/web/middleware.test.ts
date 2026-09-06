@@ -122,7 +122,7 @@ describe('middleware', () => {
 
     it('puts every one of them on, not merely the policy', () => {
       // Asserted as a set rather than one by one: a header added to
-      // `ADMIN_SECURITY_HEADERS` and not applied here would otherwise be a
+      // `adminSecurityHeaders` and not applied here would otherwise be a
       // header nothing notices is missing.
       const response = middleware(requestFor('/admin/sign-in'))
 

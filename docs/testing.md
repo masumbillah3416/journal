@@ -2433,6 +2433,27 @@ own "Three wrong codes" message is consequently unreachable in the delivered app
 jsdom case stays green. The sweep driver was a temporary spec, deleted once the report was
 written; `e2e/ciRegistration.test.ts` correctly failed while it existed and passes now.
 
+#### `apps/web/lib/auth/securityCitations.test.ts` — the citation column checks itself
+
+`docs/security.md`'s table quotes 109 test case names. Task 11 wrote them and claimed none
+was paraphrased; its review found three that were, plus nine more carrying Markdown the
+source does not (backticks inside the quotation, restyled quotes), so twelve of the 109 could
+not be found by a reader who searched for them. Every one pointed at a real, correct,
+covering case — which is what makes it dangerous rather than obvious: nothing was wrong with
+the discharge, only with the citation.
+
+Nobody can hold 109 strings in their head across a rewrite. This unit test reads the document
+and every `.ts`/`.tsx` file under `apps/`, `packages/` and `e2e/`, and requires every
+quotation to appear verbatim. It normalises exactly two things, both notation rather than
+words: the backslash TypeScript needs before an apostrophe inside a single-quoted literal,
+and the curly apostrophe. It is non-vacuous three ways — a floor on the number of quotations
+found, a sentinel string required to be ABSENT (so the search is proved able to say no), and
+a case name owned by another file required to be PRESENT (so an empty file walk fails). It
+excludes its own source from the corpus, which is what keeps the sentinel meaningful.
+
+Proved able to fail: one citation was reworded from "not from Math.random" to "rather than
+Math.random" and the case failed naming it.
+
 ### 9 · Migration
 
 - **Tool:** Vitest.
