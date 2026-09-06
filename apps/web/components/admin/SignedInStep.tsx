@@ -4,10 +4,14 @@
  * the three ways on - "Open the admin panel", "View the diary instead" and a
  * borderless "Sign out and start again".
  *
- * Presentational component (CLAUDE.md §3.3), as `SignInShell.tsx` is: it
- * prints a fixed screen and decides nothing at all. It is deliberately NOT the
- * state machine its three siblings are - there is no state to be in, which is
- * what makes it the only server component among them.
+ * This module implements none of CLAUDE.md §3.3's seven named patterns, and
+ * that is the deliberate case rather than an oversight (§0 rule 5): it prints
+ * a fixed screen and decides nothing at all, so there is no seam, no fallible
+ * operation and no second caller-shape for a pattern to earn its place on. It
+ * is expressly NOT the state machine its three siblings are - there is no
+ * state to be in, which is what makes it the only server component among them.
+ * ("Presentational component", which this header and `SignInShell.tsx` both
+ * used to cite as a §3.3 pattern, is not one of the table's seven.)
  *
  * A SERVER COMPONENT, and the only one of the four panes that is. It holds no
  * state, no hooks and no handlers: the two ways on are anchors and signing out

@@ -81,12 +81,43 @@ const sourceFilesUnder = (relativePath: string): readonly string[] =>
   })
 
 /**
- * Every path segment this surface names under `/admin/reset/` in a QUOTED
- * STRING, which is the only shape a real address is written in.
+ * A source file with its comments blanked out, so a scan over it sees code.
  *
- * Prose is deliberately not matched: `resetPath.ts`'s own `@example` names a
- * token (`/admin/reset/ab12…`) in a comment, and a scan over raw text would
- * demand that a token be reserved.
+ * THIS EXISTS BECAUSE THE SCAN BELOW SHIPPED WITH A DECORATIVE SENTINEL. The
+ * first version matched a quoted address anywhere in the file text and claimed
+ * prose was "deliberately not matched". It was not: every TSDoc block in this
+ * repository writes an address in BACKTICKS, which the quote class included,
+ * and two comments in `newPasswordScreen.ts` name the reset endpoint. So the
+ * `toContain` sentinel meant to prove the scan had found the real constant was
+ * satisfied by a comment - moving the form's action off `/admin/reset`
+ * altogether left the case green. Blanking the comments first is what makes
+ * that sentinel load-bearing.
+ *
+ * TEXT-LEVEL, NOT A PARSE, and the failure direction is why that is enough:
+ * block comments go first, then whatever follows a `//` at the start of a line
+ * or after whitespace. Every URL this repository writes has its `//` preceded
+ * by a colon, so no string loses its tail - and if this ever did remove too
+ * much, it could only make the scan find FEWER addresses, which the sentinel
+ * turns into a failure rather than a silent pass.
+ *
+ * @param source - The file's text.
+ * @returns The same text with its comments replaced by whitespace.
+ */
+const withoutComments = (source: string): string =>
+  source
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .split('\n')
+    .map((line) => line.replace(/(^|\s)\/\/.*$/, ''))
+    .join('\n')
+
+/**
+ * Every path segment this surface names under `/admin/reset/` in a quoted
+ * string IN CODE, which is the only shape a real address is written in.
+ *
+ * Comments are blanked out before the scan, for the reason `withoutComments`
+ * gives: `resetPath.ts`'s own `@example` names a token in prose, so a scan
+ * over raw text both demands that a token be reserved and lets a comment
+ * stand in for the real address.
  *
  * @returns The segments, deduplicated, in no particular order.
  */
@@ -95,7 +126,7 @@ const addressedSegments = (): readonly string[] => {
   const found = new Set<string>()
 
   for (const file of [...sourceFilesUnder('components'), ...sourceFilesUnder('lib')]) {
-    for (const match of readFileSync(file, 'utf8').matchAll(quoted)) {
+    for (const match of withoutComments(readFileSync(file, 'utf8')).matchAll(quoted)) {
       const segment = match[2]
       if (segment !== undefined) found.add(segment)
     }
@@ -137,8 +168,12 @@ describe('the segments the [token] route may not swallow', () => {
     const addressed = addressedSegments()
 
     // The scan is asserted to have FOUND the segment ruling F56 is about, not
-    // merely to have produced no unreserved ones: a regex that matched
-    // nothing at all would otherwise pass this case with the defect present.
+    // merely to have produced no unreserved ones: a scan that matched nothing
+    // at all would otherwise pass this case with the defect present. This
+    // sentinel was itself decorative in the first fix round - it was satisfied
+    // by the endpoint's name in a COMMENT, so moving the form's action off
+    // `/admin/reset` entirely left it green. `withoutComments` is what makes
+    // it real, and moving the action is how it was watched to fail.
     expect(addressed).toContain('request')
     expect(addressed.filter((segment) => !isReservedResetSegment(segment))).toEqual([])
   })

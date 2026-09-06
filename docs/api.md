@@ -522,10 +522,17 @@ for a different reason — see its row.
   destinations: `/admin/sign-in` when the password is set,
   `/admin/reset/<token>?state=rejected` when Payload refused the password, and
   `/admin/reset/<token>` when the link itself was refused (the screen's own read of the
-  link draws the expired state). A body carrying neither field goes to `/admin/reset`.
-  Everything put back into an address is percent-encoded, so a crafted token cannot write
-  its own query string or path segments into the `Location`.
-- **Errors:** none escape. `payload.resetPassword` throws for both refusals and
+  link draws the expired state). A body carrying neither field goes to `/admin/reset`, and
+  so does **a body that is not a form at all** — no `Content-Type`, or one naming any
+  other encoding. Everything put back into an address is percent-encoded, so a crafted
+  token cannot write its own query string or path segments into the `Location`.
+- **Errors:** none escape. Until the Task 9 re-review probed it, one did: `Request.formData()`
+  THROWS rather than returning empty for a body it cannot parse, so a `POST` carrying no
+  `Content-Type` answered **`500` with an empty body** before Zod saw anything — an
+  unhandled error at a trust boundary, which CLAUDE.md §3.1 forbids. `submittedFields`
+  now maps that throw to the empty submission the schema already refuses, so every request
+  this screen did not make gets one answer instead of two.
+  `payload.resetPassword` throws for both refusals and
   `apps/web/lib/auth/setNewPassword.ts`'s `refusalFrom` narrows what it threw — status
   `400` (Payload's `ValidationError`) is a refused password, and everything else, a thrown
   string or a dropped connection included, is reported as a refused link, which is the

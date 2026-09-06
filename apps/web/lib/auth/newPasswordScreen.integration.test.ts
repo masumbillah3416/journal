@@ -208,23 +208,32 @@ describe('what a GET of the screen is told', () => {
     expect(await readNewPasswordScreen({ token: UNKNOWN_TOKEN, state: 'rejected' })).toBe('expired')
   })
 
-  it('404s on a reserved segment rather than reading it as a token', async () => {
-    // Ruling F56. `[token]` sits directly above the address §3.3's own form
-    // posts to, so before the reservation `request` was a valid token
-    // spelling and "Send the link" answered 200 with "That link has expired" -
-    // a screen telling the reader that a link they never asked for is dead.
+  it('404s on every reserved segment rather than reading one as a token', async () => {
+    // Ruling F56. `[token]` sits directly above the two addresses this surface
+    // names under `/admin/reset/`, so before the reservation `request` was a
+    // valid token spelling and "Send the link" answered 200 with "That link
+    // has expired" - a screen telling the reader that a link they never asked
+    // for is dead. BOTH words are asserted, not just the one the defect was
+    // about: `set` is shielded today only by Next.js resolving a static
+    // segment first, which is a property of a route that exists.
     // The digest is Next's own contract for `notFound()`, and it is what
     // makes the route answer 404 rather than draw anything at all.
     await expect(readNewPasswordScreen({ token: 'request', state: undefined })).rejects.toMatchObject({
       digest: NOT_FOUND_DIGEST,
     })
+    await expect(readNewPasswordScreen({ token: 'set', state: undefined })).rejects.toMatchObject({
+      digest: NOT_FOUND_DIGEST,
+    })
   })
 
-  it('draws the expired state for every reserved segment’s near neighbours', async () => {
-    // The pair that proves the case above is about the reservation and not
-    // about "any token that is not hexadecimal": both of these reach Payload,
-    // are refused there, and get a screen rather than a 404.
+  it('draws the expired state for the near neighbour of every reserved segment', async () => {
+    // What proves the case above is about the RESERVATION and not about "any
+    // token that is not hexadecimal": each of these reaches Payload, is
+    // refused there, and gets a screen rather than a 404. One per reserved
+    // word, because a reservation that behaved as a prefix would cost a real
+    // reader their link.
     expect(await readNewPasswordScreen({ token: 'requests', state: undefined })).toBe('expired')
+    expect(await readNewPasswordScreen({ token: 'sets', state: undefined })).toBe('expired')
     expect(await readNewPasswordScreen({ token: UNKNOWN_TOKEN, state: undefined })).toBe('expired')
   })
 })
@@ -269,6 +278,33 @@ describe('what a POST to the screen answers', () => {
 
   it('sends a body with no fields in it back to the reset form', async () => {
     const answered = await post(null)
+
+    expect(answered.status).toBe(303)
+    expect(answered.headers.get('Location')).toBe(RESET_PATH)
+  })
+
+  it('sends a body that is not a form at all back to the reset form too', async () => {
+    // A TRUST BOUNDARY, and it answered 500 with an empty body until the Task
+    // 9 re-review probed it: `Request.formData()` THROWS for a content type it
+    // cannot parse, so Zod never saw the submission and nothing caught the
+    // throw (CLAUDE.md §3.1). This route is mounted and reachable today.
+    const answered = await handleSetNewPassword(
+      new Request(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: 'a', password: 'b' }),
+      }),
+    )
+
+    expect(answered.status).toBe(303)
+    expect(answered.headers.get('Location')).toBe(RESET_PATH)
+  })
+
+  it('sends a body with no content type at all back to the reset form', async () => {
+    // The shape the re-review actually probed: a `POST` carrying bytes and no
+    // `Content-Type` header. It is what a hand-rolled request, a misconfigured
+    // client or a scan sends, and it reached the same throw.
+    const answered = await handleSetNewPassword(new Request(ENDPOINT, { method: 'POST', body: 'token=a' }))
 
     expect(answered.status).toBe(303)
     expect(answered.headers.get('Location')).toBe(RESET_PATH)

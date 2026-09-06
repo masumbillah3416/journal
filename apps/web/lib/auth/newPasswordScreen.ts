@@ -49,11 +49,15 @@
  * crafted submission write its own query string, or its own path segments,
  * into the `Location` this handler chose.
  *
- * A BODY WITH NO FIELDS GOES TO THE RESET FORM, not to an error. Zod parses
- * the submission at the boundary (CLAUDE.md §3.1) and a request carrying
- * neither field is not a reader who mistyped a password — it is a request that
- * never came from this screen, and the useful answer is the screen where a
- * reset actually starts.
+ * A BODY THIS SCREEN DID NOT SEND GOES TO THE RESET FORM, not to an error.
+ * Zod parses the submission at the boundary (CLAUDE.md §3.1) and a request
+ * carrying neither field is not a reader who mistyped a password — it is a
+ * request that never came from this screen, and the useful answer is the
+ * screen where a reset actually starts. THAT NOW COVERS A BODY WHICH IS NOT A
+ * FORM AT ALL: `Request.formData()` throws for a content type it cannot parse,
+ * so until the Task 9 re-review probed it, a `POST` with no `Content-Type`
+ * answered 500 with an empty body. `submittedFields` turns that throw into the
+ * same empty submission Zod already refuses.
  *
  * WHAT THIS MODULE DOES NOT DO. It does not check a CSRF token, set a cookie
  * or apply the admin's CSP: all three are Task 10's, which owns the cookie
@@ -132,6 +136,35 @@ export const readNewPasswordScreen = async ({ token, state }: NewPasswordScreenR
 }
 
 /**
+ * The submission's fields, or none at all when the body is not a form.
+ *
+ * `Request.formData()` THROWS rather than returning empty for a body it cannot
+ * parse - no `Content-Type`, or one naming anything but a form encoding. Until
+ * the Task 9 re-review probed it, that throw left this endpoint answering 500
+ * with an empty body: an unhandled error at a trust boundary, which is exactly
+ * what CLAUDE.md §3.1 forbids.
+ *
+ * THE ERROR IS NOT INSPECTED, because there is nothing stable to inspect: the
+ * runtime raises a plain `TypeError` whose message is its own wording, and
+ * discriminating on that would be a contract this repository does not own -
+ * the same reasoning `setNewPassword.ts` gives for reading Payload's status
+ * rather than its messages. Every unparseable body means one thing here
+ * anyway: the request did not come from this screen. So it is mapped to the
+ * empty submission the schema already refuses, and there is ONE answer for
+ * every request this screen did not make rather than two.
+ *
+ * @param request - The `POST` as it arrived.
+ * @returns The form's fields, or an empty object for a body that is not a form.
+ */
+const submittedFields = async (request: Request): Promise<Record<string, FormDataEntryValue>> => {
+  try {
+    return Object.fromEntries(await request.formData())
+  } catch {
+    return {}
+  }
+}
+
+/**
  * A `303 See Other` pointing at `location`.
  *
  * @param location - Where the browser should go, as a root-relative path.
@@ -150,7 +183,7 @@ const seeOther = (location: string): Response => new Response(null, { status: 30
  * export const POST = handleSetNewPassword
  */
 export const handleSetNewPassword = async (request: Request): Promise<Response> => {
-  const submitted = submission.safeParse(Object.fromEntries(await request.formData()))
+  const submitted = submission.safeParse(await submittedFields(request))
   if (!submitted.success) return seeOther(RESET_PATH)
 
   const { token, password } = submitted.data

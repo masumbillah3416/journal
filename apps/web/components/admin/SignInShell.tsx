@@ -3,11 +3,15 @@
  * panel, the narrow masthead and the form panel every step is drawn inside.
  * SCREENS.md §3 transcribed.
  *
- * Presentational component (CLAUDE.md §3.3) over `readSignInScreen`'s own
- * values: it prints what the route hands it and decides nothing except which
- * of the book's lines an editor has actually filled in. It holds no hooks, no
+ * This module implements none of CLAUDE.md §3.3's seven named patterns, and
+ * that is the deliberate case rather than an oversight (§0 rule 5): it prints
+ * what `readSignInScreen` hands it and decides nothing except which of the
+ * book's lines an editor has actually filled in. It holds no hooks, no
  * handlers and no state, so it is a server component and costs the route no
- * client JavaScript at all.
+ * client JavaScript at all. This header cited "Presentational component (§3.3)"
+ * until the Task 9 re-review; that is a real description but not one of the
+ * table's seven, and every other pane on this surface follows this file, so
+ * the citation was corrected here as well as where it was copied.
  *
  * WHY IT TAKES `children` RATHER THAN A STEP NAME. SCREENS.md §3 draws one
  * screen with four states inside the same shell - password, one-time code,
