@@ -356,8 +356,11 @@ for a different reason — see its row.
   each for that key (none names it), and plants the key with the opposite answer before
   navigating, requiring the line not to move.
 
-  **"Forgotten" links to `/admin/reset`, which is not mounted yet** — Phase 2 Task 9 owns
-  it, and until it lands that link resolves to a `404` (`docs/deviations.md` §31).
+  **"Forgotten" links to `/admin/reset`, which Task 9 mounted** — see its own row below.
+  Both that link and the emailed one are built from a single constant,
+  `apps/web/lib/auth/resetPath.ts`'s `RESET_PATH`, and `resetPath.test.ts` asserts a route
+  file exists at that address and at its `[token]` child rather than only that two
+  spellings of it agree.
 
 ### `GET /admin/sign-in/code`
 
@@ -405,6 +408,150 @@ for a different reason — see its row.
   exists because `maxLength="1"` truncates a pasted string to one character before
   `change` fires; `e2e/codeStep.spec.ts` proves the whole six-digit paste against a real
   clipboard.
+
+### `GET /admin/reset`
+
+- **Method:** `GET`. This route answers nothing else; the `POST` the form makes goes to a
+  sibling path named below.
+- **Input:** one optional query value, `sent` — the masked address the reset endpoint
+  redirects with. It decides which of `SCREENS.md` §3.3's two states is drawn, through
+  `@travel-diary/domain/auth/resetScreen`'s `resetRequestView`: absent is the pending
+  state, present is the sent state. **Whatever it holds is passed through `maskEmail`
+  before it is printed**, so a hand-typed whole address renders as `he•••@…` and a value
+  that is not an address at all renders as `•••`. Nothing this repository writes ever puts
+  an unmasked address in that parameter — a URL reaches every access log between here and
+  the reader (CLAUDE.md §7).
+- **Output:** an HTML document: the same `SCREENS.md` §3 shell every sign-in state is
+  drawn in, with §3.3's reset pane in the form panel. *Pending:* "← Back to sign in", the
+  "Forgotten" eyebrow, "Send yourself a way back in", a lede, a rule, one Email field,
+  "Send the link", and "The link works once and lasts an hour. Nothing about the diary
+  changes until you use it." *Sent:* the same head with "Check your email", then the green
+  confirmation block (`rgba(47,107,104,.07)`, a 14px rotated `#2f6b68` mark, the masked
+  address), "Sign in with the new password" and "Send it again". `metadata` sets the
+  document title and `robots: { index: false, follow: false }`.
+- **Errors:** none observable. There is no state for an address that names no account,
+  deliberately — see below.
+- **Auth requirement:** none. It is reached from the door.
+- **Notes:** **there is exactly one screen for an address that exists and one that does
+  not, because there is exactly one code path.** `SECURITY.md` §3 requires the reset
+  endpoint to "respond identically whether or not the address exists", and
+  `apps/web/lib/auth/passwordReset.ts` discharges it by deriving the masked address from
+  what was *submitted* rather than from a row. This route is told one thing — whether a
+  request was made — so a "no such account" state is not something it could draw without
+  first being handed the answer the whole path exists to withhold.
+
+  **The `POST` this screen makes has no row here yet.** The pending form targets
+  `/admin/reset/request` (`RESET_REQUEST_ENDPOINT`, exported from
+  `apps/web/components/admin/ResetStep.tsx` so the handler mounts at the path the form
+  actually posts to). **Phase 2 Task 10 owns it**, along with the cookie policy, the CSRF
+  check and the admin's CSP; until then that form posts to a `404`, exactly as the
+  password step's does. The service behind it is built and proven
+  (`passwordReset.integration.test.ts`), so what is missing is the endpoint rather than
+  the mechanism (`docs/deviations.md` §39).
+
+  **"Send it again" is a link back to this screen, not a second request.** The
+  confirmation is told the masked address and nothing else, so there is nothing left to
+  resend with; a reader who wants another link types the address again
+  (`docs/deviations.md` §37).
+
+### `GET /admin/reset/<token>`
+
+- **Method:** `GET`. This is the address the reset email has named since Task 5; the
+  `POST` its form makes goes to `/admin/reset/set`, below.
+- **Input:** the token as the last path segment, and one optional query value, `state`.
+  Which screen is drawn is `apps/web/lib/auth/newPasswordScreen.ts`'s
+  `readNewPasswordScreen`: it asks `linkState(token)` whether the token still names a row
+  whose `resetPasswordExpiration` is in the future, then
+  `@travel-diary/domain/auth/resetScreen`'s `newPasswordView` combines that with `state`.
+  **The link overrules the query**: a spent token draws the expired state whatever the
+  address bar asks for, so a form is never drawn for a token that cannot work. The only
+  `state` value that means anything is `rejected`, which the endpoint below redirects
+  with; there is deliberately no `state=expired`, because the link's own state is read
+  here, and one fact read in one place cannot disagree with itself.
+- **Output:** an HTML document: the §3 shell with the set-a-new-password pane in it.
+  *Form:* "← Back to sign in", the "Forgotten" eyebrow, "Choose a new password", a lede, a
+  rule, one password field with a right-inset Show/Hide, a hidden `token` field, and "Set
+  the new password". *Rejected:* the same, with "That password was not accepted. Try a
+  longer one." in §3.1's error box. *Expired:* "That link has expired", a lede, a rule and
+  "Send yourself another", with **no form and no field at all**. `metadata` sets the
+  document title and `robots: { index: false, follow: false }` — which matters more here
+  than on any other screen, since this address carries a live credential in its path.
+- **Errors:** none observable. A token that names nothing is not an error; it is the
+  expired state, served `200`.
+- **Auth requirement:** the token is the authorisation. Nothing else is read.
+- **Notes:** **this screen is not in the handoff.** `SCREENS.md` §3.3 draws the reset
+  *request* in two states and stops; the prototype has no screen for the link, because a
+  prototype can pretend the link worked. Phase ruling F47 gave it to Task 9, and it is
+  assembled from §3.3's own surface rather than invented (`docs/deviations.md` §36).
+
+  **`linkState` is a read, and it is an oracle on purpose.** An unauthenticated request
+  can ask whether any string is a live reset token. What that buys is bounded by the token
+  itself — Payload mints 20 CSPRNG bytes — and the alternative, drawing a form for a token
+  that cannot work, is worse for the reader and no better for an attacker, who can ask the
+  same question by posting a password against it.
+
+  **The token is never printed.** It reaches the pane as a prop and is rendered only as a
+  hidden field's value; the expired state renders it nowhere at all, which
+  `e2e/reset.spec.ts` asserts against the delivered markup.
+
+### `POST /admin/reset/set`
+
+- **Method:** `POST`. The first `POST` endpoint the bespoke sign-in surface has.
+- **Input:** a form body with two fields, `token` and `password`, parsed with Zod at the
+  boundary (`apps/web/lib/auth/newPasswordScreen.ts`). Both are plain strings with no
+  further rule: an empty password is a real submission Payload refuses on its own terms,
+  and an empty token is a real submission that matches no row. **The token travels in the
+  body rather than in the path** — a URL is the most copied, logged and forwarded part of
+  a request, and it is already in the address the reader arrived at; there is no reason to
+  put it in a second one.
+- **Output:** always a `303 See Other` with an empty body, never a rendered page. Three
+  destinations: `/admin/sign-in` when the password is set,
+  `/admin/reset/<token>?state=rejected` when Payload refused the password, and
+  `/admin/reset/<token>` when the link itself was refused (the screen's own read of the
+  link draws the expired state). A body carrying neither field goes to `/admin/reset`.
+  Everything put back into an address is percent-encoded, so a crafted token cannot write
+  its own query string or path segments into the `Location`.
+- **Errors:** none escape. `payload.resetPassword` throws for both refusals and
+  `apps/web/lib/auth/setNewPassword.ts`'s `refusalFrom` narrows what it threw — status
+  `400` (Payload's `ValidationError`) is a refused password, and everything else, a thrown
+  string or a dropped connection included, is reported as a refused link, which is the
+  answer that cannot mislead.
+- **Auth requirement:** the token in the body. No session, no cookie.
+- **Notes:** **`303`, not `302`.** 303 is the one status that requires the browser to
+  follow with a `GET`, and this endpoint spends a link — a reader who reloaded a `302`
+  would be shown a refusal for a link they had just used successfully.
+
+  **It carries no CSRF check, and that is stated rather than assumed.** Task 10 owns the
+  CSRF check and the cookie policy for the whole surface. What it costs here is bounded:
+  the authorisation for this endpoint is the token in the body, which a cross-site forgery
+  does not have, so a forged post can spend no link an attacker could not already spend
+  directly.
+
+  **A static segment beside a dynamic one.** `set` resolves before `[token]`, and no token
+  can be the string `set` — Payload mints them as hexadecimal. Keeping the handler off a
+  bracketed route also keeps it where `@vitest/coverage-v8`'s ignore hints are honoured
+  (CLAUDE.md §2.1).
+
+### `GET /admin/sign-in/done`
+
+- **Method:** `GET`. The `POST` that "Sign out and start again" makes goes to
+  `/admin/sign-out`, which is not mounted yet.
+- **Input:** none. No path parameter, no query, no body and no cookie is read — see
+  "Notes", where that is recorded as a gap rather than a design.
+- **Output:** an HTML document: the §3 shell with `SCREENS.md` §3.4's signed-in state — a
+  62px ringed circle holding a 20px `#2f6b68` square, the "Signed in" eyebrow, "The back
+  room is open", a status line, then "Open the admin panel" (primary, to `/admin`), "View
+  the diary instead" (secondary, to `/p/1`) and a borderless "Sign out and start again".
+  `metadata` sets the document title and `robots: { index: false, follow: false }`.
+- **Errors:** none observable.
+- **Auth requirement:** **none today, and that is temporary.** Knowing that a reader is
+  signed in means reading the session cookie, and Phase 2 Task 10 owns the cookie policy.
+- **Notes:** the screen shows nothing an unauthenticated visitor could not already see —
+  no account, no address, no session, nothing but three links and a fixed line of copy —
+  and neither place it leads becomes reachable because this screen was
+  (`docs/deviations.md` §39). The status line is ours rather than the prototype's, whose
+  own line counts unpublished changes that no phase before 4 can compute
+  (`docs/deviations.md` §38).
 
 ## Planned routes (Phase 1)
 

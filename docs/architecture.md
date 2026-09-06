@@ -143,13 +143,24 @@ the six alternatives it beat.
 
 Phase 2 Task 7 added `SCREENS.md` §3's sign-in screen — the first thing in
 `apps/web/components/admin/`, and the first screen of the bespoke panel. Task 8 added its
-second state. Three components, one stylesheet, and one client boundary per pane.
+second state and Task 9 the remaining three. Six components, one stylesheet, and one
+client boundary per pane that needs one — two of the six need none.
+
+**All six panes are drawn inside one shell, and that is the whole reason `SignInShell`
+takes `children`.** `SCREENS.md` §3 is one screen with four states in it; the frame is
+identical in every one and only the pane changes. Six route entries hand it a different
+pane — `/admin/sign-in`, `/admin/sign-in/code`, `/admin/reset` (in either of §3.3's
+states), `/admin/reset/<token>` (in any of its three) and `/admin/sign-in/done` — and none
+of them has needed a line of the frame changed.
 
 | File                | Responsibility                                                                                                                                                                                                    |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SignInShell.tsx`   | The frame: the desk (which IS the route's `<main>`, so nothing sits outside a landmark and nothing empty is added to satisfy one), the shell's grid, the cloth panel with its spine, stitches, rules, ribbon and "PRIVATE / 01" stamp, the narrow masthead, and the form panel. A SERVER component — no hooks, no handlers, no state — so the frame costs the route nothing in the browser. It takes the step as `children`, which is what lets §3's other three states reuse it unchanged. |
 | `PasswordStep.tsx`  | §3.1's pane, and the route's only `'use client'` module. Two pieces of state and no more: whether the password is revealed, and which field the reader has to fix. It is a real `<form method="post">` rather than a `fetch`, so a reader with no JavaScript can still sign in; the handler it posts to is Task 10's. |
 | `CodeStep.tsx`      | §3.2's pane, the second `'use client'` module on this screen, and the most intricate thing in it: six `flex: 1` cells, an expiry countdown, a resend cooldown, an attempts counter and a shake. It owns none of the arithmetic — `nextCell` and `distributePaste` (`@travel-diary/domain/auth/otpCells`) decide what the keyboard and the clipboard do, `secondsRemaining`/`formatCountdown` (`otpCountdown`) turn an instant into `{m:ss}`, and every number comes from `otpChallenge`'s own constants. TWO real `POST` forms, not one with two buttons, so verifying and resending each say what they are for and neither needs JavaScript. |
+| `ResetStep.tsx`     | §3.3's pane, in both of its states. `'use client'`, for one piece of state: whether the address the reader typed is worth posting. The state itself is the SERVER's, arriving as a `ResetRequestView` — there is deliberately no branch here for an address that names no account, because `SECURITY.md` §3 requires one answer for both and a screen that could draw two would be the oracle the whole path is shaped to avoid. |
+| `NewPasswordStep.tsx` | The pane the mailed link lands on, which `SCREENS.md` does not describe at all (`docs/deviations.md` §36) and which is assembled from §3.3's own surface. `'use client'`, for the Show/Hide and the empty-field refusal. Its token is rendered only as a hidden field's value and appears in no heading, message or log; the expired state prints none at all. |
+| `SignedInStep.tsx`  | §3.4's pane, and the only one of the five that is a SERVER component. It has no state to hold: two anchors and one `<form method="post">`, so the screen needs no JavaScript to work and the route ships none for it. Sign-out is a `POST` rather than a link precisely because a link would let a prefetch, a crawler or another site's `<img>` sign a reader out. |
 | `signIn.module.css` | §3's measurements. NARROW IS A MEDIA QUERY, not a measured width: the prototype reads `window.innerWidth` and re-measures on resize, which here would mean every phone painting the wide layout first and reflowing after hydration. Carries the `HANDOFF-DEVIATION` at the cloth gradient and the cloth eyebrow (`docs/deviations.md` §32). |
 
 **The shake is the one place a pane reaches the frame, and it does it through the
@@ -161,6 +172,25 @@ JavaScript, and it puts the animation somewhere a `prefers-reduced-motion` query
 switch it off — which `e2e/codeStep.spec.ts` reads back off the computed style under both
 settings, because a test that only checked the flag was raised would say nothing about the
 query.
+
+**The reset path is the one journey on this surface that crosses the server twice, and
+Task 9's seam is drawn so that neither route file decides anything.** A Next.js page
+component cannot be run by either Vitest project, and `/admin/reset/[token]` sits under a
+bracketed directory where `@vitest/coverage-v8`'s ignore hints are documented not to hold
+(CLAUDE.md §2.1) — so a branch in either file is a branch nothing can measure. There is
+none. `@travel-diary/domain/auth/resetScreen` holds the two rules (`resetRequestView`,
+`newPasswordView`) at the domain's 100% bar; `apps/web/lib/auth/setNewPassword.ts` is the
+only place a reset link is read or spent; `apps/web/lib/auth/newPasswordScreen.ts` turns
+HTTP into those calls and back, and is driven by an integration test with a real `Request`
+and a real Payload. `app/(admin)/admin/reset/set/route.ts` is one line: `export const POST
+= handleSetNewPassword`.
+
+**Which state that screen draws is decided by the LINK, not by the address bar.**
+`linkState` asks Payload whether the token still names a row whose expiry is in the
+future; `newPasswordView` combines that with the query, and a spent link draws the expired
+state whatever the query asks for. A form drawn for a token that cannot work is a password
+typed for nothing — and there is deliberately no `state=expired` for the endpoint to
+redirect with, because one fact read in one place cannot disagree with itself.
 
 **The one thing to understand about this screen is where the footer line's answer comes
 from.** It states whether the one-time-code step runs, and `SECURITY.md`'s second

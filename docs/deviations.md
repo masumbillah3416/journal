@@ -1268,15 +1268,18 @@ because the session cookie is scoped `Path=/admin` — a reset screen outside it
 read the session it is about to establish. The hour is not ours: it is Payload's own
 `forgotPassword` expiry default, which happens to be exactly what §3.3 asks for.
 
-**One thing this deviation does NOT cover, and it is worth being plain about:** the
-screen that consumes the link does not exist yet. Task 5 mints a real token that
-Payload's `resetPassword` really consumes — `passwordReset.integration.test.ts` completes
-a reset with it and then signs in with the new password — but at the time Task 5 shipped, Task 9's
-brief covered §3.3's two *request* states and not the set-a-new-password screen the link
-lands on. **That gap is now closed by a controller ruling: Task 9 owns the screen** — the
-`[token]` route at this path, the form, the `payload.resetPassword` call, the
-invalid/expired state, and an e2e case that follows the mailed link. Until it lands the
-link resolves to a 404. Recorded here rather than left to be discovered.
+**The screen this link lands on now exists, and §36 records it.** When Task 5 shipped, it
+did not: the token was minted, mailed and provably consumable — `passwordReset.integration.test.ts`
+completed a reset with it and then signed in with the new password — while the address the
+link named answered 404, because Task 9's brief covered §3.3's two *request* states and not
+the set-a-new-password screen. Phase ruling F47 gave that screen to Task 9, which built the
+`[token]` route, the form, the `payload.resetPassword` call, the invalid/expired state and
+the end-to-end case that follows the mailed link out of the mailer's outbox
+(`apps/web/lib/auth/setNewPassword.integration.test.ts`). **The path is also spelled once
+now**: `apps/web/lib/auth/resetPath.ts` holds it, both the email and the "Forgotten" link
+import it, and `resetPath.test.ts` asserts a route file exists at that address and at its
+`[token]` child — a constant that agrees with itself proves nothing about whether anything
+is mounted where it points, which is exactly how this gap survived four tasks.
 
 **What would reverse this:** the repository owner supplying their own copy, which is
 theirs to write; or a later phase moving the reset screen, at which point `RESET_PATH`
@@ -1473,3 +1476,151 @@ the prototype's tail verbatim.
 
 **Recorded as:** this entry, and the note at the foot of `CodeStep.tsx`'s render, which
 names what the prototype has there and why it is not drawn.
+
+## 36 · The screen the reset link lands on is ours entirely — the handoff has none
+
+**What changed:** `apps/web/components/admin/NewPasswordStep.tsx`,
+`apps/web/app/(admin)/admin/reset/[token]/page.tsx` and `POST /admin/reset/set` draw and
+answer a screen `SCREENS.md` does not describe: one password field with a right-inset
+Show/Hide, "Set the new password", and an expired state carrying "That link has expired"
+and "Send yourself another". Every string on it is new, and so is the endpoint.
+
+**Rationale:** `SCREENS.md` §3.3 draws the reset *request* in two states and stops there,
+and the handoff's own login prototype does the same — a prototype can pretend the link
+worked. The consequence was not theoretical: for four tasks this repository sent a real
+reset email carrying a real token to an address that answered 404, with every mechanism
+behind it green. Phase ruling F47 gave the screen to Task 9.
+
+It is **assembled from §3.3's own surface rather than invented**, so it is a departure in
+copy and not in design: the same "← Back to sign in" link, the same "Forgotten" eyebrow,
+the same Caveat 50px title, the same rule at `22px 0 20px`, §3.1's own field, Show/Hide
+and error box, and §3.3's own primary button at `margin-top: 18px`. The one sentence of
+copy that *is* the handoff's — "The link works once and lasts an hour" — opens both of its
+ledes, so the email, the request screen and this screen make the same promise in the same
+words.
+
+**Three decisions inside it are worth naming, because each had a plausible alternative.**
+
+1. **The token travels in the body, not in the endpoint's path.** The form posts to
+   `/admin/reset/set` with a hidden `token` field rather than to
+   `/admin/reset/<token>/set`. A URL is the most copied, logged and forwarded part of a
+   request — it reaches access logs and `Referer` headers a body does not — and the token
+   is the entire authorisation for the operation. It is already in the address the reader
+   arrived at, which cannot be helped; there is no reason to put it in a second one. It
+   also keeps the handler off a bracketed route, where `@vitest/coverage-v8`'s ignore
+   hints are documented not to hold (CLAUDE.md §2.1).
+2. **The link's state is read on `GET`, and it overrules the query string.** A form drawn
+   for a spent token is a password typed for nothing. `linkState` asks the same two
+   questions `payload.resetPassword` asks — is there a row with this token, is its expiry
+   still in the future — without touching either column. It is an oracle, deliberately:
+   an unauthenticated request can ask it about any string, and what that buys is bounded
+   by the 20 CSPRNG bytes Payload mints, while the alternative is worse for the reader and
+   no better for an attacker, who can ask the same question by posting a password.
+3. **No password policy is invented.** `SECURITY.md` states none and the handoff states
+   none, so the only refusal made in the browser is an empty field — the same call
+   `PasswordStep.tsx` makes about the sign-in field, for the same reason. Payload's own
+   rule is the policy, and when it refuses, the endpoint reports it as a refused
+   *password* rather than as a refused *link*, so a reader with a perfectly good link is
+   not sent round the whole loop for three missing characters.
+
+**What would reverse this:** the repository owner supplying their own copy or their own
+layout for this screen, which is theirs to write; or a later handoff revision describing
+it, at which point the spec binds and this entry goes.
+
+**Recorded as:** the header of `apps/web/components/admin/NewPasswordStep.tsx`, the header
+of `apps/web/lib/auth/setNewPassword.ts`, the three route rows in `docs/api.md`, and
+`apps/web/components/admin/NewPasswordStep.test.tsx` plus
+`apps/web/lib/auth/newPasswordScreen.integration.test.ts`, which assert every string and
+every redirect above.
+
+## 37 · "Send it again" is a link back to the form, not a second request
+
+**What changed:** in `SCREENS.md` §3.3's *sent* state, the secondary control "Send it
+again" is an anchor back to `/admin/reset` — the pending form — rather than a control that
+re-sends the link.
+
+**Rationale:** the handoff's prototype keeps the reader's address in component state, so
+its own "Send it again" re-runs the request against an address it still holds. This screen
+is a real page, and by the time the confirmation is drawn the address is gone: the only
+thing that reaches it is the **masked** value, which cannot be posted anywhere. Both ways
+of keeping the real one were worse. Putting it in the redirect would write a whole address
+into a URL, and therefore into every access log the response passes through, which is
+precisely what CLAUDE.md §7 and the masking exist to prevent. Putting it in a hidden field
+would mean the sent state had to be *told* the address, which is the same disclosure one
+layer down.
+
+The cost is one keystroke run: a reader who wants another link types the address again,
+into a mailbox they are already looking at. The control keeps its label, its position and
+its styling; only where it goes is different.
+
+**What would reverse this:** a signed, short-lived server-side handle for "the address
+this request was made with" — the same shape the pre-auth session takes — which Task 10's
+cookie policy could carry. At that point the control can post again and this entry goes.
+
+**Recorded as:** the header of `apps/web/components/admin/ResetStep.tsx`, the
+`GET /admin/reset` row in `docs/api.md`, and the case in `ResetStep.test.tsx` that asserts
+where the control leads.
+
+## 38 · SCREENS.md §3.4's status line is ours, because the prototype's counts something nothing can count
+
+**What changed:** the status line under "The back room is open" reads "Everything you
+change in here stays a draft until you publish it." The handoff's prototype prints "Four
+changes are still unpublished from your last session."
+
+**Rationale:** the prototype's number is a count of draft versions across journeys — a
+fact the Publish screen owns (`SCREENS.md` §2.8), which Phase 4 builds, and which nothing
+in this phase can compute. Printing it verbatim would be printing a number this repository
+invented, on the one screen whose whole job is to tell a reader where they stand; a made-up
+"four" is worse than no line at all, and this file exists because the difference between a
+deliberate choice and an oversight has to be written down.
+
+Printing nothing was the other option, and it drops a line §3.4 asks for by name. So the
+line stays, on the same subject the prototype's is — unpublished work — and says something
+that is true of every visit rather than a quantity nobody measured.
+`versions: { drafts: true }` on `journeys` and `pages` (DATA_MODEL.md) is what makes it
+true.
+
+**What would reverse this:** Phase 4's Publish screen, which brings a real count with it.
+At that point the line can name a number and this entry goes.
+
+**Recorded as:** the `SIGNED_IN_STATUS` constant and the header of
+`apps/web/components/admin/SignedInStep.tsx`, the `GET /admin/sign-in/done` row in
+`docs/api.md`, and the case in `SignedInStep.test.tsx` that asserts the line is printed.
+
+## 39 · Two more screens are mounted ahead of the handlers behind them
+
+**What changed:** `/admin/reset` and `/admin/sign-in/done` are served today, and two of the
+three `POST`s made from them are not. The reset request form targets
+`/admin/reset/request` and "Sign out and start again" targets `/admin/sign-out`; neither
+route exists, so both resolve to a 404. `/admin/sign-in/done` is also **unguarded** — it
+draws §3.4 for anybody who asks for the address.
+
+**Rationale:** the same shape as §33, one screen further on, and the same boundary. Every
+one of those three handlers needs the cookie policy — the `Set-Cookie`, the session the
+sign-out revokes, the pre-auth session a reset request is counted against, the CSRF check
+and the admin's CSP — and **Phase 2 Task 10 owns the cookie policy**. The mechanisms
+themselves are built and proven: `passwordReset.ts` mints and mails the link,
+`sessions.ts`'s `revokeSession` ends a session, and both have their own integration
+suites. What is missing is the endpoint, not the behaviour.
+
+The third `POST` — `/admin/reset/set` — **is** mounted, and the difference is the point:
+it needs no cookie at all. Its authorisation is the token in the body, so it could be
+built and proved end to end without borrowing anything Task 10 owns, which is what makes
+the mailed link work rather than 404 today.
+
+**What the unguarded signed-in screen costs, stated plainly:** nothing that a visitor
+could not already see. It carries no account, no address, no session and no data — three
+links and one fixed line of copy — and neither place it leads becomes reachable because
+this screen was reached: `/admin` is Phase 4's, and Task 10's guard is what will refuse an
+unauthenticated request for it. What it does mean is that the screen is a page rather than
+a proof, until the session it describes is one the server can read.
+
+**What would reverse this:** Task 10, which mounts all three handlers and puts the guard
+in front of this screen. Each gets its own row in `docs/api.md` in the commit that adds
+it, and this entry goes with them.
+
+**Recorded as:** the `RESET_REQUEST_ENDPOINT` and `SIGN_OUT_ENDPOINT` constants and the
+headers of `apps/web/components/admin/ResetStep.tsx` and
+`apps/web/components/admin/SignedInStep.tsx`, the header of
+`apps/web/app/(admin)/admin/sign-in/done/page.tsx`, and the `GET /admin/reset` and
+`GET /admin/sign-in/done` rows in `docs/api.md`.

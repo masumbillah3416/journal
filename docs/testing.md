@@ -223,6 +223,18 @@ would claim a measurement nothing performs.
   cannot reach — whether the DELIVERED page and its scripts read storage — is
   `e2e/signIn.spec.ts`'s.
 
+  Task 9 adds the last three admin panes — `ResetStep.test.tsx` (19 cases),
+  `NewPasswordStep.test.tsx` (19) and `SignedInStep.test.tsx` (9). Two things about them
+  are worth knowing. First, **every case that says a pane does NOT print something is
+  paired with one that says the pane printed anything at all**: "the confirmation carries
+  no address of its own" and "the expired state never prints the token" are both trivially
+  true of a pane that rendered nothing, which is this phase's most common defective shape.
+  Second, **the geometry is deliberately not here**: `SCREENS.md` §3.4's 62px ringed
+  circle, its 20px square and §3.3's 14px confirmation mark are numbers jsdom cannot read,
+  because it performs no layout and loads no stylesheet, so all three are measured in a
+  real engine by `e2e/reset.spec.ts` rather than left to a screenshot that would absorb
+  them (see the Visual regression section on what the threshold does not catch).
+
   Task 8 adds `apps/web/components/admin/CodeStep.test.tsx`, the largest component suite
   here at 46 cases, and it is worth knowing what it deliberately does NOT prove. Its
   header names three things and hands each to `e2e/codeStep.spec.ts`: the cell widths
@@ -537,6 +549,27 @@ would claim a measurement nothing performs.
   Both the `localStorage` cases were watched to fail with the mechanism put back: a
   five-line reintroduction of the prototype's read failed cases 1 and 2, and shipping the
   key as a client-side constant failed case 3.
+
+  **`e2e/reset.spec.ts` (Phase 2 Task 9)** carries what a component test cannot say about
+  `SCREENS.md` §3.3 and §3.4, and its first two cases are about a defect no component test
+  could ever have caught. For the whole of Tasks 5 to 8 the reset email carried a working
+  token to an address nothing answered: the constant was right, the two spellings of it
+  agreed, the token was minted and provably consumable, and `/admin/reset/<token>` was a
+  404. A component suite renders a component; it never fetches an address. So the first
+  case clicks the "Forgotten" link off the password screen and **reads the response
+  status**, and the second requests the mailed link's own shape and reads it again — 200,
+  with the expired state on it, rather than 404. Every other assertion in both cases would
+  hold on Next's own not-found page if the status were not read.
+
+  The rest of the file is geometry and delivered markup: the ringed circle measured at
+  62x62 with a 20x20 square inside it, the confirmation block's computed background read
+  back as `rgba(47, 107, 104, 0.07)` with its 14px mark, the two signed-in actions measured
+  to the same width 10px apart, the expired state asserted to contain the token nowhere in
+  its `innerHTML`, and a whole address planted in `?sent=` asserted to reach the page
+  masked. **What it deliberately does not do is request a reset**: that needs the endpoint
+  Task 10 mounts and the mailer's in-process outbox, which a browser cannot see, so the
+  journey from a request through the mailed link to a changed password is proved where the
+  outbox is — see the integration section below.
 
   **`e2e/codeStep.spec.ts` (Phase 2 Task 8)** carries the three things about
   `SCREENS.md` §3.2's one-time-code screen that jsdom cannot settle, and each was watched
@@ -1083,7 +1116,8 @@ would claim a measurement nothing performs.
   `e2e/pages.spec.ts`,
   `e2e/notes.spec.ts`, `e2e/frames.spec.ts`, `e2e/about.spec.ts`,
   `e2e/imageWindow.spec.ts`, `e2e/serverWindow.spec.ts`, `e2e/routing.spec.ts`,
-  `e2e/gallery.spec.ts`, `e2e/mobile.spec.ts` and `e2e/ciRegistration.spec.ts` — the
+  `e2e/gallery.spec.ts`, `e2e/mobile.spec.ts`, `e2e/signIn.spec.ts`,
+  `e2e/codeStep.spec.ts`, `e2e/reset.spec.ts` and `e2e/ciRegistration.spec.ts` — the
   authoritative list is the script itself, and `e2e/ciRegistration.spec.ts` is what makes
   the two agree); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
@@ -1965,6 +1999,33 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   for a 900-millisecond cooling-off period since Phase 0. Nothing behavioural
   distinguished it, which is why only a case asserting the lock's DURATION could catch
   it (`docs/adr/0016-rate-limit-window-storage.md`).
+
+  **Phase 2 Task 9 adds the journey that ties the reset path together**, in
+  `apps/web/lib/auth/setNewPassword.integration.test.ts` (19 cases) and
+  `newPasswordScreen.integration.test.ts` (13). The first case of the first file is the
+  one that matters: it requests a reset through the real service, **takes the link out of
+  the console mailer's outbox rather than out of the database** — exactly as
+  `lib/auth/testing/otpProbes.ts`'s `readCodeFromOutbox` takes a code out of one — spends
+  it, and then signs in with the password it set. Reading the column instead would pass
+  with a link built from the wrong origin, a link built from the wrong path, or no link in
+  the body at all; reading the URL a reader would click is what makes it a test of the
+  journey rather than of the column.
+
+  Three of its cases exist because the obvious ones are not enough. "The new password
+  signs in" would pass for a reset that ADDED a password, so a second case requires the
+  old one to stop working. "The second use of a link is refused" would pass for an
+  implementation that cleared the account's password on the way to refusing, so a third
+  requires the first use's password to still sign in afterwards. And `refusalFrom` is
+  exported and exercised directly, because a live Payload reaches only two of its arms — a
+  403 for a token it cannot match and a 400 for a password it refuses — while a thrown
+  string, a `null` and an object with no status are what a dropped connection or a future
+  release would take, and all three must give the answer that cannot mislead.
+
+  `newPasswordScreen.integration.test.ts` drives the route layer with a real `Request` and
+  a real `Response`, which is why both of its route files hold nothing but one call each.
+  Every redirect is asserted by **status and `Location` together**: a case checking only
+  the location passes on a `200` carrying a header nothing follows, and one checking only
+  the status passes on a redirect to the wrong screen.
 
   **Anti-enumeration and the wiring land in Phase 2 Task 5, and it is the task where
   three mechanisms stop being mechanisms.** `apps/web/lib/auth/signIn.integration.test.ts`

@@ -383,12 +383,12 @@ export const CodeStep = ({ maskedAddress, issuedAt, attemptsSpent }: CodeStepPro
 
   return (
     <div data-code-step-pane data-code-step-shaking={shaking ? 'true' : 'false'}>
-      <a className={styles.backToPassword} href={PASSWORD_STEP_PATH}>
+      <a className={styles.backLink} href={PASSWORD_STEP_PATH}>
         ← Back to password
       </a>
 
       <p className={styles.eyebrow}>Second step</p>
-      <h1 className={[styles.title, styles.titleCode].join(' ')}>Check your email</h1>
+      <h1 className={[styles.title, styles.titleCompact].join(' ')}>Check your email</h1>
       <p className={styles.lede}>
         A six-digit code went to{' '}
         <span data-code-step-address className={styles.ledeAddress}>
@@ -471,7 +471,7 @@ export const CodeStep = ({ maskedAddress, issuedAt, attemptsSpent }: CodeStepPro
 
         <button
           data-code-verify
-          className={[styles.submit, styles.submitBelowCells].join(' ')}
+          className={[styles.submit, styles.submitSpaced].join(' ')}
           type="submit"
         >
           Verify and sign in

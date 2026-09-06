@@ -61,10 +61,12 @@
  * handler's, which Task 10 owns (`apps/web/lib/auth/signIn.ts`'s header makes
  * the same split for the same reason). A pane that both decided and responded
  * could not be tested for the decision alone.
- * Depends on: react, ./signIn.module.css.
+ * Depends on: react, `RESET_PATH` (../../lib/auth/resetPath),
+ * ./signIn.module.css.
  */
 import { useState } from 'react'
 import type React from 'react'
+import { RESET_PATH } from '../../lib/auth/resetPath'
 import styles from './signIn.module.css'
 
 /**
@@ -77,21 +79,6 @@ import styles from './signIn.module.css'
  * spelling of it.
  */
 export const PASSWORD_STEP_ENDPOINT = '/admin/sign-in/password'
-
-/**
- * Where "Forgotten" leads: SCREENS.md §3.3's reset request screen, which
- * Task 9 mounts. Until it does, this link resolves to a 404 - recorded in
- * docs/deviations.md §31, which is where that gap already lives.
- *
- * THE SAME PATH IS SPELLED IN `apps/web/lib/auth/passwordReset.ts`, which
- * builds the emailed link from it. That module cannot be the shared source of
- * it - it is server-only, and importing it here would pull Payload and
- * `node:crypto` into the browser bundle. Unifying the two behind one
- * client-safe constant belongs to Task 9, which mounts the route; until then,
- * a change to either has to be made to both. That module carries the same
- * note.
- */
-export const RESET_PATH = '/admin/reset'
 
 /** Copy for the footer line when the code step runs. The prototype's, verbatim. */
 export const CODE_STEP_ON_NOTICE =

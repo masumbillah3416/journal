@@ -1,70 +1,81 @@
 /**
- * resetPath.test.ts — the two spellings of `/admin/reset` are one path.
+ * resetPath.test.ts — the one spelling of `/admin/reset`, and the routes that
+ * actually answer at it.
  *
- * WHY THERE ARE TWO AT ALL. `apps/web/lib/auth/passwordReset.ts` builds the
- * emailed link from a private `RESET_PATH`; `apps/web/components/admin/
- * PasswordStep.tsx` exports its own for the "Forgotten" link. The first module
- * cannot be the shared source of the second: it is server-only, and importing
- * it into a client component would pull Payload and `node:crypto` into the
- * browser bundle. Unifying them behind one client-safe constant belongs to
- * Task 9, which mounts the route; until then there are two literals that must
- * agree, and until this file existed NOTHING checked that they did (review
- * round 1, finding 6). Two constants that must match with nothing comparing
- * them is a defect waiting for a rename — the reset email would keep pointing
- * at the old path, silently, and the only symptom would be a 404 in somebody
- * else's inbox.
+ * ═══ WHAT THIS FILE USED TO DO, AND WHY IT NO LONGER DOES IT ═══
  *
- * WHY IT READS SOURCE TEXT RATHER THAN IMPORTING. Neither import is available
- * to one Vitest project: `PasswordStep.tsx` is a client component with a CSS
- * Module import, which only the `unit-dom` project compiles, and
- * `passwordReset.ts` pulls Payload, which has no business being loaded into
- * jsdom. Reading both files is the one thing a single test CAN do here, and it
- * checks exactly the fact that matters — that the two literals are the same
- * string. Its limitation is stated rather than hidden: it would not notice a
- * path assembled from parts, so both files must keep the literal on one line.
+ * Until Task 9 there were TWO literals: `apps/web/lib/auth/passwordReset.ts`
+ * built the emailed link from a private `RESET_PATH`, and
+ * `apps/web/components/admin/PasswordStep.tsx` exported its own for the
+ * "Forgotten" link. The first could not be the shared source of the second -
+ * it is server-only, and importing it into a client component would pull
+ * Payload and `node:crypto` into the browser bundle - so this file compared
+ * the two by reading their source text. `./resetPath.ts` is now that shared
+ * source: it holds the constant and nothing else, imports nothing, and is
+ * therefore safe on both sides of the boundary. Both modules import it, so
+ * there is nothing left to compare.
  *
- * THE MATCHES ARE ASSERTED TO EXIST BEFORE THEY ARE COMPARED. Two `undefined`s
- * are equal, and a regex that stopped matching after a refactor would make
- * this file pass while checking nothing — the phase's most common defective
- * test shape.
- * Depends on: node:fs, node:path, node:url, vitest.
+ * TWO GUARDS REPLACE THAT COMPARISON, and each catches something the old one
+ * could not:
+ *
+ *   1. The path is still pinned to the literal `/admin/reset` - phase ruling
+ *      F41's path, under `/admin` rather than beside it, which is what the
+ *      session cookie's `Path=/admin` scope can reach. A test that only
+ *      compared two spellings stayed green when both were renamed together.
+ *   2. **A route file actually exists at that path, and at its `[token]`
+ *      child.** This is the defect the constant existed to prevent and did
+ *      not: for the whole of Tasks 5 to 8 the reset email carried a working
+ *      token to an address that answered 404, with every mechanism behind it
+ *      green. A constant that agrees with itself proves nothing about whether
+ *      anything is mounted there.
+ *
+ * NEITHER MODULE MAY DECLARE ITS OWN SPELLING AGAIN, and the third case says
+ * so by reading both files: an `import` is invisible to a source scan looking
+ * for an assignment, so a re-introduced literal is exactly what it finds.
+ * Depends on: node:fs, node:path, node:url, vitest, ./resetPath.
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { RESET_PATH } from './resetPath'
 
 /** apps/web/lib/auth -> apps/web. */
 const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 /**
- * The single-quoted string a file assigns to `RESET_PATH`.
+ * Whether a file assigns a `RESET_PATH` string literal of its own.
  *
  * @param relativePath - The file to read, relative to `apps/web`.
- * @returns The literal, or `null` when the file has no such assignment.
+ * @returns `true` when the file declares its own spelling of the path.
  */
-const resetPathIn = (relativePath: string): string | null => {
-  const source = readFileSync(path.join(webRoot, relativePath), 'utf8')
-  const match = /RESET_PATH = '([^']*)'/.exec(source)
-  return match?.[1] ?? null
-}
+const declaresItsOwnResetPath = (relativePath: string): boolean =>
+  /RESET_PATH = '[^']*'/.test(readFileSync(path.join(webRoot, relativePath), 'utf8'))
 
 describe('the reset screen’s path', () => {
-  it('is spelled the same way by the email that links to it and the screen that links to it', () => {
-    const inTheEmail = resetPathIn('lib/auth/passwordReset.ts')
-    const onTheScreen = resetPathIn('components/admin/PasswordStep.tsx')
-
-    // Both found FIRST: two nulls are equal, and comparing them would make
-    // this case pass against a file that no longer declares the constant.
-    expect(inTheEmail).not.toBeNull()
-    expect(onTheScreen).not.toBeNull()
-    expect(onTheScreen).toBe(inTheEmail)
+  it('is the path phase ruling F41 settled, under /admin rather than beside it', () => {
+    // Pinned to the literal rather than read back off a file: a case that
+    // only compared spellings would stay green if every one of them were
+    // renamed together to something `Path=/admin` cannot reach.
+    expect(RESET_PATH).toBe('/admin/reset')
   })
 
-  it('is the path phase ruling F41 settled, under /admin rather than beside it', () => {
-    // Pinned to the literal, not read back from either file: a case that
-    // only compared the two would stay green if both were renamed together
-    // to something the session cookie's `Path=/admin` scope cannot reach.
-    expect(resetPathIn('lib/auth/passwordReset.ts')).toBe('/admin/reset')
+  it('has a route mounted at it, so the "Forgotten" link is not a 404', () => {
+    expect(existsSync(path.join(webRoot, `app/(admin)${RESET_PATH}/page.tsx`))).toBe(true)
+  })
+
+  it('has a route mounted at its token child, so the emailed link is not a 404', () => {
+    // The gap ruling F47 exists to close: the token was minted, mailed and
+    // consumable, and the address it named answered 404.
+    expect(existsSync(path.join(webRoot, `app/(admin)${RESET_PATH}/[token]/page.tsx`))).toBe(true)
+  })
+
+  it('is spelled in one module, not re-declared by the email or by the screen', () => {
+    // Both files are asserted to have been READ, not merely to lack a match:
+    // a path typo would make `declaresItsOwnResetPath` throw rather than
+    // return `false`, which is the failure this pair is meant to produce.
+    expect(declaresItsOwnResetPath('lib/auth/resetPath.ts')).toBe(true)
+    expect(declaresItsOwnResetPath('lib/auth/passwordReset.ts')).toBe(false)
+    expect(declaresItsOwnResetPath('components/admin/PasswordStep.tsx')).toBe(false)
   })
 })

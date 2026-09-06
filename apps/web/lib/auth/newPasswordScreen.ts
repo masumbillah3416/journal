@@ -1,0 +1,142 @@
+/**
+ * newPasswordScreen — the server side of the screen the mailed reset link
+ * lands on: what a `GET` of it is told, and what a `POST` to it answers.
+ *
+ * ═══ WHY THIS IS A MODULE AND NOT TWO ROUTE FILES ═══
+ *
+ * `apps/web/app/(admin)/admin/reset/[token]/page.tsx` and
+ * `.../reset/set/route.ts` between them hold one call each and nothing else,
+ * and that is deliberate rather than fussy. Neither can be run by either
+ * Vitest project — a page component needs a Next render context, and the
+ * `[token]` one sits under a bracketed directory where `@vitest/coverage-v8`'s
+ * ignore hints are documented not to hold (CLAUDE.md §2.1) — so a decision
+ * left in either is a decision nothing can measure. Everything either of them
+ * would otherwise decide is here, where an integration test drives it with a
+ * real `Request` and a real Payload and coverage counts every branch.
+ *
+ * PATTERNS (CLAUDE.md §3.3). This is an adapter: it turns HTTP into the two
+ * calls `setNewPassword.ts`'s service actually offers, and turns that service's
+ * `Result` back into a response. It holds no rule of its own — which state the
+ * screen draws is `@travel-diary/domain/auth/resetScreen`'s `newPasswordView`,
+ * gated at 100%, and whether the link can be spent is the service's.
+ *
+ * ═══ THE THREE ANSWERS A POST CAN GIVE, AND WHY EACH ONE GOES WHERE IT DOES
+ * ═══
+ *
+ * Every one is a `303 See Other`, never a rendered body. A `POST` that answers
+ * with a page leaves that page's address in the browser's history as a
+ * resubmittable form, and this one SPENDS A LINK: a reader who reloads would
+ * be shown a refusal for a link they successfully used a moment ago. 303 in
+ * particular, not 302, because 303 is the one status that requires the browser
+ * to follow with a `GET`.
+ *
+ *   - Set. To `/admin/sign-in`, because the next thing a reader wants is to
+ *     use the password they just chose. No session is established here — see
+ *     `setNewPassword.ts` on why the Payload session that operation mints is
+ *     dropped.
+ *   - The password was refused. Back to the same link with `?state=rejected`,
+ *     which is the only thing this handler ever puts in an address. The link
+ *     was not spent, so the form is still worth drawing and the reader gets
+ *     their reason above the button.
+ *   - The link was refused. Back to the same link CARRYING NOTHING. The
+ *     screen's own read of the link is what draws the expired state, so there
+ *     is deliberately no `state=expired` to disagree with it — one fact, read
+ *     in one place.
+ *
+ * WHAT IS IN THE ADDRESS IS PERCENT-ENCODED, ALL OF IT. The token is
+ * hexadecimal when Payload minted it and arbitrary text when somebody typed
+ * it, and the second is the case that matters: an unencoded value would let a
+ * crafted submission write its own query string, or its own path segments,
+ * into the `Location` this handler chose.
+ *
+ * A BODY WITH NO FIELDS GOES TO THE RESET FORM, not to an error. Zod parses
+ * the submission at the boundary (CLAUDE.md §3.1) and a request carrying
+ * neither field is not a reader who mistyped a password — it is a request that
+ * never came from this screen, and the useful answer is the screen where a
+ * reset actually starts.
+ *
+ * WHAT THIS MODULE DOES NOT DO. It does not check a CSRF token, set a cookie
+ * or apply the admin's CSP: all three are Task 10's, which owns the cookie
+ * policy for the whole sign-in surface. It is worth being plain about what
+ * that costs here and what it does not: the authorisation for this endpoint is
+ * the token in the body, which is a secret an attacker forging a cross-site
+ * request does not have, so a forged post can spend no link it could not
+ * already spend directly. Recorded in docs/security.md.
+ * Depends on: `newPasswordView` (@travel-diary/domain/auth/resetScreen), zod,
+ * `getPayload` (../payload), ./setNewPassword, ./resetPath.
+ */
+import { type NewPasswordView, newPasswordView } from '@travel-diary/domain/auth/resetScreen'
+import { z } from 'zod'
+import { getPayload } from '../payload'
+import { RESET_PATH } from './resetPath'
+import { createNewPasswordService } from './setNewPassword'
+
+/** Where a reader goes once the new password is theirs. */
+const SIGN_IN_PATH = '/admin/sign-in'
+
+/** The `state` value that carries a refused password back onto the form. */
+const PASSWORD_REFUSED_STATE = 'rejected'
+
+/**
+ * What a submission to the endpoint has to carry.
+ *
+ * Both fields are `string` with no further rule: an empty password is a real
+ * submission that Payload refuses on its own terms, and an empty token is a
+ * real submission that matches no row. Neither is this module's to judge — see
+ * `setNewPassword.ts` on why no password policy is invented in this
+ * repository. What this schema rejects is a body that is not this form's at
+ * all.
+ */
+const submission = z.object({ token: z.string(), password: z.string() })
+
+/** What {@link readNewPasswordScreen} is asked. */
+export interface NewPasswordScreenRequest {
+  /** The token out of the address's last path segment. */
+  readonly token: string
+  /** The `state` query value, or `undefined` when there is none. */
+  readonly state: string | undefined
+}
+
+/**
+ * Which state the set-a-new-password screen should draw.
+ *
+ * @param request - See {@link NewPasswordScreenRequest}.
+ * @returns The view the route hands to `NewPasswordStep`.
+ * @example
+ * const view = await readNewPasswordScreen({ token, state })
+ */
+export const readNewPasswordScreen = async ({ token, state }: NewPasswordScreenRequest): Promise<NewPasswordView> => {
+  const service = createNewPasswordService({ payload: await getPayload() })
+  return newPasswordView(await service.linkState(token), state)
+}
+
+/**
+ * A `303 See Other` pointing at `location`.
+ *
+ * @param location - Where the browser should go, as a root-relative path.
+ * @returns The response, with no body at all.
+ */
+const seeOther = (location: string): Response => new Response(null, { status: 303, headers: { Location: location } })
+
+/**
+ * Answers a submission of the new-password form.
+ *
+ * @param request - The `POST`, carrying the token and the password as form
+ *   fields.
+ * @returns A `303` to wherever the reader goes next. Never a body, and never
+ *   an address carrying the password.
+ * @example
+ * export const POST = handleSetNewPassword
+ */
+export const handleSetNewPassword = async (request: Request): Promise<Response> => {
+  const submitted = submission.safeParse(Object.fromEntries(await request.formData()))
+  if (!submitted.success) return seeOther(RESET_PATH)
+
+  const { token, password } = submitted.data
+  const service = createNewPasswordService({ payload: await getPayload() })
+  const set = await service.setNewPassword({ token, password })
+  if (set.ok) return seeOther(SIGN_IN_PATH)
+
+  const link = `${RESET_PATH}/${encodeURIComponent(token)}`
+  return seeOther(set.error === 'rejected' ? `${link}?state=${PASSWORD_REFUSED_STATE}` : link)
+}

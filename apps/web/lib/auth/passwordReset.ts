@@ -68,15 +68,26 @@
  * exists only in the local binding below and in the body handed to the
  * mailer; the address is returned only masked (CLAUDE.md §7).
  *
+ * THE LINK'S PATH IS `./resetPath`'s, AND IS NOW SPELLED ONLY THERE. It used
+ * to be a private constant here and a second, identical one in
+ * `apps/web/components/admin/PasswordStep.tsx`, with a test comparing their
+ * source text because this module is server-only and cannot be imported into
+ * a client component. Task 9 mounted the screens that answer at that path and
+ * moved the string into a module that imports nothing, so both sides now
+ * import the same constant. Why the path is what it is, and the
+ * HANDOFF-DEVIATION that records it, are in that module and in
+ * docs/deviations.md §31.
+ *
  * Depends on: `payload` (the Local API instance, injected), the Mailer port,
- * the sign-in rate limiter, and `@travel-diary/domain`'s `maskEmail` and
- * `Result`.
+ * the sign-in rate limiter, `RESET_PATH` (./resetPath), and
+ * `@travel-diary/domain`'s `maskEmail` and `Result`.
  */
 import { maskEmail } from '@travel-diary/domain/auth/mask'
 import { type Result, err, ok } from '@travel-diary/domain/result'
 import type { Payload } from 'payload'
 import type { MailerPort } from '../ports/mailer'
 import type { SignInRateLimiter } from './rateLimit'
+import { RESET_PATH } from './resetPath'
 
 /** Why {@link PasswordResetService.requestPasswordReset} refused. */
 export type ResetRefusal =
@@ -162,33 +173,6 @@ export interface PasswordResetService {
 }
 
 /**
- * The path the link lands on.
- *
- * HANDOFF-DEVIATION: the handoff names no URL for it. `/admin` because phase
- * ruling F41 settled that the bespoke sign-in surface mounts there (Payload's
- * own admin having moved to `/cms`), and because the session cookie is scoped
- * `Path=/admin` — a reset screen outside it could not read the session it is
- * about to establish. A constant rather than a literal at the call site, so
- * the one place the link is built matches the one place the screen will be
- * mounted. **That screen does not exist yet, and Phase 2 Task 9 owns it** —
- * the `[token]` route at this path, the form, the `payload.resetPassword` call,
- * the invalid/expired state, and an e2e case that follows the mailed link
- * (controller ruling, Task 5 review round 1). Until it lands this path resolves
- * to a 404. Recorded in docs/deviations.md §31 rather than left to be
- * discovered.
- *
- * THERE IS A SECOND SPELLING OF THIS PATH, and it is deliberate rather than
- * missed: `apps/web/components/admin/PasswordStep.tsx` exports its own
- * `RESET_PATH` for the "Forgotten" link. This module cannot be the shared
- * source of it - it is server-only, and importing it into a client component
- * would pull Payload and `node:crypto` into the browser bundle. Task 9 mounts
- * the route both refer to, and unifying the two behind one client-safe
- * constant belongs to that task; until then, a change to either has to be
- * made to both. The screen's own constant carries the same note.
- */
-const RESET_PATH = '/admin/reset'
-
-/**
  * The address as Payload's own `forgotPassword` will spell it.
  *
  * `forgotPasswordOperation` does `email.toLowerCase().trim()` and looks the
@@ -247,9 +231,10 @@ export const createPasswordResetService = ({
         // nonetheless has to say something. The one sentence that IS the
         // handoff's — "The link works once and lasts an hour" — is reused
         // verbatim rather than paraphrased, so the screen and the message make
-        // the same promise about the same link. See docs/deviations.md §31,
-        // which also records that the screen this link lands on is not built
-        // yet.
+        // the same promise about the same link. See docs/deviations.md §31.
+        // The screen this link lands on is mounted as of Task 9, and
+        // `resetPath.test.ts` asserts a route file exists at both halves of
+        // the address rather than trusting that one does.
         text: `${adminOrigin}${RESET_PATH}/${minted}\n\nOpen that link to choose a new password for the travel diary. The link works once and lasts an hour.\nIf you did not ask for it, nothing has happened and you can ignore this.`,
       })
       if (!delivery.ok) return err('delivery-failed')

@@ -151,6 +151,23 @@
  * the pane and `document.fonts.ready` only, since the screen carries no
  * images at all.
  *
+ * PHASE 2 TASK 9 ADDS THE LAST FOUR SIGN-IN STATES: `admin-reset-*.png`
+ * (SCREENS.md §3.3 pending), `admin-reset-sent-*.png` (§3.3 sent, with the
+ * masked address fixed in the query so the image cannot vary with the
+ * database), `admin-reset-expired-*.png` (the screen the mailed link lands on,
+ * drawn for a token that names nothing) and `admin-signed-in-*.png` (§3.4).
+ * Twelve images, three per case, for the same reason the password step's are:
+ * the three projects ARE §3's two layouts, `desktop` and `mid` above the
+ * breakpoint and `mobile` below it. None of them uses `settled()`.
+ *
+ * WHAT THESE FOUR DO NOT COVER, and it is written here because a baseline
+ * invites the assumption that it does: the geometry `SCREENS.md` states in
+ * numbers. At `maxDiffPixelRatio: 0.01` this suite was measured absorbing a
+ * 20px displacement of an entire pane (see docs/testing.md's Visual regression
+ * section), so §3.4's 62px circle, its 20px square and §3.3's 14px
+ * confirmation mark are asserted as numbers in `e2e/reset.spec.ts` instead.
+ * These images are what catches the drift those assertions do not name.
+ *
  * Baselines live in `e2e/visual.spec.ts-snapshots/` (one file per test per
  * project, auto-named by Playwright) and are committed — a snapshot with no
  * baseline to compare against protects nothing.
@@ -364,6 +381,50 @@ test('matches the baseline screenshot of the one-time-code screen', async ({ pag
   await page.evaluate(() => document.fonts.ready)
 
   await expect(page).toHaveScreenshot('admin-sign-in-code.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the reset request screen', async ({ page }) => {
+  // No `settled()`: there is no scaled design box on any of the admin routes,
+  // and no image anywhere on them. What has to be settled is the type - all
+  // three families are used here, and a screenshot taken before they load is a
+  // screenshot of the fallback stack.
+  await page.goto('/admin/reset', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-reset-step]')).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-reset.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the reset screen once the link is sent', async ({ page }) => {
+  // The masked address is FIXED in the query rather than produced by a
+  // request, so this image does not depend on which fixture the database
+  // happens to hold - the same reason the code screen fixes its clock.
+  await page.goto(`/admin/reset?sent=${encodeURIComponent('he•••@wanderings.travel')}`, { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-reset-sent]')).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-reset-sent.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the screen a spent link lands on', async ({ page }) => {
+  // A token that names nothing, so this is deterministic: the expired state is
+  // what any run of this suite gets, with no fixture to set up and none to
+  // clean away. The form state is not baselined - drawing it needs a live
+  // token, which only the integration suite can mint (e2e/reset.spec.ts's
+  // header), and its markup is the password step's, already baselined above.
+  await page.goto('/admin/reset/deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-new-password-step]')).toHaveAttribute('data-new-password-view', 'expired')
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-reset-expired.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the signed-in screen', async ({ page }) => {
+  await page.goto('/admin/sign-in/done', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-signed-in-mark]')).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-signed-in.png', { fullPage: true })
 })
 
 test('matches the baseline screenshot of the sign-in screen', async ({ page }) => {

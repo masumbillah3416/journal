@@ -364,6 +364,19 @@ export default defineConfig({
         // clamps, lives in `packages/domain/src/auth/signInTitle.ts`, which
         // this pass DOES measure at the domain's 100% bar.
         'apps/web/lib/auth/readSignInScreen.ts',
+        // setNewPassword.ts and newPasswordScreen.ts (Phase 2 Task 9) are
+        // reachable only from their own `*.integration.test.ts` files, for the
+        // same reason as passwordReset.ts above: the questions they exist to
+        // answer are all held in a column Payload writes. Whether a token is
+        // honoured, whether it survives being spent, and whether the password
+        // it set is the one `login` now accepts have no answer without a real
+        // `users` row, and a mocked one would let a reset that changes nothing
+        // pass. Gated by vitest.integration.config.ts instead, both at 100% on
+        // every axis. Their pure half - which state each reset screen draws -
+        // lives in `packages/domain/src/auth/resetScreen.ts`, which this pass
+        // DOES measure at the domain's 100% bar.
+        'apps/web/lib/auth/setNewPassword.ts',
+        'apps/web/lib/auth/newPasswordScreen.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by
@@ -451,6 +464,26 @@ export default defineConfig({
         // future file placed beside either is not swept into the same hole.
         // Their runtime behaviour is covered in a real browser by
         // e2e/gallery.spec.ts and e2e/a11y.spec.ts.
+        // Phase 2 Task 9 adds the reset link's own screen, the first
+        // bracketed route outside the diary. It qualifies on the same three
+        // counts CLAUDE.md §2.1's carve-out requires, re-verified against the
+        // control in this same run rather than inherited. (1) It was read and
+        // holds zero authored logic: await the params and the query, read the
+        // shell's content and the link's state, render two components - with
+        // WHICH STATE THE SCREEN DRAWS delegated to
+        // `apps/web/lib/auth/newPasswordScreen.ts` (integration-tested against
+        // a real Payload and gated at 100% by vitest.integration.config.ts)
+        // and, under that, to `@travel-diary/domain/auth/resetScreen`'s
+        // `newPasswordView`, which this pass measures at 100%. (2) The tooling
+        // defect is the one named above and is a property of the path shape,
+        // which this file shares (`[token]`); `(diary)/layout.tsx` remains the
+        // control that is correctly ignored without a config entry. (3) It
+        // names its exact path, so a future file placed beside it under the
+        // same bracketed parent is not swept into the same hole. Its sibling
+        // `reset/set/route.ts` is deliberately NOT here: it sits under a
+        // static segment, so its own `c8 ignore` is read and holds. Runtime
+        // behaviour: e2e/reset.spec.ts, e2e/a11y.spec.ts, e2e/visual.spec.ts.
+        'apps/web/app/(admin)/admin/reset/\\[token\\]/page.tsx',
         'apps/web/app/(diary)/gallery/\\[slug\\]/page.tsx',
         'apps/web/app/(diary)/gallery/\\[slug\\]/download/\\[id\\]/route.ts',
         'apps/web/app/(payload)/api/\\[...slug\\]/route.ts',

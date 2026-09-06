@@ -59,6 +59,14 @@
  * the cloth panel is a gradient, so axe returns `color-contrast` INCOMPLETE
  * over it and a green axe run says nothing about the four cream lines drawn
  * on it. They are measured from the rendered pixels by the same helper.
+ * TASK 9 ADDS THE REMAINING FOUR STATES OF THE SIGN-IN SURFACE, all with no
+ * exclusions: `/admin/reset` in both of SCREENS.md §3.3's states, the screen
+ * the mailed link lands on (`/admin/reset/<token>`, in its expired state - the
+ * one a browser suite can reach without a live token), and
+ * `/admin/sign-in/done`, §3.4. Every rule in the full ruleset applies to all
+ * four: each has a `<main>`, one level-one heading, a labelled control per
+ * input and a named control per button.
+ *
  * TASK 8 ADDS THE SECOND SIGN-IN STATE, `/admin/sign-in/code`, with no
  * exclusions either. It is the first view in the product where `label` has six
  * unlabelled-looking boxes to judge - the code cells carry `aria-label`s
@@ -411,6 +419,48 @@ test('has no axe violations on the code step after it has refused a code', async
   await expect(page.locator('[data-code-step-pane] [role="alert"]')).toHaveText(
     'All six digits, then we can look.',
   )
+
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /admin/reset, the reset request', async ({ page }) => {
+  await page.goto('/admin/reset')
+  await expect(page.locator('[data-reset-step]')).toBeVisible()
+
+  // No exclusions, for the same reason the password step has none.
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on the reset screen once the link is on its way', async ({ page }) => {
+  // The sent state is a different pane, not a variant of the one above: the
+  // form is gone, a green block is in its place and the two actions are links
+  // styled as buttons - which is exactly the shape `link-name` and
+  // `color-contrast` have something to say about.
+  await page.goto(`/admin/reset?sent=${encodeURIComponent('he•••@wanderings.travel')}`)
+  await expect(page.locator('[data-reset-sent]')).toBeVisible()
+
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on the screen the mailed link lands on', async ({ page }) => {
+  // A token that names nothing, so this is the expired state - the one an
+  // unauthenticated visitor can reach at will, and the only one of the two a
+  // browser suite can reach without a live token (see e2e/reset.spec.ts's
+  // header). The form state's own markup is the password step's, audited
+  // above, and its jsdom suite asserts the label, the toggle's accessible name
+  // and the error box's `aria-describedby` wiring.
+  await page.goto('/admin/reset/deadbeefdeadbeefdeadbeefdeadbeefdeadbeef')
+  await expect(page.locator('[data-new-password-step]')).toHaveAttribute('data-new-password-view', 'expired')
+
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /admin/sign-in/done, the signed-in state', async ({ page }) => {
+  await page.goto('/admin/sign-in/done')
+  // The mark is drawn AND the heading is present before axe looks: a route
+  // that rendered an empty shell would have no violations either.
+  await expect(page.locator('[data-signed-in-mark]')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('The back room is open')
 
   await expectNoAxeViolations(page)
 })

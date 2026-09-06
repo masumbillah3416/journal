@@ -127,6 +127,8 @@ export default defineConfig({
         'apps/web/lib/auth/signIn.ts',
         'apps/web/lib/auth/passwordReset.ts',
         'apps/web/lib/auth/readSignInScreen.ts',
+        'apps/web/lib/auth/setNewPassword.ts',
+        'apps/web/lib/auth/newPasswordScreen.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
         'apps/web/payload.config.ts',
@@ -236,6 +238,18 @@ export default defineConfig({
         // `otp_required` can give (true, false, and NULL - which reads as
         // required, like an absent account).
         'apps/web/lib/auth/readSignInScreen.ts': { lines: 100, branches: 100, functions: 100 },
+        // setNewPassword.ts and newPasswordScreen.ts (Phase 2 Task 9): 100% on
+        // every axis, and nothing in either is excused. `refusalFrom`'s arms
+        // are the reason it is exported: a live Payload produces only two of
+        // them (a 403 for a token it cannot match and a 400 for a password it
+        // refuses), and the rest - a thrown string, a `null`, an object with
+        // no status - are what a rejected connection or a future release would
+        // take, so they are exercised directly rather than left as an
+        // untestable "cannot happen". Everything else in both files is a real
+        // answer a request can receive: two link states, two refusals, and the
+        // three redirects a submission can be given.
+        'apps/web/lib/auth/setNewPassword.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/auth/newPasswordScreen.ts': { lines: 100, branches: 100, functions: 100 },
         // readBookBundle.ts (Task 6 of Phase 1; Task 6 review fix round 1;
         // Task 11): 100% lines/statements/functions. 83% branches is the
         // real, measured number, RAISED again from 81% by Task 11, whose

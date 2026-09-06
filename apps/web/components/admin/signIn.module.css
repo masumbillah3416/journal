@@ -670,10 +670,12 @@
 
 /* ══ The one-time-code step (SCREENS.md §3.2) ══ */
 
-/* "← Back to password". A real link rather than the prototype's `<button>`:
- * it goes to another address, which is what an anchor is for, and it works
- * with no JavaScript. Every value below is the prototype's own. */
-.backToPassword {
+/* "← Back to password" (§3.2) and "← Back to sign in" (§3.3). A real link
+ * rather than the prototype's `<button>`: it goes to another address, which is
+ * what an anchor is for, and it works with no JavaScript. Every value below is
+ * the prototype's own, and both panes' versions of it are the same control, so
+ * this class is named for what it is rather than for the first pane to use it. */
+.backLink {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -685,15 +687,18 @@
   color: var(--td-ink-muted);
 }
 
-.backToPassword:hover {
+.backLink:hover {
   color: var(--td-accent);
 }
 
-/* "'Check your email' (Caveat 50px)" - two pixels smaller than §3.1's
- * "Welcome back", which is why it is a modifier on `.title` rather than a
- * second copy of it. Declared AFTER `.title`, so at equal specificity this
- * font size is the one that lands. */
-.titleCode {
+/* Caveat 50px - two pixels smaller than §3.1's "Welcome back", which is why
+ * it is a modifier on `.title` rather than a second copy of it. Declared AFTER
+ * `.title`, so at equal specificity this font size is the one that lands.
+ *
+ * THREE OF THE FOUR STATES USE IT, which is why it is not named after any one
+ * of them: "Check your email" (§3.2), both reset titles (§3.3) and "The back
+ * room is open" (§3.4) are all 50px. Only §3.1's is 52px. */
+.titleCompact {
   font-size: 50px;
 }
 
@@ -764,8 +769,9 @@
 }
 
 /* The prototype's `btn(true, { marginTop: '18px' })`, against `.submit`'s own
- * 6px on the password step. */
-.submitBelowCells {
+ * 6px on the password step. Used by "Verify and sign in" (§3.2), "Send the
+ * link" and "Sign in with the new password" (§3.3). */
+.submitSpaced {
   margin-top: 18px;
 }
 
@@ -812,6 +818,147 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--td-ink-muted);
+}
+
+/* ══ The reset request (SCREENS.md §3.3) ══ */
+
+/* "The link works once and lasts an hour. Nothing about the diary changes
+ * until you use it." The prototype's own line, at its own values - Garamond
+ * italic 15px rather than the lede's 16.5px, 14px below the button. */
+.resetNote {
+  margin: 14px 0 0;
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--td-ink-muted);
+  text-wrap: pretty;
+}
+
+/* "a green confirmation block (rgba(47,107,104,.07)), the 14px rotated mark,
+ * the masked address".
+ *
+ * THE GREEN IS A LITERAL, and deliberately not `--td-status-published`, which
+ * happens to be the same `#2f6b68`. A confirmation that a link is on its way
+ * and a journey's published state are different roles, and this file already
+ * makes exactly that call for `#98392b` against `--td-accent-hover` (see the
+ * header). `#2f5a4a`, the sentence's own ink, is named by no token at all. */
+.confirmation {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 15px 16px;
+  border-radius: var(--td-radius-control);
+  background: rgba(47, 107, 104, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(47, 107, 104, 0.32);
+}
+
+.confirmationMark {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background: #2f6b68;
+  transform: rotate(45deg);
+}
+
+.confirmationText {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--td-font-garamond);
+  font-size: 16px;
+  line-height: 1.4;
+  color: #2f5a4a;
+  text-wrap: pretty;
+}
+
+/* The prototype's `btn(false, ...)`: the same button, hollow. Its border and
+ * ink are `#4a4232`, which IS `--td-ink-body`'s role here - the secondary
+ * action is drawn in body ink, where the error mark above is not a link
+ * hover. The 10px is `btn(false, { marginTop: '10px' })`, the same on both
+ * screens that use it ("Send it again", "View the diary instead"). */
+.secondary {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 13px;
+  border: 1.5px solid var(--td-ink-body);
+  border-radius: var(--td-radius-control);
+  background: transparent;
+  font-family: var(--td-font-courier);
+  font-size: 11.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--td-ink-body);
+  cursor: pointer;
+}
+
+.secondary:hover {
+  border-color: var(--td-ink);
+  color: var(--td-ink);
+}
+
+/* The prototype's `textDecoration: 'none'` on the two actions that are links
+ * rather than buttons. A modifier rather than a rule on `.submit`, because
+ * `<button>` has no underline to remove and the two controls are otherwise
+ * identical. */
+.buttonLink {
+  text-decoration: none;
+}
+
+/* ══ The signed-in state (SCREENS.md §3.4) ══ */
+
+/* "a 62px ringed circle holding a 20px #2f6b68 square". The ring is an inset
+ * shadow rather than a border, so the 62px is the drawn diameter rather than
+ * 62px plus three pixels of border. */
+.signedInMark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 62px;
+  margin-bottom: 18px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px rgba(47, 107, 104, 0.5);
+}
+
+.signedInMarkInner {
+  width: 20px;
+  height: 20px;
+  background: #2f6b68;
+  transform: rotate(45deg);
+}
+
+/* The prototype's `btn(true, { marginTop: '26px' })` on "Open the admin
+ * panel", against `.submit`'s own 6px. */
+.actionFirst {
+  margin-top: 26px;
+}
+
+/* The `<form>` "Sign out and start again" posts through, at zero margin for
+ * the reason `.resendForm` gives. */
+.signOutForm {
+  margin: 0;
+}
+
+/* "a borderless 'Sign out and start again'" - the prototype's own values, and
+ * the same Courier the back link is drawn in. */
+.signOut {
+  margin-top: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+}
+
+.signOut:hover {
+  color: var(--td-accent);
 }
 
 /* "shake the shell - omShake 420ms ease, translating -6/+5/-3/+2px at
