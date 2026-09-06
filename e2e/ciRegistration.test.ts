@@ -42,18 +42,30 @@
  * are deliberately their own commands.
  *
  * THE LIGHTHOUSE CONFIGS ARE THE SAME LESSON, LEARNED A THIRD TIME.
- * `npm run test:perf` chains TWO `lhci autorun` invocations — one per
- * `lighthouserc*.json` — because lhci's collect settings are per-run, not
- * per-URL, so the book surface's 1350x940 desktop viewport cannot share a run
- * with the gallery's phone emulation
- * (`docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md`). Nothing
- * enforced that. Collapsing the script to one command — a plausible
+ * `npm run test:perf` names one `lighthouserc*.json` per gate — THREE of them
+ * since Phase 2 Task 11 added the admin's — because lhci's collect settings
+ * are per-run, not per-URL, so the book surface's 1350x940 desktop viewport
+ * cannot share a run with the gallery's phone emulation
+ * (`docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md`) and
+ * neither can the admin's 1440x900 (`docs/adr/0019-the-admin-performance-gate-and-the-css-seam.md`).
+ * Nothing enforced that. Collapsing the script to one command — a plausible
  * tidy-up — would have silently stopped gating the book surface, the heavier
  * of the two and the one every LCP ADR measured, while `npm run test:perf`
  * still exited 0 and CI still reported the step green. That is precisely the
  * failure the two spec cases above exist for, so it gets the same treatment:
  * the config files are read off the filesystem, the script is read out of
  * `package.json`, and the case fails naming exactly which config nothing runs.
+ *
+ * IT NAMES THEM AS ARGUMENTS TO `scripts/run-lighthouse.mjs` RATHER THAN AS A
+ * `&&` CHAIN, and the case below is why the runner does not discover them for
+ * itself. The chain was replaced in Task 11's fix round because `&&`
+ * short-circuits: with the book gate red, the admin gate — third in the
+ * chain — never ran at all, so a budget this repository had just started
+ * measuring went unmeasured with nothing saying so. The runner runs every
+ * config and exits non-zero if any failed. A runner that GLOBBED the configs
+ * would satisfy this case by construction and stop guarding anything, which is
+ * the shape of vacuous test this phase has found fifteen of; so the names stay
+ * in `package.json`, where this case can read them.
  *
  * ═══ WHY IT IS A VITEST TEST IN THE `e2e` DIRECTORY (RULING F57) ═══
  *
@@ -74,7 +86,7 @@
  * browser test - Playwright's default match includes `*.test.ts`.
  *
  * Adding a spec means adding one name to one `run:` line and one npm script;
- * adding a Lighthouse configuration means adding one command to `test:perf`;
+ * adding a Lighthouse configuration means adding one argument to `test:perf`;
  * this file is what says so, at the moment either is forgotten.
  * Depends on: vitest, node:fs, node:path, node:url,
  * .github/workflows/ci.yml, package.json, lighthouserc*.json.

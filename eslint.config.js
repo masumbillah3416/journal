@@ -92,6 +92,15 @@ export default tseslint.config(
     files: ['apps/web/lib/adapters/console-mailer.ts'],
     rules: { 'no-console': 'off' },
   },
+  {
+    // The performance runner is a terminal command: printing which gate passed
+    // and which failed IS its output, and a summary nobody can read would
+    // defeat the reason it exists (see its own header). Named by exact path,
+    // like the mailer above, so `console.log` in application code is still an
+    // error.
+    files: ['scripts/run-lighthouse.mjs'],
+    rules: { 'no-console': 'off' },
+  },
   // Generated output, never authored here. The last three are the browser and
   // performance harnesses' own artefacts, and they are listed for the same
   // reason `coverage/` already was: they are `.gitignore`d, so they are

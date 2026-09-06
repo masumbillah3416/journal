@@ -1095,7 +1095,7 @@ would claim a measurement nothing performs.
   deleted. It needs no browser and no `page` fixture, so it costs the run a file read.
 
   **A third case was added in Phase 1's final review, for the same defect shape in a
-  different list.** `npm run test:perf` chains one `lhci autorun` invocation per
+  different list.** `npm run test:perf` runs one `lhci autorun` invocation per
   `lighthouserc*.json` — two when this case was written, **three since Phase 2 Task 11 added
   `lighthouserc.admin.json`** — because lhci's collect settings are per-run rather than per-URL
   and the book's 1350x940 desktop viewport cannot share a run with the gallery's phone
@@ -1112,6 +1112,15 @@ would claim a measurement nothing performs.
   Task 11 added `lighthouserc.admin.json` to the repository root, and the case failed naming
   that file before `test:perf` was updated to run it — which is the third-config scenario the
   "read the filenames off disk" decision was made for.
+
+  **The script's shape changed under it in the same round, and the case was written to
+  survive that.** `test:perf` was a `&&` chain and is now
+  `node scripts/run-lighthouse.mjs <config> <config> <config>`, because `&&` short-circuits
+  and a red gate was hiding a newer one behind it. This case still passes unchanged: it asks
+  whether the script NAMES each config, not how it invokes them. That is also why the runner
+  takes the configs as arguments instead of globbing them itself — a runner that discovered
+  them would satisfy this case by construction, which is the shape of test that passes
+  because it cannot fail.
 
   **The fourth time, the guard was there and did not fire — so it moved into `verify`
   (ruling F57).** Phase 2 Task 9 found `e2e/codeStep.spec.ts` named by `npm run test:e2e`
@@ -1674,11 +1683,22 @@ regression is dishonest (ADR 0014 says so in its own opening); what is needed he
 kind of characterisation ADR 0014 did, on a host whose distribution has since shifted, and
 that is a task of its own rather than a line in this one.
 
-**One ordering consequence of the chain, stated so it is not discovered.** `npm run test:perf`
-joins the three invocations with `&&`, so a red diary gate short-circuits before the admin
-config runs at all. That is the right failure mode for a gate — fail fast — but it means the
-admin numbers above were collected by invoking `lighthouserc.admin.json` directly while the
-book gate is red.
+### `test:perf` stopped being a `&&` chain, because the chain hid the new gate
+
+It ran `lhci autorun && lhci autorun && lhci autorun`. `&&` short-circuits, so while the
+book gate was red the admin gate — third in the chain, added in the same task — **never
+executed once under its own command**; the numbers in the table above exist only because the
+config was invoked directly. A gate that cannot report because an earlier gate failed is a
+gate nobody sees, and it fails silently: the command exits 1, CI shows one red step, and
+nothing says two budgets went unmeasured.
+
+`npm run test:perf` is now `node scripts/run-lighthouse.mjs <config> <config> <config>`,
+which runs every configuration it is named whatever the ones before it did, prints a
+`PASS`/`FAIL` line per config, and exits non-zero if any failed. The configs stay **named in
+`package.json` rather than discovered by the runner**: `e2e/ciRegistration.test.ts` guards
+against a config file that exists and is run by nothing, and it does that by checking that
+the script names each one — a runner that globbed them would satisfy that guard by
+construction and stop guarding anything.
 
 **A second, independent measurement of the same budget**, because the two count differently
 and the difference is worth writing down rather than rediscovering. Lighthouse's
