@@ -22,7 +22,7 @@
  * Depends on: vitest, ./adminAccess.
  */
 import { describe, expect, it } from 'vitest'
-import { ADMIN_SECURITY_HEADERS, isAdminPath, isCrossSiteMutation, isGuardedAdminPath, isMutation } from './adminAccess'
+import { adminSecurityHeaders, isAdminPath, isCrossSiteMutation, isGuardedAdminPath, isMutation } from './adminAccess'
 
 describe('which addresses this policy speaks for', () => {
   it('speaks for the admin surface itself', () => {
@@ -48,6 +48,10 @@ describe('which admin addresses answer without a session', () => {
     expect(isGuardedAdminPath('/admin/sign-in/password')).toBe(false)
     expect(isGuardedAdminPath('/admin/sign-in/code')).toBe(false)
     expect(isGuardedAdminPath('/admin/sign-in/code/verify')).toBe(false)
+  })
+
+  it('lets a reader ask for a new code without having signed in', () => {
+    expect(isGuardedAdminPath('/admin/sign-in/code/resend')).toBe(false)
   })
 
   it('lets them reach every step of getting a way back in', () => {
@@ -137,7 +141,8 @@ describe('which requests are refused as cross-site', () => {
 })
 
 describe('what every admin response carries', () => {
-  const policy = ADMIN_SECURITY_HEADERS['Content-Security-Policy']
+  const shipped = adminSecurityHeaders({ development: false })
+  const policy = shipped['Content-Security-Policy']
 
   it('states a content security policy at all', () => {
     // Asserted before anything about its contents: every case below is a
@@ -170,32 +175,65 @@ describe('what every admin response carries', () => {
     expect(policy).toContain("object-src 'none'")
   })
 
-  it('sends no referrer, so an address holding a reset token never leaves with one', () => {
-    expect(ADMIN_SECURITY_HEADERS['Referrer-Policy']).toBe('no-referrer')
+  it('sends a referrer to our own pages and none to anybody else’s', () => {
+    // `same-origin`, NOT `no-referrer`, and the difference was a blocking
+    // defect: under `no-referrer` a form-navigation POST sends `Origin: null`,
+    // so every form on this surface answered 403 in a real browser. The reason
+    // the stricter value was chosen still holds and is still met —
+    // `/admin/reset/<token>` carries a live token in the address, and
+    // `same-origin` sends nothing cross-origin.
+    expect(shipped['Referrer-Policy']).toBe('same-origin')
+  })
+
+  it('never sends no referrer at all, which would empty the Origin header too', () => {
+    // Named separately from the case above so that reverting to `no-referrer`
+    // fails a case that says what it would break, rather than one that only
+    // says the value changed.
+    expect(shipped['Referrer-Policy']).not.toBe('no-referrer')
   })
 
   it('lets no browser guess a content type the admin did not declare', () => {
-    expect(ADMIN_SECURITY_HEADERS['X-Content-Type-Options']).toBe('nosniff')
+    expect(shipped['X-Content-Type-Options']).toBe('nosniff')
   })
 
   it('asks no crawler to keep any of it', () => {
-    expect(ADMIN_SECURITY_HEADERS['X-Robots-Tag']).toBe('noindex, nofollow')
+    expect(shipped['X-Robots-Tag']).toBe('noindex, nofollow')
   })
 
-  it('permits the inline script and the eval React needs, and says so out loud', () => {
-    // NOT a rubber stamp: the case exists so that removing either keyword is a
-    // deliberate act with a failing test attached, and so that the pair is
-    // visible to anybody reading this file rather than buried in a joined
-    // string. Both were measured — the policy without `'unsafe-eval'` logged
-    // four React errors on every admin page under `next dev`, which
-    // `e2e/reset.spec.ts` caught. See the module header for what they cost.
-    expect(policy).toContain("script-src 'self' 'unsafe-inline' 'unsafe-eval'")
+  it('permits the inline script Next.js streams, and says so out loud', () => {
+    // NOT a rubber stamp: the case exists so that removing the keyword is a
+    // deliberate act with a failing test attached, and so that it is visible to
+    // anybody reading this file rather than buried in a joined string. The App
+    // Router streams its RSC payload as inline scripts; without this the admin
+    // renders blank.
+    expect(policy).toContain("script-src 'self' 'unsafe-inline'")
   })
 
-  it('permits neither of them anywhere but in script-src', () => {
-    // The bound on the concession above. `default-src` must not carry them, or
-    // every directive that falls back to it inherits them.
-    expect(policy).toContain("default-src 'self';")
-    expect(policy?.match(/'unsafe-eval'/gu)).toHaveLength(1)
+  it('ships no eval permission to production, which React does not need there', () => {
+    // Measured both ways (fix round 1, finding 4): a production build with this
+    // policy logs zero console errors and zero page errors across four admin
+    // routes, and React's own message says it "will never use eval() in
+    // production mode".
+    expect(policy).not.toContain('unsafe-eval')
+  })
+
+  it('permits it in development alone, where React needs it to debug itself', () => {
+    // The other half of the same measurement: without it, `next dev` logs
+    // `eval() is not supported in this environment` four times on every admin
+    // page, which `e2e/reset.spec.ts`'s console-error case catches. This is one
+    // of the few places an environment switch is the honest answer — the
+    // STRICTER policy is production's, and it is the one CI and the visual
+    // container both run.
+    const development = adminSecurityHeaders({ development: true })['Content-Security-Policy']
+
+    expect(development).toContain("script-src 'self' 'unsafe-inline' 'unsafe-eval'")
+  })
+
+  it('differs between the two policies in that keyword and nothing else', () => {
+    // What stops the switch above from quietly becoming a second policy.
+    const development = adminSecurityHeaders({ development: true })
+
+    expect({ ...development, 'Content-Security-Policy': policy }).toEqual(shipped)
+    expect(development['Content-Security-Policy']?.replace(" 'unsafe-eval'", '')).toBe(policy)
   })
 })

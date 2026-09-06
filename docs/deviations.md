@@ -1367,8 +1367,29 @@ cases at the foot of `e2e/a11y.spec.ts`.
 
 ## 33 · The one-time-code screen is mounted before the challenge behind it is
 
-> **Half closed by Phase 2 Task 10, and the other half now has a reason rather than a
-> date.** The screen is guarded no more and no less than it was — it is a public address by
+> **CLOSED by Phase 2 Task 10's fix round.** The screen reads its own pending challenge:
+> `otpService.pendingChallenge` returns the masked address, the instant the code was
+> issued and the guesses already spent, and `lib/auth/readCodeScreen.ts` maps them onto the
+> three props the pane takes. `POST /admin/sign-in/code/resend` is mounted, on
+> `otpService.resendChallenge`, which resolves the account from the challenge rather than
+> from anything the browser names. `e2e/signInJourney.spec.ts` drives the whole journey in
+> a browser.
+>
+> **What remains, and it is not a gap:** a browser holding NO live challenge still gets the
+> screen, drawn with `maskEmail('')`'s three bullets. Refusing instead would make the route
+> an oracle for whether a given browser holds a challenge, which is what
+> `verifyChallenge`'s single `'invalid'` refusal spends three statements to withhold. The
+> three `admin-sign-in-code-*` baselines are that state and are unchanged.
+>
+> **And one thing this entry never knew about the route: it was STATIC.** `Date.now()` was
+> evaluated at build time, so the countdown read `0:00` for everybody five minutes after a
+> deploy — invisible in development, where every request re-renders. The route now declares
+> `dynamic = 'force-dynamic'` and reads `cookies()`, and
+> `lib/auth/codeScreenRoute.test.ts` fails if the declaration goes.
+>
+> The paragraphs below are kept as the record of what was true between Tasks 8 and 10.
+>
+> **Superseded note from the first half of Task 10.** The screen is guarded no more and no less than it was — it is a public address by
 > design, listed in `apps/web/lib/auth/adminAccess.ts`'s `ADMIN_PUBLIC_PATHS`, because a
 > reader at this step has no session. `POST /admin/sign-in/code/verify` is mounted and
 > works. What remains is the two things this entry is really about, and Task 10 found that
@@ -1422,12 +1443,12 @@ says so at the refusal it makes. The masked address echoes nothing at all, becau
 partial echo. Nothing is fabricated: no invented address, no invented issue time that
 claims to be a challenge's.
 
-**What would reverse this:** Task 10 mounting the two handlers and supplying the pending
-challenge, at which point `maskedAddress` and `issuedAt` come from the row,
-`attemptsSpent` comes from the refusal that sent the reader back, and
-`PENDING_ADDRESS_MASK` has no caller left and goes. The three visual baselines
-(`admin-sign-in-code-*.png`) move in that commit, which is expected and is what a
-baseline is for.
+**What reversed this:** Task 10's fix round mounted both handlers and supplied the pending
+challenge. `maskedAddress` and `issuedAt` come from the row, `attemptsSpent` comes from it
+too, and `PENDING_ADDRESS_MASK` is gone — `readCodeScreen.ts`'s `NO_PENDING_ADDRESS` is the
+one remaining spelling, used only when there is no challenge. The three visual baselines did
+NOT move, because they are taken by navigating directly to the address with no challenge in
+play, which is still the placeholder state.
 
 **Recorded as:** the header of `apps/web/app/(admin)/admin/sign-in/code/page.tsx`, the
 TSDoc on `PENDING_ADDRESS_MASK` in `apps/web/components/admin/CodeStep.tsx`, the row for

@@ -175,7 +175,7 @@
  * `webServer`, and the seeded diary (`npm run db:seed`).
  */
 import { expect, test, type Page } from '@playwright/test'
-import { aSignedInSession, removeSignedInFixture } from './support/adminSession'
+import { aSignedInSession, removeSignedInFixture, SESSION_FIXTURE_DOMAIN } from './support/adminSession'
 import { drawsMobileReadingMode } from './support/surface'
 
 // OFF LINUX THIS FILE SKIPS, AND SAYING SO IS THE POINT.
@@ -237,10 +237,11 @@ const settled = async (page: Page, selectors: { readonly book: string; readonly 
   })
 }
 
-test.afterAll(async () => {
-  // The fixture account and its session, written by `aSignedInSession` for the
-  // one guarded screen this file covers.
-  await removeSignedInFixture()
+test.afterAll(async ({ }, testInfo) => {
+  // This project's own account, never the whole domain: the three viewports
+  // run in parallel and a sweeping delete takes another one's session away
+  // mid-run (see `SESSION_FIXTURE_DOMAIN`).
+  await removeSignedInFixture(`visual.${testInfo.project.name}@${SESSION_FIXTURE_DOMAIN}`)
 })
 
 test('matches the baseline screenshot of /cms', async ({ page }) => {
@@ -426,11 +427,13 @@ test('matches the baseline screenshot of the screen a spent link lands on', asyn
   await expect(page).toHaveScreenshot('admin-reset-expired.png', { fullPage: true })
 })
 
-test('matches the baseline screenshot of the signed-in screen', async ({ page, context, baseURL }) => {
+test('matches the baseline screenshot of the signed-in screen', async ({ page, context, baseURL }, testInfo) => {
   // The screen is guarded (Phase 2 Task 10). The fixture account is written
   // with `otp_required` left at its default, so the sign-in screen's own footer
   // line — and therefore every `admin-sign-in-*` baseline — is unchanged by it.
-  await context.addCookies([{ name: 'td-session', value: await aSignedInSession(), url: `${baseURL ?? ''}/admin` }])
+  await context.addCookies([
+    { name: 'td-session', value: await aSignedInSession(`visual.${testInfo.project.name}`), url: `${baseURL ?? ''}/admin` },
+  ])
   await page.goto('/admin/sign-in/done', { waitUntil: 'networkidle' })
   await expect(page.locator('[data-signed-in-mark]')).toBeVisible()
   await page.evaluate(() => document.fonts.ready)

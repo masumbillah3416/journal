@@ -78,6 +78,12 @@ const DEVICE_LABEL_LIMIT = 200
  * endpoint's own schema already refuses, and there is ONE answer for every
  * request a screen did not make rather than two.
  *
+ * ONE VALUE PER NAME, WHICH IS RIGHT FOR EVERY FIELD BUT ONE. `Object.fromEntries`
+ * keeps the last of a repeated field, and every form on this surface sends each
+ * of its fields once — except `SCREENS.md` §3.2's six code cells, which share a
+ * name. That form's handler uses {@link submittedForm} instead, and that
+ * function's header says what reading it through here cost.
+ *
  * @param request - The `POST` as it arrived.
  * @returns The form's fields, or an empty object for a body that is not a
  *   form. Never throws.
@@ -85,10 +91,38 @@ const DEVICE_LABEL_LIMIT = 200
  * const submitted = signInSubmission.safeParse(await submittedFields(request))
  */
 export const submittedFields = async (request: Request): Promise<Record<string, FormDataEntryValue>> => {
+  const form = await submittedForm(request)
+  return form === null ? {} : Object.fromEntries(form)
+}
+
+/**
+ * The submission as a `FormData`, or `null` when the body is not a form.
+ *
+ * ═══ WHY THIS EXISTS BESIDE {@link submittedFields} (FIX ROUND 1) ═══
+ *
+ * `Object.fromEntries` keeps ONE value per name: a form that sends the same
+ * field six times collapses to its last. `SCREENS.md` §3.2's one-time-code pane
+ * is exactly that form — six `<input name="code" maxLength={1}>` cells — so a
+ * handler reading it through `submittedFields` receives a ONE-CHARACTER code
+ * and refuses every correct one.
+ *
+ * That is what happened. `docs/api.md` had recorded the shape from Task 8 ("the
+ * code is posted as six repeated `code` fields, not one"), and the endpoint's
+ * own integration cases sent a single `code` field — so the suite agreed with
+ * the handler and neither agreed with the form. It was found by driving the
+ * real pane in a browser, which is the only thing that could have.
+ *
+ * @param request - The `POST` as it arrived.
+ * @returns The form, or `null` for a body that is not one. Never throws.
+ * @example
+ * const form = await submittedForm(request)
+ * const code = form === null ? '' : form.getAll('code').map(String).join('')
+ */
+export const submittedForm = async (request: Request): Promise<FormData | null> => {
   try {
-    return Object.fromEntries(await request.formData())
+    return await request.formData()
   } catch {
-    return {}
+    return null
   }
 }
 

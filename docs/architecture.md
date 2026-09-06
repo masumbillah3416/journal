@@ -180,18 +180,27 @@ gate.
 
 | File | Responsibility |
 | --- | --- |
-| `lib/auth/adminAccess.ts` | The three edge-safe decisions: which addresses are public, whether a mutation came from one of our own pages, and the headers every admin response carries. Imports nothing but `resetPath.ts`, because the middleware imports it. |
+| `lib/auth/adminAccess.ts` | The three edge-safe decisions: which addresses are public, whether a mutation came from one of our own pages, and the headers every admin response carries (`adminSecurityHeaders`, which differs between development and production in one keyword). Imports nothing but `resetPath.ts`, because the middleware imports it. |
 | `lib/auth/browserSession.ts` | The two cookies a browser carries through a sign-in: the identifier in `td-session` (minted from Web Crypto, so it works in both runtimes) and the one bit of "keep me signed in" the code step would otherwise lose. Also the two clears, both `Path=/admin` — RFC 6265 keys a cookie by name AND path. |
 | `lib/auth/guard.ts` | The authority on who a request is. Reads the cookie, asks `sessions.authenticate`, returns a `Result`; `requireAdminSession` is the Server Component binding that redirects. |
 | `lib/auth/httpForm.ts` | What every endpoint does with a raw `Request` before any decision: read its fields (an unparseable body is an empty submission, never a `500`), name the address and the device, and answer `303`. |
 | `lib/auth/services.ts` | The composition root: the one place the real Payload, mailer, admin origin and clock are chosen. |
 | `lib/auth/signInEndpoints.ts` | The password step, the code step and signing out, as three functions of a `Request`. One refusal branch for the password step, deliberately, so the three answers that must be indistinguishable cannot be separated later. |
 | `lib/auth/resetRequestEndpoint.ts` | `POST /admin/reset/request`, and the `GET` that keeps the address a 404. |
+| `lib/auth/readCodeScreen.ts` | What `/admin/sign-in/code` prints: the challenge bound to the browser's identifier, or a placeholder that echoes nothing when there is none. |
 
-**Every route file under `app/(admin)` is one line.** A route handler is an ordinary
-function of a `Request`, and neither Vitest project can execute one — so a decision left in
-a route file is a decision nothing can measure. The same seam Task 9 drew for
-`reset/set/route.ts`, now drawn for four more.
+**Every route file under `app/(admin)` is one line** — but for a guarded route that line
+APPLIES the guard: `export const POST = guarded(handleSignOut)`. A route handler is an
+ordinary function of a `Request`, and neither Vitest project can execute one, so a decision
+left in a route file is a decision nothing can measure; the guard is the exception, and it
+is there so `adminGuardRegistration.test.ts` can read the route file and follow nothing.
+That check credited a route for whatever a module it imported contained until it did.
+
+**The one-time-code route is `force-dynamic`, and was silently static.** `Date.now()` was
+evaluated at build time, so the countdown read `0:00` for every reader minutes after a
+deploy — invisible in development, where each request re-renders. It reads `cookies()` now
+as well, which forces the same thing; `lib/auth/codeScreenRoute.test.ts` fails if the
+declaration goes, and `npm run build` prints `ƒ (Dynamic)` beside it.
 
 ### The back room's front door (`apps/web/components/admin/`)
 

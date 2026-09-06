@@ -323,16 +323,25 @@ records why they live in the middleware while the session check does not.
   makes the check real rather than decorative: every browser released since 2016 sends one
   on a form `POST`. The practical cost is that a hand-rolled client (`curl`, a script) must
   send `Origin` to post to any address below, and this is where that is documented rather
-  than discovered.
+  than discovered. **A real browser form does send one** — that is what the
+  `Referrer-Policy` note below is about.
 - **Every admin response carries the admin's security headers:**
   `Content-Security-Policy: default-src 'self'; base-uri 'none'; object-src 'none';
   frame-ancestors 'none'; form-action 'self'; connect-src 'self'; font-src 'self';
-  img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'`,
-  plus `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff` and
-  `X-Robots-Tag: noindex, nofollow`. `Referrer-Policy` matters most on
-  `/admin/reset/<token>`, which carries a live reset token in the address. The `403` above
-  carries them too. **The diary's own responses carry none of them** — asserted one header
-  at a time in `apps/web/middleware.test.ts`.
+  img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'`,
+  plus `Referrer-Policy: same-origin`, `X-Content-Type-Options: nosniff` and
+  `X-Robots-Tag: noindex, nofollow`. In DEVELOPMENT, and only there, `script-src` also
+  carries `'unsafe-eval'`, which React's development build needs and its production build
+  does not — both measured. The `403` above carries these headers too. **The diary's own
+  responses carry none of them** — asserted one header at a time in
+  `apps/web/middleware.test.ts`.
+
+  **`Referrer-Policy` is `same-origin`, and `no-referrer` was a blocking defect.** Under
+  `no-referrer` a form-navigation `POST` sends `Origin: null` per the Fetch standard, so
+  every form on this surface answered `403` in a real browser while the whole suite — which
+  set the `origin` header itself — stayed green. `same-origin` keeps `Origin` populated for
+  the same-origin posts this app makes and still sends nothing cross-origin, so
+  `/admin/reset/<token>`'s live token never leaves in a `Referer`.
 - **A pre-auth identifier is minted** into `td-session` for a browser arriving at a public
   admin address on a safe method with no session cookie at all. It authenticates nothing
   (no `sessions` row names it); it exists so `signIn` has the non-null `browserSession` it
@@ -671,9 +680,19 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
 - **Path:** `apps/web/app/(admin)/admin/sign-in/code/verify/route.ts`; the handler is
   `apps/web/lib/auth/signInEndpoints.ts`'s `handleCodeStep`.
 - **Method:** `POST`. A `GET` is `405`.
-- **Input:** a form body with `code`, parsed with Zod; the `td-session` cookie naming the
-  browser the challenge was issued to; and `td-keep-signed-in`, carrying the choice the
-  password step could not otherwise pass on.
+- **Input:** **six form fields all named `code`**, one per cell, joined in document order
+  — `SCREENS.md` §3.2's pane is six `<input name="code" maxLength={1}>` elements, and that
+  is what a browser sends. A client posting a single `code` field works too, because
+  joining one value is that value. Also the `td-session` cookie naming the browser the
+  challenge was issued to, and `td-keep-signed-in`, carrying the choice the password step
+  could not otherwise pass on.
+
+  **Reading this through `Object.fromEntries` was a defect, and it is the second of the
+  same shape as the `Referrer-Policy` one.** That keeps one value per name, so the handler
+  compared a single character against a six-digit code and refused every correct one. The
+  integration suite sent a single field, so it agreed with the handler; this row had
+  recorded the real shape since Task 8 and nothing read it. Found by typing a code into the
+  real pane in a browser.
 - **Output:** a `303` with an empty body. `/admin/sign-in/done` with the issued session's
   `Set-Cookie` and a cleared `td-keep-signed-in` when the code is right;
   `/admin/sign-in/code` when it is not; `/admin/sign-in` when the browser carries no
@@ -685,15 +704,35 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
 - **Notes:** a wrong code, an exhausted challenge, a consumed one and an expired one are one
   answer, because `verifyChallenge` collapses them: distinguishing them would say which
   browsers hold a live challenge. The screen it returns to cannot yet draw that refusal —
-  `docs/deviations.md` §33 carries that with the rest of the code screen's gaps. **This
-  endpoint does not call `rateLimit.ts`'s `admitCodeAttempt`**, which needs the account a
-  challenge belongs to; what bounds guessing is the challenge's own database-enforced
-  budget (three attempts, claimed before the code is compared, single use, five minutes) and
-  the hourly ceiling on issuing challenges at all. Recorded in `docs/security.md`.
+  the screen it returns to now draws the server's own attempts counter, so a reader can
+  see what is left. **This endpoint DOES call `rateLimit.ts`'s `admitCodeAttempt`** as of
+  the fix round — `otpService.challengeAccount` names the account a live challenge belongs
+  to, server-side and never in a response, which is what that function had been waiting for
+  since Task 4. The challenge's own database-enforced budget still applies underneath
+  (three attempts claimed before the code is compared, single use, five minutes) and the
+  hourly ceiling bounds issuing.
 
-  **Its sibling `/admin/sign-in/code/resend` is not mounted.** `CodeStep.tsx` draws a "Send
-  a new code" button posting to it; issuing a fresh code needs the account, which
-  `otpService` will not name for a browser identifier. `docs/deviations.md` §33.
+  **Its sibling `/admin/sign-in/code/resend` is mounted too** — its own row is above.
+
+### `POST /admin/sign-in/code/resend`
+
+- **Path:** `apps/web/app/(admin)/admin/sign-in/code/resend/route.ts`; the handler is
+  `apps/web/lib/auth/signInEndpoints.ts`'s `handleResendCode`. Mounted in Task 10's fix
+  round; it was the last unmounted form on this surface (`docs/deviations.md` §33).
+- **Method:** `POST`. A `GET` is `405`.
+- **Input:** the `td-session` cookie, and **nothing else** — the body is not read. That is
+  the endpoint's whole safety property: `otpService.resendChallenge` resolves the account
+  from the challenge bound to the browser's own identifier, so a reader cannot have a code
+  sent to an address they have not authenticated as.
+- **Output:** a `303` to `/admin/sign-in/code`, or to `/admin/sign-in` for a browser
+  carrying no identifier at all.
+- **Errors:** none observable, and that is deliberate. A fresh code, a refusal inside the
+  thirty-second cooldown, an account past the hourly ceiling, a mailer that declined, and a
+  browser holding no challenge are **one answer**: `SCREENS.md` §3.2 gives the resend a
+  cooldown label and no refusal copy, and distinguishing them would say which browsers hold
+  a live challenge.
+- **Auth requirement:** none, and it names no account. The challenge bound to the cookie is
+  the authorisation.
 
 ### `POST /admin/reset/request`, `GET /admin/reset/request`
 

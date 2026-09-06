@@ -147,13 +147,13 @@ describe('the cookie that takes it away again', () => {
 
 describe('the checkbox the password step ticked, carried to the code step', () => {
   it('is remembered when the reader ticked it', () => {
-    expect(readKeepSignedIn(keepSignedInCookie(true))).toBe(true)
+    expect(readKeepSignedIn(keepSignedInCookie({ keepSignedIn: true }))).toBe(true)
   })
 
   it('is not remembered when they did not', () => {
     // The password step sets the cookie EITHER WAY, so a stale one from an
     // earlier sign-in cannot lengthen this one's session.
-    expect(readKeepSignedIn(keepSignedInCookie(false))).toBe(false)
+    expect(readKeepSignedIn(keepSignedInCookie({ keepSignedIn: false }))).toBe(false)
   })
 
   it('is not remembered when no such cookie was sent at all', () => {
@@ -172,7 +172,7 @@ describe('the checkbox the password step ticked, carried to the code step', () =
   })
 
   it('is scoped and withheld exactly as the session cookie is', () => {
-    const cookie = keepSignedInCookie(true)
+    const cookie = keepSignedInCookie({ keepSignedIn: true })
 
     expect(cookie).toContain('Path=/admin')
     expect(cookie).toContain('HttpOnly')
@@ -192,7 +192,7 @@ describe('the checkbox the password step ticked, carried to the code step', () =
     // CLAUDE.md §7. The whole reason a cookie is acceptable here is that the
     // value is one bit; a cookie carrying the reader's address to bridge the
     // same gap would be a credential in a browser store.
-    expect(keepSignedInCookie(true)).toBe(
+    expect(keepSignedInCookie({ keepSignedIn: true })).toBe(
       `${KEEP_SIGNED_IN_COOKIE_NAME}=yes; Path=/admin; Max-Age=3600; HttpOnly; Secure; SameSite=Lax`,
     )
   })

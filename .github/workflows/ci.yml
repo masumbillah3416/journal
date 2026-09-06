@@ -164,7 +164,7 @@ jobs:
       # the prototype's flag, and the footer line unmoved when that key is
       # planted in `localStorage` before navigation. They can only run in a
       # browser, so this is the only place they gate a merge.
-      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/signIn.spec.ts e2e/codeStep.spec.ts e2e/reset.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
+      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/signIn.spec.ts e2e/codeStep.spec.ts e2e/reset.spec.ts e2e/signInJourney.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
       # image: chrome-launcher's own auto-detection looks for a system
       # `google-chrome`/`chromium-browser` binary, which this image does not

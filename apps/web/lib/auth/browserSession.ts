@@ -205,17 +205,27 @@ export const readBrowserSession = (cookieHeader: string | null): SessionId | nul
 export const readKeepSignedIn = (cookieHeader: string | null): boolean =>
   cookieValue(cookieHeader, KEEP_SIGNED_IN_COOKIE_NAME) === KEEP_SIGNED_IN_COOKIE_VALUE
 
+/** What {@link keepSignedInCookie} is asked. */
+export interface KeepSignedInRequest {
+  /** Whether the reader ticked "keep me signed in" on the password step. */
+  readonly keepSignedIn: boolean
+}
+
 /**
  * The `Set-Cookie` value carrying the reader's answer on to the code step.
  *
- * @param keepSignedIn - What they ticked. Written either way — see this
- *   module's header for why a `false` is set rather than skipped.
+ * @param request - See {@link KeepSignedInRequest}. An options object rather
+ *   than a bare boolean, because CLAUDE.md §3.2 bans boolean parameters in
+ *   public APIs — `keepSignedInCookie(true)` says nothing at the call site
+ *   about what is true. `sessionLifetimeMs` takes the same field the same way
+ *   for the same reason.
  * @returns The header value, under the same attributes and the same lifetime
- *   the pre-auth identifier travels under.
+ *   the pre-auth identifier travels under. Written either way — see this
+ *   module's header for why a `false` is set rather than skipped.
  * @example
- * seeOther('/admin/sign-in/code', { 'Set-Cookie': keepSignedInCookie(true) })
+ * seeOther('/admin/sign-in/code', { 'Set-Cookie': keepSignedInCookie({ keepSignedIn: true }) })
  */
-export const keepSignedInCookie = (keepSignedIn: boolean): string =>
+export const keepSignedInCookie = ({ keepSignedIn }: KeepSignedInRequest): string =>
   adminCookie(KEEP_SIGNED_IN_COOKIE_NAME, keepSignedIn ? KEEP_SIGNED_IN_COOKIE_VALUE : '', PRE_AUTH_LIFETIME_MS)
 
 /**

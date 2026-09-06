@@ -29,9 +29,9 @@
  *   1. `adminAccess.ts` declares it public (`ADMIN_PUBLIC_PATHS`, or the reset
  *      link's own shape), which is a deliberate, reviewable statement that the
  *      address answers to anybody; or
- *   2. the file CALLS the guard — itself, or in the one `lib/auth` module it
- *      re-exports its handler from, which is the shape every route file in
- *      this repository has.
+ *   2. the file APPLIES the guard in its own body — `guarded(handler)` for a
+ *      route, `requireAdminSession()` for a page. Nothing it imports is read:
+ *      see {@link GUARD_APPLICATIONS}.
  *
  * ═══ THIS FILE WAS DECORATIVE ONCE, AND ITS OWN MUTATION CAUGHT IT ═══
  *
@@ -41,8 +41,9 @@
  * the header comment that explains the guarding — left every case here GREEN:
  * the screen was unguarded and the check that exists to catch exactly that
  * said nothing. {@link sourceWithoutMentions} strips comments and imports
- * before the scan, {@link GUARD_CALLS} requires a `(`, and there is a case
- * below that fails if either of those is undone.
+ * before the scan, {@link GUARD_APPLICATIONS} requires a `(`, and the scan
+ * reads the route file ALONE — see that constant for the three rounds it took
+ * to get there.
  *
  * THE SENTINELS ARE NOT DECORATION EITHER. A scan that walked the wrong
  * directory, or whose path arithmetic was off by a segment, would find nothing
@@ -68,23 +69,36 @@ const ADMIN_ROUTE_DIRECTORY = 'app/(admin)/admin'
 const ROUTE_FILE_NAMES: readonly string[] = ['page.tsx', 'route.ts']
 
 /**
- * The one module this scan must never follow: the guard itself.
+ * Every way a mounted file can apply the guard, and the `(` is the point.
  *
- * THE SECOND WAY THIS FILE WAS DECORATIVE. Following a route file's imports is
- * what lets a one-line `route.ts` be credited with the guard its handler calls
- * — but `guard.ts`'s own body calls `authenticateAdminRequest`, so following IT
- * credits every file that merely imports it. That is precisely
- * `sign-in/done/page.tsx`, and deleting its call left this file green a second
- * time, for a second reason. Importing the guard is not calling it.
+ * `guarded(` is the wrapper a route handler is exported through;
+ * `requireAdminSession(` is what a Server Component calls;
+ * `authenticateAdminRequest(` is the underlying read, allowed here because a
+ * route that calls it directly has still made the decision in its own file.
+ *
+ * ═══ THIS FILE WAS DECORATIVE THREE TIMES, IN THE ONE PLACE THAT MATTERS ═══
+ *
+ * It is the only thing standing between Phase 4's ten screens of mutations and
+ * one of them going out unguarded, and every version of it so far has passed
+ * with the guard removed:
+ *
+ *   1. It matched the guard's NAME anywhere in the file, so the `import` line
+ *      and the header comment satisfied it.
+ *   2. It stripped those and required a `(` — and followed the route file's
+ *      imports one level to credit a one-line `route.ts`, so `guard.ts`'s own
+ *      body (which calls `authenticateAdminRequest`) credited every file that
+ *      imported it.
+ *   3. It stopped following `guard.ts` — and still credited a route for
+ *      ANY module it imported, so a guarded route re-exporting any handler
+ *      from `signInEndpoints.ts` passed, because that module holds several and
+ *      one of them called the guard.
+ *
+ * The fix is not another exclusion. It is that **the guard is now applied in
+ * the route file itself** (`guarded(handleSignOut)`), so this scan reads that
+ * one file and follows nothing at all. A check that has to look somewhere else
+ * to find its subject is a check that can be satisfied by a neighbour.
  */
-const GUARD_MODULE = 'lib/auth/guard'
-
-/**
- * Either way the guard can be CALLED. Both are `lib/auth/guard.ts`'s exports,
- * and the trailing `(` is the whole point of the pattern — see this file's
- * header for what a pattern without it was worth.
- */
-const GUARD_CALLS = /(requireAdminSession|authenticateAdminRequest)\s*\(/u
+const GUARD_APPLICATIONS = /(guarded|requireAdminSession|authenticateAdminRequest)\s*\(/u
 
 /** One mounted address and the file that serves it. */
 interface MountedAddress {
@@ -119,7 +133,7 @@ const mountedAddresses = (directory: string): readonly MountedAddress[] =>
 /**
  * A source file with its comments and its import statements removed.
  *
- * Both are places the guard's NAME appears without the guard being called: a
+ * Both are places the guard's NAME appears without the guard being applied: a
  * TSDoc header that explains the guarding, and the `import` that brings it in.
  * A scan over raw text is satisfied by either, which is what made the first
  * version of this file green with the call deleted.
@@ -139,39 +153,16 @@ const sourceWithoutMentions = (source: string): string =>
     .filter((line) => !/^\s*import\b/u.test(line))
     .join('\n')
 
-/**
- * The text of a route file and of every `lib/` module it imports, with the
- * mentions stripped from each.
- *
- * ONE LEVEL, WHICH IS THE SHAPE EVERY ROUTE FILE HERE HAS: a route file names
- * its handler and nothing else, and the handler is a `lib/auth` module. A
- * deeper walk would start accepting a guard three modules away from the thing
- * being guarded, which is not a guard anybody reading the route can see.
- *
- * @param file - The route file, relative to `apps/web`.
- * @returns Its own body, followed by the body of each relative import that
- *   resolves inside `apps/web/lib`.
- */
-const sourceAndItsHandlers = (file: string): string => {
-  const own = readFileSync(path.join(webRoot, file), 'utf8')
-  const directory = path.dirname(file)
-
-  // Scanned off the RAW source, deliberately: this is looking for the very
-  // import statements `sourceWithoutMentions` strips.
-  const imported = [...own.matchAll(/from '(\.[^']+)'/gu)].flatMap((match) => {
-    const specifier = match[1]
-    if (specifier === undefined) return []
-
-    const resolved = path.normalize(path.join(directory, specifier)).replaceAll('\\', '/')
-    if (!resolved.startsWith('lib/') || resolved === GUARD_MODULE) return []
-    return [readFileSync(path.join(webRoot, `${resolved}.ts`), 'utf8')]
-  })
-
-  return [own, ...imported].map(sourceWithoutMentions).join('\n')
-}
-
 describe('the admin addresses this repository mounts', () => {
   const mounted = mountedAddresses(ADMIN_ROUTE_DIRECTORY)
+
+  /**
+   * Whether a mounted file applies the guard in its own body.
+   * @param file - The route file, relative to `apps/web`.
+   * @returns `true` when the file itself calls or applies a guard.
+   */
+  const appliesTheGuard = (file: string): boolean =>
+    GUARD_APPLICATIONS.test(sourceWithoutMentions(readFileSync(path.join(webRoot, file), 'utf8')))
 
   it('finds the addresses that are known to be mounted, so the scan is not looking at nothing', () => {
     // The sentinel. Every conclusion below is drawn from this list, and a walk
@@ -191,45 +182,46 @@ describe('the admin addresses this repository mounts', () => {
     expect(mounted.map((address) => address.file).filter((file) => file.endsWith('page.tsx'))).not.toHaveLength(0)
   })
 
-  it('leaves every guarded address actually calling the guard', () => {
-    const unguarded = mounted
-      .filter((address) => isGuardedAdminPath(address.url))
-      .filter((address) => !GUARD_CALLS.test(sourceAndItsHandlers(address.file)))
+  it('leaves every guarded address applying the guard in its own file', () => {
+    const unguarded = mounted.filter((address) => isGuardedAdminPath(address.url)).filter(
+      (address) => !appliesTheGuard(address.file),
+    )
 
     expect(
       unguarded.map((address) => address.file),
-      'these admin addresses are guarded by policy but call no guard: declare them in ADMIN_PUBLIC_PATHS, or call requireAdminSession / authenticateAdminRequest',
+      'these admin addresses are guarded by policy but apply no guard in their own file: declare them in ADMIN_PUBLIC_PATHS, call requireAdminSession, or export guarded(handler)',
     ).toEqual([])
   })
 
-  it('reads a guard CALL rather than a mention of one, so deleting the call fails the case above', () => {
-    // Written after the mutation run for this task deleted
-    // `await requireAdminSession()` from the signed-in screen and this file
-    // stayed green — the `import` line and the header comment both matched a
-    // pattern that looked only for the name. A file that names the guard in an
-    // import and in a comment, and calls it nowhere, must NOT satisfy it.
-    const namedButNeverCalled = [
+  it('reads a guard APPLICATION rather than a mention of one', () => {
+    // Fix round 1, finding 6 of round 0: the first version matched the guard's
+    // name anywhere, so deleting the call left the `import` line and the header
+    // comment matching and every case green.
+    const namedButNeverApplied = [
       "import { requireAdminSession } from '../../lib/auth/guard'",
       '/** Calls requireAdminSession() before it draws anything. */',
       '// requireAdminSession() belongs here',
       'const Page = () => null',
     ].join('\n')
 
-    expect(GUARD_CALLS.test(sourceWithoutMentions(namedButNeverCalled))).toBe(false)
-    expect(GUARD_CALLS.test(sourceWithoutMentions('const account = await requireAdminSession()'))).toBe(true)
+    expect(GUARD_APPLICATIONS.test(sourceWithoutMentions(namedButNeverApplied))).toBe(false)
+    expect(GUARD_APPLICATIONS.test(sourceWithoutMentions('const account = await requireAdminSession()'))).toBe(true)
+    expect(GUARD_APPLICATIONS.test(sourceWithoutMentions('export const POST = guarded(handleSignOut)'))).toBe(true)
   })
 
-  it('does not credit a file for importing the guard, only for calling it', () => {
-    // The second reason this file was decorative, and the one the first fix
-    // missed: `guard.ts`'s own body calls `authenticateAdminRequest`, so a scan
-    // that followed it credited every file that merely imported it. The
-    // signed-in screen imports it AND calls it, so the honest way to say this
-    // is to read what the follow actually returns: the guard module's body must
-    // not be in it.
-    const followed = sourceAndItsHandlers('app/(admin)/admin/sign-in/done/page.tsx')
-
-    expect(followed).not.toContain('const sessions = createSessionService(')
-    expect(followed).toMatch(GUARD_CALLS)
+  it('credits no route for what a module it imports happens to contain', () => {
+    // FIX ROUND 1, FINDING 2, and the third instance of this class in the one
+    // file whose whole purpose is to stop a screen going unguarded. The scan
+    // used to follow a route file's imports one level, so a guarded route
+    // re-exporting ANY handler from `signInEndpoints.ts` passed — that module
+    // holds several, and one of them called the guard. It now reads the route
+    // file alone, which is why `sign-out/route.ts` applies `guarded` itself.
+    //
+    // Asserted against a REAL mounted file rather than a fabricated string: a
+    // route that names a handler and no guard must fail the scan even though
+    // the module it imports from is full of guard calls.
+    expect(appliesTheGuard('app/(admin)/admin/sign-in/password/route.ts')).toBe(false)
+    expect(appliesTheGuard('app/(admin)/admin/sign-out/route.ts')).toBe(true)
   })
 
   it('has at least one guarded address, so the case above is not vacuous', () => {
@@ -252,6 +244,7 @@ describe('the admin addresses this repository mounts', () => {
       '/admin/reset/set',
       '/admin/sign-in',
       '/admin/sign-in/code',
+      '/admin/sign-in/code/resend',
       '/admin/sign-in/code/verify',
       '/admin/sign-in/password',
     ])

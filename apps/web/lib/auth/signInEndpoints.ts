@@ -46,19 +46,23 @@
  * two. What that costs is that a genuinely rate-limited reader is told the
  * same thing as one who mistyped a password; `docs/security.md` records it.
  *
- * ═══ WHAT THE CODE STEP DOES NOT DO, AND WHY ═══
+ * ═══ WHAT THE CODE STEP NOW DOES, AFTER FIX ROUND 1 ═══
  *
- * It does not call `rateLimit.ts`'s `admitCodeAttempt`. That function needs
- * the account a code was issued for, and the account behind a challenge is not
- * knowable before the code has been verified: `otpService` offers no
- * session-to-account lookup, deliberately — telling an unauthenticated caller
- * which browsers hold a live challenge is the enumeration `verifyChallenge`'s
- * single `'invalid'` refusal exists to prevent. What bounds guessing instead is
- * the challenge's own budget, which is enforced by Postgres rather than by this
- * process: three attempts per challenge, claimed before the code is compared,
- * single use, five-minute life, and an hourly ceiling on how many challenges an
- * account can be issued at all. Recorded in `docs/security.md` as a named
- * residual rather than left to be discovered.
+ * It spends `rateLimit.ts`'s per-account and per-IP code windows before the
+ * guess is compared. Until this landed `admitCodeAttempt` had no caller
+ * anywhere — a mechanism built in Task 4 and never reached, which phase ruling
+ * F45 is explicit is not enforcement. What blocked it was that the function
+ * needs the account a challenge belongs to and nothing would name one;
+ * `otpService.challengeAccount` is that lookup, added in the same round, and
+ * it is server-only: the account never reaches a response, and the endpoint's
+ * refusal is the same word whether the window was shut, the code was wrong, or
+ * the browser holds no challenge at all.
+ *
+ * The challenge's own budget still does the work it always did, and it is the
+ * half enforced by Postgres rather than by this process: three attempts
+ * claimed before the code is compared, single use, a five-minute life, and an
+ * hourly ceiling on issuing challenges. The windows are what stop an attacker
+ * fanning the same guessing across many browsers from one address.
  *
  * INVARIANT — NOTHING HERE LOGS OR RETURNS A CREDENTIAL. Not the password, not
  * the code, not the address, not a session identifier. The address never
@@ -87,8 +91,8 @@ import {
   readBrowserSession,
   readKeepSignedIn,
 } from './browserSession'
-import { authenticateAdminRequest } from './guard'
-import { clientAddress, deviceLabel, seeOther, submittedFields } from './httpForm'
+import type { GuardedHandler } from './guard'
+import { clientAddress, deviceLabel, seeOther, submittedFields, submittedForm } from './httpForm'
 import { signInServices } from './services'
 
 /** Where the password step is drawn, and where every refusal sends a reader. */
@@ -119,8 +123,39 @@ const passwordSubmission = z.object({
   keepSignedIn: z.string().optional(),
 })
 
-/** What a submission to the code endpoint has to carry. */
+/**
+ * What a submission to the code endpoint has to carry.
+ *
+ * `code` is the SIX CELLS JOINED, not one field. `SCREENS.md` §3.2's pane is
+ * six `<input name="code" maxLength={1}>` elements, so a browser sends the name
+ * six times — see {@link submittedCode} for what reading only the last of them
+ * cost.
+ */
 const codeSubmission = z.object({ code: z.string() })
+
+/**
+ * The six digits a reader typed, in document order.
+ *
+ * ═══ THE SECOND DEFECT OF THE SAME SHAPE AS THE BLOCKER (FIX ROUND 1) ═══
+ *
+ * This endpoint read its code through `submittedFields`, which is
+ * `Object.fromEntries` over the form — and that keeps ONE value per name. Six
+ * cells called `code` collapsed to the last one, so the handler compared a
+ * single character against a six-digit code and refused every correct one. The
+ * integration suite sent a single `code` field, so it agreed with the handler;
+ * `docs/api.md` had recorded the real shape since Task 8 and nothing read it.
+ * It was found by typing a code into the real pane in a browser.
+ *
+ * A HAND-ROLLED CLIENT SENDING ONE `code` FIELD STILL WORKS, because joining
+ * one value is that value. There is no branch here for the two shapes.
+ *
+ * @param request - The `POST` as it arrived.
+ * @returns The joined digits, or `null` when the body is not a form at all.
+ */
+const submittedCode = async (request: Request): Promise<string | null> => {
+  const form = await submittedForm(request)
+  return form === null ? null : form.getAll('code').map(String).join('')
+}
 
 /**
  * Answers a submission of the password form.
@@ -178,7 +213,7 @@ export const handlePasswordStep = async (request: Request): Promise<Response> =>
     // which submits six digits and nothing else. Written either way, so a
     // stale `yes` cannot lengthen this sign-in — `browserSession.ts` explains
     // why one bit in a cookie is the right size for this.
-    carriedForward.append('Set-Cookie', keepSignedInCookie(keepSignedIn))
+    carriedForward.append('Set-Cookie', keepSignedInCookie({ keepSignedIn }))
     return new Response(null, { status: 303, headers: withLocation(carriedForward, CODE_STEP_PATH) })
   }
 
@@ -204,10 +239,28 @@ export const handleCodeStep = async (request: Request): Promise<Response> => {
   const browserSession = readBrowserSession(cookieHeader)
   if (browserSession === null) return seeOther(PASSWORD_STEP_PATH)
 
-  const submitted = codeSubmission.safeParse(await submittedFields(request))
+  const submitted = codeSubmission.safeParse({ code: await submittedCode(request) })
   if (!submitted.success) return seeOther(CODE_STEP_PATH)
 
-  const { otp, sessions } = await signInServices()
+  const { otp, sessions, limiter } = await signInServices()
+
+  // THE PER-ACCOUNT AND PER-IP CODE WINDOWS, SPENT BEFORE THE GUESS IS
+  // COMPARED. `admitCodeAttempt` had no caller at all until fix round 1
+  // (phase ruling F45: a mechanism nothing calls is not enforcement), because
+  // it needs the account a challenge belongs to and nothing would name one.
+  // `challengeAccount` is that lookup, and it is server-only: the account
+  // never reaches a response, and a browser holding no live challenge is
+  // metered by nothing here because `verifyChallenge` refuses it without
+  // spending a scrypt derivation anyway.
+  const account = await otp.challengeAccount(browserSession)
+  if (account !== null) {
+    const admitted = await limiter.admitCodeAttempt({ ip: clientAddress(request), account })
+    // The SAME answer a wrong code gets. Telling a reader their window is shut
+    // would say that this browser holds a live challenge, which is what
+    // `verifyChallenge`'s single `'invalid'` refusal exists to withhold.
+    if (!admitted.ok) return seeOther(CODE_STEP_PATH)
+  }
+
   const verified = await otp.verifyChallenge(browserSession, submitted.data.code)
   // ONE BRANCH FOR EVERY REFUSAL, for the reason `verifyChallenge` collapses a
   // wrong code and a browser with no challenge into `'invalid'`: distinguishing
@@ -218,7 +271,12 @@ export const handleCodeStep = async (request: Request): Promise<Response> => {
     user: verified.value.userId,
     // Superseded in the same statement that mints its replacement. Passing
     // `null` here would leave the identifier the code was mailed against
-    // working alongside the session it produced.
+    // working alongside the session it produced - and when that identifier is
+    // a LIVE session rather than a pre-auth one, the old session would keep
+    // authenticating after a fresh sign-in. `SECURITY.md`'s "never reuse a
+    // pre-auth id" is the same sentence; the integration suite asserts the
+    // live case, because the pre-auth case is true of a handler that rotates
+    // nothing (no row names a pre-auth identifier either way).
     previous: browserSession,
     keepSignedIn: readKeepSignedIn(cookieHeader),
     device: deviceLabel(request),
@@ -234,32 +292,68 @@ export const handleCodeStep = async (request: Request): Promise<Response> => {
 }
 
 /**
- * Answers "Sign out and start again".
+ * Answers "Send a new code".
+ *
+ * IT NAMES NO ACCOUNT, AND THAT IS THE WHOLE REASON IT CAN EXIST. The browser
+ * submits nothing at all; `otpService.resendChallenge` resolves the account
+ * from the challenge bound to the identifier in the cookie, so a reader cannot
+ * ask for a code to be sent to somebody else's address by naming it.
+ *
+ * ONE ANSWER, WHATEVER HAPPENED. A fresh code, a refused resend inside the
+ * thirty-second cooldown, an account past the hourly ceiling, a mailer that
+ * declined, and a browser holding no challenge at all are all a `303` back to
+ * the code step. `SCREENS.md` §3.2 gives the resend a cooldown label and no
+ * refusal copy, and distinguishing them here would say which browsers hold a
+ * live challenge.
+ *
+ * @param request - The `POST`. Its body is not read; the cookie is.
+ * @returns A `303` to the code step, or to the password step for a browser
+ *   carrying no identifier — there can be no challenge for one that has none.
+ * @example
+ * export const POST = handleResendCode
+ */
+export const handleResendCode = async (request: Request): Promise<Response> => {
+  const browserSession = readBrowserSession(request.headers.get('cookie'))
+  if (browserSession === null) return seeOther(PASSWORD_STEP_PATH)
+
+  const { otp } = await signInServices()
+  await otp.resendChallenge(browserSession, clientAddress(request))
+
+  return seeOther(CODE_STEP_PATH)
+}
+
+/**
+ * Answers "Sign out and start again", for a request the guard has already
+ * admitted.
  *
  * BOTH HALVES, AND THE ROW IS THE ONE THAT MATTERS. Clearing the cookie stops
  * this browser sending the identifier; revoking the row stops the identifier
  * working at all, which is what a reader signing out of a shared machine — or
  * a stolen copy of the value — actually needs.
  *
+ * IT TAKES THE SESSION RATHER THAN LOOKING IT UP. `guarded` has already
+ * authenticated the request, so re-reading the cookie to decide whether to act
+ * would be the same question asked twice; what is read below is the
+ * IDENTIFIER, which `revokeSession` needs and an `AuthenticatedSession` does
+ * not carry.
+ *
  * @param request - The `POST`, carrying the session as a cookie.
+ * @param session - The account the guard named.
  * @returns A `303` to the sign-in screen, with the session cookie cleared.
- *   The same answer whether or not there was a session to revoke: there is
- *   nothing to tell a reader who was not signed in that they need to act on.
  * @example
- * export const POST = handleSignOut
+ * export const POST = guarded(handleSignOut)
  */
-export const handleSignOut = async (request: Request): Promise<Response> => {
-  const cookieHeader = request.headers.get('cookie')
-  const authenticated = await authenticateAdminRequest(cookieHeader)
-  const presented = readBrowserSession(cookieHeader)
+export const handleSignOut: GuardedHandler = async (request, session) => {
+  const presented = readBrowserSession(request.headers.get('cookie'))
 
-  if (authenticated.ok && presented !== null) {
-    const { sessions } = await signInServices()
-    // The owner is passed as well as the identifier, so `revokeSession` matches
-    // on `user_id` too: revocation is how a stolen session is taken away from
-    // the thief rather than from its owner.
-    await sessions.revokeSession({ session: presented, owner: authenticated.value.user })
-  }
+  /* c8 ignore next -- `guarded` authenticated this request from that same cookie a moment ago, so the identifier is there; the arm exists because `readBrowserSession` returns a nullable and the Result must be unwrapped */
+  if (presented === null) return seeOther(PASSWORD_STEP_PATH, { 'Set-Cookie': clearedSessionCookie() })
+
+  const { sessions } = await signInServices()
+  // The owner is passed as well as the identifier, so `revokeSession` matches
+  // on `user_id` too: revocation is how a stolen session is taken away from
+  // the thief rather than from its owner.
+  await sessions.revokeSession({ session: presented, owner: session.user })
 
   return seeOther(PASSWORD_STEP_PATH, { 'Set-Cookie': clearedSessionCookie() })
 }

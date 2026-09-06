@@ -15,13 +15,24 @@
  *
  * Depends on: vitest, next/server, ./lib/auth/adminAccess, ./middleware.
  */
-import { ADMIN_SECURITY_HEADERS } from './lib/auth/adminAccess'
+import { adminSecurityHeaders } from './lib/auth/adminAccess'
 import { describe, expect, it } from 'vitest'
 import { NextRequest } from 'next/server'
 import { middleware } from './middleware'
 
 /** The origin every request in this file is made to. */
 const ORIGIN = 'http://localhost:3000'
+
+/**
+ * The headers the middleware is expected to set, for the environment these
+ * tests run in.
+ *
+ * `development: false`, because Vitest sets `NODE_ENV` to `test` and the
+ * middleware reads exactly that — so what these cases compare against is the
+ * SHIPPED policy, which is the one worth pinning here. Whether the development
+ * policy differs by the one keyword it should is `adminAccess.test.ts`'s.
+ */
+const EXPECTED_HEADERS = adminSecurityHeaders({ development: false })
 
 /** A phone's user agent, as `next/server`'s own parser recognises one. */
 const IPHONE =
@@ -97,12 +108,16 @@ describe('middleware', () => {
       const response = middleware(requestFor('/admin/sign-in'))
 
       expect(response.headers.get('Content-Security-Policy')).toBe(
-        ADMIN_SECURITY_HEADERS['Content-Security-Policy'],
+        EXPECTED_HEADERS['Content-Security-Policy'],
       )
     })
 
     it('puts the admin’s referrer policy on it too, so a reset token never leaves in a Referer', () => {
-      expect(middleware(requestFor('/admin/reset/deadbeef')).headers.get('Referrer-Policy')).toBe('no-referrer')
+      // `same-origin`, not `no-referrer`: the token still never leaves in a
+      // cross-origin `Referer`, and a form-navigation POST keeps an `Origin`
+      // the cross-site check can read. Under `no-referrer` it sends
+      // `Origin: null` and every form on this surface answered 403.
+      expect(middleware(requestFor('/admin/reset/deadbeef')).headers.get('Referrer-Policy')).toBe('same-origin')
     })
 
     it('puts every one of them on, not merely the policy', () => {
@@ -111,7 +126,7 @@ describe('middleware', () => {
       // header nothing notices is missing.
       const response = middleware(requestFor('/admin/sign-in'))
 
-      for (const [name, value] of Object.entries(ADMIN_SECURITY_HEADERS)) {
+      for (const [name, value] of Object.entries(EXPECTED_HEADERS)) {
         expect(response.headers.get(name)).toBe(value)
       }
     })
@@ -121,7 +136,7 @@ describe('middleware', () => {
       // them would be a behaviour change nothing in this task asked for.
       const response = middleware(requestFor('/p/3', { 'user-agent': DESKTOP }))
 
-      for (const name of Object.keys(ADMIN_SECURITY_HEADERS)) {
+      for (const name of Object.keys(EXPECTED_HEADERS)) {
         expect(response.headers.get(name)).toBeNull()
       }
     })
@@ -129,7 +144,7 @@ describe('middleware', () => {
     it('leaves the mobile surface’s rewrite carrying none of them either', () => {
       const response = middleware(requestFor('/p/3', { 'user-agent': IPHONE }))
 
-      for (const name of Object.keys(ADMIN_SECURITY_HEADERS)) {
+      for (const name of Object.keys(EXPECTED_HEADERS)) {
         expect(response.headers.get(name)).toBeNull()
       }
     })
@@ -137,7 +152,7 @@ describe('middleware', () => {
     it('leaves the redirect off the internal mobile path carrying none of them', () => {
       const response = middleware(requestFor('/m/3', { 'user-agent': IPHONE }))
 
-      for (const name of Object.keys(ADMIN_SECURITY_HEADERS)) {
+      for (const name of Object.keys(EXPECTED_HEADERS)) {
         expect(response.headers.get(name)).toBeNull()
       }
     })
@@ -182,7 +197,7 @@ describe('middleware', () => {
       const response = middleware(requestFor('/admin/sign-out', {}, 'POST'))
 
       expect(response.headers.get('Content-Security-Policy')).toBe(
-        ADMIN_SECURITY_HEADERS['Content-Security-Policy'],
+        EXPECTED_HEADERS['Content-Security-Policy'],
       )
     })
 

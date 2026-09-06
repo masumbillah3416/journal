@@ -95,7 +95,6 @@
  * `secondsRemaining` (@travel-diary/domain/auth/otpCountdown),
  * ./signIn.module.css.
  */
-import { maskEmail } from '@travel-diary/domain/auth/mask'
 import { distributePaste, nextCell } from '@travel-diary/domain/auth/otpCells'
 import { EXPIRY_MS, MAX_ATTEMPTS, RESEND_COOLDOWN_MS } from '@travel-diary/domain/auth/otpChallenge'
 import { formatCountdown, secondsRemaining } from '@travel-diary/domain/auth/otpCountdown'
@@ -127,17 +126,6 @@ export const PASSWORD_STEP_PATH = '/admin/sign-in'
  * stylesheet, and what pins the two together.
  */
 export const SHAKE_MS = 420
-
-/**
- * What the address line prints while no challenge has been issued.
- *
- * `maskEmail`'s own fallback for input it cannot mask - three bullets and
- * nothing else - rather than a placeholder invented here, so the screen never
- * echoes anything, not even when there is nothing to echo. The route passes
- * this until Phase 2 Task 10 wires the pending challenge that supplies a real
- * masked address (`docs/deviations.md` §33).
- */
-export const PENDING_ADDRESS_MASK = maskEmail('')
 
 /** Ties the error box to the cells it is about, for `aria-describedby`. */
 const ERROR_ID = 'code-step-error'

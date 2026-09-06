@@ -75,7 +75,7 @@ import { rememberedSurface, servedReadingSurface } from '@travel-diary/domain/re
 import type { NextRequest } from 'next/server'
 import { NextResponse, userAgent } from 'next/server'
 import {
-  ADMIN_SECURITY_HEADERS,
+  adminSecurityHeaders,
   isAdminPath,
   isCrossSiteMutation,
   isGuardedAdminPath,
@@ -99,11 +99,18 @@ const CROSS_SITE_REFUSED_STATUS = 403
  * `frame-ancestors` is a 403 that can be framed, and a refusal is exactly the
  * response an attacker gets to look at.
  *
+ * THE DEVELOPMENT FLAG IS READ HERE AND NOWHERE ELSE. `adminSecurityHeaders`
+ * takes it, so a test can ask for either policy without touching the process,
+ * and this is the one place `NODE_ENV` decides anything about them. Next
+ * inlines that value at build time in the Edge runtime, so the shipped
+ * middleware carries one policy rather than a branch.
+ *
  * @param response - The response so far.
  * @returns The same object, for chaining.
  */
 const withAdminHeaders = (response: NextResponse): NextResponse => {
-  for (const [name, value] of Object.entries(ADMIN_SECURITY_HEADERS)) response.headers.set(name, value)
+  const headers = adminSecurityHeaders({ development: process.env.NODE_ENV === 'development' })
+  for (const [name, value] of Object.entries(headers)) response.headers.set(name, value)
   return response
 }
 

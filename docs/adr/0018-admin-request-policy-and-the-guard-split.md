@@ -90,8 +90,9 @@ request:
 - **What every admin response carries.** `default-src 'self'`, `base-uri 'none'`,
   `object-src 'none'`, `frame-ancestors 'none'`, `form-action 'self'`, `connect-src 'self'`,
   `font-src 'self'`, `img-src 'self' data:`, `style-src 'self' 'unsafe-inline'` and
-  `script-src 'self' 'unsafe-inline' 'unsafe-eval'`; plus `Referrer-Policy: no-referrer`,
-  `X-Content-Type-Options: nosniff` and `X-Robots-Tag: noindex, nofollow`.
+  `script-src 'self' 'unsafe-inline'`; plus `Referrer-Policy: same-origin`,
+  `X-Content-Type-Options: nosniff` and `X-Robots-Tag: noindex, nofollow`. In development,
+  and only there, `script-src` also carries `'unsafe-eval'`.
 
 `apps/web/lib/auth/guard.ts` holds the one decision that needs Postgres — whether an
 identifier names a live row — and runs in the Node server, called by the page or route
@@ -163,3 +164,45 @@ trusted as one — the most a forged value achieves is a thirty-day session for 
 whose password and one-time code the holder has just supplied correctly. The alternative,
 defaulting to `false` at the code step, would make the checkbox do nothing at all for every
 account with the second factor on, which is every account by default.
+
+## Revision — fix round 1
+
+Two decisions in this ADR were wrong, and both were found by driving a real browser rather
+than by reading.
+
+**`Referrer-Policy: no-referrer` broke every form on the surface, and this ADR never
+considered the interaction.** Per the Fetch standard a navigation request's `Origin` header
+is derived from the referrer policy, so under `no-referrer` a form-navigation `POST` sends
+`Origin: null` — which the strict-equality origin check above refuses. Measured in
+Chromium. The header is now `same-origin`: `Origin` stays populated for the same-origin
+posts this application makes, and nothing is sent cross-origin, so the reason `no-referrer`
+was chosen (`/admin/reset/<token>` carries a live token in its address) is still met. The
+ORIGIN CHECK IS UNCHANGED — admitting `null` would have admitted every request that carries
+no origin at all, which is the case it exists for.
+
+The lasting fix is not the header. It is that no browser test sets a request header any
+more: `e2e/signInJourney.spec.ts` fills in the real forms and presses the real buttons,
+through the second factor, and reverting the policy fails five of its cases. Every route
+test in round 0 supplied an `origin` it chose, under a comment calling it what a browser
+would send.
+
+**`'unsafe-eval'` is development-only, not unconditional.** Option 5's rejection stands,
+but the consequence written under it did not: a production build was measured with
+`script-src 'self' 'unsafe-inline'` and no `'unsafe-eval'` — four admin routes, zero
+console errors, zero page errors, hydration working. React's own message says it "will
+never use eval() in production mode". So the keyword is added for the development build
+alone, which is the opposite of `sessionCookie`'s `Secure` reasoning and deliberately so:
+there, a conditional would have left the STRICTER configuration unexercised; here the
+stricter configuration is production's, and it is the one CI's browser job and the visual
+container both run.
+
+**`adminSecurityHeaders` is a function now, not a constant**, because it takes that one
+flag. `apps/web/middleware.ts` is the only caller that reads `NODE_ENV`.
+
+**A third correction, to the structural guard rather than to the policy.**
+`adminGuardRegistration.test.ts` credited a route for whatever a module it imported
+contained, so a guarded route re-exporting any handler from `signInEndpoints.ts` passed —
+the third instance of that class in the one file whose purpose is to stop a screen going
+unguarded. The guard is now APPLIED IN THE ROUTE FILE (`export const POST =
+guarded(handleSignOut)`), so the scan reads that file and follows nothing. A check that has
+to look somewhere else to find its subject can be satisfied by a neighbour.

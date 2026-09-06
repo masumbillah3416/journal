@@ -72,7 +72,7 @@
  * stored somewhere to compare against — which for the pre-auth screens means
  * a database row for every visitor who ever loads the sign-in page. The
  * origin check needs no state at all and is enforced identically for a form
- * this repository has not written yet. `docs/adr/0018-admin-request-guard.md`
+ * this repository has not written yet. `docs/adr/0018-admin-request-policy-and-the-guard-split.md`
  * records what was rejected and why.
  *
  * ═══ WHAT THE HEADERS DO AND DO NOT BUY ═══
@@ -81,45 +81,68 @@
  * browser enforces before the request leaves: an injected form on an admin
  * page cannot post anywhere else. `frame-ancestors 'none'` stops the admin
  * being framed. `base-uri 'none'` stops an injected `<base>` re-pointing every
- * relative URL on the page. `Referrer-Policy: no-referrer` matters more here
- * than it looks: `/admin/reset/<token>` carries a live reset token IN THE
- * ADDRESS, and without this every outbound request from that page would put
- * it in a `Referer` header.
+ * relative URL on the page.
  *
- * `script-src` CARRIES `'unsafe-inline'` AND `'unsafe-eval'`, AND BOTH ARE
- * MEASURED CHOICES RATHER THAN OVERSIGHTS.
+ * ═══ `Referrer-Policy` IS `same-origin`, AND `no-referrer` WAS A BLOCKING
+ * DEFECT (FIX ROUND 1) ═══
  *
- * `'unsafe-inline'` is forced: Next.js's App Router streams its RSC payload as
- * a sequence of inline `<script>` elements, so a policy with neither it nor a
- * per-request nonce renders a blank page. The nonce version is real and is what
- * Next documents — but Next's own example switches `'unsafe-eval'` on in
- * development, and this repository has already refused that shape once:
- * `sessionCookie`'s `Secure` attribute is unconditional precisely so the
- * deployed configuration is not the one never exercised locally. A nonce policy
- * would be strict in production and loose in every run of `npm run test:e2e`,
- * and the strict half would first execute on the day it is deployed.
+ * This header used to be `no-referrer`, for a reason that is still true:
+ * `/admin/reset/<token>` carries a live reset token IN THE ADDRESS, and an
+ * outbound request from that page must not put it in a `Referer`.
  *
- * `'unsafe-eval'` is here because the policy WITHOUT it was measured against a
- * running server and found to break: every admin page under `next dev` logged
- * `eval() is not supported in this environment... React requires eval() in
- * development mode for various debugging features` — four errors per page,
- * which `e2e/reset.spec.ts`'s console-error case caught. React's own message
- * says it "will never use eval() in production mode", so a policy that omitted
- * it would be green in CI (a production build) and red on every developer's
- * machine, which is the shape `next.config.ts` already argues against at the
- * dev indicator.
+ * WHAT THAT MISSED IS THAT `Referer` AND `Origin` ARE THE SAME SWITCH FOR A
+ * FORM POST. Per the Fetch standard, a navigation request's `Origin` header is
+ * derived from the referrer policy: under `no-referrer` a form-navigation
+ * `POST` sends `Origin: null`, and {@link isCrossSiteMutation} compares origins
+ * for strict equality — so **every form on this surface answered 403 in a real
+ * browser**, measured in Chromium on the sign-in and the reset forms.
+ * Relaxing only this header makes the same form succeed.
  *
- * AND IT COSTS NOTHING ON TOP OF `'unsafe-inline'`, which is why it is added
- * rather than switched on by environment: a policy that already permits
- * arbitrary inline script permits arbitrary code, `eval` included — an injected
- * `<script>` can construct and run whatever `eval` would have. The two go
- * together, and they will go together: the day this becomes a nonce policy,
- * both come out.
+ * `same-origin` is the fix, and it is the right one rather than the convenient
+ * one: it keeps `Origin` populated for the same-origin posts this application
+ * actually makes, and sends NOTHING on a cross-origin request — so the reset
+ * token still never leaves in a `Referer`, which is the whole reason the
+ * stricter value was chosen. The `Origin` check is untouched; loosening THAT
+ * to admit `null` would have admitted every request that carries no origin at
+ * all, which is the case it exists for.
  *
- * What that leaves, stated plainly: this policy does not stop an injected
- * script from RUNNING, only from loading code from, or sending anything to, an
- * origin that is not ours. The admin renders no visitor-supplied HTML in Phase
- * 2. Revisit when Turbopack's development build no longer needs `eval`.
+ * WHY NOTHING IN THIS REPOSITORY CAUGHT IT, WHICH IS THE PART WORTH KEEPING:
+ * every route test — unit, integration and browser — SET the `origin` header
+ * itself, under a comment calling it "what a browser form would have sent".
+ * It was not. The suite exercised a request shape no browser produces. The
+ * browser tests now submit real forms and set no request header of their own,
+ * so the fiction cannot come back.
+ *
+ * ═══ `script-src`, AND WHAT DIFFERS BETWEEN DEVELOPMENT AND PRODUCTION ═══
+ *
+ * `'unsafe-inline'` is forced in both: Next.js's App Router streams its RSC
+ * payload as a sequence of inline `<script>` elements, so a policy with
+ * neither it nor a per-request nonce renders a blank page. The nonce version
+ * is real and is what Next documents; it is not taken here because Next's own
+ * example switches `'unsafe-eval'` on in development, so the strict half would
+ * first execute on the day it is deployed.
+ *
+ * `'unsafe-eval'` IS DEVELOPMENT-ONLY, AND BOTH HALVES OF THAT WERE MEASURED.
+ * Without it, every admin page under `next dev` logs `eval() is not supported
+ * in this environment... React requires eval() in development mode` — four
+ * errors per page, which `e2e/reset.spec.ts`'s console-error case catches. With
+ * a production build (`CI=1 next build && next start`) and the same policy
+ * MINUS the keyword: four admin routes, zero console errors, zero page errors,
+ * hydration working. React's own message says it "will never use eval() in
+ * production mode", and that is what the second measurement confirms.
+ *
+ * So this is one of the few places an environment switch is the honest answer
+ * rather than the lazy one, and the reasoning is the opposite of
+ * `sessionCookie`'s `Secure`: there, making the attribute conditional would
+ * have left the STRICTER configuration unexercised. Here the stricter
+ * configuration is production's, it is the one CI's browser job and the visual
+ * container both run, and what development gets is a documented relaxation of
+ * a keyword React needs to debug itself.
+ *
+ * What the policy leaves either way, stated plainly: `'unsafe-inline'` means
+ * it does not stop an injected script from RUNNING, only from loading code
+ * from, or sending anything to, an origin that is not ours. The admin renders
+ * no visitor-supplied HTML in Phase 2.
  *
  * Depends on: `RESET_PATH` (./resetPath). Nothing else, deliberately: this
  * module is imported by `apps/web/middleware.ts`, which runs in the Edge
@@ -160,6 +183,7 @@ export const ADMIN_PUBLIC_PATHS: readonly string[] = [
   '/admin/sign-in/password',
   '/admin/sign-in/code',
   '/admin/sign-in/code/verify',
+  '/admin/sign-in/code/resend',
   RESET_PATH,
   `${RESET_PATH}/request`,
   `${RESET_PATH}/set`,
@@ -181,13 +205,33 @@ export interface CrossSiteRequest {
   readonly target: string
 }
 
+/** What {@link adminSecurityHeaders} is asked. */
+export interface AdminHeaderRequest {
+  /**
+   * Whether this process is a development server.
+   *
+   * The ONE thing that differs between the two policies, and the caller's to
+   * decide rather than this module's: `apps/web/middleware.ts` reads
+   * `process.env.NODE_ENV`, and a test can ask for either without touching the
+   * process. See the module header for the two measurements behind it.
+   */
+  readonly development: boolean
+}
+
 /**
  * Every header an admin response carries, and no diary response does.
  *
- * A record rather than a function: none of these values depends on the
- * request. See this module's header for what each one buys.
+ * @param request - See {@link AdminHeaderRequest}.
+ * @returns The headers, as a record the caller sets one at a time. See this
+ *   module's header for what each one buys, why `Referrer-Policy` is
+ *   `same-origin` rather than `no-referrer`, and why `'unsafe-eval'` is in the
+ *   development policy alone.
+ * @example
+ * for (const [name, value] of Object.entries(adminSecurityHeaders({ development: false }))) {
+ *   response.headers.set(name, value)
+ * }
  */
-export const ADMIN_SECURITY_HEADERS: Readonly<Record<string, string>> = {
+export const adminSecurityHeaders = ({ development }: AdminHeaderRequest): Readonly<Record<string, string>> => ({
   'Content-Security-Policy': [
     "default-src 'self'",
     "base-uri 'none'",
@@ -201,20 +245,23 @@ export const ADMIN_SECURITY_HEADERS: Readonly<Record<string, string>> = {
     // Next.js and React both write style attributes and inline style elements
     // into the document they stream. An inline stylesheet cannot exfiltrate.
     "style-src 'self' 'unsafe-inline'",
-    // See this module's header for both keywords, and for the measurement
-    // behind the second: the App Router's streamed RSC payload is a series of
-    // inline scripts, React's development build needs `eval`, and the nonce
-    // alternative would be strict only in production.
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    // `'unsafe-inline'` in both policies (the streamed RSC payload is inline
+    // scripts); `'unsafe-eval'` in development ALONE, because that is the only
+    // build React needs it for - both measured, see the module header.
+    `script-src 'self' 'unsafe-inline'${development ? " 'unsafe-eval'" : ''}`,
   ].join('; '),
-  'Referrer-Policy': 'no-referrer',
+  // `same-origin`, NOT `no-referrer`: under `no-referrer` a form-navigation
+  // POST sends `Origin: null` and every form on this surface answered 403.
+  // The module header carries the measurement and why the fix is here rather
+  // than in the origin check.
+  'Referrer-Policy': 'same-origin',
   'X-Content-Type-Options': 'nosniff',
   // The complement of every admin page's own `robots: { index: false }`: that
   // reaches a crawler which parsed the HTML, this one reaches a crawler which
   // only made the request. `public/robots.txt` is the third, and asks a
   // well-behaved crawler not to fetch at all.
   'X-Robots-Tag': 'noindex, nofollow',
-}
+})
 
 /**
  * Whether a path belongs to the bespoke admin surface.

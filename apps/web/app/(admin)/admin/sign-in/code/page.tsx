@@ -9,38 +9,43 @@
  * real Payload) and how it is drawn from `components/admin/CodeStep.tsx`
  * (jsdom, plus `e2e/codeStep.spec.ts` in a real browser).
  *
- * ═══ THE PENDING CHALLENGE IS NOT WIRED YET, AND THAT IS VISIBLE ═══
+ * ═══ THE PENDING CHALLENGE IS WIRED, AS OF FIX ROUND 1 ═══
  *
- * This screen belongs after a password has been accepted, and what it should
- * name — the masked address a code went to and the instant it was issued —
- * lives in the challenge `otpService.issueChallenge` writes and in the
- * pre-auth session the browser carries. Reading that back means the cookie
- * policy, and **Phase 2 Task 10 owns the cookie policy**, along with the
- * `Set-Cookie`, the CSRF check and the admin's CSP. So until it lands, this
- * route draws the step with `PENDING_ADDRESS_MASK` — `maskEmail`'s own
- * fallback, three bullets, which echoes nothing — and counts down from the
- * moment the document was drawn. It is the same shape of gap the password
- * step's form already has (it posts to a `404` that Task 10 mounts) and it is
- * recorded in `docs/deviations.md` §33, where the two live together.
+ * The three things §3.2 prints that only a stored challenge can answer — the
+ * masked address a code went to, the instant it was issued, and how many
+ * guesses have been spent — come from `lib/auth/readCodeScreen.ts`, which
+ * reads the challenge bound to the identifier in the cookie. For three tasks
+ * they were a fixed bullet run, `Date.now()` at render, and a hard-coded zero
+ * (`docs/deviations.md` §33).
  *
- * WHAT THAT COSTS AND WHAT IT DOES NOT. A reader who reloads sees the
- * countdown start again; nothing about the code's real life moves with it,
- * because the expiry that decides anything is `challengeState`'s, read from
- * the stored row against the server's own clock. The screen's countdown is a
- * courtesy either way — `CodeStep.tsx` says so at the refusal it makes.
+ * A BROWSER HOLDING NO LIVE CHALLENGE STILL GETS THE SCREEN, drawn with a
+ * placeholder that echoes nothing. Refusing instead would make this route an
+ * oracle for whether a given browser holds a challenge — see
+ * `readCodeScreen.ts`'s header.
+ *
+ * ═══ IT IS DYNAMIC, AND IT WAS SILENTLY STATIC ═══
+ *
+ * This route rendered `○ (Static)` in a production build, so `Date.now()` was
+ * evaluated ONCE at build time and every reader's countdown read 0:00 five
+ * minutes after a deploy. It is invisible in development, where every request
+ * re-renders, which is why three passes over this file missed it.
+ * `export const dynamic = 'force-dynamic'` below is the fix;
+ * `lib/auth/codeScreenRoute.test.ts` fails if it goes, and reading `cookies()`
+ * would force it in any case.
  *
  * WHAT THIS ROUTE DOES NOT DO. It answers `GET` only. The two `POST`s the
  * pane makes go to `CODE_STEP_ENDPOINT` and `RESEND_ENDPOINT`, sibling routes
- * Task 10 mounts along with everything else above — a Next.js page cannot
- * answer a `POST` at its own address.
+ * mounted in Task 10 and its fix round — a Next.js page cannot answer a `POST`
+ * at its own address.
  * Depends on: `readSignInScreen` (../../../../../lib/auth/readSignInScreen),
+ * `readCodeScreen` (../../../../../lib/auth/readCodeScreen),
  * `CodeStep`/`SignInShell` (../../../../../components/admin/).
  */
 /* c8 ignore start -- Framework passthrough with no authored logic: read the
  * screen's content, draw the shell, draw the pane. Every decision it appears
  * to take belongs to a module with its own suite - `readSignInScreen`
  * (integration-tested against a real Payload) and `CodeStep` (jsdom), whose
- * own tests cover `PENDING_ADDRESS_MASK` and every value the pane derives.
+ * own tests cover every value the pane derives.
  * It cannot be measured by either Vitest config (a page component needs a real
  * Next request context, and no integration test can supply one), so a per-file
  * c8 ignore is CLAUDE.md §2.1's honest treatment: like its `sign-in/page.tsx`
@@ -51,9 +56,21 @@
  * e2e/a11y.spec.ts and e2e/visual.spec.ts. */
 import type { Metadata } from 'next'
 import type React from 'react'
-import { CodeStep, PENDING_ADDRESS_MASK } from '../../../../../components/admin/CodeStep'
+import { CodeStep } from '../../../../../components/admin/CodeStep'
 import { SignInShell } from '../../../../../components/admin/SignInShell'
+import { cookies } from 'next/headers'
+import { readCodeScreen } from '../../../../../lib/auth/readCodeScreen'
 import { readSignInScreen } from '../../../../../lib/auth/readSignInScreen'
+
+/**
+ * This route is rendered per request, never at build time.
+ *
+ * See this module's header: without it the countdown froze at the build's own
+ * clock. `readCodeScreen` reads `cookies()`, which forces the same thing, so
+ * this declaration is belt and braces - and it is the half a reader of the
+ * file can see.
+ */
+export const dynamic = 'force-dynamic'
 
 /**
  * The screen's title, and the one instruction it gives a crawler.
@@ -69,11 +86,16 @@ export const metadata: Metadata = {
 
 /** Renders the one-time-code step of the sign-in screen. */
 const CodeStepPage = async (): Promise<React.JSX.Element> => {
-  const content = await readSignInScreen()
+  const carried = (await cookies()).toString()
+  const [content, pending] = await Promise.all([readSignInScreen(), readCodeScreen(carried, Date.now())])
 
   return (
     <SignInShell book={content}>
-      <CodeStep maskedAddress={PENDING_ADDRESS_MASK} issuedAt={Date.now()} attemptsSpent={0} />
+      <CodeStep
+        maskedAddress={pending.maskedAddress}
+        issuedAt={pending.issuedAt}
+        attemptsSpent={pending.attemptsSpent}
+      />
     </SignInShell>
   )
 }

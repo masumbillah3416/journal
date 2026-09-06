@@ -2214,6 +2214,50 @@ database.
   header at a time, and to be handed no minted cookie. Adding either would be a behaviour
   change to thirty-three pages this task does not own.
 
+#### Fix round 1: the suite was testing a request shape no browser makes
+
+Every route case in round 0 — unit, integration and browser — SET the `origin` header
+itself. `e2e/reset.spec.ts` did it under a comment calling it "what a browser form would
+have sent". It was not. Under the `Referrer-Policy: no-referrer` the admin then carried, a
+form-navigation `POST` sends `Origin: null`, and the cross-site check refused it: **every
+form on the surface answered `403` in a real browser**, with 1,283 unit tests, 314
+integration tests, twenty-one mutations and a green browser suite agreeing it worked.
+
+**A second defect of the same shape was underneath it.** `SCREENS.md` §3.2's pane posts six
+fields all named `code`. The handler read them through `Object.fromEntries`, which keeps one
+value per name, so it compared a single character against a six-digit code. The integration
+suite sent a single `code` field and agreed with the handler.
+
+Neither is an untested mechanism. Both are mechanisms **tested against a fiction**, and the
+rules that come out of it are:
+
+- **No browser test sets a request header.** `e2e/signInJourney.spec.ts` fills in the real
+  forms and presses the real buttons, through the second factor and out the other side; the
+  only `page.request` call left in the repository is the one case that exists to assert a
+  headerless post is refused with `403`. Reverting `Referrer-Policy` fails five cases across
+  that file and `e2e/reset.spec.ts`.
+- **A fixture builds the request the same way the product does.**
+  `signInEndpoints.integration.test.ts`'s `aPost` now appends one `code` field per digit,
+  because that is what the pane sends.
+- **The one thing a browser genuinely cannot do is named, not worked around.** The six
+  digits live in the server's own mailer outbox and the stored hash is scrypt, so
+  `e2e/support/adminSession.ts` issues a second challenge through this repository's own
+  `otpService` and reads it from an outbox the test process owns — which is exactly what
+  "Send a new code" does. Everything either side of that step is the reader's own.
+
+**The helper checks its own work.** `aSignedInSession` asks the same `authenticate` the
+guard asks before handing a session back. Without it, a fixture that failed presented as a
+guarded screen quietly redirecting and an assertion failing on a missing element — which is
+how one flaky container run read before the cause (three viewport projects sharing one
+fixture account, one project's `afterAll` deleting it under another) was found. Every
+caller now names its own account and deletes only that one.
+
+**`e2e/tsconfig.json` includes the app's `lib`, `collections`, `globals`, `migrations`,
+`scripts` and `payload.config.ts`**, because that helper calls this repository's own
+services rather than duplicating what they store. TypeScript projects must list every
+transitive file; it is scoped to those directories rather than all of `apps/web` so no React
+route is typechecked under a config with no JSX settings.
+
 ### 9 · Migration
 
 - **Tool:** Vitest.

@@ -70,12 +70,15 @@ import { err } from '@travel-diary/domain/result'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getPayload } from '../payload'
-import { readBrowserSession } from './browserSession'
+import { clearedSessionCookie, readBrowserSession } from './browserSession'
 import type { AuthenticatedSession, SessionRefusal } from './sessions'
 import { createSessionService } from './sessions'
 
 /** Where a refused request for a guarded screen is sent. */
 export const SIGN_IN_PATH = '/admin/sign-in'
+
+/** The status a refused mutation answers with. Never 307 - see {@link guarded}. */
+const SEE_OTHER = 303
 
 /**
  * Why the guard refused a request.
@@ -113,6 +116,56 @@ export const authenticateAdminRequest = async (
   const sessions = createSessionService({ payload: await getPayload(), now: Date.now })
   return sessions.authenticate(presented)
 }
+
+
+/** A handler that only ever runs for a request with a live session. */
+export type GuardedHandler = (request: Request, session: AuthenticatedSession) => Promise<Response>
+
+/**
+ * Wraps a mutation handler so it is only reached with a live session.
+ *
+ * ═══ WHY THIS EXISTS RATHER THAN A CALL INSIDE EACH HANDLER (FIX ROUND 1) ═══
+ *
+ * `handleSignOut` used to call {@link authenticateAdminRequest} itself, and its
+ * route file was one line naming the handler. That reads fine and it defeated
+ * `adminGuardRegistration.test.ts` twice over: the test had to follow the route
+ * file's imports to see the guard at all, and following imports is what let a
+ * route be credited for its whole handler module — so a guarded route
+ * re-exporting ANY handler from `signInEndpoints.ts` passed, guard or no guard.
+ *
+ * With this wrapper the guard is applied AT THE ROUTE, in the route file, in
+ * the one line that file contains. The registration test can therefore read
+ * the route file and nothing else, which is the only version of that check
+ * that cannot be satisfied by a neighbour.
+ *
+ * IT IS NOT A SECOND DEFINITION OF THE GUARD. It calls
+ * {@link authenticateAdminRequest}, which is still the only thing that reads a
+ * `sessions` row.
+ *
+ * A REFUSED REQUEST IS ANSWERED, NOT REDIRECTED BY `next/navigation`.
+ * `redirect()` from a `POST` handler answers `307`, which re-posts the body to
+ * the sign-in screen; a `303` is the status that requires the browser to follow
+ * with a `GET`. The dead identifier is cleared on the way out, so the browser
+ * stops presenting a value that can no longer work.
+ *
+ * @param handler - What to run once the request is known to be somebody's.
+ * @returns A handler of the shape a Next.js route exports.
+ * @example
+ * export const POST = guarded(handleSignOut)
+ */
+export const guarded =
+  (handler: GuardedHandler) =>
+  async (request: Request): Promise<Response> => {
+    const authenticated = await authenticateAdminRequest(request.headers.get('cookie'))
+    if (!authenticated.ok) {
+      return new Response(null, {
+        status: SEE_OTHER,
+        headers: { Location: SIGN_IN_PATH, 'Set-Cookie': clearedSessionCookie() },
+      })
+    }
+
+    return handler(request, authenticated.value)
+  }
 
 /* c8 ignore start -- Framework binding with no decision of its own: read the
  * request's cookies through `next/headers`, hand them to the function above,

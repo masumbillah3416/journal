@@ -133,6 +133,7 @@ export default defineConfig({
         'apps/web/lib/auth/services.ts',
         'apps/web/lib/auth/signInEndpoints.ts',
         'apps/web/lib/auth/resetRequestEndpoint.ts',
+        'apps/web/lib/auth/readCodeScreen.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
         'apps/web/payload.config.ts',

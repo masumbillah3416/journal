@@ -1,145 +1,224 @@
 /**
- * adminSession — gives a browser test a real signed-in session, by writing the
- * two rows the guard reads.
+ * adminSession — gives a browser test a real account, a real session and, when
+ * it needs one, a readable one-time code.
  *
- * ═══ WHY A BROWSER TEST CANNOT SIGN ITSELF IN ═══
+ * ═══ WHY A BROWSER TEST NEEDS HELP AT ALL ═══
  *
- * Phase 2 Task 10 guards `/admin/sign-in/done`: an unauthenticated request is
- * answered with a redirect to `/admin/sign-in`, which is the whole point of the
- * task. Three suites need that screen anyway — `e2e/reset.spec.ts` measures its
- * geometry, `e2e/a11y.spec.ts` runs axe over it, `e2e/visual.spec.ts` holds its
- * three baselines — and none of them can reach it by driving the form:
+ * Two things about this surface a browser genuinely cannot reach on its own:
  *
- *   - the account's `otpRequired` reads as REQUIRED when it is `NULL` and when
- *     there is no account at all (`readSignInScreen.ts`), so every sign-in this
- *     database can offer goes through the one-time-code step; and
- *   - the code is delivered by `console-mailer`, whose outbox is a process
- *     variable in the server. A browser cannot see it.
+ *   - `/admin/sign-in/done` is guarded, so a case that measures it needs a
+ *     session before the screen will draw anything; and
+ *   - the one-time code is delivered by `console-mailer`, whose outbox is a
+ *     variable inside the SERVER process. A browser cannot read it, and the
+ *     stored `codeHash` is scrypt, so the database cannot be read for it
+ *     either.
  *
- * Turning the second factor off for a fixture account is not a way round it
- * either: `readSignInScreen` prints the LOWEST-ID account's flag in the sign-in
- * screen's footer line, so an account with `otpRequired: false` would change
- * what `/admin/sign-in` says and move the baselines this helper exists to keep
- * still. The fixture below is written with the column left at its default,
- * `true`, so the footer says exactly what it says with no account at all.
+ * Everything else the specs do themselves, by filling in the real forms and
+ * pressing the real buttons. Nothing here sets a request header.
  *
- * ═══ WHAT IT WRITES, AND WHY IT IS SQL RATHER THAN THE LOCAL API ═══
+ * ═══ IT USES PAYLOAD AND THIS REPOSITORY'S OWN SERVICES, NOT RAW SQL ═══
  *
- * Two rows: a `users` row (only `email` is `NOT NULL`; the password columns
- * stay null, because nothing here ever authenticates with a password) and a
- * `sessions` row holding the SHA-256 of a fresh identifier. That is exactly
- * what `apps/web/lib/auth/sessions.ts` stores, and it is deliberately the only
- * thing this file duplicates — importing that module would pull Payload and its
- * whole config into the Playwright process, for two `INSERT`s.
+ * An earlier version wrote the `users` and `sessions` rows with `INSERT`s and
+ * hashed the session identifier itself. That duplicated a security-critical
+ * format — how a session token is stored — in a test helper, where a change to
+ * `sessions.ts` would have made three suites fail at the guard for a reason
+ * nobody would recognise. This version calls `createSessionService` and
+ * `createOtpService`, so there is one definition of every stored shape and this
+ * file holds none of them.
  *
- * INVARIANT — THE HASH HERE MUST STAY SHA-256 OF THE RAW IDENTIFIER, hex. It is
- * the one fact this file shares with `sessions.ts`, and if that module ever
- * changes how it stores a token, every suite using this helper fails at the
- * guard rather than silently passing — which is the right direction.
+ * IT RUNS IN THE PLAYWRIGHT PROCESS, against the same database the app under
+ * test is using — `apps/web/lib/payload.ts` reads the same `DATABASE_URL`,
+ * from the environment first and the repository's `.env` second, which is why
+ * the containerised visual run reaches its own Postgres and a local run reaches
+ * the developer's.
  *
- * NOTHING HERE LOGS THE IDENTIFIER (CLAUDE.md §7).
+ * EVERY FIXTURE ACCOUNT LEAVES `otpRequired` AT ITS DEFAULT, `true`.
+ * `readSignInScreen` prints the LOWEST-ID account's flag in the sign-in
+ * screen's footer line, so an account with the second factor OFF would change
+ * what `/admin/sign-in` says and move every `admin-sign-in-*` baseline. Every
+ * account this module creates therefore has the code step on — which is also
+ * the state the journey spec wants to exercise.
  *
- * Depends on: node:crypto, pg, @next/env (for the same `.env` this repository's
- * own `apps/web/lib/env.ts` loads).
+ * NOTHING HERE LOGS AN IDENTIFIER, A PASSWORD OR A CODE (CLAUDE.md §7). The
+ * code is returned to the caller and nowhere else.
+ *
+ * Depends on: `getPayload` (apps/web/lib/payload), `createSessionService`,
+ * `createOtpService`, `createConsoleMailer`, `readCodeFromOutbox`.
  */
-import { createHash, randomBytes } from 'node:crypto'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-import nextEnv from '@next/env'
-import { Client } from 'pg'
-
-// `@next/env` ships as CJS; destructuring after a default import is the
-// interop-safe form `apps/web/lib/env.ts` uses for the same package.
-const { loadEnvConfig } = nextEnv
-
-// e2e/support -> e2e -> repo root, where `.env` sits next to `.env.example`.
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+import type { SessionId, UserId } from '../../packages/domain/src/ids'
+import { createConsoleMailer } from '../../apps/web/lib/adapters/console-mailer'
+import { createOtpService } from '../../apps/web/lib/auth/otpService'
+import { createSessionService } from '../../apps/web/lib/auth/sessions'
+import { readCodeFromOutbox } from '../../apps/web/lib/auth/testing/otpProbes'
+import { getPayload } from '../../apps/web/lib/payload'
 
 /**
- * The address of the account these suites sign in as.
+ * The domain the guarded-screen suites' accounts live under.
  *
- * A fixed address rather than a per-run one: the row is reused across suites
- * and workers, and two workers racing to create it is handled by the `ON
- * CONFLICT` below rather than by hoping they do not.
+ * ═══ ONE ACCOUNT PER CALLER, NOT ONE SHARED ONE ═══
+ *
+ * The first version used a single fixed address for every suite and viewport.
+ * Playwright runs the three viewport projects in parallel, each with its own
+ * `afterAll` — so one project deleted the account another project's session
+ * belonged to, mid-run, and the signed-in screen redirected to `/admin/sign-in`
+ * while a screenshot was being taken. It showed up as ONE flaky visual case in
+ * the container, which is exactly how a shared-fixture race presents.
+ *
+ * Every caller now names its own account and deletes only that one.
  */
-export const FIXTURE_ADMIN_EMAIL = 'browser-suite@task-ten-fixture.example'
+export const SESSION_FIXTURE_DOMAIN = 'session.task-ten-fixture.example'
 
-/** How long the session this helper mints lasts. Long enough for any suite. */
-const FIXTURE_SESSION_MS = 60 * 60_000
+/** The domain the sign-in journey's own accounts live under. */
+export const JOURNEY_FIXTURE_DOMAIN = 'journey.task-ten-fixture.example'
+
+/** The password every fixture account is created with. */
+export const FIXTURE_ADMIN_PASSWORD = 'the-one-the-browser-suite-types'
+
+/** The requesting address these fixtures are attributed to (RFC 3849). */
+const FIXTURE_IP = '2001:db8:e2e::1'
 
 /**
- * A connected client against whatever database the app under test is using.
+ * The fixture account's id, creating it if this is the first call.
  *
- * `process.env` first, `.env` second, and never the other way round:
- * `loadEnvConfig` is additive, so the value `docker-compose.yml` sets for the
- * container wins over the `localhost:5433` in the bind-mounted `.env`. That is
- * the same guarantee `apps/web/lib/env.ts` relies on.
- *
- * @returns The connected client. The caller closes it.
- * @throws If no `DATABASE_URL` can be found at all — which is a misconfigured
- *   run, and should fail loudly here rather than as a navigation timeout.
+ * @param email - The address to find or create.
+ * @returns The account's branded id.
  */
-const connect = async (): Promise<Client> => {
-  loadEnvConfig(repoRoot)
-  const connectionString = process.env['DATABASE_URL']
-  if (connectionString === undefined || connectionString === '') {
-    throw new Error('adminSession needs DATABASE_URL, from the environment or the repository’s .env')
-  }
+const anAccount = async (email: string): Promise<UserId> => {
+  const payload = await getPayload()
+  const found = await payload.find({ collection: 'users', where: { email: { equals: email } }, limit: 1, depth: 0 })
+  const existing = found.docs[0]
+  if (existing !== undefined) return String(existing.id) as UserId
 
-  const client = new Client({ connectionString })
-  await client.connect()
-  return client
+  const created = await payload.create({
+    collection: 'users',
+    // `otpRequired` is left at its schema default, `true` — see the module
+    // header for what an account with it off would do to the sign-in screen.
+    data: { email, password: FIXTURE_ADMIN_PASSWORD },
+  })
+  return String(created.id) as UserId
 }
 
 /**
- * Mints a live session for the fixture account.
+ * Mints a live session for this caller's own fixture account.
  *
+ * @param label - What distinguishes this caller's account from every other
+ *   one's. The project name, so three viewports do not share a row — see
+ *   {@link SESSION_FIXTURE_DOMAIN} for the flake that came of sharing.
  * @returns The opaque identifier a browser presents in `td-session`.
- * @throws If the fixture account cannot be written or found.
+ * @throws If the session could not be issued, which no caller expects.
  * @example
- * const session = await aSignedInSession()
- * await context.addCookies([{ name: 'td-session', value: session, url: `${baseURL}/admin` }])
+ * const session = await aSignedInSession(testInfo.project.name)
  */
-export const aSignedInSession = async (): Promise<string> => {
-  const client = await connect()
-  try {
-    const account = await client.query<{ id: number }>(
-      `INSERT INTO users (email, created_at, updated_at)
-       VALUES ($1, now(), now())
-       ON CONFLICT (email) DO UPDATE SET updated_at = now()
-       RETURNING id`,
-      [FIXTURE_ADMIN_EMAIL],
-    )
-    const userId = account.rows[0]?.id
-    if (userId === undefined) throw new Error('the fixture admin account was neither created nor found')
+export const aSignedInSession = async (label: string): Promise<string> => {
+  const payload = await getPayload()
+  const user = await anAccount(`${label}@${SESSION_FIXTURE_DOMAIN}`)
+  const sessions = createSessionService({ payload, now: Date.now })
 
-    const session = randomBytes(32).toString('base64url')
-    await client.query(
-      `INSERT INTO sessions (user_id, token_hash, expires_at, created_at, updated_at)
-       VALUES ($1, $2, $3, now(), now())`,
-      [userId, createHash('sha256').update(session).digest('hex'), new Date(Date.now() + FIXTURE_SESSION_MS)],
-    )
-    return session
-  } finally {
-    await client.end()
-  }
+  const started = await sessions.startSession({
+    user,
+    previous: null,
+    keepSignedIn: false,
+    device: 'the browser suite',
+    location: null,
+  })
+  if (!started.ok) throw new Error('the fixture session was not issued')
+
+  // THE HELPER CHECKS ITS OWN WORK, and it is not belt and braces. What a
+  // failure here looks like from a spec is a guarded screen quietly redirecting
+  // to `/admin/sign-in` and an assertion failing on a missing element - which
+  // says nothing about the session. Asking the same `authenticate` the guard
+  // asks turns that into a message that names the cause.
+  const authenticated = await sessions.authenticate(started.value.session)
+  if (!authenticated.ok) throw new Error(`the fixture session does not authenticate: ${authenticated.error}`)
+
+  return started.value.session
 }
 
 /**
- * Deletes the fixture account and every session it holds.
+ * An account the browser can sign in as, with the second factor on.
  *
- * @returns Once both are gone.
+ * @param email - The address to use. Per-spec, so one suite's account cannot be
+ *   another's.
+ * @returns The address and the password to type into `SCREENS.md` §3.1's form.
  * @example
- * test.afterAll(async () => { await removeSignedInFixture() })
+ * const account = await anAccountWithACodeStep('journey@task-ten-fixture.example')
  */
-export const removeSignedInFixture = async (): Promise<void> => {
-  const client = await connect()
-  try {
-    await client.query(`DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email = $1)`, [
-      FIXTURE_ADMIN_EMAIL,
-    ])
-    await client.query(`DELETE FROM users WHERE email = $1`, [FIXTURE_ADMIN_EMAIL])
-  } finally {
-    await client.end()
+export const anAccountWithACodeStep = async (
+  email: string,
+): Promise<{ readonly email: string; readonly password: string }> => {
+  await anAccount(email)
+  return { email, password: FIXTURE_ADMIN_PASSWORD }
+}
+
+/**
+ * A one-time code the browser can actually type, bound to the identifier it is
+ * carrying.
+ *
+ * ═══ WHY THIS IS THE ONE THING THE SPEC CANNOT DO ITSELF ═══
+ *
+ * The server has already mailed a code by the time a reader reaches the code
+ * screen, and that code is unreadable from here: `console-mailer` keeps it in
+ * the server process, and the stored `codeHash` is scrypt. So this issues
+ * ANOTHER challenge for the same browser, through this repository's own
+ * `otpService`, and reads it out of an outbox this process owns — which is
+ * exactly what "Send a new code" does, so the reader's next step is a real one
+ * rather than a fabricated state.
+ *
+ * The account's earlier challenge is aged past the thirty-second resend
+ * cooldown first, for the same reason a reader would have to wait it out.
+ *
+ * @param email - The account signing in.
+ * @param session - The identifier the browser is carrying, read off its cookie.
+ * @returns The six digits, and the masked address the code went to.
+ * @throws If the challenge could not be issued.
+ * @example
+ * const { code } = await aCodeFor(account.email, carried.value)
+ */
+export const aCodeFor = async (
+  email: string,
+  session: string,
+): Promise<{ readonly code: string; readonly maskedTo: string }> => {
+  const payload = await getPayload()
+  const user = await anAccount(email)
+
+  await payload.db.pool.query(
+    "UPDATE otp_challenges SET created_at = created_at - interval '2 minutes' WHERE user_id = $1",
+    [Number(user)],
+  )
+
+  const mailer = createConsoleMailer({ isDevelopment: false })
+  const otp = createOtpService({ payload, mailer, now: Date.now })
+  const issued = await otp.issueChallenge(user, session as SessionId, FIXTURE_IP)
+  if (!issued.ok) throw new Error(`the fixture code was not issued: ${issued.error}`)
+
+  return { code: readCodeFromOutbox(mailer), maskedTo: issued.value.maskedTo }
+}
+
+/**
+ * Deletes the fixture accounts matching `domainOrEmail`, and everything they own.
+ *
+ * NARROWED RATHER THAN SWEEPING, for the reason {@link SESSION_FIXTURE_DOMAIN}
+ * gives: a cleanup that deletes every fixture account deletes another parallel
+ * project's, mid-run.
+ *
+ * @param domainOrEmail - The address, or the domain, to delete.
+ * @returns Once they are gone.
+ * @example
+ * test.afterAll(async () => { await removeSignedInFixture(`${testInfo.project.name}@${SESSION_FIXTURE_DOMAIN}`) })
+ */
+export const removeSignedInFixture = async (domainOrEmail: string): Promise<void> => {
+  const payload = await getPayload()
+  const accounts = await payload.find({
+    collection: 'users',
+    where: { email: { like: domainOrEmail } },
+    limit: 500,
+    depth: 0,
+  })
+
+  await payload.db.pool.query(`DELETE FROM sign_in_attempts WHERE subject = $1`, [FIXTURE_IP])
+  for (const account of accounts.docs) {
+    await payload.db.pool.query(`DELETE FROM sessions WHERE user_id = $1`, [account.id])
+    await payload.db.pool.query(`DELETE FROM otp_challenges WHERE user_id = $1`, [account.id])
+    await payload.delete({ collection: 'users', id: account.id })
   }
 }

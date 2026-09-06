@@ -190,6 +190,18 @@ export interface OtpServiceDependencies {
   readonly now: () => number
 }
 
+/** What the code screen prints, and nothing more. */
+export interface PendingChallenge {
+  /** Where the code went, masked. Never the whole address (`SCREENS.md` §3.2). */
+  readonly maskedTo: string
+  /** When the code was issued, in epoch milliseconds — the countdown's origin. */
+  readonly issuedAt: number
+  /** How many guesses have already been spent against it. */
+  readonly attemptsSpent: number
+  /** How many the reader is allowed in total. */
+  readonly attemptsAllowed: number
+}
+
 /** Issues and verifies one-time sign-in codes. */
 export interface OtpService {
   /**
@@ -223,6 +235,64 @@ export interface OtpService {
    *   would tell an attacker which sessions have a live challenge.
    */
   verifyChallenge(session: SessionId, code: string): Promise<Result<{ userId: UserId }, VerifyFailure>>
+
+  /**
+   * What the code screen has to print, for the browser holding `session`.
+   *
+   * ═══ WHY THIS IS A SEPARATE READ, AND WHAT IT DELIBERATELY OMITS ═══
+   *
+   * `/admin/sign-in/code` drew `SCREENS.md` §3.2 against nothing for two
+   * tasks: a fixed bullet run where the masked address belongs, a countdown
+   * measured from the instant the document was drawn, and a hard-coded
+   * `attemptsSpent={0}` (`docs/deviations.md` §33). Everything it needed was
+   * in the row this reads.
+   *
+   * IT RETURNS NO CODE AND NO ACCOUNT. The address comes back MASKED, derived
+   * from the `users` row inside this module and never returned whole; the
+   * account id is not in the result at all, because this value is rendered
+   * into a page. {@link OtpService.challengeAccount} is the server-only
+   * lookup, and it exists separately for exactly that reason.
+   *
+   * @param session - The identifier the browser is carrying.
+   * @returns The four values the screen prints, or `null` when this browser
+   *   holds no challenge that can still be answered — which is what a reader
+   *   who typed the address gets, and is not distinguishable by them from any
+   *   other reason a challenge is not live.
+   */
+  pendingChallenge(session: SessionId): Promise<PendingChallenge | null>
+
+  /**
+   * The account a live challenge belongs to.
+   *
+   * SERVER-ONLY, AND NOTHING MAY RETURN IT TO A READER. It exists so
+   * `POST /admin/sign-in/code/verify` can spend `rateLimit.ts`'s per-account
+   * code window, which needs a `UserId` and which had no caller at all until
+   * this landed (phase ruling F45 — a mechanism nothing calls is not
+   * enforcement). An earlier version of this module's header said no such
+   * lookup was offered; what that reasoning was actually about is the HTTP
+   * SURFACE, and that is where it is now honoured — every refusal the code
+   * endpoint gives is one answer, whether or not a challenge exists.
+   *
+   * @param session - The identifier the browser is carrying.
+   * @returns The account, or `null` when this browser holds no live challenge.
+   */
+  challengeAccount(session: SessionId): Promise<UserId | null>
+
+  /**
+   * Issues a fresh code for the challenge `session` already holds.
+   *
+   * The account is resolved from the challenge INSIDE this module, so no
+   * caller has to hold it — which is what makes a resend endpoint possible
+   * without the browser naming an account it has not authenticated as.
+   *
+   * @param session - The identifier the browser is carrying.
+   * @param ip - The requesting address, recorded on the new row.
+   * @returns `ok` with the masked address, or `err` naming the refusal.
+   *   `'unknown-account'` covers a browser with no live challenge, which is
+   *   the same answer a resend for a deleted account gets: a reader who has
+   *   not been sent a code has nothing to resend.
+   */
+  resendChallenge(session: SessionId, ip: string): Promise<Result<{ maskedTo: string }, IssueFailure>>
 }
 
 /**
@@ -233,6 +303,22 @@ interface ClaimedAttempt {
   readonly id: number
   readonly user_id: number
   readonly code_hash: string
+}
+
+/** What the code screen's read needs off a challenge row, plus the address to mask. */
+interface LiveChallenge {
+  readonly attempts: string | null
+  readonly consumed_at: Date | null
+  readonly created_at: Date
+  readonly email: string
+}
+
+/** The same three facts, plus the account, for the server-only lookup. */
+interface OwnedChallenge {
+  readonly user_id: number
+  readonly attempts: string | null
+  readonly consumed_at: Date | null
+  readonly created_at: Date
 }
 
 /** The three facts `challengeState` needs, read back after a claim was refused. */
@@ -634,5 +720,94 @@ export const createOtpService = ({ payload, mailer, now }: OtpServiceDependencie
     if (consumed.rows.length === 0) return err('consumed')
 
     return ok({ userId: accountOf(claimed.user_id) })
+  },
+
+  async pendingChallenge(session) {
+    const readAt = now()
+
+    // One row, one join, three columns and an address. The address is read
+    // here and masked before it leaves; nothing above this module ever sees it
+    // whole. `depth` does not apply - this is the pool, not the Local API.
+    const found = await payload.db.pool.query<LiveChallenge>(
+      `SELECT c.attempts, c.consumed_at, c.created_at, u.email
+         FROM otp_challenges c
+         JOIN users u ON u.id = c.user_id
+        WHERE c.session_hash = $1
+        ORDER BY c.created_at DESC
+        LIMIT 1`,
+      [hashSession(session)],
+    )
+    const row = found.rows[0]
+    if (row === undefined) return null
+
+    // The DOMAIN decides whether the challenge is still answerable, from
+    // `created_at` and the counter - the same function `verifyChallenge`'s
+    // re-read uses, so the screen and the endpoint cannot disagree about
+    // whether a code is live. `expires_at` is a purge index and is not read
+    // here either (this module's INVARIANT).
+    const state = challengeState(
+      {
+        // `Number(null)` is 0, which is exactly what a row whose counter was
+        // never written means - so there is no `?? 0` here and no branch for a
+        // test to have to invent a NULL column to reach.
+        attempts: Number(row.attempts),
+        consumedAt: row.consumed_at === null ? null : row.consumed_at.getTime(),
+        createdAt: row.created_at.getTime(),
+      },
+      readAt,
+    )
+    if (state !== 'valid') return null
+
+    return {
+      maskedTo: maskEmail(row.email),
+      issuedAt: row.created_at.getTime(),
+      attemptsSpent: Number(row.attempts),
+      attemptsAllowed: MAX_ATTEMPTS,
+    }
+  },
+
+  async challengeAccount(session) {
+    const readAt = now()
+
+    const found = await payload.db.pool.query<OwnedChallenge>(
+      `SELECT user_id, attempts, consumed_at, created_at
+         FROM otp_challenges
+        WHERE session_hash = $1
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [hashSession(session)],
+    )
+    const row = found.rows[0]
+    if (row === undefined) return null
+
+    const state = challengeState(
+      {
+        // `Number(null)` is 0, which is exactly what a row whose counter was
+        // never written means - so there is no `?? 0` here and no branch for a
+        // test to have to invent a NULL column to reach.
+        attempts: Number(row.attempts),
+        consumedAt: row.consumed_at === null ? null : row.consumed_at.getTime(),
+        createdAt: row.created_at.getTime(),
+      },
+      readAt,
+    )
+    // A CONSUMED OR EXHAUSTED CHALLENGE NAMES NOBODY. The account is returned
+    // for one purpose - spending the code endpoint's per-account window - and
+    // a challenge that can no longer be answered has no guess left to meter.
+    return state === 'valid' ? accountOf(row.user_id) : null
+  },
+
+  async resendChallenge(session, ip) {
+    const account = await this.challengeAccount(session)
+    // ONE REFUSAL FOR "NO LIVE CHALLENGE", and it is the same word a resend
+    // for a deleted account gets: a reader who has not been sent a code has
+    // nothing to resend, and saying which of the two it was would tell an
+    // unauthenticated caller whether this browser holds one.
+    if (account === null) return err('unknown-account')
+
+    // The cooldown, the hourly ceiling and the delivery are `issueChallenge`'s,
+    // unchanged: a resend is an issue for an account this module resolved
+    // rather than one a caller named.
+    return this.issueChallenge(account, session, ip)
   },
 })

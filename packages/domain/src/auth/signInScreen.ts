@@ -33,6 +33,13 @@
  * ("That does not look like an email address.", "Enter your password to carry
  * on."). Recorded in docs/deviations.md.
  *
+ * This module implements none of CLAUDE.md §3.3's named patterns, and says so
+ * rather than leaving a reader to wonder - the same declaration its sibling
+ * `./resetScreen.ts` makes. It is one constant, one message and a total
+ * mapping from a query value onto two states; a Value object would be the
+ * closest fit and would earn nothing, because there is no second kind of
+ * `state` this could be confused with.
+ *
  * A VALUE NOBODY WROTE DRAWS THE ORDINARY FORM. The query string is typed by
  * anybody, so anything but the one word this module knows is treated as a
  * reader who has just arrived — the same fail-to-the-plain-state rule

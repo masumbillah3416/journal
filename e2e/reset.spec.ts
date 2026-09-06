@@ -47,7 +47,7 @@
  * `book` global's own title.
  */
 import { expect, test } from '@playwright/test'
-import { aSignedInSession, removeSignedInFixture } from './support/adminSession'
+import { aSignedInSession, removeSignedInFixture, SESSION_FIXTURE_DOMAIN } from './support/adminSession'
 
 /** The reset request screen's address. */
 const RESET_PATH = '/admin/reset'
@@ -122,12 +122,16 @@ const rotationDegrees = (transform: string): number => {
  * to prevent. The reset screens ignore it, so setting it for every test costs
  * them nothing.
  */
-test.beforeEach(async ({ context, baseURL }) => {
-  await context.addCookies([{ name: 'td-session', value: await aSignedInSession(), url: `${baseURL ?? ''}/admin` }])
+test.beforeEach(async ({ context, baseURL }, testInfo) => {
+  const session = await aSignedInSession(`reset.${testInfo.project.name}`)
+  await context.addCookies([{ name: 'td-session', value: session, url: `${baseURL ?? ''}/admin` }])
 })
 
-test.afterAll(async () => {
-  await removeSignedInFixture()
+test.afterAll(async ({ }, testInfo) => {
+  // This project's own account, never the whole domain: the three viewports
+  // run in parallel and a sweeping delete takes another one's session away
+  // mid-run (see `SESSION_FIXTURE_DOMAIN`).
+  await removeSignedInFixture(`reset.${testInfo.project.name}@${SESSION_FIXTURE_DOMAIN}`)
 })
 
 test('reaches the reset screen from the password screen’s own "Forgotten" link', async ({ page }) => {
@@ -164,41 +168,42 @@ test('answers the address the reset email builds, rather than 404ing on it', asy
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('That link has expired')
 })
 
-test('never draws a screen at the address §3.3’s own form posts to', async ({ page, baseURL }) => {
+test('never draws a screen at the address §3.3’s own form posts to', async ({ page }) => {
   // RULING F56, from the reader's side, restated for the world Task 10 made.
   // Mounting `[token]` above this address made `request` a valid token
   // spelling, so submitting the reset form answered 200 with "That link has
   // expired" - a screen telling the reader that a link they never asked for was
   // dead, on the one screen whose whole subject is that link.
   //
-  // WHAT CHANGED, AND WHAT DID NOT. `POST` is now a real endpoint and answers
-  // 303 rather than 404; `GET` still answers 404, by a `GET` handler of its own
-  // rather than by the reservation, because a `route.ts` with only a `POST`
-  // answers 405. What has to hold in every one of those worlds is the thing the
-  // ruling is about: this address never draws the expired screen.
-  const submitted = await page.request.post(RESET_REQUEST_ENDPOINT, {
-    // The admin refuses a cross-site mutation, and a request library sends no
-    // `Origin` of its own - so this header is what a browser form would have
-    // sent. Without it the answer is 403, which the case below asserts.
-    headers: { origin: baseURL ?? '' },
-    form: { email: 'reader@wanderings.travel' },
-    maxRedirects: 0,
-  })
-  expect(submitted.status()).toBe(303)
-  expect(submitted.headers()['location']).toContain(RESET_PATH)
-  // The status alone would pass on an answer that still carried the expired
-  // screen's copy, which is the sentence that made this a defect.
-  expect(await submitted.text()).not.toContain('That link has expired')
+  // ═══ IT SUBMITS THE REAL FORM (FIX ROUND 1) ═══
+  //
+  // This case used to `page.request.post` the address with a hand-set `origin`
+  // header, under a comment calling it "what a browser form would have sent".
+  // It was not: under the `Referrer-Policy: no-referrer` this surface then
+  // carried, a form-navigation POST sends `Origin: null` and the admin refused
+  // it - so every form on the surface answered 403 in a browser while this
+  // suite, which supplied a header no browser does, stayed green. Nothing here
+  // sets a request header any more. The reader fills in the form and presses
+  // the button, which is the only request shape worth asserting about.
+  await page.goto(RESET_PATH)
+  await page.getByLabel('Email').fill('reader@wanderings.travel')
+  await Promise.all([page.waitForURL(`**${RESET_PATH}?sent=*`), page.getByRole('button', { name: 'Send the link' }).click()])
+
+  // What the reader is left looking at is §3.3's confirmation, never the
+  // expired screen - and never a 403.
+  await expect(page.locator('[data-reset-step]')).toHaveAttribute('data-reset-state', 'sent')
+  expect(await page.content()).not.toContain('That link has expired')
 
   const visited = await page.goto(RESET_REQUEST_ENDPOINT)
   expect(visited?.status()).toBe(404)
   expect(await page.content()).not.toContain('That link has expired')
 })
 
-test('refuses a post to that address from anywhere but one of our own pages', async ({ page }) => {
+test('refuses a post to that address that did not come from one of our own pages', async ({ page }) => {
   // The CSRF half of Task 10, from the reader's side and against the running
-  // app: `page.request.post` sends no `Origin`, which is what a script, a
-  // `curl` or a scan sends, and the admin refuses it before any handler runs.
+  // app. A `page.request.post` sends no `Origin` of its own, which is what a
+  // script, a `curl` or a scan sends - and is exactly what the case above no
+  // longer pretends is a form.
   const forged = await page.request.post(RESET_REQUEST_ENDPOINT, {
     form: { email: 'reader@wanderings.travel' },
     maxRedirects: 0,

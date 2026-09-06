@@ -36,7 +36,6 @@ import {
   CODE_STEP_ENDPOINT,
   CodeStep,
   PASSWORD_STEP_PATH,
-  PENDING_ADDRESS_MASK,
   RESEND_ENDPOINT,
   SHAKE_MS,
 } from './CodeStep'
@@ -575,8 +574,11 @@ describe('CodeStep', () => {
   it('offers the mask of no address at all until a challenge has been issued', () => {
     // What the route passes while Phase 2 Task 10 has yet to wire the pending
     // challenge: `maskEmail`'s own fallback, which echoes nothing.
-    expect(PENDING_ADDRESS_MASK).toBe('•••')
-    expect(renderStep({ maskedAddress: PENDING_ADDRESS_MASK }).textContent).toContain(
+    // The literal rather than the constant that used to hold it: the pane is
+    // handed whatever the route read, and what a route with no live challenge
+    // hands it is `readCodeScreen.ts`'s `NO_PENDING_ADDRESS`. What this case is
+    // about is that the PANE prints a bullet run unchanged.
+    expect(renderStep({ maskedAddress: '•••' }).textContent).toContain(
       'A six-digit code went to •••.',
     )
   })

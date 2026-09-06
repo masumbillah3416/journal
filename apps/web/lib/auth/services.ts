@@ -43,6 +43,7 @@ import type { OtpService } from './otpService'
 import { createOtpService } from './otpService'
 import type { PasswordResetService } from './passwordReset'
 import { createPasswordResetService } from './passwordReset'
+import type { SignInRateLimiter } from './rateLimit'
 import { createSignInRateLimiter } from './rateLimit'
 import type { SessionService } from './sessions'
 import { createSessionService } from './sessions'
@@ -59,6 +60,14 @@ export interface SignInServices {
   readonly sessions: SessionService
   /** Sends a reader a way back in. */
   readonly reset: PasswordResetService
+  /**
+   * Records and judges an attempt in the sign-in endpoints' windows.
+   *
+   * Exposed as of fix round 1 so `POST /admin/sign-in/code/verify` can spend
+   * the code windows — `signIn` has always had it injected, but the code step
+   * has no `SignInService` to reach it through.
+   */
+  readonly limiter: SignInRateLimiter
 }
 
 /**
@@ -84,6 +93,7 @@ export const signInServices = async (): Promise<SignInServices> => {
     signIn: createSignInService({ payload, otp, sessions, limiter, now: Date.now }),
     otp,
     sessions,
+    limiter,
     // The origin is read from the validated environment and never from the
     // request — `passwordReset.ts`'s header gives the attack a `Host`-derived
     // link is, and `../env.ts` is why a missing value fails at boot.

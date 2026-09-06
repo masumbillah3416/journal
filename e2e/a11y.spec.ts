@@ -85,15 +85,16 @@
  * diary (`npm run db:seed`) — the cover's copy is what the last case measures.
  */
 import { expect, test } from '@playwright/test'
-import { aSignedInSession, removeSignedInFixture } from './support/adminSession'
+import { aSignedInSession, removeSignedInFixture, SESSION_FIXTURE_DOMAIN } from './support/adminSession'
 import { expectNoAxeViolations } from './support/axe'
 import { measureContrastOverGradient } from './support/coverContrast'
 import { drawsMobileReadingMode } from './support/surface'
 
-test.afterAll(async () => {
-  // The fixture account and its session, written by `aSignedInSession` for the
-  // one guarded screen this file covers.
-  await removeSignedInFixture()
+test.afterAll(async ({ }, testInfo) => {
+  // This project's own account, never the whole domain: the three viewports
+  // run in parallel and a sweeping delete takes another one's session away
+  // mid-run (see `SESSION_FIXTURE_DOMAIN`).
+  await removeSignedInFixture(`a11y.${testInfo.project.name}@${SESSION_FIXTURE_DOMAIN}`)
 })
 
 test('has no axe violations on /cms', async ({ page }) => {
@@ -462,11 +463,13 @@ test('has no axe violations on the screen the mailed link lands on', async ({ pa
   await expectNoAxeViolations(page)
 })
 
-test('has no axe violations on /admin/sign-in/done, the signed-in state', async ({ page, context, baseURL }) => {
+test('has no axe violations on /admin/sign-in/done, the signed-in state', async ({ page, context, baseURL }, testInfo) => {
   // The screen is guarded (Phase 2 Task 10), so it needs a session before it
   // will draw anything — see e2e/support/adminSession.ts for why a browser
   // cannot sign itself in here.
-  await context.addCookies([{ name: 'td-session', value: await aSignedInSession(), url: `${baseURL ?? ''}/admin` }])
+  await context.addCookies([
+    { name: 'td-session', value: await aSignedInSession(`a11y.${testInfo.project.name}`), url: `${baseURL ?? ''}/admin` },
+  ])
   await page.goto('/admin/sign-in/done')
   // The mark is drawn AND the heading is present before axe looks: a route
   // that rendered an empty shell would have no violations either.

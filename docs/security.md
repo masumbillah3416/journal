@@ -52,32 +52,87 @@ Phase 3.
 | Secrets in the platform store | never in the repo; `.env` is gitignored | Phase 0 for repo hygiene (`.gitignore` already excludes `.env`, `.env.*`, keeping only `.env.example`) — moving real secrets into each provider's platform store happens as each provider is actually provisioned at deploy time, which is not pinned to a single phase in §4 |
 | Offsite backups of Postgres **and** the bucket, restore tested | scheduled dump to a different provider; restore drill in `docs/runbook.md` | Phase 3. The design spec's phase plan (§4) does not itself name a phase for this operational requirement; the procedure is documented now, in Phase 0 (`docs/runbook.md`), but Phase 3 is the first point at which both Postgres and the media bucket hold real content, so it is the earliest phase where a restore drill proves anything. A demonstrated (not merely written) drill is a Phase 3 exit criterion. |
 
+## Fix round 1: the blocker, and what it says about how this phase tests
+
+`Referrer-Policy: no-referrer` was set on every admin response for the reason it looks
+like: `/admin/reset/<token>` carries a live reset token IN THE ADDRESS, and an outbound
+request from that page must not put it in a `Referer`.
+
+**Per the Fetch standard, a navigation request's `Origin` header is derived from the
+referrer policy.** Under `no-referrer`, a form-navigation `POST` sends `Origin: null`. The
+admin's cross-site check compares origins for strict equality, so **every form on this
+surface answered `403` in a real browser** — the password step, the code step, the resend,
+the reset request, and signing out. Measured in Chromium on the sign-in and reset forms;
+relaxing only the header made the same form succeed.
+
+**What makes this the sharpest instance of this phase's recurring theme is why nothing
+caught it.** Not an untested mechanism — a mechanism tested against a fiction. Every route
+test, unit, integration and browser, SET the `origin` header itself, under a comment in
+`e2e/reset.spec.ts` calling it "what a browser form would have sent". It was not. 1,283
+unit tests, 314 integration tests, twenty-one mutations and a green browser suite all
+exercised a request shape no browser produces.
+
+**The fix is the header, not the check.** `same-origin` keeps `Origin` populated for the
+same-origin posts this application actually makes and sends nothing cross-origin, so the
+reset token still never leaves in a `Referer`. Loosening the origin check to admit `null`
+would have admitted every request that carries no origin at all, which is the case it
+exists for.
+
+**What stops it coming back is the deletion, not the header.** No browser test sets a
+request header any more. `e2e/signInJourney.spec.ts` fills in the real forms and presses
+the real buttons, end to end, through the second factor; reverting `Referrer-Policy` to
+`no-referrer` fails five of its and `e2e/reset.spec.ts`'s cases.
+
+**A second defect of the same shape was found the same way.** `SCREENS.md` §3.2's pane
+posts six fields all named `code`, one per cell. The handler read them through
+`Object.fromEntries`, which keeps one value per name — so it compared a single character
+against a six-digit code and refused every correct one. The integration suite sent a single
+`code` field and agreed with the handler; `docs/api.md` had recorded the real shape since
+Task 8. Only typing a code into the real pane found it.
+
+**Cross-browser behaviour is UNRESOLVED.** Only Chromium is installed here; Firefox and
+WebKit were not installed and the forms were not driven in them. The `Origin`-from-referrer
+-policy rule is in the Fetch standard rather than a Chromium quirk, so the same result is
+expected — but expected is not measured, and `npx playwright install firefox webkit` is
+what would settle it.
+
 ## What Task 10 did NOT close, named rather than left to be found
 
 Three things about the HTTP boundary are worth stating in this document, because each one
 is a mechanism that exists and is not (or not fully) enforcing.
 
-- **`rateLimit.ts`'s `admitCodeAttempt` has no caller.** `POST /admin/sign-in/code/verify`
-  does not call it, and the reason is structural rather than an omission: that function
-  needs the `UserId` a challenge belongs to, and the account behind a challenge is not
-  knowable before the code has been verified — `otpService` deliberately offers no
-  session-to-account lookup, because answering one would tell an unauthenticated caller
-  which browsers hold a live challenge, which is exactly what `verifyChallenge`'s single
-  `'invalid'` refusal exists to prevent. What bounds guessing meanwhile is the challenge's
-  own budget, enforced by Postgres rather than by this process: three attempts, claimed
-  before the code is compared, single use, a five-minute life, and an hourly ceiling on how
-  many challenges an account can be issued at all. What would close it is an `otpService`
-  operation that names the account for a challenge WITHOUT revealing whether one exists —
-  which is a change to a module gated at 100% and was not folded into the task that mounted
-  the routes.
-- **`POST /admin/sign-in/code/resend` is not mounted**, for the same reason: issuing a
-  fresh code needs the account. `CodeStep.tsx` still draws the button, so it posts to a
-  `404` (`docs/deviations.md` §33).
+- ~~`rateLimit.ts`'s `admitCodeAttempt` has no caller.~~ **Closed in fix round 1.**
+  `POST /admin/sign-in/code/verify` now spends both code windows before it compares a
+  guess. What blocked it was that the function needs the `UserId` a challenge belongs to;
+  `otpService.challengeAccount` is that lookup, and it is SERVER-ONLY — the account never
+  reaches a response, and the endpoint answers the same word whether the window was shut,
+  the code was wrong, or the browser holds no challenge at all. So the reasoning that
+  refused the lookup is honoured where it belongs, at the HTTP surface, rather than by the
+  lookup not existing. The challenge's own database-enforced budget still applies
+  underneath.
+- ~~`POST /admin/sign-in/code/resend` is not mounted.~~ **Mounted in fix round 1**, on the
+  same read: `otpService.resendChallenge` resolves the account from the challenge bound to
+  the browser's identifier, so the request names nobody. `docs/api.md` has its row.
+- ~~The code screen cannot read its pending challenge.~~ **Closed in fix round 1.**
+  `readCodeScreen.ts` reads it through `otpService.pendingChallenge`, which returns the
+  masked address, the issue time and the attempts spent — and never the code, the account or
+  a whole address, because what it returns is rendered into a page.
 - **The only `MailerPort` adapter prints to a terminal.** Every one-time code and every
   reset link this surface now issues reaches the operator's console and nobody else, which
   makes the whole flow unusable by a real reader until a sending adapter lands. It is not a
   security weakness — nothing is delivered to the wrong person — but it is the difference
   between "the endpoint works" and "a reader can sign in", and `docs/runbook.md` says so.
+
+**One residual of the identical refusal is a TIMING tell, and it is recorded here rather
+than left to be rediscovered.** The three answers `SECURITY.md` requires to be
+indistinguishable — an unknown address, a wrong password, a locked account — all cost the
+same PBKDF2 derivation and were measured at 0.0546 / 0.0605 / 0.0545 seconds. A
+rate-limited refusal is ~13ms: the limiter refuses before anything reaches the credential
+store, so no key is derived. That does not weaken the property the requirement names, since
+none of the three is the fast one, and an attacker learns only that their own budget is
+spent — which they can also learn by counting their own requests. It would matter if a
+lockout ever answered through the limiter rather than through Payload; it does not, and
+`signIn.ts`'s header is where that is kept true.
 
 One more thing this boundary chose, which is a cost rather than a gap: **a genuinely
 rate-limited reader is told the same thing as one who mistyped a password.**

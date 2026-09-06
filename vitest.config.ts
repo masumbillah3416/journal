@@ -411,6 +411,13 @@ export default defineConfig({
         'apps/web/lib/auth/services.ts',
         'apps/web/lib/auth/signInEndpoints.ts',
         'apps/web/lib/auth/resetRequestEndpoint.ts',
+        // readCodeScreen.ts (Task 10's fix round) joins the same two: it reads
+        // the challenge bound to the browser's cookie through a real Payload,
+        // and what it exists to prove - that the code screen prints the SERVER's
+        // masked address, issue time and attempts rather than a placeholder - is
+        // a claim about an `otpChallenges` row. Gated by
+        // vitest.integration.config.ts instead.
+        'apps/web/lib/auth/readCodeScreen.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by
