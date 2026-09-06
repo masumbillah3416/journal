@@ -12,13 +12,24 @@
  * (`docs/deviations.md` §33). This is the read that ends that.
  *
  * IT DRAWS THE PLACEHOLDER RATHER THAN REFUSING, when the browser holds no
- * live challenge. That is deliberate and it is not a gap: a reader who types
- * the address, or whose code has expired, gets `SCREENS.md` §3.2 with
- * `maskEmail('')`'s three bullets — which echoes nothing, names nobody, and is
- * exactly what the screen showed before. Refusing instead would make the
- * screen's own response an oracle for whether a given browser holds a live
+ * challenge at all. That is deliberate and it is not a gap: a reader who types
+ * the address gets `SCREENS.md` §3.2 with `maskEmail('')`'s three bullets —
+ * which echoes nothing and names nobody. Refusing instead would make the
+ * screen's own response an oracle for whether a given browser holds a
  * challenge, which is what `verifyChallenge`'s single `'invalid'` refusal
  * spends three database statements to withhold.
+ *
+ * A BROWSER WHOSE CHALLENGE IS SPENT OR EXPIRED IS NOT THAT READER, and it
+ * used to be treated as one. `pendingChallenge` answered `null` for anything
+ * that was not `'valid'`, so a reader who had just typed three wrong codes was
+ * shown the screen a stranger gets: the address they were told to check
+ * replaced by bullets, the counter back at zero, and — because the placeholder
+ * substitutes `renderedAt` for a missing issue instant — a five-minute expiry
+ * and a thirty-second resend cooldown that both restarted on every reload.
+ * Four faces of one decision (docs/qa/2026-09-07-sign-in-sweep.md,
+ * SIGNIN-001..004). It leaks nothing to describe them: only the browser
+ * holding the identifier the challenge was bound to can reach this answer, and
+ * it is the browser that was sent the code.
  *
  * IT READS THE COOKIE, WHICH IS WHY THE ROUTE IS DYNAMIC. `/admin/sign-in/code`
  * rendered `○ (Static)` until fix round 1, so `Date.now()` was evaluated at
@@ -89,15 +100,16 @@ export const readCodeScreen = async (cookieHeader: string | null, renderedAt: nu
   const pending = await otp.pendingChallenge(carried)
   if (pending === null) return { maskedAddress: NO_PENDING_ADDRESS, issuedAt: renderedAt, attemptsSpent: 0 }
 
-  // NO CLAMP ON `attemptsSpent`, and its absence is deliberate. One was written
+  // NO CLAMP ON `attemptsSpent`, and its absence is still deliberate — for a
+  // different reason than when this note was first written. One was written
   // here, guarding against a count above the ceiling making the pane print a
-  // negative number of guesses left — and it was unreachable: a challenge that
-  // has spent `MAX_ATTEMPTS` is `'exhausted'`, so `pendingChallenge` returns
-  // `null` and the branch above answers with the placeholder's zero. The test
-  // written for it reduced to `0 <= 3`, and coverage reported the line at 100%
-  // because the expression sat on an executed line — which is worth knowing
-  // about coverage generally: it cannot tell an evaluated expression from a
-  // reachable one. Deleted rather than kept with a comment (CLAUDE.md §3.2).
+  // negative number of guesses left, and it was unreachable because an
+  // exhausted challenge answered `null`. That `null` was itself the defect
+  // (SIGNIN-001), and `pendingChallenge` now reports the exhausted challenge —
+  // so `attemptsSpent` reaches `MAX_ATTEMPTS` here, which is exactly the value
+  // `CodeStep`'s "Three wrong codes" message is keyed on. A clamp would still
+  // be wrong: the service never returns more than the ceiling, because the
+  // count is claimed by a conditional UPDATE that refuses above it.
   return {
     maskedAddress: pending.maskedTo,
     issuedAt: pending.issuedAt,

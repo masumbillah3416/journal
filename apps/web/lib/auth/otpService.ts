@@ -253,11 +253,18 @@ export interface OtpService {
    * into a page. {@link OtpService.challengeAccount} is the server-only
    * lookup, and it exists separately for exactly that reason.
    *
+   * IT DESCRIBES A CHALLENGE THAT CAN NO LONGER BE ANSWERED, rather than
+   * pretending there is none. A reader who has spent all three guesses, or
+   * waited out the five minutes, gets the same masked address, the real
+   * counter and the real issue instant — see the implementation for why that
+   * leaks nothing and what it cost when it did not. A REDEEMED challenge is
+   * the exception and answers `null`.
+   *
    * @param session - The identifier the browser is carrying.
    * @returns The four values the screen prints, or `null` when this browser
-   *   holds no challenge that can still be answered — which is what a reader
-   *   who typed the address gets, and is not distinguishable by them from any
-   *   other reason a challenge is not live.
+   *   holds no challenge at all or one already redeemed — which is what a
+   *   reader who typed the address gets, and is not distinguishable by them
+   *   from the other reason.
    */
   pendingChallenge(session: SessionId): Promise<PendingChallenge | null>
 
@@ -285,12 +292,17 @@ export interface OtpService {
    * caller has to hold it — which is what makes a resend endpoint possible
    * without the browser naming an account it has not authenticated as.
    *
+   * WHATEVER STATE THAT CHALLENGE IS IN. `SECURITY.md` §3 asks for three
+   * attempts "then invalidate it and FORCE A RESEND", so the one call that
+   * exists to be made after a challenge dies must not require a live one. It
+   * did until Phase 2 Task 11's fix round; see the implementation.
+   *
    * @param session - The identifier the browser is carrying.
    * @param ip - The requesting address, recorded on the new row.
    * @returns `ok` with the masked address, or `err` naming the refusal.
-   *   `'unknown-account'` covers a browser with no live challenge, which is
-   *   the same answer a resend for a deleted account gets: a reader who has
-   *   not been sent a code has nothing to resend.
+   *   `'unknown-account'` covers a browser that has never been sent a code,
+   *   which is the same answer a resend for a deleted account gets: a reader
+   *   with nothing to resend has nothing to resend.
    */
   resendChallenge(session: SessionId, ip: string): Promise<Result<{ maskedTo: string }, IssueFailure>>
 }
@@ -756,7 +768,26 @@ export const createOtpService = ({ payload, mailer, now }: OtpServiceDependencie
       },
       readAt,
     )
-    if (state !== 'valid') return null
+    // A REDEEMED CHALLENGE IS THE ONE STATE THAT STAYS A PLACEHOLDER, and the
+    // other two are described rather than hidden. Until Phase 2 Task 11's fix
+    // round this read `state !== 'valid'`, so a reader who had spent all three
+    // guesses — or waited out the five minutes — was shown the screen a
+    // browser holding NOTHING gets: three bullets where the address they were
+    // told to check had been, a counter back at zero, and (because the caller
+    // substitutes the render instant for a missing `issuedAt`) a five-minute
+    // expiry and a thirty-second resend cooldown that restarted on every
+    // reload. Four faces of one decision, all found in a browser and none by
+    // any test here (docs/qa/2026-09-07-sign-in-sweep.md, SIGNIN-001..004).
+    //
+    // Describing them leaks nothing. The oracle this module withholds is
+    // whether a given browser holds a live challenge, and the only browser
+    // that can reach this answer is the one presenting the identifier the
+    // challenge was bound to — which is to say, the browser that was sent the
+    // code and has just typed three wrong ones into it. It learns nothing it
+    // did not supply. A CONSUMED challenge is different and stays `null`: the
+    // browser that spent it was handed a session in the same request and no
+    // longer presents this identifier, so there is no reader to inform.
+    if (state === 'consumed') return null
 
     return {
       maskedTo: maskEmail(row.email),
@@ -798,12 +829,35 @@ export const createOtpService = ({ payload, mailer, now }: OtpServiceDependencie
   },
 
   async resendChallenge(session, ip) {
-    const account = await this.challengeAccount(session)
-    // ONE REFUSAL FOR "NO LIVE CHALLENGE", and it is the same word a resend
-    // for a deleted account gets: a reader who has not been sent a code has
+    // WHATEVER STATE THE CHALLENGE IS IN, which is the difference between
+    // "invalidate it and force a resend" (`SECURITY.md` §3) and a dead end.
+    // This resolved the account through `challengeAccount` until Phase 2 Task
+    // 11's fix round — and that method answers `null` for anything that is not
+    // `'valid'`, correctly, because its one job is metering a guess that can
+    // still be made. So the instant a reader spent their third guess, the only
+    // way forward stopped working: "Send a new code" mailed nothing and said
+    // nothing (SIGNIN-004). The two questions are different and now have
+    // different reads.
+    //
+    // It is still bounded, and by the same three things it always was: the
+    // caller must present an identifier a challenge was actually issued to,
+    // the thirty-second cooldown and the hourly ceiling below both apply, and
+    // nothing here names an account the request supplied.
+    const found = await payload.db.pool.query<{ user_id: number }>(
+      `SELECT user_id
+         FROM otp_challenges
+        WHERE session_hash = $1
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [hashSession(session)],
+    )
+    const row = found.rows[0]
+    // ONE REFUSAL FOR "NO CHALLENGE AT ALL", and it is the same word a resend
+    // for a deleted account gets: a reader who has never been sent a code has
     // nothing to resend, and saying which of the two it was would tell an
     // unauthenticated caller whether this browser holds one.
-    if (account === null) return err('unknown-account')
+    if (row === undefined) return err('unknown-account')
+    const account = accountOf(row.user_id)
 
     // The cooldown, the hourly ceiling and the delivery are `issueChallenge`'s,
     // unchanged: a resend is an issue for an account this module resolved

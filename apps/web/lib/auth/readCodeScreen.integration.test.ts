@@ -161,21 +161,34 @@ describe('what the code screen is told when a challenge is live', () => {
     expect((await readCodeScreen(carrying(session), RENDERED_AT)).attemptsSpent).toBe(1)
   })
 
-  it('falls back to the placeholder once the guesses are gone, rather than counting past them', async () => {
-    // THIS CASE USED TO ASSERT A CLAMP THAT COULD NOT FIRE. It read
-    // `attemptsSpent <= MAX_ATTEMPTS` after exhausting the challenge — and an
-    // exhausted challenge is not `'valid'`, so `pendingChallenge` answers
-    // `null` and the placeholder's zero comes back. The assertion reduced to
-    // `0 <= 3`. What is actually true, and is what this now says, is that the
-    // screen stops describing a challenge nobody can answer any more.
-    const { session } = await aBrowserAwaitingACode()
+  it('keeps the address, the counter and the issue instant once every guess is gone', async () => {
+    // THIS CASE HAS BEEN WRONG TWICE, and the second time it was wrong it
+    // ratified a defect a reader could see. It first asserted a clamp that
+    // could not fire (`attemptsSpent <= MAX_ATTEMPTS`, which reduced to
+    // `0 <= 3`). It was then rewritten to assert the placeholder — and the
+    // placeholder is the defect: the screen forgot the address the reader had
+    // been told to check, reset the counter to zero, and took the render
+    // instant as the issue instant, which restarted both countdowns on every
+    // reload (SIGNIN-001 and SIGNIN-002, docs/qa/2026-09-07-sign-in-sweep.md).
+    //
+    // What the screen owes a reader who has spent all three guesses is the
+    // truth: the same masked address, `3 of 3 tried` — which is what makes
+    // `CodeStep`'s "Three wrong codes" message reachable at all — and the
+    // instant the code was really issued, so the resend cooldown counts down
+    // to a button that works.
+    const { email, session } = await aBrowserAwaitingACode()
     const code = readCodeFromOutbox(mailer)
     const wrong = code === '000000' ? '111111' : '000000'
+    const issuedBefore = Date.now()
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) await otp.verifyChallenge(session, wrong)
 
     const content = await readCodeScreen(carrying(session), RENDERED_AT)
 
-    expect(content).toEqual({ maskedAddress: NO_PENDING_ADDRESS, issuedAt: RENDERED_AT, attemptsSpent: 0 })
+    expect(content.maskedAddress).toBe(maskEmail(email))
+    expect(content.attemptsSpent).toBe(MAX_ATTEMPTS)
+    // Not the render instant, and not a fabricated one: the row's own.
+    expect(content.issuedAt).not.toBe(RENDERED_AT)
+    expect(content.issuedAt).toBeLessThanOrEqual(issuedBefore)
   })
 })
 

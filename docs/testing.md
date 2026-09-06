@@ -2426,12 +2426,28 @@ signIn.ts's credential-store report deleted entirely              -> all six, th
 **The browser sweep** is `docs/qa/2026-09-07-sign-in-sweep.md`: seven addresses at three
 viewports plus one driven journey, with `console`, `pageerror`, `requestfailed` and every
 response >= 400 attached before every `goto`, and 21 axe analyses with no exclusions and no
-violations. It found three defects, all on `/admin/sign-in/code`, none of them visible to any
-assertion in this repository — the exhausted-challenge screen resets to the no-challenge
-placeholder, that placeholder re-anchors both countdowns on every render, and the component's
-own "Three wrong codes" message is consequently unreachable in the delivered app while its
-jsdom case stays green. The sweep driver was a temporary spec, deleted once the report was
-written; `e2e/ciRegistration.test.ts` correctly failed while it existed and passes now.
+violations. It found **four** defects — three, plus a fourth its own review found in the same
+family — all on `/admin/sign-in/code`, none visible to any assertion in this repository, and
+all four faces of one decision: `otpService` treated a challenge that could no longer be
+answered as one that had never existed. The screen therefore drew the no-challenge
+placeholder, the placeholder re-anchored both countdowns on every render, the pane's own
+"Three wrong codes" message became unreachable while its jsdom case stayed green, and "Send a
+new code" — the only move `SECURITY.md` §3 leaves an exhausted reader — mailed nothing and
+said nothing.
+
+**Fixed as one class**, per `.claude/skills/fixing-browser-defects/SKILL.md`: six cases
+written red first (five in `otpService.integration.test.ts`, one in
+`signInEndpoints.integration.test.ts`), the cause fixed in two reads rather than the four
+symptoms, and `readCodeScreen.integration.test.ts`'s "falls back to the placeholder once the
+guesses are gone" INVERTED — that case had been ratifying the defect, and was the second time
+the same case had asserted the wrong thing.
+
+**The sweep found three of the four and stopped one click short of the fourth.** It drove the
+resend button, waited out the cooldown, recorded `"Send a new code", disabled false` — and
+never pressed it. A sweep that walks up to a control and stops has not tested it.
+
+The sweep driver was a temporary spec, deleted once the report was written;
+`e2e/ciRegistration.test.ts` correctly failed while it existed and passes now.
 
 #### `apps/web/lib/auth/securityCitations.test.ts` — the citation column checks itself
 

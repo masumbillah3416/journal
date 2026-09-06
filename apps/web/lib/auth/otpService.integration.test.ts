@@ -605,6 +605,125 @@ describe('otpService', () => {
     expect(await challengeCountSince(user, Date.now() + elapsedMs - HOUR_MS)).toBe(HOURLY_RESEND_CAP)
   })
 
+  // ═══ SECURITY.md §3's "then invalidate it and FORCE A RESEND" ═══
+  //
+  // The invalidation was proved three tasks ago; the forcing was not, and it
+  // did not work. `challengeAccount` answers `null` for any challenge that is
+  // not `'valid'` — correctly, since its one job is metering a guess that can
+  // still be made — and `resendChallenge` was resolving the account through
+  // it, so the moment a reader spent their third guess the only way forward
+  // stopped working. Found in the browser (docs/qa/2026-09-07-sign-in-sweep.md,
+  // SIGNIN-004), not by any of the 350 integration cases.
+  it('issues a fresh code once every guess is gone, which is what forcing a resend means', async () => {
+    const { user } = await aSignInAccount()
+    let elapsedMs = 0
+    const { service, mailer } = await anOtpService(() => Date.now() + elapsedMs)
+    const session = aSessionId('a')
+    await service.issueChallenge(user, session, FIXTURE_IP)
+    const wrong = aDifferentCode(readCodeFromOutbox(mailer))
+    for (let spent = 0; spent < MAX_ATTEMPTS; spent += 1) await service.verifyChallenge(session, wrong)
+    elapsedMs = RESEND_COOLDOWN_MS + 1_000
+
+    const resent = await service.resendChallenge(session, FIXTURE_IP)
+
+    // The message is asserted as well as the answer: an `ok` that mailed
+    // nothing would leave the reader exactly as stuck.
+    expect(resent).toEqual({ ok: true, value: { maskedTo: MASKED_FIXTURE_ADDRESS } })
+    expect(mailer.sent).toHaveLength(2)
+    // And the new code works, which is the whole point of forcing one.
+    expect(await service.verifyChallenge(session, readCodeFromOutbox(mailer))).toEqual({
+      ok: true,
+      value: { userId: user },
+    })
+  })
+
+  it('issues one once the code has expired, so waiting out the five minutes is not a dead end', async () => {
+    const { user } = await aSignInAccount()
+    let elapsedMs = 0
+    const { service, mailer } = await anOtpService(() => Date.now() + elapsedMs)
+    const session = aSessionId('a')
+    await service.issueChallenge(user, session, FIXTURE_IP)
+    elapsedMs = EXPIRY_MS + 1_000
+
+    expect(await service.resendChallenge(session, FIXTURE_IP)).toEqual({
+      ok: true,
+      value: { maskedTo: MASKED_FIXTURE_ADDRESS },
+    })
+    expect(mailer.sent).toHaveLength(2)
+  })
+
+  it('still refuses a resend for a browser that has never been sent a code', async () => {
+    // The other half of the case above. Resolving the account whatever the
+    // challenge's state must not become resolving it when there is no
+    // challenge — that would be an unauthenticated caller putting mail in
+    // somebody's inbox by presenting any identifier at all.
+    const { service, mailer } = await anOtpService()
+
+    // A label of its own: `aSessionId` keys on the account counter, and this
+    // case creates no account, so 'a' would be the identifier the case above
+    // left a challenge under.
+    expect(await service.resendChallenge(aSessionId('never-sent'), FIXTURE_IP)).toEqual({
+      ok: false,
+      error: 'unknown-account',
+    })
+    expect(mailer.sent).toHaveLength(0)
+  })
+
+  it('reports an exhausted challenge to the screen rather than none, with the instant it was issued', async () => {
+    // SIGNIN-001 and SIGNIN-002. An exhausted challenge answered `null`, so
+    // the screen drew the SAME placeholder a browser holding nothing gets:
+    // three bullets where the address was, a counter back at zero, and an
+    // `issuedAt` of the render instant — which restarted the five minutes and
+    // the thirty-second resend cooldown on every reload.
+    const { user } = await aSignInAccount()
+    const { service, mailer } = await anOtpService()
+    const session = aSessionId('a')
+    await service.issueChallenge(user, session, FIXTURE_IP)
+    const issued = (await latestChallenge(user)).createdAt
+    const wrong = aDifferentCode(readCodeFromOutbox(mailer))
+    for (let spent = 0; spent < MAX_ATTEMPTS; spent += 1) await service.verifyChallenge(session, wrong)
+
+    const pending = await service.pendingChallenge(session)
+
+    expect(pending).toEqual({
+      maskedTo: MASKED_FIXTURE_ADDRESS,
+      issuedAt: issued,
+      attemptsSpent: MAX_ATTEMPTS,
+      attemptsAllowed: MAX_ATTEMPTS,
+    })
+  })
+
+  it('reports an expired challenge with the instant it was issued, not the instant it was read', async () => {
+    const { user } = await aSignInAccount()
+    const { service } = await anOtpService(() => Date.now() + EXPIRY_MS + 1_000)
+    const session = aSessionId('a')
+    // Issued under the REAL clock, so the row is genuinely older than the
+    // service reading it: `issueChallenge` stamps `created_at` in Postgres,
+    // and the reader's clock is the one that has moved on.
+    const { service: issuer } = await anOtpService()
+    await issuer.issueChallenge(user, session, FIXTURE_IP)
+    const issued = (await latestChallenge(user)).createdAt
+
+    const pending = await service.pendingChallenge(session)
+
+    expect(pending?.issuedAt).toBe(issued)
+    expect(pending?.attemptsSpent).toBe(0)
+  })
+
+  it('reports nothing for a challenge that has already been redeemed', async () => {
+    // A consumed challenge is the one state that stays a placeholder: the
+    // browser that spent it was handed a session in the same request, so it no
+    // longer presents this identifier at all, and describing it would be
+    // describing a sign-in that has already happened.
+    const { user } = await aSignInAccount()
+    const { service, mailer } = await anOtpService()
+    const session = aSessionId('a')
+    await service.issueChallenge(user, session, FIXTURE_IP)
+    await service.verifyChallenge(session, readCodeFromOutbox(mailer))
+
+    expect(await service.pendingChallenge(session)).toBeNull()
+  })
+
   it('refuses to issue a challenge for an account that does not exist', async () => {
     const { service, mailer } = await anOtpService()
     const missing = userId('999999999')

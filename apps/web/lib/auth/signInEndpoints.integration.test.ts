@@ -39,6 +39,7 @@
  * ./otpService, ./sessions, ./signInEndpoints, ./testing/otpProbes,
  * ../adapters/console-mailer, ../testPayload.
  */
+import { MAX_ATTEMPTS } from '@travel-diary/domain/auth/otpChallenge'
 import { REMEMBERED_SESSION_LIFETIME_MS, SESSION_COOKIE_NAME, SESSION_LIFETIME_MS } from '@travel-diary/domain/auth/session'
 import { ACCOUNT_CODE_ATTEMPT_LIMIT, IP_ATTEMPT_LIMIT } from '@travel-diary/domain/auth/rateWindow'
 import { PASSWORD_REFUSED_STATE } from '@travel-diary/domain/auth/signInScreen'
@@ -60,7 +61,7 @@ import {
   PASSWORD_STEP_PATH,
   SIGNED_IN_PATH,
 } from './signInEndpoints'
-import { readCodeFromOutbox } from './testing/otpProbes'
+import { aDifferentCode, readCodeFromOutbox } from './testing/otpProbes'
 
 /** Every fixture address here belongs to this domain, so `afterAll` can find them. */
 const FIXTURE_EMAIL_DOMAIN = 'sign-in-endpoints-fixture.example'
@@ -1109,6 +1110,36 @@ describe('what asking for a new code does', () => {
     // it carried is dead — which is what makes "a new code" mean something.
     expect(await otp.verifyChallenge(session, firstCode)).toEqual({ ok: false, error: 'invalid' })
     expect(await otp.verifyChallenge(session, resentCode)).toEqual({ ok: true, value: { userId: user } })
+  })
+
+  it('issues one for a reader who has spent every guess, which is the only way back', async () => {
+    // SIGNIN-004. `SECURITY.md` §3 asks for "max 3 attempts per challenge,
+    // THEN INVALIDATE IT AND FORCE A RESEND". The invalidation held; the
+    // forcing did not — `resendChallenge` resolved the account through
+    // `challengeAccount`, which names nobody for a challenge that is not
+    // `'valid'`, so the button that was the reader's only remaining move
+    // mailed nothing and said nothing. Found in a browser, by pressing it.
+    const { user, session } = await aBrowserAwaitingACode()
+    const wrong = aDifferentCode(readCodeFromOutbox(mailer))
+    for (let spent = 0; spent < MAX_ATTEMPTS; spent += 1) await otp.verifyChallenge(session, wrong)
+    await pastTheCooldown(user)
+
+    const answered = await handleResendCode(
+      aPost({ path: '/admin/sign-in/code/resend', fields: {}, cookie: carrying(session) }),
+    )
+
+    expect(answered.status).toBe(303)
+    expect(answered.headers.get('Location')).toBe(CODE_STEP_PATH)
+    // A row, not just a 303: this endpoint answers the same 303 when it does
+    // nothing at all, so the status alone cannot tell the fix from the defect.
+    expect(await challengesIssued(user)).toBe(2)
+    // And the reader has their three guesses back, which is what "forced a
+    // resend" has to mean for the screen in front of them. The six digits
+    // cannot be read here — the handler delivers through `signInServices`'s
+    // own mailer, not this file's — so what is asserted is the state the
+    // screen reads, and `otpService.integration.test.ts` proves the code the
+    // same call mails is one that works.
+    expect(await otp.pendingChallenge(session)).toMatchObject({ attemptsSpent: 0 })
   })
 
   it('answers the same 303 for a browser with no challenge to resend, and issues nothing', async () => {

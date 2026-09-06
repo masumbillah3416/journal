@@ -2,7 +2,7 @@
 
 **Build:** d61ab9e **Engine:** playwright-headed (Chromium 1.62.1) **Routes walked:** 7 addresses × 3 viewport projects, plus one driven journey
 
-**Result:** 3 defects — S1:0 S2:2 S3:1 S4:0
+**Result:** 4 defects — S1:0 S2:3 S3:1 S4:0 · **all four fixed, see Resolution**
 
 Viewports are `playwright.config.ts`'s three projects: `desktop` 1440×900, `mid` 1000×800,
 `mobile` 390×844 (`isMobile`, `hasTouch`, DPR 3, iPhone user agent). `SCREENS.md` §3's own
@@ -146,16 +146,109 @@ entire existence (§36), and "Send it again" being a link rather than a second r
   value at or above `MAX_ATTEMPTS`, because such a challenge is `'exhausted'` and takes the
   placeholder's `attemptsSpent: 0`. The component's own suite passes it a 3 directly and the
   case is green; nothing renders that state in a browser, at either build.
-- **Why it is reported rather than deleted:** it is the *right* copy, in the *right* place,
-  taken verbatim from the handoff's prototype. It is unreachable because of SIGNIN-001, not
-  because it is wrong — so the fix for SIGNIN-001 is what makes this branch live, and deleting
-  it would be deleting the handoff's answer to the defect above.
+- **Why it was reported rather than deleted:** it is the *right* copy, in the *right* place,
+  taken verbatim from the handoff's prototype. It was unreachable because of SIGNIN-001, not
+  because it was wrong — so the fix for SIGNIN-001 is what makes this branch live, and
+  deleting it would have been deleting the handoff's answer to the defect above. That is what
+  happened: `attemptsSpent` now reaches `MAX_ATTEMPTS` and the message renders.
 - **Note for triage:** this is the same shape as the clamp deleted in Task 10's re-review
   (ruling F67) and the fourteen vacuous tests this phase has logged — a branch reported at
   100% coverage because the expression sits on an executed line, guarded by a test that can
   never be made to fail by anything the app does.
 
 ---
+
+### SIGNIN-004 · S2 · "Send a new code" does nothing and says nothing once the three guesses are gone, so `SECURITY.md`'s "force a resend" cannot be reached at all
+
+- **Route:** `/admin/sign-in/code`, all viewports. Confirmed on `next dev`, and the cause is
+  server-side and identical in both builds.
+- **Found by the review of this sweep, not by the sweep** — which is why it is here rather
+  than in a later report: it belongs to this family and the family is what gets fixed. The
+  sweep drove the resend button, waited out the cooldown and watched it become enabled, and
+  stopped one click short.
+- **Steps:**
+  1. Reach the exhausted state of SIGNIN-001.
+  2. Wait 31 seconds **without reloading**, so the button enables (see SIGNIN-002 for why a
+     reload takes that away again).
+  3. Press "Send a new code".
+- **Expected:** `SECURITY.md` §3 — "Max 3 attempts per challenge, **then invalidate it and
+  force a resend**". The invalidation is the half that was built. The forcing is the other
+  half, and it is the only move a reader has left on that screen.
+- **Actual:** nothing is sent, nothing is said, and the screen re-renders unchanged.
+- **Root cause:** `apps/web/lib/auth/otpService.ts`'s `resendChallenge` resolved the account
+  through `challengeAccount`, which returns `null` for any challenge that is not `'valid'` —
+  correctly, because its one job is metering a guess that can still be made. So the moment
+  the third guess was spent, the resend refused `'unknown-account'`, and
+  `apps/web/lib/auth/signInEndpoints.ts`'s `handleResendCode` discarded that `Result` and
+  answered its usual `303`. The discard is deliberate (`SCREENS.md` §3.2 gives the resend no
+  refusal copy, and a visible refusal would say which browsers hold a live challenge) — but
+  a deliberate silence over a broken call is indistinguishable from a deliberate silence
+  over a working one, which is how this survived 350 integration cases.
+- **Evidence:** the sweep's own transcript, which recorded the button reaching
+  `"Send a new code", disabled false` and never pressed it:
+
+  ```
+  afterCooldownWithoutReloading = { resend: "Send a new code", disabled: false }
+  ```
+
+## Resolution — all four, as one class
+
+Fixed in the same commit as this report's update, per
+`.claude/skills/fixing-browser-defects/SKILL.md`: reproduced, root-caused, **failing test
+first**, cause fixed rather than symptom, whole family rather than the one face reported.
+
+**They are one defect.** `otpService` treated a challenge that could no longer be answered as
+one that had never existed — `pendingChallenge` returned `null` for it, and
+`resendChallenge` refused for it. Everything else follows: the screen drew the
+no-challenge placeholder (SIGNIN-001), the placeholder anchors both countdowns to the render
+instant because it has no real one to use (SIGNIN-002), `attemptsSpent` therefore never
+reached `MAX_ATTEMPTS` so the pane's own "Three wrong codes" message was unreachable
+(SIGNIN-003), and the resend refused (SIGNIN-004).
+
+The fix is two reads:
+
+- `pendingChallenge` reports an **exhausted or expired** challenge instead of `null`, with
+  its real masked address, its real counter and its real issue instant. A **consumed** one
+  still answers `null` — that browser was handed a session in the same request and no longer
+  presents the identifier. This leaks nothing: the only browser that can reach the answer is
+  the one holding the identifier the challenge was bound to.
+- `resendChallenge` resolves the account from the latest challenge **whatever its state**,
+  through a read of its own rather than through `challengeAccount`, whose `'valid'`-only
+  answer is right for metering and wrong for this. Still bounded by the same three things: a
+  challenge must have been issued to this identifier, and the thirty-second cooldown and the
+  hourly ceiling both still apply.
+
+SIGNIN-003 needed no further change — `attemptsSpent` now reaches `MAX_ATTEMPTS`, so the
+handoff's own copy renders.
+
+**Re-verified in the browser, which is where they were found.** One driven journey against
+`next dev`, desktop 1440x900, with the same instrumentation attached before the first
+`goto` — zero console errors, zero warnings, zero page errors, zero responses >= 400, and no
+response body carrying either code:
+
+```
+afterWrong1  address fi•••@…  1 of 3 tried  "That code is not right. 2 attempts left."   5:00   Send again in 30s
+afterWrong2  address fi•••@…  2 of 3 tried  "That code is not right. 1 attempt left."    4:59   Send again in 29s
+afterWrong3  address fi•••@…  3 of 3 tried  "Three wrong codes. Send a new one, or go
+                                             back and try the password again."           4:59   Send again in 29s
+reload       address fi•••@…  3 of 3 tried  same message                                 4:54   Send again in 24s
+press        "Send a new code", enabled  ->  0 of 3 tried, 5:00, address intact
+finish       typed the fresh code -> /admin/sign-in/done, signed-in mark present
+```
+
+Read against the defects: the address survives (SIGNIN-001), the exhausted message renders at
+all (SIGNIN-003), the reload takes the countdowns from **4:59 to 4:54** and the cooldown from
+**29s to 24s** rather than restarting either (SIGNIN-002), and the button issues a code the
+reader can actually spend (SIGNIN-004). Screenshots:
+`docs/qa/assets/2026-09-07-sign-in/journey-after-wrong-3-fixed.png` and
+`journey-after-forced-resend.png`.
+
+**Red was watched first, and every case names its defect.** Five new cases in
+`apps/web/lib/auth/otpService.integration.test.ts` and one in
+`apps/web/lib/auth/signInEndpoints.integration.test.ts` failed before the fix and pass after
+it; `apps/web/lib/auth/readCodeScreen.integration.test.ts`'s "falls back to the placeholder
+once the guesses are gone" had been **ratifying** SIGNIN-001 and is now inverted — it was
+wrong twice, first asserting a clamp that could not fire and then asserting the defect.
 
 ## Clean
 
@@ -239,7 +332,14 @@ source maps, which carry this repository's comments and are not code any browser
 - **The code screen at the moment of expiry.** Watching `{m:ss}` reach 0:00 needs a five-minute
   wait per viewport; the domain's `otpCountdown` has its own unit cases and
   `otpService.integration.test.ts` proves the server refuses an expired code. What is unproven
-  here is what the pane *draws* at 0:00.
+  here is what the pane *draws* at 0:00. The Resolution above changes what it will draw — an
+  expired challenge is now described rather than replaced by the placeholder, so the pane
+  shows the real address and a countdown already at 0:00 with the resend enabled — and that
+  is asserted at the service level ("reports an expired challenge with the instant it was
+  issued, not the instant it was read") rather than in a browser.
+- **Pressing the resend button after the cooldown.** The sweep watched it become enabled and
+  did not click it. That one click was SIGNIN-004, and it is the sharpest lesson in this
+  report: a sweep that walks up to a control and stops is a sweep that has not tested it.
 - **Firefox and WebKit.** Only Chromium is installed. **UNRESOLVED** — `npx playwright install
   firefox webkit` would settle it. This is the same limit Task 10 reported and declined to fake;
   the `Origin`-from-referrer-policy rule behind that task's blocker is Fetch-standard rather

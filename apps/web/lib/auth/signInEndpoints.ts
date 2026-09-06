@@ -306,6 +306,18 @@ export const handleCodeStep = async (request: Request): Promise<Response> => {
  * refusal copy, and distinguishing them here would say which browsers hold a
  * live challenge.
  *
+ * THAT SAME SILENCE HID A DEFECT FOR FOUR TASKS, which is worth stating beside
+ * it rather than leaving for the next reader to find. `resendChallenge` used
+ * to refuse outright for a challenge that was not `'valid'`, so the button a
+ * reader presses AFTER spending their third guess — the only move
+ * `SECURITY.md` §3 leaves them — mailed nothing and said nothing, and this
+ * handler discarded the `err` that said so. The refusal is fixed in
+ * `otpService.resendChallenge`; the discard stays, because the reader must not
+ * be told which browsers hold a live challenge. What stops it hiding the next
+ * one is that the two states this endpoint can now be in are asserted on the
+ * ROW COUNT rather than on the status — `signInEndpoints.integration.test.ts`
+ * has a case for the exhausted reader that fails if nothing is issued.
+ *
  * @param request - The `POST`. Its body is not read; the cookie is.
  * @returns A `303` to the code step, or to the password step for a browser
  *   carrying no identifier — there can be no challenge for one that has none.
