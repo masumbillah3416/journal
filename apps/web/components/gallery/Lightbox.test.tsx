@@ -85,7 +85,12 @@ const renderLightbox = (
   }
 
   draw(options)
-  return { host, rerender: (next) => { draw({ ...options, ...next }) } }
+  return {
+    host,
+    rerender: (next) => {
+      draw({ ...options, ...next })
+    },
+  }
 }
 
 /** Presses a key on the document, the way a reader with no pointer would. */

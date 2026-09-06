@@ -95,8 +95,7 @@ export const CODE_STEP_ON_NOTICE =
   'A one-time code is asked for after your password. Turn it off under Account → Getting in.'
 
 /** Copy for the footer line when it does not. The prototype's, verbatim. */
-export const CODE_STEP_OFF_NOTICE =
-  'The one-time code step is switched off, so your password alone will let you in.'
+export const CODE_STEP_OFF_NOTICE = 'The one-time code step is switched off, so your password alone will let you in.'
 
 /** What the reader is told when the address is not one. The prototype's, verbatim. */
 const EMAIL_ERROR = 'That does not look like an email address.'

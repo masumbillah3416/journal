@@ -137,9 +137,9 @@ test('spreads a pasted six-digit code across all six cells, past maxLength', asy
   // browser's own paste, truncated by maxLength="1".
   await expect
     .poll(async () =>
-      page.locator('[data-code-cell]').evaluateAll((nodes) =>
-        nodes.map((node) => (node instanceof HTMLInputElement ? node.value : '')),
-      ),
+      page
+        .locator('[data-code-cell]')
+        .evaluateAll((nodes) => nodes.map((node) => (node instanceof HTMLInputElement ? node.value : ''))),
     )
     .toEqual(['1', '2', '3', '4', '5', '6'])
 
@@ -226,9 +226,9 @@ test('spreads a whole code written into the first cell, as an OTP autofill does'
 
   await expect
     .poll(async () =>
-      page.locator('[data-code-cell]').evaluateAll((nodes) =>
-        nodes.map((node) => (node instanceof HTMLInputElement ? node.value : '')),
-      ),
+      page
+        .locator('[data-code-cell]')
+        .evaluateAll((nodes) => nodes.map((node) => (node instanceof HTMLInputElement ? node.value : ''))),
     )
     .toEqual(['1', '2', '3', '4', '5', '6'])
 })

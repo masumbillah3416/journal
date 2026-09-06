@@ -275,7 +275,7 @@ would claim a measurement nothing performs.
   by mutation, not by review — retuning the floor to 37 left the whole file green until
   the literals went in (`CLAUDE.md` §2.3, "a test that has never failed is unproven").
   `packages/domain/src/contentsLayout.test.ts`'s thirty-one-entry case pins **3 columns
-  × 11 rows**, which is what SCREENS.md §1.2's formula produces and *not* the "4 columns
+  × 11 rows**, which is what SCREENS.md §1.2's formula produces and _not_ the "4 columns
   × 8 rows" the same section calls verified; the two cannot both be true for any entry
   count, and `docs/deviations.md` §9 carries the arithmetic. The multi-column path is
   therefore covered as arithmetic but never rendered in a browser — the seeded book has
@@ -289,7 +289,7 @@ would claim a measurement nothing performs.
   by mutation, not by review — retuning the floor to 37 left the whole file green until
   the literals went in (`CLAUDE.md` §2.3, "a test that has never failed is unproven").
   `packages/domain/src/contentsLayout.test.ts`'s thirty-one-entry case pins **3 columns
-  × 11 rows**, which is what SCREENS.md §1.2's formula produces and *not* the "4 columns
+  × 11 rows**, which is what SCREENS.md §1.2's formula produces and _not_ the "4 columns
   × 8 rows" the same section calls verified; the two cannot both be true for any entry
   count, and `docs/deviations.md` §9 carries the arithmetic. The multi-column path is
   therefore covered as arithmetic but never rendered in a browser — the seeded book has
@@ -360,6 +360,7 @@ would claim a measurement nothing performs.
   Its own `beforeAll` deletes the ten seeded journeys first, so the suite's coverage
   numbers (see below) do not depend on whether a previous run, or `npm run db:seed -w apps/web`
   itself, already seeded the same database.
+
 - **Isolation:** every integration test file calls `getTestPayload()`
   (`apps/web/lib/testPayload.ts`), not `getPayload()` directly. `DATABASE_URL` for the
   `integration` project (and `vitest.integration.config.ts`) points at `diary_test`, a
@@ -558,8 +559,7 @@ would claim a measurement nothing performs.
   `SCREENS.md` §3.3 and §3.4, and its first two cases are about a defect no component test
   could ever have caught. For the whole of Tasks 5 to 8 the reset email carried a working
   token to an address nothing answered: the constant was right, the two spellings of it
-  agreed, the token was minted and provably consumable, and `/admin/reset/<token>` was a
-  404. A component suite renders a component; it never fetches an address. So the first
+  agreed, the token was minted and provably consumable, and `/admin/reset/<token>` was a 404. A component suite renders a component; it never fetches an address. So the first
   case clicks the "Forgotten" link off the password screen and **reads the response
   status**, and the second requests the mailed link's own shape and reads it again — 200,
   with the expired state on it, rather than 404. Every other assertion in both cases would
@@ -598,6 +598,7 @@ would claim a measurement nothing performs.
      and `flex: none` fails it at `pastTheRightEdge: 1741` against a floor of `0.5`. The
      lesson generalises: a test written to cover another test's blind spot needs its own
      mutation, or it inherits the blind spot and adds confidence on top of it.
+
   2. **The paste.** Each cell is `maxLength="1"`, and the browser truncates a pasted
      string to one character before `change` fires — so a jsdom case proves the handler
      spreads digits and NOT that a reader pasting a code gets six of them (jsdom performs
@@ -723,6 +724,7 @@ would claim a measurement nothing performs.
      text. A route serving another route's page fails the first pair; a route thinning
      out to nothing fails the second. Measured while writing it: thirty-three distinct
      texts, the shortest 144 characters (the Cover).
+
   5. **The correction path**, in its own browser context with a DESKTOP user agent at a
      700px viewport - the one reader the server's hint gets wrong. It asserts that the
      document arrived carrying the book, that the browser corrected it to the mobile
@@ -789,7 +791,7 @@ would claim a measurement nothing performs.
   - **The handoff's own `z-index: 900` cannot work in the handoff's own DOM
     position.** With the strips as siblings of the leaves (the prototype's
     arrangement), Playwright timed out with `<article class=page> from <div
-    data-leaf=2> subtree intercepts pointer events` — a leaf's stacking order is
+data-leaf=2> subtree intercepts pointer events` — a leaf's stacking order is
     `1000 - i`, so the current page always paints above a strip at 900. The strips
     became siblings of the STACK instead; see `docs/deviations.md` §8.
   - **The bottom arrows were unclickable at 390px.** The `mobile` project caught
@@ -816,14 +818,14 @@ would claim a measurement nothing performs.
 
   **`e2e/pages.spec.ts` (Phase 1 Task 9)** covers the Cover and Contents pages'
   browser-only guarantees, at all three viewport projects. What the two components
-  *decide* is already covered without a browser
+  _decide_ is already covered without a browser
   (`apps/web/components/pages/Cover.test.tsx`, `Contents.test.tsx`) and so is the
   arithmetic behind those decisions (`packages/domain/src/coverTitle.test.ts`,
   `contentsLayout.test.ts`), so this file asserts only what a laid-out page can answer:
   that SCREENS.md §1's measurements stay absolute under the design box's `scale(k)`
   (`offsetTop`/`offsetLeft`/`offsetWidth` are layout coordinates a transform does not
   touch, so the washi strip still reports `top: 52; left: -26; 190x36` at 390px as at
-  1440px); that the cover title actually FITS (`fitTitleSize` sizes from an *estimate*
+  1440px); that the cover title actually FITS (`fitTitleSize` sizes from an _estimate_
   of Caveat's advance width, since no font metrics exist on the server, so only a
   browser can confirm `scrollWidth <= clientWidth` and that SCREENS.md's "last-resort"
   ellipsis never engages); and that the Contents body does not overflow its `1fr` track,
@@ -960,9 +962,9 @@ would claim a measurement nothing performs.
   by a decision anyone can read, and not what `SECURITY.md` asks for ("respect
   `indexGalleries` in `robots.txt` **and** with `X-Robots-Tag`"). `apps/web/public/robots.txt`
   is now served, static, and consistent with `site.indexGalleries`'s `defaultValue:
-  true` — the only honest content while nothing writes or reads that setting and the
+true` — the only honest content while nothing writes or reads that setting and the
   Settings screen that would is Phase 4. The case requires a 200, requires `User-agent:
-  *`, `Allow: /` and `Disallow: /cms`, and requires the file NOT to carry a bare
+*`, `Allow: /` and `Disallow: /cms`, and requires the file NOT to carry a bare
   `Disallow: /` or `Disallow: /p` — a line that would quietly undo every other case in
   the file without failing one of them. `docs/security.md`'s `indexGalleries` row records
   the two halves Phase 4 still owes: a generated `app/robots.ts` that reads the setting,
@@ -991,7 +993,7 @@ would claim a measurement nothing performs.
   Two assertions in `pages.spec.ts` record a browser fact rather than the authored one, each with its
   reason at the assertion: Chromium reports the inner rule's `2.5px` border as `2px`
   (it snaps a computed border width to a whole CSS pixel, measured at
-  devicePixelRatio 1 *and* 3, so it is not a density effect), and the washi strip's
+  devicePixelRatio 1 _and_ 3, so it is not a density effect), and the washi strip's
   rotation is read back out of the resolved matrix with `atan2` rather than pinned as
   matrix digits, which differ in the sixth decimal place between Chromium builds.
 
@@ -1252,6 +1254,7 @@ would claim a measurement nothing performs.
   baseline unless `e2e/layout.spec.ts` was green in the SAME container run that produced
   it, and never commit one without opening the image and looking at it. A green diff
   against a wrong baseline is worth nothing.
+
 - **Status:** the mechanism is implemented and proven, and now runs in CI (Task 1 of
   Phase 1 closed the gap below). `e2e/visual.spec.ts` snapshots every screen that exists
   today — `/cms` — at all three breakpoints, alongside the diary's Cover, Contents and
@@ -1338,6 +1341,7 @@ would claim a measurement nothing performs.
   `npm run test:visual` on a developer's own machine is still there, and on Linux it is
   the quick local check; off Linux it now skips with a message naming the container
   rather than quietly writing a host baseline.
+
 - **Phase 2 Task 7 adds the first ADMIN screen**: `admin-sign-in-*.png`, `SCREENS.md`
   §3's sign-in shell with §3.1's password step in it. One case, three images, and that
   covers both of the layouts §3 specifies rather than one of them — the projects already
@@ -1370,11 +1374,11 @@ would claim a measurement nothing performs.
   `margin-top` was added to `.cells` on the one-time-code screen, moving everything below
   it down, and the suite was run at each magnitude:
 
-  | Shift | `desktop` (1440×940) | `mid` (1000×800) | `mobile` (390×844, DPR 3) |
-  |---|---|---|---|
-  | **10px** | **passes** | **passes** | fails — 3,323px, ratio 0.02 |
-  | **20px** | **passes** | fails — 9,865px | fails — 16,096px |
-  | **40px** | fails — 18,958px, ratio 0.02 | fails | fails |
+  | Shift    | `desktop` (1440×940)         | `mid` (1000×800) | `mobile` (390×844, DPR 3)   |
+  | -------- | ---------------------------- | ---------------- | --------------------------- |
+  | **10px** | **passes**                   | **passes**       | fails — 3,323px, ratio 0.02 |
+  | **20px** | **passes**                   | fails — 9,865px  | fails — 16,096px            |
+  | **40px** | fails — 18,958px, ratio 0.02 | fails            | fails                       |
 
   So the `desktop` baseline absorbs a **20px** vertical displacement of an entire pane
   without a word, and only starts objecting somewhere between 20px and 40px. `mobile`
@@ -1476,6 +1480,7 @@ would claim a measurement nothing performs.
   exclusion is revisited the moment `/cms` stops being the route under test — the bespoke
   `/admin` replaces it, and Phase 2 Task 7 mounted its first screen (`/admin/sign-in`,
   which needs no `allow` at all).
+
 - **The mobile reading mode is audited separately, because it is a separate tree**
   (Phase 1 Task 15). Six of the diary's axe cases are the BOOK's and now skip below
   860px; six new ones take their place at the `mobile` project - `/p/1`, `/p/2`, `/p/3`,
@@ -1508,7 +1513,7 @@ critical`) into the live `/cms` DOM via `page.evaluate` and calling
 `e2e/a11y.spec.ts`'s `/cms` case called `expectNoAxeViolations` immediately after
 `page.goto`, with no wait for Payload's asynchronously-rendered login form — so axe was
 analysing a nearly empty document. The gap surfaced as an intermittent failure under
-concurrent workers that named a *different* rule on each run (`region` once, a
+concurrent workers that named a _different_ rule on each run (`region` once, a
 keyboard finding on `.checkbox.field-type` another), while passing every time the case
 ran alone. The case now waits for the form and for Next's dev overlay, exactly as
 `e2e/visual.spec.ts`'s `/cms` case already did. With the analysis deterministic, a
@@ -1522,7 +1527,7 @@ of any kind — the Cover and Contents cases call `expectNoAxeViolations(page)` 
 changed so it clears AA.** axe-core reports `color-contrast` as **incomplete** on both
 diary pages (7 nodes on the Cover, 45 on Contents), because it cannot resolve a gradient
 background. Incomplete is not a violation, so the suite is green; that is axe declining to
-judge, not a contrast pass, and `CLAUDE.md` §2 requires the ratios to be *asserted*. They
+judge, not a contrast pass, and `CLAUDE.md` §2 requires the ratios to be _asserted_. They
 are now asserted by a test rather than measured by hand: `e2e/a11y.spec.ts`'s cover case
 calls `measureContrastOverGradient` (`e2e/support/coverContrast.ts`), which hides each
 line with `visibility: hidden` so its box shows only the cloth it sat on, screenshots the
@@ -1534,13 +1539,13 @@ flattens the line's own translucent cream onto it, and runs both through
 Measured with SCREENS.md §1.1's literal values, four of the five lines failed. Both
 columns below are the `desktop` project's, the tightest of the three:
 
-| Cover line | Size | Before | After | Required |
-|---|---|---|---|---|
-| "Travel Diary" eyebrow | 12px | **2.86:1** | 4.52:1 | 4.5:1 |
-| "Wanderings" title | 124px | 3.81:1 | 8.13:1 | 3:1 |
-| Subtitle | 22px italic | **2.72:1** | 5.33:1 | 4.5:1 |
-| "Kept by …" | 12.5px | **2.37:1** | 4.73:1 | 4.5:1 |
-| Years | 12.5px | **1.87:1** | 5.26:1 | 4.5:1 |
+| Cover line             | Size        | Before     | After  | Required |
+| ---------------------- | ----------- | ---------- | ------ | -------- |
+| "Travel Diary" eyebrow | 12px        | **2.86:1** | 4.52:1 | 4.5:1    |
+| "Wanderings" title     | 124px       | 3.81:1     | 8.13:1 | 3:1      |
+| Subtitle               | 22px italic | **2.72:1** | 5.33:1 | 4.5:1    |
+| "Kept by …"            | 12.5px      | **2.37:1** | 4.73:1 | 4.5:1    |
+| Years                  | 12.5px      | **1.87:1** | 5.26:1 | 4.5:1    |
 
 The 22px italic subtitle does **not** qualify for SC 1.4.3's large-text exemption, which
 needs 24px or 18.66px bold, so it is held to 4.5:1; only the 124px title is large text.
@@ -1584,18 +1589,18 @@ That record quotes figures that have since been superseded — the 2,500ms LCP b
 above all. **No figure beneath this section is the current gate unless this table says
 so.**
 
-| Gate | Config | Route | Limit |
-|---|---|---|---|
-| `largest-contentful-paint` | `lighthouserc.book.json` | `/p/1`, book surface (1350x940, `Cookie: td-reading-surface=book`) | **≤3000ms** |
-| `largest-contentful-paint` | `lighthouserc.json` | `/p/1`, mobile surface (Lighthouse phone emulation, no cookie) | **≤3000ms** |
-| `largest-contentful-paint` | `lighthouserc.json` | `/gallery/patagonia` | ≤4000ms |
-| `resource-summary:script:size` | both | `/p/1` (both surfaces), `/gallery/<slug>` | ≤184320 bytes (180KB, `CLAUDE.md` §6) |
-| `resource-summary:image:size` | `lighthouserc.json` | `/gallery/<slug>` | ≤600000 bytes |
-| `largest-contentful-paint` | `lighthouserc.admin.json` | `/admin/sign-in`, `/admin/sign-in/code`, `/admin/reset` (1440x900 desktop) | **≤3000ms** |
-| `resource-summary:script:size` | `lighthouserc.admin.json` | the same three admin routes | ≤327680 bytes (320KB, `CLAUDE.md` §6) |
-| `cumulative-layout-shift` | all three | every collected URL | ≤0.1 |
-| `http-status-code` | all three | every collected URL | `minScore: 1` |
-| — | `lighthouserc.json` | `/cms` | `http-status-code` and CLS only: no LCP, no script budget |
+| Gate                           | Config                    | Route                                                                      | Limit                                                     |
+| ------------------------------ | ------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `largest-contentful-paint`     | `lighthouserc.book.json`  | `/p/1`, book surface (1350x940, `Cookie: td-reading-surface=book`)         | **≤3000ms**                                               |
+| `largest-contentful-paint`     | `lighthouserc.json`       | `/p/1`, mobile surface (Lighthouse phone emulation, no cookie)             | **≤3000ms**                                               |
+| `largest-contentful-paint`     | `lighthouserc.json`       | `/gallery/patagonia`                                                       | ≤4000ms                                                   |
+| `resource-summary:script:size` | both                      | `/p/1` (both surfaces), `/gallery/<slug>`                                  | ≤184320 bytes (180KB, `CLAUDE.md` §6)                     |
+| `resource-summary:image:size`  | `lighthouserc.json`       | `/gallery/<slug>`                                                          | ≤600000 bytes                                             |
+| `largest-contentful-paint`     | `lighthouserc.admin.json` | `/admin/sign-in`, `/admin/sign-in/code`, `/admin/reset` (1440x900 desktop) | **≤3000ms**                                               |
+| `resource-summary:script:size` | `lighthouserc.admin.json` | the same three admin routes                                                | ≤327680 bytes (320KB, `CLAUDE.md` §6)                     |
+| `cumulative-layout-shift`      | all three                 | every collected URL                                                        | ≤0.1                                                      |
+| `http-status-code`             | all three                 | every collected URL                                                        | `minScore: 1`                                             |
+| —                              | `lighthouserc.json`       | `/cms`                                                                     | `http-status-code` and CLS only: no LCP, no script budget |
 
 All three configs collect `numberOfRuns: 5` and every `assertMatrix` entry carries
 `"aggregationMethod": "median"`. `npm run test:perf` runs **all three**, and all three are
@@ -1642,16 +1647,16 @@ building the app itself first. Both green then, and both green now; the paragrap
 next table records the one time between those two points that `lighthouserc.book.json` was
 not, and what it turned out to be:
 
-| Route (config) | Metric | Median of 5 | Gate | Margin |
-|---|---|---|---|---|
-| `/p/1` book (`.book.json`) | LCP | **2,934.53ms** | 3000 | 65.47ms |
-| `/p/1` book | script | 142,834 B | 184,320 | 41,486 B |
-| `/p/1` mobile (`.json`) | LCP | **2,925.59ms** | 3000 | 74.41ms |
-| `/p/1` mobile | script | 144,835 B | 184,320 | 39,485 B |
-| `/gallery/patagonia` | LCP | 3,532.70ms | 4000 | 467.30ms |
-| `/gallery/patagonia` | script | 141,711 B | 184,320 | 42,609 B |
-| `/gallery/patagonia` | image | 477,329 B | 600,000 | 122,671 B |
-| `/cms` | — | — | CLS and status only | — |
+| Route (config)             | Metric | Median of 5    | Gate                | Margin    |
+| -------------------------- | ------ | -------------- | ------------------- | --------- |
+| `/p/1` book (`.book.json`) | LCP    | **2,934.53ms** | 3000                | 65.47ms   |
+| `/p/1` book                | script | 142,834 B      | 184,320             | 41,486 B  |
+| `/p/1` mobile (`.json`)    | LCP    | **2,925.59ms** | 3000                | 74.41ms   |
+| `/p/1` mobile              | script | 144,835 B      | 184,320             | 39,485 B  |
+| `/gallery/patagonia`       | LCP    | 3,532.70ms     | 4000                | 467.30ms  |
+| `/gallery/patagonia`       | script | 141,711 B      | 184,320             | 42,609 B  |
+| `/gallery/patagonia`       | image  | 477,329 B      | 600,000             | 122,671 B |
+| `/cms`                     | —      | —              | CLS and status only | —         |
 
 CLS was **0** on all twenty runs and `http-status-code` scored **1** on every one. The
 five book runs read 2,932.28 / 2,934.41 / **2,934.53** / 2,935.14 / 2,956.60ms; the five
@@ -1666,14 +1671,14 @@ the reason its row above gives.
 against a production `next build` + `next start`, five runs per URL. Run twice; the second
 run's medians are in brackets, and the gate passed both times:
 
-| Route (`lighthouserc.admin.json`) | Metric | Median of 5 | Gate | Margin |
-|---|---|---|---|---|
-| `/admin/sign-in` | LCP | **2,928.4ms** (2,927.9) | 3000 | 71.6ms |
-| `/admin/sign-in` | script | 140,641 B (identical) | 327,680 | 187,039 B |
-| `/admin/sign-in/code` | LCP | **2,928.4ms** (2,927.0) | 3000 | 71.6ms |
-| `/admin/sign-in/code` | script | 141,323 B (identical) | 327,680 | 186,357 B |
-| `/admin/reset` | LCP | **2,926.9ms** (2,928.0) | 3000 | 73.1ms |
-| `/admin/reset` | script | 140,489 B (identical) | 327,680 | 187,191 B |
+| Route (`lighthouserc.admin.json`) | Metric | Median of 5             | Gate    | Margin    |
+| --------------------------------- | ------ | ----------------------- | ------- | --------- |
+| `/admin/sign-in`                  | LCP    | **2,928.4ms** (2,927.9) | 3000    | 71.6ms    |
+| `/admin/sign-in`                  | script | 140,641 B (identical)   | 327,680 | 187,039 B |
+| `/admin/sign-in/code`             | LCP    | **2,928.4ms** (2,927.0) | 3000    | 71.6ms    |
+| `/admin/sign-in/code`             | script | 141,323 B (identical)   | 327,680 | 186,357 B |
+| `/admin/reset`                    | LCP    | **2,926.9ms** (2,928.0) | 3000    | 73.1ms    |
+| `/admin/reset`                    | script | 140,489 B (identical)   | 327,680 | 187,191 B |
 
 CLS was **0.0000** on all thirty runs and `http-status-code` scored 1 on every one. Total
 blocking time was 19–21ms throughout. The LCP spread is tight — across both runs the slowest
@@ -1766,7 +1771,7 @@ route costs with no application code at all — 2,023.2ms and 137,986 bytes of R
 Next App Router runtime for one styled heading — which is 81% of the old budget before
 this repository writes a line, and the budget was set to **3.0s** from that measured
 floor. `docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md` then fixed
-*where* it is measured: the book at 1350x940 with the surface cookie pinned, the mobile
+_where_ it is measured: the book at 1350x940 with the surface cookie pinned, the mobile
 surface at Lighthouse's own phone emulation, both on the same `simulate` throttling
 (150ms RTT, 1,638Kbps, 4x CPU). The raise itself is recorded as a departure from the
 plan in `docs/deviations.md` §23 — Task 13 Step 5 said not to raise it — and the gate
@@ -1775,9 +1780,9 @@ was reported red and unraised for several rounds before it moved.
 #### 7.1 · The record
 
 - **Tool:** Lighthouse CI (`@lhci/cli`, `lighthouserc.json` and `lighthouserc.book.json`)
-  + custom probes (the custom probes — 60fps flip measurement, N+1 query detection — are
-  still not yet implemented; they need the flip and data-fetching code these budgets
-  describe).
+  - custom probes (the custom probes — 60fps flip measurement, N+1 query detection — are
+    still not yet implemented; they need the flip and data-fetching code these budgets
+    describe).
 - **Scope:** the hard budgets in `CLAUDE.md` §6 — 60fps flip (only `transform`/`opacity`
   animated), diary route JS ≤180KB gzipped, admin ≤320KB, LCP **≤3.0s** (ADR 0008 for
   the number, ADR 0014 for the two viewports it is measured at), CLS ≤0.1, INP
@@ -1833,6 +1838,7 @@ was reported red and unraised for several rounds before it moved.
   at it, and pins the regression this gate exists to catch: with `loading="lazy"`
   disabled, the same route fetched all 60 tiles for **4,600,585 bytes** — 7.67× the new
   limit, so the detector still fires with room to spare.
+
 - **`/p/1` was landed as a hard gate before the page existed, deliberately.** The
   controller ruling for Task 1 was to land the gate _before_ the page it measures,
   specifically so no later task can land a regression under a budget still marked
@@ -2083,7 +2089,7 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   host grind a single account behind rotating proxies. Verified by mutation: removing the
   per-address condition fails the address burst and NOT the account burst, and removing
   the per-account condition fails the account cases and NOT the address burst. Removing
-  the rank ordering — so attempts standing *after* this one are counted against it — was
+  the rank ordering — so attempts standing _after_ this one are counted against it — was
   caught by the bursts in only three runs out of four, because whether a racer's row
   exists yet at the moment another request ranks is a matter of scheduling. A guard caught
   three times in four is a guard that passes CI the fourth time, so the file also carries
@@ -2285,6 +2291,7 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   they claimed to be.
 
   What is still outstanding is the upload worker's SVG and EXIF probes (Phase 3).
+
 - **Run (once added):** included in `npm run test:integration` (these probes need a real
   database and, for the upload cases, the worker), so they run under `verify:full`.
 - **Add one (once added):** each row of `docs/security.md` that names a behaviour (not
@@ -2418,7 +2425,7 @@ runs are the standing check now, and this section is what they found.
 - **Fixtures are keyed per WORKER, not per project.** `test.afterAll` fires once per
   worker and `playwright.config.ts` sets `fullyParallel: true`, so one project's tests
   split across workers and each worker's cleanup deleted the account another worker of the
-  same project was still signing in as. Round 1 closed cross-*project* sharing and left
+  same project was still signing in as. Round 1 closed cross-_project_ sharing and left
   this. `e2e/support/adminSession.ts`'s `fixtureLabel` is the fix, and the same mistake was
   in `signInJourney.spec.ts`'s own four accounts.
 - **`aSignedInSession`'s self-check reads stronger than it is**, and that is now written at
@@ -2605,7 +2612,7 @@ the sentence one prose exemption covers, deleted                 -> stale exempt
 
   The `session_hash` case is also the one worth reading before writing another migration
   test, because its first version was worthless and looked fine. It rolled every
-  migration back to zero and asserted the *table* came back — which the INITIAL
+  migration back to zero and asserted the _table_ came back — which the INITIAL
   migration's `down()`/`up()` does on its own, so the case passed with this migration's
   `down()` replaced by a no-op. It now rolls back **that migration alone** (through the
   same `up`/`down` functions Payload itself loads, via `readMigrationFiles` — a static
@@ -2627,6 +2634,7 @@ the sentence one prose exemption covers, deleted                 -> stale exempt
   earlier version of this task found `push` silently building the schema ahead of the
   first real migration, which would have made the migration decorative rather than the
   thing that actually built the tables.
+
 - **What the reversibility test actually does.** `collections.integration.test.ts`'s
   last case — _"rebuilds every table a journey, its highlights and its tally need, after
   rolling all migrations back to zero and re-applying them"_ — writes a journey whose

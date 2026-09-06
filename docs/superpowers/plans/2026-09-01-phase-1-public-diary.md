@@ -22,7 +22,7 @@ Copied verbatim from the spec, `CLAUDE.md`, and the handoff. Every task's requir
 - **Every timing or concurrency assertion must be proven to FAIL when the mechanism it guards is removed.** Phase 0 shipped three tests that passed with their mechanism deleted. Paste both runs.
 - Every module opens with a header naming what it does and the pattern it implements. Every exported symbol carries TSDoc.
 - Repository content never leaves the machine (`CLAUDE.md` §7.1). An unavailable local tool means the verification is UNRESOLVED, not routed elsewhere.
-- One logical change per commit, Conventional Commits with a *why* body, ending `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`.
+- One logical change per commit, Conventional Commits with a _why_ body, ending `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`.
 - **The design box is exactly 1300×860.** Every measurement in `SCREENS.md` §1 is absolute inside that box — the box scales, content never reflows.
 - **Scale cap is 1.7×** (`MAX_SCALE` in `@travel-diary/tokens`).
 - Colour, type and geometry values come from `@travel-diary/tokens`. Never hardcode a hex that exists there.
@@ -44,23 +44,23 @@ The reason is a recorded decision, not an oversight: video is deferred (`docs/ad
 
 ## File Structure
 
-| Path | Responsibility |
-|---|---|
-| `packages/domain/src/flip.ts` | The flip state machine — pure reducer, injected clock |
-| `packages/domain/src/bookScale.ts` | `min(w/1300, h/860)` capped at 1.7 |
-| `packages/domain/src/bookBundle.ts` | Types + derivation: page numbers, counter, contents entries, bookmark spans |
-| `packages/domain/src/pageStack.ts` | Derived z-index / visibility / pointer-events per leaf |
-| `apps/web/lib/readBookBundle.ts` | Payload rows → `BookBundle` (the only serialization boundary) |
-| `apps/web/app/(diary)/layout.tsx` | Diary shell |
-| `apps/web/app/(diary)/p/[n]/page.tsx` | Server-rendered page route |
-| `apps/web/app/(diary)/gallery/[slug]/page.tsx` | Gallery route |
-| `apps/web/components/book/Book.tsx` | Frame, scaling, page stack container |
-| `apps/web/components/book/Leaf.tsx` | One leaf: front face, back face, travelling shade |
-| `apps/web/components/book/useFlip.ts` | Binds `flipMachine` to React + real clock |
-| `apps/web/components/pages/Cover.tsx` … `About.tsx` | The six page types |
-| `apps/web/components/chrome/*` | Bookmark rail, bottom bar, ribbon |
-| `apps/web/components/gallery/*` | Grid, tile, lightbox |
-| `apps/web/components/mobile/*` | Mobile reading mode — a separate tree, not media queries |
+| Path                                                | Responsibility                                                              |
+| --------------------------------------------------- | --------------------------------------------------------------------------- |
+| `packages/domain/src/flip.ts`                       | The flip state machine — pure reducer, injected clock                       |
+| `packages/domain/src/bookScale.ts`                  | `min(w/1300, h/860)` capped at 1.7                                          |
+| `packages/domain/src/bookBundle.ts`                 | Types + derivation: page numbers, counter, contents entries, bookmark spans |
+| `packages/domain/src/pageStack.ts`                  | Derived z-index / visibility / pointer-events per leaf                      |
+| `apps/web/lib/readBookBundle.ts`                    | Payload rows → `BookBundle` (the only serialization boundary)               |
+| `apps/web/app/(diary)/layout.tsx`                   | Diary shell                                                                 |
+| `apps/web/app/(diary)/p/[n]/page.tsx`               | Server-rendered page route                                                  |
+| `apps/web/app/(diary)/gallery/[slug]/page.tsx`      | Gallery route                                                               |
+| `apps/web/components/book/Book.tsx`                 | Frame, scaling, page stack container                                        |
+| `apps/web/components/book/Leaf.tsx`                 | One leaf: front face, back face, travelling shade                           |
+| `apps/web/components/book/useFlip.ts`               | Binds `flipMachine` to React + real clock                                   |
+| `apps/web/components/pages/Cover.tsx` … `About.tsx` | The six page types                                                          |
+| `apps/web/components/chrome/*`                      | Bookmark rail, bottom bar, ribbon                                           |
+| `apps/web/components/gallery/*`                     | Grid, tile, lightbox                                                        |
+| `apps/web/components/mobile/*`                      | Mobile reading mode — a separate tree, not media queries                    |
 
 ---
 
@@ -69,10 +69,12 @@ The reason is a recorded decision, not an oversight: video is deferred (`docs/ad
 Phase 0's final reviews recorded four requirements that become non-optional the moment real pages exist. They land first, so every later task is measured and guarded from its first commit.
 
 **Files:**
+
 - Modify: `playwright.config.ts`, `.github/workflows/ci.yml`, `lighthouserc.json`, `vitest.config.ts`, `vitest.integration.config.ts`
 - Create: `e2e/support/axe.ts`, `docs/testing.md` (update)
 
 **Interfaces:**
+
 - Produces: `expectNoAxeViolations(page: Page, options?: { allow?: string[] }): Promise<void>` — defaults to the FULL ruleset with no exclusions.
 
 - [ ] **Step 1: Move visual regression into a pinned Playwright Docker image**
@@ -114,10 +116,7 @@ import { expect, type Page } from '@playwright/test'
  * @param options.allow - Rule ids to disable. Each requires a comment at the
  *   call site justifying it with evidence, never to silence an inconvenience.
  */
-export const expectNoAxeViolations = async (
-  page: Page,
-  options: { allow?: readonly string[] } = {},
-): Promise<void> => {
+export const expectNoAxeViolations = async (page: Page, options: { allow?: readonly string[] } = {}): Promise<void> => {
   const builder = new AxeBuilder({ page })
   const scoped = options.allow ? builder.disableRules([...options.allow]) : builder
   const results = await scoped.analyze()
@@ -154,9 +153,11 @@ Refs: Phase 0 final review carry-forwards
 ## Task 2: `bookScale`
 
 **Files:**
+
 - Create: `packages/domain/src/bookScale.ts`, `packages/domain/src/bookScale.test.ts`
 
 **Interfaces:**
+
 - Consumes: `DESIGN_BOX`, `MAX_SCALE` from `@travel-diary/tokens`.
 - Produces: `bookScale(area: { width: number; height: number }): number`
 
@@ -243,9 +244,11 @@ Body must record that the 1.7 cap closes a gap the handoff lists as known: uncap
 The single most important module in the project. Pure, clock-injected, so the latch and timing are testable without a browser.
 
 **Files:**
+
 - Create: `packages/domain/src/flip.ts`, `packages/domain/src/flip.test.ts`
 
 **Interfaces:**
+
 - Produces:
 
 ```ts
@@ -281,11 +284,11 @@ export const flipReducer: (state: FlipState, event: FlipEvent, config: FlipConfi
 
 Timings, from the handoff's flip sequence table, measured from `startedAt`:
 
-| Offset | Transition |
-|---|---|
-| `0` | `arming` — `go: false`, `half: false`, `busy: true` |
-| `ARM_MS` (30) | `turning` — `go: true`, CSS transition begins |
-| `ARM_MS + duration/2` | `swapped` — `half: true`, faces swap opacity |
+| Offset                          | Transition                                                            |
+| ------------------------------- | --------------------------------------------------------------------- |
+| `0`                             | `arming` — `go: false`, `half: false`, `busy: true`                   |
+| `ARM_MS` (30)                   | `turning` — `go: true`, CSS transition begins                         |
+| `ARM_MS + duration/2`           | `swapped` — `half: true`, faces swap opacity                          |
 | `ARM_MS + duration + SETTLE_MS` | `committing` → `idle` — `index = to`, flip cleared, **`busy: false`** |
 
 - [ ] **Step 1: Write the failing test**
@@ -297,8 +300,7 @@ import { ARM_MS, SETTLE_MS, flipReducer, initialFlipState, type FlipState } from
 const config = { durationMs: 900, reducedMotion: false }
 const start = (state: FlipState, to: number, now = 0): FlipState =>
   flipReducer(state, { type: 'start', to, now }, config)
-const tick = (state: FlipState, now: number): FlipState =>
-  flipReducer(state, { type: 'tick', now }, config)
+const tick = (state: FlipState, now: number): FlipState => flipReducer(state, { type: 'tick', now }, config)
 
 describe('flipReducer', () => {
   it('arms without moving, so the CSS transition has a frame to attach to', () => {
@@ -367,10 +369,14 @@ describe('flipReducer', () => {
   })
 
   it('commits immediately with no rotation when reduced motion is requested', () => {
-    const reduced = flipReducer(initialFlipState(3), { type: 'start', to: 4, now: 0 }, {
-      durationMs: 900,
-      reducedMotion: true,
-    })
+    const reduced = flipReducer(
+      initialFlipState(3),
+      { type: 'start', to: 4, now: 0 },
+      {
+        durationMs: 900,
+        reducedMotion: true,
+      },
+    )
 
     expect(reduced).toMatchObject({ phase: 'idle', index: 4, busy: false, go: false, half: false })
   })
@@ -525,9 +531,11 @@ Body must record: why it is a pure reducer (the latch and timing become unit-tes
 ## Task 4: Page-stack derivation
 
 **Files:**
+
 - Create: `packages/domain/src/pageStack.ts`, `packages/domain/src/pageStack.test.ts`
 
 **Interfaces:**
+
 - Consumes: `FlipState` from `./flip.js`.
 - Produces: `leafPresentation(leafIndex: number, state: FlipState, totalPages: number): LeafPresentation` where
 
@@ -620,6 +628,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Implement**
 
 `pageStack.ts` computes each field from `(leafIndex, state, totalPages)`:
+
 - `rotateDeg`: `-180` when the leaf is before the current index or is the leaf turning forward past its midpoint; otherwise `0`.
 - `zIndex`: turned `leafIndex + 1`; untouched `1000 - leafIndex`; the actively turning leaf `2000`.
 - `visible`: `leafIndex === state.index`, or `leafIndex === state.from`, or `leafIndex === state.to`.
@@ -643,9 +652,11 @@ Body must name the three handoff defects these rules prevent: swallowed clicks f
 ## Task 5: `BookBundle` — types and derivation
 
 **Files:**
+
 - Create: `packages/domain/src/bookBundle.ts`, `packages/domain/src/bookBundle.test.ts`
 
 **Interfaces:**
+
 - Consumes: branded ids from `./ids.js`.
 - Produces: the `BookBundle`, `BookPage`, `ContentsEntry`, `BookmarkTab` types, plus `derivePages`, `deriveContents`, `deriveBookmarks`, `pageLabel`, `pageCounter`.
 
@@ -665,9 +676,14 @@ describe('derivePages', () => {
     const pages = derivePages(journeys)
 
     expect(pages.map((p) => p.kind)).toEqual([
-      'cover', 'contents',
-      'notes', 'frames-i', 'frames-ii',
-      'notes', 'frames-i', 'frames-ii',
+      'cover',
+      'contents',
+      'notes',
+      'frames-i',
+      'frames-ii',
+      'notes',
+      'frames-i',
+      'frames-ii',
       'about',
     ])
   })
@@ -750,9 +766,11 @@ Body must record that the 33-page reading sequence is derived from 30 stored row
 ## Task 6: `readBookBundle` — the serialization boundary
 
 **Files:**
+
 - Create: `apps/web/lib/readBookBundle.ts`, `apps/web/lib/readBookBundle.integration.test.ts`
 
 **Interfaces:**
+
 - Consumes: `getPayload` from `./payload.js`; the derivation functions from Task 5.
 - Produces: `readBookBundle(): Promise<BookBundle>` — the only place Payload rows become diary data. The diary client reads nothing else.
 
@@ -817,14 +835,17 @@ feat(diary): assemble the BookBundle from Payload
 ## Task 7: Book frame, scaling and the page stack
 
 **Files:**
+
 - Create: `apps/web/components/book/Book.tsx`, `Leaf.tsx`, `useFlip.ts`, `book.module.css`
 - Test: `apps/web/components/book/useFlip.test.tsx`, `e2e/book.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `flipReducer`, `leafPresentation`, `bookScale`, `BookBundle`.
 - Produces: `<Book bundle={BookBundle} initialIndex={number} />`; `useFlip(initialIndex, config)` returning `{ state, turnTo, canGoBack, canGoForward }`.
 
 Geometry, from the handoff — all inside the 1300×860 box:
+
 - Dark board full bleed; 36px spine strip on the left with dashed stitch lines at x=9 and x=27
 - 11px fore-edge page-stack strip on the right: `repeating-linear-gradient(90deg, #f2ebda 0 2px, #d9cdb4 2px 3px)`
 - Page area inset `14px 18px 14px 36px`
@@ -858,7 +879,9 @@ test('holds 60fps by animating only transform and opacity', async ({ page }) => 
   const animated = await page.evaluate(() => {
     const leaf = document.querySelector('[data-leaf]')
     if (leaf === null) return []
-    return getComputedStyle(leaf).transitionProperty.split(',').map((s) => s.trim())
+    return getComputedStyle(leaf)
+      .transitionProperty.split(',')
+      .map((s) => s.trim())
   })
 
   expect(animated.every((p) => p === 'transform' || p === 'opacity' || p === 'none')).toBe(true)
@@ -900,6 +923,7 @@ feat(diary): render the book frame, scaling and page stack
 ## Task 8: Flip triggers, keyboard and reduced motion
 
 **Files:**
+
 - Modify: `apps/web/components/book/Book.tsx`
 - Create: `apps/web/components/book/EdgeStrip.tsx`
 - Test: `e2e/flip.spec.ts`
@@ -970,6 +994,7 @@ feat(diary): add flip triggers, keyboard control and reduced motion
 ## Task 9: Cover and Contents pages
 
 **Files:**
+
 - Create: `apps/web/components/pages/Cover.tsx`, `Contents.tsx`, and their CSS modules
 - Test: `e2e/pages.spec.ts` + visual snapshots
 
@@ -993,9 +1018,10 @@ Every measurement from `SCREENS.md` §1.1 and §1.2 is absolute. Two behaviours 
 The most intricate page. `SCREENS.md` §1.3 is the source; follow it exactly.
 
 **Files:**
+
 - Create: `apps/web/components/pages/Notes.tsx`, `TallyTicket.tsx`, `EphemeraSlot.tsx`, `WeatherBadge.tsx`, `MoodBadge.tsx`
 
-**The ephemera slot is load-bearing, not decoration.** The handoff explains why it exists: fixed content plus leftover height produced a dead band, and `justify-content: space-between` on the highlight list dumped 232px into two gaps when a journey had three highlights instead of four. The fix is a *media element* taking the elastic space — `flex: 1`, `min-height: 54px` — that can absorb 54px or 300px without breaking. **Highlights are `flex: 0 0 auto` and sized to content; never distribute leftover space among them.**
+**The ephemera slot is load-bearing, not decoration.** The handoff explains why it exists: fixed content plus leftover height produced a dead band, and `justify-content: space-between` on the highlight list dumped 232px into two gaps when a journey had three highlights instead of four. The fix is a _media element_ taking the elastic space — `flex: 1`, `min-height: 54px` — that can absorb 54px or 300px without breaking. **Highlights are `flex: 0 0 auto` and sized to content; never distribute leftover space among them.**
 
 - [ ] **Step 1: Write a failing layout test that encodes the defect**
 
@@ -1027,6 +1053,7 @@ test('a three-highlight journey does not open gaps between highlights', async ({
 ## Task 11: Frames I, Frames II and About
 
 **Files:**
+
 - Create: `apps/web/components/pages/FramesI.tsx`, `FramesII.tsx`, `About.tsx`, `PhotoMount.tsx`, `WashiTape.tsx`, `PostageStamp.tsx`
 
 Exact grids from `SCREENS.md` §1.4–1.6, including every rotation (−1.4° to +1.5°) — the rotations are specified per photo, not random.
@@ -1055,6 +1082,7 @@ Seed a non-default focal point in the fixture so this asserts something real.
 ## Task 12: Chrome — bookmark rail, bottom bar, ribbon
 
 **Files:**
+
 - Create: `apps/web/components/chrome/BookmarkRail.tsx`, `BottomBar.tsx`, `Ribbon.tsx`
 
 Per `SCREENS.md` §1.7. The rail is 158px, scrollable, active tab shifts `translateX(-6px)` onto the page. **A journey tab is active when `index ∈ [start, start + 3)`**; Cover, Contents and About span 1. The bottom bar shows the `03 / 33` counter over the page label. The ribbon is `pointer-events: none` — it sits over the page and must never intercept a click.
@@ -1070,6 +1098,7 @@ Scrollbars are hidden throughout the diary (`scrollbar-width: none` plus the Web
 ## Task 13: Routing and static rendering
 
 **Files:**
+
 - Create: `apps/web/app/(diary)/layout.tsx`, `p/[n]/page.tsx`, `not-found.tsx`
 - Modify: `lighthouserc.json` (the budget from Task 1 now binds)
 
@@ -1109,6 +1138,7 @@ test('returning from a gallery restores the page, not the cover', async ({ page 
 ## Task 14: Gallery and lightbox
 
 **Files:**
+
 - Create: `apps/web/app/(diary)/gallery/[slug]/page.tsx`, `apps/web/components/gallery/Grid.tsx`, `Tile.tsx`, `Lightbox.tsx`
 
 Per `SCREENS.md` §1.8–1.9. Grid `repeat(auto-fill, minmax({thumbSize}px, 1fr))`, `thumbSize` 140–300 default 200, tiles `aspect-ratio: 1/1`, `loading="lazy"`. **Virtualize past 100 tiles** (`CLAUDE.md` §6); the design tops out around 100 assets per journey, which is exactly where a naive grid starts to hurt.
@@ -1126,6 +1156,7 @@ Lightbox: Escape closes, arrows step, Download must serve a derivative **through
 ## Task 15: Mobile reading mode
 
 **Files:**
+
 - Create: `apps/web/components/mobile/MobileDiary.tsx`, `MobileHeader.tsx`, `BookmarkDrawer.tsx`, `useSwipe.ts`
 - Create: `packages/domain/src/swipe.ts`, `swipe.test.ts`
 

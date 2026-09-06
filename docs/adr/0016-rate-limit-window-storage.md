@@ -38,13 +38,13 @@ shape any rate limiter naturally takes if nobody thinks about it.
    Postgres is already provisioned, already pooled, already backed up, and already the
    thing every other limit in this application is enforced by.
 3. **Reuse the `otpChallenges` table as the count.** Rejected. It counts the wrong thing
-   in both dimensions: an `otpChallenges` row records a code being *issued*, not a code
-   being *guessed*, and it exists only for the code endpoint — nothing writes one for a
+   in both dimensions: an `otpChallenges` row records a code being _issued_, not a code
+   being _guessed_, and it exists only for the code endpoint — nothing writes one for a
    password attempt, and nothing could write one for an address that names no account. It also has no per-IP index, and overloading a table whose rows
    are five-minute ephemera with a fifteen-minute window would tie two unrelated
    retention rules together.
 4. **A per-key counter row with `INSERT … ON CONFLICT DO UPDATE SET count = count + 1`.**
-   Rejected. It is atomic and exact, and it is a *fixed* window, not a sliding one: the
+   Rejected. It is atomic and exact, and it is a _fixed_ window, not a sliding one: the
    count resets on a boundary, so an attacker who straddles two buckets gets twice the
    limit in a moment. `SECURITY.md` asks for a sliding window by name.
 5. **Its own table in Postgres, one row per attempt, ranked** — chosen.
@@ -77,7 +77,7 @@ down: it is what keeps the mechanism correct if some later caller wraps it in on
 `id <= mine` only when a racer's row happens to exist at the moment another request ranks,
 which is a matter of scheduling: removing the bound was caught in three runs out of four.
 `rateLimit.integration.test.ts` therefore also seeds a key with rows written at explicit
-ids above the sequence — inside the window, stamped earlier, but ranking *after* the
+ids above the sequence — inside the window, stamped earlier, but ranking _after_ the
 attempt that follows them, which is what a racer's row looks like made deterministic — and
 asserts that attempt is still admitted. A guard caught three times in four is a guard that
 passes CI the fourth time.
@@ -97,13 +97,13 @@ neither could be broken on its own, which is a pair of tests that can no longer 
 
 **The limits, since `SECURITY.md` gives none** (recorded as phase ruling F27):
 
-| Key | Limit | Window |
-|---|---|---|
-| One address, password endpoint | 20 | 15 minutes |
-| One address, code endpoint | 20 | 15 minutes |
-| One account, code endpoint | 10 | 15 minutes |
-| One CLAIMED ADDRESS, password endpoint | 10 | 15 minutes |
-| One account, password endpoint | Payload's `maxLoginAttempts: 5` / `lockTime: 15m` | — |
+| Key                                    | Limit                                             | Window     |
+| -------------------------------------- | ------------------------------------------------- | ---------- |
+| One address, password endpoint         | 20                                                | 15 minutes |
+| One address, code endpoint             | 20                                                | 15 minutes |
+| One account, code endpoint             | 10                                                | 15 minutes |
+| One CLAIMED ADDRESS, password endpoint | 10                                                | 15 minutes |
+| One account, password endpoint         | Payload's `maxLoginAttempts: 5` / `lockTime: 15m` | —          |
 
 Twenty per address because an office or a household behind one NAT is a single address to
 us: several people signing in, with the mistyped passwords and resent codes that go with
@@ -125,8 +125,8 @@ per-address limit alone cannot see.
 left that dimension out entirely, on the reasoning that `SECURITY.md` §3 assigns the
 per-account password limit to Payload's own `maxLoginAttempts`/`lockTime` and a second
 limiter beside it would be two sources of truth for one rule (CLAUDE.md §7). Wiring
-`signIn` up showed the reasoning to be right about the *account* and wrong about the
-*endpoint*, for two reasons:
+`signIn` up showed the reasoning to be right about the _account_ and wrong about the
+_endpoint_, for two reasons:
 
 - **Payload can only lock a row that exists.** For an address that names no account there
   is no counter, no lock and no cooling-off period — so the per-IP window was the only
@@ -141,7 +141,7 @@ limiter beside it would be two sources of truth for one rule (CLAUDE.md §7). Wi
 **Ten rather than five**, so the two rules do not collide: for an address that names an
 account, Payload's lockout always binds first and stays the single source of truth for
 it; and a window that refused at the same count would refuse the unknown address one
-attempt *earlier* than the known one, which is the oracle again in a different place.
+attempt _earlier_ than the known one, which is the oracle again in a different place.
 Payload's configuration is exercised by
 `apps/web/collections/users.lockout.integration.test.ts` — see the consequences below for
 what writing that test found — and the window by
@@ -201,6 +201,7 @@ statement that was already being issued.
   matters — but "one or two", which is what this ADR and the module header first said,
   is a measurement written as a bound, and the next reader sizing a limit against it
   would be wrong by an order of magnitude.
+
 - **`clock_timestamp()` cannot be distinguished from `now()` by any test this suite can
   write**, and that is stated rather than papered over. Under autocommit the two are the
   same instant to the millisecond, and rank is ordered by `id` in any case, so a mutation

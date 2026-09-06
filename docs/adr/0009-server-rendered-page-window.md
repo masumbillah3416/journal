@@ -1,7 +1,7 @@
 # 0009 — The server renders a window of the book's pages, and the book asks for the rest
 
-**Status: DECIDED by the repository owner**, who set the direction: *"window the SERVER
-render so each route emits only the pages near the one requested, instead of all 33."*
+**Status: DECIDED by the repository owner**, who set the direction: _"window the SERVER
+render so each route emits only the pages near the one requested, instead of all 33."_
 What follows is the shape that direction took once it met the flip, and the three
 alternatives it beat — two of them rejected on measurements taken here, not on
 intuition.
@@ -44,7 +44,7 @@ whatever the server sent. Three things had to be true and none of them is free:
    the document before its face becomes visible at the midpoint of the turn.
 2. **A bookmark jump moves the reader many pages at once** — page 30 to page 3 — and
    `useFlip.jumpTo` anchors it one page from the target before flipping, so a jump needs
-   *two* arbitrary leaves, not one.
+   _two_ arbitrary leaves, not one.
 3. **The leaves themselves must stay.** `visibility: hidden` leaves outside the window
    still carry the stack's z-order, resting angles and page count. It is their CONTENT
    that goes, never the leaf.
@@ -59,12 +59,12 @@ window centred on the new page. **It cannot work, and the reason is structural.*
 it. Measured on a production build of this application, with a mount counter and the
 flip index read out of the page:
 
-| Action | book mounts | flip index | server re-rendered |
-|---|---|---|---|
-| load `/p/1` | 1 | 0 | — |
-| `router.replace('/p/5')` | **2** | reset to 4 | yes (`n=5`) |
-| `history.replaceState('/p/9')` then `router.refresh()` | **3** | reset to 8 | yes (`n=9`) |
-| `router.replace('/p/6')` **mid-turn** | **2** | turn destroyed, jumped to 5 | yes |
+| Action                                                 | book mounts | flip index                  | server re-rendered |
+| ------------------------------------------------------ | ----------- | --------------------------- | ------------------ |
+| load `/p/1`                                            | 1           | 0                           | —                  |
+| `router.replace('/p/5')`                               | **2**       | reset to 4                  | yes (`n=5`)        |
+| `history.replaceState('/p/9')` then `router.refresh()` | **3**       | reset to 8                  | yes (`n=9`)        |
+| `router.replace('/p/6')` **mid-turn**                  | **2**       | turn destroyed, jumped to 5 | yes                |
 
 The book's own state — where the reader is, the turn in flight, the measured scale — is
 thrown away by every one of them. `Book.tsx`'s header already said this in words ("a
@@ -137,10 +137,10 @@ layout of the twenty-nine faces it brings — and Lighthouse's `simulate` preset
 every CPU node that performed layout into its LCP graph whenever it happens (ADR 0008).
 Five runs each, same machine, same command:
 
-| Where the request is made | LCP median | document | total transfer |
-|---|---|---|---|
-| on mount | 3,009.68 ms | 10,561 | 329,374 |
-| **on the reader's first turn** | **2,927.14 ms** | 10,560 | **300,383** |
+| Where the request is made      | LCP median      | document | total transfer |
+| ------------------------------ | --------------- | -------- | -------------- |
+| on mount                       | 3,009.68 ms     | 10,561   | 329,374        |
+| **on the reader's first turn** | **2,927.14 ms** | 10,560   | **300,383**    |
 
 (An earlier five-run set of the same shipped code measured 2,932.02ms. The figure quoted
 throughout this document is the run taken against the committed tree.)
@@ -172,7 +172,7 @@ animation would not. The answer to that is the queue, not a wider radius.
 
 The `history.replaceState` that keeps `/p/<n>` shareable now waits for the book to be
 whole, and does two jobs with one line. It is what takes `?pages=all` back off the
-address, and writing the address *before* that answer would be actively harmful:
+address, and writing the address _before_ that answer would be actively harmful:
 `replaceState` moves the router's own idea of which `/p/<n>` it is on, so a turn
 committed while the request was in flight would turn it into a navigation to a different
 segment — which is the remount measured above. Until the answer lands the address is

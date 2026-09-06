@@ -26,8 +26,8 @@ verbatim from `DATA_MODEL.md` by Task 6 before this deferral was ever decided �
 - `mimeTypes` already includes `video/mp4` and `video/quicktime`
 
 Nothing about the collection schema assumed video would ship on day one or needs to
-change to defer it. The gap this ADR closes is entirely about *where processing runs
-and what's wired to it*, not the data model.
+change to defer it. The gap this ADR closes is entirely about _where processing runs
+and what's wired to it_, not the data model.
 
 ## Options considered
 
@@ -62,7 +62,7 @@ and what's wired to it*, not the data model.
     already built and contract-tested in Phase 0) for a Fly.io process running the same
     still pipeline plus `ffmpeg`/`ffprobe` transcoding and poster extraction for clips.
 - **The flag switches three things together**, deliberately, because that's what makes
-  it *one* configuration change rather than a checklist a future deploy can partially
+  it _one_ configuration change rather than a checklist a future deploy can partially
   do:
   1. which `MediaProcessor` adapter is bound at runtime;
   2. whether `video/mp4` / `video/quicktime` are accepted at ingest (rejected with a
@@ -121,5 +121,5 @@ and what's wired to it*, not the data model.
   testing `worker`, which is Phase 3's problem to solve when the port is actually built.
 - Logged as a recorded decision (not a `HANDOFF-DEVIATION`, since nothing in the handoff
   is being departed from — the handoff never mandated a worker on day one, only that
-  video transcoding doesn't fit serverless *when it exists*) in `docs/deviations.md` and
+  video transcoding doesn't fit serverless _when it exists_) in `docs/deviations.md` and
   in the design spec §4/§9/§13.

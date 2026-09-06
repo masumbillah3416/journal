@@ -73,7 +73,7 @@ describe('downloadContentType', () => {
   })
 
   it('refuses SVG outright, because an SVG is an HTML document', () => {
-        expect(downloadContentType('image/svg+xml').ok).toBe(false)
+    expect(downloadContentType('image/svg+xml').ok).toBe(false)
   })
 
   it('refuses a type it does not recognise rather than echoing it back from our origin', () => {

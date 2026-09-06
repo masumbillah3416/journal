@@ -44,10 +44,7 @@
  * that module's header.
  * Depends on: vitest, ./sessions, ../testPayload, `@travel-diary/domain`.
  */
-import {
-  REMEMBERED_SESSION_LIFETIME_MS,
-  SESSION_LIFETIME_MS,
-} from '@travel-diary/domain/auth/session'
+import { REMEMBERED_SESSION_LIFETIME_MS, SESSION_LIFETIME_MS } from '@travel-diary/domain/auth/session'
 import { type SessionId, type UserId, sessionId, userId } from '@travel-diary/domain/ids'
 import { isOk } from '@travel-diary/domain/result'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -360,7 +357,7 @@ describe('rotation on sign-in', () => {
     expect(await sessions.authenticate(second.session)).toEqual({ ok: true, value: { user: account.id } })
   })
 
-  it('supersedes only the identifier presented, leaving the account\'s other devices signed in', async () => {
+  it("supersedes only the identifier presented, leaving the account's other devices signed in", async () => {
     // Rotation is not "sign out everywhere" wearing a different name: a
     // reader signing in on a laptop must not lose the phone in their pocket.
     const account = await anAccount()
@@ -489,7 +486,7 @@ describe('revocation', () => {
     expect(await sessions.authenticate(issued.session)).toEqual({ ok: true, value: { user: mine.id } })
   })
 
-  it('refuses every one of an account\'s sessions after signing out everywhere', async () => {
+  it("refuses every one of an account's sessions after signing out everywhere", async () => {
     const account = await anAccount()
     const phone = await aSessionFor(account.id)
     const laptop = await aSessionFor(account.id)

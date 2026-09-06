@@ -522,12 +522,8 @@
           "name": "media_journey_id_journeys_id_fk",
           "tableFrom": "media",
           "tableTo": "journeys",
-          "columnsFrom": [
-            "journey_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["journey_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -535,12 +531,8 @@
           "name": "media_poster_image_id_media_id_fk",
           "tableFrom": "media",
           "tableTo": "media",
-          "columnsFrom": [
-            "poster_image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["poster_image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -617,12 +609,8 @@
           "name": "journeys_highlights_parent_id_fk",
           "tableFrom": "journeys_highlights",
           "tableTo": "journeys",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -705,12 +693,8 @@
           "name": "journeys_tally_parent_id_fk",
           "tableFrom": "journeys_tally",
           "tableTo": "journeys",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1032,12 +1016,8 @@
           "name": "_journeys_v_version_highlights_parent_id_fk",
           "tableFrom": "_journeys_v_version_highlights",
           "tableTo": "_journeys_v",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1126,12 +1106,8 @@
           "name": "_journeys_v_version_tally_parent_id_fk",
           "tableFrom": "_journeys_v_version_tally",
           "tableTo": "_journeys_v",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1463,12 +1439,8 @@
           "name": "_journeys_v_parent_id_journeys_id_fk",
           "tableFrom": "_journeys_v",
           "tableTo": "journeys",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1593,12 +1565,8 @@
           "name": "pages_slots_media_id_media_id_fk",
           "tableFrom": "pages_slots",
           "tableTo": "media",
-          "columnsFrom": [
-            "media_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["media_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1606,12 +1574,8 @@
           "name": "pages_slots_parent_id_fk",
           "tableFrom": "pages_slots",
           "tableTo": "pages",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1769,12 +1733,8 @@
           "name": "pages_journey_id_journeys_id_fk",
           "tableFrom": "pages",
           "tableTo": "journeys",
-          "columnsFrom": [
-            "journey_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["journey_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1905,12 +1865,8 @@
           "name": "_pages_v_version_slots_media_id_media_id_fk",
           "tableFrom": "_pages_v_version_slots",
           "tableTo": "media",
-          "columnsFrom": [
-            "media_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["media_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1918,12 +1874,8 @@
           "name": "_pages_v_version_slots_parent_id_fk",
           "tableFrom": "_pages_v_version_slots",
           "tableTo": "_pages_v",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2165,12 +2117,8 @@
           "name": "_pages_v_parent_id_pages_id_fk",
           "tableFrom": "_pages_v",
           "tableTo": "pages",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2178,12 +2126,8 @@
           "name": "_pages_v_version_journey_id_journeys_id_fk",
           "tableFrom": "_pages_v",
           "tableTo": "journeys",
-          "columnsFrom": [
-            "version_journey_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["version_journey_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2266,12 +2210,8 @@
           "name": "users_sessions_parent_id_fk",
           "tableFrom": "users_sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2578,12 +2518,8 @@
           "name": "otp_challenges_user_id_users_id_fk",
           "tableFrom": "otp_challenges",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2707,12 +2643,8 @@
           "name": "sessions_user_id_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -3195,12 +3127,8 @@
           "name": "payload_locked_documents_rels_parent_fk",
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "payload_locked_documents",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3208,12 +3136,8 @@
           "name": "payload_locked_documents_rels_media_fk",
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "media",
-          "columnsFrom": [
-            "media_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["media_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3221,12 +3145,8 @@
           "name": "payload_locked_documents_rels_journeys_fk",
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "journeys",
-          "columnsFrom": [
-            "journeys_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["journeys_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3234,12 +3154,8 @@
           "name": "payload_locked_documents_rels_pages_fk",
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "pages",
-          "columnsFrom": [
-            "pages_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pages_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3247,12 +3163,8 @@
           "name": "payload_locked_documents_rels_users_fk",
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "users",
-          "columnsFrom": [
-            "users_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["users_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3260,12 +3172,8 @@
           "name": "payload_locked_documents_rels_otp_challenges_fk",
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "otp_challenges",
-          "columnsFrom": [
-            "otp_challenges_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["otp_challenges_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3273,12 +3181,8 @@
           "name": "payload_locked_documents_rels_sessions_fk",
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "sessions",
-          "columnsFrom": [
-            "sessions_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["sessions_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3286,12 +3190,8 @@
           "name": "payload_locked_documents_rels_jobs_fk",
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "jobs",
-          "columnsFrom": [
-            "jobs_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["jobs_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3495,12 +3395,8 @@
           "name": "payload_preferences_rels_parent_fk",
           "tableFrom": "payload_preferences_rels",
           "tableTo": "payload_preferences",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3508,12 +3404,8 @@
           "name": "payload_preferences_rels_users_fk",
           "tableFrom": "payload_preferences_rels",
           "tableTo": "users",
-          "columnsFrom": [
-            "users_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["users_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3776,12 +3668,8 @@
           "name": "about_paragraphs_parent_id_fk",
           "tableFrom": "about_paragraphs",
           "tableTo": "about",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3858,12 +3746,8 @@
           "name": "about_kit_parent_id_fk",
           "tableFrom": "about_kit",
           "tableTo": "about",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3937,12 +3821,8 @@
           "name": "about_portrait_id_media_id_fk",
           "tableFrom": "about",
           "tableTo": "media",
-          "columnsFrom": [
-            "portrait_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["portrait_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -4054,140 +3934,82 @@
     "public.enum_media_kind": {
       "name": "enum_media_kind",
       "schema": "public",
-      "values": [
-        "still",
-        "clip"
-      ]
+      "values": ["still", "clip"]
     },
     "public.enum_journeys_weather_glyph": {
       "name": "enum_journeys_weather_glyph",
       "schema": "public",
-      "values": [
-        "sun",
-        "haze",
-        "wind"
-      ]
+      "values": ["sun", "haze", "wind"]
     },
     "public.enum_journeys_status": {
       "name": "enum_journeys_status",
       "schema": "public",
-      "values": [
-        "draft",
-        "published"
-      ]
+      "values": ["draft", "published"]
     },
     "public.enum__journeys_v_version_weather_glyph": {
       "name": "enum__journeys_v_version_weather_glyph",
       "schema": "public",
-      "values": [
-        "sun",
-        "haze",
-        "wind"
-      ]
+      "values": ["sun", "haze", "wind"]
     },
     "public.enum__journeys_v_version_status": {
       "name": "enum__journeys_v_version_status",
       "schema": "public",
-      "values": [
-        "draft",
-        "published"
-      ]
+      "values": ["draft", "published"]
     },
     "public.enum_pages_slots_role": {
       "name": "enum_pages_slots_role",
       "schema": "public",
-      "values": [
-        "hero",
-        "ephemera",
-        "frame"
-      ]
+      "values": ["hero", "ephemera", "frame"]
     },
     "public.enum_pages_kind": {
       "name": "enum_pages_kind",
       "schema": "public",
-      "values": [
-        "notes",
-        "frames"
-      ]
+      "values": ["notes", "frames"]
     },
     "public.enum_pages_layout": {
       "name": "enum_pages_layout",
       "schema": "public",
-      "values": [
-        "three-up",
-        "four-up",
-        "full-bleed",
-        "text-spread"
-      ]
+      "values": ["three-up", "four-up", "full-bleed", "text-spread"]
     },
     "public.enum_pages_status": {
       "name": "enum_pages_status",
       "schema": "public",
-      "values": [
-        "draft",
-        "published"
-      ]
+      "values": ["draft", "published"]
     },
     "public.enum__pages_v_version_slots_role": {
       "name": "enum__pages_v_version_slots_role",
       "schema": "public",
-      "values": [
-        "hero",
-        "ephemera",
-        "frame"
-      ]
+      "values": ["hero", "ephemera", "frame"]
     },
     "public.enum__pages_v_version_kind": {
       "name": "enum__pages_v_version_kind",
       "schema": "public",
-      "values": [
-        "notes",
-        "frames"
-      ]
+      "values": ["notes", "frames"]
     },
     "public.enum__pages_v_version_layout": {
       "name": "enum__pages_v_version_layout",
       "schema": "public",
-      "values": [
-        "three-up",
-        "four-up",
-        "full-bleed",
-        "text-spread"
-      ]
+      "values": ["three-up", "four-up", "full-bleed", "text-spread"]
     },
     "public.enum__pages_v_version_status": {
       "name": "enum__pages_v_version_status",
       "schema": "public",
-      "values": [
-        "draft",
-        "published"
-      ]
+      "values": ["draft", "published"]
     },
     "public.enum_jobs_kind": {
       "name": "enum_jobs_kind",
       "schema": "public",
-      "values": [
-        "transcode"
-      ]
+      "values": ["transcode"]
     },
     "public.enum_jobs_status": {
       "name": "enum_jobs_status",
       "schema": "public",
-      "values": [
-        "queued",
-        "claimed",
-        "completed",
-        "failed"
-      ]
+      "values": ["queued", "claimed", "completed", "failed"]
     },
     "public.enum_book_journey_order_mode": {
       "name": "enum_book_journey_order_mode",
       "schema": "public",
-      "values": [
-        "manual",
-        "newest",
-        "oldest"
-      ]
+      "values": ["manual", "newest", "oldest"]
     }
   },
   "schemas": {},

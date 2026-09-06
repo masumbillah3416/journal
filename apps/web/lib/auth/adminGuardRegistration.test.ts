@@ -183,9 +183,9 @@ describe('the admin addresses this repository mounts', () => {
   })
 
   it('leaves every guarded address applying the guard in its own file', () => {
-    const unguarded = mounted.filter((address) => isGuardedAdminPath(address.url)).filter(
-      (address) => !appliesTheGuard(address.file),
-    )
+    const unguarded = mounted
+      .filter((address) => isGuardedAdminPath(address.url))
+      .filter((address) => !appliesTheGuard(address.file))
 
     expect(
       unguarded.map((address) => address.file),

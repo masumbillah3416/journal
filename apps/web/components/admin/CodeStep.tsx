@@ -457,11 +457,7 @@ export const CodeStep = ({ maskedAddress, issuedAt, attemptsSpent }: CodeStepPro
           </div>
         )}
 
-        <button
-          data-code-verify
-          className={[styles.submit, styles.submitSpaced].join(' ')}
-          type="submit"
-        >
+        <button data-code-verify className={[styles.submit, styles.submitSpaced].join(' ')} type="submit">
           Verify and sign in
         </button>
       </form>

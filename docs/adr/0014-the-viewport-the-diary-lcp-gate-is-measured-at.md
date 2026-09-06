@@ -89,10 +89,10 @@ in the other.
 Lantern decides that from the **observed** first paint, and the observed first paint is
 where the two eras separate:
 
-| | observed first paint | simulated FCP | simulated LCP | LCP element |
-|---|---|---|---|---|
-| the afternoon's green runs | 119-144ms | 910-965ms | **2,932-2,947ms** | detached — gone before the audit ran |
-| tonight's runs | 271-1,110ms | 1,579-1,610ms | **3,014-3,167ms** | `mobile-module__…coverTitle` |
+|                            | observed first paint | simulated FCP | simulated LCP     | LCP element                          |
+| -------------------------- | -------------------- | ------------- | ----------------- | ------------------------------------ |
+| the afternoon's green runs | 119-144ms            | 910-965ms     | **2,932-2,947ms** | detached — gone before the audit ran |
+| tonight's runs             | 271-1,110ms          | 1,579-1,610ms | **3,014-3,167ms** | `mobile-module__…coverTitle`         |
 
 **On the 2,932ms runs the browser painted the book at ~120ms. On every 3,016ms and
 3,167ms run it painted nothing at all until 271-1,110ms — after `load`, which is at
@@ -128,13 +128,13 @@ code measured 2,932ms at 20:55 and never once measured below 3,014.3ms an hour l
 
 ### 5 · What was tested, and what was ruled out
 
-| Suspect | Test | Result |
-|---|---|---|
-| **Build freshness** | `.next` deleted, `next build` re-run, server restarted, 10 runs | `3024.2 3167.4 3016.4 3017.4 3167.1 3014.6 3019.4 3167.4 3016.1 3017.0` — **both modes, unchanged**. Not the cause |
-| **The Docker Postgres path** | `server-response-time` on every run of both routes | 27.7-48.3ms on `/p/1` in both modes; 13.6-17.8ms on the gallery. The gallery reads the same database over the same host-to-container path and does not split. Not the cause |
-| **The middleware rewrite** | `/p/1` with the cookie takes `NextResponse.next()` — the same branch — in every configuration below | The middleware runs identically on the runs that split and on the runs that do not. Not the cause |
-| **The surface correction** | remove the cookie, so the served surface agrees with the emulated viewport and no correction fires — 15 runs | `2923.4 2926.1 2923.9 2926.1 2923.1 2922.8 2925.0 2923.3 2923.5 2922.8 2926.9 2923.1 2924.5 2923.8 2924.2` — **unimodal, 4.1ms of total spread.** This is the cause |
-| **The surface correction, book side** | keep the cookie and emulate 1350x940, so the correction agrees with the served book — 25 runs across two builds | **2,922.2-2,930.4ms**, 8.2ms of total spread, 17 requests, no `_rsc` refresh, no mobile chunks. Unimodal |
+| Suspect                               | Test                                                                                                            | Result                                                                                                                                                                      |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Build freshness**                   | `.next` deleted, `next build` re-run, server restarted, 10 runs                                                 | `3024.2 3167.4 3016.4 3017.4 3167.1 3014.6 3019.4 3167.4 3016.1 3017.0` — **both modes, unchanged**. Not the cause                                                          |
+| **The Docker Postgres path**          | `server-response-time` on every run of both routes                                                              | 27.7-48.3ms on `/p/1` in both modes; 13.6-17.8ms on the gallery. The gallery reads the same database over the same host-to-container path and does not split. Not the cause |
+| **The middleware rewrite**            | `/p/1` with the cookie takes `NextResponse.next()` — the same branch — in every configuration below             | The middleware runs identically on the runs that split and on the runs that do not. Not the cause                                                                           |
+| **The surface correction**            | remove the cookie, so the served surface agrees with the emulated viewport and no correction fires — 15 runs    | `2923.4 2926.1 2923.9 2926.1 2923.1 2922.8 2925.0 2923.3 2923.5 2922.8 2926.9 2923.1 2924.5 2923.8 2924.2` — **unimodal, 4.1ms of total spread.** This is the cause         |
+| **The surface correction, book side** | keep the cookie and emulate 1350x940, so the correction agrees with the served book — 25 runs across two builds | **2,922.2-2,930.4ms**, 8.2ms of total spread, 17 requests, no `_rsc` refresh, no mobile chunks. Unimodal                                                                    |
 
 Removing the correction from the measurement removes the modes, on either surface.
 Nothing else moved them.
@@ -157,7 +157,7 @@ actually given:
    the browser measures 1350px, `surfaceForWidth` returns `'book'`, and the correction is
    a no-op. **The throttling is not touched** — `configSettings.throttling` on these runs
    reads `rttMs 150, throughputKbps 1638.4, cpuSlowdownMultiplier 4, throttlingMethod
-   simulate`, identical to the phone configuration's, and that was verified by reading it
+simulate`, identical to the phone configuration's, and that was verified by reading it
    back off the report rather than assumed. `formFactor` and `screenEmulation` change the
    viewport; they change nothing about the network or the CPU model, which is what
    CLAUDE.md §6 names.
@@ -189,9 +189,9 @@ the browser argues with it.
 Both of this branch's known LCP regressions were re-introduced on an uncommitted local
 build, measured, and reverted (`git checkout --`, confirmed clean).
 
-| Regression | How | Median of 5, book config | vs 3,000 |
-|---|---|---|---|
-| **The content window removed** — `servedContentWindow` always returns the whole book, i.e. the Task 11 tree `docs/adr/0009` fixed | 1 line | **3,082.0ms** (3006.7 / 3081.9 / **3082.0** / 3082.2 / 3089.3) | **RED by 82ms** |
+| Regression                                                                                                                                          | How     | Median of 5, book config                                                                    | vs 3,000         |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------- | ---------------- |
+| **The content window removed** — `servedContentWindow` always returns the whole book, i.e. the Task 11 tree `docs/adr/0009` fixed                   | 1 line  | **3,082.0ms** (3006.7 / 3081.9 / **3082.0** / 3082.2 / 3089.3)                              | **RED by 82ms**  |
 | **Both windows removed** — the above, plus `loadsImages` true for every in-bounds leaf, i.e. the diary before `docs/adr/0006-diary-image-window.md` | 2 lines | **3,719.9ms** (3646.4 / 3713.3 / **3719.9** / 3720.6 / 3732.3), 5,171,421 bytes transferred | **RED by 720ms** |
 
 The first is the important one. ADR 0009 measured that same regression at **3,083.95ms**;
@@ -217,11 +217,11 @@ budget, and this ADR touches neither that gate, that route, nor that number.
 Three consecutive `npm run test:perf` invocations, each with its own `next build`, all
 green:
 
-| | run 1 | run 2 | run 3 | all fifteen |
-|---|---|---|---|---|
+|                                            | run 1   | run 2   | run 3   | all fifteen                        |
+| ------------------------------------------ | ------- | ------- | ------- | ---------------------------------- |
 | `/p/1` **book** (`lighthouserc.book.json`) | 2,930.5 | 2,931.1 | 2,927.8 | 2,926.0-2,937.8, **11.8ms spread** |
-| `/p/1` **mobile** (`lighthouserc.json`) | 2,926.8 | 2,926.7 | 2,925.6 | 2,924.8-2,933.4, **8.6ms spread** |
-| `/gallery/patagonia` LCP | 3,536.0 | 3,538.3 | 3,542.8 | 3,530.1-3,549.2 |
+| `/p/1` **mobile** (`lighthouserc.json`)    | 2,926.8 | 2,926.7 | 2,925.6 | 2,924.8-2,933.4, **8.6ms spread**  |
+| `/gallery/patagonia` LCP                   | 3,536.0 | 3,538.3 | 3,542.8 | 3,530.1-3,549.2                    |
 
 Book runs in full: `2928.3 2934.4 2937.8 2930.5 2928.5` · `2931.1 2934.4 2932.1 2926.1
 2928.3` · `2926.0 2928.0 2927.8 2927.7 2928.2`.
@@ -266,7 +266,7 @@ and 3,167ms an hour earlier.**
   to believe a cookie its own viewport contradicts, and then timing the argument.
 - **Two things this investigation noticed and did not fix.** (1) Every `/p/<n>` document
   request costs an extra round trip: the response carries `Critical-CH:
-  Sec-CH-Prefers-Color-Scheme`, so Chrome re-issues it, and Lighthouse records a 66-byte
+Sec-CH-Prefers-Color-Scheme`, so Chrome re-issues it, and Lighthouse records a 66-byte
   307 costing 35-49ms in front of every run, on every configuration measured here. It is
   constant across all modes and is not this ADR's split, but it is ~1.5% of the budget for
   a client hint nothing on the diary reads. (2) `/cms`'s LCP of 4,868-5,181ms remains

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { aChallenge } from '../testing/factories'
-import { EXPIRY_MS, HOURLY_RESEND_CAP, MAX_ATTEMPTS, RESEND_COOLDOWN_MS, canResend, challengeState } from './otpChallenge'
+import {
+  EXPIRY_MS,
+  HOURLY_RESEND_CAP,
+  MAX_ATTEMPTS,
+  RESEND_COOLDOWN_MS,
+  canResend,
+  challengeState,
+} from './otpChallenge'
 
 describe('challengeState', () => {
   it('is valid inside the five-minute window with attempts remaining', () => {
@@ -40,9 +47,9 @@ describe('challengeState', () => {
   })
 
   it('reports consumed when all three conditions hold at once', () => {
-    expect(
-      challengeState(aChallenge({ consumedAt: 1_000, attempts: MAX_ATTEMPTS, createdAt: 0 }), EXPIRY_MS + 1),
-    ).toBe('consumed')
+    expect(challengeState(aChallenge({ consumedAt: 1_000, attempts: MAX_ATTEMPTS, createdAt: 0 }), EXPIRY_MS + 1)).toBe(
+      'consumed',
+    )
   })
 
   it('is still valid at MAX_ATTEMPTS - 1, the last wrong guess a reader is still allowed to make', () => {

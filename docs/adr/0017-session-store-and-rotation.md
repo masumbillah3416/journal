@@ -11,7 +11,7 @@ rests on:
 - "Back the account screen's session list with real `sessions` rows, or Revoke and 'Sign
   out everywhere' do nothing".
 
-Two of those are stated as *negatives* — not a longer JWT, not a decorative Revoke — which
+Two of those are stated as _negatives_ — not a longer JWT, not a decorative Revoke — which
 is unusual for that document and worth reading as a warning rather than a preference. Both
 name the implementation that would satisfy a functional test while failing the
 requirement.
@@ -42,7 +42,7 @@ discard between requests.
    lost laptop. A denylist of revoked tokens is the usual patch, and it reintroduces the
    per-request read the JWT was chosen to avoid while adding a second store to keep
    consistent with the first.
-2. **Payload's own `users` auth token as the admin session.** Rejected as the *session*
+2. **Payload's own `users` auth token as the admin session.** Rejected as the _session_
    layer, though it remains the credential store and the password-step lockout
    (`docs/adr/0002-auth-mechanism.md`, `docs/deviations.md` §1). It is a JWT with
    `tokenExpiration`, so it inherits option 1's problem exactly, and it has no `sessions`
@@ -70,7 +70,7 @@ discard between requests.
   account, no expiry and no signature, so nothing about it can be believed without
   reading the row it names. `sessions.tokenHash` stores SHA-256 of it, hex, indexed —
   the lookup key, and never readable through the API even by the row's owner.
-- `sessions.expiresAt` (new; `docs/deviations.md` §30) is the lifetime, and the *only*
+- `sessions.expiresAt` (new; `docs/deviations.md` §30) is the lifetime, and the _only_
   lifetime. "Keep me signed in" chooses between `SESSION_LIFETIME_MS` (12 hours) and
   `REMEMBERED_SESSION_LIFETIME_MS` (30 days) — numbers `SECURITY.md` does not name, so
   they are this repository's, stated in `packages/domain/src/auth/session.ts`. The
@@ -78,7 +78,7 @@ discard between requests.
   authority.
 - **There is one way to create a session and it always rotates.** `startSession` takes
   the identifier the browser arrived with and supersedes it in the same data-modifying
-  CTE that inserts its replacement. A `previous` of `null` is *bound into* the statement
+  CTE that inserts its replacement. A `previous` of `null` is _bound into_ the statement
   rather than branched on — `token_hash = NULL` is NULL, not true — so a fresh browser
   and one already holding a session run byte-identical SQL. There is no non-rotating path
   for a later change to take by accident.

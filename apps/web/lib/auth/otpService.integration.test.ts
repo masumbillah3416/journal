@@ -262,7 +262,6 @@ const readServiceSource = (): string =>
   readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'otpService.ts'), 'utf8')
 
 describe('otpService', () => {
-
   it('never returns the code in any response', async () => {
     const { user } = await aSignInAccount()
     const { service, mailer } = await anOtpService()
@@ -569,10 +568,7 @@ describe('otpService', () => {
     await service.issueChallenge(user, session, FIXTURE_IP)
     const code = readCodeFromOutbox(mailer)
 
-    const outcomes = await Promise.all([
-      service.verifyChallenge(session, code),
-      service.verifyChallenge(session, code),
-    ])
+    const outcomes = await Promise.all([service.verifyChallenge(session, code), service.verifyChallenge(session, code)])
 
     expect(outcomes.filter((outcome) => outcome.ok)).toEqual([{ ok: true, value: { userId: user } }])
     expect(outcomes.filter((outcome) => !outcome.ok && outcome.error === 'consumed')).toHaveLength(1)

@@ -209,10 +209,7 @@ export interface SignInRateLimiter {
    *   refused would let a caller spend one budget for free by exhausting the
    *   other first.
    */
-  admitCodeAttempt(request: {
-    readonly ip: string
-    readonly account: UserId
-  }): Promise<Result<void, RateRefusal>>
+  admitCodeAttempt(request: { readonly ip: string; readonly account: UserId }): Promise<Result<void, RateRefusal>>
 }
 
 /** One key's window: which rows it counts, and how many of them it allows. */

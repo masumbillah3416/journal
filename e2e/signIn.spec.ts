@@ -50,8 +50,7 @@ const SIGN_IN_PATH = '/admin/sign-in'
 const PROTOTYPE_FLAG_KEY = 'om-diary-otp'
 
 /** What the footer line says when the code step runs (SCREENS.md §3.1). */
-const CODE_STEP_ON_NOTICE =
-  'A one-time code is asked for after your password. Turn it off under Account → Getting in.'
+const CODE_STEP_ON_NOTICE = 'A one-time code is asked for after your password. Turn it off under Account → Getting in.'
 
 /**
  * Installs a recorder over `Storage.prototype`'s three readers, before any

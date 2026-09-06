@@ -49,11 +49,7 @@ export interface JobRowProbe {
  *   job id. Supplied by the adapter's own test file so this suite stays
  *   independent of any one storage technology - see the module header.
  */
-export const queueContract = (
-  name: string,
-  makeAdapter: () => Promise<QueuePort>,
-  readJobRow: JobRowProbe,
-): void => {
+export const queueContract = (name: string, makeAdapter: () => Promise<QueuePort>, readJobRow: JobRowProbe): void => {
   describe(`QueuePort contract: ${name}`, () => {
     it('smoke test: two concurrent claim() calls do not error, and usually yield only one job on this run (see module header - not a proof of single-claim semantics)', async () => {
       const queue = await makeAdapter()

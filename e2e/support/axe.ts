@@ -29,10 +29,7 @@ import { expect, type Page } from '@playwright/test'
  * @throws if `results.violations` is non-empty — the assertion failure lists
  *   every violation axe found.
  */
-export const expectNoAxeViolations = async (
-  page: Page,
-  options: { allow?: readonly string[] } = {},
-): Promise<void> => {
+export const expectNoAxeViolations = async (page: Page, options: { allow?: readonly string[] } = {}): Promise<void> => {
   const builder = new AxeBuilder({ page })
   const scoped = options.allow ? builder.disableRules([...options.allow]) : builder
   const results = await scoped.analyze()

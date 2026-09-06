@@ -104,7 +104,6 @@ export const CODE_STEP_PATH = '/admin/sign-in/code'
 /** Where a reader lands once a session is theirs. */
 export const SIGNED_IN_PATH = '/admin/sign-in/done'
 
-
 /**
  * What a submission to the password endpoint has to carry.
  *

@@ -141,8 +141,9 @@ test('defers the tiles below the fold to the browser’s own lazy loading', asyn
   await page.goto(GALLERY)
   await expect(page.locator('[data-tile]').first()).toBeVisible()
 
-  const eager = await page.$$eval('[data-tile] img', (images) =>
-    images.filter((image) => image.getAttribute('loading') !== 'lazy').length,
+  const eager = await page.$$eval(
+    '[data-tile] img',
+    (images) => images.filter((image) => image.getAttribute('loading') !== 'lazy').length,
   )
 
   expect(eager).toBe(0)
@@ -331,7 +332,10 @@ test('refuses a download addressed through a journey the frame does not belong t
   expect(wrongJourney.status()).toBe(404)
 })
 
-test('returns the reader to the page they left the book from, by the gallery’s own control', async ({ page, viewport }) => {
+test('returns the reader to the page they left the book from, by the gallery’s own control', async ({
+  page,
+  viewport,
+}) => {
   // Below 860px the reader left the MOBILE reading mode, which has no leaves
   // and no design box to wait for; the same promise is asserted on that
   // surface by `e2e/mobile.spec.ts`.
@@ -340,7 +344,10 @@ test('returns the reader to the page they left the book from, by the gallery’s
   await page.goto(NOTES_PAGE)
   await waitForLiveBook(page)
 
-  await page.locator('[data-leaf="8"]').getByRole('link', { name: /See full gallery/ }).click()
+  await page
+    .locator('[data-leaf="8"]')
+    .getByRole('link', { name: /See full gallery/ })
+    .click()
   // The string form, not a pattern: `?` is a regex quantifier, and a pattern
   // built from this address would silently make its `y` optional.
   await expect(page).toHaveURL(GALLERY_FROM_NOTES)
@@ -358,7 +365,10 @@ test('returns the reader to that same page by the browser’s own Back button', 
   await page.goto(NOTES_PAGE)
   await waitForLiveBook(page)
 
-  await page.locator('[data-leaf="8"]').getByRole('link', { name: /See full gallery/ }).click()
+  await page
+    .locator('[data-leaf="8"]')
+    .getByRole('link', { name: /See full gallery/ })
+    .click()
   await expect(page).toHaveURL(GALLERY_FROM_NOTES)
   await page.goBack()
 

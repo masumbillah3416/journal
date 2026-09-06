@@ -107,9 +107,7 @@ describe('middleware', () => {
     it('puts the admin’s content security policy on an admin response', () => {
       const response = middleware(requestFor('/admin/sign-in'))
 
-      expect(response.headers.get('Content-Security-Policy')).toBe(
-        EXPECTED_HEADERS['Content-Security-Policy'],
-      )
+      expect(response.headers.get('Content-Security-Policy')).toBe(EXPECTED_HEADERS['Content-Security-Policy'])
     })
 
     it('puts the admin’s referrer policy on it too, so a reset token never leaves in a Referer', () => {
@@ -160,17 +158,13 @@ describe('middleware', () => {
 
   describe('the cross-site mutations it refuses', () => {
     it('admits a post carrying our own origin', () => {
-      const response = middleware(
-        requestFor('/admin/sign-in/password', { origin: ORIGIN }, 'POST'),
-      )
+      const response = middleware(requestFor('/admin/sign-in/password', { origin: ORIGIN }, 'POST'))
 
       expect(response.status).toBe(200)
     })
 
     it('refuses a post carrying somebody else’s origin', () => {
-      const response = middleware(
-        requestFor('/admin/sign-in/password', { origin: 'https://attacker.example' }, 'POST'),
-      )
+      const response = middleware(requestFor('/admin/sign-in/password', { origin: 'https://attacker.example' }, 'POST'))
 
       expect(response.status).toBe(403)
     })
@@ -196,9 +190,7 @@ describe('middleware', () => {
     it('still carries the admin’s headers on what it refuses', () => {
       const response = middleware(requestFor('/admin/sign-out', {}, 'POST'))
 
-      expect(response.headers.get('Content-Security-Policy')).toBe(
-        EXPECTED_HEADERS['Content-Security-Policy'],
-      )
+      expect(response.headers.get('Content-Security-Policy')).toBe(EXPECTED_HEADERS['Content-Security-Policy'])
     })
 
     it('refuses nothing on the diary, which sets no cookie a forgery could spend', () => {
@@ -211,8 +203,7 @@ describe('middleware', () => {
 
   describe('the identifier it mints for a browser that has none', () => {
     /** The `Set-Cookie` values a response carries. */
-    const cookiesOf = (response: ReturnType<typeof middleware>): string =>
-      response.headers.getSetCookie().join('\n')
+    const cookiesOf = (response: ReturnType<typeof middleware>): string => response.headers.getSetCookie().join('\n')
 
     it('gives a browser arriving at the sign-in screen something to bind a code to', () => {
       // `signIn.ts` requires a non-null `browserSession`, and

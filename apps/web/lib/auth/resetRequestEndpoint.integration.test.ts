@@ -74,9 +74,7 @@ const NOT_FOUND_DIGEST = 'NEXT_HTTP_ERROR_FALLBACK;404'
  * for the digits of an issued code, and a fixture address containing digits
  * would make them ambiguous (the same reason `alphabeticLabel` exists).
  */
-const RUN_TAG = Array.from({ length: 4 }, () =>
-  String.fromCharCode(97 + Math.floor(Math.random() * 26)),
-).join('')
+const RUN_TAG = Array.from({ length: 4 }, () => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join('')
 
 /** Distinguishes one fixture from the next within a single run. */
 let fixtureCount = 0

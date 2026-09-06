@@ -133,8 +133,7 @@ const removeFixtures = async (): Promise<void> => {
  * instead of crashing the sweep.
  * @returns The declared field names, in declaration order.
  */
-const writableFieldNames = (): string[] =>
-  Sessions.fields.flatMap((field) => ('name' in field ? [field.name] : []))
+const writableFieldNames = (): string[] => Sessions.fields.flatMap((field) => ('name' in field ? [field.name] : []))
 
 /** The instant every date-typed field is probed with. Far outside any fixture's own values. */
 const PROBE_INSTANT = '2030-01-01T00:00:00.000Z'
@@ -207,7 +206,7 @@ describe('the sessions access rule', () => {
     expect(found.docs.map((row) => row.id)).toEqual([aliceSession.id])
   })
 
-  it('withholds another account\'s session from a signed-in reader, so one holder cannot enumerate another\'s devices', async () => {
+  it("withholds another account's session from a signed-in reader, so one holder cannot enumerate another's devices", async () => {
     const found = await payload.find({
       collection: 'sessions',
       overrideAccess: false,
@@ -230,7 +229,7 @@ describe('the sessions access rule', () => {
     await expect(attempt).rejects.toThrow()
   })
 
-  it('refuses a delete aimed at another account\'s session, so the list cannot be cleared from outside', async () => {
+  it("refuses a delete aimed at another account's session, so the list cannot be cleared from outside", async () => {
     const attempt = payload.delete({
       collection: 'sessions',
       id: bobSession.id,
@@ -298,7 +297,7 @@ describe('the sessions access rule', () => {
     await expect(attempt).rejects.toThrow()
   })
 
-  it('never returns the token hash, even on the reader\'s own row', async () => {
+  it("never returns the token hash, even on the reader's own row", async () => {
     const found = await payload.find({
       collection: 'sessions',
       overrideAccess: false,
@@ -309,7 +308,7 @@ describe('the sessions access rule', () => {
     expect(found.docs[0]).not.toHaveProperty('tokenHash')
   })
 
-  it('ignores a write to the token hash on the reader\'s own row, so a session cannot be re-pointed', async () => {
+  it("ignores a write to the token hash on the reader's own row, so a session cannot be re-pointed", async () => {
     const forged = 'a'.repeat(64)
 
     await payload.update({
@@ -326,7 +325,7 @@ describe('the sessions access rule', () => {
     expect(stored.tokenHash).not.toBe(forged)
   })
 
-  it('ignores a write to the expiry on the reader\'s own row, so nobody can extend their own session', async () => {
+  it("ignores a write to the expiry on the reader's own row, so nobody can extend their own session", async () => {
     const before = await payload.findByID({ collection: 'sessions', id: aliceSession.id })
     const aYearOut = new Date(Date.now() + 365 * 24 * 60 * 60_000).toISOString()
 
@@ -358,7 +357,7 @@ describe('the sessions access rule', () => {
   // including any a future field adds, rather than the ones a reader thought to
   // name. `updated_at` is excluded because Payload stamps it on any accepted
   // update, which is not a field write.
-  it('leaves every column of the reader\'s own row untouched by any update they can make', async () => {
+  it("leaves every column of the reader's own row untouched by any update they can make", async () => {
     const before = await storedRow(aliceSession.id)
 
     for (const field of writableFieldNames()) {
@@ -379,5 +378,4 @@ describe('the sessions access rule', () => {
 
     expect(await storedRow(aliceSession.id)).toEqual(before)
   })
-
 })

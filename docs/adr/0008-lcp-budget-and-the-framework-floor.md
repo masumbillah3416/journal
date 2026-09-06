@@ -89,11 +89,11 @@ this measurement costs for any page at all".
 
 ### The floor
 
-| Route | LCP median | render delay | script bytes | chunks | requests |
-|---|---|---|---|---|---|
-| static `.html`, same server, zero JS | **900.8 ms** | 450.4 ms | 0 | 0 | 2 |
-| minimal Next route, one `h1` | **2,023.2 ms** | 1,571.8 ms | **137,986** | **6** | 9 |
-| `/p/1` as shipped before this task | 2,488.2 ms | 2,035.5 ms | 141,632 | 7 | 14 |
+| Route                                | LCP median     | render delay | script bytes | chunks | requests |
+| ------------------------------------ | -------------- | ------------ | ------------ | ------ | -------- |
+| static `.html`, same server, zero JS | **900.8 ms**   | 450.4 ms     | 0            | 0      | 2        |
+| minimal Next route, one `h1`         | **2,023.2 ms** | 1,571.8 ms   | **137,986**  | **6**  | 9        |
+| `/p/1` as shipped before this task   | 2,488.2 ms     | 2,035.5 ms   | 141,632      | 7      | 14       |
 
 Five runs each: static 900.4 / 900.6 / 900.8 / 901.0 / 901.6 · minimal 1504.2 /
 1505.0 / **2023.2** / 2023.6 / 2023.7 · `/p/1` 2485.1 / 2487.2 / **2488.2** / 2488.5 /
@@ -113,16 +113,16 @@ The gap between the two floors is the framework's: **1,122ms of simulated LCP, a
 Main-thread work is reported by Lighthouse as observed (unthrottled) trace time;
 Lantern multiplies CPU nodes by 4. Both columns, for the median run of each:
 
-| Task group | minimal route | `/p/1` | `/p/1` ×4 | attributable to us |
-|---|---|---|---|---|
-| Script Evaluation | 108.8 ms | 149.9 ms | 600 ms | +164 ms |
-| **Style & Layout** | 5.8 ms | **128.4 ms** | **514 ms** | **+490 ms** |
-| Other | 54.8 ms | 88.5 ms | 354 ms | +135 ms |
-| Script Parsing & Compilation | 19.1 ms | 33.0 ms | 132 ms | +56 ms |
-| Garbage Collection | 0 | 9.1 ms | 36 ms | +36 ms |
-| Parse HTML & CSS | 1.4 ms | 8.3 ms | 33 ms | +28 ms |
-| Rendering | 0.8 ms | 5.5 ms | 22 ms | +19 ms |
-| **TOTAL** | **190.6 ms** | **422.8 ms** | **1,691 ms** | **+929 ms** |
+| Task group                   | minimal route | `/p/1`       | `/p/1` ×4    | attributable to us |
+| ---------------------------- | ------------- | ------------ | ------------ | ------------------ |
+| Script Evaluation            | 108.8 ms      | 149.9 ms     | 600 ms       | +164 ms            |
+| **Style & Layout**           | 5.8 ms        | **128.4 ms** | **514 ms**   | **+490 ms**        |
+| Other                        | 54.8 ms       | 88.5 ms      | 354 ms       | +135 ms            |
+| Script Parsing & Compilation | 19.1 ms       | 33.0 ms      | 132 ms       | +56 ms             |
+| Garbage Collection           | 0             | 9.1 ms       | 36 ms        | +36 ms             |
+| Parse HTML & CSS             | 1.4 ms        | 8.3 ms       | 33 ms        | +28 ms             |
+| Rendering                    | 0.8 ms        | 5.5 ms       | 22 ms        | +19 ms             |
+| **TOTAL**                    | **190.6 ms**  | **422.8 ms** | **1,691 ms** | **+929 ms**        |
 
 `/p/1`'s 2,035.5ms render delay is therefore ~1,691ms of simulated CPU plus ~345ms of
 simulated network for the script chain. **Of it, 1,571.8ms is the floor and 463.7ms
@@ -135,17 +135,17 @@ deep links are indexable.
 
 `bootup-time`, observed, for the median `/p/1` run:
 
-| Chunk | transfer | raw | eval | parse | ×4 total | what it is |
-|---|---|---|---|---|---|---|
-| `299ekdt-sjm6b.js` | 72,280 B | 229,282 B | 130.7 ms | 9.0 ms | **563 ms** | **React DOM client + Next App Router runtime** (`react-dom`, `hydrateRoot`, `createRoot`, `MessageChannel`, `onRecoverableError`, `FlightRouterState`, `createFromReadableStream`, `next-route-announcer`) |
-| the `/p/1` document | 16,862 B | — | 8.7 ms | 10.1 ms | **687 ms** | the inline RSC flight payload plus the style/layout of 33 page faces |
-| Unattributable | — | — | 2.7 ms | 0 | 309 ms | |
-| `1vgpv7vwitdbl.js` | 43,582 B | 156,317 B | **0** | **0** | **0** | Next's client router/prefetch layer (`prefetch` ×81, `FlightRouterState` ×14, `IntersectionObserver`). 24,911 B of it unused. Downloaded, not executed before LCP |
-| `0if-vqkhyn-zc.js` | 8,919 B | 31,423 B | 0 | 0 | 0 | Next client hooks (`usePathname`, `useSearchParams`) |
-| `turbopack-0u9g73elxfcgm.js` | 4,845 B | 10,947 B | 0 | 0 | 0 | Turbopack module runtime |
-| `33t46atd3n2zd.js` | 4,228 B | 14,434 B | 0 | 0 | 0 | router/Suspense glue |
-| `0wf2rmyoojkx7.js` | 4,132 B | 12,696 B | 0 | 0 | 0 | AppRouter glue |
-| **`2-wzetw2ympk0.js`** | **3,646 B** | 8,042 B | 0 | 0 | 0 | **the diary's own chunk** — `Book`, `Leaf`, `EdgeStrip`, the flip machine, `book.module.css`'s class map |
+| Chunk                        | transfer    | raw       | eval     | parse   | ×4 total   | what it is                                                                                                                                                                                                 |
+| ---------------------------- | ----------- | --------- | -------- | ------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `299ekdt-sjm6b.js`           | 72,280 B    | 229,282 B | 130.7 ms | 9.0 ms  | **563 ms** | **React DOM client + Next App Router runtime** (`react-dom`, `hydrateRoot`, `createRoot`, `MessageChannel`, `onRecoverableError`, `FlightRouterState`, `createFromReadableStream`, `next-route-announcer`) |
+| the `/p/1` document          | 16,862 B    | —         | 8.7 ms   | 10.1 ms | **687 ms** | the inline RSC flight payload plus the style/layout of 33 page faces                                                                                                                                       |
+| Unattributable               | —           | —         | 2.7 ms   | 0       | 309 ms     |                                                                                                                                                                                                            |
+| `1vgpv7vwitdbl.js`           | 43,582 B    | 156,317 B | **0**    | **0**   | **0**      | Next's client router/prefetch layer (`prefetch` ×81, `FlightRouterState` ×14, `IntersectionObserver`). 24,911 B of it unused. Downloaded, not executed before LCP                                          |
+| `0if-vqkhyn-zc.js`           | 8,919 B     | 31,423 B  | 0        | 0       | 0          | Next client hooks (`usePathname`, `useSearchParams`)                                                                                                                                                       |
+| `turbopack-0u9g73elxfcgm.js` | 4,845 B     | 10,947 B  | 0        | 0       | 0          | Turbopack module runtime                                                                                                                                                                                   |
+| `33t46atd3n2zd.js`           | 4,228 B     | 14,434 B  | 0        | 0       | 0          | router/Suspense glue                                                                                                                                                                                       |
+| `0wf2rmyoojkx7.js`           | 4,132 B     | 12,696 B  | 0        | 0       | 0          | AppRouter glue                                                                                                                                                                                             |
+| **`2-wzetw2ympk0.js`**       | **3,646 B** | 8,042 B   | 0        | 0       | 0          | **the diary's own chunk** — `Book`, `Leaf`, `EdgeStrip`, the flip machine, `book.module.css`'s class map                                                                                                   |
 
 **The diary's own code is 3,646 of 141,632 script bytes — 2.57%** — and is below
 Lighthouse's threshold for any attributed bootup time at all. `299ekdt-sjm6b.js` owns
@@ -175,12 +175,12 @@ throttled device would do, and the projection is dominated by work that is not o
 Same method, same container, clean volume per configuration, five runs, every asset
 verified 200:
 
-| Faces self-hosted | requests | font bytes | LCP median | five runs | vs 2,500 gate |
-|---|---|---|---|---|---|
-| Caveat 400 + EB Garamond 400 | 2 | 73,554 | **2,488.2 ms** | 2485/2487/2488/2489/2494 | PASS by 11.8 ms |
-| + Courier Prime 400/700 | 4 | 112,440 | **2,637.4 ms** | 2636/2637/2637/2639/2645 | FAIL by 137 ms |
-| + EB Garamond italic **(now shipping)** | 5 | 138,277 | **2,933.8 ms** | 2932/2934/2934/2935/2943 | FAIL by 434 ms |
-| 5 faces, only Caveat preloaded | 5 | 138,277 | 2,409.9 ms | 2406/2408/2410/2411/2938 | *rejected, see below* |
+| Faces self-hosted                       | requests | font bytes | LCP median     | five runs                | vs 2,500 gate         |
+| --------------------------------------- | -------- | ---------- | -------------- | ------------------------ | --------------------- |
+| Caveat 400 + EB Garamond 400            | 2        | 73,554     | **2,488.2 ms** | 2485/2487/2488/2489/2494 | PASS by 11.8 ms       |
+| + Courier Prime 400/700                 | 4        | 112,440    | **2,637.4 ms** | 2636/2637/2637/2639/2645 | FAIL by 137 ms        |
+| + EB Garamond italic **(now shipping)** | 5        | 138,277    | **2,933.8 ms** | 2932/2934/2934/2935/2943 | FAIL by 434 ms        |
+| 5 faces, only Caveat preloaded          | 5        | 138,277    | 2,409.9 ms     | 2406/2408/2410/2411/2938 | _rejected, see below_ |
 
 **ADR 0005's original finding reproduces exactly.** Its table recorded
 "Caveat + Garamond + Courier: 2,638–2,641ms, FAIL"; that configuration measures
@@ -192,7 +192,7 @@ delaying hydration — and simulated LCP is the end of hydration.
 **`docs/adr/0007`'s contrary finding is withdrawn.** It compared a four-face build at
 2,632.98ms against a two-face baseline it measured at 2,634.66ms and concluded the
 fonts were free. On a clean volume the two-face baseline is 2,488ms; 2,634ms is this
-route's *high mode* on a warm volume, which its own five runs happened to land in
+route's _high mode_ on a warm volume, which its own five runs happened to land in
 throughout. Comparing a change against a contaminated baseline made a real 149ms cost
 read as zero. That is also why the measurement above wipes the `.next` volume between
 configurations and checks every asset's status code: one configuration in this

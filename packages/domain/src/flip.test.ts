@@ -4,10 +4,8 @@ import { ARM_MS, SETTLE_MS, flipReducer, initialFlipState, type FlipState } from
 const config = { durationMs: 900, reducedMotion: false }
 const start = (state: FlipState, to: number, now = 0): FlipState =>
   flipReducer(state, { type: 'start', to, now }, config)
-const tick = (state: FlipState, now: number): FlipState =>
-  flipReducer(state, { type: 'tick', now }, config)
-const jump = (state: FlipState, to: number, now = 0): FlipState =>
-  flipReducer(state, { type: 'jump', to, now }, config)
+const tick = (state: FlipState, now: number): FlipState => flipReducer(state, { type: 'tick', now }, config)
+const jump = (state: FlipState, to: number, now = 0): FlipState => flipReducer(state, { type: 'jump', to, now }, config)
 
 describe('flipReducer', () => {
   it('arms without moving, so the CSS transition has a frame to attach to', () => {
@@ -76,10 +74,14 @@ describe('flipReducer', () => {
   })
 
   it('commits immediately with no rotation when reduced motion is requested', () => {
-    const reduced = flipReducer(initialFlipState(3), { type: 'start', to: 4, now: 0 }, {
-      durationMs: 900,
-      reducedMotion: true,
-    })
+    const reduced = flipReducer(
+      initialFlipState(3),
+      { type: 'start', to: 4, now: 0 },
+      {
+        durationMs: 900,
+        reducedMotion: true,
+      },
+    )
 
     expect(reduced).toMatchObject({ phase: 'idle', index: 4, busy: false, go: false, half: false })
   })
@@ -214,7 +216,11 @@ describe('flipReducer, jumping', () => {
   })
 
   it('changes the page instantly under reduced motion, with no anchor to pass through at all', () => {
-    const instant = flipReducer(initialFlipState(29), { type: 'jump', to: 2, now: 0 }, { ...config, reducedMotion: true })
+    const instant = flipReducer(
+      initialFlipState(29),
+      { type: 'jump', to: 2, now: 0 },
+      { ...config, reducedMotion: true },
+    )
 
     expect(instant).toMatchObject({ phase: 'idle', index: 2, anchor: 2, busy: false })
   })

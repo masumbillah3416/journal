@@ -395,7 +395,6 @@ describe('the per-account window', () => {
 
     expect(await recordedAttempts('account', account)).toBe(1)
   })
-
 })
 
 describe('the per-address window on the password endpoint', () => {
@@ -463,7 +462,10 @@ describe('the window sliding', () => {
     for (let attempt = 0; attempt < IP_ATTEMPT_LIMIT; attempt += 1) {
       await limiter.admitPasswordAttempt({ ip, email: anEmailAddress() })
     }
-    expect(await limiter.admitPasswordAttempt({ ip, email: anEmailAddress() })).toEqual({ ok: false, error: 'rate-limited' })
+    expect(await limiter.admitPasswordAttempt({ ip, email: anEmailAddress() })).toEqual({
+      ok: false,
+      error: 'rate-limited',
+    })
 
     await ageAttemptsOutOfTheWindow('ip', ip)
 

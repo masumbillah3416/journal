@@ -40,21 +40,22 @@ attached before the first `page.goto` on each context, per `CLAUDE.md` §10.
 
   | viewport | book area | design box | off-centre by | clipped right | overlaps rail |
   | -------- | --------- | ---------- | ------------- | ------------- | ------------- |
-  | 1920 | 0–1762 | 245–1517 | 0px | 0px | no |
-  | 1440 | 0–1282 | 14–1286 | 9px | 4px | yes |
-  | 1200 | 0–1042 | 129–1171 | 129px | 129px | yes |
-  | 1000 | 0–842 | 229–1071 | 229px | 229px | yes |
-  | 860 | 0–702 | 299–1001 | 299px | 299px | yes |
-  | 600 | 0–442 | 429–871 | 429px | 429px | yes |
-  | 390 | 0–232 | 534–766 | 534px | 534px | yes |
+  | 1920     | 0–1762    | 245–1517   | 0px           | 0px           | no            |
+  | 1440     | 0–1282    | 14–1286    | 9px           | 4px           | yes           |
+  | 1200     | 0–1042    | 129–1171   | 129px         | 129px         | yes           |
+  | 1000     | 0–842     | 229–1071   | 229px         | 229px         | yes           |
+  | 860      | 0–702     | 299–1001   | 299px         | 299px         | yes           |
+  | 600      | 0–442     | 429–871    | 429px         | 429px         | yes           |
+  | 390      | 0–232     | 534–766    | 534px         | 534px         | yes           |
 
   At 390×844 the entire book lies outside the 390px viewport and is clipped away by
   `.stage { overflow: hidden }`: `document.elementFromPoint` at the design box's own
   centre returns **`null`**, and the reader sees a blank page carrying only the bookmark
   rail, the counter and the two arrows. This is **not** the deferred mobile reading mode
   alone — at 1200px and 1000px, both well above SCREENS.md §1.10's 860px boundary where
-  the scaled book *is* the specified layout, 129px and 229px of the page are cut off,
+  the scaled book _is_ the specified layout, 129px and 229px of the page are cut off,
   and the fore-edge, the airmail stamp and the right page edge are lost with them.
+
 - **Evidence:** `docs/qa/assets/2026-09-01-diary/mid-1000x800-p1.png` (the cover runs
   under the rail; its stamp is cut) · `docs/qa/assets/2026-09-01-diary/mobile-390x844-p1.png`
   (no book at all) · the table above, read from `getBoundingClientRect()` ·
@@ -110,6 +111,7 @@ attached before the first `page.goto` on each context, per `CLAUDE.md` §10.
   Same probe at 1440×900: 0 tabs blocked, click lands on `/p/12`. At 390×844: 0 blocked,
   click lands on `/p/12` — because there the book has been pushed past the rail
   entirely (DIARY-001), not because the layout is right.
+
 - **Evidence:** the log above · `docs/qa/assets/2026-09-01-diary/mid-1000x800-p1.png`,
   where the rail shows only Cover / Contents / Tokyo at the top and About at the bottom
   — the nine tabs between them are behind the book. Same root cause as DIARY-001.
@@ -184,6 +186,7 @@ attached before the first `page.goto` on each context, per `CLAUDE.md` §10.
   `book.module.css`'s chrome section both name SCREENS.md §1.7's appearance as Task 12.
   It is recorded here because the sweep was asked for it and because the rail is on
   screen today; triage may close it against that task rather than fixing it.
+
 - **Evidence:** the per-page probe output in this sweep's raw findings; verified in the
   source at `apps/web/components/book/Book.tsx` (the tab renders no active class and no
   `aria-current`) and `apps/web/components/book/book.module.css` `.bookmarkTab` (one
@@ -215,14 +218,14 @@ attached before the first `page.goto` on each context, per `CLAUDE.md` §10.
 Appended after the fixes; the findings above are the record of the sweep and are
 left as they were written.
 
-| Defect | Sev | Outcome | Where |
-| ------ | --- | ------- | ----- |
-| DIARY-001 | S1 | **Fixed.** `.bookArea` given explicit `minmax(0, 1fr)` tracks, so `place-items: center` centres the design box in the same rectangle `useBookScale` measures. | `fix(diary): centre the scaled book in the area its scale is measured from` |
-| DIARY-002 | S2 | **Fixed by DIARY-001**, verified rather than assumed: 0 of 13 tabs blocked at every viewport, and a click on `[data-bookmark="11"]` reaches `/p/12`. No separate change was needed — with the book inside its own grid column it cannot lie over the rail. | same commit |
-| DIARY-003 | S2 | **Fixed by DIARY-001**, verified: both `[data-edge]` strips hit-test to themselves at 1440, 1000 and 390. | same commit |
-| DIARY-004 | S2 | **Fixed.** All six `diary-*` baselines regenerated in `mcr.microsoft.com/playwright:v1.62.1-noble` and asserted to show a book before being accepted. | `test(diary): regenerate the visual baselines over a book that is on the screen` |
-| DIARY-005 | S3 | **Deferred to Task 12** at triage, and **fixed there.** See the note under this table. | `feat(diary): add the bookmark rail, bottom bar and ribbon` |
-| DIARY-006 | S4 | **Fixed.** `apps/web/app/favicon.ico` added; `/favicon.ico` responds 200 on every route. | `fix(diary): serve an icon at /favicon.ico` |
+| Defect    | Sev | Outcome                                                                                                                                                                                                                                                    | Where                                                                            |
+| --------- | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| DIARY-001 | S1  | **Fixed.** `.bookArea` given explicit `minmax(0, 1fr)` tracks, so `place-items: center` centres the design box in the same rectangle `useBookScale` measures.                                                                                              | `fix(diary): centre the scaled book in the area its scale is measured from`      |
+| DIARY-002 | S2  | **Fixed by DIARY-001**, verified rather than assumed: 0 of 13 tabs blocked at every viewport, and a click on `[data-bookmark="11"]` reaches `/p/12`. No separate change was needed — with the book inside its own grid column it cannot lie over the rail. | same commit                                                                      |
+| DIARY-003 | S2  | **Fixed by DIARY-001**, verified: both `[data-edge]` strips hit-test to themselves at 1440, 1000 and 390.                                                                                                                                                  | same commit                                                                      |
+| DIARY-004 | S2  | **Fixed.** All six `diary-*` baselines regenerated in `mcr.microsoft.com/playwright:v1.62.1-noble` and asserted to show a book before being accepted.                                                                                                      | `test(diary): regenerate the visual baselines over a book that is on the screen` |
+| DIARY-005 | S3  | **Deferred to Task 12** at triage, and **fixed there.** See the note under this table.                                                                                                                                                                     | `feat(diary): add the bookmark rail, bottom bar and ribbon`                      |
+| DIARY-006 | S4  | **Fixed.** `apps/web/app/favicon.ico` added; `/favicon.ico` responds 200 on every route.                                                                                                                                                                   | `fix(diary): serve an icon at /favicon.ico`                                      |
 
 **DIARY-005, closed 2026-09-03 (Task 12).** Deferring it was the right call and the
 reason is worth keeping: landing the `aria-current` alone would have shipped half of
@@ -279,8 +282,8 @@ against 184320.
 - **Deep link, refresh and turn-then-address.** `/p/12` cold-loads at `12 / 33`, survives
   a reload at `12 / 33`, and a forward turn rewrites the address to `/p/13` via
   `replaceState` without adding a history entry — which is `Book.tsx`'s documented
-  intent, so the browser Back button returns to the previously *navigated* page rather
-  than the previous *leaf*.
+  intent, so the browser Back button returns to the previously _navigated_ page rather
+  than the previous _leaf_.
 - **axe-core:** zero violations on `/p/1`, `/p/2` and `/p/3`, at all three viewports
   (9 scans).
 - **Resize across 860px in both directions** (900 → 861 → 859 → 800 → 859 → 861 → 900 →

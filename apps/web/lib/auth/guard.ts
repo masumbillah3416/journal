@@ -117,7 +117,6 @@ export const authenticateAdminRequest = async (
   return sessions.authenticate(presented)
 }
 
-
 /** A handler that only ever runs for a request with a live session. */
 export type GuardedHandler = (request: Request, session: AuthenticatedSession) => Promise<Response>
 

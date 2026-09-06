@@ -71,8 +71,7 @@ export interface GalleryHeaderProps {
  * @param singular - The noun in its singular form.
  * @returns e.g. `'61 photos'`, `'1 photo'`.
  */
-const countOf = (count: number, singular: string): string =>
-  `${String(count)} ${singular}${count === 1 ? '' : 's'}`
+const countOf = (count: number, singular: string): string => `${String(count)} ${singular}${count === 1 ? '' : 's'}`
 
 /**
  * Renders the gallery's header bar.

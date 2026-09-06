@@ -16,7 +16,7 @@ tension:
   exhausts in well under a second against a fast hash. It is never used to find a row;
   it is only ever compared against a row already found.
 - **The session identifier** is the high-entropy, pre-auth id the browser presented when
-  it asked for a code. It *is* the lookup key: `verifyChallenge` receives a session and
+  it asked for a code. It _is_ the lookup key: `verifyChallenge` receives a session and
   has to find that session's challenge, which means the stored form must be
   deterministic and indexable.
 
@@ -41,7 +41,7 @@ already hashes one secret has no business keeping the other in the clear.
    hash is not a lookup key, so finding a challenge would mean deriving a key per stored
    row on every verification.
 3. **Hash the code, store the session identifier in cleartext.** Rejected. It meets
-   `SECURITY.md`'s letter (only the *code* is required to be hashed) and fails its
+   `SECURITY.md`'s letter (only the _code_ is required to be hashed) and fails its
    intent. `SECURITY.md` rotates the session identifier away on login precisely because
    a pre-auth id is untrusted; leaving it readable next to `ip` in a table whose whole
    purpose is to hold a live sign-in in progress hands a database reader a
@@ -70,7 +70,7 @@ already hashes one secret has no business keeping the other in the clear.
   memory-hard property but none of the account lifecycle around it.
 - **`sessionHash` is SHA-256 of the pre-auth session identifier, hex encoded, on an
   indexed `varchar` column.** Deterministic and indexable, which is what a lookup key
-  has to be. Unsalted and fast is safe *here* and only here: the input is a
+  has to be. Unsalted and fast is safe _here_ and only here: the input is a
   high-entropy identifier, not a six-digit number, so there is no dictionary to run
   against it.
 - **The stored `codeHash` carries no parameters.** They are module constants in
@@ -97,21 +97,21 @@ already hashes one secret has no business keeping the other in the clear.
   in which every concurrent guess has read the same attempt count; measured, twelve
   parallel guesses were all evaluated against a three-attempt budget and the stored
   counter finished at two. The fix is to spend the attempt with one conditional `UPDATE`
-  *before* deriving anything, so the database arbitrates and the derivation happens
+  _before_ deriving anything, so the database arbitrates and the derivation happens
   outside any lock. Holding a row lock across the derivation instead would have been the
   other obvious answer and is worse: it ties up a connection per guess, which is a
   denial-of-service lever, and it makes a crash mid-verification a free guess.
-  `issueChallenge` inverts the same trade — it derives *before* taking its per-account
+  `issueChallenge` inverts the same trade — it derives _before_ taking its per-account
   advisory lock, so the lock spans only a count and an insert.
 - **That advisory lock is transaction-scoped and timeout-bounded, and both halves were
   corrections.** The first version used the session-scoped
   `pg_advisory_lock`/`pg_advisory_unlock` pair with the unlock in a `finally`, which is
   correct only while that `finally` can actually reach the database. The lock is held by
-  the *connection*, and the connection is pooled, so any path that cannot send the unlock
+  the _connection_, and the connection is pooled, so any path that cannot send the unlock
   leaves the lock held on a connection that outlives the request: every later issue for
   that account then waits on a lock owned by a request several ago, and the symptom is a
   hang with no visible cause. `pg_advisory_xact_lock` inside an explicit transaction is
-  released by the server on commit, rollback *or disconnection* — release stops depending
+  released by the server on commit, rollback _or disconnection_ — release stops depending
   on a statement of ours succeeding. `SET LOCAL lock_timeout` then bounds the wait for a
   request queued behind a holder, because an unbounded wait is not one slow request: it
   holds a connection out of a pool of ten (`apps/web/payload.config.ts`) for as long as

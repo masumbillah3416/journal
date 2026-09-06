@@ -199,9 +199,7 @@ describe('PasswordStep', () => {
 
     expect(footer).not.toBeNull()
     expect(footer?.textContent).toBe(CODE_STEP_OFF_NOTICE)
-    expect(footer?.textContent).toBe(
-      'The one-time code step is switched off, so your password alone will let you in.',
-    )
+    expect(footer?.textContent).toBe('The one-time code step is switched off, so your password alone will let you in.')
   })
 
   it('fills the 9px mark when the code step is on and rings it when it is off', () => {

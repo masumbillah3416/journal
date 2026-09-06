@@ -123,11 +123,11 @@ visible from the code that was added:
 ## Restore drill
 
 `SECURITY.md` is explicit that this is the section of the whole security posture most
-likely to matter: *"Not an attacker — losing 40GB of photographs... Test a restore. An
-untested backup is a hypothesis."* This section exists so that claim is never true here.
+likely to matter: _"Not an attacker — losing 40GB of photographs... Test a restore. An
+untested backup is a hypothesis."_ This section exists so that claim is never true here.
 
 **Phase:** the procedure below is written now, in Phase 0, so it exists before there is
-anything real to lose. A *demonstrated* drill — actually running it and recording a
+anything real to lose. A _demonstrated_ drill — actually running it and recording a
 pass — is a **Phase 3 exit criterion**, per `docs/security.md`'s offsite-backup row:
 Phase 3 (the media pipeline) is the first phase where both Postgres and the media bucket
 hold real content, so it is the earliest point where running this drill proves anything

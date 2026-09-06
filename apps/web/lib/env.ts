@@ -74,9 +74,7 @@ export type Env = z.infer<typeof envSchema>
 export const parseEnv = (raw: Record<string, string | undefined>): Result<Env, string> => {
   const parsed = envSchema.safeParse(raw)
   if (!parsed.success) {
-    const message = parsed.error.issues
-      .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
-      .join('; ')
+    const message = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')
     return err(message)
   }
   return ok(parsed.data)

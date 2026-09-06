@@ -5,9 +5,9 @@ page by page with a realistic 3D page-flip, a bespoke admin panel for editing ev
 journey, and a sign-in screen with an optional one-time-code step. Built on Payload CMS 3
 inside Next.js, on Postgres.
 
-The source of truth for *what* to build is `handoff/design_handoff_travel_diary/`
+The source of truth for _what_ to build is `handoff/design_handoff_travel_diary/`
 (`README.md`, `SCREENS.md`, `DATA_MODEL.md`, `SECURITY.md`). The source of truth for
-*how* to build it is `CLAUDE.md`.
+_how_ to build it is `CLAUDE.md`.
 
 ## Prerequisites
 
@@ -65,7 +65,7 @@ npm run db:seed          # seed the ten prototype journeys and their pages  (→
 npm run db:migrate:create -w apps/web -- <name>  # generate a migration from schema changes
 ```
 
-The four commands marked *(→ apps/web)* are root passthroughs to the `apps/web`
+The four commands marked _(→ apps/web)_ are root passthroughs to the `apps/web`
 workspace script of the same name — every command above runs from the repository root.
 `db:migrate:create` is the one exception: it takes a migration name as an argument, and
 npm's argument forwarding does not survive a passthrough, so it keeps its `-w apps/web`.

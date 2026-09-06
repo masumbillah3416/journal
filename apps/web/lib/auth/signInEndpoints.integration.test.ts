@@ -40,7 +40,11 @@
  * ../adapters/console-mailer, ../testPayload.
  */
 import { MAX_ATTEMPTS } from '@travel-diary/domain/auth/otpChallenge'
-import { REMEMBERED_SESSION_LIFETIME_MS, SESSION_COOKIE_NAME, SESSION_LIFETIME_MS } from '@travel-diary/domain/auth/session'
+import {
+  REMEMBERED_SESSION_LIFETIME_MS,
+  SESSION_COOKIE_NAME,
+  SESSION_LIFETIME_MS,
+} from '@travel-diary/domain/auth/session'
 import { ACCOUNT_CODE_ATTEMPT_LIMIT, IP_ATTEMPT_LIMIT } from '@travel-diary/domain/auth/rateWindow'
 import { PASSWORD_REFUSED_STATE } from '@travel-diary/domain/auth/signInScreen'
 import type { SessionId, UserId } from '@travel-diary/domain/ids'
@@ -131,9 +135,7 @@ const LIFETIME_SLACK_MS = 60_000
  * for the digits of an issued code, and a fixture address containing digits
  * would make them ambiguous (the same reason `alphabeticLabel` exists).
  */
-const RUN_TAG = Array.from({ length: 4 }, () =>
-  String.fromCharCode(97 + Math.floor(Math.random() * 26)),
-).join('')
+const RUN_TAG = Array.from({ length: 4 }, () => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join('')
 
 /** Distinguishes one fixture from the next within a single run. */
 let fixtureCount = 0
@@ -659,9 +661,7 @@ describe('what the code step answers', () => {
   it('signs the reader in when the code is the one that was sent', async () => {
     const { user, session, code } = await aPendingSignIn()
 
-    const answered = await handleCodeStep(
-      aPost({ path: CODE_STEP_PATH, fields: { code }, cookie: carrying(session) }),
-    )
+    const answered = await handleCodeStep(aPost({ path: CODE_STEP_PATH, fields: { code }, cookie: carrying(session) }))
 
     expect(answered.status).toBe(303)
     expect(answered.headers.get('Location')).toBe(SIGNED_IN_PATH)
@@ -679,9 +679,7 @@ describe('what the code step answers', () => {
     // authenticating", below.
     const { session, code } = await aPendingSignIn()
 
-    const answered = await handleCodeStep(
-      aPost({ path: CODE_STEP_PATH, fields: { code }, cookie: carrying(session) }),
-    )
+    const answered = await handleCodeStep(aPost({ path: CODE_STEP_PATH, fields: { code }, cookie: carrying(session) }))
 
     expect(issuedSessionOf(answered)).not.toBe(session)
     expect(await authenticateAdminRequest(carrying(session))).toEqual({ ok: false, error: 'unknown' })
@@ -726,7 +724,9 @@ describe('what the code step answers', () => {
       }),
     )
 
-    expect(answered.headers.getSetCookie().join('\n')).toContain(`${KEEP_SIGNED_IN_COOKIE_NAME}=; Path=/admin; Max-Age=0`)
+    expect(answered.headers.getSetCookie().join('\n')).toContain(
+      `${KEEP_SIGNED_IN_COOKIE_NAME}=; Path=/admin; Max-Age=0`,
+    )
   })
 
   it('refuses a wrong code and issues nothing', async () => {
@@ -863,9 +863,7 @@ describe('what the code step answers', () => {
   it('never puts the code anywhere in what it answers', async () => {
     const { session, code } = await aPendingSignIn()
 
-    const answered = await handleCodeStep(
-      aPost({ path: CODE_STEP_PATH, fields: { code }, cookie: carrying(session) }),
-    )
+    const answered = await handleCodeStep(aPost({ path: CODE_STEP_PATH, fields: { code }, cookie: carrying(session) }))
 
     expect(JSON.stringify([...answered.headers.entries()])).not.toContain(code)
     expect(await answered.text()).toBe('')
@@ -1262,7 +1260,9 @@ describe('what signing out answers', () => {
   it('clears the dead identifier a refused request presented', async () => {
     // A browser holding a revoked or invented identifier should stop sending
     // it, rather than being refused on every request for the rest of its life.
-    const answered = await signOut(aPost({ path: '/admin/sign-out', fields: {}, cookie: carrying(newBrowserSession()) }))
+    const answered = await signOut(
+      aPost({ path: '/admin/sign-out', fields: {}, cookie: carrying(newBrowserSession()) }),
+    )
 
     expect(answered.headers.get('Set-Cookie')).toContain(`${SESSION_COOKIE_NAME}=; Path=/admin; Max-Age=0`)
   })

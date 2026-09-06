@@ -59,11 +59,7 @@ const SIGN_IN_MASTHEAD_TITLE_AVAILABLE_PX = 190
  * @param bounds - The floor and ceiling to clamp the estimate between.
  * @returns A font size in px, between `bounds.min` and `bounds.max` inclusive.
  */
-const fitted = (
-  text: string,
-  availablePx: number,
-  bounds: { readonly min: number; readonly max: number },
-): number => {
+const fitted = (text: string, availablePx: number, bounds: { readonly min: number; readonly max: number }): number => {
   // Zero-length text divides to Infinity, which `Math.min` resolves to the
   // maximum - the right answer for a title with nothing in it, and the reason
   // no explicit empty-string guard is needed here.
@@ -82,8 +78,7 @@ const fitted = (
  * fitSignInTitleSize('Wanderings') // 75
  * fitSignInTitleSize('Rio') // 84 - the panel's maximum
  */
-export const fitSignInTitleSize = (text: string): number =>
-  fitted(text, SIGN_IN_TITLE_AVAILABLE_PX, SIGN_IN_TITLE_SIZE)
+export const fitSignInTitleSize = (text: string): number => fitted(text, SIGN_IN_TITLE_AVAILABLE_PX, SIGN_IN_TITLE_SIZE)
 
 /**
  * The font size, in px, at which the book's name fits the sign-in screen's

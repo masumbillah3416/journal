@@ -127,7 +127,7 @@ script runs. The swipe is the fourth and the only one that cannot be.
    stylesheet 41,704 → 28,599, and the gated LCP fell **3,011.36ms → 2,932.66ms, green
    against 3,000 with the pinned cookie still in place**. Everything in THIS document
    stands unchanged — the decision, the cookie, the correction and its readback guard;
-   only *where the decision is spent* moved, from the `/p/[n]` page component to the
+   only _where the decision is spent_ moved, from the `/p/[n]` page component to the
    middleware, which calls the same `servedReadingSurface`.
 
 ## Consequences
@@ -154,11 +154,11 @@ script runs. The swipe is the fourth and the only one that cannot be.
   with Lighthouse's `simulate` preset, median of 5, against a production build, with the
   route's mobile branch removed as the "before" — the same tree, one `if` apart:
 
-  | | LCP median | LCP spread | script transfer | document |
-  |---|---|---|---|---|
-  | before (book) | 2,936.12 ms | 2,930.58–2,976.64 | 142,420 | 11,454 |
-  | **after (book, pinned)** | **3,011.36 ms** | 3,010.23–3,038.43 | **148,791** | 11,531 |
-  | after (mobile, unpinned) | 2,931.23 ms | 2,927.21–2,945.95 | 148,775 | 5,208 |
+  |                          | LCP median      | LCP spread        | script transfer | document |
+  | ------------------------ | --------------- | ----------------- | --------------- | -------- |
+  | before (book)            | 2,936.12 ms     | 2,930.58–2,976.64 | 142,420         | 11,454   |
+  | **after (book, pinned)** | **3,011.36 ms** | 3,010.23–3,038.43 | **148,791**     | 11,531   |
+  | after (mobile, unpinned) | 2,931.23 ms     | 2,927.21–2,945.95 | 148,775         | 5,208    |
 
   **+75.24ms against 3,000ms, and CLS stays 0. Script transfer is +6,371 bytes and passes
   its own 184,320 gate with 35,529 to spare.** The cause is exactly the +6,371 bytes: the
@@ -177,6 +177,7 @@ script runs. The swipe is the fourth and the only one that cannot be.
   are a real chunk split (which this bundler does not offer today), less code on this
   surface, or a budget that admits ADR 0008's floor. **Do not silence it by removing the
   cookie.**
+
 - **`e2e/layout.spec.ts` did not lose its mobile case.** Its four cases are the record of
   an S1 defect found at 390px, and below 860px there is no design box for them to ask
   about. Each is now paired with a mobile case asking the same question of the surface

@@ -123,8 +123,10 @@ export const SESSION_FIXTURE_DOMAIN = 'session.task-ten-fixture.example'
  * @example
  * const session = await aSignedInSession(`visual.${fixtureLabel(testInfo)}`)
  */
-export const fixtureLabel = (testInfo: { readonly project: { readonly name: string }; readonly workerIndex: number }): string =>
-  `${testInfo.project.name}.w${String(testInfo.workerIndex)}`
+export const fixtureLabel = (testInfo: {
+  readonly project: { readonly name: string }
+  readonly workerIndex: number
+}): string => `${testInfo.project.name}.w${String(testInfo.workerIndex)}`
 
 /** The domain the sign-in journey's own accounts live under. */
 export const JOURNEY_FIXTURE_DOMAIN = 'journey.task-ten-fixture.example'

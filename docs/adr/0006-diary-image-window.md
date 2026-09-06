@@ -126,6 +126,7 @@ an image box). See `apps/web/components/pages/deferredPhotograph.ts`.
   The window's arithmetic, its ±1 width, its `visible ⊆ loadsImages` property and its
   placeholder `src` are all unchanged by that ADR — only the route from
   `leafPresentation` to the `<img>` is.
+
 - The window is deliberately not configurable. A wider window is more bytes and a
   narrower one is pop-in; ±1 is the smallest window that preloads a turn, and there is
   no second caller to serve (CLAUDE.md §4).

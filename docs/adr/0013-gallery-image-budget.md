@@ -44,7 +44,7 @@ which this ADR revisits below.
    prefetch distance. **Rejected.** `CLAUDE.md` §6 says, in its own words, "virtualize
    the gallery grid past 100 tiles" — lowering that threshold to chase a byte budget is
    a rule change dressed as a fix, and it buys the number back by degrading a feature
-   the handoff sizes at roughly 100 assets per journey. The grid would get *worse* to
+   the handoff sizes at roughly 100 assets per journey. The grid would get _worse_ to
    make the gate read better.
 3. **Add an intermediate derivative tier** (~700px) to `collections/media.ts`, so a
    one-column phone tile costs roughly half of the 800px candidate while staying sharp
@@ -63,7 +63,7 @@ correctness bug is not currency to buy back a byte budget.
 **Set `resource-summary:image:size` for `/gallery/<slug>` to `600000`, not to the
 measured 477,329.**
 
-Two reasons, both about what the gate is *for*:
+Two reasons, both about what the gate is _for_:
 
 1. **The fixtures understate a real photograph.** The seeded placeholders are
    stripe-pattern PNGs; PH1-003's own residual note already records that Payload can
@@ -72,8 +72,8 @@ Two reasons, both about what the gate is *for*:
    these PNGs at the same pixel count. A gate set at today's exact measurement
    (477,329) would go red the day the first real photograph replaces a fixture — which
    would be the budget failing for the wrong reason: not because lazy-loading broke,
-   but because the number was never given any headroom to be a *derivative's* cost
-   rather than a *fixture's* cost.
+   but because the number was never given any headroom to be a _derivative's_ cost
+   rather than a _fixture's_ cost.
 2. **The gate still has to catch what it exists to catch.** Its job is not "gallery
    images are small" in the abstract; it is "lazy-loading is doing its job" — that a
    one-column phone viewport fetches roughly nine tiles' worth of images, not all
@@ -86,10 +86,10 @@ was changed to `"eager"` on a throwaway local build — nothing committed — an
 route was measured once under the same simulated-mobile Lighthouse settings
 `lighthouserc.json` asserts. Every one of Patagonia's 60 tiles fetched instead of nine:
 
-| | requests | image transfer |
-|---|---|---|
-| lazy-loading intact (this pass's baseline) | 9 | 477,329 |
-| lazy-loading disabled (the regression this gate exists to catch) | 60 | **4,600,585** |
+|                                                                  | requests | image transfer |
+| ---------------------------------------------------------------- | -------- | -------------- |
+| lazy-loading intact (this pass's baseline)                       | 9        | 477,329        |
+| lazy-loading disabled (the regression this gate exists to catch) | 60       | **4,600,585**  |
 
 4,600,585 bytes is **7.67×** the 600,000 limit — comfortably red. The gate at 600,000
 still catches the failure it is there for; it was not loosened past the point of being

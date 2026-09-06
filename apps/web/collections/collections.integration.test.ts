@@ -218,7 +218,9 @@ const FIXTURE_SESSION_HASH = 'f'.repeat(64)
  * @param account - The id of the user the challenge belongs to.
  * @returns The row's data.
  */
-const anOtpChallengeFor = (account: number): {
+const anOtpChallengeFor = (
+  account: number,
+): {
   user: number
   codeHash: string
   sessionHash: string
@@ -338,13 +340,7 @@ const signInAttemptsSchema = async (): Promise<string[]> => {
 }
 
 /** Every artefact `signInAttemptsSchema` looks for, when the migration is applied. */
-const SIGN_IN_ATTEMPTS_SCHEMA = [
-  'dimension-type',
-  'endpoint-type',
-  'index',
-  'locked-documents-column',
-  'table',
-]
+const SIGN_IN_ATTEMPTS_SCHEMA = ['dimension-type', 'endpoint-type', 'index', 'locked-documents-column', 'table']
 
 /**
  * Runs one migration's own `up()` or `down()`, outside Payload's batch
@@ -969,7 +965,12 @@ describe('collections', () => {
     // satisfy every assertion above and fail the first time anything wrote.
     const restored = await payload.create({
       collection: 'signInAttempts',
-      data: { dimension: 'account', endpoint: 'password', subject: 'test-reversibility', attemptedAt: new Date().toISOString() },
+      data: {
+        dimension: 'account',
+        endpoint: 'password',
+        subject: 'test-reversibility',
+        attemptedAt: new Date().toISOString(),
+      },
     })
     await payload.delete({ collection: 'signInAttempts', id: restored.id })
 

@@ -127,7 +127,7 @@ test.beforeEach(async ({ context, baseURL }, testInfo) => {
   await context.addCookies([{ name: 'td-session', value: session, url: `${baseURL ?? ''}/admin` }])
 })
 
-test.afterAll(async ({ }, testInfo) => {
+test.afterAll(async ({}, testInfo) => {
   // This project's own account, never the whole domain: the three viewports
   // run in parallel and a sweeping delete takes another one's session away
   // mid-run (see `SESSION_FIXTURE_DOMAIN`).
@@ -187,7 +187,10 @@ test('never draws a screen at the address §3.3’s own form posts to', async ({
   // the button, which is the only request shape worth asserting about.
   await page.goto(RESET_PATH)
   await page.getByLabel('Email').fill('reader@wanderings.travel')
-  await Promise.all([page.waitForURL(`**${RESET_PATH}?sent=*`), page.getByRole('button', { name: 'Send the link' }).click()])
+  await Promise.all([
+    page.waitForURL(`**${RESET_PATH}?sent=*`),
+    page.getByRole('button', { name: 'Send the link' }).click(),
+  ])
 
   // What the reader is left looking at is §3.3's confirmation, never the
   // expired screen - and never a 403.

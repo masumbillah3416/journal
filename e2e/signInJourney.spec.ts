@@ -162,7 +162,7 @@ test.skip(
   'the journey is the same at every viewport, and each run spends the account’s hourly code ceiling',
 )
 
-test.afterAll(async ({ }, testInfo) => {
+test.afterAll(async ({}, testInfo) => {
   // THIS WORKER'S accounts, in this file's own domain. Not the whole domain:
   // `afterAll` fires per worker, so a sweep would take another worker's account
   // away mid-sign-in — and not the shared session domain either, which
@@ -171,7 +171,10 @@ test.afterAll(async ({ }, testInfo) => {
   await removeSignedInFixture(`.${fixtureLabel(testInfo)}@${JOURNEY_FIXTURE_DOMAIN}`)
 })
 
-test('signs a reader in through the second factor, by filling in the real forms', async ({ page, context }, testInfo) => {
+test('signs a reader in through the second factor, by filling in the real forms', async ({
+  page,
+  context,
+}, testInfo) => {
   const failures = watchedFailures(page)
   const { email, masked } = journeyAccount('journey', testInfo)
   const account = await anAccountWithACodeStep(email)
@@ -214,7 +217,10 @@ test('signs a reader in through the second factor, by filling in the real forms'
   expect(failures, 'the journey produced console errors, page errors or 4xx/5xx responses').toEqual([])
 })
 
-test('signs the reader out again, and the guarded screen refuses them afterwards', async ({ page, context }, testInfo) => {
+test('signs the reader out again, and the guarded screen refuses them afterwards', async ({
+  page,
+  context,
+}, testInfo) => {
   const { email, masked } = journeyAccount('goodbye', testInfo)
   const account = await anAccountWithACodeStep(email)
   await submitThePasswordForm(page, account)

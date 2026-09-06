@@ -31,14 +31,7 @@ import { EXPIRY_MS, MAX_ATTEMPTS, RESEND_COOLDOWN_MS } from '@travel-diary/domai
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  CELL_COUNT,
-  CODE_STEP_ENDPOINT,
-  CodeStep,
-  PASSWORD_STEP_PATH,
-  RESEND_ENDPOINT,
-  SHAKE_MS,
-} from './CodeStep'
+import { CELL_COUNT, CODE_STEP_ENDPOINT, CodeStep, PASSWORD_STEP_PATH, RESEND_ENDPOINT, SHAKE_MS } from './CodeStep'
 
 /** A fixed instant to hang every clock-dependent case off. */
 const ISSUED_AT = 1_700_000_000_000
@@ -202,9 +195,7 @@ describe('CodeStep', () => {
 
     expect(address).not.toBeNull()
     expect(address?.textContent).toBe('he•••@wanderings.travel')
-    expect(host.textContent).toContain(
-      'A six-digit code went to he•••@wanderings.travel. It expires in 5:00.',
-    )
+    expect(host.textContent).toContain('A six-digit code went to he•••@wanderings.travel. It expires in 5:00.')
   })
 
   it('prints the whole expiry window at the instant the code was issued', () => {
@@ -578,9 +569,7 @@ describe('CodeStep', () => {
     // handed whatever the route read, and what a route with no live challenge
     // hands it is `readCodeScreen.ts`'s `NO_PENDING_ADDRESS`. What this case is
     // about is that the PANE prints a bullet run unchanged.
-    expect(renderStep({ maskedAddress: '•••' }).textContent).toContain(
-      'A six-digit code went to •••.',
-    )
+    expect(renderStep({ maskedAddress: '•••' }).textContent).toContain('A six-digit code went to •••.')
   })
 
   it('reads no browser storage at all while it renders', () => {

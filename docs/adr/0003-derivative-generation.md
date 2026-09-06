@@ -68,9 +68,9 @@ until video is turned back on.
   the whole upload pipeline, not two, and the same suite runs against both the `inline`
   and `worker` adapters (ADR 0004) so the still-image steps are proven identical
   regardless of which one is bound.
-- Originally reasoned as "the worker owns more responsibility (image *and* video
+- Originally reasoned as "the worker owns more responsibility (image _and_ video
   processing)" — with the worker deferred (ADR 0004), the still pipeline instead runs
-  wherever the upload request is handled (Vercel, in-process), and only the *deferred*
+  wherever the upload request is handled (Vercel, in-process), and only the _deferred_
   video path would still add a Fly.io container. The underlying trade this ADR made —
   one processing surface instead of two (a worker/pipeline plus a transform vendor) —
   is unaffected; only which infrastructure hosts that one surface changed.

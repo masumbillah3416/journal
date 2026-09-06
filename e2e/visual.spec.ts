@@ -285,11 +285,11 @@ const settled = async (page: Page, selectors: { readonly book: string; readonly 
  * account, every deployed instance shows the login screen too, so the previous
  * baselines were a picture of a transient condition.
  */
-test.beforeAll(async ({ }, testInfo) => {
+test.beforeAll(async ({}, testInfo) => {
   await aSignedInSession(`visual.${fixtureLabel(testInfo)}`)
 })
 
-test.afterAll(async ({ }, testInfo) => {
+test.afterAll(async ({}, testInfo) => {
   // This project's own account, never the whole domain: the three viewports
   // run in parallel and a sweeping delete takes another one's session away
   // mid-run (see `SESSION_FIXTURE_DOMAIN`).
@@ -525,7 +525,11 @@ test('matches the baseline screenshot of the signed-in screen', async ({ page, c
   // with `otp_required` left at its default, so the sign-in screen's own footer
   // line — and therefore every `admin-sign-in-*` baseline — is unchanged by it.
   await context.addCookies([
-    { name: 'td-session', value: await aSignedInSession(`visual.${fixtureLabel(testInfo)}`), url: `${baseURL ?? ''}/admin` },
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`visual.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
   ])
   await page.goto('/admin/sign-in/done', { waitUntil: 'networkidle' })
   await expect(page.locator('[data-signed-in-mark]')).toBeVisible()

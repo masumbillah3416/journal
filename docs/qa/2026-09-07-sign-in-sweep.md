@@ -80,7 +80,7 @@ entire existence (§36), and "Send it again" being a link rather than a second r
 
 - **Root cause (read, not guessed):** `apps/web/lib/auth/readCodeScreen.ts:88-90`. A challenge
   that has spent `MAX_ATTEMPTS` is `'exhausted'`, so `otp.pendingChallenge` returns `null`,
-  and the branch above returns the *no-challenge* placeholder —
+  and the branch above returns the _no-challenge_ placeholder —
   `{ maskedAddress: NO_PENDING_ADDRESS, issuedAt: renderedAt, attemptsSpent: 0 }`. That
   placeholder exists for a real reason the module's header states: refusing outright would
   make the screen an oracle for whether a browser holds a live challenge. But an **exhausted**
@@ -104,7 +104,7 @@ entire existence (§36), and "Send it again" being a link rather than a second r
   during cooldown", and the cooldown it counts is `RESEND_COOLDOWN_MS` since the code was
   **issued** — the same thirty seconds `otpService`'s `canResend` enforces on the server. A
   reload does not un-issue a code, so it must not restart the wait. The same is true of the
-  `{m:ss}` expiry: §3.2 prints when *the code* expires.
+  `{m:ss}` expiry: §3.2 prints when _the code_ expires.
 - **Actual:** the client ticker is correct and the anchor is not.
 
   ```
@@ -123,6 +123,7 @@ entire existence (§36), and "Send it again" being a link rather than a second r
 
   A countdown that reads the same value eight seconds later is not counting down from
   anything; it is being re-anchored per render.
+
 - **Root cause:** the same line as SIGNIN-001. `readCodeScreen.ts` returns
   `issuedAt: renderedAt` for the placeholder, and `CodeStep.tsx:260-261` derives **both**
   countdowns from `issuedAt` — `expiresIn` and `resendIn`. So for any request without a live
@@ -146,7 +147,7 @@ entire existence (§36), and "Send it again" being a link rather than a second r
   value at or above `MAX_ATTEMPTS`, because such a challenge is `'exhausted'` and takes the
   placeholder's `attemptsSpent: 0`. The component's own suite passes it a 3 directly and the
   case is green; nothing renders that state in a browser, at either build.
-- **Why it was reported rather than deleted:** it is the *right* copy, in the *right* place,
+- **Why it was reported rather than deleted:** it is the _right_ copy, in the _right_ place,
   taken verbatim from the handoff's prototype. It was unreachable because of SIGNIN-001, not
   because it was wrong — so the fix for SIGNIN-001 is what makes this branch live, and
   deleting it would have been deleting the handoff's answer to the defect above. That is what
@@ -256,12 +257,14 @@ Everything below was walked and found correct. Each line names what was checked,
 that a page loaded.
 
 **Instrumentation, all 21 route × viewport walks and the driven journey**
+
 - **0 page errors, 0 failed requests, 0 responses ≥ 400, 0 console errors or warnings.** The
   only console output on any admin route is React's own DevTools notice and Turbopack's
   `[HMR] connected`, both development-only.
 - **0 axe violations, full ruleset, no exclusions**, at every one of the 21 combinations.
 
 **`/admin/sign-in` (`SCREENS.md` §3, §3.1)**
+
 - Shell 1020px wide at `desktop`, `min-height: 592px`, `border-radius: 4px`, two equal columns
   (`510px 510px`); 952px at `mid` (`476px 476px`) — the max-1020 and the fluid narrowing both hold.
 - Cloth panel present and masthead absent above 820px; the exact opposite at 390px, where the
@@ -273,6 +276,7 @@ that a page loaded.
   Document title "Sign in — The back room".
 
 **`/admin/sign-in/code` (§3.2)**
+
 - Six cells, Courier 25px, `gap: 9px`, at **64px** (`desktop`), **58px** (`mid`) and **43px**
   (`mobile`) wide. The handoff's named defect is a collapse to 7px below 820px; the narrow
   layout is six 43px cells plus five 9px gaps inside a 302px pane, which is the padding doing
@@ -290,6 +294,7 @@ that a page loaded.
   received was captured and searched: `codeInAnyResponseBody = []`.
 
 **`/admin/reset` (§3.3)**
+
 - Pending state: "Send yourself a way back in", an email field, "Send the link", and "The link
   works once and lasts an hour. Nothing about the diary changes until you use it."
 - Sent state: `data-reset-state="sent"`, the green confirmation block, and the masked address
@@ -299,11 +304,13 @@ that a page loaded.
   used to put a whole address on the screen.
 
 **`/admin/reset/<token>` (deviation §36)**
+
 - A 40-hex token naming nothing renders `data-new-password-view="expired"`, "That link has
   expired", and "Send yourself another". No 404, no error, nothing about whether the token was
   ever real beyond what the same caller learns by posting to it.
 
 **`/admin/sign-in/done` (§3.4)**
+
 - Without a valid session the address redirects to `/admin/sign-in` — observed twice, both
   times because the driver's own cookie was scoped to `/` and the pre-auth identifier at
   `/admin` won the `Cookie` header, which is correct RFC 6265 ordering and not a defect. The
@@ -332,7 +339,7 @@ source maps, which carry this repository's comments and are not code any browser
 - **The code screen at the moment of expiry.** Watching `{m:ss}` reach 0:00 needs a five-minute
   wait per viewport; the domain's `otpCountdown` has its own unit cases and
   `otpService.integration.test.ts` proves the server refuses an expired code. What is unproven
-  here is what the pane *draws* at 0:00. The Resolution above changes what it will draw — an
+  here is what the pane _draws_ at 0:00. The Resolution above changes what it will draw — an
   expired challenge is now described rather than replaced by the placeholder, so the pane
   shows the real address and a countdown already at 0:00 with the resend enabled — and that
   is asserted at the service level ("reports an expired challenge with the instant it was
@@ -341,9 +348,9 @@ source maps, which carry this repository's comments and are not code any browser
   did not click it. That one click was SIGNIN-004, and it is the sharpest lesson in this
   report: a sweep that walks up to a control and stops is a sweep that has not tested it.
 - **Firefox and WebKit.** Only Chromium is installed. **UNRESOLVED** — `npx playwright install
-  firefox webkit` would settle it. This is the same limit Task 10 reported and declined to fake;
+firefox webkit` would settle it. This is the same limit Task 10 reported and declined to fake;
   the `Origin`-from-referrer-policy rule behind that task's blocker is Fetch-standard rather
-  than Chromium behaviour, so the same result is *expected* on both, and expected is not measured.
+  than Chromium behaviour, so the same result is _expected_ on both, and expected is not measured.
 - **The cell keyboard grammar** (typing advances, Backspace retreats, arrows move, Enter
   verifies, focus selects) and **paste**. Not re-walked here: `e2e/codeStep.spec.ts` drives all
   of it in a real browser, including the `onPaste` handler §3.2 warns `maxLength="1"` defeats.

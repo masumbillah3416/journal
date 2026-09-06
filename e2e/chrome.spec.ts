@@ -73,7 +73,11 @@ test('never lets the spine ribbon take a click meant for what is under it', asyn
     const x = rect.x + rect.width / 2
     const y = rect.y + rect.height / 2
     const hit = document.elementFromPoint(x, y)
-    return { x, y, hit: hit === null ? 'nothing - outside the viewport' : (hit.getAttribute('data-edge') ?? hit.tagName) }
+    return {
+      x,
+      y,
+      hit: hit === null ? 'nothing - outside the viewport' : (hit.getAttribute('data-edge') ?? hit.tagName),
+    }
   })
 
   // Pointer-transparent, so the hit test resolves straight past it.

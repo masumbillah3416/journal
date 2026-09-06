@@ -8,14 +8,14 @@ contract `CLAUDE.md` §1.2 requires this document to hold.
 Whenever a route or server action is added, it is documented here **in the same commit**
 (`CLAUDE.md` §1.3), as a row or subsection with these fields, in this order:
 
-| Field | Meaning |
-|---|---|
-| **Path / action name** | The URL for a route; the exported function name for a server action |
-| **Method** | `GET`/`POST`/etc. for a route; "server action" for a server action |
-| **Input** | Request params/body, or the server action's argument type — the Zod schema that validates it at the boundary (`CLAUDE.md` §3.1) |
-| **Output** | Response shape or return type |
-| **Errors** | Every error case the caller can observe, and what triggers each |
-| **Auth requirement** | None / signed-in / signed-in with a specific capability |
+| Field                  | Meaning                                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Path / action name** | The URL for a route; the exported function name for a server action                                                             |
+| **Method**             | `GET`/`POST`/etc. for a route; "server action" for a server action                                                              |
+| **Input**              | Request params/body, or the server action's argument type — the Zod schema that validates it at the boundary (`CLAUDE.md` §3.1) |
+| **Output**             | Response shape or return type                                                                                                   |
+| **Errors**             | Every error case the caller can observe, and what triggers each                                                                 |
+| **Auth requirement**   | None / signed-in / signed-in with a specific capability                                                                         |
 
 A stale entry here is worse than a missing one — changing a route's behaviour means
 updating its row in the same commit that changes the code (`CLAUDE.md` §1.3).
@@ -41,7 +41,7 @@ mid-phase.
 These four are not hand-written handlers — each re-exports a handler from
 `@payloadcms/next`, so their behaviour is Payload's, not ours. They are documented here
 anyway, in full, because they are real, reachable HTTP surface: `CLAUDE.md` §1.2 asks
-this document for *every* route, and an exposure surface nobody wrote down is an
+this document for _every_ route, and an exposure surface nobody wrote down is an
 exposure surface nobody reviews.
 
 **Authorization, for all of them.** None of these routes carries its own auth check.
@@ -56,8 +56,8 @@ they do, "signed-in" is the whole policy, and it is enforced by Payload rather t
 anything in this repository.
 
 **`admin.disable` does not gate these routes.** `payload.config.ts` sets
-`admin.disable: process.env.NODE_ENV === 'production'`, which disables Payload's *admin
-panel* only. Payload's own type documentation is explicit that the way to disable the
+`admin.disable: process.env.NODE_ENV === 'production'`, which disables Payload's _admin
+panel_ only. Payload's own type documentation is explicit that the way to disable the
 REST and GraphQL endpoints is to delete the `app/(payload)/api` directory, not to set
 this flag. `/api/**` and `/api/graphql` therefore stay live in production and are
 governed solely by the access control above. The playground is the one exception, and
@@ -104,7 +104,7 @@ for a different reason — see its row.
   `request.credentials: 'include'` so it sends the caller's Payload session cookie.
 - **Errors:** `404 Route Not Found` when it is disabled (see below).
 - **Auth requirement:** **none on the route itself.** The page is served unauthenticated
-  to anyone who can reach it; it is a *schema browser and request console*, and the
+  to anyone who can reach it; it is a _schema browser and request console_, and the
   queries a visitor fires from it run under that visitor's own session, so it grants no
   data an unauthenticated caller could not already request against `/api/graphql`. What
   it does expose without a session is the full shape of the schema.
@@ -267,7 +267,7 @@ for a different reason — see its row.
 - **Output:** an HTML document: that journey's gallery (`SCREENS.md` §1.8) — the header's
   back control, "Full gallery" eyebrow, the journey's name with `{place} · {dates}`
   beside it and a `{n} photos · {m} clips` census, then a `repeat(auto-fill,
-  minmax({thumbSize}px, 1fr))` grid of one square tile per visible frame. Its content is
+minmax({thumbSize}px, 1fr))` grid of one square tile per visible frame. Its content is
   `apps/web/lib/readGalleryBundle.ts`'s `GalleryBundle`. `generateMetadata` returns the
   page's own title (`{name} — Full gallery`), description and a canonical
   `/gallery/<slug>`.
@@ -327,8 +327,8 @@ records why they live in the middleware while the session check does not.
   `Referrer-Policy` note below is about.
 - **Every admin response carries the admin's security headers:**
   `Content-Security-Policy: default-src 'self'; base-uri 'none'; object-src 'none';
-  frame-ancestors 'none'; form-action 'self'; connect-src 'self'; font-src 'self';
-  img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'`,
+frame-ancestors 'none'; form-action 'self'; connect-src 'self'; font-src 'self';
+img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'`,
   plus `Referrer-Policy: same-origin`, `X-Content-Type-Options: nosniff` and
   `X-Robots-Tag: noindex, nofollow`. In DEVELOPMENT, and only there, `script-src` also
   carries `'unsafe-eval'`, which React's development build needs and its production build
@@ -342,6 +342,7 @@ records why they live in the middleware while the session check does not.
   set the `origin` header itself — stayed green. `same-origin` keeps `Origin` populated for
   the same-origin posts this app makes and still sends nothing cross-origin, so
   `/admin/reset/<token>`'s live token never leaves in a `Referer`.
+
 - **A pre-auth identifier is minted** into `td-session` for a browser arriving at a public
   admin address on a safe method with no session cookie at all. It authenticates nothing
   (no `sessions` row names it); it exists so `signIn` has the non-null `browserSession` it
@@ -386,7 +387,7 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   refuses one and so has no copy for it). Its content is `apps/web/lib/auth/readSignInScreen.ts`'s
   `SignInScreenContent` — the `book` global's title, subtitle and cloth colour, and
   `users.otpRequired`. `metadata` sets the document title and `robots: { index: false,
-  follow: false }`.
+follow: false }`.
 - **Errors:** none observable. Every absent value degrades rather than throwing: a
   cleared title or subtitle prints nothing, an unset cloth colour falls back to the
   handoff's default, and an absent account — which is the seeded database's actual state
@@ -484,10 +485,10 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   an unmasked address in that parameter — a URL reaches every access log between here and
   the reader (CLAUDE.md §7).
 - **Output:** an HTML document: the same `SCREENS.md` §3 shell every sign-in state is
-  drawn in, with §3.3's reset pane in the form panel. *Pending:* "← Back to sign in", the
+  drawn in, with §3.3's reset pane in the form panel. _Pending:_ "← Back to sign in", the
   "Forgotten" eyebrow, "Send yourself a way back in", a lede, a rule, one Email field,
   "Send the link", and "The link works once and lasts an hour. Nothing about the diary
-  changes until you use it." *Sent:* the same head with "Check your email", then the green
+  changes until you use it." _Sent:_ the same head with "Check your email", then the green
   confirmation block (`rgba(47,107,104,.07)`, a 14px rotated `#2f6b68` mark, the masked
   address), "Sign in with the new password" and "Send it again". `metadata` sets the
   document title and `robots: { index: false, follow: false }`.
@@ -498,7 +499,7 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   not, because there is exactly one code path.** `SECURITY.md` §3 requires the reset
   endpoint to "respond identically whether or not the address exists", and
   `apps/web/lib/auth/passwordReset.ts` discharges it by deriving the masked address from
-  what was *submitted* rather than from a row. This route is told one thing — whether a
+  what was _submitted_ rather than from a row. This route is told one thing — whether a
   request was made — so a "no such account" state is not something it could draw without
   first being handed the answer the whole path exists to withhold.
 
@@ -541,10 +542,10 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   with; there is deliberately no `state=expired`, because the link's own state is read
   here, and one fact read in one place cannot disagree with itself.
 - **Output:** an HTML document: the §3 shell with the set-a-new-password pane in it.
-  *Form:* "← Back to sign in", the "Forgotten" eyebrow, "Choose a new password", a lede, a
+  _Form:_ "← Back to sign in", the "Forgotten" eyebrow, "Choose a new password", a lede, a
   rule, one password field with a right-inset Show/Hide, a hidden `token` field, and "Set
-  the new password". *Rejected:* the same, with "That password was not accepted. Try a
-  longer one." in §3.1's error box. *Expired:* "That link has expired", a lede, a rule and
+  the new password". _Rejected:_ the same, with "That password was not accepted. Try a
+  longer one." in §3.1's error box. _Expired:_ "That link has expired", a lede, a rule and
   "Send yourself another", with **no form and no field at all**. `metadata` sets the
   document title and `robots: { index: false, follow: false }` — which matters more here
   than on any other screen, since this address carries a live credential in its path.
@@ -554,7 +555,7 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   names nothing is the expired state, served `200`.
 - **Auth requirement:** the token is the authorisation. Nothing else is read.
 - **Notes:** **this screen is not in the handoff.** `SCREENS.md` §3.3 draws the reset
-  *request* in two states and stops; the prototype has no screen for the link, because a
+  _request_ in two states and stops; the prototype has no screen for the link, because a
   prototype can pretend the link worked. Phase ruling F47 gave it to Task 9, and it is
   assembled from §3.3's own surface rather than invented (`docs/deviations.md` §36).
 
@@ -693,6 +694,7 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   integration suite sent a single field, so it agreed with the handler; this row had
   recorded the real shape since Task 8 and nothing read it. Found by typing a code into the
   real pane in a browser.
+
 - **Output:** a `303` with an empty body. `/admin/sign-in/done` with the issued session's
   `Set-Cookie` and a cleared `td-keep-signed-in` when the code is right;
   `/admin/sign-in/code` when it is not; `/admin/sign-in` when the browser carries no

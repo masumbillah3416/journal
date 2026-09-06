@@ -168,7 +168,7 @@ retained. That is a materially different exposure from the one §7 exists to pre
   so production — where `NODE_ENV` is `production` — takes the masked branch. The
   dangerous state requires an explicit opt-in, not merely the absence of a guard.
 - **It is narrow.** The exemption covers the body only. The recipient address is masked
-  to `m***@example.com` on *both* branches — asserted by its own test — so the one thing
+  to `m***@example.com` on _both_ branches — asserted by its own test — so the one thing
   §7 says about addresses holds unconditionally, in development too.
 - **It is the only one.** `eslint.config.js` carries a `no-console` override naming this
   single file rather than a blanket disable, so an accidental `console.log` anywhere else
@@ -234,7 +234,7 @@ columns = ceil(entryCount / 11)
 rows    = ceil(entryCount / columns)
 ```
 
-What is *not* honoured is the sentence that closes the same section: "Verified: 31
+What is _not_ honoured is the sentence that closes the same section: "Verified: 31
 entries render as 4 columns × 8 rows with zero overflow." For 31 entries this formula
 gives **3 columns × 11 rows**.
 
@@ -247,7 +247,7 @@ was kept rather than the example, on three grounds: it is given as the algorithm
 code block, and an algorithm is the more precise of the two statements; the handoff's
 own prototype runs exactly it (`Travel Diary.dc.html`:
 `Math.max(1, Math.ceil(contents.length / 11))`, then
-`Math.ceil(contents.length / nCols)`); and the section's *other* stated case — eleven
+`Math.ceil(contents.length / nCols)`); and the section's _other_ stated case — eleven
 entries in a single column, which is what the seeded ten-journey book produces — holds
 only under the formula.
 
@@ -323,7 +323,7 @@ two.
 
 1. The full-bleed cloth's gradient end stop, `rgba(0,0,0,.28)`, is now **opaque**:
    `linear-gradient(160deg, {cloth} 0%, color-mix(in srgb, {cloth} 72%, #000) 130%)`. That
-   end colour is what the handoff's own 28%-opaque black *resolves to* on the cloth — the
+   end colour is what the handoff's own 28%-opaque black _resolves to_ on the cloth — the
    same tone, no longer letting anything through it.
 2. The years line's colour is `rgba(238,220,180,.78)`, not §1.1's `rgba(238,220,180,.5)`.
    `.78` is the alpha the subtitle already carries, so no new value enters the palette.
@@ -336,13 +336,13 @@ literal values. Measured from the rendered pixels in a real browser at all three
 projects, not estimated (`e2e/support/coverContrast.ts`); the `desktop` figures below are
 the tightest of the three:
 
-| Cover line | Size | Before | After | Required |
-|---|---|---|---|---|
-| "Travel Diary" eyebrow | 12px | **2.86:1** | 4.52:1 | 4.5:1 |
-| "Wanderings" title | 124px | 3.81:1 | 8.13:1 | 3:1 |
-| Subtitle | 22px italic | **2.72:1** | 5.33:1 | 4.5:1 |
-| "Kept by {owner}" | 12.5px | **2.37:1** | 4.73:1 | 4.5:1 |
-| Years | 12.5px | **1.87:1** | 5.26:1 | 4.5:1 |
+| Cover line             | Size        | Before     | After  | Required |
+| ---------------------- | ----------- | ---------- | ------ | -------- |
+| "Travel Diary" eyebrow | 12px        | **2.86:1** | 4.52:1 | 4.5:1    |
+| "Wanderings" title     | 124px       | 3.81:1     | 8.13:1 | 3:1      |
+| Subtitle               | 22px italic | **2.72:1** | 5.33:1 | 4.5:1    |
+| "Kept by {owner}"      | 12.5px      | **2.37:1** | 4.73:1 | 4.5:1    |
+| Years                  | 12.5px      | **1.87:1** | 5.26:1 | 4.5:1    |
 
 Only the 124px title is large text under SC 1.4.3, which needs 24px or 18.66px bold — the
 22px italic subtitle does **not** qualify for the 3:1 exemption and is held to 4.5:1 like
@@ -350,7 +350,7 @@ the three Courier lines.
 
 The cause was in the specified gradient rather than in the transcription; the handoff's
 own prototype renders the same way. `linear-gradient(160deg, {cloth} 0%,
-rgba(0,0,0,.28) 130%)` interpolates from an *opaque* colour to a 28%-opaque black, so the
+rgba(0,0,0,.28) 130%)` interpolates from an _opaque_ colour to a 28%-opaque black, so the
 cloth's own alpha falls to about `.72` by mid-page and the light paper face beneath the
 cover shows through, lifting the background from `#2f4a47` to roughly `#5e6d67` exactly
 where the small Courier lines sit. Making the end stop opaque removes that wash and clears
@@ -392,7 +392,7 @@ because the prototype is part of the same handoff directory.
 1. **The left column's order is the spec's, not the prototype's.** `SCREENS.md` §1.3
    numbers the left column's five children explicitly — eyebrow, highlight list, rule
    and note, **tally ticket**, then **ephemera slot**. The prototype's DOM puts the
-   ephemera scrap *above* the tally ticket. The spec's order is used. Both orders behave
+   ephemera scrap _above_ the tally ticket. The spec's order is used. Both orders behave
    identically under the flex rules the same paragraph gives (the scrap is the only
    `flex: 1` child either way), so this is a visual ordering choice, not a layout one.
 
@@ -411,7 +411,7 @@ because the prototype is part of the same handoff directory.
    costs the diary route no client JavaScript.
 
 4. **The ephemera scrap has an empty `alt`, not the prototype's `role="img"
-   aria-label="Pasted ephemera"`.** `ephemera` is a fixed role in the schema, and the
+aria-label="Pasted ephemera"`.** `ephemera` is a fixed role in the schema, and the
    thing in the slot is a texture behind tape rather than a photograph with a subject —
    the seed says as much where it creates one. An empty `alt` takes it out of the
    accessibility tree, which is what a decorative image should do; announcing "Pasted
@@ -500,14 +500,14 @@ diary route at every viewport. Measured by axe-core in the pinned Playwright con
 (`mcr.microsoft.com/playwright:v1.62.1-noble`), not estimated — the run failed 18 of 24
 cases in `e2e/a11y.spec.ts` with two distinct findings, one per tab state:
 
-| Tab state | Composite foreground | Background | Measured | Required |
-|---|---|---|---|---|
-| Inactive (`--td-ink-diary-muted` at `.62`) | `#a99f8d` | `#f6f4f1` | **2.38:1** | 4.5:1 |
-| Active (`--td-ink` at `.62`) | `#7f857e` | `#fbf6e9` | **3.50:1** | 4.5:1 |
+| Tab state                                  | Composite foreground | Background | Measured   | Required |
+| ------------------------------------------ | -------------------- | ---------- | ---------- | -------- |
+| Inactive (`--td-ink-diary-muted` at `.62`) | `#a99f8d`            | `#f6f4f1`  | **2.38:1** | 4.5:1    |
+| Active (`--td-ink` at `.62`)               | `#7f857e`            | `#fbf6e9`  | **3.50:1** | 4.5:1    |
 
 8.5px is not large text under SC 1.4.3 by any reading, so 4.5:1 is the floor. Raising the
 opacity alone cannot reach it: the inherited inactive ink (`#7a6b50`) measures 4.43:1
-*solid*, so no opacity at all clears 4.5 over paper. The colour therefore had to move too.
+_solid_, so no opacity at all clears 4.5 over paper. The colour therefore had to move too.
 `--td-ink-body` at `.78` measures ~5.0:1 in both states, and `.78` is the same lever and
 the same number §12 above used for the cover's years line, so no new value enters the
 palette.
@@ -579,7 +579,6 @@ red before green: with Task 8's `flex-wrap` and `min-width: min(210px, 100%)` re
 that case fails on `mobile` and passes on `desktop` and `mid`, which is exactly the shape
 of the original defect.
 
-
 ---
 
 ## 17 · NOT a deviation — the lightbox's Download goes through our own handler, because `SECURITY.md` says it must
@@ -612,7 +611,7 @@ carries no scheme and no authority and cannot resolve to `MEDIA_ORIGIN`.
 signed URL.** The planned entry said "a short-lived signed URL with
 `Content-Disposition: attachment` and a strict `Content-Type`". The route serves the
 bytes directly instead, and that is a deliberate simplification rather than an omission.
-A signed URL is what you reach for when the *store* is the thing answering the request
+A signed URL is what you reach for when the _store_ is the thing answering the request
 and your app is only issuing permission — the signature is the permission travelling
 without you. Here the app is already in the request path: it has just done four database
 checks (published journey, right journey, not hidden, downloads allowed) and it holds
@@ -659,7 +658,7 @@ for the transport.
 **Handoff, `SCREENS.md` §1.8:** "caption below truncated to one line."
 
 **The project's own standing policy**, applied by `Cover.tsx`, `Notes.tsx`,
-`PhotoMount.tsx` and `About.tsx`: an empty optional line prints *nothing* — not an empty
+`PhotoMount.tsx` and `About.tsx`: an empty optional line prints _nothing_ — not an empty
 element — because none of those fields is `required: true` and an editor who has not
 filled one in is an ordinary state, not a corrupted row.
 
@@ -723,7 +722,6 @@ not the seed. See `docs/qa/2026-09-03-phase-1-closing-sweep.md` PH1-002.
 
 **No clips, in any of them** — see §18.
 
-
 ---
 
 ## 21 · The lightbox's metadata line is cream at 58%, not 45%
@@ -783,12 +781,12 @@ exact `#3b332a`: cream label, `--td-cream-dim` sub-label, and an active tab fill
 reusing it puts `#7a6b50` ink on `rgba(120,98,60,.07)` over `#3b332a`. Measured with this
 repository's own `contrastRatio`/`composite` (`packages/domain/src/contrast.ts`):
 
-| Line | Prototype's colours | Built | WCAG 2.1 AA floor |
-|---|---|---|---|
-| tab name (Caveat 26px) | **2.28:1** | 10.57:1 | 4.5:1 (Caveat is not a large-text face at this size in the sense SC 1.4.3 means) |
-| tab sub-line (Courier 9px) | **1.68:1** | 6.10:1 | 4.5:1 |
-| active tab name | — | 10.03:1 | 4.5:1 |
-| active tab sub-line | — | 4.98:1 | 4.5:1 |
+| Line                       | Prototype's colours | Built   | WCAG 2.1 AA floor                                                                |
+| -------------------------- | ------------------- | ------- | -------------------------------------------------------------------------------- |
+| tab name (Caveat 26px)     | **2.28:1**          | 10.57:1 | 4.5:1 (Caveat is not a large-text face at this size in the sense SC 1.4.3 means) |
+| tab sub-line (Courier 9px) | **1.68:1**          | 6.10:1  | 4.5:1                                                                            |
+| active tab name            | —                   | 10.03:1 | 4.5:1                                                                            |
+| active tab sub-line        | —                   | 4.98:1  | 4.5:1                                                                            |
 
 Both prototype figures are well under the floor, and `e2e/a11y.spec.ts`'s
 drawer-open case runs axe with **no exclusions**, so the literal transcription would have
@@ -810,10 +808,10 @@ explicitly, or a redesign of the panel's background. Neither exists today.
 **Where:** `CLAUDE.md` §6's LCP row; `lighthouserc.json` and `lighthouserc.book.json`'s
 `largest-contentful-paint` assertions; `docs/adr/0008-lcp-budget-and-the-framework-floor.md`.
 
-**What the plan said.** Task 13's brief, Step 5, in full: *"Confirm Lighthouse now passes
+**What the plan said.** Task 13's brief, Step 5, in full: _"Confirm Lighthouse now passes
 against `/p/1`. If LCP exceeds 2500ms, report the measurement — do NOT raise the
-budget."* That is as explicit as an instruction gets, and it is recorded here because
-this file's preamble covers deliberate exceptions to *this project's own* standards, and
+budget."_ That is as explicit as an instruction gets, and it is recorded here because
+this file's preamble covers deliberate exceptions to _this project's own_ standards, and
 a departure from the project's own plan is one of them. Nothing in `SCREENS.md`,
 `README.md`, `DATA_MODEL.md` or `SECURITY.md` names an LCP number; the 2,500ms figure was
 this repository's, written into `CLAUDE.md` §6 in Phase 0 before any route existed.
@@ -854,7 +852,7 @@ was escalated rather than taken.
 `aggregationMethod` at `median` — the last of those specifically because lhci's default
 (`optimistic`) takes the best of five runs and would have loosened the gate a second
 time, silently. `docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md` later
-made the gate *stricter* in the dimension that mattered, by pinning the two viewports the
+made the gate _stricter_ in the dimension that mattered, by pinning the two viewports the
 two reading surfaces are actually measured at, and `docs/testing.md` §7.0 is the
 current-state table for every number involved.
 
@@ -939,7 +937,7 @@ disagreed about auth.
 as `ip`, and a table that already hashes one secret should not keep the other in
 cleartext — `SECURITY.md` rotates the pre-auth session id away on login precisely because
 it is untrusted. It is SHA-256 rather than the slow, salted hash used for `codeHash`
-because this column is the *lookup key* and must be deterministic and indexable; the
+because this column is the _lookup key_ and must be deterministic and indexable; the
 input is a high-entropy identifier, so unlike a six-digit code there is no dictionary to
 run against it. It is not a relationship to `sessions` because at issue time the visitor
 is unauthenticated: minting `sessions` rows for pre-auth visitors would bloat that table
@@ -971,7 +969,7 @@ If you did not ask for it, nothing has happened and you can ignore this.
 
 None of that copy comes from the handoff.
 
-**Rationale:** `SCREENS.md` §3.2 specifies the one-time-code *screen* verbatim, down to
+**Rationale:** `SCREENS.md` §3.2 specifies the one-time-code _screen_ verbatim, down to
 the ring widths on the six cells and the wording of "A six-digit code went to {masked}.
 It expires in {m:ss}." — and says nothing whatsoever about the email that carries the
 code. The message has to say something, so this is invented text written to echo the
@@ -1012,7 +1010,7 @@ revokes those rows (§29).
 **Rationale:** `SECURITY.md`'s third prototype hole requires "Rate limit per account **and**
 per IP — a sliding window on both the password and code endpoints", and a sliding window
 has to count something that outlives the request. `DATA_MODEL.md` provides nowhere to
-count it: `otpChallenges` records codes being *issued* rather than attempts being *made*,
+count it: `otpChallenges` records codes being _issued_ rather than attempts being _made_,
 exists only for the code endpoint, and carries no per-address index. As with
 `sessionHash` (§25), the handoff's two documents disagree — one asks for a behaviour, the
 other omits the state it needs — and the hardening requirement wins, the same precedence
@@ -1029,7 +1027,7 @@ nobody looks at it again. A shared cache would also work and was rejected on cos
 operational surface for a single-author diary, not on the merits; the full options list is
 `docs/adr/0016-rate-limit-window-storage.md`.
 
-**Why one row per attempt rather than a counter:** a counter row is a *fixed* window,
+**Why one row per attempt rather than a counter:** a counter row is a _fixed_ window,
 which an attacker straddles at the boundary to get twice the limit in a moment;
 `SECURITY.md` asks for a sliding window by name. One row per attempt also makes the
 counting race-free without a lock, which is the other half of the decision: each request
@@ -1057,7 +1055,7 @@ F26 (storage), F27 (the limits) and F28 (rank, not read-then-count); a
 `access: { read: () => false, create: () => false, update: () => false }` and comments it
 `// server only`. **It is not server-only.** Payload applies its `defaultAccess` —
 `({ req: { user } }) => Boolean(user)`, "signed in, or refused" — to any operation an
-access block omits, so `delete` fell through to *any authenticated caller*. Verified
+access block omits, so `delete` fell through to _any authenticated caller_. Verified
 against a real Payload rather than reasoned about: with the predicate absent, a signed-out
 delete is refused and a **signed-in delete succeeds**.
 
@@ -1072,7 +1070,7 @@ field list.
 
 **What this cost, recorded because the cost is the lesson:** four documents — the module
 headers, `docs/deviations.md` §27, `docs/security.md`'s rate-limit row and
-`docs/adr/0016-rate-limit-window-storage.md` — each asserted `() => false` on *every*
+`docs/adr/0016-rate-limit-window-storage.md` — each asserted `() => false` on _every_
 operation, and a guard test sat beside them named "so nobody can clear or forge their own
 window" while asserting read, create and update for a **signed-out** caller only. The
 signed-out half could never have caught this: `defaultAccess` refuses a signed-out caller
@@ -1105,8 +1103,8 @@ user's session rows.** On the very collection that backs the Account screen's "W
 are signed in" list and its Revoke button, that is one account holder enumerating
 another's devices and signing them out.
 
-Verified against a real Payload rather than reasoned about, and verified *across two
-accounts*, which is the only way this class of defect is visible: with the block removed,
+Verified against a real Payload rather than reasoned about, and verified _across two
+accounts_, which is the only way this class of defect is visible: with the block removed,
 Alice's `find` returns Bob's session row, her `update` sets `revokedAt` on it, and her
 `delete` removes it — five cases in
 `apps/web/collections/sessions.access.integration.test.ts` fail, and every one of them
@@ -1225,7 +1223,7 @@ Unlike `otpChallenges.expiresAt`, this column **is** the authorization input rat
 purge index. There is no second derivation of the same fact to disagree with it:
 `sessionState` (`packages/domain/src/auth/session.ts`) reads this column and nothing else
 decides a session's lifetime, and the identifier in the cookie is opaque, so it carries no
-expiry of its own. The distinction is drawn deliberately — §25's column exists *because*
+expiry of its own. The distinction is drawn deliberately — §25's column exists _because_
 two sources of truth for one fact would make the domain constant decorative, and here
 there is only one.
 
@@ -1255,10 +1253,10 @@ If you did not ask for it, nothing has happened and you can ignore this.
 Neither the copy nor the path `/admin/reset/<token>` comes from the handoff.
 
 **Rationale:** the same as §26's, one screen further on. `SCREENS.md` §3.3 specifies the
-reset *screen* — "Send yourself a way back in", the email field, "Send the link", and the
+reset _screen_ — "Send yourself a way back in", the email field, "Send the link", and the
 sent state's "The link works once and lasts an hour" — and says nothing about the email
 that carries the link, which nonetheless has to say something. The one sentence of copy
-that *is* the handoff's, "The link works once and lasts an hour", is reused verbatim
+that _is_ the handoff's, "The link works once and lasts an hour", is reused verbatim
 rather than paraphrased, so the screen and the message make the same promise about the
 same link; the rest echoes §26's voice rather than introducing a third one.
 
@@ -1271,7 +1269,7 @@ read the session it is about to establish. The hour is not ours: it is Payload's
 **The screen this link lands on now exists, and §36 records it.** When Task 5 shipped, it
 did not: the token was minted, mailed and provably consumable — `passwordReset.integration.test.ts`
 completed a reset with it and then signed in with the new password — while the address the
-link named answered 404, because Task 9's brief covered §3.3's two *request* states and not
+link named answered 404, because Task 9's brief covered §3.3's two _request_ states and not
 the set-a-new-password screen. Phase ruling F47 gave that screen to Task 9, which built the
 `[token]` route, the form, the `payload.resetPassword` call, the invalid/expired state and
 the end-to-end case that follows the mailed link out of the mailer's outbox
@@ -1325,12 +1323,12 @@ background exactly where the small Courier lines sit. Even with §12's opaque en
 applied, the eyebrow measured **4.429:1** at the prototype's `.72`, against WCAG 2.1 AA's
 4.5:1 for text that size. Raising that one alpha brings both Courier lines clear:
 
-| Cloth panel line | Size | Before | After | Needs |
-|---|---|---|---|---|
-| Travel Diary | 10.5px | 4.429 | **4.865** | 4.5 |
-| Wanderings | 75px (fitted) | 7.877 | 7.877 | 3 (large text) |
-| subtitle | 17px italic | 5.269 | 5.269 | 4.5 |
-| The back room | 10.5px | 4.640 | **5.102** | 4.5 |
+| Cloth panel line | Size          | Before | After     | Needs          |
+| ---------------- | ------------- | ------ | --------- | -------------- |
+| Travel Diary     | 10.5px        | 4.429  | **4.865** | 4.5            |
+| Wanderings       | 75px (fitted) | 7.877  | 7.877     | 3 (large text) |
+| subtitle         | 17px italic   | 5.269  | 5.269     | 4.5            |
+| The back room    | 10.5px        | 4.640  | **5.102** | 4.5            |
 
 "Before" is the fully undeviated screen — §1.1's `.28` end stop left translucent, with the
 prototype's `.72` alpha — measured, not reasoned about. The title and subtitle do not move,
@@ -1521,7 +1519,7 @@ answer a screen `SCREENS.md` does not describe: one password field with a right-
 Show/Hide, "Set the new password", and an expired state carrying "That link has expired"
 and "Send yourself another". Every string on it is new, and so is the endpoint.
 
-**Rationale:** `SCREENS.md` §3.3 draws the reset *request* in two states and stops there,
+**Rationale:** `SCREENS.md` §3.3 draws the reset _request_ in two states and stops there,
 and the handoff's own login prototype does the same — a prototype can pretend the link
 worked. The consequence was not theoretical: for four tasks this repository sent a real
 reset email carrying a real token to an address that answered 404, with every mechanism
@@ -1531,7 +1529,7 @@ It is **assembled from §3.3's own surface rather than invented**, so it is a de
 copy and not in design: the same "← Back to sign in" link, the same "Forgotten" eyebrow,
 the same Caveat 50px title, the same rule at `22px 0 20px`, §3.1's own field, Show/Hide
 and error box, and §3.3's own primary button at `margin-top: 18px`. The one sentence of
-copy that *is* the handoff's — "The link works once and lasts an hour" — opens both of its
+copy that _is_ the handoff's — "The link works once and lasts an hour" — opens both of its
 ledes, so the email, the request screen and this screen make the same promise in the same
 words.
 
@@ -1556,7 +1554,7 @@ words.
    none, so the only refusal made in the browser is an empty field — the same call
    `PasswordStep.tsx` makes about the sign-in field, for the same reason. Payload's own
    rule is the policy, and when it refuses, the endpoint reports it as a refused
-   *password* rather than as a refused *link*, so a reader with a perfectly good link is
+   _password_ rather than as a refused _link_, so a reader with a perfectly good link is
    not sent round the whole loop for three missing characters.
 
 **What would reverse this:** the repository owner supplying their own copy or their own
@@ -1571,7 +1569,7 @@ every redirect above.
 
 ## 37 · "Send it again" is a link back to the form, not a second request
 
-**What changed:** in `SCREENS.md` §3.3's *sent* state, the secondary control "Send it
+**What changed:** in `SCREENS.md` §3.3's _sent_ state, the secondary control "Send it
 again" is an anchor back to `/admin/reset` — the pending form — rather than a control that
 re-sends the link.
 
@@ -1582,7 +1580,7 @@ thing that reaches it is the **masked** value, which cannot be posted anywhere. 
 of keeping the real one were worse. Putting it in the redirect would write a whole address
 into a URL, and therefore into every access log the response passes through, which is
 precisely what CLAUDE.md §7 and the masking exist to prevent. Putting it in a hidden field
-would mean the sent state had to be *told* the address, which is the same disclosure one
+would mean the sent state had to be _told_ the address, which is the same disclosure one
 layer down.
 
 The cost is one keystroke run: a reader who wants another link types the address again,
@@ -1629,11 +1627,11 @@ At that point the line can name a number and this entry goes.
 > replacements were measured the same way — against a running server, not read off the
 > route tree:
 >
-> | Address | What it does now |
-> | --- | --- |
+> | Address                     | What it does now                                                                                                                                                                                                                                                                                                                                          |
+> | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 > | `POST /admin/reset/request` | **303** to `/admin/reset?sent=<masked>`, mounted at `app/(admin)/admin/reset/request/route.ts`. `GET` of the same address is still **404**, by an exported `GET` handler of its own rather than by the reservation — a `route.ts` with only a `POST` answers `405`, which would have been a different answer from the one the address gave the day before |
-> | `POST /admin/sign-out` | **303** to `/admin/sign-in` with the session revoked and the cookie cleared, for a signed-in reader; the same `303` and nothing revoked for anybody else |
-> | `GET /admin/sign-in/done` | **303** to `/admin/sign-in` for an unauthenticated request, **200** for a live session. It calls `requireAdminSession` before it reads or draws anything |
+> | `POST /admin/sign-out`      | **303** to `/admin/sign-in` with the session revoked and the cookie cleared, for a signed-in reader; the same `303` and nothing revoked for anybody else                                                                                                                                                                                                  |
+> | `GET /admin/sign-in/done`   | **303** to `/admin/sign-in` for an unauthenticated request, **200** for a live session. It calls `requireAdminSession` before it reads or draws anything                                                                                                                                                                                                  |
 >
 > The reservation stays, exactly as the last paragraph of this entry said it would.
 > Everything below is kept as the record of what was true between Tasks 9 and 10.
@@ -1643,11 +1641,11 @@ three `POST`s made from them are not. **Measured against the running app, not re
 from the route tree** — the first row is what the Task 9 review found stated the opposite
 of what was true, and what ruling F56 fixed:
 
-| Address | What an unauthenticated reader gets |
-| --- | --- |
+| Address                                               | What an unauthenticated reader gets                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /admin/reset/request` (the reset form's action) | **404.** No route is mounted — but nothing about the route tree gave that for free: `app/(admin)/admin/reset/[token]` matches any single segment under `/admin/reset`, so for the length of commit `c9fec84` this address answered **200 with "That link has expired"**, telling a reader that a link they had never asked for was dead. The 404 is held by `apps/web/lib/auth/resetPath.ts`'s `RESERVED_RESET_SEGMENTS`, which `readNewPasswordScreen` answers `notFound()` for. `GET` of the same address is also 404 |
-| `POST /admin/sign-out` | **404**, Next's own not-found page. Nothing is mounted at it and nothing dynamic sits above it |
-| `GET /admin/sign-in/done` | **200**, and **unguarded** — it draws §3.4 for anybody who asks for the address |
+| `POST /admin/sign-out`                                | **404**, Next's own not-found page. Nothing is mounted at it and nothing dynamic sits above it                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `GET /admin/sign-in/done`                             | **200**, and **unguarded** — it draws §3.4 for anybody who asks for the address                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 The comparison this entry used to make — that the reset form posts to a 404 "exactly as
 the password step's does" — was wrong in the way that matters. `POST /admin/sign-in/password`

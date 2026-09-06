@@ -18,12 +18,13 @@ Write to `docs/qa/YYYY-MM-DD-<area>-sweep.md`. It has exactly these parts, in th
 ```markdown
 # Sweep: <area> — YYYY-MM-DD
 
-**Build:** <git sha>  **Engine:** <playwright-headed | chrome>  **Routes walked:** <n>
+**Build:** <git sha> **Engine:** <playwright-headed | chrome> **Routes walked:** <n>
 **Result:** <n> defects — S1:<n> S2:<n> S3:<n> S4:<n>
 
 ## Defects
 
 ### <ID> · <S1|S2|S3|S4> · <one-line title>
+
 - **Route:** <url + viewport>
 - **Steps:** <numbered, minimal, reproducible from a cold load>
 - **Expected:** <what the handoff says, with the file and section cited>
@@ -53,12 +54,12 @@ IDs are `<AREA>-<nnn>`, e.g. `DIARY-004`, and never reused.
 
 ## Severity ladder
 
-| | Meaning |
-|---|---|
-| **S1** | Blocks reading or authoring, loses data, or is a security hole |
-| **S2** | Wrong behaviour — the feature works but does the wrong thing |
+|        | Meaning                                                            |
+| ------ | ------------------------------------------------------------------ |
+| **S1** | Blocks reading or authoring, loses data, or is a security hole     |
+| **S2** | Wrong behaviour — the feature works but does the wrong thing       |
 | **S3** | Visual drift from the handoff — wrong token, spacing, weight, copy |
-| **S4** | Polish — real, but nobody is blocked |
+| **S4** | Polish — real, but nobody is blocked                               |
 
 Copy drift is **S3, never S4**. The handoff states the voice is deliberate: "nineteen tarts, no regrets" is content, not a placeholder.
 
@@ -67,6 +68,7 @@ Copy drift is **S3, never S4**. The handoff states the voice is deliberate: "nin
 The handoff documents defects that already happened once. They are the likeliest to happen again.
 
 **Diary**
+
 - Click page content near the fold — a back face with `pointer-events` unset silently swallows every click; Contents links and gallery buttons look dead while their handlers are fine
 - Flip fast, repeatedly, both directions — does the `_busy` latch always release, or does the book seize
 - Flip, then look for mirrored or stranded content — `visibility` must be hidden on any page not current, turning, or being revealed
@@ -77,6 +79,7 @@ The handoff documents defects that already happened once. They are the likeliest
 - At ≥2× DPR, confirm the `hero2x` derivative is served, not a soft upscale
 
 **Admin**
+
 - Switch journeys and re-check every panel — per-journey state leaking into a global is the handoff's most-repeated defect, five separate times
 - Sort a gallery by date, then click a tile — does the selected-frame panel show the same photo the grid highlights, or did a positional index desync
 - Toggle a switch twice — nested toggle state read stale and toggles appeared dead
@@ -85,6 +88,7 @@ The handoff documents defects that already happened once. They are the likeliest
 - Drop each table below 1180 / 900 / 860 / 780px — columns shed by priority, actions cell stays
 
 **Sign-in**
+
 - Below 820px the OTP cells must not collapse (they went to 7px)
 - Run reset and verify in overlapping order — a shared timeout handle left "Checking…" stuck forever
 - Wrong code three times: shake, clear, and the limit must hold **server-side**
@@ -92,12 +96,12 @@ The handoff documents defects that already happened once. They are the likeliest
 
 ## Common mistakes
 
-| Mistake | Instead |
-|---|---|
-| Reporting "the flip feels janky" | Record fps, the exact steps, and the property being animated |
-| Sweeping only the happy path | Cold load, deep link, back button, refresh mid-flow |
-| One viewport | Every breakpoint the handoff names for that file |
-| Fixing bugs as you find them | Finish the sweep first. Fixing mid-sweep loses the rest of the route |
-| Skipping the console | It is where the silent half of the defects live |
+| Mistake                          | Instead                                                              |
+| -------------------------------- | -------------------------------------------------------------------- |
+| Reporting "the flip feels janky" | Record fps, the exact steps, and the property being animated         |
+| Sweeping only the happy path     | Cold load, deep link, back button, refresh mid-flow                  |
+| One viewport                     | Every breakpoint the handoff names for that file                     |
+| Fixing bugs as you find them     | Finish the sweep first. Fixing mid-sweep loses the rest of the route |
+| Skipping the console             | It is where the silent half of the defects live                      |
 
 When the report is written, fix the defects with the `fixing-browser-defects` skill. Never patch straight from the sweep.

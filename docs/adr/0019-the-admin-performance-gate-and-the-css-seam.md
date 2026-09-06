@@ -62,7 +62,7 @@ cookie — would collect the redirect. Rather than mint a session for the collec
 left out: it ships strictly **fewer** client modules than the three that are collected,
 because `SignedInStep` is not a `'use client'` component and the other three panes are, so
 its script total cannot exceed theirs. `/admin/reset/<token>` renders `NewPasswordStep`,
-which is a client component and therefore *not* bounded by that argument; it was measured
+which is a client component and therefore _not_ bounded by that argument; it was measured
 directly instead — 8 scripts, 176,211 bytes gzipped, against the 320KB ceiling — and is
 recorded in `docs/testing.md` §7 rather than collected, because its address needs a live
 token that changes every run.
@@ -137,12 +137,12 @@ route entries to keep apart.
 **Isolated by measurement, one variable at a time**, each a full `next build` on a deleted
 `.next`:
 
-| Build | `/p/1` stylesheets | `/admin/sign-in` stylesheets |
-|---|---|---|
-| Both modules shared (as committed) | **4** | 3 |
-| `fonts.ts` unshared only | 3 | 3 |
-| `tokens.css` unshared only | 3 | 3 |
-| Neither shared | **2** | 2 |
+| Build                              | `/p/1` stylesheets | `/admin/sign-in` stylesheets |
+| ---------------------------------- | ------------------ | ---------------------------- |
+| Both modules shared (as committed) | **4**              | 3                            |
+| `fonts.ts` unshared only           | 3                  | 3                            |
+| `tokens.css` unshared only         | 3                  | 3                            |
+| Neither shared                     | **2**              | 2                            |
 
 Each shared module costs the diary exactly one render-blocking request.
 
@@ -153,7 +153,7 @@ accommodate a real regression is dishonest, and this is a real regression.
 
 **B — a Next.js configuration knob.** `experimental.cssChunking` was tried and is not
 available: `next build` refuses it with "`experimental.cssChunking: false` is only
-supported with webpack". `'strict'` produces *more* requests by design. Measured, not
+supported with webpack". `'strict'` produces _more_ requests by design. Measured, not
 assumed.
 
 **C — un-share the fonts module.** The admin declares its own `next/font/local` faces
@@ -173,7 +173,7 @@ The layout's header said a second declaration would emit a second `@font-face` s
 second preload "for bytes the browser already has". Nothing was saved: `(diary)` and
 `(admin)` have separate root layouts, so no document ever loads both, and there is no
 browser that already has them. What is duplicated is ~1.8KB of `@font-face` CSS served
-only to a signed-in reader. What is *not* duplicated is the fonts: `src` points at the
+only to a signed-in reader. What is _not_ duplicated is the fonts: `src` points at the
 same five files, `next/font/local` copies each to a content-hashed URL, and identical
 bytes hash the same.
 
@@ -200,7 +200,7 @@ and the temporary copy that produced the third row was deleted.
   `@import` of the shared tokens is the one crossing that remains, and it is here on the
   record with the number it costs.
 - **`npm run test:perf` no longer short-circuits.** It ran `lhci autorun && lhci autorun
-  && lhci autorun`, so with the book gate red the admin gate — added in the same task,
+&& lhci autorun`, so with the book gate red the admin gate — added in the same task,
   third in the chain — never executed once under its own command. It is now
   `scripts/run-lighthouse.mjs`, which runs every config it is named and exits non-zero if
   any failed. The configs stay named in `package.json` rather than discovered, so
@@ -213,15 +213,19 @@ and the temporary copy that produced the third row was deleted.
   ```
   2,467 B  packages/tokens/src/tokens.css        SHARED with (admin), deliberately - see the Decision
   3,338 B  app/(diary)/diary.css + the diary's own next/font @font-face rules, merged
- 28,599 B  the diary's CSS modules
   ```
 
-  `/admin/sign-in` serves three of the same shape: the same shared token chunk, its own
-  `admin.css` + `@font-face` merge, and its own modules.
+28,599 B the diary's CSS modules
 
-  **A FOURTH stylesheet on `/p/1` means something new is shared across the seam.** Two would
-  mean the token crossing had been closed, which nothing has decided to do. Writing "two" here
-  first — while §"The cause" three paragraphs above measures three — is worth recording as
-  the error it was: a heuristic written from the intent of the fix rather than from the
-  measurement sitting beside it, which is the same species as the four documents that once
-  asserted `() => false` on a collection that permitted `delete`.
+```
+
+`/admin/sign-in` serves three of the same shape: the same shared token chunk, its own
+`admin.css` + `@font-face` merge, and its own modules.
+
+**A FOURTH stylesheet on `/p/1` means something new is shared across the seam.** Two would
+mean the token crossing had been closed, which nothing has decided to do. Writing "two" here
+first — while §"The cause" three paragraphs above measures three — is worth recording as
+the error it was: a heuristic written from the intent of the fix rather than from the
+measurement sitting beside it, which is the same species as the four documents that once
+asserted `() => false` on a collection that permitted `delete`.
+```

@@ -66,9 +66,7 @@ export const appliedMigrationCount = async (): Promise<number> => {
     )
     if (!probe.rows.some((row) => row.present !== null)) return 0
 
-    const counted = await client.query<{ applied: string }>(
-      'SELECT count(*) AS applied FROM payload_migrations',
-    )
+    const counted = await client.query<{ applied: string }>('SELECT count(*) AS applied FROM payload_migrations')
     // `count(*)` always returns exactly one row, but `noUncheckedIndexedAccess`
     // does not know that. Summing the rows says the same thing as reading
     // `rows[0]` without introducing a defensive branch no test can ever take,
