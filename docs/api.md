@@ -353,6 +353,33 @@ value for it, and the row's expiry; whichever route ends up in front of it is wh
 that header and what supplies the `device` and `location` labels the Account screen
 lists.
 
+Phase 2 Task 5 added the module that calls all three, and it is still not a route:
+`apps/web/lib/auth/signIn.ts` — `signIn({ email, password, browserSession, keepSignedIn,
+ip, device, location })` — plus its sibling `apps/web/lib/auth/passwordReset.ts` —
+`requestPasswordReset({ email, ip })`. `signIn` answers `ok({ status: 'otp-required',
+maskedTo })` or `ok({ status: 'signed-in', session })`, or `err` with one of
+`'invalid-credentials'`, `'rate-limited'` or `'code-not-sent'`; `requestPasswordReset`
+answers `ok({ maskedTo })` or `err` with `'rate-limited'` or `'delivery-failed'`.
+
+Three things about those shapes are worth stating here rather than leaving to be
+discovered by whoever writes the route in front of them:
+
+- **The three refusals are deliberately one.** An unknown address, a wrong password and a
+  locked account all answer `'invalid-credentials'`, and take the same time to do it
+  (`docs/security.md`, "No user enumeration"). **A route that gives them different status
+  codes, different headers or different response times re-opens the hole the module
+  closes** — this document's contract for that route must say so, and Task 10's row here
+  will.
+- **Neither sets a cookie.** `signIn` returns `startSession`'s whole `Set-Cookie` value
+  inside `session`; putting it on a response is the route's job. `browserSession` is the
+  identifier the browser is carrying — the pre-auth identifier for a browser that has
+  none — and it is superseded either way, so the route has to have one to hand.
+- **`requestPasswordReset` takes no origin from the request.** The origin its link is
+  built against is a dependency of the service, not a field of the request: a link built
+  from a `Host` header is a link an attacker can point at their own machine. The reset
+  screen the link lands on (`/admin/reset/<token>`) is not built yet — Phase 2 Task 9
+  builds §3.3's request states, and the screen that consumes the token is later still.
+
 Unlike the two above, the collection behind it is **not** closed to everybody:
 `sessions` carries a per-user ownership rule (`docs/deviations.md` §29), so the Account
 screen's list reaches these rows through Payload's own REST/Local API under the signed-in

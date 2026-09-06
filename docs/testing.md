@@ -46,12 +46,17 @@ Enforced by TWO configs, because no single Vitest run can execute everything:
   `apps/web/collections/**`, `apps/web/globals/**`, `apps/web/payload.config.ts` and
   `apps/web/migrations/**`, each gated per-file at what it genuinely measures.
   `apps/web/lib/auth/otpService.ts` (Phase 2 Task 3), `apps/web/lib/auth/rateLimit.ts`
-  (Task 4) and `apps/web/lib/auth/sessions.ts` (Task 6) are in this pass rather than the
-  Docker-free one for the same reason: every operation these modules perform writes and
-  then re-reads a row, and the claims their tests make — "only a hash was stored", "a
+  (Task 4), `apps/web/lib/auth/sessions.ts` (Task 6) and
+  `apps/web/lib/auth/signIn.ts`/`passwordReset.ts` (Task 5) are in this pass rather than
+  the Docker-free one for the same reason: every operation these modules perform writes
+  and then re-reads a row, and the claims their tests make — "only a hash was stored", "a
   concurrent burst was admitted in arrival order up to the limit and no further", "the
   superseded identifier no longer authenticates" — are claims about what Postgres did,
-  not about what a mock agreed to. All three are gated at **100/100/100**.
+  not about what a mock agreed to. `signIn.ts` adds a reason of its own: what it asserts
+  is that an unknown address and a wrong password cost the same TIME, and the time in
+  question is a PBKDF2 derivation Payload performs inside a real login against a real
+  row — a mocked credential store would make both arms instant and the measurement
+  meaningless. All five are gated at **100/100/100**.
   `sessions.ts` reached that honestly rather than by construction: it measured 94%
   branches first, and the two uncovered arms turned out to be reachable by any caller (a
   `UserId` that is not a Payload row id, handed to
@@ -1683,8 +1688,52 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   distinguished it, which is why only a case asserting the lock's DURATION could catch
   it (`docs/adr/0016-rate-limit-window-storage.md`).
 
-  What is still outstanding is anti-enumeration (Task 5) and the upload
-  worker's SVG and EXIF probes (Phase 3).
+  **Anti-enumeration and the wiring land in Phase 2 Task 5, and it is the task where
+  three mechanisms stop being mechanisms.** `apps/web/lib/auth/signIn.integration.test.ts`
+  is nineteen cases and `apps/web/lib/auth/passwordReset.integration.test.ts` eight, and
+  the four traps they are shaped around are the ones this repository has already been
+  caught by:
+
+  - **An anti-enumeration test that compares two error strings passes while the two paths
+    differ in timing.** So the identical-response case compares the WHOLE returned value,
+    and a second case MEASURES both branches — twenty-five interleaved samples per arm,
+    medians compared, asserted inside a deliberately wide 0.6–1.6 band. The timing path
+    was taken here rather than the structural one Task 3 fell back to for
+    `timingSafeEqual`, and the reason is the size of the signal: there the leak was ~13ns
+    behind a ~30ms derivation and could not be measured; here the whole ~40ms derivation
+    is what is missing from the miss path, which is an order of magnitude, not a
+    fraction. **Measured: 0.90 with the dummy derivation, 0.14 without it.**
+  - **A timing case where either arm can drift into a shortcut measures nothing.** Both
+    arms would look identical if both were refused by the rate limiter before reaching a
+    hash, or if the wrong-password arm had locked its own account and stopped hashing —
+    at which point the case passes with the mechanism deleted. So every sample uses a
+    fresh requesting address, a fresh sign-in address and a fresh account: no budget and
+    no lockout counter is spent twice.
+  - **An `otpRequired` test that stubs the flag proves nothing about where it is read.**
+    So every case sets it on the ROW and hands `signIn` a request carrying the OPPOSITE
+    value as an extra property — what a client trying to force it would look like. A
+    `SignInRequest` with no such field is the only thing that makes them pass. Reading it
+    from the request instead fails three cases.
+  - **A rotation test that asserts "a new session exists" passes while the pre-auth
+    identifier still authenticates.** So the rotation case authenticates the OLD
+    identifier and expects `'revoked'`. Passing `null` as `previous` fails it and nothing
+    else.
+
+  Twelve mutations were run against this task's code and each is recorded in the task
+  report with what failed: removing the dummy derivation (the timing case, 0.14), passing
+  `null` instead of the browser's identifier (the rotation case), reading `otpRequired`
+  from the request (three cases), giving the unknown address its own refusal (two cases),
+  giving the LOCKED account its own refusal (one case), removing the limiter call (four),
+  treating a NULL `otp_required` as not-required (one), removing normalisation (one), and
+  removing the claimed-address dimension from `admitPasswordAttempt` (four in `signIn`'s
+  suite and three in `rateLimit`'s), plus three against the reset module.
+
+  One test-quality lesson came out of that matrix and is worth repeating: the case
+  asserting that an unknown address spends the same windows as a known one originally
+  compared the two counts to each other, and **passed under the mutation that removed the
+  limiter entirely** — two zeroes are equal. It now asserts both counts are ONE.
+
+  What is still outstanding is the upload worker's SVG and EXIF probes (Phase 3).
 - **Run (once added):** included in `npm run test:integration` (these probes need a real
   database and, for the upload cases, the worker), so they run under `verify:full`.
 - **Add one (once added):** each row of `docs/security.md` that names a behaviour (not

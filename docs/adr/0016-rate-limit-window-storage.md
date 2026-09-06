@@ -39,8 +39,8 @@ shape any rate limiter naturally takes if nobody thinks about it.
    thing every other limit in this application is enforced by.
 3. **Reuse the `otpChallenges` table as the count.** Rejected. It counts the wrong thing
    in both dimensions: an `otpChallenges` row records a code being *issued*, not a code
-   being *guessed*, and it exists only for the code endpoint — the password endpoint
-   writes no row anywhere. It also has no per-IP index, and overloading a table whose rows
+   being *guessed*, and it exists only for the code endpoint — nothing writes one for a
+   password attempt, and nothing could write one for an address that names no account. It also has no per-IP index, and overloading a table whose rows
    are five-minute ephemera with a fifteen-minute window would tie two unrelated
    retention rules together.
 4. **A per-key counter row with `INSERT … ON CONFLICT DO UPDATE SET count = count + 1`.**
@@ -102,6 +102,7 @@ neither could be broken on its own, which is a pair of tests that can no longer 
 | One address, password endpoint | 20 | 15 minutes |
 | One address, code endpoint | 20 | 15 minutes |
 | One account, code endpoint | 10 | 15 minutes |
+| One CLAIMED ADDRESS, password endpoint | 10 | 15 minutes |
 | One account, password endpoint | Payload's `maxLoginAttempts: 5` / `lockTime: 15m` | — |
 
 Twenty per address because an office or a household behind one NAT is a single address to
@@ -119,11 +120,33 @@ thirty-second resend cooldown keeps them well clear of ten in fifteen minutes. W
 bounds is an attacker requesting fresh challenges from many addresses — the spray a
 per-address limit alone cannot see.
 
-**No second per-account limiter on the password endpoint.** `SECURITY.md` §3 assigns that
-job to Payload's own `maxLoginAttempts`/`lockTime`, so building one beside it would be two
-sources of truth for one rule (CLAUDE.md §7). That configuration is now exercised by
+**The password endpoint's second key is the CLAIMED ADDRESS, hashed — not the account**
+(phase ruling F43, added by Task 5 when the limiter acquired its first caller). Task 4
+left that dimension out entirely, on the reasoning that `SECURITY.md` §3 assigns the
+per-account password limit to Payload's own `maxLoginAttempts`/`lockTime` and a second
+limiter beside it would be two sources of truth for one rule (CLAUDE.md §7). Wiring
+`signIn` up showed the reasoning to be right about the *account* and wrong about the
+*endpoint*, for two reasons:
+
+- **Payload can only lock a row that exists.** For an address that names no account there
+  is no counter, no lock and no cooling-off period — so the per-IP window was the only
+  thing between an attacker and an unbounded supply of guesses at addresses of their
+  choosing, and an attacker with more than one address had nothing at all.
+- **A missing dimension is itself an enumeration oracle.** Keying it on an account row id
+  would mean the miss path did strictly less work than the hit path — one fewer insert
+  and one fewer rank query — on exactly the branch `SECURITY.md` requires to be
+  indistinguishable. Hashing the normalised address makes the two identical by
+  construction, and keeps a cleartext address out of a table that already holds raw IPs.
+
+**Ten rather than five**, so the two rules do not collide: for an address that names an
+account, Payload's lockout always binds first and stays the single source of truth for
+it; and a window that refused at the same count would refuse the unknown address one
+attempt *earlier* than the known one, which is the oracle again in a different place.
+Payload's configuration is exercised by
 `apps/web/collections/users.lockout.integration.test.ts` — see the consequences below for
-what writing that test found.
+what writing that test found — and the window by
+`apps/web/lib/auth/rateLimit.integration.test.ts` and
+`apps/web/lib/auth/signIn.integration.test.ts`.
 
 **Everything fails closed.** A non-finite instant, a negative or infinite window, a
 non-integer limit, a corrupt timestamp among the recorded attempts, or an attempt that
@@ -153,8 +176,7 @@ statement that was already being issued.
   whole point. It also survives a restart, a scale-out and a second region, none of which
   an in-memory window does.
 - **Two round trips per key per attempt** (a combined prune-and-insert, then a bounded
-  rank query). The password endpoint touches one key, so it costs two; the code endpoint
-  touches two keys, so it costs four. That is a fixed, small number, not an N+1, and it is
+  rank query). Both endpoints touch two keys, so both cost four. That is a fixed, small number, not an N+1, and it is
   paid only on the sign-in path.
 - **One residual race is accepted and named rather than hidden.** Postgres READ COMMITTED
   cannot see another transaction's uncommitted row, so an attempt whose INSERT is still in

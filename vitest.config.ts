@@ -341,6 +341,19 @@ export default defineConfig({
         // lives in `packages/domain/src/auth/session.ts`, which this pass
         // DOES measure, at the domain's 100% bar.
         'apps/web/lib/auth/sessions.ts',
+        // signIn.ts and passwordReset.ts (Phase 2 Task 5) are reachable only
+        // from their own `*.integration.test.ts` files, for the same reason
+        // as the three above and one more that is specific to them: what they
+        // assert is that an unknown address and a wrong password cost the
+        // same TIME, and the time in question is a PBKDF2 derivation Payload
+        // performs inside a real login against a real row. A mocked
+        // credential store would make both arms instant and the measurement
+        // meaningless. Gated by vitest.integration.config.ts instead. Their
+        // pure logic - the mask, the window arithmetic, the session lifetimes
+        // - lives in `packages/domain/src/auth/**`, which this pass DOES
+        // measure, at the domain's 100% bar.
+        'apps/web/lib/auth/signIn.ts',
+        'apps/web/lib/auth/passwordReset.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by

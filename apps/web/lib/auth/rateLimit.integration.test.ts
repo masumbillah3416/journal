@@ -13,13 +13,22 @@
  * evaluated against a three-guess budget
  * (`docs/adr/0015-otp-challenge-hashing.md`).
  *
- * BOTH DIMENSIONS ARE PROVEN INDEPENDENTLY, because limiting only one is the
+ * EVERY DIMENSION IS PROVEN INDEPENDENTLY, because limiting only one is the
  * common mistake. The per-IP burst fires many attempts from ONE address
  * against MANY accounts, so nothing but the address can be what refuses
  * them; the per-account burst fires many attempts against ONE account from
  * MANY addresses, so nothing but the account can be. Per-account alone lets
  * a botnet spray; per-IP alone lets one host grind a single account behind
  * rotating proxies.
+ *
+ * THE PASSWORD ENDPOINT HAS TWO WINDOWS TOO, and its second one is keyed on
+ * the CLAIMED SIGN-IN ADDRESS rather than on an account (phase ruling F43).
+ * At that step the account is not yet known and half the requests name none,
+ * so a key that needed a row id would leave the miss path doing strictly less
+ * work than the hit path — an enumeration oracle inside the limiter. Its
+ * cases here fire many requesting addresses at ONE sign-in address, so
+ * nothing but that address can be what refuses them, and one of them reads
+ * `subject` back to check it is a hash rather than the address.
  *
  * THE BURSTS ARE REAL CONCURRENCY — `Promise.all`, not a loop — and they
  * assert EXACTLY how many attempts were admitted, not merely that some were
@@ -47,8 +56,10 @@
  * that module's header.
  * Depends on: vitest, ./rateLimit, ../testPayload, `@travel-diary/domain`.
  */
+import { createHash } from 'node:crypto'
 import {
   ACCOUNT_CODE_ATTEMPT_LIMIT,
+  ADDRESS_PASSWORD_ATTEMPT_LIMIT,
   IP_ATTEMPT_LIMIT,
   SIGN_IN_WINDOW_MS,
 } from '@travel-diary/domain/auth/rateWindow'
@@ -98,6 +109,47 @@ const anAccount = (): UserId => {
   /* c8 ignore next -- `userId` refuses only an empty string, which a prefixed counter never is */
   if (!isOk(branded)) throw new Error('the fixture account id is empty')
   return branded.value
+}
+
+/**
+ * The domain every fixture sign-in address here belongs to.
+ *
+ * Unlike the IP and account prefixes, this one cannot be used to find the
+ * rows afterwards: the password endpoint keys its address window on a HASH of
+ * the address (phase ruling F43), so nothing recognisable survives into
+ * `subject`. {@link fixtureAddressKeys} is what `afterAll` deletes by instead.
+ */
+const FIXTURE_EMAIL_DOMAIN = 'rate-limit-fixture.example'
+
+/** Every subject this file's sign-in addresses hashed to, so `afterAll` can find them. */
+const fixtureAddressKeys: string[] = []
+
+/**
+ * A fixture sign-in address no other case in this run is using.
+ *
+ * @returns An address unique within this run, already recorded for cleanup.
+ */
+const anEmailAddress = (): string => {
+  fixtureCount += 1
+  const address = `reader-${String(fixtureCount)}@${FIXTURE_EMAIL_DOMAIN}`
+  fixtureAddressKeys.push(addressKey(address))
+  return address
+}
+
+/**
+ * The `subject` an address is expected to be counted under.
+ *
+ * SHA-256 is spelled out here rather than imported from the module under
+ * test, deliberately: this file has to find the rows it wrote in order to
+ * delete them, and a helper that asked the implementation what it wrote would
+ * agree with any answer, including no hashing at all. The cases below assert
+ * the property — 64 hex characters, never the address — rather than this
+ * recomputation, which exists for `afterAll`.
+ * @param address - The normalised sign-in address.
+ * @returns 64 hex characters.
+ */
+function addressKey(address: string): string {
+  return createHash('sha256').update(address).digest('hex')
 }
 
 /** The shared test Payload instance, assigned by `beforeAll`. */
@@ -185,10 +237,10 @@ const admitted = (decisions: readonly { readonly ok: boolean }[]): number =>
 
 /** Removes every row this file wrote, so a run starts and ends from a known state. */
 const removeFixtureAttempts = async (): Promise<void> => {
-  await payload.db.pool.query(`DELETE FROM sign_in_attempts WHERE subject LIKE $1 OR subject LIKE $2`, [
-    `${FIXTURE_IP_PREFIX}%`,
-    `${FIXTURE_ACCOUNT_PREFIX}%`,
-  ])
+  await payload.db.pool.query(
+    `DELETE FROM sign_in_attempts WHERE subject LIKE $1 OR subject LIKE $2 OR subject = ANY($3)`,
+    [`${FIXTURE_IP_PREFIX}%`, `${FIXTURE_ACCOUNT_PREFIX}%`, fixtureAddressKeys],
+  )
 }
 
 beforeAll(async () => {
@@ -210,7 +262,7 @@ describe('the per-address window', () => {
 
     const decisions = []
     for (let attempt = 0; attempt < IP_ATTEMPT_LIMIT + 1; attempt += 1) {
-      decisions.push(await limiter.admitPasswordAttempt({ ip }))
+      decisions.push(await limiter.admitPasswordAttempt({ ip, email: anEmailAddress() }))
     }
 
     expect(admitted(decisions)).toBe(IP_ATTEMPT_LIMIT)
@@ -256,7 +308,7 @@ describe('the per-address window', () => {
     const ip = anAddress()
     await attemptsRankingAfterThisOne(ip, IP_ATTEMPT_LIMIT)
 
-    const decision = await limiter.admitPasswordAttempt({ ip })
+    const decision = await limiter.admitPasswordAttempt({ ip, email: anEmailAddress() })
 
     expect(decision).toEqual({ ok: true, value: undefined })
   })
@@ -266,7 +318,7 @@ describe('the per-address window', () => {
     // password is not thereby out of code attempts.
     const ip = anAddress()
     for (let attempt = 0; attempt < IP_ATTEMPT_LIMIT + 1; attempt += 1) {
-      await limiter.admitPasswordAttempt({ ip })
+      await limiter.admitPasswordAttempt({ ip, email: anEmailAddress() })
     }
 
     const onTheCodeEndpoint = await limiter.admitCodeAttempt({ ip, account: anAccount() })
@@ -317,24 +369,64 @@ describe('the per-account window', () => {
     expect(await recordedAttempts('account', account)).toBe(1)
   })
 
-  it('leaves the password endpoint to Payload lockout, counting no account window there', async () => {
-    // SECURITY.md §3 assigns the per-account password limit to Payload's
-    // `maxLoginAttempts`/`lockTime` (proved in
-    // `apps/web/collections/users.lockout.integration.test.ts`), so this
-    // module must not keep a second one beside it — two sources of truth for
-    // one rule (CLAUDE.md §7). The password endpoint takes no account at all,
-    // which is why this asserts on the rows rather than on a decision.
-    const ip = anAddress()
+})
 
-    await limiter.admitPasswordAttempt({ ip })
+describe('the per-address window on the password endpoint', () => {
+  it('admits ten password attempts against one address and refuses the eleventh, however many addresses they come from', async () => {
+    // ONE sign-in address, MANY requesting addresses: each IP sees a single
+    // attempt, so the per-IP window cannot be what refuses anything here.
+    // Payload's lockout cannot be either — no account is involved at all,
+    // which is the case phase ruling F43 exists for.
+    const email = anEmailAddress()
 
-    const passwordRows = await payload.db.pool.query<{ attempts: string }>(
-      `SELECT count(*) AS attempts FROM sign_in_attempts WHERE endpoint = 'password' AND dimension = 'account'
-         AND subject LIKE $1`,
-      [`${FIXTURE_ACCOUNT_PREFIX}%`],
+    const decisions = []
+    for (let attempt = 0; attempt < ADDRESS_PASSWORD_ATTEMPT_LIMIT + 1; attempt += 1) {
+      decisions.push(await limiter.admitPasswordAttempt({ ip: anAddress(), email }))
+    }
+
+    expect(admitted(decisions)).toBe(ADDRESS_PASSWORD_ATTEMPT_LIMIT)
+  })
+
+  it('records the address attempt even when the requesting address is already out of budget', async () => {
+    // The same short-circuit the code endpoint is guarded against: a
+    // dimension that stopped counting once the other refused would let an
+    // attacker grind one sign-in address for free from behind a spent IP.
+    const spentIp = anAddress()
+    for (let attempt = 0; attempt < IP_ATTEMPT_LIMIT + 1; attempt += 1) {
+      await limiter.admitPasswordAttempt({ ip: spentIp, email: anEmailAddress() })
+    }
+    const email = anEmailAddress()
+
+    await limiter.admitPasswordAttempt({ ip: spentIp, email })
+
+    expect(await recordedAttempts('account', addressKey(email))).toBe(1)
+  })
+
+  it('counts the address under a hash, so the table never holds a sign-in address beside an IP', async () => {
+    // CLAUDE.md §7 and phase ruling F43: `sign_in_attempts` already holds raw
+    // IPs, and an address written in cleartext beside them would put the two
+    // halves of an identity in one table.
+    const email = anEmailAddress()
+
+    await limiter.admitPasswordAttempt({ ip: anAddress(), email })
+
+    const subjects = await payload.db.pool.query<{ subject: string }>(
+      `SELECT subject FROM sign_in_attempts WHERE dimension = 'account' AND endpoint = 'password' AND subject = $1`,
+      [addressKey(email)],
     )
+    expect(subjects.rows.map((row) => row.subject)).toEqual([expect.stringMatching(/^[0-9a-f]{64}$/u)])
+    expect(subjects.rows.map((row) => row.subject)).not.toContain(email)
+  })
 
-    expect(passwordRows.rows.reduce((total, row) => total + Number(row.attempts), 0)).toBe(0)
+  it('gives two different addresses two different budgets', async () => {
+    const spent = anEmailAddress()
+    for (let attempt = 0; attempt < ADDRESS_PASSWORD_ATTEMPT_LIMIT; attempt += 1) {
+      await limiter.admitPasswordAttempt({ ip: anAddress(), email: spent })
+    }
+
+    const another = await limiter.admitPasswordAttempt({ ip: anAddress(), email: anEmailAddress() })
+
+    expect(another).toEqual({ ok: true, value: undefined })
   })
 })
 
@@ -342,13 +434,13 @@ describe('the window sliding', () => {
   it('admits again once the recorded attempts have aged out of the window', async () => {
     const ip = anAddress()
     for (let attempt = 0; attempt < IP_ATTEMPT_LIMIT; attempt += 1) {
-      await limiter.admitPasswordAttempt({ ip })
+      await limiter.admitPasswordAttempt({ ip, email: anEmailAddress() })
     }
-    expect(await limiter.admitPasswordAttempt({ ip })).toEqual({ ok: false, error: 'rate-limited' })
+    expect(await limiter.admitPasswordAttempt({ ip, email: anEmailAddress() })).toEqual({ ok: false, error: 'rate-limited' })
 
     await ageAttemptsOutOfTheWindow('ip', ip)
 
-    expect(await limiter.admitPasswordAttempt({ ip })).toEqual({ ok: true, value: undefined })
+    expect(await limiter.admitPasswordAttempt({ ip, email: anEmailAddress() })).toEqual({ ok: true, value: undefined })
   })
 
   it('sweeps attempts that have aged out under a DIFFERENT key, so the table is bounded by the window rather than by how many keys were ever seen', async () => {
@@ -359,11 +451,11 @@ describe('the window sliding', () => {
     // address survived a write against a different one.
     const abandoned = anAddress()
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      await limiter.admitPasswordAttempt({ ip: abandoned })
+      await limiter.admitPasswordAttempt({ ip: abandoned, email: anEmailAddress() })
     }
     await ageAttemptsOutOfTheWindow('ip', abandoned)
 
-    await limiter.admitPasswordAttempt({ ip: anAddress() })
+    await limiter.admitPasswordAttempt({ ip: anAddress(), email: anEmailAddress() })
 
     expect(await recordedAttempts('ip', abandoned)).toBe(0)
   })
@@ -371,11 +463,11 @@ describe('the window sliding', () => {
   it('prunes the attempts that have aged out, so the table stays bounded without a scheduler', async () => {
     const ip = anAddress()
     for (let attempt = 0; attempt < IP_ATTEMPT_LIMIT; attempt += 1) {
-      await limiter.admitPasswordAttempt({ ip })
+      await limiter.admitPasswordAttempt({ ip, email: anEmailAddress() })
     }
     await ageAttemptsOutOfTheWindow('ip', ip)
 
-    await limiter.admitPasswordAttempt({ ip })
+    await limiter.admitPasswordAttempt({ ip, email: anEmailAddress() })
 
     expect(await recordedAttempts('ip', ip)).toBe(1)
   })

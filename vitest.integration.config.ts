@@ -118,6 +118,8 @@ export default defineConfig({
         'apps/web/lib/auth/testing/otpProbes.ts',
         'apps/web/lib/auth/rateLimit.ts',
         'apps/web/lib/auth/sessions.ts',
+        'apps/web/lib/auth/signIn.ts',
+        'apps/web/lib/auth/passwordReset.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
         'apps/web/payload.config.ts',
@@ -207,6 +209,18 @@ export default defineConfig({
         // a `NOT NULL integer` column cannot reach, and each states so at the
         // point of the exclusion.
         'apps/web/lib/auth/sessions.ts': { lines: 100, branches: 100, functions: 100 },
+        // signIn.ts and passwordReset.ts (Phase 2 Task 5): 100% on every
+        // axis. Neither carries a lowered bar, and both are the enforcement
+        // point rather than a mechanism - every branch in them is a real
+        // answer a request can receive, including the three that are
+        // deliberately the same answer (unknown address, wrong password,
+        // locked account). The `c8 ignore`s in `signIn.ts` are the `pbkdf2`
+        // error arm (the same arm, for the same reason, as otpService.ts's
+        // `deriveKey`), the `userId` unwrap on a `NOT NULL` primary key, and
+        // `startSession`'s `'unknown-account'` refusal reached two statements
+        // after the row was read - each states its reason at the exclusion.
+        'apps/web/lib/auth/signIn.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/auth/passwordReset.ts': { lines: 100, branches: 100, functions: 100 },
         // readBookBundle.ts (Task 6 of Phase 1; Task 6 review fix round 1;
         // Task 11): 100% lines/statements/functions. 83% branches is the
         // real, measured number, RAISED again from 81% by Task 11, whose

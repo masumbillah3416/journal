@@ -12,8 +12,8 @@
  * PATTERNS (CLAUDE.md §3.3). Repository: this is the only place a
  * `signInAttempts` row is written or read, so nothing above it learns what
  * the table looks like. Result type: a decision is a value a caller must
- * unwrap. Value objects: the account is a branded `UserId`, so an address
- * cannot be passed where an account belongs.
+ * unwrap. Value objects: the code endpoint's account is a branded `UserId`,
+ * so an address cannot be passed where an account belongs.
  *
  * THE WINDOW LIVES IN POSTGRES, NOT IN THIS PROCESS, AND THAT IS THE WHOLE
  * DESIGN (`docs/adr/0016-rate-limit-window-storage.md`). The obvious
@@ -95,13 +95,18 @@
  * NOTHING HERE LOGS, AND THAT IS A REQUIREMENT RATHER THAN AN OMISSION. An
  * address and an account are never present in the same row, and never
  * appear together in any value this module returns: a refusal is one word.
+ * The `account` dimension's subject is a row id on the code endpoint and a
+ * SHA-256 of the claimed sign-in address on the password endpoint, so no
+ * cleartext address is written beside an IP either.
  *
  * Depends on: `payload` (the Local API instance, injected) and its Postgres
- * pool, and `@travel-diary/domain`'s `admitsAttempt`, the two limits, the
- * window, `UserId` and `Result`.
+ * pool, `node:crypto`, and `@travel-diary/domain`'s `admitsAttempt`, the three
+ * limits, the window, `UserId` and `Result`.
  */
+import { createHash } from 'node:crypto'
 import {
   ACCOUNT_CODE_ATTEMPT_LIMIT,
+  ADDRESS_PASSWORD_ATTEMPT_LIMIT,
   IP_ATTEMPT_LIMIT,
   type RateRefusal,
   SIGN_IN_WINDOW_MS,
@@ -150,20 +155,38 @@ export interface SignInRateLimiterDependencies {
 /** Records and judges sign-in attempts against `SECURITY.md`'s two windows. */
 export interface SignInRateLimiter {
   /**
-   * Records one password attempt from `ip` and says whether it is admitted.
+   * Records one password attempt and says whether it is admitted, against
+   * BOTH windows.
    *
-   * There is no account parameter, deliberately: `SECURITY.md` §3 assigns the
-   * per-account password limit to Payload's own `maxLoginAttempts: 5` /
-   * `lockTime: 15m`, so this endpoint keeps only the per-address window. It
-   * is also the endpoint at which the account is not yet known — answering
-   * differently for an address that named a real account than for one that
-   * did not is the user enumeration the same section forbids.
+   * THE SECOND SUBJECT IS THE ADDRESS THE REQUEST CLAIMED, NOT THE ACCOUNT IT
+   * NAMES, and that is the whole reason this endpoint can be counted at all
+   * (phase ruling F43). At the password step the account is not yet known —
+   * and half the requests name no account. Keying on a row id would leave the
+   * miss path doing strictly less work than the hit path, which is an
+   * enumeration oracle inside the limiter, on exactly the branch
+   * `apps/web/lib/auth/signIn.ts` exists to make indistinguishable.
    *
-   * @param request - The requesting address.
-   * @returns `ok` when the attempt is one this address may still make,
-   *   `err('rate-limited')` otherwise. The attempt is recorded either way.
+   * Payload's `maxLoginAttempts: 5` / `lockTime: 15m` is still what
+   * `SECURITY.md` §3 assigns the per-ACCOUNT password limit to, and this
+   * window does not restate it: it is set above five so the lockout always
+   * binds first for an address that names an account
+   * ({@link ADDRESS_PASSWORD_ATTEMPT_LIMIT}). What it governs is the address
+   * Payload has no row to lock.
+   *
+   * @param request - The requesting address, and the sign-in address it
+   *   claimed. `email` must already be normalised — lower-cased and trimmed,
+   *   as Payload's own login operation normalises it — because the key is a
+   *   hash and two spellings of one address would otherwise hold two budgets.
+   *   Normalising here as well would be a second source of truth for it
+   *   (CLAUDE.md §7); `signIn.ts` normalises once, for the lookup and for
+   *   this, and its suite is where the property is proved.
+   * @returns `ok` only when the attempt is within both the requesting
+   *   address's and the claimed address's budget; otherwise
+   *   `err('rate-limited')`. Both attempts are recorded either way — a
+   *   dimension that stopped counting once another refused would let a caller
+   *   spend one budget for free by exhausting the other first.
    */
-  admitPasswordAttempt(request: { readonly ip: string }): Promise<Result<void, RateRefusal>>
+  admitPasswordAttempt(request: { readonly ip: string; readonly email: string }): Promise<Result<void, RateRefusal>>
 
   /**
    * Records one code attempt and says whether it is admitted, against BOTH
@@ -201,6 +224,24 @@ interface RecordedAttempt {
 interface RankedAttempt {
   readonly attempted_at: Date
 }
+
+/**
+ * SHA-256 of a normalised sign-in address, hex encoded.
+ *
+ * The same choice, for the same reason, as `otpService.ts`'s and
+ * `sessions.ts`'s `sessionHash`: this is a LOOKUP KEY, so it must be
+ * deterministic and indexable, and it is never compared against a secret.
+ * What it buys here is that `sign_in_attempts` — a table that already holds
+ * raw IP addresses — never holds a sign-in address beside one (CLAUDE.md §7).
+ *
+ * It is NOT a defence against an attacker who has the table and wants to know
+ * whether one particular address was tried: an address is guessable, so
+ * hashing it is not hiding it. It stops the table being a list of addresses.
+ *
+ * @param address - The normalised sign-in address.
+ * @returns 64 hex characters — the value stored in and looked up by `subject`.
+ */
+const hashAddress = (address: string): string => createHash('sha256').update(address).digest('hex')
 
 /**
  * Records an attempt against one key and decides whether it is admitted.
@@ -285,16 +326,27 @@ const admitAttempt = async (pool: Payload['db']['pool'], key: AttemptKey): Promi
  *   (CLAUDE.md §3.3 rejects singletons that hold mutable state).
  * @example
  * const limiter = createSignInRateLimiter({ payload })
- * const admitted = await limiter.admitPasswordAttempt({ ip: request.ip })
+ * const admitted = await limiter.admitPasswordAttempt({ ip: request.ip, email })
  */
 export const createSignInRateLimiter = ({ payload }: SignInRateLimiterDependencies): SignInRateLimiter => ({
-  async admitPasswordAttempt({ ip }) {
-    return admitAttempt(payload.db.pool, {
+  async admitPasswordAttempt({ ip, email }) {
+    // BOTH are awaited before either is read, for the same reason as
+    // `admitCodeAttempt` below: short-circuiting on the first refusal would
+    // stop recording the other dimension's attempt.
+    const byRequestingAddress = await admitAttempt(payload.db.pool, {
       dimension: 'ip',
       endpoint: 'password',
       subject: ip,
       limit: IP_ATTEMPT_LIMIT,
     })
+    const byClaimedAddress = await admitAttempt(payload.db.pool, {
+      dimension: 'account',
+      endpoint: 'password',
+      subject: hashAddress(email),
+      limit: ADDRESS_PASSWORD_ATTEMPT_LIMIT,
+    })
+
+    return byRequestingAddress.ok ? byClaimedAddress : byRequestingAddress
   },
 
   async admitCodeAttempt({ ip, account }) {

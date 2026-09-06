@@ -3,7 +3,7 @@
  * just recorded is one this key is still allowed to make.
  *
  * `SECURITY.md` §3 requires "a sliding window on both the password and code
- * endpoints", per account *and* per IP, and numbers none of it. The three
+ * endpoints", per account *and* per IP, and numbers none of it. The four
  * constants below are this project's numbers, each with its reasoning at the
  * declaration. The mechanism is one function, and it is deliberately shaped
  * around a rank rather than around a count.
@@ -93,13 +93,37 @@ export const IP_ATTEMPT_LIMIT = 20
  * the honest reader, who cannot outrun the thirty-second resend cooldown,
  * well clear of it.
  *
- * There is no equivalent constant for the PASSWORD endpoint per account, and
- * that is deliberate rather than an omission: `SECURITY.md` §3 assigns that
- * job to Payload's own `maxLoginAttempts: 5` / `lockTime: 15m` on the `users`
- * collection, and a second limiter beside it would be two sources of truth
- * for one rule (CLAUDE.md §7).
+ * The password endpoint's equivalent is {@link ADDRESS_PASSWORD_ATTEMPT_LIMIT},
+ * which counts a different subject for a different reason — see its own
+ * declaration.
  */
 export const ACCOUNT_CODE_ATTEMPT_LIMIT = 10
+
+/**
+ * The most password attempts one CLAIMED ADDRESS may take per window, from
+ * any address.
+ *
+ * The subject counted here is the address the request claimed, not an account:
+ * `apps/web/lib/auth/rateLimit.ts` keys it on a hash of the normalised
+ * address, so an address naming no account is counted exactly like one that
+ * does (phase ruling F43). That is the point of it. Payload's own
+ * `maxLoginAttempts: 5` / `lockTime: 15m`, which `SECURITY.md` §3 assigns the
+ * per-account password limit to, can only lock a row that exists — so for an
+ * address that names nothing it is not a lenient limit, it is no limit, and
+ * the per-address window would be the only thing between an attacker and an
+ * unbounded supply of guesses at addresses of their choosing.
+ *
+ * Ten, which is ABOVE the five that lock a real account and deliberately so.
+ * For an address that names an account, Payload's lockout always binds first,
+ * so this window never becomes a second source of truth for the rule
+ * `SECURITY.md` assigns to it (CLAUDE.md §7). What is left for this number to
+ * govern is exactly the case Payload cannot see. It also sits above five for
+ * a second reason: a limiter that refused at the same count as the lockout
+ * would refuse the unknown address one attempt EARLIER than the known one, in
+ * the request whose whole purpose is to be indistinguishable, since the
+ * lockout's fifth attempt is refused by the lockout rather than by the window.
+ */
+export const ADDRESS_PASSWORD_ATTEMPT_LIMIT = 10
 
 /** Why {@link admitsAttempt} refused. One reason, because a caller may act on no other. */
 export type RateRefusal = 'rate-limited'

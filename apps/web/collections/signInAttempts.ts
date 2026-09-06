@@ -84,8 +84,12 @@ export const SignInAttempts: CollectionConfig = {
     // separately (see `IP_ATTEMPT_LIMIT`): a reader who has fumbled their
     // password is not thereby out of code attempts.
     { name: 'endpoint', type: 'select', options: ['password', 'code'], required: true },
-    // The address, or the account's row id — never both in one row, which is
-    // also why nothing here can log an address alongside an account.
+    // What the window is counted for: an IP address in the `ip` dimension; in
+    // the `account` dimension, the account's row id on the code endpoint and a
+    // SHA-256 of the claimed sign-in address on the password endpoint, where
+    // no account is known yet and half the requests name none (phase ruling
+    // F43, `apps/web/lib/auth/rateLimit.ts`). Never two of them in one row,
+    // which is also why nothing here can log an address alongside an account.
     { name: 'subject', type: 'text', required: true },
     { name: 'attemptedAt', type: 'date', required: true },
   ],

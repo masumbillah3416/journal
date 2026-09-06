@@ -11,6 +11,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ACCOUNT_CODE_ATTEMPT_LIMIT,
+  ADDRESS_PASSWORD_ATTEMPT_LIMIT,
   IP_ATTEMPT_LIMIT,
   SIGN_IN_WINDOW_MS,
   admitsAttempt,
@@ -158,5 +159,13 @@ describe('the limits SECURITY.md leaves unnumbered', () => {
 
   it('allows one account ten code attempts per window, a backstop below what the per-challenge limits already permit', () => {
     expect(ACCOUNT_CODE_ATTEMPT_LIMIT).toBe(10)
+  })
+
+  it('allows one claimed address ten password attempts per window, above the five that lock a real account', () => {
+    // Above `users.maxLoginAttempts`, deliberately: for an address that names
+    // a real account the lockout binds first, so this window never becomes a
+    // second source of truth for it. What this number governs is the address
+    // that names NO account, which Payload has no row to lock.
+    expect(ADDRESS_PASSWORD_ATTEMPT_LIMIT).toBe(10)
   })
 })

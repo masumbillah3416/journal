@@ -1239,3 +1239,48 @@ with it.
 `apps/web/collections/collections.integration.test.ts`; and the three lifetime cases in
 `apps/web/lib/auth/sessions.integration.test.ts` that assert the lifetime is the row's and
 not the token's.
+
+## 31 · The reset email's subject and body are ours, and so is the link's path
+
+**What changed:** `apps/web/lib/auth/passwordReset.ts` sends a message with the subject
+`A way back in to your travel diary` and a body reading, in full:
+
+```
+<origin>/admin/reset/<token>
+
+Open that link to choose a new password for the travel diary. The link works once and lasts an hour.
+If you did not ask for it, nothing has happened and you can ignore this.
+```
+
+Neither the copy nor the path `/admin/reset/<token>` comes from the handoff.
+
+**Rationale:** the same as §26's, one screen further on. `SCREENS.md` §3.3 specifies the
+reset *screen* — "Send yourself a way back in", the email field, "Send the link", and the
+sent state's "The link works once and lasts an hour" — and says nothing about the email
+that carries the link, which nonetheless has to say something. The one sentence of copy
+that *is* the handoff's, "The link works once and lasts an hour", is reused verbatim
+rather than paraphrased, so the screen and the message make the same promise about the
+same link; the rest echoes §26's voice rather than introducing a third one.
+
+The path is `/admin/reset/<token>` because phase ruling F41 settled that the bespoke
+sign-in surface mounts under `/admin` (Payload's own admin having moved to `/cms`), and
+because the session cookie is scoped `Path=/admin` — a reset screen outside it could not
+read the session it is about to establish. The hour is not ours: it is Payload's own
+`forgotPassword` expiry default, which happens to be exactly what §3.3 asks for.
+
+**One thing this deviation does NOT cover, and it is worth being plain about:** the
+screen that consumes the link does not exist yet. Task 5 mints a real token that
+Payload's `resetPassword` really consumes — `passwordReset.integration.test.ts` completes
+a reset with it and then signs in with the new password — but Phase 2 Task 9 builds
+§3.3's two *request* states, not the set-a-new-password screen the link lands on. Until
+that screen is mounted at this path, the link resolves to a 404. This is recorded here
+rather than left to be discovered.
+
+**What would reverse this:** the repository owner supplying their own copy, which is
+theirs to write; or a later phase moving the reset screen, at which point `RESET_PATH`
+and this entry move with it.
+
+**Recorded as:** the comment on the `text` field and the `RESET_PATH` constant in
+`apps/web/lib/auth/passwordReset.ts`, and the case in
+`apps/web/lib/auth/passwordReset.integration.test.ts` that follows the link's token
+through a completed reset.
