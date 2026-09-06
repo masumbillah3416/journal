@@ -51,8 +51,27 @@ let payload: Awaited<ReturnType<typeof getTestPayload>>
 /** The session service this file issues and revokes rows with. */
 let sessions: ReturnType<typeof createSessionService>
 
-/** What `sessions` is told the time is. Fixed, so a lifetime is not waited out. */
-const clock = Date.parse('2026-09-06T09:00:00.000Z')
+/**
+ * What `sessions` is told the time is: fixed for the run, so a lifetime is not
+ * waited out — but taken from the REAL clock rather than written down.
+ *
+ * IT WAS A LITERAL, `2026-09-06T09:00:00.000Z`, AND IT WENT OFF LIKE A TIMER.
+ * The module under test reaches its own services through `signInServices()`,
+ * whose clock is `Date.now`; the fixtures here were written through a service
+ * frozen at that literal. So every "live session" row was stamped
+ * `expires_at = 2026-09-06T21:00Z`, and from the moment real time passed it
+ * every such fixture authenticated as `'expired'` — three cases that had
+ * passed for a day began failing at a wall-clock boundary, with nothing in the
+ * repository having changed. Found by Phase 2 Task 11's fix round.
+ *
+ * INVARIANT: a fixture clock and the clock the code under test reads must be
+ * in the same epoch. `otpService.integration.test.ts`'s own header states the
+ * rule this file broke — "TIME IS INJECTED, NEVER FROZEN ... a frozen clock
+ * would put the service's `now` and the row's `createdAt` in different
+ * calendars". Read once at import, so it is still one instant for the whole
+ * file and no case can drift from another.
+ */
+const clock = Date.now()
 
 /**
  * A digit-free label, derived from a counter.
