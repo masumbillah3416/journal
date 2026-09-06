@@ -724,16 +724,36 @@ describe('collections', () => {
     // file's DROP path, including its hand-fixed statement order.
     await runMigrateDownToZero()
 
-    // Asserted here, mid-test, rather than with the rest below - deliberately.
-    // Payload's own migrate() calls process.exit(1) when a migration fails, so
-    // a rollback that left a table behind would kill this worker on the
-    // re-apply two lines down, before any assertion could name what went
-    // wrong. These two lines are what turn a broken down() into a readable
-    // test failure instead of a dead process.
-    expect(await appliedMigrationCount()).toBe(0)
-    expect(await existingTablesAmong(JOURNEY_TABLES)).toEqual([])
+    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS - the same
+    // reasoning as the two per-migration cases below, arrived at here later
+    // than it should have been. Between the rollback above and the re-apply
+    // below, `diary_test` has no schema at all. Either assertion inside the
+    // block can fail, and without the `finally` that failure stops being a red
+    // test and becomes a session in which nothing can be verified: every later
+    // file in this project connects to an empty database, and the damage
+    // presents as a broken fixture several files away from the test that
+    // caused it. Documenting that hazard, which is what the previous revision
+    // did, is not the same as closing it.
+    //
+    // What the `finally` covers is an ASSERTION failing while the schema is
+    // sound - the ordinary red-test case - after which the re-apply succeeds
+    // and the database heals itself. What it cannot cover is a `down()` that
+    // leaves artefacts behind, because then the re-apply legitimately fails on
+    // the collision; that case still needs the hand repair `docs/testing.md`
+    // §9 describes, and no arrangement of this test can avoid it.
+    try {
+      // Asserted here, mid-test, rather than with the rest below -
+      // deliberately. Payload's own migrate() calls process.exit(1) when a
+      // migration fails, so a rollback that left a table behind would kill
+      // this worker on the re-apply, before any assertion could name what went
+      // wrong. These two lines are what turn a broken down() into a readable
+      // test failure instead of a dead process.
+      expect(await appliedMigrationCount()).toBe(0)
+      expect(await existingTablesAmong(JOURNEY_TABLES)).toEqual([])
+    } finally {
+      await runMigrateUp()
+    }
 
-    await runMigrateUp()
     const restored = await payload.create({ collection: 'journeys', data: aReversibilityJourney() })
 
     expect({

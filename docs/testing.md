@@ -1577,9 +1577,21 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   host grind a single account behind rotating proxies. Verified by mutation: removing the
   per-address condition fails the address burst and NOT the account burst, and removing
   the per-account condition fails the account cases and NOT the address burst. Removing
-  the rank ordering — so the whole window is counted rather than the attempts at or
-  before this one — fails both bursts, because an unranked limiter refuses a burst all
-  together instead of admitting the first N in arrival order.
+  the rank ordering — so attempts standing *after* this one are counted against it — was
+  caught by the bursts in only three runs out of four, because whether a racer's row
+  exists yet at the moment another request ranks is a matter of scheduling. A guard caught
+  three times in four is a guard that passes CI the fourth time, so the file also carries
+  a **deterministic** case for it: a key seeded with rows written at explicit ids above
+  the sequence — inside the window, stamped earlier, but ranking after the attempt that
+  follows them, which is what a racer's row looks like without the race — and the
+  assertion that the attempt is still admitted. That case fails on every run when the
+  bound is removed (five out of five, measured).
+
+  A second case covers what bounds the table: a write against one key must sweep aged rows
+  belonging to **other** keys. Pruning only the key being written bounds growth by the
+  number of distinct keys ever seen rather than by the window, and a spray from many
+  addresses is exactly what manufactures keys — three aged rows for one address were
+  measured surviving a write against another before the sweep was added.
 
   `apps/web/collections/users.lockout.integration.test.ts` is the other file, and it
   exercises Payload's `maxLoginAttempts`/`lockTime` for the first time since Phase 0
@@ -1620,13 +1632,21 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   dropped the table and left the enum types behind would satisfy a table-only assertion
   and then fail its own re-apply with "type already exists", which is exactly the class
   of bug the hand-fixed statement order in that file's `down()` exists to prevent.
-  Verified by making `down()` a no-op and watching it fail. **A warning for whoever runs
-  that mutation next:** a no-op `down()` also breaks the roll-to-zero case in the same
-  file, which then leaves `diary_test` holding the orphaned table and types while
-  `payload_migrations` no longer records the migration as applied - every later run then
-  fails to re-apply it. Repair by dropping `sign_in_attempts`, both
-  `enum_sign_in_attempts_*` types and the `payload_locked_documents_rels` column by hand,
-  and letting the next run apply `up()` again.
+  Verified by making `down()` a no-op and watching it fail.
+
+  **All three reversibility cases now re-apply in a `finally`,** including the roll-to-zero
+  one, which did not until a review pointed out that documenting its blast radius was not
+  the same as closing it. Between `runMigrateDownToZero()` and `runMigrateUp()` the
+  database has no schema at all, and an assertion failing in that gap used to leave it
+  that way: measured, one failing assertion there turned into four failed cases and a
+  `diary_test` with no `payload_migrations` table, so every later file in the project ran
+  against nothing. With the `finally`, the same failing assertion leaves all four
+  migrations applied and the schema intact — measured too. What a `finally` cannot cover
+  is a `down()` that leaves artefacts behind, because the re-apply then legitimately fails
+  on the collision; **that** case still needs hand repair (drop `sign_in_attempts`, both
+  `enum_sign_in_attempts_*` types and the `payload_locked_documents_rels` column, then let
+  the next run apply `up()` again), and it is the one to expect when mutating a `down()`
+  on purpose.
 
   The `session_hash` case is also the one worth reading before writing another migration
   test, because its first version was worthless and looked fine. It rolled every

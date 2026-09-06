@@ -60,23 +60,37 @@
  * window arithmetic, and applying it in both places would mean neither could
  * be broken by itself, which is a pair of tests that can no longer fail.
  *
- * THE PRUNE RIDES ALONG WITH THE INSERT. Anything older than the window for
- * the key being touched can affect no future decision, so it is deleted in
- * the same statement that records the new attempt. The table therefore stays
- * bounded without a scheduler, and the cost falls on the key that is
- * generating the rows.
+ * THE PRUNE RIDES ALONG WITH THE INSERT, AND IT IS NOT ONLY THIS KEY'S. Rows
+ * older than the window can affect no future decision, so each write deletes
+ * this key's aged rows AND a bounded batch of aged rows from any other key
+ * ({@link PRUNE_SWEEP_ROWS}). The second half is what makes the table's bound
+ * real: a key-scoped prune alone bounds growth by the number of distinct keys
+ * ever seen, not by the window, and a spray from many addresses is precisely
+ * the traffic that manufactures keys. With the sweep, cleanup is eventually
+ * complete, per-request work stays constant, and no scheduler has to be up for
+ * either to hold.
  *
- * ONE RESIDUAL RACE IS ACCEPTED AND NAMED, RATHER THAN HIDDEN. Postgres
- * READ COMMITTED cannot see another transaction's uncommitted row, so an
- * attempt whose INSERT is still in flight is invisible to a racer's rank
- * query. Each statement here is its own autocommit statement — the row is
- * committed the moment the INSERT returns, one round trip before the
- * ranking query is even sent — so the window in which this can happen is
- * shorter than a round trip, and its worst case is admitting one or two
- * attempts past the limit under a burst, never refusing one below it. The
- * alternative is a per-key lock, which buys exactness with a held connection
- * per attempt: the same denial-of-service lever `otpService.ts` rejects for
- * its own comparison path. See ADR 0016.
+ * ONE RESIDUAL RACE IS ACCEPTED AND NAMED, RATHER THAN HIDDEN. Postgres READ
+ * COMMITTED cannot see another transaction's uncommitted row, so an attempt
+ * whose INSERT is still in flight is invisible to a racer's rank query. Each
+ * statement here is its own autocommit statement — the row is committed the
+ * moment the INSERT returns, one round trip before the ranking query is even
+ * sent — so the window in which this can happen is shorter than a round trip,
+ * and the error is always over-admission, never a refusal below the limit.
+ *
+ * ITS WORST CASE IS NOT "ONE OR TWO", WHICH IS WHAT THIS COMMENT USED TO SAY.
+ * One or two is what was MEASURED. The BOUND is the number of inserts that can
+ * be in flight with a lower id than yours at the moment you rank, minus one:
+ * `pool max - 1` for a single process (nine, with `pg`'s default pool of ten),
+ * and `invocations x pool max - 1` on the serverless target, limited only by
+ * the server's `max_connections`. The acceptance still stands — the
+ * three-guess challenge budget and the five-attempt account lockout bind long
+ * before any of that matters — but a measurement written as a bound is how the
+ * next reader sizing a limit against it gets it wrong by an order of magnitude.
+ *
+ * The alternative is a per-key lock, which buys exactness with a held
+ * connection per attempt: the same denial-of-service lever `otpService.ts`
+ * rejects for its own comparison path. See ADR 0016.
  *
  * NOTHING HERE LOGS, AND THAT IS A REQUIREMENT RATHER THAN AN OMISSION. An
  * address and an account are never present in the same row, and never
@@ -96,6 +110,30 @@ import {
 import type { UserId } from '@travel-diary/domain/ids'
 import type { Result } from '@travel-diary/domain/result'
 import type { Payload } from 'payload'
+
+/**
+ * How many aged rows belonging to OTHER keys each write also clears.
+ *
+ * A key-scoped prune alone does not bound this table, and the first version of
+ * this module claimed it did. Pruning only the key being written bounds growth
+ * by the number of DISTINCT KEYS ever seen, not by the window: an address that
+ * makes one attempt and never returns leaves its row behind for good, and a
+ * spray from many addresses — the threat this limiter exists for — is exactly
+ * the traffic that manufactures keys. Measured before it was fixed: three aged
+ * rows for one address survived a write against a different address.
+ *
+ * So every write also sweeps a bounded batch of aged rows from anywhere in the
+ * table, oldest first, which makes cleanup eventually complete while
+ * per-request work stays constant. Fifty because it is comfortably more than
+ * the keys one sign-in burst can create, so the sweep drains faster than
+ * ordinary traffic fills it, and small enough that the extra `DELETE` stays a
+ * few indexed rows rather than a scan a reader waits on.
+ *
+ * A scheduled job was the other option and was not taken: Phase 0's queue
+ * exists, but a limiter whose table grows without bound whenever the scheduler
+ * is down has an availability dependency it does not need. See ADR 0016.
+ */
+const PRUNE_SWEEP_ROWS = 50
 
 /** Which of `SECURITY.md`'s two sliding windows an attempt is counted in. */
 type AttemptDimension = 'ip' | 'account'
@@ -173,21 +211,36 @@ interface RankedAttempt {
  *   `err('rate-limited')` otherwise.
  */
 const admitAttempt = async (pool: Payload['db']['pool'], key: AttemptKey): Promise<Result<void, RateRefusal>> => {
-  // ONE STATEMENT, TWO EFFECTS. The `DELETE` clears everything older than the
-  // window for this key — rows that can change no future decision — and the
-  // `INSERT` records this attempt. A data-modifying CTE cannot see the other
-  // half's rows, which is exactly what is wanted here: the prune cannot
-  // remove the row being written.
+  // ONE STATEMENT, THREE EFFECTS, and the third is what makes the table's
+  // bound real rather than aspirational. The first `DELETE` clears everything
+  // older than the window for THIS key. The second clears a bounded batch of
+  // aged rows belonging to ANY OTHER key, oldest first — see
+  // {@link PRUNE_SWEEP_ROWS} for why a key-scoped prune alone is not enough.
+  // The `INSERT` then records this attempt. A data-modifying CTE cannot see
+  // another's rows, which is exactly what is wanted: neither prune can remove
+  // the row being written, and the sweep's `NOT (...)` keeps the two deletes
+  // disjoint rather than relying on how Postgres resolves two commands
+  // touching one row.
   const recorded = await pool.query<RecordedAttempt>(
-    `WITH pruned AS (
+    `WITH aged_here AS (
        DELETE FROM sign_in_attempts
         WHERE dimension = $1 AND endpoint = $2 AND subject = $3
           AND attempted_at <= clock_timestamp() - ($4::double precision * interval '1 millisecond')
+     ),
+     aged_elsewhere AS (
+       SELECT id FROM sign_in_attempts
+        WHERE attempted_at <= clock_timestamp() - ($4::double precision * interval '1 millisecond')
+          AND NOT (dimension = $1 AND endpoint = $2 AND subject = $3)
+        ORDER BY id
+        LIMIT $5
+     ),
+     swept AS (
+       DELETE FROM sign_in_attempts WHERE id IN (SELECT id FROM aged_elsewhere)
      )
      INSERT INTO sign_in_attempts (dimension, endpoint, subject, attempted_at, created_at, updated_at)
      VALUES ($1, $2, $3, clock_timestamp(), clock_timestamp(), clock_timestamp())
      RETURNING id, attempted_at`,
-    [key.dimension, key.endpoint, key.subject, SIGN_IN_WINDOW_MS],
+    [key.dimension, key.endpoint, key.subject, SIGN_IN_WINDOW_MS, PRUNE_SWEEP_ROWS],
   )
   // An `INSERT ... RETURNING` of one row returns exactly one row or throws,
   // but `noUncheckedIndexedAccess` cannot know that. These two folds are

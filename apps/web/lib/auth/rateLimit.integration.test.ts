@@ -143,6 +143,39 @@ const ageAttemptsOutOfTheWindow = async (dimension: 'ip' | 'account', subject: s
 }
 
 /**
+ * The first id the {@link attemptsRankingAfterThisOne} probe writes at.
+ *
+ * Far above anything the `sign_in_attempts` sequence will hand out, and
+ * comfortably under `int4`'s ceiling, so a row written here outranks every row
+ * the limiter itself inserts. Supplying an explicit id does not advance the
+ * sequence, which is exactly what this needs: the real attempt that follows
+ * still receives a small one.
+ */
+const RANKS_AFTER_ID_BASE = 2_000_000_000
+
+/**
+ * Records attempts for `subject` that sit INSIDE the window and are stamped at
+ * or before whatever comes next, yet stand after it in the sequence.
+ *
+ * This is what a racer's row inserted a moment after yours looks like, made
+ * deterministic. The rank bound in the adapter's SQL (`id <= mine`) is the only
+ * thing that keeps such a row from counting against an attempt it followed —
+ * and a concurrent burst catches its removal only some of the time, because
+ * whether a racer's row exists yet when you rank depends on scheduling. A test
+ * caught three times in four is a test that passes CI the fourth time.
+ * @param subject - The address to record them against.
+ * @param count - How many to write.
+ */
+const attemptsRankingAfterThisOne = async (subject: string, count: number): Promise<void> => {
+  await payload.db.pool.query(
+    `INSERT INTO sign_in_attempts (id, dimension, endpoint, subject, attempted_at, created_at, updated_at)
+     SELECT $1::integer + step, 'ip', 'password', $2, clock_timestamp(), clock_timestamp(), clock_timestamp()
+       FROM generate_series(1, $3::integer) AS step`,
+    [RANKS_AFTER_ID_BASE, subject, count],
+  )
+}
+
+/**
  * How many of a set of decisions were admissions.
  * @param decisions - What the limiter answered.
  * @returns The number that were `ok`.
@@ -207,6 +240,25 @@ describe('the per-address window', () => {
     await Promise.all(Array.from({ length: burst }, () => limiter.admitCodeAttempt({ ip, account: anAccount() })))
 
     expect(await recordedAttempts('ip', ip)).toBe(burst)
+  })
+
+  it('counts only the attempts standing at or before this one, so a row that ranks after it cannot refuse it', async () => {
+    // THE RANK BOUND, EXERCISED WITHOUT CONCURRENCY. Twenty attempts for this
+    // address, every one inside the window and stamped before the attempt
+    // below, but every one carrying an id above the sequence — so each ranks
+    // AFTER the attempt being judged. Its rank is therefore one, not
+    // twenty-one, and it is admitted.
+    //
+    // The bursts prove the same rule statistically and this proves it every
+    // run: removing `id <= mine` from the ranking query was caught in only
+    // three runs out of four by the bursts alone, because whether a racer's
+    // row exists yet when you rank depends on scheduling.
+    const ip = anAddress()
+    await attemptsRankingAfterThisOne(ip, IP_ATTEMPT_LIMIT)
+
+    const decision = await limiter.admitPasswordAttempt({ ip })
+
+    expect(decision).toEqual({ ok: true, value: undefined })
   })
 
   it('spends the password endpoint and the code endpoint from separate budgets', async () => {
@@ -297,6 +349,23 @@ describe('the window sliding', () => {
     await ageAttemptsOutOfTheWindow('ip', ip)
 
     expect(await limiter.admitPasswordAttempt({ ip })).toEqual({ ok: true, value: undefined })
+  })
+
+  it('sweeps attempts that have aged out under a DIFFERENT key, so the table is bounded by the window rather than by how many keys were ever seen', async () => {
+    // The prune that only touched the key being written bounded growth by the
+    // number of distinct keys ever seen — and a spray from many addresses,
+    // which is the traffic this limiter exists for, is exactly what
+    // manufactures keys. Measured before the fix: three aged rows for one
+    // address survived a write against a different one.
+    const abandoned = anAddress()
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await limiter.admitPasswordAttempt({ ip: abandoned })
+    }
+    await ageAttemptsOutOfTheWindow('ip', abandoned)
+
+    await limiter.admitPasswordAttempt({ ip: anAddress() })
+
+    expect(await recordedAttempts('ip', abandoned)).toBe(0)
   })
 
   it('prunes the attempts that have aged out, so the table stays bounded without a scheduler', async () => {

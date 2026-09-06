@@ -73,6 +73,15 @@ transaction would tie on the very column the window is measured over. Nothing in
 module opens an explicit transaction today, which is precisely why the choice is written
 down: it is what keeps the mechanism correct if some later caller wraps it in one.
 
+**The rank bound has a deterministic test as well as the bursts.** The bursts exercise
+`id <= mine` only when a racer's row happens to exist at the moment another request ranks,
+which is a matter of scheduling: removing the bound was caught in three runs out of four.
+`rateLimit.integration.test.ts` therefore also seeds a key with rows written at explicit
+ids above the sequence — inside the window, stamped earlier, but ranking *after* the
+attempt that follows them, which is what a racer's row looks like made deterministic — and
+asserts that attempt is still admitted. A guard caught three times in four is a guard that
+passes CI the fourth time.
+
 **Rank is ordered by the row's `id`, not by its timestamp.** Payload maps a `date` field
 to `timestamp(3)`, so two attempts a hundred microseconds apart can land on the same
 millisecond, and two attempts sharing a rank would let a limit of N admit N+1. `id` comes
@@ -123,10 +132,20 @@ cannot find its own record all read as the limit having been reached. The preced
 every comparison against `NaN` is false, so a limiter that merely evaluated its arithmetic
 would switch itself off silently, on the one path that never appears in a log.
 
-**Rows are pruned on write, for the key being touched, in the same statement that records
-the new attempt.** Anything older than the window can affect no future decision. The table
-therefore stays bounded with no scheduler, and the cost falls on whichever key is
-generating the rows.
+**Rows are pruned on write, in the same statement that records the new attempt, and the
+prune is not only this key's.** Each write clears every aged row for the key being touched
+AND a bounded batch of aged rows belonging to any other key, oldest first (fifty). The
+second half is what makes the bound real, and the first version of this decision did not
+have it: pruning only the key being written bounds growth by the number of DISTINCT KEYS
+ever seen, not by the window, and a spray from many addresses — the traffic this limiter
+exists for — is exactly what manufactures keys. Measured before the fix: three aged rows
+for one address survived a write against a different address. With the sweep, cleanup is
+eventually complete and per-request work stays constant.
+
+A scheduled job would also have worked and was not taken. Phase 0's queue exists, but a
+limiter whose table grows without bound whenever the scheduler is down has an availability
+dependency it does not need, and the sweep costs one extra indexed `DELETE` inside a
+statement that was already being issued.
 
 ## Consequences
 
@@ -145,10 +164,21 @@ generating the rows.
   trip. Its worst case is admitting an attempt or two past the limit under a burst; it can
   never refuse one below it. Closing it entirely would need a per-key lock, which buys
   exactness with a database connection held per attempt: the same denial-of-service lever
-  ADR 0015 rejects for the OTP comparison path. Measured rather than assumed — the
+  ADR 0015 rejects for the OTP comparison path.
+
+  **The bound is not the measurement, and this ADR said it was.** The
   twenty-eight-deep and eighteen-deep bursts in
   `apps/web/lib/auth/rateLimit.integration.test.ts` admitted exactly twenty and exactly
-  ten, on ten consecutive runs.
+  ten on ten consecutive runs, and an independent sixty-deep burst over-admitted zero
+  times in twenty-five rounds — but that is what was observed, not what is possible. The
+  true worst case is the number of inserts that can be in flight carrying a lower id than
+  yours at the moment you rank, minus one: `pool max - 1` for a single process (nine, with
+  `pg`'s default pool of ten) and `invocations x pool max - 1` on the serverless target,
+  limited only by the server's `max_connections`. The acceptance is unchanged — the
+  three-guess challenge budget and the five-attempt account lockout bind long before that
+  matters — but "one or two", which is what this ADR and the module header first said,
+  is a measurement written as a bound, and the next reader sizing a limit against it
+  would be wrong by an order of magnitude.
 - **`clock_timestamp()` cannot be distinguished from `now()` by any test this suite can
   write**, and that is stated rather than papered over. Under autocommit the two are the
   same instant to the millisecond, and rank is ordered by `id` in any case, so a mutation
