@@ -200,9 +200,35 @@ repository's addition: `DATA_MODEL.md` omits it from all three access blocks
 and Payload applies its "signed in, or refused" default to whatever an access
 block leaves out, so deletion fell through to any authenticated caller
 (`docs/deviations.md` §28). Fields: `dimension`
-(`ip` | `account`), `endpoint` (`password` | `code`), `subject` (the address, or the
-account's id — never both in one row), `attemptedAt`. One compound index over all four, in
-the order a lookup filters them.
+(`ip` | `account`), `endpoint` (`password` | `code`), `subject`, `attemptedAt`. One
+compound index over all four, in the order a lookup filters them.
+
+**What `subject` holds depends on the dimension and the endpoint**, and one of the three
+is not what its `dimension` value suggests:
+
+| `dimension` | `endpoint` | `subject` |
+|---|---|---|
+| `ip` | either | the requesting IP address, in cleartext |
+| `account` | `code` | the account's row id — known by then, since a code is issued *to* an account |
+| `account` | `password` | **SHA-256 of the normalised sign-in address the request claimed** |
+
+The third row is phase ruling F43, added in Task 5 when the limiter acquired its first
+caller. At the password step the account is not yet known and half the requests name no
+account at all, so a key that needed a row id would simply be absent on the miss path —
+which is not merely a gap in coverage but an enumeration oracle, since the miss would then
+do strictly less work than the hit on the exact branch `SECURITY.md` requires to be
+indistinguishable. The code endpoint has no such problem and so keeps the row id: by the
+time a code is being guessed, the account is settled.
+
+It is hashed rather than written in cleartext because this table already holds raw IPs, and
+an address beside one would put both halves of an identity in a single table (CLAUDE.md
+§7). The hash is **not** a defence against someone holding the table who wants to know
+whether one particular address was tried — an address is guessable, so hashing it does not
+hide it. What it stops is the table being a *list of addresses*.
+
+Never two of those values in one row: a row carries one subject. Two rows written by the
+same request are still correlatable by their timestamps, which is why the claim made here
+is about what a row contains rather than about unlinkability.
 
 **Not in `DATA_MODEL.md`**, and recorded as the deviation `docs/deviations.md` §27: the
 handoff requires the window and provides nowhere to keep it. Why it is a table rather than

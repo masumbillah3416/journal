@@ -78,12 +78,29 @@ export type ResetRefusal =
   /**
    * The mail provider refused the message.
    *
-   * The one answer that can differ between an address that exists and one
-   * that does not, because only the first has a message to send. It is a
-   * refusal rather than a silent success because the alternative is telling a
-   * reader a link is on its way when none is, and it is not an oracle an
-   * attacker can operate: they cannot cause the provider to refuse, and while
-   * it is refusing the feature is broken for everyone.
+   * THE ONE ANSWER THAT CAN DIFFER between an address that exists and one that
+   * does not, because only the first has a message to send — so it is an
+   * enumeration residual, and it is recorded as one rather than waved away.
+   *
+   * AND IT IS INDUCIBLE, which an earlier version of this comment denied. Mail
+   * providers throttle by volume: an attacker who spends the shared password
+   * window against a candidate address, waits it out and repeats can push the
+   * account's own sending past the provider's rate limit, at which point a real
+   * address answers `'delivery-failed'` and an invented one answers `ok`. The
+   * claim "an attacker cannot cause the provider to refuse" was wrong.
+   *
+   * It stays a refusal because the alternative is worse in a way that is not
+   * hypothetical: answering `ok` would tell the owner a link is on its way when
+   * none is, which is the one message they cannot act on. What bounds the
+   * residual is the shared window — a reset costs the same budget a password
+   * attempt does, so the volume needed is slow to reach — and the fact that the
+   * oracle only speaks while the owner's own mail is already failing.
+   *
+   * WHAT WOULD CLOSE IT is the same change that closes the timing residual
+   * above: queue the send, answer before the provider is asked, and report a
+   * failed delivery to the operator through the log rather than to the reader
+   * through the response — the shape `signIn.ts` uses for a credential store
+   * that cannot answer. Recorded in `docs/security.md`.
    */
   | 'delivery-failed'
 
@@ -146,10 +163,12 @@ export interface PasswordResetService {
  * `Path=/admin` — a reset screen outside it could not read the session it is
  * about to establish. A constant rather than a literal at the call site, so
  * the one place the link is built matches the one place the screen will be
- * mounted. **That screen does not exist yet**: Task 9 builds `SCREENS.md`
- * §3.3's two request states, not the set-a-new-password screen, so until it is
- * mounted this path resolves to a 404. Recorded in docs/deviations.md §31
- * rather than left to be discovered.
+ * mounted. **That screen does not exist yet, and Phase 2 Task 9 owns it** —
+ * the `[token]` route at this path, the form, the `payload.resetPassword` call,
+ * the invalid/expired state, and an e2e case that follows the mailed link
+ * (controller ruling, Task 5 review round 1). Until it lands this path resolves
+ * to a 404. Recorded in docs/deviations.md §31 rather than left to be
+ * discovered.
  */
 const RESET_PATH = '/admin/reset'
 

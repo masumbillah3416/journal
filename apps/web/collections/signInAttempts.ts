@@ -79,6 +79,19 @@ export const SignInAttempts: CollectionConfig = {
     // Which of SECURITY.md's two dimensions this row counts towards. A
     // closed set rather than free text: an attempt is counted per account or
     // per address, and a third value would be a window nothing enforces.
+    //
+    // `'account'` IS NOW A SLIGHT MISNOMER ON THE PASSWORD ENDPOINT, AND THE
+    // VALUE IS DELIBERATELY LEFT ALONE. Since phase ruling F43 that dimension
+    // holds a hash of the CLAIMED ADDRESS there rather than an account row id
+    // (see `subject` below) — because at the password step no account is known
+    // yet. `'subject'` would name it better across both endpoints, and it is
+    // not worth what changing it costs: this is a Payload `select`, so the
+    // value is a Postgres enum member, and renaming it means a migration that
+    // adds the new member, rewrites every live row, and drops the old one —
+    // and `ALTER TYPE` cannot drop an enum member, so the down migration has
+    // to recreate the type and re-point the column. That is real risk on the
+    // table an attacker's traffic lands in, bought for a better word. If a
+    // future migration touches this table for another reason, rename it then.
     { name: 'dimension', type: 'select', options: ['ip', 'account'], required: true },
     // Which endpoint the attempt was made against. The two are counted
     // separately (see `IP_ATTEMPT_LIMIT`): a reader who has fumbled their

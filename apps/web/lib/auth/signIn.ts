@@ -71,10 +71,20 @@
  * `users.otp_required` is nullable and a second factor that switched itself
  * off for a row written before the default would do it silently.
  *
+ * ═══ ONE THING THE READER IS NOT TOLD, AND THE OPERATOR IS ═══
+ *
+ * A credential store that cannot ANSWER is not a credential that is WRONG.
+ * {@link checkPassword} distinguishes the two — Payload signals a refusal by
+ * throwing, so a `catch` has to classify rather than assume — and the
+ * difference reaches the operator as one fixed log line carrying nothing from
+ * the request. The reader's answer is identical either way, so nothing about
+ * the anti-enumeration property above changes.
+ *
  * INVARIANT — NOTHING HERE LOGS OR RETURNS A CREDENTIAL. The password exists
  * only as a parameter and as an argument to Payload and to
  * {@link burnAKey}; the address is returned only in the masked form
- * `issueChallenge` produces; a refusal is one word (CLAUDE.md §7).
+ * `issueChallenge` produces; a refusal is one word; and the one log line this
+ * module can write is a constant (CLAUDE.md §7).
  *
  * Depends on: `payload` (the Local API instance, injected) and its Postgres
  * pool, `node:crypto`, the OTP service, the session service and the rate
@@ -83,6 +93,7 @@
 import { pbkdf2, randomBytes } from 'node:crypto'
 import { type SessionId, type UserId, userId } from '@travel-diary/domain/ids'
 import { type Result, err, isOk, ok } from '@travel-diary/domain/result'
+import { AuthenticationError, LockedAuth, ValidationError } from 'payload'
 import type { Payload } from 'payload'
 import type { OtpService } from './otpService'
 import type { SignInRateLimiter } from './rateLimit'
@@ -279,30 +290,90 @@ const accountOf = (rawId: number): UserId => {
 }
 
 /**
- * Whether Payload accepts `password` for the account at `address`.
+ * The three Payload error classes that mean "this request is refused", as
+ * opposed to "this request could not be answered".
+ *
+ * Payload signals a decision by throwing, so a `catch` here has to classify
+ * rather than assume — see {@link checkPassword} for what assuming cost. Each
+ * of the three is on the list for a reason and none is speculative:
+ * `AuthenticationError` is a wrong password; `LockedAuth` is an account locked
+ * by a request racing this one, past the read above; `ValidationError` is an
+ * absent or whitespace-only password, which `loginOperation` refuses before it
+ * looks anything up. A reader can cause all three by typing, and none of them
+ * is an incident.
+ *
+ * Written as a list tested with `some` rather than a chain of `instanceof`s
+ * joined by `||`, so there is ONE branch here and both of its arms are
+ * reachable. A chain would add an arm per class, and `LockedAuth`'s could only
+ * be reached through a race no test can schedule — an unreachable arm excused
+ * by a comment, which is what this repository keeps finding under lowered
+ * thresholds.
+ */
+const PAYLOAD_REFUSALS = [AuthenticationError, LockedAuth, ValidationError]
+
+/**
+ * What the operator is told when Payload cannot answer at all.
+ *
+ * FIXED TEXT, CARRYING NOTHING FROM THE REQUEST. Not the address, not a masked
+ * address, not the requesting IP, and certainly not the password (CLAUDE.md
+ * §7). The operator needs to know that sign-in is failing for a reason that is
+ * not a reader's mistake; they do not need to know whose sign-in it was, and a
+ * line that named one would be a record of who tried to sign in and when.
+ * `signIn.integration.test.ts` asserts that absence rather than trusting this
+ * comment.
+ */
+const CREDENTIAL_STORE_UNAVAILABLE = 'sign-in could not be decided: the credential store did not answer'
+
+/** What asking Payload about a password produced. */
+type CredentialCheck =
+  /** The password is right. */
+  | 'accepted'
+  /** Payload refused it — wrong, absent, or the account locked by a racer. */
+  | 'refused'
+  /** Payload could not answer. NOT the same thing as a refusal. */
+  | 'unavailable'
+
+/**
+ * Asks Payload whether `password` is right for the account at `address`.
  *
  * PAYLOAD IS THE CREDENTIAL STORE AND THE LOCKOUT, AND NOTHING ELSE.
  * `loginOperation` is what derives the key, compares it in constant time,
  * increments `login_attempts` and applies `maxLoginAttempts` / `lockTime`
- * (`apps/web/collections/users.ts`) — so calling it is how
- * `SECURITY.md`'s "account lockout with a cooling-off period" stays one
- * mechanism rather than two. The JWT it also mints is discarded: sessions
- * here are revocable rows, not tokens (`docs/adr/0017-session-store-and-rotation.md`).
+ * (`apps/web/collections/users.ts`) — so calling it is how `SECURITY.md`'s
+ * "account lockout with a cooling-off period" stays one mechanism rather than
+ * two. The JWT it also mints is discarded: sessions here are revocable rows,
+ * not tokens (`docs/adr/0017-session-store-and-rotation.md`).
+ *
+ * THREE ANSWERS, NOT TWO, AND THE THIRD IS THE CORRECTION OF A REAL DEFECT.
+ * This function returned a boolean and caught everything, so ANY throw — a
+ * database outage, a failing hook, a connection pool exhausted — arrived at the
+ * caller as "wrong password". The owner would be told their correct password
+ * was wrong and sent to reset it, during an incident, which is exactly when a
+ * password reset is least likely to work; and nothing anywhere would record
+ * that the credential store had stopped answering. CLAUDE.md §3.1's "no empty
+ * catch" is not about the braces being empty: it is about a catch that erases
+ * the difference between WRONG and BROKEN.
+ *
+ * THE READER IS STILL TOLD THE SAME THING. The distinction is internal and
+ * reaches the operator through the log; the caller collapses `'refused'` and
+ * `'unavailable'` into one response, so the anti-enumeration property above is
+ * untouched. Both directions are asserted — the operator is told, the reader
+ * is not.
  *
  * @param payload - The Local API instance.
  * @param address - The already-normalised sign-in address.
  * @param password - The password that was offered.
- * @returns Whether the login succeeded. A rejection is an ANSWER, not an
- *   error: Payload signals a wrong password, and an account locked by a
- *   request racing this one, by throwing. Both are the same refusal here, so
- *   there is nothing to distinguish and nothing to rethrow.
+ * @returns Which of the three {@link CredentialCheck} answers Payload gave.
+ *   Nothing is rethrown: an outage here has a defined, fail-closed answer, and
+ *   letting it escape would replace an identical refusal with a stack trace on
+ *   one branch and not the other.
  */
-const passwordAccepted = async (payload: Payload, address: string, password: string): Promise<boolean> => {
+const checkPassword = async (payload: Payload, address: string, password: string): Promise<CredentialCheck> => {
   try {
     await payload.login({ collection: 'users', data: { email: address, password } })
-    return true
-  } catch {
-    return false
+    return 'accepted'
+  } catch (error) {
+    return PAYLOAD_REFUSALS.some((refusal) => error instanceof refusal) ? 'refused' : 'unavailable'
   }
 }
 
@@ -356,7 +427,13 @@ export const createSignInService = ({
       return err('invalid-credentials')
     }
 
-    if (!(await passwordAccepted(payload, address, password))) return err('invalid-credentials')
+    const checked = await checkPassword(payload, address, password)
+    // Recorded BEFORE the refusal is returned, and recorded only for the
+    // outage: the reader gets the identical answer either way, so this line is
+    // the only place the difference exists at all. See
+    // {@link CREDENTIAL_STORE_UNAVAILABLE} for why it carries no request data.
+    if (checked === 'unavailable') payload.logger.error(CREDENTIAL_STORE_UNAVAILABLE)
+    if (checked !== 'accepted') return err('invalid-credentials')
 
     // THE SERVER DECIDES, AND IT DECIDES FROM THE ROW IT JUST READ. NULL is
     // required, not optional: the column is nullable, and a second factor

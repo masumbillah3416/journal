@@ -73,14 +73,35 @@ import { type SignInRateLimiter, createSignInRateLimiter } from './rateLimit'
  * The documentation address block every fixture address comes from
  * (RFC 5737 TEST-NET-2), so `afterAll` can delete this file's rows by prefix
  * and can never delete a row some other suite wrote.
+ *
+ * ONE BLOCK PER SUITE, AND THE THREE ARE DISJOINT: this file has TEST-NET-2,
+ * `signIn.integration.test.ts` has TEST-NET-1 (`192.0.2.`) and
+ * `passwordReset.integration.test.ts` has TEST-NET-3 (`203.0.113.`). Two
+ * suites sharing a prefix would delete each other's rows in `afterAll` —
+ * harmless while they run in sequence and a mystery the day they do not.
  */
 const FIXTURE_IP_PREFIX = '198.51.100.'
 
 /** The prefix every synthetic account id here carries, for the same reason. */
 const FIXTURE_ACCOUNT_PREFIX = 'rate-fixture-account-'
 
+/** How many host addresses a `/24` documentation block actually has. */
+const USABLE_HOSTS_IN_A_SLASH_24 = 254
+
 /** Distinguishes one fixture address or account from the next within a run. */
 let fixtureCount = 0
+
+/**
+ * Counts fixture IPs SEPARATELY from everything else, because a /24 has 254
+ * usable hosts and the shared counter passes that.
+ *
+ * It was not a hypothetical: this file's addresses and accounts drew from one
+ * counter that reaches roughly 260 over a full run, so the last of them were
+ * `198.51.100.255` and beyond — strings that are unique, and are not addresses.
+ * Nothing failed, because `subject` is text; the fixtures had simply stopped
+ * being what they claimed to be.
+ */
+let fixtureIpCount = 0
 
 /**
  * A fixture address no other case in this run is using.
@@ -92,8 +113,14 @@ let fixtureCount = 0
  * @returns A TEST-NET-2 address unique within this run.
  */
 const anAddress = (): string => {
-  fixtureCount += 1
-  return `${FIXTURE_IP_PREFIX}${String(fixtureCount)}`
+  fixtureIpCount += 1
+  // Loud rather than silent if this file outgrows its block: a wrapped counter
+  // would hand two cases the same address and they would spend each other's
+  // budget, which reads as a bug in the limiter.
+  if (fixtureIpCount > USABLE_HOSTS_IN_A_SLASH_24) {
+    throw new Error('this suite has outgrown its documentation address block')
+  }
+  return `${FIXTURE_IP_PREFIX}${String(fixtureIpCount)}`
 }
 
 /**

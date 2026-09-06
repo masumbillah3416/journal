@@ -1728,10 +1728,46 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   removing the claimed-address dimension from `admitPasswordAttempt` (four in `signIn`'s
   suite and three in `rateLimit`'s), plus three against the reset module.
 
-  One test-quality lesson came out of that matrix and is worth repeating: the case
-  asserting that an unknown address spends the same windows as a known one originally
-  compared the two counts to each other, and **passed under the mutation that removed the
-  limiter entirely** — two zeroes are equal. It now asserts both counts are ONE.
+  Two test-quality lessons came out of that matrix and are worth repeating, because both
+  are the same shape — an assertion that is **vacuously true of the mechanism's absence**:
+
+  - The case asserting that an unknown address spends the same windows as a known one
+    originally compared the two counts to each other, and **passed under the mutation that
+    removed the limiter entirely** — two zeroes are equal. It now asserts both counts are
+    ONE.
+  - The case asserting that the operator's log line names no address originally checked
+    only that the recorded calls contained no address, and **passed while nothing was
+    logged at all**. It now asserts the call count first.
+
+  **Review round 1 added a fifth trap, and it is the one with operational teeth.** A bare
+  `catch` around Payload's login turned every throw into "wrong password" — so a database
+  outage would tell the owner their correct password was wrong and send them to reset it,
+  during an incident, with nothing recorded. `checkPassword` now returns three answers
+  rather than two, and the suite asserts the distinction in **both** directions: the
+  operator is told (and told nothing about who), the reader is told exactly what a wrong
+  password tells them, and an ordinary wrong password reports nothing at all. Three more
+  mutations, all pasted in the task report: collapsing the classification back to a bare
+  catch fails two cases, reporting every refusal fails two others, and letting the outage
+  reach the reader as its own refusal fails the case named for it.
+
+  That suite carries the phase's one deliberate test double for a third-party boundary: a
+  `Proxy` over the real `Payload` whose `login` rejects. "The credential store cannot
+  answer" has no honest inducement — the only real cause is the database being unreachable,
+  and taking `diary_test` down mid-run would take every other file with it — so the
+  boundary is substituted at the boundary, exactly as `passwordReset.integration.test.ts`
+  substitutes a refusing `MailerPort`, and never the module under test (CLAUDE.md §2.3). A
+  proxy rather than a spread: spreading a class instance drops its prototype methods, which
+  ESLint refuses and TypeScript catches.
+
+  **Fixture addresses: one documentation block per suite, and a counter that cannot leave
+  it.** The three sign-in suites clean up by IP prefix, so two sharing a block delete each
+  other's rows — harmless only because `fileParallelism` is off. They now hold TEST-NET-1
+  (`signIn`), TEST-NET-2 (`rateLimit`) and TEST-NET-3 (`passwordReset`). Each also counts
+  IPs on a counter of its own that throws past 254 rather than wrapping: `rateLimit`'s
+  addresses and accounts shared one counter that reaches about 260 over a full run, so its
+  last fixtures were `198.51.100.255` and beyond — unique strings that are not addresses.
+  Nothing failed, because `subject` is text; the fixtures had simply stopped being what
+  they claimed to be.
 
   What is still outstanding is the upload worker's SVG and EXIF probes (Phase 3).
 - **Run (once added):** included in `npm run test:integration` (these probes need a real

@@ -377,8 +377,12 @@ discovered by whoever writes the route in front of them:
 - **`requestPasswordReset` takes no origin from the request.** The origin its link is
   built against is a dependency of the service, not a field of the request: a link built
   from a `Host` header is a link an attacker can point at their own machine. The reset
-  screen the link lands on (`/admin/reset/<token>`) is not built yet — Phase 2 Task 9
-  builds §3.3's request states, and the screen that consumes the token is later still.
+  screen the link lands on (`/admin/reset/<token>`) is not built yet, and **Phase 2
+  Task 9 owns it**: the `[token]` route at that path, the form, the
+  `payload.resetPassword` call, the invalid/expired state, and an e2e case following
+  the mailed link (controller ruling, Task 5 review round 1). Until it lands the link
+  resolves to a 404, which is why the deviation recording this copy says so
+  (`docs/deviations.md` §31).
 
 Unlike the two above, the collection behind it is **not** closed to everybody:
 `sessions` carries a per-user ownership rule (`docs/deviations.md` §29), so the Account

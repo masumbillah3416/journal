@@ -92,12 +92,21 @@
  * connection per attempt: the same denial-of-service lever `otpService.ts`
  * rejects for its own comparison path. See ADR 0016.
  *
- * NOTHING HERE LOGS, AND THAT IS A REQUIREMENT RATHER THAN AN OMISSION. An
- * address and an account are never present in the same row, and never
- * appear together in any value this module returns: a refusal is one word.
- * The `account` dimension's subject is a row id on the code endpoint and a
- * SHA-256 of the claimed sign-in address on the password endpoint, so no
- * cleartext address is written beside an IP either.
+ * NOTHING HERE LOGS, AND THAT IS A REQUIREMENT RATHER THAN AN OMISSION. A
+ * refusal is one word, and no value this module returns carries a subject at
+ * all. ONE ROW HOLDS ONE SUBJECT: an IP, or an account id, or a hashed
+ * address, never two of them — and the `account` dimension's subject is a row
+ * id on the code endpoint and a SHA-256 of the claimed address on the password
+ * endpoint, so no cleartext address is ever written beside an IP.
+ *
+ * THAT IS A STATEMENT ABOUT A ROW, NOT A CLAIM OF UNLINKABILITY, and the
+ * difference matters to anyone relying on it. One request writes two rows
+ * within a millisecond of each other, so anybody reading this table can
+ * correlate an IP with the subject recorded beside it in time. What the split
+ * buys is that no single row is a record of "this address, from this
+ * address", and that a dump of the `account` dimension is not a list of
+ * addresses. It does not make the pairing unrecoverable, and nothing here
+ * should be described as if it did.
  *
  * Depends on: `payload` (the Local API instance, injected) and its Postgres
  * pool, `node:crypto`, and `@travel-diary/domain`'s `admitsAttempt`, the three

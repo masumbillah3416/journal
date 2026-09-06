@@ -1271,10 +1271,12 @@ read the session it is about to establish. The hour is not ours: it is Payload's
 **One thing this deviation does NOT cover, and it is worth being plain about:** the
 screen that consumes the link does not exist yet. Task 5 mints a real token that
 Payload's `resetPassword` really consumes — `passwordReset.integration.test.ts` completes
-a reset with it and then signs in with the new password — but Phase 2 Task 9 builds
-§3.3's two *request* states, not the set-a-new-password screen the link lands on. Until
-that screen is mounted at this path, the link resolves to a 404. This is recorded here
-rather than left to be discovered.
+a reset with it and then signs in with the new password — but at the time Task 5 shipped, Task 9's
+brief covered §3.3's two *request* states and not the set-a-new-password screen the link
+lands on. **That gap is now closed by a controller ruling: Task 9 owns the screen** — the
+`[token]` route at this path, the form, the `payload.resetPassword` call, the
+invalid/expired state, and an e2e case that follows the mailed link. Until it lands the
+link resolves to a 404. Recorded here rather than left to be discovered.
 
 **What would reverse this:** the repository owner supplying their own copy, which is
 theirs to write; or a later phase moving the reset screen, at which point `RESET_PATH`

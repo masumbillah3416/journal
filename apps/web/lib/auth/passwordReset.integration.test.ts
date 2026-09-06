@@ -53,8 +53,21 @@ const FIXTURE_EMAIL_DOMAIN = 'password-reset-fixture.example'
  */
 const FIXTURE_LOCAL_PREFIX = 'reader'
 
-/** The documentation address block every fixture IP comes from (RFC 5737 TEST-NET-1). */
-const FIXTURE_IP_PREFIX = '192.0.2.'
+/**
+ * The documentation address block every fixture IP comes from (RFC 5737
+ * TEST-NET-3), so `afterAll` can delete this file's rows by prefix.
+ *
+ * ONE BLOCK PER SUITE, AND THE THREE ARE DISJOINT: this file has TEST-NET-3,
+ * `signIn.integration.test.ts` has TEST-NET-1 (`192.0.2.`) and
+ * `rateLimit.integration.test.ts` has TEST-NET-2 (`198.51.100.`). This file
+ * shared TEST-NET-1 with `signIn`'s suite until Task 5 review round 1: the two
+ * deleted each other's rows in `afterAll`, which was harmless only because
+ * `fileParallelism` is off.
+ */
+const FIXTURE_IP_PREFIX = '203.0.113.'
+
+/** How many host addresses a `/24` documentation block actually has. */
+const USABLE_HOSTS_IN_A_SLASH_24 = 254
 
 /** The password every fixture account is created with. */
 const CORRECT_PASSWORD = 'the-one-this-account-was-created-with'
@@ -67,6 +80,12 @@ const ADMIN_ORIGIN = 'https://diary.example'
 
 /** Distinguishes one fixture from the next within a single run. */
 let fixtureCount = 0
+
+/**
+ * Counts fixture IPs SEPARATELY from everything else, because a /24 has 254
+ * usable hosts and a shared counter can pass that (`rateLimit`'s did).
+ */
+let fixtureIpCount = 0
 
 /** Every `sign_in_attempts.subject` this file's addresses hashed to, so `afterAll` can find them. */
 const fixtureAddressKeys: string[] = []
@@ -102,8 +121,14 @@ const anAddress = (): string => {
  * @returns A TEST-NET-1 address unique within this run.
  */
 const anIp = (): string => {
-  fixtureCount += 1
-  return `${FIXTURE_IP_PREFIX}${String(fixtureCount)}`
+  fixtureIpCount += 1
+  // Loud rather than silent if this file outgrows its block: a wrapped counter
+  // would hand two cases the same address and they would spend each other's
+  // budget, which reads as a bug in the limiter.
+  if (fixtureIpCount > USABLE_HOSTS_IN_A_SLASH_24) {
+    throw new Error('this suite has outgrown its documentation address block')
+  }
+  return `${FIXTURE_IP_PREFIX}${String(fixtureIpCount)}`
 }
 
 /** The shared test Payload instance, assigned by `beforeAll`. */

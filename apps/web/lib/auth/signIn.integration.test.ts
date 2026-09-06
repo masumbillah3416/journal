@@ -37,6 +37,16 @@
  *      identifier the browser arrived with still authenticates. So the
  *      rotation case authenticates the OLD identifier and expects a refusal.
  *
+ * ONE STAND-IN IS USED, AND IT STANDS IN FOR PAYLOAD RATHER THAN FOR US.
+ * "The credential store cannot answer" is the one condition below that cannot
+ * be induced honestly: the only real cause is the database being unreachable,
+ * and taking `diary_test` down mid-run would take every other file with it.
+ * So those cases build a `Payload` whose `login` rejects — the third-party
+ * boundary substituted at the boundary, exactly as
+ * `passwordReset.integration.test.ts` substitutes a refusing `MailerPort`, and
+ * not the module under test (CLAUDE.md §2.3). Everything else about it is the
+ * real instance, including the pool the limiter and the credential read use.
+ *
  * NOTHING HERE READS A CODE OUT OF THE DATABASE. The one case that needs the
  * code reads it from the mailer's outbox, the way a reader receives it, so
  * the delivery path is exercised rather than assumed.
@@ -53,7 +63,8 @@ import { ADDRESS_PASSWORD_ATTEMPT_LIMIT, IP_ATTEMPT_LIMIT } from '@travel-diary/
 import { sessionLifetimeMs } from '@travel-diary/domain/auth/session'
 import { type SessionId, type UserId, sessionId, userId } from '@travel-diary/domain/ids'
 import { isOk } from '@travel-diary/domain/result'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import type { Payload } from 'payload'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createConsoleMailer } from '../adapters/console-mailer'
 import { getTestPayload } from '../testPayload'
 import { createOtpService } from './otpService'
@@ -65,8 +76,20 @@ import { readCodeFromOutbox } from './testing/otpProbes'
 /** Every fixture account and every unknown address here belongs to this domain. */
 const FIXTURE_EMAIL_DOMAIN = 'sign-in-fixture.example'
 
-/** The documentation address block every fixture IP comes from (RFC 5737 TEST-NET-1). */
+/**
+ * The documentation address block every fixture IP comes from (RFC 5737
+ * TEST-NET-1), so `afterAll` can delete this file's rows by prefix.
+ *
+ * ONE BLOCK PER SUITE, AND THE THREE ARE DISJOINT: this file has TEST-NET-1,
+ * `rateLimit.integration.test.ts` has TEST-NET-2 (`198.51.100.`) and
+ * `passwordReset.integration.test.ts` has TEST-NET-3 (`203.0.113.`). Two
+ * suites sharing a prefix would delete each other's rows in `afterAll` —
+ * harmless while they run in sequence and a mystery the day they do not.
+ */
 const FIXTURE_IP_PREFIX = '192.0.2.'
+
+/** How many host addresses a `/24` documentation block actually has. */
+const USABLE_HOSTS_IN_A_SLASH_24 = 254
 
 /** The password every fixture account is actually created with. */
 const CORRECT_PASSWORD = 'the-one-this-account-was-created-with'
@@ -93,6 +116,13 @@ const SAMPLES = 25
 
 /** Distinguishes one fixture from the next within a single run. */
 let fixtureCount = 0
+
+/**
+ * Counts fixture IPs SEPARATELY from everything else, because a /24 has 254
+ * usable hosts and the shared counter passes that — this file alone asks for
+ * about 125 addresses, and the shared counter reaches several hundred.
+ */
+let fixtureIpCount = 0
 
 /** Every `sign_in_attempts.subject` this file's addresses hashed to, so `afterAll` can find them. */
 const fixtureAddressKeys: string[] = []
@@ -138,8 +168,14 @@ const anUnknownAddress = (): string => {
  * @returns A TEST-NET-1 address unique within this run.
  */
 const anIp = (): string => {
-  fixtureCount += 1
-  return `${FIXTURE_IP_PREFIX}${String(fixtureCount)}`
+  fixtureIpCount += 1
+  // Loud rather than silent if this file outgrows its block: a wrapped counter
+  // would hand two cases the same address and they would spend each other's
+  // budget, which reads as a bug in the limiter.
+  if (fixtureIpCount > USABLE_HOSTS_IN_A_SLASH_24) {
+    throw new Error('this suite has outgrown its documentation address block')
+  }
+  return `${FIXTURE_IP_PREFIX}${String(fixtureIpCount)}`
 }
 
 /**
@@ -213,6 +249,40 @@ const aRequest = (email: string, password: string): SignInRequest => ({
 })
 
 /**
+ * A `Payload` whose `login` rejects with something that is not one of
+ * Payload's own refusals — what a database outage looks like from here.
+ *
+ * A PROXY, NOT A SPREAD, and not a hand-built object either. Spreading a class
+ * instance drops everything on its prototype (`update`, `delete`, `init` and
+ * three more), which ESLint refuses outright and TypeScript catches a moment
+ * later; building an object by hand would mean writing forty-odd members to
+ * change one. The proxy forwards every property to the real instance — the
+ * same pool the limiter and the credential read use, the same logger — and
+ * intercepts exactly one.
+ * @returns The stand-in.
+ */
+const aPayloadWhoseCredentialStoreIsDown = (): Payload =>
+  new Proxy(payload, {
+    get: (target, property, receiver): unknown =>
+      property === 'login'
+        ? () => Promise.reject(new Error('the connection to the database was terminated unexpectedly'))
+        : Reflect.get(target, property, receiver),
+  })
+
+/**
+ * The service under test, built over a credential store that cannot answer.
+ * @returns The service.
+ */
+const aSignInServiceWithNoCredentialStore = (): SignInService =>
+  createSignInService({
+    payload: aPayloadWhoseCredentialStoreIsDown(),
+    otp: createOtpService({ payload, mailer, now: Date.now }),
+    sessions,
+    limiter: createSignInRateLimiter({ payload }),
+    now: Date.now,
+  })
+
+/**
  * How many attempts stand recorded against one key.
  * @param dimension - Which window to count in.
  * @param subject - The IP, or the hashed sign-in address.
@@ -260,6 +330,10 @@ beforeAll(async () => {
   // run to run, and `users.email` is unique, so one row left by an
   // interrupted run makes the next run fail inside the fixture factory.
   await removeFixtures()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 afterAll(async () => {
@@ -333,6 +407,15 @@ describe('telling one refusal from another', () => {
       return middle
     }
 
+    // ~0.90 IS THE CORRECT ANSWER HERE, NOT A DEFECT TO BE TUNED TOWARDS 1.00.
+    // Both arms are dominated by the same ~40ms derivation, but the
+    // wrong-password arm makes two extra database round trips the miss path
+    // does not — `payload.login`'s own `findOne` and `incrementLoginAttempts` —
+    // so the miss is legitimately the faster of the two by a few milliseconds.
+    // Five consecutive runs measured 0.9036, 0.9047, 0.9146, 0.9007, 0.9015: a
+    // spread of 0.014, every run 0.30 clear of the bound below. Chasing 1.00
+    // would mean adding work to the miss path to disguise work the hit path
+    // does for a reason, which is the wrong direction entirely.
     const ratio = median(unknown) / median(wrong)
     expect(ratio).toBeGreaterThan(0.6)
     expect(ratio).toBeLessThan(1.6)
@@ -533,5 +616,73 @@ describe('the windows it spends', () => {
     await service.signIn(aRequest(claimed, WRONG_PASSWORD))
 
     expect(await recordedAttempts('account', addressKey(claimed))).toBe(1)
+  })
+})
+
+describe('when the credential store cannot answer', () => {
+  it('tells the operator, rather than filing it as a wrong password', async () => {
+    // The defect this replaced: a bare `catch` turned every throw into
+    // `'invalid-credentials'`, so a database outage told the owner their
+    // correct password was wrong and sent them to reset it — during an
+    // incident, which is exactly when a password reset is least likely to
+    // work, and with nothing recorded anywhere to say so.
+    const reader = await aReader({ otpRequired: false })
+    const reported = vi.spyOn(payload.logger, 'error')
+
+    await aSignInServiceWithNoCredentialStore().signIn(aRequest(reader.email, CORRECT_PASSWORD))
+
+    expect(reported).toHaveBeenCalledTimes(1)
+  })
+
+  it('says nothing to the operator about an ordinary wrong password', async () => {
+    // The other half of the same claim: if every refusal were reported, the
+    // report would carry no information and the case above would pass with
+    // the distinction gone.
+    const reader = await aReader({ otpRequired: false })
+    const reported = vi.spyOn(payload.logger, 'error')
+
+    await service.signIn(aRequest(reader.email, WRONG_PASSWORD))
+
+    expect(reported).not.toHaveBeenCalled()
+  })
+
+  it('names neither the address nor the password in what it tells the operator', async () => {
+    const reader = await aReader({ otpRequired: false })
+    const reported = vi.spyOn(payload.logger, 'error')
+
+    await aSignInServiceWithNoCredentialStore().signIn(aRequest(reader.email, CORRECT_PASSWORD))
+
+    // The call count is asserted FIRST and deliberately: "the log contains no
+    // address" is trivially true of a log nothing wrote, so without this the
+    // case would pass with the report deleted.
+    expect(reported).toHaveBeenCalledTimes(1)
+    const said = JSON.stringify(reported.mock.calls)
+    expect(said).not.toContain(reader.email)
+    expect(said).not.toContain(CORRECT_PASSWORD)
+  })
+
+  it('still answers a reader exactly as a wrong password does', async () => {
+    // The operator learns the difference; the reader must not. Anything else
+    // would hand an attacker a way to tell a real account from an invented one
+    // by whatever they can make the credential store do.
+    const reader = await aReader({ otpRequired: false })
+
+    const outage = await aSignInServiceWithNoCredentialStore().signIn(aRequest(reader.email, CORRECT_PASSWORD))
+    const wrong = await service.signIn(aRequest(reader.email, WRONG_PASSWORD))
+
+    expect(outage).toEqual(wrong)
+  })
+
+  it('treats a password Payload rejects as malformed as a refusal, not an outage', async () => {
+    // `loginOperation` throws a `ValidationError` for an empty password before
+    // it looks anything up. That is a reader mistyping, not an incident, and
+    // reporting it would let anybody fill the log by submitting blanks.
+    const reader = await aReader({ otpRequired: false })
+    const reported = vi.spyOn(payload.logger, 'error')
+
+    const outcome = await service.signIn(aRequest(reader.email, ''))
+
+    expect(outcome).toEqual({ ok: false, error: 'invalid-credentials' })
+    expect(reported).not.toHaveBeenCalled()
   })
 })
