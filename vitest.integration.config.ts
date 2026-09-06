@@ -54,6 +54,12 @@
  * measured instead by `vitest.config.ts`'s `unit` project (see this file's
  * coverage `exclude` for the detail).
  *
+ * `apps/web/lib/auth/readSignInScreen.ts` (Phase 2 Task 7) joins this file for
+ * the same reason as `readBookBundle.ts`: it reads a Payload global and a
+ * `users` row, and the question its cases exist to answer - what a NULLABLE
+ * `otp_required` column reads as for a row written before its schema default -
+ * has no answer without a real table.
+ *
  * `apps/web/app/**` is NOT included here, and that is settled, not stale:
  * Task 1 of Phase 1 added it to `vitest.config.ts`'s unit coverage include
  * instead (with a 95%/95%/95% threshold that starts binding the moment
@@ -120,6 +126,7 @@ export default defineConfig({
         'apps/web/lib/auth/sessions.ts',
         'apps/web/lib/auth/signIn.ts',
         'apps/web/lib/auth/passwordReset.ts',
+        'apps/web/lib/auth/readSignInScreen.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
         'apps/web/payload.config.ts',
@@ -221,6 +228,14 @@ export default defineConfig({
         // after the row was read - each states its reason at the exclusion.
         'apps/web/lib/auth/signIn.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/auth/passwordReset.ts': { lines: 100, branches: 100, functions: 100 },
+        // readSignInScreen.ts (Phase 2 Task 7): 100% on every axis. There is
+        // nothing to excuse here - the module is two queries and four
+        // narrowings, and every one of its branches is a real editorial or
+        // schema state with a case of its own: a cleared title, a cleared
+        // subtitle, a cleared cloth colour, and the three answers
+        // `otp_required` can give (true, false, and NULL - which reads as
+        // required, like an absent account).
+        'apps/web/lib/auth/readSignInScreen.ts': { lines: 100, branches: 100, functions: 100 },
         // readBookBundle.ts (Task 6 of Phase 1; Task 6 review fix round 1;
         // Task 11): 100% lines/statements/functions. 83% branches is the
         // real, measured number, RAISED again from 81% by Task 11, whose

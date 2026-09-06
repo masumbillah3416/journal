@@ -16,11 +16,16 @@
 # in the header rather than here. docs/security.md's `indexGalleries` row is the
 # record of what is still owed.
 #
-# `/cms` is Payload's admin. It is authenticated, so nothing behind it is
-# indexable in any case; it is named here so a crawler does not spend requests
-# discovering that, and so the diary's own routes are the only thing this file
-# invites.
+# `/cms` is Payload's admin and `/admin` is the bespoke one. Both are
+# authenticated, so nothing behind either is indexable in any case; they are
+# named here so a crawler does not spend requests discovering that, and so the
+# diary's own routes are the only thing this file invites. `/admin/sign-in`
+# itself is not behind the guard - it is the door - so it also carries
+# `robots: { index: false }` in its own metadata: this file asks a crawler not
+# to FETCH the path, which does not stop a link from elsewhere putting the
+# address in an index.
 
 User-agent: *
 Allow: /
 Disallow: /cms
+Disallow: /admin

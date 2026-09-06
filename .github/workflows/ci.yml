@@ -148,7 +148,14 @@ jobs:
       # through the DevTools Protocol rather than a dispatched event, because
       # the rule it proves — that a vertical scroll never turns a page — is
       # only meaningful against a column the browser actually scrolls.
-      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/ciRegistration.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
+      # Phase 2 Task 7 adds `e2e/signIn.spec.ts`, the first spec about the
+      # bespoke admin. Three of its cases are what proves SECURITY.md's
+      # second prototype hole closed against the DELIVERED page rather than
+      # against the source — no `Storage` read during load, no script naming
+      # the prototype's flag, and the footer line unmoved when that key is
+      # planted in `localStorage` before navigation. They can only run in a
+      # browser, so this is the only place they gate a merge.
+      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/signIn.spec.ts e2e/ciRegistration.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
       # image: chrome-launcher's own auto-detection looks for a system
       # `google-chrome`/`chromium-browser` binary, which this image does not

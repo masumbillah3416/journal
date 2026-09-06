@@ -1,0 +1,73 @@
+/**
+ * admin.css — the document-level reset the bespoke admin route group needs.
+ *
+ * Deliberately tiny, and deliberately NOT `diary.css`. The two groups have
+ * separate root layouts because the diary's document and the admin's are
+ * different documents (see `(diary)/layout.tsx`'s header), and the diary's
+ * stylesheet carries two rules this surface must not inherit: it paints the
+ * document `--td-outer` (white, the space around a book that is not drawn
+ * here), and it hides every scrollbar, which SCREENS.md §1.7 asks for on the
+ * reading surface so the paper illusion holds. An admin screen that scrolls
+ * with no indicator is a usability defect, not an illusion.
+ *
+ * `@travel-diary/tokens/tokens.css` is imported first so every `--td-*`
+ * custom property this group's components read is defined before any rule
+ * that uses one.
+ *
+ * The `:root` block redefines all three `--td-font-*` values the import just
+ * set, layering the self-hosted `next/font/local` family in front of each
+ * stack rather than replacing it - the same technique, for the same reason,
+ * as `diary.css`'s own block: `layout.tsx` applies `fonts.ts`'s `.variable`
+ * classes to `<html>`, which is this stylesheet's `:root`, so
+ * `var(--font-caveat)` and the other two are always defined here by the time
+ * this rule is read, and the handoff's original stack stays the last resort.
+ *
+ * `packages/tokens/src/tokens.css` is left untouched on purpose: it is the
+ * shared, framework-agnostic token source, and wiring a `next/font`-generated
+ * variable name into it would couple that package to one app's build tool.
+ * Depends on: packages/tokens/src/tokens.css, ../(diary)/fonts.ts (via
+ * layout.tsx's `.variable` classes on `<html>`).
+ */
+@import '@travel-diary/tokens/tokens.css';
+
+:root {
+  --td-font-caveat: var(--font-caveat), 'Caveat', cursive;
+  --td-font-garamond: var(--font-eb-garamond), 'EB Garamond', serif;
+  --td-font-courier: var(--font-courier-prime), 'Courier Prime', monospace;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--td-desk-from);
+  color: var(--td-ink);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Links inherit the design's accent rather than the browser's blue, and carry
+ * no underline: every link on this surface is a Courier label whose letter
+ * spacing an underline would sit badly under. The colour alone is not the
+ * only cue - each is inside a labelled control - and `:focus-visible` in
+ * `signIn.module.css` is what a keyboard reader follows. */
+a {
+  color: var(--td-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--td-accent-hover);
+}
+
+/* Form controls do not inherit type from the document by default, and every
+ * one of them on this surface is designed with a family and a size. */
+button,
+input {
+  font: inherit;
+  color: inherit;
+}

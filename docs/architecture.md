@@ -11,8 +11,7 @@ establishes the workspace and the domain package, later phases fill in `apps/web
 apps/
   web/                    Next 15 App Router + Payload 3 in-process
     app/(diary)/          public book, galleries          → static + ISR
-    app/(admin)/admin/    the bespoke ten-screen panel    → authenticated
-    app/(auth)/signin/    password, OTP, reset
+    app/(admin)/admin/    the bespoke panel: sign-in, then the ten screens
     app/(payload)/cms/    Payload's stock admin — dev only, disabled in production
     lib/                  repositories, server actions, adapters, auth/
   transcoder/             Node + sharp + ffmpeg worker, queue consumer  → DEFERRED (ADR 0004)
@@ -23,6 +22,20 @@ packages/
 docs/                     architecture, ADRs, data model, API, runbook, security, testing, QA sweeps
 handoff/                  the specification of record
 ```
+
+**Sign-in lives under `(admin)`, not under a group of its own.** The tree above named
+an `app/(auth)/signin/` group until Phase 2 Task 7, which is where the screen was
+actually built — `/admin/sign-in` — and the address is not a preference. `payload.config.ts`
+moves Payload's own admin to `/cms` precisely so the bespoke panel owns `/admin`, and
+`sessions.ts` scopes the session cookie `Path=/admin`: RFC 6265 sends such a cookie only
+to `/admin` and its descendants, so a sign-in screen served from `/signin` would set a
+cookie it could never read back and the signed-in state would never render (phase ruling
+F41). `(admin)` is a third ROOT layout, alongside `(diary)`'s and `(payload)`'s, for the
+same reason those two are separate: Payload wraps its routes in its own `RootLayout`, and
+the diary's document is built around a scaled paper object. It shares the diary group's
+`fonts.ts` rather than re-declaring the five faces, because `next/font/local` registers
+each face once per module and a second declaration would emit a second set of
+`@font-face` rules and a second preload for bytes the browser already has.
 
 `packages/domain` holds everything testable without a browser or a database: the flip
 machine, book scaling, page numbering, contents pagination, bookmark spans, the OTP
@@ -59,6 +72,7 @@ module, independently testable, named in its own header.
 | `rateWindow` / `rateLimit`               | `packages/domain` + `apps/web/lib` | The layer above the code's own lifecycle: `SECURITY.md`'s sliding window on sign-in attempts, per account and per IP. `admitsAttempt` is pure — given the attempts recorded for a key, the instant being judged, the window and the limit, it answers where that attempt ranks and whether the rank is inside the budget — and `apps/web/lib/auth/rateLimit.ts` is the only place a `signInAttempts` row is written or read. The seam is drawn so the window's arithmetic exists in exactly ONE place: the SQL supplies the newest `limit + 1` attempts at or before this one and applies no window floor of its own, because two copies of one rule would mean neither could be broken by itself. The window lives in Postgres rather than in the process because this app deploys to serverless invocations that do not share memory, and each request records its own attempt BEFORE anything is counted, so there is no check-then-write interval for a racer to occupy (`docs/adr/0016-rate-limit-window-storage.md`). The password endpoint's second dimension is keyed on a SHA-256 of the CLAIMED sign-in address rather than on an account row id (phase ruling F43): at that step the account is not yet known and half the requests name none, so a key that needed a row id would leave the miss path doing strictly less work than the hit path — an enumeration oracle inside the limiter. Its limit sits above Payload's `maxLoginAttempts: 5`, so for an address that names a real account the lockout `SECURITY.md` assigns that job to still binds first, and what the window governs is the address Payload has no row to lock. |
 | `signIn` / `passwordReset`              | `apps/web/lib` | The enforcement point, and the only module that composes the four above. `apps/web/lib/auth/signIn.ts` records the attempt in both of the password endpoint's windows, reads the account by its normalised address, asks Payload to check the password (Payload is the credential store and the lockout, and nothing else), reads `users.otpRequired` FROM THE ROW, and then either issues a code bound to the identifier the browser presented or starts a session that supersedes it. `passwordReset.ts` is its sibling for "send yourself a way back in". Both exist to make three refusals indistinguishable — an unknown address, a wrong password and a locked account — in the response AND in the time taken: any branch that cannot reach Payload's own key derivation spends an equivalent one and discards it, or the identical answer is worth nothing. Neither sets a cookie; `startSession`'s `Set-Cookie` value is returned for the route handler to put on a response. |
 | `session` / `sessions`                  | `packages/domain` + `apps/web/lib` | The session layer everything behind sign-in rests on. `sessionState`/`sessionLifetimeMs`/`sessionCookie` are pure — the lifecycle, the two lifetimes and the admin cookie's attributes; `sessions.ts` is the only place a `sessions` row is written or read. One entry point creates a session and it always rotates: the identifier the browser arrived with is superseded in the same statement that mints its replacement. The lifetime lives in the row, never in the token (`SECURITY.md`), so revoking or shortening it takes effect on the next request whatever the browser was told (`docs/adr/0017-session-store-and-rotation.md`). |
+| `signInTitle` / `readSignInScreen`      | `packages/domain` + `apps/web/lib` | The sign-in screen's own seam, and the smallest one here. The pure half fits the book's name to the cloth panel and to the narrow masthead (`SCREENS.md` §3's "fitted title", and its "28-44px" for the masthead) with the handoff prototype's own arithmetic, on the server, where no font metrics exist — measuring in the browser instead would mean client JS and a layout shift on a screen whose whole content is above the fold. `apps/web/lib/auth/readSignInScreen.ts` is the only place the screen learns anything: the `book` global's title, subtitle and cloth colour, and — the reason the module exists — `users.otpRequired`, which is what the footer line states and what `SECURITY.md`'s second prototype hole had living in `localStorage`. It fails CLOSED in both of the states this database is actually in: a `NULL` column and an empty `users` table both read as "the code step is on", the same `!== false` test `signIn.ts` applies to the same column. |
 | `storage` / `mailer` / `transcodeQueue` | `apps/web/lib`                     | Ports with local and production adapters, one shared contract suite run against both                                                              |
 
 ### The book's DOM binding (`apps/web/components/book/`)
@@ -124,6 +138,28 @@ the six alternatives it beat.
 | `useSwipe.ts`           | `touchstart`/`touchend` into `shouldTurnPage`. Holds no threshold and no ratio of its own - see `packages/domain/src/swipe.ts`, where the rule that stops a scroll turning a page is stated once.                   |
 | `useViewportSurface.ts` | Feeds `surfaceForWidth` a measurement, re-measured on resize and through a `ResizeObserver`, always inside one animation frame - the same shape `useBookScale` has.                                                 |
 | `SurfaceCorrection.tsx` | Draws nothing. Where the measured viewport and the served surface disagree, it remembers the measurement in a session cookie and re-renders the route on the server. It reads the cookie back before refreshing, so a reader with cookies blocked keeps the surface they have rather than reloading forever. |
+
+### The back room's front door (`apps/web/components/admin/`)
+
+Phase 2 Task 7 added `SCREENS.md` §3's sign-in screen — the first thing in
+`apps/web/components/admin/`, and the first screen of the bespoke panel. Two components,
+one stylesheet, and one client boundary between them.
+
+| File                | Responsibility                                                                                                                                                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SignInShell.tsx`   | The frame: the desk (which IS the route's `<main>`, so nothing sits outside a landmark and nothing empty is added to satisfy one), the shell's grid, the cloth panel with its spine, stitches, rules, ribbon and "PRIVATE / 01" stamp, the narrow masthead, and the form panel. A SERVER component — no hooks, no handlers, no state — so the frame costs the route nothing in the browser. It takes the step as `children`, which is what lets §3's other three states reuse it unchanged. |
+| `PasswordStep.tsx`  | §3.1's pane, and the route's only `'use client'` module. Two pieces of state and no more: whether the password is revealed, and which field the reader has to fix. It is a real `<form method="post">` rather than a `fetch`, so a reader with no JavaScript can still sign in; the handler it posts to is Task 10's. |
+| `signIn.module.css` | §3's measurements. NARROW IS A MEDIA QUERY, not a measured width: the prototype reads `window.innerWidth` and re-measures on resize, which here would mean every phone painting the wide layout first and reflowing after hydration. Carries the `HANDOFF-DEVIATION` at the cloth gradient and the cloth eyebrow (`docs/deviations.md` §32). |
+
+**The one thing to understand about this screen is where the footer line's answer comes
+from.** It states whether the one-time-code step runs, and `SECURITY.md`'s second
+prototype hole is that the handoff kept that flag in `localStorage`, where anyone could
+set it to `0`. Here `PasswordStep` is handed `codeStepRequired` as a prop, the route read
+it from `users.otpRequired` before rendering, and no module on this screen touches
+browser storage at all. That is asserted against the DELIVERED page rather than the
+source — `e2e/signIn.spec.ts` records every `Storage` read the page makes, searches every
+script it fetches for the prototype's key, and plants that key with the opposite answer
+before navigating.
 | `mobile.module.css`     | §1.10's measurements, in the viewport's own pixels. Carries the `HANDOFF-DEVIATION` at `.drawerTab` (`docs/deviations.md` §22).                                                                                     |
 
 **A page change on this surface is a navigation, and that is the structural difference

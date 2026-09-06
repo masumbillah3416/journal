@@ -22,10 +22,11 @@ updating its row in the same commit that changes the code (`CLAUDE.md` §1.3).
 
 ## Status
 
-Seven route handlers exist today: Payload's own four, mounted under the `(payload)` route
-group, and three of the diary's own — `/p/<n>`, added with the book itself in Phase 1
+Eight routes exist today: Payload's own four, mounted under the `(payload)` route
+group; three of the diary's own — `/p/<n>`, added with the book itself in Phase 1
 Task 7 and completed in Task 13; and `/gallery/<slug>` with its download handler
-`/gallery/<slug>/download/<id>`, added in Task 14. `/p/<n>` was completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
+`/gallery/<slug>/download/<id>`, added in Task 14 — and the bespoke admin's first,
+`/admin/sign-in`, added in Phase 2 Task 7. `/p/<n>` was completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
 metadata and a canonical link, and settled in
 `docs/adr/0010-static-generation-and-the-content-window.md` why it stays dynamic. Both sets are documented in full below. Everything still unbuilt is
 listed further down as **planned**, using only what the design spec (§8) already
@@ -305,6 +306,58 @@ for a different reason — see its row.
   signed URL was considered and not taken: this app already fronts the store, so a
   signed URL would add an expiry to think about without removing a hop — see
   `docs/deviations.md` §17.
+
+## Admin routes (live today)
+
+### `GET /admin/sign-in`
+
+- **Method:** `GET`. This route answers nothing else; see the note below.
+- **Input:** none. No path parameter, no query, no body, no header is read — the screen
+  is the same document for every caller, and deliberately so: nothing about it varies by
+  who is asking, because nobody has said who they are yet.
+- **Output:** an HTML document: `SCREENS.md` §3's shell with §3.1's password step in it —
+  the cloth panel and its "PRIVATE / 01" stamp above 820px, the narrow masthead below,
+  and the form panel's eyebrow, "Welcome back", lede, Email, Password with its Show/Hide,
+  the remember-me checkbox, the submit button and the footer line stating whether the
+  one-time-code step is on. Its content is `apps/web/lib/auth/readSignInScreen.ts`'s
+  `SignInScreenContent` — the `book` global's title, subtitle and cloth colour, and
+  `users.otpRequired`. `metadata` sets the document title and `robots: { index: false,
+  follow: false }`.
+- **Errors:** none observable. Every absent value degrades rather than throwing: a
+  cleared title or subtitle prints nothing, an unset cloth colour falls back to the
+  handoff's default, and an absent account — which is the seeded database's actual state
+  — reads as "the code step is on", the same fail-closed answer `signIn.ts` gives the
+  same column.
+- **Auth requirement:** none. It is the door. It is `Disallow`ed in `public/robots.txt`
+  and carries its own `noindex` for the reason that file's header gives.
+- **Notes:** the address is not a preference. `apps/web/payload.config.ts` moves
+  Payload's own admin to `/cms` so this panel owns `/admin`, and `sessions.ts` scopes the
+  session cookie `Path=/admin` — RFC 6265 sends such a cookie only to `/admin` and its
+  descendants, so a sign-in screen served from anywhere else would set a cookie it could
+  never read back (phase ruling F41).
+
+  **The `POST` this screen makes has no row here yet, and that is the gap to look for.**
+  The form targets `/admin/sign-in/password` — `PASSWORD_STEP_ENDPOINT`, exported from
+  `apps/web/components/admin/PasswordStep.tsx` so the handler mounts at the path the form
+  actually posts to rather than at a second spelling of it. A Next.js page cannot answer
+  a `POST` at its own address, which is why the handler is a sibling route; **Phase 2
+  Task 10 owns it**, along with the `Set-Cookie`, the CSRF check and the admin's CSP, and
+  it gets its own full row here in the commit that adds it. Until then the form posts to
+  a `404`. The three bullets under "Planned server actions" below are that row's binding
+  constraints — above all that the three refusals must stay indistinguishable in status
+  code, headers **and** elapsed time.
+
+  **The footer line is `SECURITY.md`'s second prototype hole, closed.** It states whether
+  the code step runs, and it is answered by `users.otpRequired` read on the server before
+  the document is rendered — never from `localStorage['om-diary-otp']`, where the
+  handoff's prototype kept it and where anyone could set it to `0`. That is asserted
+  against the delivered page rather than the source: `e2e/signIn.spec.ts` records every
+  `Storage` read the page makes (none), downloads every script it fetches and searches
+  each for that key (none names it), and plants the key with the opposite answer before
+  navigating, requiring the line not to move.
+
+  **"Forgotten" links to `/admin/reset`, which is not mounted yet** — Phase 2 Task 9 owns
+  it, and until it lands that link resolves to a `404` (`docs/deviations.md` §31).
 
 ## Planned routes (Phase 1)
 

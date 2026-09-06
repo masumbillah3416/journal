@@ -72,8 +72,10 @@
  * runner — every file here is therefore `-linux.png`, and the fix for a
  * platform mismatch is to regenerate in the container, never to loosen
  * `playwright.config.ts`'s `maxDiffPixelRatio`. See
- * `.superpowers/sdd/2026-09-01-phase-1-public-diary/task-1-report.md` for the
- * container invocation.
+ * `docs/testing.md`'s Visual regression section for the container invocation
+ * and the `npm run test:visual:container` script that runs it - Phase 2 Task
+ * 7 wrote both down, because the command needed to satisfy a gate this
+ * repository enforces had until then existed only in a git-ignored report.
  *
  * The diary cases snapshot the FULL PAGE rather than the scaled design box,
  * because the design box is drawn with `transform: scale(k)` and what a reader
@@ -132,6 +134,16 @@
  * from, concentric with it, and that `document.elementFromPoint` at that
  * area's centre lands inside the book. Never regenerate a `diary-*` baseline
  * without that suite green in the same run.
+ *
+ * PHASE 2 TASK 7 ADDS THE FIRST ADMIN SCREEN: `admin-sign-in-*.png`, the
+ * password step at all three projects. It is one case rather than two even
+ * though SCREENS.md §3 has two layouts, because the projects already ARE the
+ * two: `desktop` (1440) and `mid` (1000) are above the §3 breakpoint and
+ * photograph the cloth panel beside the form, and `mobile` (390) is below it
+ * and photographs the narrow masthead above a 470px shell. It does not use
+ * `settled()` - there is no scaled design box on this route - and it waits on
+ * the pane and `document.fonts.ready` only, since the screen carries no
+ * images at all.
  *
  * Baselines live in `e2e/visual.spec.ts-snapshots/` (one file per test per
  * project, auto-named by Playwright) and are committed — a snapshot with no
@@ -328,4 +340,16 @@ test('matches the baseline screenshot of the bookmark drawer over the mobile rea
   await expect(page.locator('[data-drawer]')).toBeVisible()
 
   await expect(page).toHaveScreenshot('diary-mobile-drawer.png')
+})
+
+test('matches the baseline screenshot of the sign-in screen', async ({ page }) => {
+  // No `settled()`: there is no scaled design box on this route, and no image
+  // anywhere on the screen. What has to be settled is the type — all three
+  // families are used here, and a screenshot taken before they load is a
+  // screenshot of the fallback stack.
+  await page.goto('/admin/sign-in', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-password-step]')).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-sign-in.png', { fullPage: true })
 })

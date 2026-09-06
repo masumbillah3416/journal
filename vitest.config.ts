@@ -354,6 +354,16 @@ export default defineConfig({
         // measure, at the domain's 100% bar.
         'apps/web/lib/auth/signIn.ts',
         'apps/web/lib/auth/passwordReset.ts',
+        // readSignInScreen.ts (Phase 2 Task 7) is reachable only from
+        // readSignInScreen.integration.test.ts, for the same reason as
+        // readBookBundle.ts above: it reads a Payload global and a `users`
+        // row, and the question its cases exist to answer - what a NULLABLE
+        // `otp_required` column reads as for a row written before its schema
+        // default - has no answer without a real table. Gated by
+        // vitest.integration.config.ts instead. Its pure half, the two title
+        // clamps, lives in `packages/domain/src/auth/signInTitle.ts`, which
+        // this pass DOES measure at the domain's 100% bar.
+        'apps/web/lib/auth/readSignInScreen.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by

@@ -212,6 +212,17 @@ would claim a measurement nothing performs.
   test that kept passing with its guarding clause deleted), because there is no red to
   notice.
 
+  Phase 2 Task 7 puts the first ADMIN components in `unit-dom`:
+  `apps/web/components/admin/SignInShell.test.tsx` and `PasswordStep.test.tsx`. The
+  second is where `SECURITY.md`'s second prototype hole is first held down — it plants
+  `om-diary-otp` in `localStorage` with the opposite answer to the server's and requires
+  the footer line not to move, and it spies on `Storage.prototype.getItem` to require
+  that nothing was read at all. Neither assertion stands alone: both are paired with one
+  that the footer line exists and says what `SCREENS.md` §3.1 says it should, because "no
+  storage was read" is trivially true of a component that rendered nothing. What jsdom
+  cannot reach — whether the DELIVERED page and its scripts read storage — is
+  `e2e/signIn.spec.ts`'s.
+
   `apps/web/lib/react-harness.test.tsx` is the guard: it mounts a real React component
   into a real `document` with `react-dom/client` and reads the text back out, which is
   impossible to pass unless the file is being collected AND the environment is a DOM. It
@@ -265,6 +276,15 @@ would claim a measurement nothing performs.
   `**/*.integration.test.ts` under `apps/web/lib/**`, `apps/web/collections/**`,
   `apps/web/scripts/**` and `packages/*/src/**` (no file matches that last pattern
   today — `packages/domain` and `packages/tokens` are pure, no I/O).
+  Phase 2 Task 7 adds `apps/web/lib/auth/readSignInScreen.integration.test.ts`, the
+  sign-in screen's own server read. Its four flag cases are integration cases rather
+  than unit ones for a reason a unit test could not have: `users.otp_required` is a
+  NULLABLE column with a schema default, and "what does a row written before that default
+  read as" is a question only a real table answers. It fails closed in both forms — a
+  `NULL` column and an empty `users` table, which is the state the seeded dev and CI
+  databases are actually in — and each case asserts the row it set up exists before
+  asserting what was read off it.
+
   `collections.integration.test.ts` (Task 6) exercises the schema
   rules from `DATA_MODEL.md`, the migration reversibility case (§9 below), and the
   access control on the three server-only collections — `jobs`, `otpChallenges` and
@@ -459,9 +479,42 @@ would claim a measurement nothing performs.
 - **Scope:** real journeys — page flip, bookmark jump, gallery, lightbox, mobile swipe,
   sign-in + OTP, upload round-trip.
 - **Status:** the harness is implemented, and the first real journey it guards is the
-  book. The bespoke `/admin` panel and sign-in are still later phases; the routes this
-  app serves today are Payload's own admin at `/cms`, the diary's `/p/<n>`, and — since
-  Phase 1 Task 14 — `/gallery/<slug>` with its download handler.
+  book. The routes this app serves today are Payload's own admin at `/cms`, the diary's
+  `/p/<n>`, `/gallery/<slug>` with its download handler (Phase 1 Task 14), and — since
+  Phase 2 Task 7 — the bespoke panel's first screen at `/admin/sign-in`. The rest of the
+  `/admin` panel is Phase 4.
+
+  **`e2e/signIn.spec.ts` (Phase 2 Task 7)** is where `SECURITY.md`'s second prototype
+  hole is proved closed **against the delivered page rather than against the source**.
+  The hole is that the OTP on/off flag lived in `localStorage['om-diary-otp']`, "where
+  anyone can set it to `0` and skip the second factor entirely"; the fix is that the code
+  step is decided from `users.otpRequired`, server-side. A grep proves only that nobody
+  typed that read — not that nothing the route ships performs one — so three cases run in
+  a browser:
+
+  1. **The page reads no browser storage.** An init script installed before the document
+     exists records every `Storage.prototype.getItem`/`key` call; the recorded list must
+     be empty.
+  2. **The prototype's own key is planted with the OPPOSITE answer** before navigation,
+     and the footer line must not move. This is the hole itself, reproduced: against the
+     handoff's prototype this case reads "the code step is switched off".
+  3. **Every script the page fetched is downloaded and searched for the key.** A bundle
+     carrying the string is a read waiting to happen even if it did not fire on this
+     load. This one has a consequence for the code: `PasswordStep.tsx` does not spell the
+     key even in a comment, because a development build ships comments verbatim and a
+     quoted key would make the case fail locally and pass in CI's minified build.
+
+  All three also assert that the footer line **exists** and says what `SCREENS.md` §3.1
+  says it should — "no storage was read" and "no script names the key" are both trivially
+  true of a page that failed to render. Four further cases cover what only a laid-out page
+  can answer: the cloth panel beside the form above 820px and the masthead instead of it
+  below (asserting the shell's own `grid-template-columns` count, not just that both
+  elements exist), the Show/Hide toggle preserving the typed value across the input's
+  `type` swap, and a refused submission staying on the screen with the field marked.
+
+  Both the `localStorage` cases were watched to fail with the mechanism put back: a
+  five-line reintroduction of the prototype's read failed cases 1 and 2, and shipping the
+  key as a client-side constant failed case 3.
 
   **`e2e/gallery.spec.ts` (Phase 1 Task 14)** covers the four things about the gallery
   and its lightbox that only a served, laid-out page can answer, and deliberately
@@ -1056,17 +1109,72 @@ would claim a measurement nothing performs.
   `mcr.microsoft.com/playwright:v<version>`, where `<version>` matches the
   `@playwright/test` version pinned in `package-lock.json` exactly (`.github/workflows/ci.yml`'s
   `browser` job header names the current tag; bump both together). The committed baselines
-  are now `-linux.png`, generated by running `npx playwright test e2e/visual.spec.ts
---update-snapshots` inside that exact image (see this task's report for the pasted
-  baseline-generation and clean-comparison runs) — the old `-win32.png` files were deleted,
-  not kept alongside. `browser` no longer skips `test:visual`; it runs in the same
+  are now `-linux.png`, generated inside that exact image — by hand at first, and since
+  Phase 2 Task 7 by `npm run test:visual:container:update`, which is the invocation the
+  Run bullet below documents in full (and which passes `--update-snapshots=all`, not the
+  `changed` default this line used to name). The old `-win32.png` files were deleted, not
+  kept alongside. `browser` no longer skips `test:visual`; it runs in the same
   `npx playwright test` invocation as the smoke and accessibility specs.
-- **Run:** `npm run test:visual` on a developer's own machine still works for a quick
-  local check, but its baseline will not match this Ubuntu-image comparison pixel-for-pixel
-  on font rendering — treat a local mismatch as inconclusive, not as drift, and confirm
-  in the pinned image before updating a baseline. Update baselines deliberately, inside
-  the pinned image, with `npx playwright test e2e/visual.spec.ts --update-snapshots` after
-  confirming a diff is an intended change, never reflexively to make a failure go away.
+- **Run — and this is now the ONLY way to run it off Linux.** `e2e/visual.spec.ts`
+  **skips** on a Windows or macOS host rather than comparing: Playwright names the file
+  it wants after the host platform, so such a run asks for `-win32.png`, finds nothing,
+  WRITES one, and every run after that compares the host against itself and passes. That
+  is not hypothetical — 31 such files were found untracked in the snapshot directory
+  while a full local suite reported "394 passed" and the committed baselines went unread.
+  The two commands below are the whole story:
+
+  ```
+  npm run db:migrate && npm run db:seed          # once, on the host — these run the
+                                                 # suite, not the fixtures
+  npm run test:visual:container                  # compare against the committed baselines
+  npm run test:visual:container:update           # regenerate them
+  ```
+
+  Both are `docker compose run --rm` against the `visual`/`visual-update` services in
+  `docker-compose.yml`, which are `mcr.microsoft.com/playwright:v1.62.1-noble` — the same
+  image, at the same tag, that CI's `browser` job runs in. **Phase 2 Task 7 wrote them
+  down.** Until then the command needed to satisfy a gate this repository enforces existed
+  nowhere in the repository: this document named the image for `test:perf` only, there was
+  no `docker run` line in `docs/` or `.github/`, and `package.json`'s `test:visual` ran
+  Playwright on the host. The service definition carries the reasoning in full; the four
+  things worth knowing here are:
+
+  - **The container installs its own `node_modules`, into named volumes.** A Windows
+    checkout holds Windows-built binaries (`sharp`, `lightningcss`, the SWC/Turbopack
+    native packages) that a Linux container cannot load, and a bare bind mount would also
+    let the container's `npm ci` delete them. Five named volumes shadow the four
+    `node_modules` directories and `apps/web/.next`; everything else, including
+    `e2e/visual.spec.ts-snapshots/`, is the live bind mount, so a regenerated baseline
+    lands straight in the working tree.
+  - **It runs with `CI=1`**, so `playwright.config.ts` boots a production build rather
+    than `next dev` — CI's own baselines are taken against a production build, and a
+    development-mode image would be compared against something the runner never renders.
+  - **`e2e/layout.spec.ts` runs in the same invocation**, because of the standing rule
+    below: never accept a regenerated `diary-*` baseline unless that suite was green in
+    the run that produced it.
+  - **The update service passes `--update-snapshots=all`**, never the default `changed`
+    mode, for the reason the cover-contrast regeneration found the hard way — and that
+    choice has a cost that has to be paid deliberately every time. `all` rewrites EVERY
+    baseline, including the ones whose diff was under `maxDiffPixelRatio` and which the
+    comparison run had just passed. On the run that added the sign-in baselines it
+    rewrote fifteen unrelated `diary-*` files that no change in that commit could have
+    touched. **So the order is: compare first, then update, then `git checkout` every
+    baseline you did not intend to change.** The compare run is what licenses that — a
+    file it passed and the update run rewrote moved by less than the threshold, which is
+    encoder and anti-aliasing noise, not drift. Committing that churn would make the next
+    real diff unreadable.
+
+  `npm run test:visual` on a developer's own machine is still there, and on Linux it is
+  the quick local check; off Linux it now skips with a message naming the container
+  rather than quietly writing a host baseline.
+- **Phase 2 Task 7 adds the first ADMIN screen**: `admin-sign-in-*.png`, `SCREENS.md`
+  §3's sign-in shell with §3.1's password step in it. One case, three images, and that
+  covers both of the layouts §3 specifies rather than one of them — the projects already
+  ARE the breakpoint: `desktop` (1440) and `mid` (1000) are above §3's 820px boundary and
+  photograph the cloth panel beside the form, and `mobile` (390) is below it and
+  photographs the narrow masthead above a 470px shell. It does not use `settled()` (no
+  scaled design box on this route) and waits only for the pane and
+  `document.fonts.ready`, since the screen carries no images at all.
 - **Add one:** one snapshot per page type per breakpoint listed in design spec §8.2
   (diary `<860px`; admin `≥1180`/`≥860`/narrow; login `<820`) as each page is built. The
   OTP-cell collapse at 819px (design spec §11) is the canonical example of a defect this
@@ -1083,8 +1191,20 @@ would claim a measurement nothing performs.
   4.5:1, per the handoff's own note). Where axe returns `incomplete` rather than a
   verdict, the ratio is measured from the rendered pixels and asserted anyway; an
   `incomplete` is never read as a pass.
-- **Status:** implemented for every view that exists, and for each designed diary page
-  in turn — `/p/1` (Cover, Task 7), `/p/2` (Contents, Task 9), `/p/3` (Notes, Task 10)
+- **Status:** implemented for every view that exists — including, since Phase 2 Task 7,
+  the first screen of the bespoke admin: `/admin/sign-in` runs `expectNoAxeViolations`
+  with **no exclusions**, and it is the first view in the product where `label`,
+  `form-field-multiple-labels` and `autocomplete-valid` have anything to judge. It is
+  followed by TWO contrast cases of the same kind the cover has, and for the same reason:
+  the cloth panel and the narrow masthead are gradients, so axe returns `color-contrast`
+  INCOMPLETE over both and a green axe run says nothing about the cream lines drawn on
+  them. Measured from the rendered pixels, the panel's eyebrow came in at 4.447:1 —
+  below AA — which is what `docs/deviations.md` §32 records and fixes; the masthead
+  needed no change and measures 4.805, 7.974 and 4.577. The masthead case runs at the
+  `mobile` project alone and the panel case at the other two, because each block is drawn
+  at one side of the breakpoint only.
+
+  Implemented for each designed diary page in turn — `/p/1` (Cover, Task 7), `/p/2` (Contents, Task 9), `/p/3` (Notes, Task 10)
   and `/p/4`, `/p/5`, `/p/33` (Frames I, Frames II and About, Task 11), because each
   page kind renders different markup on the same URL shape — plus Task 13's
   page-not-found view (`/p/999`), the one diary view that is not a page of the book and
@@ -1123,8 +1243,9 @@ would claim a measurement nothing performs.
   not by loosening the helper's default. Any _other_ violation, on this route or any
   future one, still fails the suite, and a diary route calling the helper with no
   `allow` cannot inherit `/cms`'s exclusion — each call site names its own. This
-  exclusion is revisited the moment `/cms` stops being the route under test — Phase 1's
-  bespoke `/admin` replaces it.
+  exclusion is revisited the moment `/cms` stops being the route under test — the bespoke
+  `/admin` replaces it, and Phase 2 Task 7 mounted its first screen (`/admin/sign-in`,
+  which needs no `allow` at all).
 - **The mobile reading mode is audited separately, because it is a separate tree**
   (Phase 1 Task 15). Six of the diary's axe cases are the BOOK's and now skip below
   860px; six new ones take their place at the `mobile` project - `/p/1`, `/p/2`, `/p/3`,

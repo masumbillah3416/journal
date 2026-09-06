@@ -51,6 +51,14 @@
  * (`e2e/support/coverContrast.ts`). Deleting it would leave this route's
  * contrast unasserted while the suite still looked green, which is the state
  * it was written to end.
+ * THE SIGN-IN SCREEN JOINS BOTH KINDS OF CASE (Phase 2 Task 7). Its axe case
+ * runs with NO exclusions - the whole screen is code authored here, so
+ * `landmark-one-main`, `page-has-heading-one`, `region`, `label` and
+ * `link-name` are all requirements rather than vendor noise - and it is
+ * followed by a second contrast case for the same reason the cover has one:
+ * the cloth panel is a gradient, so axe returns `color-contrast` INCOMPLETE
+ * over it and a green axe run says nothing about the four cream lines drawn
+ * on it. They are measured from the rendered pixels by the same helper.
  * Revisit when the bespoke admin at `/admin` replaces `/cms` as the route
  * under test (Phase 1+) — Payload's stock scaffolding will no longer be in
  * scope at all.
@@ -320,6 +328,19 @@ test('meets AA contrast on every line of the cover, which axe cannot judge', asy
   // for the two cover values that were changed to clear these floors.
   await page.goto('/p/1')
   await expect(page.locator('[data-page="cover"]')).toBeVisible()
+  // AND WAIT FOR THE BOOK TO BE SCALED, not merely drawn. The cover is
+  // server-rendered but `useBookScale` sets the design box's transform on the
+  // client, and every rect this measurement reads - the cover's own origin and
+  // each line's box - is the SCALED one. Measured before the transform lands,
+  // a line's box is an unscaled 1300x860 coordinate against a screenshot of a
+  // scaled element, and `coverContrast.ts` throws "a line's box fell outside
+  // the captured cover" rather than reporting a wrong ratio. Reproduced on the
+  // `mid` project (Phase 2 Task 7): one failure in two consecutive runs, the
+  // years line at y=551.8 against a cover roughly 392px tall on screen. It is
+  // the same readiness race, and the same fix, as the `/cms` case at the top of
+  // this file, and it is the wait `e2e/visual.spec.ts`'s `settled()` already
+  // makes before every screenshot of this page.
+  await expect(page.locator('[data-design-box]')).toHaveAttribute('style', /scale\(/)
 
   const measured = await measureContrastOverGradient(page, '[data-page="cover"]', COVER_LINES)
 
@@ -327,5 +348,78 @@ test('meets AA contrast on every line of the cover, which axe cannot judge', asy
   // names every line that is below its floor, with the number it reached, in
   // one run — and pinning exact ratios would make this a change-detector for
   // anti-aliasing rather than a floor.
+  expect(measured.filter((line) => line.ratio < line.minimumRatio)).toEqual([])
+})
+
+/**
+ * The sign-in cloth panel's four cream lines, with the WCAG 2.1 AA floor each
+ * one has to clear. Only the fitted title qualifies as large text (SC 1.4.3
+ * needs 24px, or 18.66px at bold): it renders at 75px for the seeded title.
+ * The 17px italic subtitle is not large, so it is held to 4.5:1 like the two
+ * Courier lines.
+ */
+const SIGN_IN_CLOTH_LINES = [
+  { name: 'eyebrow (Courier 10.5px)', selector: '[data-sign-in-cloth-eyebrow]', minimumRatio: 4.5 },
+  { name: 'title (Caveat, fitted)', selector: '[data-sign-in-cloth-title]', minimumRatio: 3 },
+  { name: 'subtitle (Garamond italic 17px)', selector: '[data-sign-in-cloth-subtitle]', minimumRatio: 4.5 },
+  { name: '"The back room" (Courier 10.5px)', selector: '[data-sign-in-cloth-footer]', minimumRatio: 4.5 },
+] as const
+
+test('has no axe violations on /admin/sign-in, the password step', async ({ page }) => {
+  await page.goto('/admin/sign-in')
+  await expect(page.locator('[data-password-step]')).toBeVisible()
+
+  // No exclusions, deliberately: every rule in the full ruleset applies to a
+  // screen this project authored end to end. The `allow` list on /cms above
+  // is scoped to Payload's own generated markup and must never be inherited
+  // here - this screen has a `<main>` (SignInShell.tsx), a level-one heading
+  // of its own ("Welcome back"), a labelled field per input and a named
+  // control per button, so every one of those rules is a requirement.
+  await expectNoAxeViolations(page)
+})
+
+test('meets AA contrast on the sign-in cloth panel, which axe cannot judge', async ({ page, viewport }) => {
+  test.skip((viewport?.width ?? 0) < 820, 'the cloth panel is drawn only above SCREENS.md §3’s breakpoint')
+
+  // Same limitation as the cover's case above, on the same kind of surface:
+  // axe reports `color-contrast` INCOMPLETE over a gradient, so the case
+  // before this one is green because axe declined to judge. The ratios are
+  // measured from the rendered pixels instead; see
+  // `e2e/support/coverContrast.ts` for the method, and docs/deviations.md §32
+  // for the one value that was changed to clear these floors.
+  await page.goto('/admin/sign-in')
+  await expect(page.locator('[data-sign-in-cloth]')).toBeVisible()
+
+  const measured = await measureContrastOverGradient(page, '[data-sign-in-cloth]', SIGN_IN_CLOTH_LINES)
+
+  // Asserting the shortfalls rather than each ratio in turn - see the cover's
+  // case for why - but asserting first that four lines were measured at all,
+  // because an empty result set has no line below its floor either.
+  expect(measured).toHaveLength(SIGN_IN_CLOTH_LINES.length)
+  expect(measured.filter((line) => line.ratio < line.minimumRatio)).toEqual([])
+})
+
+/**
+ * The narrow masthead's three lines, with the same floors. The masthead is a
+ * separate measurement rather than an extension of the panel's: it is a
+ * different block, drawn only below the breakpoint, over the same cloth
+ * gradient at a different inset shadow (`inset 0 0 50px` against the panel's
+ * `90px`), so the background under its lines is not the panel's background.
+ */
+const SIGN_IN_MASTHEAD_LINES = [
+  { name: 'eyebrow (Courier 9px)', selector: '[data-sign-in-masthead-eyebrow]', minimumRatio: 4.5 },
+  { name: 'title (Caveat, fitted)', selector: '[data-sign-in-masthead-title]', minimumRatio: 3 },
+  { name: '"The back room" (Courier 9px)', selector: '[data-sign-in-masthead-footer]', minimumRatio: 4.5 },
+] as const
+
+test('meets AA contrast on the sign-in masthead, which axe cannot judge either', async ({ page, viewport }) => {
+  test.skip((viewport?.width ?? 0) >= 820, 'the masthead is drawn only below SCREENS.md §3’s breakpoint')
+
+  await page.goto('/admin/sign-in')
+  await expect(page.locator('[data-sign-in-masthead]')).toBeVisible()
+
+  const measured = await measureContrastOverGradient(page, '[data-sign-in-masthead]', SIGN_IN_MASTHEAD_LINES)
+
+  expect(measured).toHaveLength(SIGN_IN_MASTHEAD_LINES.length)
   expect(measured.filter((line) => line.ratio < line.minimumRatio)).toEqual([])
 })

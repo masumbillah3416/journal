@@ -176,6 +176,15 @@ export interface PasswordResetService {
  * (controller ruling, Task 5 review round 1). Until it lands this path resolves
  * to a 404. Recorded in docs/deviations.md §31 rather than left to be
  * discovered.
+ *
+ * THERE IS A SECOND SPELLING OF THIS PATH, and it is deliberate rather than
+ * missed: `apps/web/components/admin/PasswordStep.tsx` exports its own
+ * `RESET_PATH` for the "Forgotten" link. This module cannot be the shared
+ * source of it - it is server-only, and importing it into a client component
+ * would pull Payload and `node:crypto` into the browser bundle. Task 9 mounts
+ * the route both refer to, and unifying the two behind one client-safe
+ * constant belongs to that task; until then, a change to either has to be
+ * made to both. The screen's own constant carries the same note.
  */
 const RESET_PATH = '/admin/reset'
 
