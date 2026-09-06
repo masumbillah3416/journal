@@ -168,6 +168,31 @@
  * confirmation mark are asserted as numbers in `e2e/reset.spec.ts` instead.
  * These images are what catches the drift those assertions do not name.
  *
+ * ═══ THE `destination stream closed early` LINES THIS RUN PRINTS ARE BENIGN
+ * ═══
+ *
+ * A container run logs two to four of these, and they were asserted on by
+ * nothing and explained by nothing until Task 10's second fix round went and
+ * looked:
+ *
+ *     [WebServer] ⨯ Error: The destination stream closed early.
+ *
+ * It is REACT'S OWN, not this application's. `next-server`'s bundled Fizz
+ * renderer attaches `destination.on('close', …)` and raises exactly this string
+ * when the HTTP response stream closes before the render has finished — a
+ * client that went away mid-render.
+ *
+ * What makes "benign" a measurement rather than a hope: it appears only in the
+ * PARALLEL run. The container uses twelve workers with `fullyParallel: true`,
+ * where a worker finishing a test tears its context down while a navigation is
+ * still streaming; a single-worker local run of the same specs
+ * (`npm run test:e2e`, `workers: 1`) logs none at all. Nothing was mis-rendered
+ * for a reader who stayed, and no case fails at the same moment.
+ *
+ * WHAT WOULD MAKE IT A DEFECT, so nobody has to re-derive this: the same line
+ * appearing in a serial run, or appearing alongside a failing navigation. Both
+ * are visible in the same output this comment is about.
+ *
  * Baselines live in `e2e/visual.spec.ts-snapshots/` (one file per test per
  * project, auto-named by Playwright) and are committed — a snapshot with no
  * baseline to compare against protects nothing.
@@ -175,7 +200,7 @@
  * `webServer`, and the seeded diary (`npm run db:seed`).
  */
 import { expect, test, type Page } from '@playwright/test'
-import { aSignedInSession, removeSignedInFixture, SESSION_FIXTURE_DOMAIN } from './support/adminSession'
+import { aSignedInSession, fixtureLabel, removeSignedInFixture, SESSION_FIXTURE_DOMAIN } from './support/adminSession'
 import { drawsMobileReadingMode } from './support/surface'
 
 // OFF LINUX THIS FILE SKIPS, AND SAYING SO IS THE POINT.
@@ -237,12 +262,75 @@ const settled = async (page: Page, selectors: { readonly book: string; readonly 
   })
 }
 
+/**
+ * Makes sure an account exists before anything in this file is screenshotted.
+ *
+ * ═══ `/cms` DRAWS A DIFFERENT SCREEN DEPENDING ON WHETHER ONE DOES ═══
+ *
+ * Payload's own admin shows "create first user" to an EMPTY database and a
+ * login form to one with any account in it. The `cms-admin*.png` baselines were
+ * taken against an empty one — and this file now creates an account for the
+ * signed-in screen's session, in whichever worker gets that test, so `/cms` was
+ * screenshotted in whichever state another worker happened to have left.
+ *
+ * Measured rather than reasoned: at 390x844, `/cms` is 1246px tall with no
+ * account and exactly 844 with one; at 1000x800 and 1440x900 it is the viewport
+ * height either way, which is why the failure only ever showed at `mobile` and
+ * why two of three container runs passed.
+ *
+ * SO THIS FILE GUARANTEES THE PRECONDITION IT BASELINES rather than inheriting
+ * it. An account always exists, `/cms` is always the login screen, and the
+ * three `cms-admin*.png` baselines were regenerated in that state. It is also
+ * the state that outlasts the fixtures: the moment this diary has its author
+ * account, every deployed instance shows the login screen too, so the previous
+ * baselines were a picture of a transient condition.
+ */
+test.beforeAll(async ({ }, testInfo) => {
+  await aSignedInSession(`visual.${fixtureLabel(testInfo)}`)
+})
+
 test.afterAll(async ({ }, testInfo) => {
   // This project's own account, never the whole domain: the three viewports
   // run in parallel and a sweeping delete takes another one's session away
   // mid-run (see `SESSION_FIXTURE_DOMAIN`).
-  await removeSignedInFixture(`visual.${testInfo.project.name}@${SESSION_FIXTURE_DOMAIN}`)
+  await removeSignedInFixture(`visual.${fixtureLabel(testInfo)}@${SESSION_FIXTURE_DOMAIN}`)
 })
+
+/**
+ * Waits until the document has stopped growing.
+ *
+ * ═══ WHY `networkidle` AND A VISIBLE FORM ARE NOT ENOUGH ═══
+ *
+ * Two of three container runs failed `/cms` at the mobile viewport with
+ * `Expected an image 390px by 1251px, received 390px by 844px` — 844 being the
+ * viewport height, so the page had not yet grown to its content. Payload's
+ * admin is a client application: the form becomes visible before its own
+ * layout has finished expanding the document, and `fullPage: true` measures
+ * the document.
+ *
+ * This polls the document's height until two consecutive reads agree, which
+ * waits for the thing that actually has to have happened rather than for a
+ * proxy (a network idle) or a magic number (a known height, which differs per
+ * viewport and would have to be updated with the baseline).
+ *
+ * @param page - The page to wait on.
+ * @returns Once the height has been the same twice in a row.
+ */
+const settledPageHeight = async (page: Page): Promise<void> => {
+  let previous = -1
+
+  await expect
+    .poll(
+      async () => {
+        const height = await page.evaluate(() => document.documentElement.scrollHeight)
+        const unchanged = height === previous
+        previous = height
+        return unchanged
+      },
+      { timeout: 10_000, intervals: [100, 100, 100, 200, 200, 400, 400] },
+    )
+    .toBe(true)
+}
 
 test('matches the baseline screenshot of /cms', async ({ page }) => {
   await page.goto('/cms', { waitUntil: 'networkidle' })
@@ -259,6 +347,11 @@ test('matches the baseline screenshot of /cms', async ({ page }) => {
   // still be up when `form` becomes visible; this is a flaky *false*
   // diff, not drift, so it is waited out rather than snapshotted.
   await expect(page.getByText(/Rendering/)).toBeHidden()
+
+  // And the document has to have finished growing, which a visible form does
+  // not imply — see `settledPageHeight` for the two-in-three-runs failure that
+  // says so.
+  await settledPageHeight(page)
 
   await expect(page).toHaveScreenshot('cms-admin.png', { fullPage: true })
 })
@@ -432,7 +525,7 @@ test('matches the baseline screenshot of the signed-in screen', async ({ page, c
   // with `otp_required` left at its default, so the sign-in screen's own footer
   // line — and therefore every `admin-sign-in-*` baseline — is unchanged by it.
   await context.addCookies([
-    { name: 'td-session', value: await aSignedInSession(`visual.${testInfo.project.name}`), url: `${baseURL ?? ''}/admin` },
+    { name: 'td-session', value: await aSignedInSession(`visual.${fixtureLabel(testInfo)}`), url: `${baseURL ?? ''}/admin` },
   ])
   await page.goto('/admin/sign-in/done', { waitUntil: 'networkidle' })
   await expect(page.locator('[data-signed-in-mark]')).toBeVisible()

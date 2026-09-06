@@ -26,11 +26,30 @@
  * `createOtpService`, so there is one definition of every stored shape and this
  * file holds none of them.
  *
- * IT RUNS IN THE PLAYWRIGHT PROCESS, against the same database the app under
- * test is using — `apps/web/lib/payload.ts` reads the same `DATABASE_URL`,
- * from the environment first and the repository's `.env` second, which is why
- * the containerised visual run reaches its own Postgres and a local run reaches
- * the developer's.
+ * ═══ WHAT THIS MODULE ACTUALLY MOVES, WHICH IS MORE THAN A TSCONFIG ═══
+ *
+ * The first write-up of this called the change "six directories added to
+ * `e2e/tsconfig.json`". That understates it, and the honest version matters for
+ * reading what the journey spec proves.
+ *
+ * The tsconfig widening is typecheck-only. The real change is that this file
+ * BOOTS PAYLOAD AND THE OTP SERVICE INSIDE THE PLAYWRIGHT PROCESS. So when
+ * `aCodeFor` issues a challenge, the code is minted, hashed and stored by the
+ * TEST process — not by the server under test. The server's own
+ * `issueChallenge`, which ran a moment earlier when the reader submitted the
+ * password form, produced a code nobody can read.
+ *
+ * WHY THE JOURNEY IS STILL END TO END. The row lands in the same database the
+ * server reads, and everything either side of that one step is the server's:
+ * the password step that created the first challenge, the guard, the rotation,
+ * the verify that consumes the row, the session the cookie carries, the
+ * sign-out that revokes it. What is borrowed is the DELIVERY, and only because
+ * the only mailer prints to a console. The verify half — the half the second
+ * factor is actually about — is entirely the server's.
+ *
+ * WHAT WOULD REMOVE THE BORROWING: a mailer adapter a test can read, or a
+ * development-only outbox endpoint. Both are out of Phase 2's scope, and this
+ * is the disclosure rather than the workaround being hidden.
  *
  * EVERY FIXTURE ACCOUNT LEAVES `otpRequired` AT ITS DEFAULT, `true`.
  * `readSignInScreen` prints the LOWEST-ID account's flag in the sign-in
@@ -64,9 +83,48 @@ import { getPayload } from '../../apps/web/lib/payload'
  * while a screenshot was being taken. It showed up as ONE flaky visual case in
  * the container, which is exactly how a shared-fixture race presents.
  *
- * Every caller now names its own account and deletes only that one.
+ * Every caller now names its own account and deletes only that one — see
+ * {@link fixtureLabel} for why "its own" has to mean per WORKER rather than per
+ * project, which took two rounds to get right.
  */
 export const SESSION_FIXTURE_DOMAIN = 'session.task-ten-fixture.example'
+
+/**
+ * What distinguishes one caller's fixture account from every other one's.
+ *
+ * ═══ PER WORKER, NOT PER PROJECT — AND THE FIRST FIX GOT THAT WRONG ═══
+ *
+ * The very first version used ONE address for every suite and viewport, and a
+ * container run went flaky: the signed-in screen redirected while a screenshot
+ * was being taken, because another project's `afterAll` had deleted the account
+ * its session belonged to.
+ *
+ * The fix keyed the account on the PROJECT, and the flake survived — two of
+ * three container runs, masked by CI's single retry. `test.afterAll` runs once
+ * per WORKER, not once per project, and `playwright.config.ts` sets
+ * `fullyParallel: true`, so one project's tests are split across workers and
+ * each worker's `afterAll` deleted the row the other workers of the same
+ * project were still using. The symptoms were a `NotFound` thrown by
+ * `payload.delete` (two workers deleting one row) and, again, the guarded
+ * screen redirecting mid-screenshot.
+ *
+ * So the key is the worker. `workerIndex` is unique for the life of a run and
+ * is exactly the scope `afterAll` fires at, which makes the account's lifetime
+ * and its deleter the same thing by construction rather than by argument.
+ *
+ * WHY THE SELF-CHECK IN {@link aSignedInSession} DID NOT SAVE IT, which is
+ * worth stating because it reads stronger than it is: that check proves the
+ * session was live AT MINT TIME. It cannot prove the row still exists when the
+ * browser presents it a second later, because nothing about a fixture can. Only
+ * making the row nobody else's fixes that.
+ *
+ * @param testInfo - Playwright's own `TestInfo`, from a hook or a test.
+ * @returns A label unique to this project AND this worker.
+ * @example
+ * const session = await aSignedInSession(`visual.${fixtureLabel(testInfo)}`)
+ */
+export const fixtureLabel = (testInfo: { readonly project: { readonly name: string }; readonly workerIndex: number }): string =>
+  `${testInfo.project.name}.w${String(testInfo.workerIndex)}`
 
 /** The domain the sign-in journey's own accounts live under. */
 export const JOURNEY_FIXTURE_DOMAIN = 'journey.task-ten-fixture.example'
@@ -102,8 +160,8 @@ const anAccount = async (email: string): Promise<UserId> => {
  * Mints a live session for this caller's own fixture account.
  *
  * @param label - What distinguishes this caller's account from every other
- *   one's. The project name, so three viewports do not share a row — see
- *   {@link SESSION_FIXTURE_DOMAIN} for the flake that came of sharing.
+ *   one's: the spec's name plus {@link fixtureLabel}, so no two workers share a
+ *   row. See that function for the flake that came of sharing.
  * @returns The opaque identifier a browser presents in `td-session`.
  * @throws If the session could not be issued, which no caller expects.
  * @example
@@ -219,6 +277,13 @@ export const removeSignedInFixture = async (domainOrEmail: string): Promise<void
   for (const account of accounts.docs) {
     await payload.db.pool.query(`DELETE FROM sessions WHERE user_id = $1`, [account.id])
     await payload.db.pool.query(`DELETE FROM otp_challenges WHERE user_id = $1`, [account.id])
-    await payload.delete({ collection: 'users', id: account.id })
   }
+
+  // BULK, BY THE SAME PREDICATE, rather than one `delete({ id })` per row. A
+  // find-then-delete-by-id is not atomic, so a row that disappeared between the
+  // two arrived as a thrown `NotFound` from deep inside Payload - which is what
+  // the flaky container runs actually reported before the fixtures were made
+  // per-worker. Deleting by `where` asks the database the question once, and a
+  // predicate that now matches nothing is not an error.
+  await payload.delete({ collection: 'users', where: { email: { like: domainOrEmail } } })
 }

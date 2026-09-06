@@ -40,7 +40,6 @@
  * ../adapters/console-mailer, ../testPayload.
  */
 import { REMEMBERED_SESSION_LIFETIME_MS, SESSION_COOKIE_NAME, SESSION_LIFETIME_MS } from '@travel-diary/domain/auth/session'
-import { MAX_ATTEMPTS } from '@travel-diary/domain/auth/otpChallenge'
 import { ACCOUNT_CODE_ATTEMPT_LIMIT, IP_ATTEMPT_LIMIT } from '@travel-diary/domain/auth/rateWindow'
 import { PASSWORD_REFUSED_STATE } from '@travel-diary/domain/auth/signInScreen'
 import type { SessionId, UserId } from '@travel-diary/domain/ids'
@@ -88,6 +87,9 @@ const ORIGIN = 'http://localhost:3000'
 /** How many samples each arm of the timing case takes. */
 const SAMPLES = 25
 
+/** How many cells `SCREENS.md` §3.2 gives the code, and fields the pane posts. */
+const CELL_COUNT = 6
+
 /**
  * How far a measured lifetime may fall short of the constant it should be.
  *
@@ -105,6 +107,32 @@ const SAMPLES = 25
  * reading.
  */
 const LIFETIME_SLACK_MS = 60_000
+
+/**
+ * A tag unique to this run, so no address is reused across runs.
+ *
+ * ═══ WHY, AND WHAT IT COST TO FIND OUT ═══
+ *
+ * `rateLimit.ts` keys its second window on a HASH OF THE ADDRESS, and this
+ * file's cleanup can only delete the rows keyed on its IP prefix — an address
+ * hash is not something a `LIKE` can match. So the address dimension's
+ * `signInAttempts` rows survive `afterAll` and live out their fifteen-minute
+ * window. With addresses derived from a counter that restarts every run, the
+ * early ones (`reader-ab@…`, `reader-ac@…`) were reused by every run, and two
+ * or three runs inside a quarter of an hour pushed one past the ten-attempt
+ * address ceiling: a case that posts a CORRECT password then got
+ * `?state=refused`, which reads exactly like a broken handler.
+ *
+ * It surfaced when this round added cases, because more cases means the early
+ * labels are reused sooner. It was always there.
+ *
+ * Four letters, no digits — the leak assertions in this file search a response
+ * for the digits of an issued code, and a fixture address containing digits
+ * would make them ambiguous (the same reason `alphabeticLabel` exists).
+ */
+const RUN_TAG = Array.from({ length: 4 }, () =>
+  String.fromCharCode(97 + Math.floor(Math.random() * 26)),
+).join('')
 
 /** Distinguishes one fixture from the next within a single run. */
 let fixtureCount = 0
@@ -150,7 +178,7 @@ interface FixtureAccount {
  */
 const anAccount = async ({ otpRequired }: { readonly otpRequired: boolean }): Promise<FixtureAccount> => {
   fixtureCount += 1
-  const email = `reader-${alphabeticLabel(fixtureCount)}@${FIXTURE_EMAIL_DOMAIN}`
+  const email = `reader-${RUN_TAG}${alphabeticLabel(fixtureCount)}@${FIXTURE_EMAIL_DOMAIN}`
   const created = await payload.create({
     collection: 'users',
     data: { email, password: FIXTURE_PASSWORD, otpRequired },
@@ -164,7 +192,7 @@ const anIp = (): string => `${FIXTURE_IP_PREFIX}${alphabeticLabel(fixtureCount)}
 /** An address of the fixture domain that names no account at all. */
 const anUnknownAddress = (): string => {
   fixtureCount += 1
-  return `nobody-${alphabeticLabel(fixtureCount)}@${FIXTURE_EMAIL_DOMAIN}`
+  return `nobody-${RUN_TAG}${alphabeticLabel(fixtureCount)}@${FIXTURE_EMAIL_DOMAIN}`
 }
 
 /** What one of these endpoints was asked, and what it carried. */
@@ -641,7 +669,13 @@ describe('what the code step answers', () => {
     expect(await authenticateAdminRequest(carrying(issued))).toEqual({ ok: true, value: { user } })
   })
 
-  it('rotates away from the identifier the code was bound to', async () => {
+  it('issues an identifier different from the pre-auth one the code was bound to', async () => {
+    // WHAT THIS DOES AND DOES NOT SAY. It compares the two values and confirms
+    // the pre-auth one authenticates nothing - which is true of a handler that
+    // rotates NOTHING, because no `sessions` row ever named a pre-auth
+    // identifier. The name used to claim the rotation itself; the case that
+    // holds that is "stops the LIVE session a browser arrived with from
+    // authenticating", below.
     const { session, code } = await aPendingSignIn()
 
     const answered = await handleCodeStep(
@@ -729,6 +763,51 @@ describe('what the code step answers', () => {
 
     expect(answered.status).toBe(303)
     expect(answered.headers.get('Location')).toBe(PASSWORD_STEP_PATH)
+  })
+
+  it('builds the code the way the pane posts it, so every case here uses the real shape', async () => {
+    // GUARDS THE FIXTURE ITSELF, which the case above deliberately does not:
+    // that one builds its own body, so the HANDLER is covered whatever `aPost`
+    // does. This one covers `aPost`, because the six-field shape was living in
+    // it as an unasserted line — collapsing it to `body.set` failed nothing,
+    // and a later tidy would have quietly put every other case in this file
+    // back on the request shape that caused the blocker.
+    const posted = await aPost({ path: CODE_STEP_PATH, fields: { code: '123456' } }).formData()
+
+    expect(posted.getAll('code')).toEqual(['1', '2', '3', '4', '5', '6'])
+  })
+
+  it('accepts the six separate fields SCREENS.md §3.2’s pane actually posts', async () => {
+    // ═══ THE SHAPE THE SECOND BLOCKER WAS ABOUT, ASSERTED DIRECTLY ═══
+    //
+    // §3.2's pane is six `<input name="code" maxLength={1}>` cells, so a browser
+    // sends the name six times. The handler read them through
+    // `Object.fromEntries`, which keeps the LAST value, and compared one
+    // character against six digits - refusing every correct code in a browser
+    // while this file, which sent one field, agreed with it.
+    //
+    // `aPost` appends one field per digit now, so most cases here exercise the
+    // real shape. That is not the same as ASSERTING it: reverting `aPost` to
+    // `body.set` failed nothing, which left the shape living as an unasserted
+    // line in a shared fixture that a later tidy would quietly undo. This case
+    // builds the body itself, so it cannot be undone from anywhere else.
+    const { user, session, code } = await aPendingSignIn()
+    const body = new FormData()
+    for (const digit of code) body.append('code', digit)
+    expect(body.getAll('code')).toHaveLength(CELL_COUNT)
+
+    const answered = await handleCodeStep(
+      new Request(`${ORIGIN}${CODE_STEP_PATH}`, {
+        method: 'POST',
+        body,
+        headers: new Headers({ cookie: carrying(session) }),
+      }),
+    )
+
+    expect(answered.headers.get('Location')).toBe(SIGNED_IN_PATH)
+    const issued = issuedSessionOf(answered)
+    if (issued === null) throw new Error('the response set no session cookie')
+    expect(await authenticateAdminRequest(carrying(issued))).toEqual({ ok: true, value: { user } })
   })
 
   it('accepts a code sent as one field, which is what a hand-rolled client posts', async () => {
@@ -858,10 +937,9 @@ describe('what the code step answers', () => {
 })
 
 describe('what the code screen is told', () => {
-  it('tells the screen where the code went, masked, and when it was issued', async () => {
+  it('tells the screen where the code went, masked, and how many guesses it allows', async () => {
     const { user } = await anAccount({ otpRequired: true })
     const session = newBrowserSession()
-    const issuedAt = Date.now()
     const issued = await otp.issueChallenge(user, session, anIp())
     if (!issued.ok) throw new Error('the fixture challenge was not issued')
 
@@ -869,8 +947,31 @@ describe('what the code screen is told', () => {
 
     expect(pending?.maskedTo).toBe(issued.value.maskedTo)
     expect(pending?.attemptsSpent).toBe(0)
-    expect(pending?.attemptsAllowed).toBe(MAX_ATTEMPTS)
-    expect(pending?.issuedAt).toBeGreaterThanOrEqual(issuedAt - 1_000)
+    // THREE, THE LITERAL, not `MAX_ATTEMPTS`. The production line returns that
+    // same constant, so comparing against the import was circular - it held for
+    // any value the constant took, including one that disagreed with
+    // `SCREENS.md` §3.2's own "3 tried". The handoff's number is what this pins.
+    expect(pending?.attemptsAllowed).toBe(3)
+  })
+
+  it('anchors the countdown to when the code was ISSUED, not to when it is asked', async () => {
+    // The defect this whole read replaced was `issuedAt = Date.now()` at render.
+    // A lower bound alone still passes for that - the render instant is always
+    // later than the issue instant - so the case that names it has to show the
+    // value does NOT move: two reads either side of a real delay must agree.
+    const { user } = await anAccount({ otpRequired: true })
+    const session = newBrowserSession()
+    const issued = await otp.issueChallenge(user, session, anIp())
+    if (!issued.ok) throw new Error('the fixture challenge was not issued')
+
+    const first = await otp.pendingChallenge(session)
+    await new Promise((settle) => setTimeout(settle, 40))
+    const second = await otp.pendingChallenge(session)
+
+    expect(first?.issuedAt).toBeDefined()
+    expect(second?.issuedAt).toBe(first?.issuedAt)
+    // And it is the row's own instant rather than anything this test supplied.
+    expect(second?.issuedAt).toBeLessThan(Date.now())
   })
 
   it('never hands the screen a whole address, an account or a code', async () => {

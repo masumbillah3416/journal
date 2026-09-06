@@ -2258,6 +2258,49 @@ services rather than duplicating what they store. TypeScript projects must list 
 transitive file; it is scoped to those directories rather than all of `apps/web` so no React
 route is typechecked under a config with no JSX settings.
 
+#### Fix round 2: three fixture defects, and a baseline that was a picture of a transient state
+
+**"Exit 0, no flakes" was read off one run.** Three container runs after round 1 were
+clean / 2 flaky / 1 flaky, green only because CI retries once. A summary with a `flaky`
+count is not a green suite, and one run is not a measurement of an intermittency. Three
+runs are the standing check now, and this section is what they found.
+
+- **Fixtures are keyed per WORKER, not per project.** `test.afterAll` fires once per
+  worker and `playwright.config.ts` sets `fullyParallel: true`, so one project's tests
+  split across workers and each worker's cleanup deleted the account another worker of the
+  same project was still signing in as. Round 1 closed cross-*project* sharing and left
+  this. `e2e/support/adminSession.ts`'s `fixtureLabel` is the fix, and the same mistake was
+  in `signInJourney.spec.ts`'s own four accounts.
+- **`aSignedInSession`'s self-check reads stronger than it is**, and that is now written at
+  it: it proves the session was live AT MINT TIME. Nothing about a fixture can prove the
+  row still exists a second later when the browser presents it. Only making the row nobody
+  else's does.
+- **Cleanup deletes by predicate, not by id.** A `find`-then-`delete({ id })` is not
+  atomic, and a row that vanished between the two arrived as a `NotFound` thrown from
+  inside Payload — which is what the flaky runs actually reported.
+- **`signInEndpoints`' and `resetRequestEndpoint`'s fixture addresses are unique per RUN.**
+  `rateLimit.ts` keys its second window on a HASH of the address, which no `LIKE` cleanup
+  can match, so those rows outlive `afterAll` for their fifteen minutes. Addresses derived
+  from a counter that restarts every run were reused, and two or three runs inside a
+  quarter of an hour pushed one past the ten-attempt ceiling: a case posting a CORRECT
+  password got `?state=refused`, which reads exactly like a broken handler. It was always
+  there; adding cases made it reachable sooner.
+
+**The `cms-admin*.png` baselines were regenerated, and the reason is worth reading.**
+Payload's own admin shows "create first user" to an EMPTY database and a login form to one
+with any account in it. Those baselines were taken against an empty one — and this suite
+now creates an account for the signed-in screen's session, so `/cms` was screenshotted in
+whichever state another worker had left. Measured: at 390x844 `/cms` is 1246px tall with no
+account and exactly 844 with one; at 1000x800 and 1440x900 it is the viewport height either
+way, which is why the failure only ever showed at `mobile`.
+
+The fix is that the suite now GUARANTEES the precondition it baselines, in a `beforeAll`,
+rather than inheriting it. The new state is also the durable one: from the moment this
+diary has its author account, every deployed instance shows the login screen, so the old
+baselines were a picture of a condition that only holds before anyone signs up. Both images
+were opened and compared — same unstyled treatment, only the screen differs — and
+`e2e/layout.spec.ts` was green in the run that produced them, per the standing rule.
+
 ### 9 · Migration
 
 - **Tool:** Vitest.

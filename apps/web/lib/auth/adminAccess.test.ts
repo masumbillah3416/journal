@@ -185,13 +185,6 @@ describe('what every admin response carries', () => {
     expect(shipped['Referrer-Policy']).toBe('same-origin')
   })
 
-  it('never sends no referrer at all, which would empty the Origin header too', () => {
-    // Named separately from the case above so that reverting to `no-referrer`
-    // fails a case that says what it would break, rather than one that only
-    // says the value changed.
-    expect(shipped['Referrer-Policy']).not.toBe('no-referrer')
-  })
-
   it('lets no browser guess a content type the admin did not declare', () => {
     expect(shipped['X-Content-Type-Options']).toBe('nosniff')
   })

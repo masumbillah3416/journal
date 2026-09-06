@@ -52,6 +52,32 @@ const ENDPOINT = `http://localhost:3000${RESET_PATH}/request`
  */
 const NOT_FOUND_DIGEST = 'NEXT_HTTP_ERROR_FALLBACK;404'
 
+/**
+ * A tag unique to this run, so no address is reused across runs.
+ *
+ * ═══ WHY, AND WHAT IT COST TO FIND OUT ═══
+ *
+ * `rateLimit.ts` keys its second window on a HASH OF THE ADDRESS, and this
+ * file's cleanup can only delete the rows keyed on its IP prefix — an address
+ * hash is not something a `LIKE` can match. So the address dimension's
+ * `signInAttempts` rows survive `afterAll` and live out their fifteen-minute
+ * window. With addresses derived from a counter that restarts every run, the
+ * early ones (`reader-ab@…`, `reader-ac@…`) were reused by every run, and two
+ * or three runs inside a quarter of an hour pushed one past the ten-attempt
+ * address ceiling: a case that posts a CORRECT password then got
+ * `?state=refused`, which reads exactly like a broken handler.
+ *
+ * It surfaced when this round added cases, because more cases means the early
+ * labels are reused sooner. It was always there.
+ *
+ * Four letters, no digits — the leak assertions in this file search a response
+ * for the digits of an issued code, and a fixture address containing digits
+ * would make them ambiguous (the same reason `alphabeticLabel` exists).
+ */
+const RUN_TAG = Array.from({ length: 4 }, () =>
+  String.fromCharCode(97 + Math.floor(Math.random() * 26)),
+).join('')
+
 /** Distinguishes one fixture from the next within a single run. */
 let fixtureCount = 0
 
@@ -72,7 +98,7 @@ const alphabeticLabel = (count: number): string =>
  */
 const aReader = async (): Promise<string> => {
   fixtureCount += 1
-  const email = `reader-${alphabeticLabel(fixtureCount)}@${FIXTURE_EMAIL_DOMAIN}`
+  const email = `reader-${RUN_TAG}${alphabeticLabel(fixtureCount)}@${FIXTURE_EMAIL_DOMAIN}`
   await payload.create({ collection: 'users', data: { email, password: FIXTURE_PASSWORD } })
   return email
 }
@@ -80,7 +106,7 @@ const aReader = async (): Promise<string> => {
 /** An address of the fixture domain that names no account at all. */
 const anUnknownAddress = (): string => {
   fixtureCount += 1
-  return `nobody-${alphabeticLabel(fixtureCount)}@${FIXTURE_EMAIL_DOMAIN}`
+  return `nobody-${RUN_TAG}${alphabeticLabel(fixtureCount)}@${FIXTURE_EMAIL_DOMAIN}`
 }
 
 /** A requesting address no other case in this run is using. */

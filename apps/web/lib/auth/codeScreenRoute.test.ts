@@ -47,7 +47,7 @@ const CODE_ROUTE = 'app/(admin)/admin/sign-in/code/page.tsx'
 const source = readFileSync(path.join(webRoot, CODE_ROUTE), 'utf8')
 
 /**
- * The same source with its comments blanked out.
+ * A source with its comments blanked out.
  *
  * ═══ THIS FILE WAS DECORATIVE ON ITS FIRST RUN, AND ITS OWN MUTATION SAID SO
  * ═══
@@ -64,8 +64,19 @@ const source = readFileSync(path.join(webRoot, CODE_ROUTE), 'utf8')
  * enough: it can only remove too much, which makes a case fail rather than
  * silently pass. The `[^:]` guard keeps a URL's own `//` intact, so a comment
  * scan cannot swallow the rest of a line that merely contains one.
+ *
+ * A PARAMETER RATHER THAN A CLOSURE OVER `source`, so the case that guards it
+ * can hand it text of its own instead of pinning a sentence of the route's
+ * prose — see that case for why the first version of it was the wrong shape.
+ *
+ * @param text - Any source text.
+ * @returns The same text with its comments blanked.
  */
-const code = source.replace(/\/\*[\s\S]*?\*\//gu, ' ').replace(/(^|[^:])\/\/.*$/gmu, '$1')
+const stripComments = (text: string): string =>
+  text.replace(/\/\*[\s\S]*?\*\//gu, ' ').replace(/(^|[^:])\/\/.*$/gmu, '$1')
+
+/** The route's source, with its comments gone. */
+const code = stripComments(source)
 
 describe('the one-time-code route’s rendering mode', () => {
   it('is the file this repository actually mounts, not a path that no longer exists', () => {
@@ -74,12 +85,25 @@ describe('the one-time-code route’s rendering mode', () => {
     expect(code).toContain('const CodeStepPage')
   })
 
-  it('reads the route’s code rather than its prose, so a quoted declaration is not one', () => {
-    // The meta-case, and it is here because the mutation for the case below
-    // survived without it: that route's header QUOTES the declaration, so a
-    // scan over raw text was satisfied by the comment explaining it.
-    expect(source).toContain("`export const dynamic = 'force-dynamic'` below is the fix")
-    expect(code).not.toContain('below is the fix')
+  it('reads code rather than prose, so a declaration quoted in a comment is not one', () => {
+    // The mutation for the case below survived without this: that route's
+    // header QUOTES the declaration it explains, so a scan over raw text was
+    // satisfied by the comment.
+    //
+    // ASSERTED AGAINST TEXT OF ITS OWN, NOT AGAINST THE ROUTE'S WORDING. The
+    // first version pinned an exact prose sentence out of that header, so a
+    // documentation reword broke the suite — and it was the fifth assertion of
+    // that shape in this phase, written into the file that exists because of
+    // the fourth. What has to hold is a property of the STRIPPER, and a
+    // stripper can simply be shown some text.
+    const quoted = [
+      "/** `export const dynamic = 'force-dynamic'` is what does it. */",
+      "// export const dynamic = 'force-dynamic' would go here",
+      'const page = null',
+    ].join('\n')
+
+    expect(stripComments(quoted)).not.toContain('force-dynamic')
+    expect(stripComments("export const dynamic = 'force-dynamic'")).toContain('force-dynamic')
   })
 
   it('declares itself dynamic, so the countdown is not the build’s own clock', () => {

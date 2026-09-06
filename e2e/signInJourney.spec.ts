@@ -47,7 +47,13 @@
  * Depends on: @playwright/test, ./support/adminSession.
  */
 import { expect, test, type Page } from '@playwright/test'
-import { aCodeFor, anAccountWithACodeStep, JOURNEY_FIXTURE_DOMAIN, removeSignedInFixture } from './support/adminSession'
+import {
+  aCodeFor,
+  anAccountWithACodeStep,
+  fixtureLabel,
+  JOURNEY_FIXTURE_DOMAIN,
+  removeSignedInFixture,
+} from './support/adminSession'
 
 /** Where the reader starts. */
 const SIGN_IN_PATH = '/admin/sign-in'
@@ -68,13 +74,25 @@ const DESKTOP_WIDTH = 1440
 const CELL_COUNT = 6
 
 /**
- * An address of this file's own, one per case.
+ * An address of this file's own: one per case, AND one per worker.
+ *
+ * `fixtureLabel` is in the local part because `test.afterAll` fires once per
+ * WORKER and `playwright.config.ts` sets `fullyParallel: true` — so these four
+ * cases can be split across workers, and a cleanup keyed on anything coarser
+ * deletes an account another worker is still signing in as. That is the same
+ * mistake, in the same round, as the one `fixtureLabel` itself documents.
  *
  * @param label - What distinguishes this case's account from the others'.
- * @returns The address, and the mask the screens will print for it.
+ * @param testInfo - Playwright's own `TestInfo`, for the worker.
+ * @returns The address, and the mask the screens will print for it. The mask is
+ *   the first two characters of the local part, so it is unchanged by the
+ *   suffix.
  */
-const journeyAccount = (label: string): { readonly email: string; readonly masked: string } => ({
-  email: `${label}@${JOURNEY_FIXTURE_DOMAIN}`,
+const journeyAccount = (
+  label: string,
+  testInfo: { readonly project: { readonly name: string }; readonly workerIndex: number },
+): { readonly email: string; readonly masked: string } => ({
+  email: `${label}.${fixtureLabel(testInfo)}@${JOURNEY_FIXTURE_DOMAIN}`,
   masked: `${label.slice(0, 2)}•••@${JOURNEY_FIXTURE_DOMAIN}`,
 })
 
@@ -144,17 +162,18 @@ test.skip(
   'the journey is the same at every viewport, and each run spends the account’s hourly code ceiling',
 )
 
-test.afterAll(async () => {
-  // This file's own domain, never the whole fixture domain: `reset.spec.ts`,
-  // `a11y.spec.ts` and `visual.spec.ts` hold sessions under
-  // `SESSION_FIXTURE_DOMAIN` at the same time, and CI runs them all in one
-  // invocation.
-  await removeSignedInFixture(JOURNEY_FIXTURE_DOMAIN)
+test.afterAll(async ({ }, testInfo) => {
+  // THIS WORKER'S accounts, in this file's own domain. Not the whole domain:
+  // `afterAll` fires per worker, so a sweep would take another worker's account
+  // away mid-sign-in — and not the shared session domain either, which
+  // `reset.spec.ts`, `a11y.spec.ts` and `visual.spec.ts` hold accounts in while
+  // CI runs them all in one invocation.
+  await removeSignedInFixture(`.${fixtureLabel(testInfo)}@${JOURNEY_FIXTURE_DOMAIN}`)
 })
 
-test('signs a reader in through the second factor, by filling in the real forms', async ({ page, context }) => {
+test('signs a reader in through the second factor, by filling in the real forms', async ({ page, context }, testInfo) => {
   const failures = watchedFailures(page)
-  const { email, masked } = journeyAccount('journey')
+  const { email, masked } = journeyAccount('journey', testInfo)
   const account = await anAccountWithACodeStep(email)
 
   // 1 · The password step. A wrong `Referrer-Policy` makes this a 403, which
@@ -195,8 +214,8 @@ test('signs a reader in through the second factor, by filling in the real forms'
   expect(failures, 'the journey produced console errors, page errors or 4xx/5xx responses').toEqual([])
 })
 
-test('signs the reader out again, and the guarded screen refuses them afterwards', async ({ page, context }) => {
-  const { email, masked } = journeyAccount('goodbye')
+test('signs the reader out again, and the guarded screen refuses them afterwards', async ({ page, context }, testInfo) => {
+  const { email, masked } = journeyAccount('goodbye', testInfo)
   const account = await anAccountWithACodeStep(email)
   await submitThePasswordForm(page, account)
   const carried = (await context.cookies()).find((cookie) => cookie.name === SESSION_COOKIE)
@@ -220,12 +239,12 @@ test('signs the reader out again, and the guarded screen refuses them afterwards
   expect(page.url()).not.toContain(SIGNED_IN_PATH)
 })
 
-test('asks for a new code from the screen itself, without naming an account', async ({ page }) => {
+test('asks for a new code from the screen itself, without naming an account', async ({ page }, testInfo) => {
   // The resend was the last unmounted form on this surface. It posts a body
   // with nothing in it — the account is resolved from the challenge bound to
   // the browser's own identifier — so a 403 or a 404 here is what this is for.
   const failures = watchedFailures(page)
-  const { email, masked } = journeyAccount('resender')
+  const { email, masked } = journeyAccount('resender', testInfo)
   const account = await anAccountWithACodeStep(email)
   await submitThePasswordForm(page, account)
 
@@ -246,10 +265,10 @@ test('asks for a new code from the screen itself, without naming an account', as
   expect(failures).toEqual([])
 })
 
-test('refuses a wrong code and shows the server’s own count of what is left', async ({ page }) => {
+test('refuses a wrong code and shows the server’s own count of what is left', async ({ page }, testInfo) => {
   // The attempts counter was a hard-coded zero for three tasks. It is the
   // server's now, which is what makes it true rather than decorative.
-  const { email } = journeyAccount('mistyper')
+  const { email } = journeyAccount('mistyper', testInfo)
   const account = await anAccountWithACodeStep(email)
   await submitThePasswordForm(page, account)
 

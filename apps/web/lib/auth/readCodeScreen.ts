@@ -42,11 +42,10 @@
  * route reads the header and passes it, exactly as `guard.ts`'s
  * `authenticateAdminRequest` is handed one.
  *
- * Depends on: `maskEmail` (@travel-diary/domain/auth/mask), `MAX_ATTEMPTS`
- * (@travel-diary/domain/auth/otpChallenge), ./browserSession, ./services.
+ * Depends on: `maskEmail` (@travel-diary/domain/auth/mask), ./browserSession,
+ * ./services.
  */
 import { maskEmail } from '@travel-diary/domain/auth/mask'
-import { MAX_ATTEMPTS } from '@travel-diary/domain/auth/otpChallenge'
 import { readBrowserSession } from './browserSession'
 import { signInServices } from './services'
 
@@ -90,13 +89,18 @@ export const readCodeScreen = async (cookieHeader: string | null, renderedAt: nu
   const pending = await otp.pendingChallenge(carried)
   if (pending === null) return { maskedAddress: NO_PENDING_ADDRESS, issuedAt: renderedAt, attemptsSpent: 0 }
 
+  // NO CLAMP ON `attemptsSpent`, and its absence is deliberate. One was written
+  // here, guarding against a count above the ceiling making the pane print a
+  // negative number of guesses left — and it was unreachable: a challenge that
+  // has spent `MAX_ATTEMPTS` is `'exhausted'`, so `pendingChallenge` returns
+  // `null` and the branch above answers with the placeholder's zero. The test
+  // written for it reduced to `0 <= 3`, and coverage reported the line at 100%
+  // because the expression sat on an executed line — which is worth knowing
+  // about coverage generally: it cannot tell an evaluated expression from a
+  // reachable one. Deleted rather than kept with a comment (CLAUDE.md §3.2).
   return {
     maskedAddress: pending.maskedTo,
     issuedAt: pending.issuedAt,
-    // Clamped to what the pane can draw. `attemptsAllowed` is the service's
-    // and `MAX_ATTEMPTS` is the domain's, and they are the same number — this
-    // says so rather than assuming it, so a service that ever reported more
-    // spent than allowed cannot make the pane print a negative count.
-    attemptsSpent: Math.min(pending.attemptsSpent, MAX_ATTEMPTS),
+    attemptsSpent: pending.attemptsSpent,
   }
 }

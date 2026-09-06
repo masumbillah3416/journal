@@ -47,7 +47,7 @@
  * `book` global's own title.
  */
 import { expect, test } from '@playwright/test'
-import { aSignedInSession, removeSignedInFixture, SESSION_FIXTURE_DOMAIN } from './support/adminSession'
+import { aSignedInSession, fixtureLabel, removeSignedInFixture, SESSION_FIXTURE_DOMAIN } from './support/adminSession'
 
 /** The reset request screen's address. */
 const RESET_PATH = '/admin/reset'
@@ -123,7 +123,7 @@ const rotationDegrees = (transform: string): number => {
  * them nothing.
  */
 test.beforeEach(async ({ context, baseURL }, testInfo) => {
-  const session = await aSignedInSession(`reset.${testInfo.project.name}`)
+  const session = await aSignedInSession(`reset.${fixtureLabel(testInfo)}`)
   await context.addCookies([{ name: 'td-session', value: session, url: `${baseURL ?? ''}/admin` }])
 })
 
@@ -131,7 +131,7 @@ test.afterAll(async ({ }, testInfo) => {
   // This project's own account, never the whole domain: the three viewports
   // run in parallel and a sweeping delete takes another one's session away
   // mid-run (see `SESSION_FIXTURE_DOMAIN`).
-  await removeSignedInFixture(`reset.${testInfo.project.name}@${SESSION_FIXTURE_DOMAIN}`)
+  await removeSignedInFixture(`reset.${fixtureLabel(testInfo)}@${SESSION_FIXTURE_DOMAIN}`)
 })
 
 test('reaches the reset screen from the password screen’s own "Forgotten" link', async ({ page }) => {

@@ -161,15 +161,21 @@ describe('what the code screen is told when a challenge is live', () => {
     expect((await readCodeScreen(carrying(session), RENDERED_AT)).attemptsSpent).toBe(1)
   })
 
-  it('never reports more spent than the reader is allowed', async () => {
-    // The pane subtracts this from `MAX_ATTEMPTS` to say what is left; a count
-    // above the ceiling would print a negative one.
+  it('falls back to the placeholder once the guesses are gone, rather than counting past them', async () => {
+    // THIS CASE USED TO ASSERT A CLAMP THAT COULD NOT FIRE. It read
+    // `attemptsSpent <= MAX_ATTEMPTS` after exhausting the challenge — and an
+    // exhausted challenge is not `'valid'`, so `pendingChallenge` answers
+    // `null` and the placeholder's zero comes back. The assertion reduced to
+    // `0 <= 3`. What is actually true, and is what this now says, is that the
+    // screen stops describing a challenge nobody can answer any more.
     const { session } = await aBrowserAwaitingACode()
     const code = readCodeFromOutbox(mailer)
     const wrong = code === '000000' ? '111111' : '000000'
-    for (let attempt = 0; attempt < MAX_ATTEMPTS + 2; attempt += 1) await otp.verifyChallenge(session, wrong)
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) await otp.verifyChallenge(session, wrong)
 
-    expect((await readCodeScreen(carrying(session), RENDERED_AT)).attemptsSpent).toBeLessThanOrEqual(MAX_ATTEMPTS)
+    const content = await readCodeScreen(carrying(session), RENDERED_AT)
+
+    expect(content).toEqual({ maskedAddress: NO_PENDING_ADDRESS, issuedAt: RENDERED_AT, attemptsSpent: 0 })
   })
 })
 
