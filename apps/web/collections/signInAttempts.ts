@@ -18,9 +18,13 @@
  * and docs/deviations.md §28) - matching `otpChallenges` and `jobs`. This
  * collection is server-only, written and read exclusively through
  * `apps/web/lib/auth/rateLimit.ts`, never through the REST/GraphQL API a
- * client could reach. `sessions` is NOT in that list: it declares no access
- * rule at all today and so inherits Payload's "signed in, or refused"
- * default. Phase 2 Task 6 builds it; this comment named it as a peer before
+ * client could reach. `sessions` is NOT in that list, and the reason is worth
+ * keeping: it declared no access rule at all until Phase 2 Task 6, so it
+ * inherited Payload's "signed in, or refused" default and any signed-in user
+ * could read, update and delete every other user's rows. It now carries a
+ * per-user ownership rule rather than a flat refusal, because the Account
+ * screen legitimately reads and revokes those rows (docs/deviations.md §29).
+ * An earlier revision of this comment named it as a server-only peer before
  * anyone had checked, which is the same species of unverified claim §28
  * records.
  *

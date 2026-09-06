@@ -342,3 +342,23 @@ not a route: its `signInAttempts` collection returns `false` from every access p
 too, so the sign-in and code-verification actions of Task 5 are the only things that will
 ever call it. Whichever route ends up in front of it is what supplies the `ip`, and it
 gets its row here when it lands.
+
+Phase 2 Task 6 added a third, and it is the one the others will be built on:
+`apps/web/lib/auth/sessions.ts` — `startSession({ user, previous, keepSignedIn, device,
+location })`, `authenticate(session)`, `revokeSession({ session, owner })` and
+`revokeAllSessions({ owner })`. Also a module rather than a route, and built **before**
+the sign-in action that will call it, because sign-in must issue a session and cannot
+issue what does not exist (`docs/adr/0017-session-store-and-rotation.md`). `startSession` hands back the identifier, the `Set-Cookie`
+value for it, and the row's expiry; whichever route ends up in front of it is what sets
+that header and what supplies the `device` and `location` labels the Account screen
+lists.
+
+Unlike the two above, the collection behind it is **not** closed to everybody:
+`sessions` carries a per-user ownership rule (`docs/deviations.md` §29), so the Account
+screen's list and its Revoke button reach these rows through Payload's own REST/Local API
+under the signed-in reader's access — `GET`/`PATCH`/`DELETE /api/sessions`, narrowed to
+`{ user: { equals: <caller> } }`, with `tokenHash` never returned and `expiresAt` never
+writable. Those are Payload's own generated routes rather than ones this repository
+writes, which is why they have no row of their own here; what constrains them is the
+collection's access block, and `apps/web/collections/sessions.access.integration.test.ts`
+is where that is asserted.

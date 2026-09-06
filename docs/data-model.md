@@ -121,9 +121,33 @@ The behaviour lives in `apps/web/lib/auth/otpService.ts`.
 
 ### `sessions`
 
-Backs the Account screen's "Where you are signed in" list. Without real rows here,
-"Revoke" and "Sign out everywhere" are decorative. Fields: `user`, `tokenHash`, `device`,
-`location`, `createdAt`, `lastSeenAt`, `revokedAt`.
+Backs the Account screen's "Where you are signed in" list, and is what every admin
+request is authenticated against. Without real rows here, "Revoke" and "Sign out
+everywhere" are decorative. Fields: `user`, `tokenHash`, `expiresAt`, `device`,
+`location`, `createdAt`, `lastSeenAt`, `revokedAt`. The behaviour over them is
+`apps/web/lib/auth/sessions.ts` (Phase 2 Task 6); the lifecycle arithmetic and the
+cookie's attributes are `packages/domain/src/auth/session.ts`.
+
+`expiresAt` is **not** in `DATA_MODEL.md`'s field list, and is a recorded deviation
+(`docs/deviations.md` §30, migration `20260906_004937_add_session_expiry`).
+`SECURITY.md` requires "'Keep me signed in' is a longer-lived, **revocable** session row
+— not a longer JWT", and a row with no lifetime has nothing for "longer" to describe.
+Unlike `otpChallenges.expiresAt` above, this column **is** the authorization input
+(`docs/adr/0017-session-store-and-rotation.md`):
+`sessionState` reads it, there is no second derivation of the same fact anywhere, and the
+identifier in the cookie carries no expiry of its own to disagree with it.
+
+Access is **per-user ownership**, not the flat `() => false` the three server-only
+collections carry, because the Account screen legitimately reads and revokes these rows:
+`read`, `update` and `delete` each return `{ user: { equals: req.user.id } }`, so an
+operation is narrowed to the caller's own rows and refused outright when there is no
+caller; `create` is `() => false` for everybody, since a session is minted server-side
+against a token the client never sees. Two fields are further restricted even for the
+owner: `tokenHash` is unreadable and unwritable (it is the lookup key an authentication
+matches by, and no screen needs it), and `expiresAt` is unwritable (an owner who could
+`PATCH` it could grant themselves a session that never ends). The collection previously
+declared **no access block at all**, which left Payload's `defaultAccess` applying — see
+`docs/deviations.md` §29 for what that meant and how it was found.
 
 ### `jobs`
 
@@ -131,7 +155,8 @@ Backs the Postgres-backed `QueuePort` adapter (`apps/web/lib/adapters/postgres-q
 Task 9): one row per background job, today only `kind: 'transcode'` after a clip upload.
 `access: { read: () => false, create: () => false, update: () => false }` - server-only,
 reached only through the adapter's Local API calls, matching `otpChallenges` and
-`sessions`. `mediaId` is a plain text field, not a `relationship` to `media`: a foreign
+`signInAttempts`. Not `sessions`, which carries a per-user ownership rule instead — see
+its own section above. `mediaId` is a plain text field, not a `relationship` to `media`: a foreign
 key here would reject the branded ids the queue's own contract suite enqueues in
 isolation from a real media row. Fields: `kind` (`transcode`), `mediaId` (text),
 `status` (`queued` | `claimed` | `completed` | `failed`, indexed, defaults to `queued`),
@@ -224,6 +249,7 @@ From design spec §5.1:
 | `20260831_161951_add_jobs` | Creates the `jobs` table (Task 9) backing the Postgres `QueuePort` adapter, and the `payload_locked_documents_rels.jobs_id` column/FK Payload adds for its own admin document-locking feature. Verified reversible by the same test; see the statement-order note below. |
 | `20260905_202028_add_otp_session_hash` | Adds `otp_challenges.session_hash` (`varchar NOT NULL`) and its btree index — the session binding `SECURITY.md` requires and `DATA_MODEL.md` omits (`docs/deviations.md` §25, `docs/adr/0015-otp-challenge-hashing.md`). Its `up()` carries one hand-added statement, `DELETE FROM "otp_challenges"`, before the `ALTER`: a `NOT NULL` column with no default cannot be added to a table that has rows, and every pre-existing challenge is one the new rule can never honour anyway — it has no session binding, so it could not be redeemed. Challenges are five-minute ephemera, so nothing of value is discarded and no default has to be invented. Verified reversible by its own case in `collections.integration.test.ts`, separate from the journey case above because the two fail differently: the journey case proves tables come back and would still pass with this column silently missing. The `down()` drops the index before the column, so a re-apply's `CREATE INDEX` cannot collide with a leftover. |
 | `20260905_230601_add_sign_in_attempts` | Creates the `sign_in_attempts` table and its two enum types (Phase 2 Task 4) backing the sliding window `SECURITY.md` requires per account and per IP (`docs/deviations.md` §27, `docs/adr/0016-rate-limit-window-storage.md`), plus the compound index over `(dimension, endpoint, subject, attempted_at)` and the `payload_locked_documents_rels.sign_in_attempts_id` column/FK Payload adds for its own document-locking feature. Its `down()` carries the same hand-fixed statement order as `20260831_161951_add_jobs`, for the same reason — see the note beneath this table. Verified reversible by its own case in `collections.integration.test.ts`, which asserts on **all five** artefacts the migration creates rather than on the table alone — a `down()` that dropped the table and left the enum types behind would satisfy a table-only assertion and then fail its own re-apply with "type already exists". |
+| `20260906_004937_add_session_expiry` | Adds `sessions.expires_at` (`timestamp(3) with time zone NOT NULL`) and the btree index on `sessions.token_hash` an authentication reads every admin request by (Phase 2 Task 6, `docs/deviations.md` §30). Its `up()` is hand-split into add-nullable, backfill, `SET NOT NULL`: as generated it was a single `ADD COLUMN ... NOT NULL` with no default, which succeeds only against a table with no rows — true of every database today, and false the moment one session exists, at which point `down()`-then-`up()` would fail on the survivors. The backfill is `created_at`, so a row that predates the column is expired the instant the column exists: a session whose lifetime was never recorded is a session whose lifetime is unknown, and inventing a generous one would grant an expiry nobody ever did. Verified reversible by its own case in `collections.integration.test.ts`, which asserts on the column **and** the index and on the `sessions` table surviving — this migration adds to a table it did not create, so "the table is gone" would say nothing about whether its `down()` ran. |
 
 Generated with `npm run db:migrate:create -w apps/web -- <name>`, applied with
 `npm run db:migrate -w apps/web`. Payload's generator emits a plain (non-type-only) import

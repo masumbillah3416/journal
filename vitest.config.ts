@@ -330,6 +330,17 @@ export default defineConfig({
         // pure arithmetic lives in `packages/domain/src/auth/rateWindow.ts`,
         // which this pass DOES measure, at the domain's 100% bar.
         'apps/web/lib/auth/rateLimit.ts',
+        // sessions.ts (Phase 2 Task 6) is reachable only from
+        // sessions.integration.test.ts, for the same reason otpService.ts and
+        // rateLimit.ts are: every one of its operations reads or writes a
+        // `sessions` row, and the claims being tested - that a superseded
+        // identifier stops authenticating, that a revoked row is refused, and
+        // that "keep me signed in" lengthens the ROW rather than the token -
+        // are claims about what Postgres holds, not about what a mock agreed
+        // to. Gated by vitest.integration.config.ts instead. Its pure logic
+        // lives in `packages/domain/src/auth/session.ts`, which this pass
+        // DOES measure, at the domain's 100% bar.
+        'apps/web/lib/auth/sessions.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by

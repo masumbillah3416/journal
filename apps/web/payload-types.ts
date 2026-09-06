@@ -334,6 +334,7 @@ export interface Session {
   id: number;
   user: number | User;
   tokenHash: string;
+  expiresAt: string;
   device?: string | null;
   location?: string | null;
   lastSeenAt?: string | null;
@@ -669,6 +670,7 @@ export interface OtpChallengesSelect<T extends boolean = true> {
 export interface SessionsSelect<T extends boolean = true> {
   user?: T;
   tokenHash?: T;
+  expiresAt?: T;
   device?: T;
   location?: T;
   lastSeenAt?: T;

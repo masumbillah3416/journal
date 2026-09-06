@@ -45,14 +45,20 @@ Enforced by TWO configs, because no single Vitest run can execute everything:
   `scripts` files listed under Contract and Migration below, plus
   `apps/web/collections/**`, `apps/web/globals/**`, `apps/web/payload.config.ts` and
   `apps/web/migrations/**`, each gated per-file at what it genuinely measures.
-  `apps/web/lib/auth/otpService.ts` (Phase 2 Task 3) and `apps/web/lib/auth/rateLimit.ts`
-  (Task 4) are in this pass rather than the Docker-free one for the same reason: every
-  operation either module performs writes and then re-reads a row, and the claims their
-  tests make — "only a hash was stored", "a concurrent burst was admitted in arrival
-  order up to the limit and no further" — are claims about what Postgres did, not about
-  what a mock agreed to. Both are gated at **100/100/100**. Their pure arithmetic lives
-  in `packages/domain/src/auth/`, which the Docker-free pass measures at the domain's
-  own 100% bar.
+  `apps/web/lib/auth/otpService.ts` (Phase 2 Task 3), `apps/web/lib/auth/rateLimit.ts`
+  (Task 4) and `apps/web/lib/auth/sessions.ts` (Task 6) are in this pass rather than the
+  Docker-free one for the same reason: every operation these modules perform writes and
+  then re-reads a row, and the claims their tests make — "only a hash was stored", "a
+  concurrent burst was admitted in arrival order up to the limit and no further", "the
+  superseded identifier no longer authenticates" — are claims about what Postgres did,
+  not about what a mock agreed to. All three are gated at **100/100/100**.
+  `sessions.ts` reached that honestly rather than by construction: it measured 94%
+  branches first, and the two uncovered arms turned out to be reachable by any caller (a
+  `UserId` that is not a Payload row id, handed to
+  `revokeSession`/`revokeAllSessions`), so they were exercised rather than excused — the
+  correction `otpService.ts` had to make twice. Their pure arithmetic lives in
+  `packages/domain/src/auth/`, which the Docker-free pass measures at the domain's own
+  100% bar.
 
 **Nothing is allowed to be in neither.** That is not a stylistic preference: a file no
 config's `include` matches is not reported as 0%, it is not reported at all, and a gap
@@ -276,7 +282,14 @@ would claim a measurement nothing performs.
   does not exist is refused for being absent rather than forbidden, so a guard written
   against `id: '1'` passes with or without the rule. The predicate was added and the gap
   recorded as `docs/deviations.md` §28; removing it again fails all three cases, each
-  naming `delete` in the operations it was allowed. `seed.integration.test.ts` (Task 11)
+  naming `delete` in the operations it was allowed. `sessions.access.integration.test.ts`
+  (Phase 2 Task 6) is that file's counterpart for the one Phase 2 collection a signed-in
+  reader legitimately reaches, and it is shaped differently on purpose: **every case is
+  cross-account**, because `sessions` declared no access block at all and so granted every
+  operation to "signed in" — a defect no single-account suite can see
+  (`docs/deviations.md` §29). `sessions.integration.test.ts` under `apps/web/lib/auth/`
+  covers the behaviour over those rows: rotation, revocation and the row-governed
+  lifetime, each pinned by a mutation (see §8 below). `seed.integration.test.ts` (Task 11)
   exercises `apps/web/scripts/seed.ts` against real `journeys`, `pages`, `media` rows and the
   `book`/`about` globals, including its idempotency (running it twice leaves the same
   ten journeys, not twenty) and the thirty-row page count (ten journeys × three — Cover,
@@ -1587,6 +1600,43 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   assertion that the attempt is still admitted. That case fails on every run when the
   bound is removed (five out of five, measured).
 
+  **The session layer lands in Phase 2 Task 6, before the sign-in screens that will use
+  it,** because sign-in must issue a session and cannot issue what does not exist.
+  `apps/web/lib/auth/sessions.integration.test.ts` is twenty-four cases, shaped around
+  the two ways a test in this area passes while the mechanism is gone:
+
+  - **A rotation test that only asserts "a new identifier exists" passes while the old
+    one still authenticates.** So every rotation case asserts the OLD identifier is
+    refused, and names the refusal. Verified by mutation: returning the identifier the
+    browser arrived with instead of minting one fails three cases and no others, and
+    binding the supersede clause to `NULL` — so rotation revokes nothing — fails exactly
+    the case named "stops the previous identifier authenticating the moment a new one is
+    issued".
+  - **A revocation test that checks a field was set passes while nothing reads that
+    field.** So no case asserts on `revokedAt`. Each one revokes and then attempts to
+    authenticate. Verified by mutation: deleting the line that acts on the domain's
+    verdict fails six cases across revocation, expiry and rotation.
+
+  "Keep me signed in" is asserted from three sides, because "the session lasts longer" is
+  satisfied by the wrong implementation — a longer-lived token — as readily as by the
+  right one: the stored `expires_at` column holds the long lifetime, the identifier is
+  byte-identical in shape between a remembered and an ordinary sign-in, and a remembered
+  row aged past its expiry stops authenticating while its untouched thirty-day cookie
+  still says thirty days.
+
+  Revocation is exercised through the Account screen's own route as well as through the
+  module — a Payload `update` by the signed-in reader under their own per-user access —
+  so the two paths are proven to meet on the same row rather than assumed to.
+
+  `apps/web/collections/sessions.access.integration.test.ts` is the collection's half,
+  and **every case in it is cross-account**: two accounts, each with a session, asserting
+  what one can do to the other's row. That is not thoroughness, it is the only shape that
+  can see the defect the file was written for — `sessions` declared no access block at
+  all, so Payload's `defaultAccess` applied and every operation was granted to "signed
+  in" (`docs/deviations.md` §29). A suite with one account would have passed throughout.
+  Verified by mutation: removing the block fails five cases, and removing each of the
+  three field-level predicates fails exactly the case named for it.
+
   A second case covers what bounds the table: a write against one key must sweep aged rows
   belonging to **other** keys. Pruning only the key being written bounds growth by the
   number of distinct keys ever seen rather than by the window, and a spray from many
@@ -1617,14 +1667,28 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
 
 - **Tool:** Vitest.
 - **Scope:** every migration runs up, down, and up again against a seeded database.
-- **Status:** implemented. `apps/web/migrations/` holds four migrations:
+- **Status:** implemented. `apps/web/migrations/` holds five migrations:
   `20260831_154311_initial` (every collection and global's schema),
   `20260831_161951_add_jobs` (the `jobs` table backing the `queue` port, Task 9),
   `20260905_202028_add_otp_session_hash` (the OTP challenge's session binding, Phase 2
-  Task 3 — `docs/deviations.md` §25) and `20260905_230601_add_sign_in_attempts` (the
-  sliding window's own table, Phase 2 Task 4 — `docs/deviations.md` §27). Each of the
-  three later ones has its **own** case in `collections.integration.test.ts` rather than
+  Task 3 — `docs/deviations.md` §25), `20260905_230601_add_sign_in_attempts` (the
+  sliding window's own table, Phase 2 Task 4 — `docs/deviations.md` §27) and
+  `20260906_004937_add_session_expiry` (the session row's lifetime and the index an
+  authentication reads by, Phase 2 Task 6 — `docs/deviations.md` §30). Each of the four
+  later ones has its **own** case in `collections.integration.test.ts` rather than
   sharing one.
+
+  The `session_expiry` case asserts on the column **and** the index, and on the
+  `sessions` table surviving — this migration adds to a table it did not create, so a
+  `down()` that took the table with it would be a different and much worse kind of
+  reversible. Verified by making `down()` a no-op and watching it fail. That migration's
+  `up()` is also the first here to be hand-split rather than hand-reordered: as generated
+  it was a single `ADD COLUMN ... NOT NULL` with no default, which succeeds only against
+  a table with no rows, so `down()`-then-`up()` — the very thing this suite exists to
+  assert — would have failed the moment one session existed. Split into add-nullable,
+  backfill, `SET NOT NULL`, it holds whatever the table contains. **A generated
+  migration passing a reversibility test against an empty table is not the same as a
+  reversible migration**; check the `up()` against a populated one before believing it.
 
   The `sign_in_attempts` case asserts on **all five** artefacts its migration creates —
   the table, its compound index, its two enum types, and the column Payload adds to
@@ -1634,7 +1698,7 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   of bug the hand-fixed statement order in that file's `down()` exists to prevent.
   Verified by making `down()` a no-op and watching it fail.
 
-  **All three reversibility cases now re-apply in a `finally`,** including the roll-to-zero
+  **All four reversibility cases re-apply in a `finally`,** including the roll-to-zero
   one, which did not until a review pointed out that documenting its blast radius was not
   the same as closing it. Between `runMigrateDownToZero()` and `runMigrateUp()` the
   database has no schema at all, and an assertion failing in that gap used to leave it

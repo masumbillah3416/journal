@@ -1005,7 +1005,9 @@ same commit.
 only by `apps/web/lib/auth/rateLimit.ts`, and its access rules are `() => false` on every
 operation — `delete` included, which the handoff omits from all three server-only access
 blocks and which §28 records — matching `otpChallenges` and `jobs`. Not `sessions`, which
-declares no access rule at all yet; Phase 2 Task 6 builds it.
+declared no access rule at all when this was written; Phase 2 Task 6 gave it a per-user
+ownership rule instead of a flat refusal, since the Account screen legitimately reads and
+revokes those rows (§29).
 
 **Rationale:** `SECURITY.md`'s third prototype hole requires "Rate limit per account **and**
 per IP — a sliding window on both the password and code endpoints", and a sliding window
@@ -1086,3 +1088,100 @@ the second would contradict the `// server only` comment beside it.
 **Recorded as:** a `// HANDOFF-DEVIATION` at the predicate in each of the three
 collections; three cases in `apps/web/collections/collections.integration.test.ts`, each
 verified to fail when the predicate is removed.
+
+## 29 · `sessions` gets a per-user ownership rule, where the handoff states no rule at all
+
+**What changed:** `apps/web/collections/sessions.ts` declares an `access` block:
+`read`, `update` and `delete` each return `{ user: { equals: req.user.id } }` — narrowing
+the operation to rows the caller owns and refusing outright when there is no caller —
+and `create` is `() => false`. Two fields carry their own restrictions on top:
+`tokenHash` is unreadable and unwritable through the API, and `expiresAt` is unwritable.
+
+**Rationale:** `DATA_MODEL.md`'s `sessions` section prints a field list and **no access
+block at all**. Payload applies its `defaultAccess` — `({ req: { user } }) =>
+Boolean(user)`, "signed in, or refused" — to every operation an access block omits, so
+with no block at all **any signed-in user could read, update and delete every other
+user's session rows.** On the very collection that backs the Account screen's "Where you
+are signed in" list and its Revoke button, that is one account holder enumerating
+another's devices and signing them out.
+
+Verified against a real Payload rather than reasoned about, and verified *across two
+accounts*, which is the only way this class of defect is visible: with the block removed,
+Alice's `find` returns Bob's session row, her `update` sets `revokedAt` on it, and her
+`delete` removes it — five cases in
+`apps/web/collections/sessions.access.integration.test.ts` fail, and every one of them
+would have passed had the suite used a single account, because everything the broken
+configuration granted was granted to "signed in".
+
+The rule is per-user ownership rather than the flat `() => false` that §28 gave `jobs`,
+`otpChallenges` and `signInAttempts`, and the difference is deliberate: those three are
+reached only through their own server-side adapters, while the Account screen
+(`SCREENS.md` §4, Phase 4) legitimately lists a reader's own sessions and revokes them
+one at a time. A blanket refusal here would have been "secure" and would also have made
+Revoke impossible, which is the outcome `SECURITY.md` explicitly names as the thing to
+avoid — "Back the account screen's session list with real `sessions` rows, or Revoke and
+'Sign out everywhere' do nothing".
+
+`create` is refused for everybody including the account itself, because a session is
+minted server-side against an identifier the client never learns
+(`apps/web/lib/auth/sessions.ts`), so a row created through the API could only ever be a
+forgery. The two field-level restrictions close the two ways an owner could otherwise
+undo the rule from inside it: reading `tokenHash` would hand every listed device's
+credential digest to whatever renders the list, and writing `expiresAt` would let a
+reader grant themselves a session that never expires, since the column is the only thing
+that ends a session nobody revokes.
+
+**What this cost, recorded because the cost is the lesson:** three documents in this
+repository — `apps/web/collections/signInAttempts.ts`'s header, `docs/deviations.md` §27
+and `docs/data-model.md`'s `jobs` section — described `sessions` as a server-only peer of
+the three collections that do refuse everybody, before anybody had read its configuration.
+It has never had one. That is the same species of unverified claim §28 records, in the
+same phase, about a neighbouring collection; all three statements are corrected in the
+commit that adds this entry.
+
+**What would reverse this:** a `DATA_MODEL.md` revision that states an access rule for
+`sessions`. None exists.
+
+**Recorded as:** `docs/adr/0017-session-store-and-rotation.md`; a `// HANDOFF-DEVIATION` at the access block in
+`apps/web/collections/sessions.ts`; eleven cases in
+`apps/web/collections/sessions.access.integration.test.ts`, verified to fail when the
+block and each field-level predicate are removed (see the Task 6 report for the four
+mutation runs).
+
+## 30 · `sessions` gains an `expiresAt` column the handoff never lists
+
+**What changed:** `sessions` carries `expiresAt` (`timestamp(3) with time zone NOT NULL`),
+added by migration `20260906_004937_add_session_expiry` alongside a btree index on
+`token_hash`. `DATA_MODEL.md`'s field list is `{ user, tokenHash, device, location,
+createdAt, lastSeenAt, revokedAt }` — no lifetime of any kind.
+
+**Rationale:** `SECURITY.md` requires that "'Keep me signed in' is a longer-lived,
+**revocable** session row — not a longer JWT". A row with no recorded lifetime cannot be
+longer-lived than anything: it ends only when somebody revokes it, so "keep me signed in"
+would have nothing to lengthen and an unticked box would grant a session that lasts
+forever. The alternative the requirement explicitly forbids — carrying the lifetime in a
+longer signed token — is exactly what a schema with no expiry column pushes an
+implementer towards, since the token is then the only place a lifetime can live.
+
+This is the second time this handoff has required of a collection something its own field
+list cannot hold, after `otpChallenges.sessionHash` (§25). As there, the stated
+requirement wins over the printed list.
+
+Unlike `otpChallenges.expiresAt`, this column **is** the authorization input rather than a
+purge index. There is no second derivation of the same fact to disagree with it:
+`sessionState` (`packages/domain/src/auth/session.ts`) reads this column and nothing else
+decides a session's lifetime, and the identifier in the cookie is opaque, so it carries no
+expiry of its own. The distinction is drawn deliberately — §25's column exists *because*
+two sources of truth for one fact would make the domain constant decorative, and here
+there is only one.
+
+**What would reverse this:** a `DATA_MODEL.md` revision adding a lifetime field to
+`sessions`, at which point this column would be the handoff's rather than ours. A revision
+dropping the "keep me signed in" requirement would also do it, and would take the feature
+with it.
+
+**Recorded as:** `docs/adr/0017-session-store-and-rotation.md`; a `// HANDOFF-DEVIATION` at the field in
+`apps/web/collections/sessions.ts`; the migration's own reversibility case in
+`apps/web/collections/collections.integration.test.ts`; and the three lifetime cases in
+`apps/web/lib/auth/sessions.integration.test.ts` that assert the lifetime is the row's and
+not the token's.

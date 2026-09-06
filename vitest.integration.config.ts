@@ -117,6 +117,7 @@ export default defineConfig({
         'apps/web/lib/auth/otpService.ts',
         'apps/web/lib/auth/testing/otpProbes.ts',
         'apps/web/lib/auth/rateLimit.ts',
+        'apps/web/lib/auth/sessions.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
         'apps/web/payload.config.ts',
@@ -194,6 +195,18 @@ export default defineConfig({
         // dimensions of `admitCodeAttempt`, and the `byAddress.ok` that
         // decides which refusal a caller is told about.
         'apps/web/lib/auth/rateLimit.ts': { lines: 100, branches: 100, functions: 100 },
+        // sessions.ts (Phase 2 Task 6): 100% on every axis, and honestly so.
+        // It reached 94% branches first, with the two uncovered arms being
+        // `revokeSession` and `revokeAllSessions` refusing a `UserId` that is
+        // not a Payload row id - reachable by any caller, since the brand
+        // promises only a non-empty string. Both are now exercised rather
+        // than excused: otpService.ts's entry above records what happens when
+        // a threshold is lowered on a reason that turns out not to be true.
+        // The two `c8 ignore`s that remain are on the `isOk` unwraps of
+        // `sessionId`/`userId`, whose refusal arms a base64url identifier and
+        // a `NOT NULL integer` column cannot reach, and each states so at the
+        // point of the exclusion.
+        'apps/web/lib/auth/sessions.ts': { lines: 100, branches: 100, functions: 100 },
         // readBookBundle.ts (Task 6 of Phase 1; Task 6 review fix round 1;
         // Task 11): 100% lines/statements/functions. 83% branches is the
         // real, measured number, RAISED again from 81% by Task 11, whose

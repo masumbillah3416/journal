@@ -261,6 +261,44 @@ const sessionHashSchema = async (): Promise<string[]> => {
 /** The migration that adds the sliding window's own table (Phase 2 Task 4). */
 const SIGN_IN_ATTEMPTS_MIGRATION = '20260905_230601_add_sign_in_attempts'
 
+/** The migration that gives a session row a lifetime of its own (Phase 2 Task 6). */
+const SESSION_EXPIRY_MIGRATION = '20260906_004937_add_session_expiry'
+
+/** The email the session-expiry fixture's account uses, so `afterAll` can remove it. */
+const FIXTURE_SESSION_EXPIRY_EMAIL = 'test-session-expiry@example.com'
+
+/** The `device` value the session-expiry fixture row carries, so `afterAll` can find it. */
+const FIXTURE_SESSION_DEVICE = 'test-session-expiry-device'
+
+/**
+ * Which of the `expires_at` column and the `token_hash` index currently
+ * exist.
+ *
+ * Asked of `information_schema` rather than of Payload, and asked for the
+ * COLUMN and the INDEX rather than for the table: this migration adds both to
+ * a table it did not create, so "the table is gone" would say nothing about
+ * whether its `down()` did anything at all — the same trap the `session_hash`
+ * case above records.
+ * @returns `['column', 'index']` when both exist, a subset otherwise, sorted
+ *   so an assertion reads as a set.
+ */
+const sessionExpirySchema = async (): Promise<string[]> => {
+  const client = new Client({ connectionString: env.DATABASE_URL })
+  await client.connect()
+  try {
+    const found = await client.query<{ artefact: string }>(
+      `SELECT 'column' AS artefact FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'sessions' AND column_name = 'expires_at'
+       UNION ALL
+       SELECT 'index' FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = 'sessions_token_hash_idx'`,
+    )
+    return found.rows.map((row) => row.artefact).sort()
+  } finally {
+    await client.end()
+  }
+}
+
 /**
  * Which of the five schema artefacts `20260905_230601_add_sign_in_attempts`
  * is responsible for currently exist.
@@ -415,6 +453,14 @@ describe('collections', () => {
     if ((await sessionHashSchema()).length === 0) {
       await runMigrationDirection(SESSION_HASH_MIGRATION, 'up', payload)
     }
+    // The same narrow repair for the same narrow hazard, for the session
+    // expiry case below: `expires_at` dropped while `payload_migrations`
+    // still records its migration as applied. Reachable only by the worker
+    // being killed outright between that case's `down` and its `up`, which
+    // is the one way a `finally` cannot cover.
+    if ((await sessionExpirySchema()).length === 0) {
+      await runMigrationDirection(SESSION_EXPIRY_MIGRATION, 'up', payload)
+    }
 
     // Cleaned at BOTH ends, and the editor minted ONCE: `users.email` is
     // unique, so a row left behind by an interrupted run - or a second case
@@ -454,6 +500,24 @@ describe('collections', () => {
     // FIRST: `otp_challenges.user_id` is NOT NULL, and Payload's own delete
     // hook nulls the relationship rather than cascading, so removing the
     // account while a challenge still points at it fails the constraint.
+    // The session-expiry case's own fixtures, cleared for the same reason and
+    // in the same order: `sessions.user_id` is NOT NULL, so the session row
+    // goes before the account it points at.
+    const sessionFixtures = await payload.find({
+      collection: 'sessions',
+      where: { device: { equals: FIXTURE_SESSION_DEVICE } },
+    })
+    for (const row of sessionFixtures.docs) {
+      await payload.delete({ collection: 'sessions', id: row.id })
+    }
+    const sessionAccounts = await payload.find({
+      collection: 'users',
+      where: { email: { equals: FIXTURE_SESSION_EXPIRY_EMAIL } },
+    })
+    for (const doc of sessionAccounts.docs) {
+      await payload.delete({ collection: 'users', id: doc.id })
+    }
+
     const otpFixtures = await payload.find({
       collection: 'users',
       where: { email: { equals: FIXTURE_REVERSIBILITY_EMAIL } },
@@ -910,5 +974,50 @@ describe('collections', () => {
     await payload.delete({ collection: 'signInAttempts', id: restored.id })
 
     expect(restored.dimension).toBe('account')
+  })
+
+  // The session row's lifetime column and the index its authentication reads
+  // by (Phase 2 Task 6, docs/deviations.md §30) get the same per-migration
+  // treatment as the two cases above, and for the same reason: rolling every
+  // migration to zero would take `sessions` with it as a side effect of the
+  // INITIAL migration's `DROP TABLE`, so it would say nothing about whether
+  // THIS migration's `down()` did anything. This case runs that migration's
+  // own `up()`/`down()` and asserts on the two artefacts it is responsible
+  // for. Verified by mutation: replacing `down()` with a no-op fails it (see
+  // the task report).
+  it('drops and restores the session lifetime column and its lookup index when its own migration is reversed', async () => {
+    expect(await sessionExpirySchema()).toEqual(['column', 'index'])
+
+    await runMigrationDirection(SESSION_EXPIRY_MIGRATION, 'down', payload)
+    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS - see the
+    // otpChallenges case above. Between the `down` and the `up`, `diary_test`
+    // is in a state `payload_migrations` does not describe, and the next
+    // run's `runMigrateUp()` would be a no-op against a database with no way
+    // to repair itself.
+    try {
+      expect(await sessionExpirySchema()).toEqual([])
+      // The table itself must survive: this migration adds a column and an
+      // index to a table it did not create, so a `down()` that took the table
+      // with it would be a different and much worse kind of reversible.
+      expect(await existingTablesAmong(['sessions'])).toEqual(['sessions'])
+    } finally {
+      await runMigrationDirection(SESSION_EXPIRY_MIGRATION, 'up', payload)
+    }
+
+    expect(await sessionExpirySchema()).toEqual(['column', 'index'])
+    // And the rebuilt column still holds what it is for. A migration that
+    // restored it nullable, or of the wrong type, would satisfy every
+    // assertion above and fail the first time a session was issued.
+    const account = await payload.create({
+      collection: 'users',
+      data: { email: FIXTURE_SESSION_EXPIRY_EMAIL, password: 'not-a-real-password' },
+    })
+    const expiresAt = new Date(Date.now() + 60 * 60_000).toISOString()
+    const session = await payload.create({
+      collection: 'sessions',
+      data: { user: account.id, tokenHash: 'e'.repeat(64), expiresAt, device: FIXTURE_SESSION_DEVICE },
+    })
+
+    expect(session.expiresAt).toBe(expiresAt)
   })
 })
