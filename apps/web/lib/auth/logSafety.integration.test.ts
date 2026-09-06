@@ -60,7 +60,7 @@
  * ./passwordReset, ./rateLimit, ./testing/otpProbes,
  * ../adapters/console-mailer, ../testPayload, `@travel-diary/domain`.
  */
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { type SessionId, sessionId, userId } from '@travel-diary/domain/ids'
 import { isOk } from '@travel-diary/domain/result'
 import type { Payload } from 'payload'
@@ -119,9 +119,25 @@ const A_TRUNCATED_PREFIX = 8
  * Repeated here rather than imported, and deliberately: the constant is not
  * exported, and a test that imported it would still pass on the day the string
  * became empty — which is the shape of pinned-against-itself assertion this
- * phase has found four times.
+ * phase has found four times. The two subjects below are re-typed for the same
+ * reason.
  */
 const CREDENTIAL_STORE_REPORT = 'sign-in could not be decided: the credential store did not answer'
+
+/**
+ * The subject the mailer prints for the one-time code, and the one it prints
+ * for the reset link.
+ *
+ * BOTH ARE REQUIRED, SEPARATELY, and that is finding 8 of this task's review.
+ * The guard used to ask only whether the fixture domain appeared anywhere in
+ * the transcript — which the RESET line satisfies on its own. So a regression
+ * that silenced the OTP mail's line specifically would have left the guard
+ * green and "never writes the one-time code" asserting a negative over a
+ * transcript that no longer contained the sink the code travels through. A
+ * vacuous case, produced by the very guard written to prevent vacuous cases.
+ */
+const OTP_MAIL_SUBJECT = 'Your travel diary sign-in code'
+const RESET_MAIL_SUBJECT = 'A way back in to your travel diary'
 
 /** Distinguishes one fixture from the next within a single run. */
 let fixtureCount = 0
@@ -215,7 +231,8 @@ const aPayloadWhoseCredentialStoreIsDown = (): Payload =>
  *   sink and never echoes what it searched.
  */
 const theLogTheSurfaceWrote = (): string => {
-  if (!transcript.includes(FIXTURE_EMAIL_DOMAIN)) throw new Error('the mailer’s line was not captured')
+  if (!transcript.includes(OTP_MAIL_SUBJECT)) throw new Error('the one-time code’s mail line was not captured')
+  if (!transcript.includes(RESET_MAIL_SUBJECT)) throw new Error('the reset link’s mail line was not captured')
   if (!transcript.includes(CREDENTIAL_STORE_REPORT)) throw new Error('the operator report was not captured')
   return transcript
 }
@@ -272,8 +289,14 @@ const driveTheWholeSurface = async (): Promise<DrivenSecrets> => {
   const unknownEmail = `nobody-${alphabeticLabel(fixtureCount)}@${FIXTURE_EMAIL_DOMAIN}`
   fixtureAddressKeys.push(addressKey(unknownEmail))
 
-  fixtureCount += 1
-  const brandedSession = sessionId(`pre-auth-${alphabeticLabel(fixtureCount)}`)
+  // THE SHAPE `browserSession.ts` ACTUALLY MINTS — 32 CSPRNG bytes, base64url
+  // — rather than a readable label. Two reasons, and the second is this
+  // phase's most expensive lesson. A truncation check over `pre-auth-ab` is
+  // asking whether the log contains the fixed string `pre-auth`, which is not
+  // a secret and tells nobody anything; over a real identifier it is the
+  // assertion it claims to be. And a fixture that does not look like what
+  // production produces is how the two blockers of this phase were missed.
+  const brandedSession = sessionId(randomBytes(32).toString('base64url'))
   if (!isOk(brandedSession)) throw new Error('the fixture session id is empty')
   const preAuthSession = brandedSession.value
 
@@ -366,11 +389,15 @@ afterAll(async () => {
 })
 
 describe('what a whole sign-in journey writes to a log', () => {
-  it('writes to both sinks while it runs, so every negative below is about something', () => {
+  it('writes every line the negatives below are about, so none of them is vacuous', () => {
     // The guard made explicit. The five cases after this one read the
     // transcript through the same check, so a drive that stopped logging fails
-    // all six rather than passing five.
-    expect(transcript).toContain(FIXTURE_EMAIL_DOMAIN)
+    // all six rather than passing five — and each MESSAGE is named separately,
+    // because a transcript that lost only the OTP line would still carry the
+    // fixture domain and would still have satisfied the single check this
+    // replaced.
+    expect(transcript).toContain(OTP_MAIL_SUBJECT)
+    expect(transcript).toContain(RESET_MAIL_SUBJECT)
     expect(transcript).toContain(CREDENTIAL_STORE_REPORT)
   })
 
@@ -412,8 +439,11 @@ describe('what a whole sign-in journey writes to a log', () => {
     expect(log).not.toContain(secrets.session.slice(0, A_TRUNCATED_PREFIX))
     // The pre-auth identifier is a secret too: the challenge is bound to it,
     // so a log carrying it hands over the half of the second factor that is
-    // not the code.
+    // not the code. Truncated as well as whole — the case is named "in whole
+    // or truncated" and covered two of its three values until this task's
+    // review said so.
     expect(log).not.toContain(secrets.preAuthSession)
+    expect(log).not.toContain(secrets.preAuthSession.slice(0, A_TRUNCATED_PREFIX))
   })
 
   it('never writes a password', () => {
