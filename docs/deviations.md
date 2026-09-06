@@ -1361,3 +1361,72 @@ point (2) above is what records which one this repository followed and why.
 `.clothEyebrow`/`.clothBackRoom` rule, the note at the `.cloth, .masthead` rule that
 distinguishes (2) and (3) from (1), the note on `.mastheadBackRoom`, and the two contrast
 cases at the foot of `e2e/a11y.spec.ts`.
+
+## 33 · The one-time-code screen is mounted before the challenge behind it is
+
+**What changed:** `/admin/sign-in/code` draws `SCREENS.md` §3.2's pane against no real
+challenge. The masked address it prints is `PENDING_ADDRESS_MASK`, exported from
+`apps/web/components/admin/CodeStep.tsx` and equal to `maskEmail('')` — three bullets,
+`•••` — and the two countdowns are measured from `Date.now()` at the instant the document
+was drawn rather than from the instant a code was issued. The two forms on the pane post
+to `/admin/sign-in/code/verify` and `/admin/sign-in/code/resend`, neither of which is
+mounted, so both currently resolve to a `404`.
+
+**Rationale:** the same shape of gap `/admin/sign-in`'s own form already carries, and for
+the same reason. Everything this screen would need to say for real — which address the
+code went to, when it was issued, how many guesses the server has spent — lives in the
+`otpChallenges` row `otpService.issueChallenge` writes, keyed by the PRE-AUTH SESSION the
+browser carries in a cookie. Reading that back means the cookie policy, and **Phase 2 Task
+10 owns the cookie policy**, along with the `Set-Cookie`, the CSRF check and the admin's
+CSP. Task 8's brief is the screen.
+
+Building the screen behind a cookie that does not exist yet would have made it
+unreachable in a browser, and three of its mechanisms can only be settled in one: the cell
+widths at 390px (`SCREENS.md` §3 records the collapse this guards), the paste path past
+`maxLength="1"`, and the shake under `prefers-reduced-motion`. A screen nothing can drive
+is a screen nothing can check.
+
+**What it costs, stated rather than hidden.** A reader who reloads the screen sees the
+countdown start again. Nothing about the code's real life moves with it: what decides
+whether a code still works is `challengeState`, read from the stored row against the
+server's own clock, and the screen's countdown is a courtesy either way — `CodeStep.tsx`
+says so at the refusal it makes. The masked address echoes nothing at all, because
+`maskEmail`'s fallback for input it cannot mask is a fixed bullet run rather than a
+partial echo. Nothing is fabricated: no invented address, no invented issue time that
+claims to be a challenge's.
+
+**What would reverse this:** Task 10 mounting the two handlers and supplying the pending
+challenge, at which point `maskedAddress` and `issuedAt` come from the row,
+`attemptsSpent` comes from the refusal that sent the reader back, and
+`PENDING_ADDRESS_MASK` has no caller left and goes. The three visual baselines
+(`admin-sign-in-code-*.png`) move in that commit, which is expected and is what a
+baseline is for.
+
+**Recorded as:** the header of `apps/web/app/(admin)/admin/sign-in/code/page.tsx`, the
+TSDoc on `PENDING_ADDRESS_MASK` in `apps/web/components/admin/CodeStep.tsx`, the row for
+`GET /admin/sign-in/code` in `docs/api.md`, and the case in
+`apps/web/components/admin/CodeStep.test.tsx` that pins the fallback to `'•••'`.
+
+## 34 · The last wrong code is told "1 attempt left", not the prototype's "1 attempts left"
+
+**What changed:** the handoff's login prototype builds the wrong-code message as
+`'That code is not right. ' + (3 - n) + ' attempts left.'`, which at the reader's last
+remaining guess reads "That code is not right. 1 attempts left."
+`apps/web/components/admin/CodeStep.tsx` pluralises it, so that one case reads "1 attempt
+left." and every other case is the prototype's string unchanged.
+
+**Rationale:** `SCREENS.md` §3.2 does not specify this message at all — it names the
+attempts counter and leaves the wording to the prototype — and the prototype's own copy
+is deliberate everywhere else on this screen ("nineteen tarts, no regrets" is the house
+rule). This is not a deliberate voice, it is a concatenation that never had its singular
+case looked at, and it appears at the most anxious moment the screen has: one guess left
+before the challenge is spent. Correcting agreement is not rewriting the copy; every
+other word of the sentence is the prototype's.
+
+**What would reverse this:** the repository owner preferring the prototype's string
+verbatim, which is theirs to decide.
+
+**Recorded as:** the `HANDOFF-DEVIATION` comment at `wrongCodeMessage` in
+`apps/web/components/admin/CodeStep.tsx`, and the two cases in
+`apps/web/components/admin/CodeStep.test.tsx` that assert the plural and the singular
+form separately.

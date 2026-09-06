@@ -668,6 +668,196 @@
   text-wrap: pretty;
 }
 
+/* ══ The one-time-code step (SCREENS.md §3.2) ══ */
+
+/* "← Back to password". A real link rather than the prototype's `<button>`:
+ * it goes to another address, which is what an anchor is for, and it works
+ * with no JavaScript. Every value below is the prototype's own. */
+.backToPassword {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+.backToPassword:hover {
+  color: var(--td-accent);
+}
+
+/* "'Check your email' (Caveat 50px)" - two pixels smaller than §3.1's
+ * "Welcome back", which is why it is a modifier on `.title` rather than a
+ * second copy of it. Declared AFTER `.title`, so at equal specificity this
+ * font size is the one that lands. */
+.titleCode {
+  font-size: 50px;
+}
+
+/* "with the address in upright ink" - the one span in the lede that is not
+ * italic, and a step darker than the line around it. */
+.ledeAddress {
+  font-style: normal;
+  color: var(--td-ink-body);
+}
+
+/* "'The code' eyebrow". The same Courier label §3.1's fields carry, with the
+ * prototype's own 8px below it rather than a field label's 5px.
+ *
+ * The whole `margin`, not just `margin-bottom`: this label is a `<p>` (it
+ * names a GROUP of six inputs, which is not something a `<label>` can do), and
+ * a paragraph's own `1em 0` default would put an extra 9.5px above it that the
+ * prototype's `<div>` does not have. `.label` sets only `margin-bottom`,
+ * because on the password step it is applied to a `<label>`, which has no
+ * default margin to override. */
+.labelAboveCells {
+  margin: 0 0 8px;
+}
+
+/* "six cells (flex, gap 9px, ...)". */
+.cells {
+  display: flex;
+  gap: 9px;
+}
+
+/* "... each flex: 1, centred Courier 25px, 13px 0 padding, a 1.5px terracotta
+ * ring when filled else 1px muted".
+ *
+ * `min-width: 0` is the prototype's own, kept, and it is DEFENSIVE rather
+ * than load-bearing here - said plainly because it was measured rather than
+ * assumed. It overrides a flex item's automatic minimum size, which is what
+ * would otherwise floor each cell at the input's intrinsic width and make the
+ * row overflow the pane rather than share it; removing it and re-running
+ * `e2e/codeStep.spec.ts`'s overflow case at 390px changed nothing, because
+ * this engine already lets a form control shrink below its intrinsic width.
+ * What DOES decide how wide a cell is at 390px is the narrow pane padding
+ * below, and that has a case of its own which fails when it is wrong. */
+.cell {
+  flex: 1;
+  min-width: 0;
+  padding: 13px 0;
+  border: none;
+  border-radius: var(--td-radius-control);
+  background: var(--td-paper-mount);
+  box-shadow: inset 0 0 0 1px var(--td-hairline-border-max);
+  font-family: var(--td-font-courier);
+  font-size: 25px;
+  text-align: center;
+  color: var(--td-ink);
+}
+
+.cellFilled {
+  box-shadow: inset 0 0 0 1.5px var(--td-accent);
+}
+
+/* The prototype's `btn(true, { marginTop: '18px' })`, against `.submit`'s own
+ * 6px on the password step. */
+.submitBelowCells {
+  margin-top: 18px;
+}
+
+/* "then a resend button ... opposite an attempts counter". `margin-left: auto`
+ * on the counter rather than the prototype's empty spacer `<div>`: the same
+ * layout with one fewer element that says nothing. */
+.resendRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* The resend is its own `<form>` (see CodeStep.tsx's header), and a form's
+ * default margin is not part of the design. */
+.resendForm {
+  margin: 0;
+}
+
+.resend {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--td-accent);
+  cursor: pointer;
+}
+
+/* "inert during cooldown" - a real `disabled`, so it is inert to a pointer, to
+ * the keyboard and to a screen reader alike, rather than only looking it. */
+.resend:disabled {
+  color: var(--td-ink-muted);
+  cursor: default;
+}
+
+.attempts {
+  margin: 0 0 0 auto;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+/* "shake the shell - omShake 420ms ease, translating -6/+5/-3/+2px at
+ * 20/40/60/80%", transcribed from the prototype's own keyframes.
+ *
+ * ONLY `transform` IS ANIMATED (CLAUDE.md §6): the shell is composited and
+ * nothing about the shake touches a layout property.
+ *
+ * WHY `:has()`. SCREENS.md shakes THE SHELL, and the shell is a server
+ * component that holds no state (`SignInShell.tsx`); the pane inside it is
+ * where the wrong code is known. So the pane raises the flag and the shell
+ * reacts to it, which keeps the frame free of client JavaScript and keeps this
+ * animation somewhere the reduced-motion query below can reach. The
+ * alternative - the pane reaching up the DOM to set a class on an ancestor it
+ * does not own - is the imperative version of the same thing, and untestable
+ * without a browser. */
+@keyframes omShake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(-6px);
+  }
+
+  40% {
+    transform: translateX(5px);
+  }
+
+  60% {
+    transform: translateX(-3px);
+  }
+
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+.shell:has([data-code-step-shaking='true']) {
+  animation: omShake 420ms ease;
+}
+
+/* The handoff does not mention `prefers-reduced-motion` (docs/deviations.md
+ * §3 makes the same addition to the page flip, for the same reason). A shake
+ * is pure decoration - the error box says everything the movement does - so a
+ * reader who has asked for less motion gets the message and none of the
+ * movement. Asserted in a real browser by `e2e/codeStep.spec.ts`, which reads
+ * `animation-name` back under both settings: a test that only checked the flag
+ * was raised would say nothing at all about this query. */
+@media (prefers-reduced-motion: reduce) {
+  .shell:has([data-code-step-shaking='true']) {
+    animation: none;
+  }
+}
+
 /* The prototype's own focus ring, widened from its `input:focus` to every
  * control on the pane: a keyboard reader has to be able to see where they
  * are on the toggle, the checkbox, the link and the button too, and

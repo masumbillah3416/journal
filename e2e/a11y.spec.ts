@@ -59,6 +59,16 @@
  * the cloth panel is a gradient, so axe returns `color-contrast` INCOMPLETE
  * over it and a green axe run says nothing about the four cream lines drawn
  * on it. They are measured from the rendered pixels by the same helper.
+ * TASK 8 ADDS THE SECOND SIGN-IN STATE, `/admin/sign-in/code`, with no
+ * exclusions either. It is the first view in the product where `label` has six
+ * unlabelled-looking boxes to judge - the code cells carry `aria-label`s
+ * rather than visible labels, because `SCREENS.md` §3.2 gives the row one
+ * heading ("The code") and no per-cell text - and where `aria-allowed-attr`
+ * and `aria-valid-attr-value` have a `role="group"` and its `aria-labelledby`
+ * to check. The cloth and masthead contrast cases above cover this route's
+ * frame too, since it is the SAME shell drawn from the same stylesheet; only
+ * the pane differs, and the pane is dark ink on `#fffdf6`, which axe judges
+ * for itself.
  * Revisit when the bespoke admin at `/admin` replaces `/cms` as the route
  * under test (Phase 1+) — Payload's stock scaffolding will no longer be in
  * scope at all.
@@ -375,6 +385,33 @@ test('has no axe violations on /admin/sign-in, the password step', async ({ page
   // here - this screen has a `<main>` (SignInShell.tsx), a level-one heading
   // of its own ("Welcome back"), a labelled field per input and a named
   // control per button, so every one of those rules is a requirement.
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /admin/sign-in/code, the one-time-code step', async ({ page }) => {
+  await page.goto('/admin/sign-in/code')
+  // The pane is visible AND its six cells are drawn before axe looks: a route
+  // that rendered an empty shell would have no violations either.
+  await expect(page.locator('[data-code-step-pane]')).toBeVisible()
+  await expect(page.locator('[data-code-cell]')).toHaveCount(6)
+
+  // No exclusions, for the same reason the password step has none.
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on the code step after it has refused a code', async ({ page }) => {
+  await page.goto('/admin/sign-in/code')
+  await expect(page.locator('[data-code-cell]')).toHaveCount(6)
+
+  // The error box is the one part of this pane axe never sees on a clean
+  // load, and it is a live region - `aria-describedby` on the cell group has
+  // to resolve to it, which `aria-valid-attr-value` checks only while it is
+  // in the document.
+  await page.getByRole('button', { name: 'Verify and sign in' }).click()
+  await expect(page.locator('[data-code-step-pane] [role="alert"]')).toHaveText(
+    'All six digits, then we can look.',
+  )
+
   await expectNoAxeViolations(page)
 })
 

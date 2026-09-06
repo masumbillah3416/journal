@@ -135,6 +135,12 @@
  * area's centre lands inside the book. Never regenerate a `diary-*` baseline
  * without that suite green in the same run.
  *
+ * TASK 8 ADDS ITS SECOND STATE, `admin-sign-in-code-*.png` - SCREENS.md
+ * §3.2's one-time-code step in the same shell. It is the one case in this file
+ * that fixes the browser's clock before navigating, because it is the one
+ * screen with a live countdown on it; see the case itself for why the fixed
+ * instant is in the past.
+ *
  * PHASE 2 TASK 7 ADDS THE FIRST ADMIN SCREEN: `admin-sign-in-*.png`, the
  * password step at all three projects. It is one case rather than two even
  * though SCREENS.md §3 has two layouts, because the projects already ARE the
@@ -340,6 +346,24 @@ test('matches the baseline screenshot of the bookmark drawer over the mobile rea
   await expect(page.locator('[data-drawer]')).toBeVisible()
 
   await expect(page).toHaveScreenshot('diary-mobile-drawer.png')
+})
+
+test('matches the baseline screenshot of the one-time-code screen', async ({ page }) => {
+  // The clock is FIXED before navigation, and that is the whole reason this
+  // case is stable: SCREENS.md §3.2 puts two live countdowns on this screen -
+  // "It expires in {m:ss}" and "Send again in {n}s" - and without a fixed
+  // clock the baseline would photograph whichever second the run landed on.
+  // A time BEFORE the document was drawn is chosen deliberately: both windows
+  // then clamp to their whole length (`secondsRemaining`'s ceiling), so the
+  // image always reads "5:00" and "Send again in 30s" rather than a value that
+  // depends on how long the page took to load.
+  await page.clock.setFixedTime(new Date('2020-01-01T00:00:00Z'))
+
+  await page.goto('/admin/sign-in/code', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-code-cell]')).toHaveCount(6)
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-sign-in-code.png', { fullPage: true })
 })
 
 test('matches the baseline screenshot of the sign-in screen', async ({ page }) => {

@@ -26,7 +26,7 @@ Eight routes exist today: Payload's own four, mounted under the `(payload)` rout
 group; three of the diary's own — `/p/<n>`, added with the book itself in Phase 1
 Task 7 and completed in Task 13; and `/gallery/<slug>` with its download handler
 `/gallery/<slug>/download/<id>`, added in Task 14 — and the bespoke admin's first,
-`/admin/sign-in`, added in Phase 2 Task 7. `/p/<n>` was completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
+`/admin/sign-in` and `/admin/sign-in/code`, added in Phase 2 Tasks 7 and 8. `/p/<n>` was completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
 metadata and a canonical link, and settled in
 `docs/adr/0010-static-generation-and-the-content-window.md` why it stays dynamic. Both sets are documented in full below. Everything still unbuilt is
 listed further down as **planned**, using only what the design spec (§8) already
@@ -358,6 +358,53 @@ for a different reason — see its row.
 
   **"Forgotten" links to `/admin/reset`, which is not mounted yet** — Phase 2 Task 9 owns
   it, and until it lands that link resolves to a `404` (`docs/deviations.md` §31).
+
+### `GET /admin/sign-in/code`
+
+- **Method:** `GET`. This route answers nothing else; the two `POST`s made from it go to
+  sibling paths named below.
+- **Input:** none. No path parameter, no query, no body and no cookie is read — see
+  "Notes" for why that is a gap rather than a design, and what closes it.
+- **Output:** an HTML document: the same `SCREENS.md` §3 shell `/admin/sign-in` draws,
+  with §3.2's one-time-code step in the form panel — "← Back to password", the "Second
+  step" eyebrow, "Check your email", "A six-digit code went to {masked}. It expires in
+  {m:ss}.", a rule, the "The code" eyebrow, six `flex: 1` cells at `9px` gap, the error
+  box when there is something to say, "Verify and sign in", and the resend button
+  opposite the attempts counter. The shell's own content is
+  `apps/web/lib/auth/readSignInScreen.ts`'s `SignInScreenContent`; the pane's numbers are
+  the domain's — `EXPIRY_MS`, `RESEND_COOLDOWN_MS` and `MAX_ATTEMPTS` from
+  `@travel-diary/domain/auth/otpChallenge`, counted down by
+  `@travel-diary/domain/auth/otpCountdown`. `metadata` sets the document title and
+  `robots: { index: false, follow: false }`.
+- **Errors:** none observable. Every absent value degrades exactly as the password step's
+  does, and the pane itself has no failing path: it draws the same document for every
+  caller.
+- **Auth requirement:** none today, and that is temporary — see below. It is `Disallow`ed
+  in `public/robots.txt` and carries its own `noindex`.
+- **Notes:** **the pending challenge is not wired, and this route is honest about it
+  rather than inventing one** (`docs/deviations.md` §33). The masked address it prints is
+  `maskEmail('')` — `•••`, which echoes nothing — and both countdowns are measured from
+  the instant the document was drawn. What it should print instead lives in the
+  `otpChallenges` row keyed by the pre-auth session in the browser's cookie, and **Phase
+  2 Task 10 owns the cookie policy**, along with this route's guard. When it lands,
+  `maskedAddress`, `issuedAt` and `attemptsSpent` come from that row and this paragraph
+  goes with it.
+
+  **The two `POST`s this screen makes have no rows here yet.** The code form targets
+  `/admin/sign-in/code/verify` (`CODE_STEP_ENDPOINT`) and the resend targets
+  `/admin/sign-in/code/resend` (`RESEND_ENDPOINT`), both exported from
+  `apps/web/components/admin/CodeStep.tsx` so the handlers mount at the paths the forms
+  actually post to rather than at a second spelling of them. **Phase 2 Task 10 owns
+  both**, and each gets its full row here in the commit that adds it; until then they
+  resolve to a `404`.
+
+  **The code is posted as six repeated `code` fields, not one.** Each cell is
+  `<input name="code" maxLength={1}>`, so the handler reads
+  `formData.getAll('code').join('')` and gets the digits in document order — which is
+  what lets a reader with no JavaScript at all submit a code. The `onPaste` handler
+  exists because `maxLength="1"` truncates a pasted string to one character before
+  `change` fires; `e2e/codeStep.spec.ts` proves the whole six-digit paste against a real
+  clipboard.
 
 ## Planned routes (Phase 1)
 

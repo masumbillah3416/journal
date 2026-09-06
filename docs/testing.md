@@ -223,6 +223,28 @@ would claim a measurement nothing performs.
   cannot reach — whether the DELIVERED page and its scripts read storage — is
   `e2e/signIn.spec.ts`'s.
 
+  Task 8 adds `apps/web/components/admin/CodeStep.test.tsx`, the largest component suite
+  here at 46 cases, and it is worth knowing what it deliberately does NOT prove. Its
+  header names three things and hands each to `e2e/codeStep.spec.ts`: the cell widths
+  (jsdom performs no layout), the paste path (jsdom performs no default paste, so
+  `preventDefault` has nothing to prevent and the case cannot distinguish a working
+  handler from a missing one on the browser's own terms), and the shake's
+  `prefers-reduced-motion` honesty (a media query is a property of the stylesheet). Two
+  of its cases were strengthened after a mutation showed them passing with the mechanism
+  removed: the Backspace case moved from cell 0 to cell 2, because at the first cell
+  "stays here" and "retreats" are the same outcome, and the countdown's non-finite guard
+  is now tested with `NaN` rather than `Infinity`, because an infinite instant already
+  falls out of the subtraction as "the window closed long ago" and passed with the guard
+  deleted.
+
+  Its numbers all come from `@travel-diary/domain/auth/otpChallenge` rather than from
+  copies, and that is proven rather than asserted: raising `MAX_ATTEMPTS` to 5 in the
+  domain fails 5 of its cases, doubling `EXPIRY_MS` fails 3, and halving
+  `RESEND_COOLDOWN_MS` fails 1. The one number that cannot follow its constant is the
+  word "Three" in "Three wrong codes…", so a case of its own pins `MAX_ATTEMPTS` to `3`
+  as a literal — the copy names the number in words, and no expression turns the constant
+  into that word.
+
   `apps/web/lib/react-harness.test.tsx` is the guard: it mounts a real React component
   into a real `document` with `react-dom/client` and reads the text back out, which is
   impossible to pass unless the file is being collected AND the environment is a DOM. It
@@ -481,8 +503,8 @@ would claim a measurement nothing performs.
 - **Status:** the harness is implemented, and the first real journey it guards is the
   book. The routes this app serves today are Payload's own admin at `/cms`, the diary's
   `/p/<n>`, `/gallery/<slug>` with its download handler (Phase 1 Task 14), and — since
-  Phase 2 Task 7 — the bespoke panel's first screen at `/admin/sign-in`. The rest of the
-  `/admin` panel is Phase 4.
+  Phase 2 Task 7 — the bespoke panel's first screen at `/admin/sign-in`, joined by
+  `/admin/sign-in/code` in Task 8. The rest of the `/admin` panel is Phase 4.
 
   **`e2e/signIn.spec.ts` (Phase 2 Task 7)** is where `SECURITY.md`'s second prototype
   hole is proved closed **against the delivered page rather than against the source**.
@@ -515,6 +537,47 @@ would claim a measurement nothing performs.
   Both the `localStorage` cases were watched to fail with the mechanism put back: a
   five-line reintroduction of the prototype's read failed cases 1 and 2, and shipping the
   key as a client-side constant failed case 3.
+
+  **`e2e/codeStep.spec.ts` (Phase 2 Task 8)** carries the three things about
+  `SCREENS.md` §3.2's one-time-code screen that jsdom cannot settle, and each was watched
+  to fail with its mechanism removed:
+
+  1. **The cell widths at 390px.** §3 records the exact failure this guards — "at
+     `40px 42px` in a 342px shell the OTP cells collapse" — and the fix is the narrow
+     pane padding, `26px 20px 24px`. The case pins a LITERAL 40px floor rather than
+     anything derived from the stylesheet, because a floor compared against the value it
+     is meant to hold still moves with it and can never fail. Restoring `40px 42px`
+     failed it at **35.5px**; the correct padding measures **42.83px**. A second case
+     asserts the row does not OVERFLOW the pane either, which is the other half of the
+     same defect and which a width floor alone would pass.
+  2. **The paste.** Each cell is `maxLength="1"`, and the browser truncates a pasted
+     string to one character before `change` fires — so a jsdom case proves the handler
+     spreads digits and NOT that a reader pasting a code gets six of them (jsdom performs
+     no default paste at all for a handler to have to prevent). This case grants clipboard
+     permission, writes the code with `navigator.clipboard.writeText` and presses
+     Ctrl+V. With `onPaste` deleted it read `['1','','','','','']` — the defect itself.
+  3. **The shake under `prefers-reduced-motion`.** A media query is a property of the
+     stylesheet, so asserting that the pane raised its flag proves nothing about it. Both
+     cases read `animation-name` off the SHELL's computed style under
+     `page.emulateMedia({ reducedMotion })`, and both first assert that the refusal really
+     happened (the error box says "All six digits, then we can look." and the flag reads
+     `true`), because "nothing is animating" is trivially true of a screen that never
+     refused anything. Deleting the `@media` block failed the reduce case with
+     `signIn-module__…__omShake`; deleting the `.shell:has(…)` rule failed the other with
+     `none`.
+
+  The same file also pins §3.2's own measurements from the RENDERED page rather than
+  from the stylesheet — the title at 50px, the row's 9px gap, each cell's 25px Courier,
+  `13px 0` padding and centred text, and the two rings side by side in one row (`1.5px`
+  `#a34434` on a filled cell against `1px rgba(120,98,60,.34)` on an empty one). Reading
+  the computed style is what makes a rule that is present but overridden fail.
+
+  Each shake case clicks and reads inside ONE `page.evaluate`: the flag is cleared 420ms
+  later, and a click followed by a separate round trip is a race that fails under load
+  rather than under a defect. React flushes a click's state update in a **microtask**
+  rather than synchronously — measured, not assumed — so the case yields the microtask
+  queue once and then reads, and the 420ms timer that clears the flag is a macrotask
+  scheduled during that same flush and cannot have run yet.
 
   **`e2e/gallery.spec.ts` (Phase 1 Task 14)** covers the four things about the gallery
   and its lightbox that only a served, laid-out page can answer, and deliberately
@@ -1187,6 +1250,18 @@ would claim a measurement nothing performs.
   photographs the narrow masthead above a 470px shell. It does not use `settled()` (no
   scaled design box on this route) and waits only for the pane and
   `document.fonts.ready`, since the screen carries no images at all.
+- **Phase 2 Task 8 adds its second state**: `admin-sign-in-code-*.png`, `SCREENS.md`
+  §3.2's one-time-code step in the same shell. Three images again, and again that covers
+  both of §3's layouts rather than one. It is the only case in `e2e/visual.spec.ts` that
+  fixes the browser's clock (`page.clock.setFixedTime`) before navigating, and it has to:
+  the screen carries two LIVE countdowns — "It expires in {m:ss}" and "Send again in
+  {n}s" — so without a fixed clock the baseline photographs whichever second the run
+  landed on and every later comparison drifts against it. The fixed instant is
+  deliberately in the PAST, so both windows clamp to their whole length
+  (`secondsRemaining`'s ceiling) and the image always reads "5:00" and "Send again in
+  30s". The comparison run before the update was green on all 46 existing baselines and
+  failed only on the three missing ones; the `changed` update wrote exactly those three
+  and `git status` showed nothing else had moved.
 - **Add one:** one snapshot per page type per breakpoint listed in design spec §8.2
   (diary `<860px`; admin `≥1180`/`≥860`/narrow; login `<820`) as each page is built. The
   OTP-cell collapse at 819px (design spec §11) is the canonical example of a defect this
@@ -1215,6 +1290,17 @@ would claim a measurement nothing performs.
   needed no change and measures 4.805, 7.974 and 4.577. The masthead case runs at the
   `mobile` project alone and the panel case at the other two, because each block is drawn
   at one side of the breakpoint only.
+
+  **Phase 2 Task 8 adds the second sign-in state**, `/admin/sign-in/code`, in TWO cases
+  and with no exclusions either: the screen as it loads, and the screen after it has
+  refused a code. The second exists because the error box is the one part of that pane
+  axe never sees on a clean load, and it is what `aria-describedby` on the cell group has
+  to resolve to. This is also the first view in the product where `label` has six
+  boxes with no visible label to judge — `SCREENS.md` §3.2 gives the row one heading
+  ("The code") and no per-cell text, so each cell carries an `aria-label` ("Digit 1 of
+  6") and the row is a `role="group"` named by that heading. The cloth and masthead
+  contrast cases already cover this route's frame, since it is the same shell drawn from
+  the same stylesheet; its pane is dark ink on `#fffdf6`, which axe judges for itself.
 
   Implemented for each designed diary page in turn — `/p/1` (Cover, Task 7), `/p/2` (Contents, Task 9), `/p/3` (Notes, Task 10)
   and `/p/4`, `/p/5`, `/p/33` (Frames I, Frames II and About, Task 11), because each
