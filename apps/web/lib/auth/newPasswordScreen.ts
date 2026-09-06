@@ -59,13 +59,15 @@
  * answered 500 with an empty body. `submittedFields` turns that throw into the
  * same empty submission Zod already refuses.
  *
- * WHAT THIS MODULE DOES NOT DO. It does not check a CSRF token, set a cookie
- * or apply the admin's CSP: all three are Task 10's, which owns the cookie
- * policy for the whole sign-in surface. It is worth being plain about what
- * that costs here and what it does not: the authorisation for this endpoint is
- * the token in the body, which is a secret an attacker forging a cross-site
- * request does not have, so a forged post can spend no link it could not
- * already spend directly. Recorded in docs/security.md.
+ * WHAT THIS MODULE DOES NOT DO, AND WHAT NOW DOES IT INSTEAD. It checks no
+ * CSRF token, sets no cookie and applies no CSP. Task 10 mounted all three one
+ * layer above: `apps/web/middleware.ts` refuses a cross-site mutation to any
+ * `/admin` address before this handler is reached, and adds the admin's
+ * security headers to what it answers. So a forged post no longer arrives at
+ * all — and the bound this paragraph used to state still holds underneath it,
+ * which is why the two together rather than either alone: the authorisation
+ * for this endpoint is the token in the body, a secret a cross-site forgery
+ * does not have. Recorded in docs/security.md.
  *
  * ═══ A SIBLING ROUTE'S NAME IS NOT A TOKEN (RULING F56) ═══
  *
@@ -78,14 +80,21 @@
  * the route file for the reason the whole module exists - a branch in
  * `[token]/page.tsx` is a branch no coverage pass can see.
  *
+ * WHERE `submittedFields` AND `seeOther` WENT. Both were written here in Task
+ * 9 and both moved to `./httpForm` in Task 10, unchanged, when four more
+ * endpoints needed them. A second copy of `submittedFields` would be a second
+ * place for `Request.formData()`'s throw to go unhandled, which is the `500`
+ * this module's own header records finding.
+ *
  * Depends on: `newPasswordView` (@travel-diary/domain/auth/resetScreen),
  * `notFound` (next/navigation), zod, `getPayload` (../payload),
- * ./setNewPassword, ./resetPath.
+ * ./httpForm, ./setNewPassword, ./resetPath.
  */
 import { type NewPasswordView, newPasswordView } from '@travel-diary/domain/auth/resetScreen'
 import { notFound } from 'next/navigation'
 import { z } from 'zod'
 import { getPayload } from '../payload'
+import { seeOther, submittedFields } from './httpForm'
 import { isReservedResetSegment, RESET_PATH } from './resetPath'
 import { createNewPasswordService } from './setNewPassword'
 
@@ -134,43 +143,6 @@ export const readNewPasswordScreen = async ({ token, state }: NewPasswordScreenR
   const service = createNewPasswordService({ payload: await getPayload() })
   return newPasswordView(await service.linkState(token), state)
 }
-
-/**
- * The submission's fields, or none at all when the body is not a form.
- *
- * `Request.formData()` THROWS rather than returning empty for a body it cannot
- * parse - no `Content-Type`, or one naming anything but a form encoding. Until
- * the Task 9 re-review probed it, that throw left this endpoint answering 500
- * with an empty body: an unhandled error at a trust boundary, which is exactly
- * what CLAUDE.md §3.1 forbids.
- *
- * THE ERROR IS NOT INSPECTED, because there is nothing stable to inspect: the
- * runtime raises a plain `TypeError` whose message is its own wording, and
- * discriminating on that would be a contract this repository does not own -
- * the same reasoning `setNewPassword.ts` gives for reading Payload's status
- * rather than its messages. Every unparseable body means one thing here
- * anyway: the request did not come from this screen. So it is mapped to the
- * empty submission the schema already refuses, and there is ONE answer for
- * every request this screen did not make rather than two.
- *
- * @param request - The `POST` as it arrived.
- * @returns The form's fields, or an empty object for a body that is not a form.
- */
-const submittedFields = async (request: Request): Promise<Record<string, FormDataEntryValue>> => {
-  try {
-    return Object.fromEntries(await request.formData())
-  } catch {
-    return {}
-  }
-}
-
-/**
- * A `303 See Other` pointing at `location`.
- *
- * @param location - Where the browser should go, as a root-relative path.
- * @returns The response, with no body at all.
- */
-const seeOther = (location: string): Response => new Response(null, { status: 303, headers: { Location: location } })
 
 /**
  * Answers a submission of the new-password form.

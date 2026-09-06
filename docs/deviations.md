@@ -1367,13 +1367,28 @@ cases at the foot of `e2e/a11y.spec.ts`.
 
 ## 33 · The one-time-code screen is mounted before the challenge behind it is
 
+> **Half closed by Phase 2 Task 10, and the other half now has a reason rather than a
+> date.** The screen is guarded no more and no less than it was — it is a public address by
+> design, listed in `apps/web/lib/auth/adminAccess.ts`'s `ADMIN_PUBLIC_PATHS`, because a
+> reader at this step has no session. `POST /admin/sign-in/code/verify` is mounted and
+> works. What remains is the two things this entry is really about, and Task 10 found that
+> neither is a scheduling question: **reading the pending challenge back**, and **the
+> resend endpoint**, both need `otpService` to name the ACCOUNT a browser identifier holds
+> a challenge for — and it deliberately will not, because answering would tell an
+> unauthenticated caller which browsers have a live challenge, which is exactly what
+> `verifyChallenge`'s single `'invalid'` refusal exists to prevent. Closing it means a new
+> `otpService` operation that names the account without revealing whether one exists, in a
+> module gated at 100%. That is a change to Task 3's module, not to a route, and it is what
+> this entry is now waiting on. Everything below stands as written, except that "Phase 2
+> Task 10 owns the cookie policy" has happened.
+
 **What changed:** `/admin/sign-in/code` draws `SCREENS.md` §3.2's pane against no real
 challenge. The masked address it prints is `PENDING_ADDRESS_MASK`, exported from
 `apps/web/components/admin/CodeStep.tsx` and equal to `maskEmail('')` — three bullets,
 `•••` — and the two countdowns are measured from `Date.now()` at the instant the document
 was drawn rather than from the instant a code was issued. The two forms on the pane post
-to `/admin/sign-in/code/verify` and `/admin/sign-in/code/resend`, neither of which is
-mounted, so both currently resolve to a `404`.
+to `/admin/sign-in/code/verify` and `/admin/sign-in/code/resend`. The first is mounted
+(Task 10); the second still resolves to a `404`, for the reason in the note above.
 
 **What that means today, plainly, rather than by implication:** `GET
 /admin/sign-in/code` **returns 200 to anyone who asks for it** and draws a complete
@@ -1589,6 +1604,19 @@ At that point the line can name a number and this entry goes.
 
 ## 39 · Two more screens are mounted ahead of the handlers behind them
 
+> **Closed by Phase 2 Task 10.** All three rows of the table below have moved, and the
+> replacements were measured the same way — against a running server, not read off the
+> route tree:
+>
+> | Address | What it does now |
+> | --- | --- |
+> | `POST /admin/reset/request` | **303** to `/admin/reset?sent=<masked>`, mounted at `app/(admin)/admin/reset/request/route.ts`. `GET` of the same address is still **404**, by an exported `GET` handler of its own rather than by the reservation — a `route.ts` with only a `POST` answers `405`, which would have been a different answer from the one the address gave the day before |
+> | `POST /admin/sign-out` | **303** to `/admin/sign-in` with the session revoked and the cookie cleared, for a signed-in reader; the same `303` and nothing revoked for anybody else |
+> | `GET /admin/sign-in/done` | **303** to `/admin/sign-in` for an unauthenticated request, **200** for a live session. It calls `requireAdminSession` before it reads or draws anything |
+>
+> The reservation stays, exactly as the last paragraph of this entry said it would.
+> Everything below is kept as the record of what was true between Tasks 9 and 10.
+
 **What changed:** `/admin/reset` and `/admin/sign-in/done` are served today, and two of the
 three `POST`s made from them are not. **Measured against the running app, not reasoned
 from the route tree** — the first row is what the Task 9 review found stated the opposite
@@ -1626,9 +1654,8 @@ this screen was reached: `/admin` is Phase 4's, and Task 10's guard is what will
 unauthenticated request for it. What it does mean is that the screen is a page rather than
 a proof, until the session it describes is one the server can read.
 
-**What would reverse this:** Task 10, which mounts all three handlers and puts the guard
-in front of this screen. Each gets its own row in `docs/api.md` in the commit that adds
-it, and this entry goes with them.
+**What reversed this:** Task 10, which mounted all three handlers and put the guard in
+front of this screen. Each has its own row in `docs/api.md`.
 
 **What would reverse the reservation: nothing Task 10 does.** Mounting
 `app/(admin)/admin/reset/request/route.ts` makes `request` a static segment, which Next.js
@@ -1643,3 +1670,84 @@ headers of `apps/web/components/admin/ResetStep.tsx` and
 `apps/web/app/(admin)/admin/sign-in/done/page.tsx`, `RESERVED_RESET_SEGMENTS` in
 `apps/web/lib/auth/resetPath.ts`, and the `GET /admin/reset`, `GET /admin/reset/<token>`
 and `GET /admin/sign-in/done` rows in `docs/api.md`.
+
+## 40 · The sign-in screen's server-side refusal message is ours — the prototype never refuses one
+
+**What changed:** `SCREENS.md` §3.1 asks the password pane for "an error box when needed"
+and specifies its appearance in full — `rgba(152,57,43,.07)` with a ring, an 8px rotated
+`#98392b` square, Garamond 15.5px `#8c3327` — but no copy for a refusal that comes from the
+server. It has none to give: the handoff's prototype (`Travel Diary Login.dc.html`) never
+refuses a sign-in at all. Its `submit()` validates two things in the browser — the address
+contains an `@`, the password is not empty — and then unconditionally succeeds after a
+700ms pause. So the only two messages the prototype has are the client-side ones this
+repository already carries verbatim ("That does not look like an email address.", "Enter
+your password to carry on.").
+
+Phase 2 Task 10 mounted the endpoint the form posts to, which means a refusal is now a
+thing that happens. The message is
+`@travel-diary/domain/auth/signInScreen`'s `PASSWORD_REFUSED_MESSAGE`:
+
+> Those details did not let you in.
+
+**Rationale:** the alternative was to redirect back to a form the reader has just filled in
+and say nothing — a sign-in that silently redraws itself, which is precisely the class of
+silent failure `CLAUDE.md` §10 says a screenshot cannot catch. Writing one sentence is the
+smaller departure.
+
+**Why that sentence.** It says "those details" rather than "your password" or "that
+address" because naming either would say which one was wrong, and saying an address is
+unknown is the enumeration the whole password step spends a PBKDF2 derivation to prevent
+(`docs/security.md`, "No user enumeration"). It is one message for ALL FIVE refusals the
+endpoint can give — an unknown address, a wrong password, a locked account, an exhausted
+rate-limit window and a code that could not be sent — because the first three must be
+indistinguishable and separating the other two would mean a second `state` word for a
+later change to attach the first three to. `signInScreen.test.ts` asserts the message
+names neither field, neither "exist" nor "locked".
+
+**What it costs, stated rather than hidden:** a genuinely rate-limited reader is told the
+same thing as one who mistyped a password, and so is one whose correct password could not
+be followed by a code. Both are recorded in `docs/security.md`.
+
+**What would reverse this:** a copy decision from the design's author for any of those
+states. The state word and the message are one constant each in one module, so a second
+state is a small change — the thing to re-read first is why there is only one.
+
+**Recorded as:** the header of `packages/domain/src/auth/signInScreen.ts`, the cases in
+`packages/domain/src/auth/signInScreen.test.ts`, the
+`PasswordStepProps.refusal` prop in `apps/web/components/admin/PasswordStep.tsx`, and the
+`GET /admin/sign-in` and `POST /admin/sign-in/password` rows in `docs/api.md`.
+
+## 41 · A second admin cookie, `td-keep-signed-in`, which the handoff does not describe
+
+**What changed:** `SECURITY.md` describes one cookie — the session — and `SCREENS.md` §3.1
+puts a "keep me signed in" checkbox on the PASSWORD step. Phase 2 Task 10 added a second
+cookie to get the answer from that checkbox to the place the session is actually issued.
+
+**Rationale:** with the second factor on, the session is issued at the CODE step, and that
+step's form submits six digits and nothing else. Between the two there is nowhere for the
+reader's answer to live. Three options were considered:
+
+1. **Default to `false` at the code step.** Rejected: `users.otpRequired` reads as required
+   when NULL, so the second factor is on for every account by default — the checkbox would
+   do nothing at all for every reader, which is worse than any of this.
+2. **A column on `otpChallenges`.** Rejected: it would put a display preference in the one
+   table whose every other field is a credential's state, and it needs a migration for a
+   value that lives for five minutes.
+3. **A cookie carrying one bit.** Taken.
+
+**What makes it acceptable, stated as the property rather than as an assurance:** it
+carries the fixed word `yes` or nothing — never an address, a password or a code
+(`CLAUDE.md` §7) — it is read by exact equality, and it is not trusted as a credential. The
+most a forged value achieves is a thirty-day session for an account whose password and
+one-time code the holder has just supplied correctly. It is written by the password step
+EITHER WAY, so a stale `yes` from an earlier sign-in cannot lengthen this one, and it is
+cleared the moment the session it described is issued.
+
+**What would reverse this:** an `otpChallenges` design that already carried per-sign-in
+state the code step reads back — which is the same change §33 is waiting on. If that lands,
+this cookie has no reason to exist.
+
+**Recorded as:** `KEEP_SIGNED_IN_COOKIE_NAME` and its neighbours in
+`apps/web/lib/auth/browserSession.ts`, the cases in `browserSession.test.ts`, the second
+cookie table in `docs/security.md`, and the `POST /admin/sign-in/password` and
+`POST /admin/sign-in/code/verify` rows in `docs/api.md`.

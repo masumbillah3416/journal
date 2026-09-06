@@ -139,6 +139,60 @@ the six alternatives it beat.
 | `useViewportSurface.ts` | Feeds `surfaceForWidth` a measurement, re-measured on resize and through a `ResizeObserver`, always inside one animation frame - the same shape `useBookScale` has.                                                 |
 | `SurfaceCorrection.tsx` | Draws nothing. Where the measured viewport and the served surface disagree, it remembers the measurement in a session cookie and re-renders the route on the server. It reads the cookie back before refreshing, so a reader with cookies blocked keeps the surface they have rather than reloading forever. |
 
+### The admin's request boundary (`apps/web/middleware.ts` + `apps/web/lib/auth/`)
+
+Phase 2 Task 10 joined the sign-in screens to the services behind them. The thing worth
+carrying out of it is **where each decision runs, and why the two halves cannot be
+merged**, because the obvious arrangement — all of it in the middleware — authenticates
+nobody.
+
+```
+request for /admin/…
+  │
+  ├─ apps/web/middleware.ts  (EDGE runtime: no pg, no Payload, no node:crypto)
+  │    ├─ isCrossSiteMutation → 403, empty body, admin headers on it
+  │    ├─ ADMIN_SECURITY_HEADERS on every response
+  │    └─ mints a pre-auth td-session for an anonymous browser on a public GET
+  │
+  └─ the route  (NODE runtime)
+       ├─ page  → requireAdminSession()      ─┐  authenticateAdminRequest
+       └─ POST  → authenticateAdminRequest()  ┘  reads the sessions row
+```
+
+**The split is by what each half can know.** Whether an identifier names a LIVE row is a
+question only Postgres can answer, and the Edge runtime cannot ask it. Substituting "is a
+cookie present" is not a weaker version of the same check — it is a different one, and it
+would pass for every revoked session, every expired one, and every anonymous visitor, since
+the pre-auth identifier this surface mints for browsers that have not signed in is carried
+in the same cookie. `docs/adr/0018-admin-request-policy-and-the-guard-split.md` records the
+five arrangements considered.
+
+**The path policy is default-deny.** `apps/web/lib/auth/adminAccess.ts` lists the addresses
+that answer without a session — the steps of signing in and of getting back in — and
+everything else under `/admin` is guarded, including screens nobody has written yet.
+
+**What stops Phase 4 forgetting the guard is a test, not a layer.**
+`apps/web/lib/auth/adminGuardRegistration.test.ts` reads every `page.tsx` and `route.ts`
+under `app/(admin)/admin` off the filesystem, turns each back into the address Next serves
+it at, and requires each to be either declared public or to name the guard — directly or
+through the one `lib/auth` module it re-exports its handler from. It runs in the pre-commit
+gate.
+
+| File | Responsibility |
+| --- | --- |
+| `lib/auth/adminAccess.ts` | The three edge-safe decisions: which addresses are public, whether a mutation came from one of our own pages, and the headers every admin response carries. Imports nothing but `resetPath.ts`, because the middleware imports it. |
+| `lib/auth/browserSession.ts` | The two cookies a browser carries through a sign-in: the identifier in `td-session` (minted from Web Crypto, so it works in both runtimes) and the one bit of "keep me signed in" the code step would otherwise lose. Also the two clears, both `Path=/admin` — RFC 6265 keys a cookie by name AND path. |
+| `lib/auth/guard.ts` | The authority on who a request is. Reads the cookie, asks `sessions.authenticate`, returns a `Result`; `requireAdminSession` is the Server Component binding that redirects. |
+| `lib/auth/httpForm.ts` | What every endpoint does with a raw `Request` before any decision: read its fields (an unparseable body is an empty submission, never a `500`), name the address and the device, and answer `303`. |
+| `lib/auth/services.ts` | The composition root: the one place the real Payload, mailer, admin origin and clock are chosen. |
+| `lib/auth/signInEndpoints.ts` | The password step, the code step and signing out, as three functions of a `Request`. One refusal branch for the password step, deliberately, so the three answers that must be indistinguishable cannot be separated later. |
+| `lib/auth/resetRequestEndpoint.ts` | `POST /admin/reset/request`, and the `GET` that keeps the address a 404. |
+
+**Every route file under `app/(admin)` is one line.** A route handler is an ordinary
+function of a `Request`, and neither Vitest project can execute one — so a decision left in
+a route file is a decision nothing can measure. The same seam Task 9 drew for
+`reset/set/route.ts`, now drawn for four more.
+
 ### The back room's front door (`apps/web/components/admin/`)
 
 Phase 2 Task 7 added `SCREENS.md` §3's sign-in screen — the first thing in
@@ -156,7 +210,7 @@ of them has needed a line of the frame changed.
 | File                | Responsibility                                                                                                                                                                                                    |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SignInShell.tsx`   | The frame: the desk (which IS the route's `<main>`, so nothing sits outside a landmark and nothing empty is added to satisfy one), the shell's grid, the cloth panel with its spine, stitches, rules, ribbon and "PRIVATE / 01" stamp, the narrow masthead, and the form panel. A SERVER component — no hooks, no handlers, no state — so the frame costs the route nothing in the browser. It takes the step as `children`, which is what lets §3's other three states reuse it unchanged. |
-| `PasswordStep.tsx`  | §3.1's pane, and the route's only `'use client'` module. Two pieces of state and no more: whether the password is revealed, and which field the reader has to fix. It is a real `<form method="post">` rather than a `fetch`, so a reader with no JavaScript can still sign in; the handler it posts to is Task 10's. |
+| `PasswordStep.tsx`  | §3.1's pane, and the route's only `'use client'` module. Three pieces of state and no more: whether the password is revealed, which field the reader has to fix, and whether the server's own refusal is still standing. It is a real `<form method="post">` rather than a `fetch`, so a reader with no JavaScript can still sign in; the handler it posts to is `POST /admin/sign-in/password` (Task 10), and the refusal it draws is `passwordStepView`'s — one message for every reason a sign-in can be refused. |
 | `CodeStep.tsx`      | §3.2's pane, the second `'use client'` module on this screen, and the most intricate thing in it: six `flex: 1` cells, an expiry countdown, a resend cooldown, an attempts counter and a shake. It owns none of the arithmetic — `nextCell` and `distributePaste` (`@travel-diary/domain/auth/otpCells`) decide what the keyboard and the clipboard do, `secondsRemaining`/`formatCountdown` (`otpCountdown`) turn an instant into `{m:ss}`, and every number comes from `otpChallenge`'s own constants. TWO real `POST` forms, not one with two buttons, so verifying and resending each say what they are for and neither needs JavaScript. |
 | `ResetStep.tsx`     | §3.3's pane, in both of its states. `'use client'`, for one piece of state: whether the address the reader typed is worth posting. The state itself is the SERVER's, arriving as a `ResetRequestView` — there is deliberately no branch here for an address that names no account, because `SECURITY.md` §3 requires one answer for both and a screen that could draw two would be the oracle the whole path is shaped to avoid. |
 | `NewPasswordStep.tsx` | The pane the mailed link lands on, which `SCREENS.md` does not describe at all (`docs/deviations.md` §36) and which is assembled from §3.3's own surface. `'use client'`, for the Show/Hide and the empty-field refusal. Its token is rendered only as a hidden field's value and appears in no heading, message or log; the expired state prints none at all. |
@@ -188,7 +242,7 @@ and a real Payload. `app/(admin)/admin/reset/set/route.ts` is one line: `export 
 **A dynamic segment answers for its siblings until it is told not to.**
 `app/(admin)/admin/reset/[token]` matches ANY single segment under `/admin/reset`,
 including `/admin/reset/request` — the address SCREENS.md §3.3's own "Send the link"
-button posts to, which Task 10 mounts. Mounting the token route therefore turned that
+button posts to, which Task 10 mounted. Mounting the token route therefore turned that
 address from a 404 into a 200 drawing "That link has expired", invisibly to every suite,
 because every test addressed the routes directly and none posted the form (ruling F56).
 The seam that fixes it is the same one as everything else here: the LIST of segments that
@@ -198,6 +252,13 @@ are routes rather than tokens is `apps/web/lib/auth/resetPath.ts`'s
 `resetPath.test.ts` reads the addresses this surface posts to off its own source and the
 static routes off the filesystem, and fails the build if either names a segment the list
 does not.
+
+**Mounting the handler did not retire the reservation, and it added a `GET` for a
+different reason.** A static route wins over a dynamic sibling only while it is mounted at
+that exact path, so the list stays. And a `route.ts` exporting only `POST` makes Next
+answer `405` to a `GET` — a different answer from the `404` the address gave the day
+before — so `app/(admin)/admin/reset/request/route.ts` exports a `GET` that calls
+`notFound()`. There is nothing at that address to fetch; it is a form's action.
 
 **Which state that screen draws is decided by the LINK, not by the address bar.**
 `linkState` asks Payload whether the token still names a row whose expiry is in the

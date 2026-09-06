@@ -22,6 +22,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { PASSWORD_REFUSED_MESSAGE } from '@travel-diary/domain/auth/signInScreen'
 import { CODE_STEP_OFF_NOTICE, CODE_STEP_ON_NOTICE, PASSWORD_STEP_ENDPOINT, PasswordStep } from './PasswordStep'
 
 const roots: Root[] = []
@@ -31,13 +32,13 @@ const roots: Root[] = []
  * @param codeStepRequired - What the server said about the code step.
  * @returns The host element the pane was rendered into.
  */
-const renderStep = (codeStepRequired = true): HTMLElement => {
+const renderStep = (codeStepRequired = true, refusal: string | null = null): HTMLElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
   roots.push(root)
   act(() => {
-    root.render(<PasswordStep codeStepRequired={codeStepRequired} />)
+    root.render(<PasswordStep codeStepRequired={codeStepRequired} refusal={refusal} />)
   })
   return host
 }
@@ -239,5 +240,47 @@ describe('PasswordStep', () => {
     expect(getItem).not.toHaveBeenCalled()
 
     getItem.mockRestore()
+  })
+})
+
+describe('what the server said about the last submission', () => {
+  it('draws no error box when the reader has just arrived', () => {
+    // The default, and the state every visual baseline was taken in.
+    expect(renderStep(true, null).querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it('draws the server’s refusal in the one error box SCREENS.md §3.1 specifies', () => {
+    const host = renderStep(true, PASSWORD_REFUSED_MESSAGE)
+
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(PASSWORD_REFUSED_MESSAGE)
+  })
+
+  it('clears it as soon as the reader starts answering it', () => {
+    // Typing is how a reader answers the message, exactly as it is for the two
+    // client-side ones.
+    const host = renderStep(true, PASSWORD_REFUSED_MESSAGE)
+
+    type(host, 'email', 'reader@wanderings.travel')
+
+    expect(host.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it('lets a field-level problem replace it, so the reader is told the nearer thing', () => {
+    // A reader who empties the password box needs to be told THAT, not told
+    // again that a previous attempt failed.
+    const host = renderStep(true, PASSWORD_REFUSED_MESSAGE)
+    type(host, 'email', 'reader@wanderings.travel')
+    type(host, 'password', '')
+
+    expect(submit(host)).toBe(false)
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Enter your password to carry on.')
+  })
+
+  it('still posts the form, so a refused reader can simply try again', () => {
+    const host = renderStep(true, PASSWORD_REFUSED_MESSAGE)
+    type(host, 'email', 'reader@wanderings.travel')
+    type(host, 'password', 'a password')
+
+    expect(submit(host)).toBe(true)
   })
 })

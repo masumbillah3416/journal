@@ -129,6 +129,10 @@ export default defineConfig({
         'apps/web/lib/auth/readSignInScreen.ts',
         'apps/web/lib/auth/setNewPassword.ts',
         'apps/web/lib/auth/newPasswordScreen.ts',
+        'apps/web/lib/auth/guard.ts',
+        'apps/web/lib/auth/services.ts',
+        'apps/web/lib/auth/signInEndpoints.ts',
+        'apps/web/lib/auth/resetRequestEndpoint.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
         'apps/web/payload.config.ts',
@@ -250,6 +254,24 @@ export default defineConfig({
         // three redirects a submission can be given.
         'apps/web/lib/auth/setNewPassword.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/auth/newPasswordScreen.ts': { lines: 100, branches: 100, functions: 100 },
+        // guard.ts, services.ts, signInEndpoints.ts and resetRequestEndpoint.ts
+        // (Phase 2 Task 10 — the HTTP boundary): 100% on every axis, which is
+        // the measured number rather than a rounded-up one, and nothing in any
+        // of the four is excused beyond two arms that are marked and named.
+        // `guard.ts`'s `requireAdminSession` is inside a `c8 ignore` region
+        // because `next/headers`' `headers()` throws outside a request context
+        // and no integration test can supply one — everything it could get
+        // wrong is the line above it, which IS measured. `signInEndpoints.ts`
+        // has one `c8 ignore next`: `startSession` refusing an account a
+        // challenge row references, which is the fail-closed answer to that
+        // account being deleted between two statements. Everything else in all
+        // four is a real answer a request can receive — three sign-in outcomes,
+        // four code-step outcomes, two sign-out outcomes, two reset outcomes,
+        // and the four session refusals the guard distinguishes.
+        'apps/web/lib/auth/guard.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/auth/services.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/auth/signInEndpoints.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/auth/resetRequestEndpoint.ts': { lines: 100, branches: 100, functions: 100 },
         // readBookBundle.ts (Task 6 of Phase 1; Task 6 review fix round 1;
         // Task 11): 100% lines/statements/functions. 83% branches is the
         // real, measured number, RAISED again from 81% by Task 11, whose

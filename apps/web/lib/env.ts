@@ -45,6 +45,21 @@ const envSchema = z.object({
   PAYLOAD_SECRET: z.string().min(32, 'PAYLOAD_SECRET must be at least 32 characters'),
   /** Public origin the diary client fetches media derivatives from. */
   MEDIA_ORIGIN: z.string().min(1, 'MEDIA_ORIGIN is required'),
+  /**
+   * Public origin the bespoke admin is served at, and the origin every
+   * emailed password-reset link is built against.
+   *
+   * REQUIRED, WITH NO DEFAULT, AND IT IS NOT THE SAME VALUE AS `MEDIA_ORIGIN`.
+   * `apps/web/lib/auth/passwordReset.ts` refuses to take this off the request:
+   * a link built from a `Host` header is a link an attacker points at their own
+   * machine by setting that header while asking for somebody else's address,
+   * and the reader who clicks it hands over a working reset token. So it has to
+   * come from configuration — and a default here would be a plausible-looking
+   * `http://localhost:3000` shipped to production, which is the one failure
+   * mode worse than not booting. `MEDIA_ORIGIN` cannot stand in for it: in
+   * production that is the media bucket's public origin, which serves no admin.
+   */
+  ADMIN_ORIGIN: z.string().min(1, 'ADMIN_ORIGIN is required'),
 })
 
 /** The application's validated environment shape. */

@@ -85,9 +85,16 @@
  * diary (`npm run db:seed`) — the cover's copy is what the last case measures.
  */
 import { expect, test } from '@playwright/test'
+import { aSignedInSession, removeSignedInFixture } from './support/adminSession'
 import { expectNoAxeViolations } from './support/axe'
 import { measureContrastOverGradient } from './support/coverContrast'
 import { drawsMobileReadingMode } from './support/surface'
+
+test.afterAll(async () => {
+  // The fixture account and its session, written by `aSignedInSession` for the
+  // one guarded screen this file covers.
+  await removeSignedInFixture()
+})
 
 test('has no axe violations on /cms', async ({ page }) => {
   await page.goto('/cms')
@@ -455,7 +462,11 @@ test('has no axe violations on the screen the mailed link lands on', async ({ pa
   await expectNoAxeViolations(page)
 })
 
-test('has no axe violations on /admin/sign-in/done, the signed-in state', async ({ page }) => {
+test('has no axe violations on /admin/sign-in/done, the signed-in state', async ({ page, context, baseURL }) => {
+  // The screen is guarded (Phase 2 Task 10), so it needs a session before it
+  // will draw anything — see e2e/support/adminSession.ts for why a browser
+  // cannot sign itself in here.
+  await context.addCookies([{ name: 'td-session', value: await aSignedInSession(), url: `${baseURL ?? ''}/admin` }])
   await page.goto('/admin/sign-in/done')
   // The mark is drawn AND the heading is present before axe looks: a route
   // that rendered an empty shell would have no violations either.

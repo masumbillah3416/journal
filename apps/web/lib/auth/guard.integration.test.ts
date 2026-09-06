@@ -1,0 +1,262 @@
+/**
+ * guard.integration.test.ts — what the admin guard does with the identifier a
+ * browser presents.
+ *
+ * Integration test (CLAUDE.md §2), against a real Payload and a real Postgres.
+ * The whole question this module answers is "does this identifier name a live
+ * row", and a mocked store would answer it by agreeing with the mock: the
+ * three refusals below — a row that was revoked, one that has aged out, and an
+ * identifier that never named a row — are facts about what the `sessions`
+ * table holds, not about what a stub was told to return.
+ *
+ * ═══ THE CASE THIS FILE EXISTS FOR ═══
+ *
+ * "the pre-auth identifier stops authenticating once it has been signed in
+ * with". `SECURITY.md` requires the session identifier to rotate on login and
+ * that no pre-auth id is ever reused. The trap the brief names is asserting
+ * that a session EXISTS after signing in — which is true of an implementation
+ * that adopts the identifier it was handed and rotates nothing. This file
+ * asserts the OLD identifier is REFUSED, from both sides: before the sign-in
+ * (it authenticates nothing, because no row names it) and after it (it still
+ * authenticates nothing, and the new one does).
+ *
+ * Uses `getTestPayload()` for its fixtures; the module under test calls
+ * `getPayload()` itself — a route handler has nothing to inject through — and
+ * reaches the same `diary_test` database because `vitest.integration.config.ts`
+ * sets `DATABASE_URL` for the whole process. `newPasswordScreen.integration.test.ts`
+ * makes the same pairing for the same reason.
+ * Depends on: vitest, @travel-diary/domain/auth/session, ./browserSession,
+ * ./guard, ./sessions, ../testPayload.
+ */
+import { SESSION_COOKIE_NAME } from '@travel-diary/domain/auth/session'
+import type { SessionId, UserId } from '@travel-diary/domain/ids'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { getTestPayload } from '../testPayload'
+import { newBrowserSession } from './browserSession'
+import { authenticateAdminRequest } from './guard'
+import { createSessionService } from './sessions'
+
+/** Every fixture address here belongs to this domain, so `afterAll` can find them. */
+const FIXTURE_EMAIL_DOMAIN = 'admin-guard-fixture.example'
+
+/** The password every fixture account is created with. Never offered to anything. */
+const FIXTURE_PASSWORD = 'the-one-this-account-was-created-with'
+
+/** Distinguishes one fixture from the next within a single run. */
+let fixtureCount = 0
+
+/** The shared test Payload instance, assigned by `beforeAll`. */
+let payload: Awaited<ReturnType<typeof getTestPayload>>
+
+/** The session service this file issues and revokes rows with. */
+let sessions: ReturnType<typeof createSessionService>
+
+/** What `sessions` is told the time is. Fixed, so a lifetime is not waited out. */
+const clock = Date.parse('2026-09-06T09:00:00.000Z')
+
+/**
+ * A digit-free label, derived from a counter.
+ * @param count - The fixture's ordinal within this run.
+ * @returns Two lowercase letters, unique for the first 676 fixtures.
+ */
+const alphabeticLabel = (count: number): string =>
+  String.fromCharCode(97 + Math.floor(count / 26)) + String.fromCharCode(97 + (count % 26))
+
+/**
+ * A fresh account.
+ * @returns The account's branded id.
+ */
+const anAccount = async (): Promise<UserId> => {
+  fixtureCount += 1
+  const email = `reader-${alphabeticLabel(fixtureCount)}@${FIXTURE_EMAIL_DOMAIN}`
+  const created = await payload.create({
+    collection: 'users',
+    data: { email, password: FIXTURE_PASSWORD },
+  })
+  return String(created.id) as UserId
+}
+
+/**
+ * The `Cookie` header a browser carrying `session` would send.
+ * @param session - The identifier it holds.
+ * @returns The header value, with a second cookie beside it so the parse is
+ *   exercised on a realistic header rather than on one pair.
+ */
+const cookieHeaderFor = (session: string): string => `td-reading-surface=book; ${SESSION_COOKIE_NAME}=${session}`
+
+/** Deletes every row this file wrote. */
+const removeFixtures = async (): Promise<void> => {
+  const accounts = await payload.find({
+    collection: 'users',
+    where: { email: { like: FIXTURE_EMAIL_DOMAIN } },
+    limit: 500,
+    depth: 0,
+  })
+  for (const account of accounts.docs) {
+    await payload.db.pool.query(`DELETE FROM sessions WHERE user_id = $1`, [account.id])
+    await payload.delete({ collection: 'users', id: account.id })
+  }
+}
+
+beforeAll(async () => {
+  payload = await getTestPayload()
+  sessions = createSessionService({ payload, now: () => clock })
+  await removeFixtures()
+})
+
+afterAll(async () => {
+  await removeFixtures()
+})
+
+describe('what the guard makes of the identifier a browser presents', () => {
+  it('names the account a live session belongs to', async () => {
+    const user = await anAccount()
+    const started = await sessions.startSession({
+      user,
+      previous: null,
+      keepSignedIn: false,
+      device: null,
+      location: null,
+    })
+    if (!started.ok) throw new Error('the fixture session was not issued')
+
+    const authenticated = await authenticateAdminRequest(cookieHeaderFor(started.value.session))
+
+    expect(authenticated).toEqual({ ok: true, value: { user } })
+  })
+
+  it('refuses a request carrying no cookies at all', async () => {
+    expect(await authenticateAdminRequest(null)).toEqual({ ok: false, error: 'no-session' })
+  })
+
+  it('refuses a request whose cookies do not include this one', async () => {
+    expect(await authenticateAdminRequest('td-reading-surface=book')).toEqual({ ok: false, error: 'no-session' })
+  })
+
+  it('refuses an identifier that names no row', async () => {
+    // A well-formed identifier nobody ever issued. It is not `'no-session'`:
+    // the browser presented something, and it was checked.
+    expect(await authenticateAdminRequest(cookieHeaderFor(newBrowserSession()))).toEqual({
+      ok: false,
+      error: 'unknown',
+    })
+  })
+
+  it('refuses a revoked session on the first request after it was revoked', async () => {
+    const user = await anAccount()
+    const started = await sessions.startSession({
+      user,
+      previous: null,
+      keepSignedIn: false,
+      device: null,
+      location: null,
+    })
+    if (!started.ok) throw new Error('the fixture session was not issued')
+    await sessions.revokeSession({ session: started.value.session, owner: user })
+
+    expect(await authenticateAdminRequest(cookieHeaderFor(started.value.session))).toEqual({
+      ok: false,
+      error: 'revoked',
+    })
+  })
+
+  it('refuses a session whose row has aged out, whatever the cookie was told', async () => {
+    const user = await anAccount()
+    const started = await sessions.startSession({
+      user,
+      previous: null,
+      keepSignedIn: true,
+      device: null,
+      location: null,
+    })
+    if (!started.ok) throw new Error('the fixture session was not issued')
+    await payload.db.pool.query(`UPDATE sessions SET expires_at = $2 WHERE token_hash IS NOT NULL AND user_id = $1`, [
+      Number(user),
+      new Date(clock - 1_000),
+    ])
+
+    expect(await authenticateAdminRequest(cookieHeaderFor(started.value.session))).toEqual({
+      ok: false,
+      error: 'expired',
+    })
+  })
+})
+
+describe('the pre-auth identifier, which must never authenticate', () => {
+  it('authenticates nothing before it has been signed in with', async () => {
+    const preAuth = newBrowserSession()
+
+    expect(await authenticateAdminRequest(cookieHeaderFor(preAuth))).toEqual({ ok: false, error: 'unknown' })
+  })
+
+  it('still authenticates nothing after the sign-in it started, which the new one does', async () => {
+    // THE CASE THE BRIEF NAMES. Asserting only that a session exists after
+    // signing in passes for a handler that adopts the identifier it was handed
+    // and rotates nothing; this asserts the OLD identifier is refused and the
+    // NEW one is not, which no such handler can satisfy.
+    const user = await anAccount()
+    const preAuth = newBrowserSession()
+
+    const started = await sessions.startSession({
+      user,
+      previous: preAuth,
+      keepSignedIn: false,
+      device: null,
+      location: null,
+    })
+    if (!started.ok) throw new Error('the fixture session was not issued')
+
+    expect(started.value.session).not.toBe(preAuth)
+    expect(await authenticateAdminRequest(cookieHeaderFor(preAuth))).toEqual({ ok: false, error: 'unknown' })
+    expect(await authenticateAdminRequest(cookieHeaderFor(started.value.session))).toEqual({
+      ok: true,
+      value: { user },
+    })
+  })
+
+  it('stops authenticating the identifier a signed-in browser arrived with', async () => {
+    // The same rotation, from the other side: a browser that already held a
+    // LIVE session signs in again. The row for the old identifier is revoked
+    // in the same statement that mints the new one, so the value the browser
+    // was carrying a moment ago is refused rather than left working beside it.
+    const user = await anAccount()
+    const first = await sessions.startSession({
+      user,
+      previous: null,
+      keepSignedIn: false,
+      device: null,
+      location: null,
+    })
+    if (!first.ok) throw new Error('the first fixture session was not issued')
+
+    const second = await sessions.startSession({
+      user,
+      previous: first.value.session,
+      keepSignedIn: false,
+      device: null,
+      location: null,
+    })
+    if (!second.ok) throw new Error('the second fixture session was not issued')
+
+    expect(await authenticateAdminRequest(cookieHeaderFor(first.value.session))).toEqual({
+      ok: false,
+      error: 'revoked',
+    })
+    expect(await authenticateAdminRequest(cookieHeaderFor(second.value.session))).toEqual({
+      ok: true,
+      value: { user },
+    })
+  })
+})
+
+describe('what a refusal says', () => {
+  it('never names the identifier it refused, in any refusal', async () => {
+    // CLAUDE.md §7: a refusal carrying the value would put a live session
+    // identifier into whatever renders or logs it.
+    const presented: SessionId = newBrowserSession()
+
+    const refused = await authenticateAdminRequest(cookieHeaderFor(presented))
+
+    expect(JSON.stringify(refused)).not.toContain(presented)
+  })
+})

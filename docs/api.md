@@ -26,7 +26,10 @@ Eight routes exist today: Payload's own four, mounted under the `(payload)` rout
 group; three of the diary's own — `/p/<n>`, added with the book itself in Phase 1
 Task 7 and completed in Task 13; and `/gallery/<slug>` with its download handler
 `/gallery/<slug>/download/<id>`, added in Task 14 — and the bespoke admin's first,
-`/admin/sign-in` and `/admin/sign-in/code`, added in Phase 2 Tasks 7 and 8. `/p/<n>` was completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
+`/admin/sign-in` and `/admin/sign-in/code`, added in Phase 2 Tasks 7 and 8. Phase 2 Task
+10 added the four `POST` endpoints those screens post to and the request policy every
+`/admin` address is now put through — see "The admin's request policy" below, which applies
+to every row in the "Admin routes" section and is stated once rather than in each. `/p/<n>` was completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
 metadata and a canonical link, and settled in
 `docs/adr/0010-static-generation-and-the-content-window.md` why it stays dynamic. Both sets are documented in full below. Everything still unbuilt is
 listed further down as **planned**, using only what the design spec (§8) already
@@ -307,19 +310,71 @@ for a different reason — see its row.
   signed URL would add an expiry to think about without removing a hop — see
   `docs/deviations.md` §17.
 
+## The admin's request policy (applies to every admin route below)
+
+`apps/web/middleware.ts` runs on `/admin/:path*` and applies three things to every request
+under it, before any route file is entered. They are stated once here because they are the
+same for every row in this section, and `docs/adr/0018-admin-request-policy-and-the-guard-split.md`
+records why they live in the middleware while the session check does not.
+
+- **Cross-site mutations are refused with `403` and an empty body.** Any method but `GET`,
+  `HEAD` or `OPTIONS` must carry an `Origin` header equal to the request's own origin —
+  scheme, host and port, exactly. **An absent `Origin` is refused too**, which is what
+  makes the check real rather than decorative: every browser released since 2016 sends one
+  on a form `POST`. The practical cost is that a hand-rolled client (`curl`, a script) must
+  send `Origin` to post to any address below, and this is where that is documented rather
+  than discovered.
+- **Every admin response carries the admin's security headers:**
+  `Content-Security-Policy: default-src 'self'; base-uri 'none'; object-src 'none';
+  frame-ancestors 'none'; form-action 'self'; connect-src 'self'; font-src 'self';
+  img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'`,
+  plus `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff` and
+  `X-Robots-Tag: noindex, nofollow`. `Referrer-Policy` matters most on
+  `/admin/reset/<token>`, which carries a live reset token in the address. The `403` above
+  carries them too. **The diary's own responses carry none of them** — asserted one header
+  at a time in `apps/web/middleware.test.ts`.
+- **A pre-auth identifier is minted** into `td-session` for a browser arriving at a public
+  admin address on a safe method with no session cookie at all. It authenticates nothing
+  (no `sessions` row names it); it exists so `signIn` has the non-null `browserSession` it
+  requires and so a one-time code can be bound to the browser that asked for it. It is
+  never minted over a cookie the browser already holds, never on a guarded address, and
+  never on a mutation.
+
+**Which addresses are guarded.** `apps/web/lib/auth/adminAccess.ts` lists the public ones —
+`/admin/sign-in`, `/admin/sign-in/password`, `/admin/sign-in/code`,
+`/admin/sign-in/code/verify`, `/admin/reset`, `/admin/reset/request`, `/admin/reset/set`,
+and the reset link's own `/admin/reset/<token>` — and **everything else under `/admin` is
+guarded**, including addresses nobody has written yet. Guarding is
+`apps/web/lib/auth/guard.ts`'s `authenticateAdminRequest`, which reads the identifier out of
+the cookie and asks the `sessions` table whether it names a live row; a page calls
+`requireAdminSession`, which redirects to `/admin/sign-in` on any refusal.
+`apps/web/lib/auth/adminGuardRegistration.test.ts` fails the pre-commit gate for any mounted
+admin address that is neither declared public nor calls the guard.
+
+**Nothing under `/api` can authenticate from this cookie.** It is `Path=/admin`, so a
+browser never sends it to `/api/...`. Payload's four routes above authenticate with
+Payload's own cookie or an `Authorization: JWT …` header, judged by the collection access
+rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here issues no
+`/api` credential.
+
 ## Admin routes (live today)
 
 ### `GET /admin/sign-in`
 
 - **Method:** `GET`. This route answers nothing else; see the note below.
-- **Input:** none. No path parameter, no query, no body, no header is read — the screen
-  is the same document for every caller, and deliberately so: nothing about it varies by
-  who is asking, because nobody has said who they are yet.
+- **Input:** one optional query value, `state`. `POST /admin/sign-in/password` redirects
+  here with `?state=refused` for every refusal it can give;
+  `@travel-diary/domain/auth/signInScreen`'s `passwordStepView` is what interprets it, and
+  any other value — including one somebody typed — draws the plain form. Nothing else is
+  read: no body, and no cookie, because nobody has said who they are yet.
 - **Output:** an HTML document: `SCREENS.md` §3's shell with §3.1's password step in it —
   the cloth panel and its "PRIVATE / 01" stamp above 820px, the narrow masthead below,
   and the form panel's eyebrow, "Welcome back", lede, Email, Password with its Show/Hide,
   the remember-me checkbox, the submit button and the footer line stating whether the
-  one-time-code step is on. Its content is `apps/web/lib/auth/readSignInScreen.ts`'s
+  one-time-code step is on. With `?state=refused`, the error box §3.1 specifies is drawn
+  above the button, saying "Those details did not let you in." — **one message for every
+  reason a sign-in can be refused** (`docs/deviations.md`, since the prototype never
+  refuses one and so has no copy for it). Its content is `apps/web/lib/auth/readSignInScreen.ts`'s
   `SignInScreenContent` — the `book` global's title, subtitle and cloth colour, and
   `users.otpRequired`. `metadata` sets the document title and `robots: { index: false,
   follow: false }`.
@@ -336,16 +391,12 @@ for a different reason — see its row.
   descendants, so a sign-in screen served from anywhere else would set a cookie it could
   never read back (phase ruling F41).
 
-  **The `POST` this screen makes has no row here yet, and that is the gap to look for.**
-  The form targets `/admin/sign-in/password` — `PASSWORD_STEP_ENDPOINT`, exported from
-  `apps/web/components/admin/PasswordStep.tsx` so the handler mounts at the path the form
-  actually posts to rather than at a second spelling of it. A Next.js page cannot answer
-  a `POST` at its own address, which is why the handler is a sibling route; **Phase 2
-  Task 10 owns it**, along with the `Set-Cookie`, the CSRF check and the admin's CSP, and
-  it gets its own full row here in the commit that adds it. Until then the form posts to
-  a `404`. The three bullets under "Planned server actions" below are that row's binding
-  constraints — above all that the three refusals must stay indistinguishable in status
-  code, headers **and** elapsed time.
+  **The `POST` this screen makes is `/admin/sign-in/password`**, mounted in Phase 2 Task
+  10 and documented in its own row below. It is a sibling route because a Next.js page
+  cannot answer a `POST` at its own address, and its path is
+  `PASSWORD_STEP_ENDPOINT`, exported from `apps/web/components/admin/PasswordStep.tsx` so
+  the handler mounts at the path the form actually posts to rather than at a second
+  spelling of it.
 
   **The footer line is `SECURITY.md`'s second prototype hole, closed.** It states whether
   the code step runs, and it is answered by `users.otpRequired` read on the server before
@@ -388,18 +439,20 @@ for a different reason — see its row.
   rather than inventing one** (`docs/deviations.md` §33). The masked address it prints is
   `maskEmail('')` — `•••`, which echoes nothing — and both countdowns are measured from
   the instant the document was drawn. What it should print instead lives in the
-  `otpChallenges` row keyed by the pre-auth session in the browser's cookie, and **Phase
-  2 Task 10 owns the cookie policy**, along with this route's guard. When it lands,
-  `maskedAddress`, `issuedAt` and `attemptsSpent` come from that row and this paragraph
-  goes with it.
+  `otpChallenges` row keyed by the pre-auth session in the browser's cookie. **Task 10
+  mounted the cookie policy and did NOT close this**: reading that row back means asking
+  `otpService` which account a browser identifier holds a challenge for, and it will not
+  answer that for an unauthenticated caller — saying so would tell an attacker which
+  browsers have a live challenge, which is what `verifyChallenge`'s single `'invalid'`
+  refusal exists to prevent. It stays §33's gap, with the reason now named rather than
+  deferred.
 
-  **The two `POST`s this screen makes have no rows here yet.** The code form targets
-  `/admin/sign-in/code/verify` (`CODE_STEP_ENDPOINT`) and the resend targets
-  `/admin/sign-in/code/resend` (`RESEND_ENDPOINT`), both exported from
-  `apps/web/components/admin/CodeStep.tsx` so the handlers mount at the paths the forms
-  actually post to rather than at a second spelling of them. **Phase 2 Task 10 owns
-  both**, and each gets its full row here in the commit that adds it; until then they
-  resolve to a `404`.
+  **One of the two `POST`s this screen makes is mounted; the other is not.** The code form
+  targets `/admin/sign-in/code/verify` (`CODE_STEP_ENDPOINT`), which has its own row below.
+  The resend targets `/admin/sign-in/code/resend` (`RESEND_ENDPOINT`) and **resolves to a
+  `404`**, for the reason above: issuing a fresh code needs the account, and the account
+  behind a challenge is not knowable from the browser's identifier alone
+  (`docs/deviations.md` §33).
 
   **The code is posted as six repeated `code` fields, not one.** Each cell is
   `<input name="code" maxLength={1}>`, so the handler reads
@@ -440,14 +493,10 @@ for a different reason — see its row.
   request was made — so a "no such account" state is not something it could draw without
   first being handed the answer the whole path exists to withhold.
 
-  **The `POST` this screen makes has no row here yet.** The pending form targets
-  `/admin/reset/request` (`RESET_REQUEST_ENDPOINT`, exported from
-  `apps/web/components/admin/ResetStep.tsx` so the handler mounts at the path the form
-  actually posts to). **Phase 2 Task 10 owns it**, along with the cookie policy, the CSRF
-  check and the admin's CSP; until then that form posts to a `404` — measured, on both
-  verbs, against the running app. The service behind it is built and proven
-  (`passwordReset.integration.test.ts`), so what is missing is the endpoint rather than
-  the mechanism (`docs/deviations.md` §39).
+  **The `POST` this screen makes is `/admin/reset/request`** (`RESET_REQUEST_ENDPOINT`,
+  exported from `apps/web/components/admin/ResetStep.tsx` so the handler mounts at the path
+  the form actually posts to), mounted in Phase 2 Task 10 and documented in its own row
+  below. `?sent=` is what that endpoint redirects here with.
 
   **That 404 is held by a reservation, not by absence (ruling F56).** This row said the
   address 404s "exactly as the password step's does", and that was measurably wrong:
@@ -458,8 +507,10 @@ for a different reason — see its row.
   `apps/web/lib/auth/resetPath.ts`'s `RESERVED_RESET_SEGMENTS` names `request` and `set`,
   `readNewPasswordScreen` answers `notFound()` for either, and `resetPath.test.ts` fails
   the build if a further address appears under `/admin/reset/` without being reserved.
-  **Task 10 mounting the handler does not retire the reservation** — a static route wins
-  over a dynamic sibling only while it is mounted at that exact path.
+  **Task 10 mounting the handler did not retire the reservation** — a static route wins
+  over a dynamic sibling only while it is mounted at that exact path — and the mounted route
+  exports a `GET` of its own answering `404`, because a `route.ts` with only a `POST`
+  answers `405`, which is not the answer this address gave the day before.
 
   **"Send it again" is a link back to this screen, not a second request.** The
   confirmation is told the masked address and nothing else, so there is nothing left to
@@ -542,11 +593,11 @@ for a different reason — see its row.
   follow with a `GET`, and this endpoint spends a link — a reader who reloaded a `302`
   would be shown a refusal for a link they had just used successfully.
 
-  **It carries no CSRF check, and that is stated rather than assumed.** Task 10 owns the
-  CSRF check and the cookie policy for the whole surface. What it costs here is bounded:
-  the authorisation for this endpoint is the token in the body, which a cross-site forgery
-  does not have, so a forged post can spend no link an attacker could not already spend
-  directly.
+  **It is now behind the admin's cross-site refusal**, like every other mutation under
+  `/admin` — see "The admin's request policy" above. Task 10 put that one layer up rather
+  than in this handler, so a forged post never reaches it. The bound this row used to state
+  still holds underneath: the authorisation for this endpoint is the token in the body,
+  which a cross-site forgery does not have.
 
   **A static segment beside a dynamic one.** `set` resolves before `[token]`, and no token
   can be the string `set` — Payload mints them as hexadecimal. Keeping the handler off a
@@ -556,23 +607,138 @@ for a different reason — see its row.
 ### `GET /admin/sign-in/done`
 
 - **Method:** `GET`. The `POST` that "Sign out and start again" makes goes to
-  `/admin/sign-out`, which is not mounted yet.
-- **Input:** none. No path parameter, no query, no body and no cookie is read — see
-  "Notes", where that is recorded as a gap rather than a design.
+  `/admin/sign-out`, documented below.
+- **Input:** the session cookie, and nothing else. No path parameter, no query and no body.
 - **Output:** an HTML document: the §3 shell with `SCREENS.md` §3.4's signed-in state — a
   62px ringed circle holding a 20px `#2f6b68` square, the "Signed in" eyebrow, "The back
   room is open", a status line, then "Open the admin panel" (primary, to `/admin`), "View
   the diary instead" (secondary, to `/p/1`) and a borderless "Sign out and start again".
   `metadata` sets the document title and `robots: { index: false, follow: false }`.
-- **Errors:** none observable.
-- **Auth requirement:** **none today, and that is temporary.** Knowing that a reader is
-  signed in means reading the session cookie, and Phase 2 Task 10 owns the cookie policy.
-- **Notes:** the screen shows nothing an unauthenticated visitor could not already see —
-  no account, no address, no session, nothing but three links and a fixed line of copy —
-  and neither place it leads becomes reachable because this screen was
-  (`docs/deviations.md` §39). The status line is ours rather than the prototype's, whose
-  own line counts unpublished changes that no phase before 4 can compute
-  (`docs/deviations.md` §38).
+- **Errors:** none observable. A refused request never reaches the render: the guard is
+  called before the screen's content is read.
+- **Auth requirement:** **signed in.** `requireAdminSession` reads the identifier out of
+  the cookie and asks the `sessions` table whether it names a live row; an absent cookie, an
+  identifier that names no row, a revoked row and an expired row are all answered with a
+  `303` to `/admin/sign-in`. The pre-auth identifier the middleware mints for anonymous
+  browsers is refused like any other — it is carried in the same cookie and no row names it,
+  which is why a presence check would not do.
+- **Notes:** the guard is called in the page rather than inherited from a layout, because
+  the siblings under `/admin/sign-in` are the screens a reader with no session must be able
+  to reach. What stops a later screen forgetting the call is
+  `apps/web/lib/auth/adminGuardRegistration.test.ts`. The status line is ours rather than
+  the prototype's, whose own line counts unpublished changes that no phase before 4 can
+  compute (`docs/deviations.md` §38).
+
+### `POST /admin/sign-in/password`
+
+- **Path:** `apps/web/app/(admin)/admin/sign-in/password/route.ts`; the handler is
+  `apps/web/lib/auth/signInEndpoints.ts`'s `handlePasswordStep`.
+- **Method:** `POST`. A `GET` is `405`; there is nothing at this address to fetch.
+- **Input:** a form body with `email`, `password` and an optional `keepSignedIn`, parsed
+  with Zod at the boundary. `keepSignedIn` is a checkbox, so its PRESENCE is the answer.
+  Both strings carry no further rule: an empty password is a real submission `signIn`
+  refuses on its own terms, and an address that names nobody is the case the whole
+  anti-enumeration design exists for. The `td-session` cookie is read if present, and one
+  is minted if not. `X-Forwarded-For` / `X-Real-IP` name the rate-limit subject and
+  `User-Agent` the device label on the account screen — neither is an authorisation input.
+- **Output:** always a `303 See Other` with an empty body. Three destinations:
+  `/admin/sign-in/done` with the issued session's `Set-Cookie` when the account has no
+  second factor; `/admin/sign-in/code` with the browser's identifier and a
+  `td-keep-signed-in` cookie when it does; and `/admin/sign-in?state=refused` with the
+  browser's identifier for every refusal.
+- **Errors:** none escape. A body with no fields, and a body that is not a form at all,
+  both answer `303` to `/admin/sign-in`.
+- **Auth requirement:** none — it is the door. The credentials in the body are the
+  authorisation.
+- **Notes:** **the three refusals are one response.** An unknown address, a wrong password
+  and a locked account are already one value in `signIn.ts`, reached in the same time
+  (medians 0.90 with the dummy PBKDF2 derivation, 0.14 without); this endpoint puts every
+  `SignInRefusal` — `'rate-limited'` and `'code-not-sent'` included — through one `return`,
+  so the three that must agree cannot be separated by a change meant to distinguish the
+  other two. `signInEndpoints.integration.test.ts` compares the status, every header and the
+  body of all three with `toEqual`, and measures the handler's own timing over 25
+  interleaved samples per arm. The cost: a genuinely rate-limited reader is told the same
+  thing as one who mistyped a password (`docs/security.md`).
+
+  **The session identifier is rotated, and the rotation is asserted from the other side.**
+  What goes into the `Set-Cookie` is always the value `startSession` minted, never the
+  identifier read out of the request — and the suite asserts the pre-auth identifier STOPS
+  AUTHENTICATING, because asserting that a session exists afterwards passes for a handler
+  that reuses the value it was handed.
+
+### `POST /admin/sign-in/code/verify`
+
+- **Path:** `apps/web/app/(admin)/admin/sign-in/code/verify/route.ts`; the handler is
+  `apps/web/lib/auth/signInEndpoints.ts`'s `handleCodeStep`.
+- **Method:** `POST`. A `GET` is `405`.
+- **Input:** a form body with `code`, parsed with Zod; the `td-session` cookie naming the
+  browser the challenge was issued to; and `td-keep-signed-in`, carrying the choice the
+  password step could not otherwise pass on.
+- **Output:** a `303` with an empty body. `/admin/sign-in/done` with the issued session's
+  `Set-Cookie` and a cleared `td-keep-signed-in` when the code is right;
+  `/admin/sign-in/code` when it is not; `/admin/sign-in` when the browser carries no
+  identifier at all, since no challenge can be bound to one that has none.
+- **Errors:** none escape. A body with no `code`, and a body that is not a form, both answer
+  `303` to `/admin/sign-in/code`.
+- **Auth requirement:** the code, and the challenge bound to this browser's identifier. A
+  correct code offered by a different browser is refused (`SECURITY.md`).
+- **Notes:** a wrong code, an exhausted challenge, a consumed one and an expired one are one
+  answer, because `verifyChallenge` collapses them: distinguishing them would say which
+  browsers hold a live challenge. The screen it returns to cannot yet draw that refusal —
+  `docs/deviations.md` §33 carries that with the rest of the code screen's gaps. **This
+  endpoint does not call `rateLimit.ts`'s `admitCodeAttempt`**, which needs the account a
+  challenge belongs to; what bounds guessing is the challenge's own database-enforced
+  budget (three attempts, claimed before the code is compared, single use, five minutes) and
+  the hourly ceiling on issuing challenges at all. Recorded in `docs/security.md`.
+
+  **Its sibling `/admin/sign-in/code/resend` is not mounted.** `CodeStep.tsx` draws a "Send
+  a new code" button posting to it; issuing a fresh code needs the account, which
+  `otpService` will not name for a browser identifier. `docs/deviations.md` §33.
+
+### `POST /admin/reset/request`, `GET /admin/reset/request`
+
+- **Path:** `apps/web/app/(admin)/admin/reset/request/route.ts`; the handlers are
+  `apps/web/lib/auth/resetRequestEndpoint.ts`'s `handleResetRequest` and
+  `readResetRequestRoute`.
+- **Method:** `POST` for `SCREENS.md` §3.3's "Send the link". **`GET` answers `404`**, and
+  that export exists for a reason: `[token]` sits beside this directory and matched this
+  address until ruling F56 reserved it, and a `route.ts` exporting only `POST` would answer
+  `405` — a different answer from the one this address gave the day before.
+- **Input:** a form body with `email`, parsed with Zod, and `X-Forwarded-For` /
+  `X-Real-IP` for the window the request spends. `email` carries no shape rule: refusing an
+  address that is not one would be a cheaper oracle than the one this endpoint avoids.
+- **Output:** a `303` with an empty body, to `/admin/reset?sent=<masked>` — the mask
+  percent-encoded, and derived from what was SUBMITTED rather than from a row, so it is the
+  same whether or not the address exists. `resetRequestView` masks it again on the way in,
+  so nothing that reaches the screen can be a whole address.
+- **Errors:** none escape. A refusal — the shared password window exhausted, or the mail
+  provider declining — answers `303` to `/admin/reset`, the plain form: a refusal must not
+  draw the "sent" confirmation, because telling a reader a link is on its way when none is
+  is the one message they cannot act on.
+- **Auth requirement:** none. It is a way back in for somebody who cannot sign in.
+- **Notes:** it spends the password endpoint's own rate-limit windows rather than a budget
+  of its own (`passwordReset.ts`). The `'delivery-failed'` residual named there is not
+  widened here: this handler cannot tell the two refusals apart either.
+
+### `POST /admin/sign-out`
+
+- **Path:** `apps/web/app/(admin)/admin/sign-out/route.ts`; the handler is
+  `apps/web/lib/auth/signInEndpoints.ts`'s `handleSignOut`.
+- **Method:** `POST`, never a link — signing out changes something, so it must not be
+  reachable by a `GET` a prefetch, a crawler or an image tag can make. A `GET` is `405`.
+- **Input:** the session cookie. No body is read.
+- **Output:** a `303` to `/admin/sign-in` with `td-session` cleared (`Max-Age=0`,
+  `Path=/admin` — RFC 6265 keys a cookie by name AND path, so a clear without the path sets
+  a second empty cookie at `/` and leaves the real one where it was).
+- **Errors:** none observable. The same answer whether or not there was a session to
+  revoke.
+- **Auth requirement:** **signed in.** The guard runs before anything is revoked, and
+  `revokeSession` matches on the owner as well as the identifier — revocation is how a
+  stolen session is taken away from the thief rather than from its owner.
+- **Notes:** both halves happen, and the row is the one that matters: clearing the cookie
+  stops this browser sending the identifier, revoking the row stops the identifier working
+  at all. `signInEndpoints.integration.test.ts` asserts the revoked identifier is refused
+  afterwards, not merely that a cookie was cleared.
 
 ## Planned routes (Phase 1)
 
@@ -636,8 +802,9 @@ discovered by whoever writes the route in front of them:
   locked account all answer `'invalid-credentials'`, and take the same time to do it
   (`docs/security.md`, "No user enumeration"). **A route that gives them different status
   codes, different headers or different response times re-opens the hole the module
-  closes** — this document's contract for that route must say so, and Task 10's row here
-  will.
+  closes** — `POST /admin/sign-in/password`'s row above says so, and
+  `signInEndpoints.integration.test.ts` compares the status, every header and the body of
+  all three, and measures the handler's own timing.
 - **Neither sets a cookie.** `signIn` returns `startSession`'s whole `Set-Cookie` value
   inside `session`; putting it on a response is the route's job. `browserSession` is the
   identifier the browser is carrying — the pre-auth identifier for a browser that has

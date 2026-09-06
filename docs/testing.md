@@ -570,10 +570,10 @@ would claim a measurement nothing performs.
   back as `rgba(47, 107, 104, 0.07)` with its 14px mark, the two signed-in actions measured
   to the same width 10px apart, the expired state asserted to contain the token nowhere in
   its `innerHTML`, and a whole address planted in `?sent=` asserted to reach the page
-  masked. **What it deliberately does not do is request a reset**: that needs the endpoint
-  Task 10 mounts and the mailer's in-process outbox, which a browser cannot see, so the
-  journey from a request through the mailed link to a changed password is proved where the
-  outbox is — see the integration section below.
+  masked. **What it deliberately does not do is request a reset**: `POST /admin/reset/request`
+  is mounted (Task 10), but reading the link it sends means the mailer's in-process outbox,
+  which a browser cannot see, so the journey from a request through the mailed link to a
+  changed password is proved where the outbox is — see the integration section below.
 
   **`e2e/codeStep.spec.ts` (Phase 2 Task 8)** carries the three things about
   `SCREENS.md` §3.2's one-time-code screen that jsdom cannot settle, and each was watched
@@ -2142,6 +2142,77 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   SVG upload is rejected by magic bytes even with a `.jpg` extension, an EXIF-bearing
   upload has no EXIF after processing, enumeration timing is equal for a real and a fake
   account.
+
+#### The HTTP boundary (Phase 2 Task 10), which is where the guard, the CSRF refusal and the CSP are proved
+
+Four new suites, and what decides where each case lives is whether its claim is about a
+database.
+
+- **`apps/web/lib/auth/adminAccess.test.ts`, `browserSession.test.ts`, `httpForm.test.ts`
+  (unit).** Pure: a path, a method, two origins, a `Cookie` header, a `Request`. All three
+  are gated at **100/100/100 by name** in `vitest.config.ts` rather than left under
+  `apps/web/lib/**`'s 95%, because each is imported by `apps/web/middleware.ts` and
+  therefore runs in the Edge runtime, where a mistake is caught by nothing else.
+
+  The cases worth knowing about are the negative ones. `isCrossSiteMutation` has a case
+  named for an **absent** `Origin`, because a check written as `origin !== target` refuses
+  `null` by luck rather than by decision, and a later "for robustness" guard would silently
+  invert it. `isGuardedAdminPath` has a case for **an address nobody wrote down**, which is
+  what makes it a policy rather than a list. `readBrowserSession` has a case for
+  `not-td-session=stolen`, which a scan by `indexOf` would read as the reader's session.
+
+- **`apps/web/lib/auth/adminGuardRegistration.test.ts` (unit).** The structural guard: it
+  reads every `page.tsx` and `route.ts` under `app/(admin)/admin` off the filesystem, turns
+  each into the address Next serves it at, and requires each to be declared public or to
+  name the guard — directly or through the one `lib/auth` module it re-exports its handler
+  from. **Its first case is a sentinel**: the walk must have found `/admin/sign-in`,
+  `/admin/sign-in/done`, `/admin/sign-out` and `/admin/reset/[token]` by name, because a
+  scan that walked the wrong directory would find nothing and pass with every screen
+  unguarded — the decorative shape CLAUDE.md §10 names. A second sentinel requires at least
+  one guarded address to exist, so the main case cannot pass vacuously in a repository
+  where everything had been declared public.
+
+- **`apps/web/lib/auth/guard.integration.test.ts`.** Whether an identifier names a live row
+  is a fact about the `sessions` table. Four refusals — no cookie, an identifier naming no
+  row, a revoked row, an aged-out row — and the two rotation cases the task brief names:
+  the pre-auth identifier authenticates nothing before a sign-in, and **still**
+  authenticates nothing after it while the new one does. That second case is the one an
+  implementation which adopts the identifier it was handed cannot pass; "a session exists
+  afterwards" is not.
+
+- **`apps/web/lib/auth/signInEndpoints.integration.test.ts` and
+  `resetRequestEndpoint.integration.test.ts`.** Real `Request`s, a real Payload, and the
+  handlers calling `getPayload()` themselves — the same pairing
+  `newPasswordScreen.integration.test.ts` makes. Both are gated at **100/100/100** in
+  `vitest.integration.config.ts`.
+
+  **The indistinguishable-refusal cases compare the whole response.** `responseShape` reads
+  the status, EVERY header and the body, and the three arms are compared with one `toEqual`
+  rather than three assertions that happen to agree today — a comparison of the status and
+  the `Location` alone would pass for a handler that set a `Set-Cookie` on one arm and not
+  the other. The one value that legitimately differs, the freshly minted identifier, is
+  replaced by a fixed word rather than dropped, so the cookie's name, its every attribute
+  and its **presence** are all still compared. The timing case measures the HANDLER over 25
+  interleaved samples per arm, because the handler is what an attacker can reach; the band
+  is the same deliberately wide 0.6–1.6 `signIn.integration.test.ts` uses, and every sample
+  is fresh in every dimension so that neither arm can be pushed onto the short path.
+
+  **The code step's challenges are issued by the test's own OTP service**, bound to the
+  same browser identifier the handler will read out of the cookie. That is not a shortcut
+  around the handler — the handler's own mailer prints to a terminal, so it is the only way
+  to know the six digits — and what the handler is then asked is the real question: does
+  this code, for this browser, produce a rotated session.
+
+  **The reset endpoint's identical-answer case uses two addresses that mask to the same
+  string** (same first two characters, same domain), so the whole response is comparable
+  rather than only its shape, and then asserts that the one thing which DID differ is
+  invisible from outside: only the real address has a reset token.
+
+- **`apps/web/middleware.test.ts`** gained eleven cases for the admin, and the ones that
+  matter are again negative: the diary's `/p/<n>` response, its `/m/<n>` rewrite and the 308
+  off the internal path are each asserted to carry **none** of the admin's headers, one
+  header at a time, and to be handed no minted cookie. Adding either would be a behaviour
+  change to thirty-three pages this task does not own.
 
 ### 9 · Migration
 

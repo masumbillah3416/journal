@@ -10,30 +10,31 @@
  * `components/admin/SignedInStep.tsx` (jsdom, plus `e2e/reset.spec.ts` in a
  * real browser).
  *
- * ═══ THE SESSION BEHIND THIS SCREEN IS NOT WIRED YET, AND THAT IS VISIBLE ═══
+ * ═══ IT IS GUARDED, AND THAT IS THE WHOLE OF WHAT TASK 10 CHANGED HERE ═══
  *
- * §3.4 is the state a reader reaches after signing in, and knowing that they
- * have means reading the session cookie — which means the cookie policy, and
- * **Phase 2 Task 10 owns the cookie policy**, along with the `Set-Cookie`, the
- * CSRF check and the admin's CSP. So this route is mounted and unguarded: it
- * draws the screen for anybody who asks for the address. It shows nothing an
- * unauthenticated visitor could not already see — no account, no address, no
- * session, nothing but three links and a fixed line of copy — and the two
- * places it leads are guarded on their own terms rather than by this screen
- * having been reached. It is the same shape of gap `/admin/sign-in/code`
- * already has (docs/deviations.md §33), recorded in the same place.
+ * §3.4 is the state a reader reaches after signing in, and until Task 10 this
+ * route drew it for anybody who asked for the address: reading the session
+ * cookie means the cookie policy, and Task 10 owned the cookie policy. It now
+ * calls `requireAdminSession`, which reads the identifier out of the request,
+ * asks `sessions.authenticate` whether it names a LIVE row, and redirects to
+ * `/admin/sign-in` when it does not. A revoked session, an expired one and the
+ * pre-auth identifier this surface mints for anonymous browsers are all
+ * refused — the last one matters, because it is carried in the same cookie.
  *
- * WHAT THAT COSTS AND WHAT IT DOES NOT. Nobody is signed in by arriving here,
- * and nothing about the admin becomes reachable through it: `/admin` itself is
- * Phase 4's, and Task 10's guard is what will refuse an unauthenticated
- * request for it. What it does mean is that the screen is a page rather than a
- * proof, until the session it describes is one the server can read.
+ * THE GUARD IS CALLED HERE RATHER THAN INHERITED FROM A LAYOUT, because this
+ * route's siblings under `/admin/sign-in` are the screens a reader with NO
+ * session has to be able to reach. What stops a later screen forgetting the
+ * call is not a layout either: `lib/auth/adminGuardRegistration.test.ts` reads
+ * every page and route mounted under `/admin` off the filesystem and fails the
+ * pre-commit gate for any one that neither calls the guard nor is declared
+ * public in `adminAccess.ts`.
  *
  * WHAT THIS ROUTE DOES NOT DO. It answers `GET` only. The `POST` that
- * "Sign out and start again" makes goes to `/admin/sign-out`, a route Task 10
- * mounts along with the rest — `sessions.ts`'s `revokeSession` is what will
- * answer it, and revoking a session requires reading the cookie that names it.
- * Depends on: `readSignInScreen` (../../../../../lib/auth/readSignInScreen),
+ * "Sign out and start again" makes goes to `/admin/sign-out`, mounted in the
+ * same task — `sessions.ts`'s `revokeSession` answers it, and revoking a
+ * session requires reading the cookie that names it.
+ * Depends on: `requireAdminSession` (../../../../../lib/auth/guard),
+ * `readSignInScreen` (../../../../../lib/auth/readSignInScreen),
  * `SignedInStep`/`SignInShell` (../../../../../components/admin/).
  */
 /* c8 ignore start -- Framework passthrough with no authored logic: read the
@@ -52,6 +53,7 @@ import type { Metadata } from 'next'
 import type React from 'react'
 import { SignInShell } from '../../../../../components/admin/SignInShell'
 import { SignedInStep } from '../../../../../components/admin/SignedInStep'
+import { requireAdminSession } from '../../../../../lib/auth/guard'
 import { readSignInScreen } from '../../../../../lib/auth/readSignInScreen'
 
 /**
@@ -66,8 +68,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-/** Renders the signed-in state of the sign-in screen. */
+/** Renders the signed-in state of the sign-in screen, for a reader who is. */
 const SignedInPage = async (): Promise<React.JSX.Element> => {
+  // Before anything is read or drawn: a refusal redirects, so no part of this
+  // screen is ever assembled for a request that has no live session.
+  await requireAdminSession()
   const content = await readSignInScreen()
 
   return (

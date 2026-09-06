@@ -19,6 +19,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ADMIN_COOKIE_PATH,
+  PRE_AUTH_LIFETIME_MS,
   REMEMBERED_SESSION_LIFETIME_MS,
   SESSION_COOKIE_NAME,
   SESSION_LIFETIME_MS,
@@ -92,6 +93,23 @@ describe('sessionLifetimeMs', () => {
 
   it('makes the remembered lifetime genuinely longer, so "keep me signed in" is not a relabelled default', () => {
     expect(REMEMBERED_SESSION_LIFETIME_MS).toBeGreaterThan(SESSION_LIFETIME_MS)
+  })
+
+  it('gives the pre-auth identifier a shorter life than any signed-in session', () => {
+    // It authenticates nothing — no `sessions` row names it — so a browser
+    // that abandoned a sign-in should stop carrying it long before a signed-in
+    // session would have ended. Asserted as an ordering rather than as a
+    // number, so the case is about the relationship rather than about a
+    // constant restated (CLAUDE.md §10).
+    expect(PRE_AUTH_LIFETIME_MS).toBeLessThan(SESSION_LIFETIME_MS)
+    expect(PRE_AUTH_LIFETIME_MS).toBeGreaterThan(0)
+  })
+
+  it('is never handed to sessionLifetimeMs, which answers only for a real sign-in', () => {
+    // The two are different questions and this pins that they have different
+    // answers: a pre-auth lifetime that had drifted to equal the short session
+    // lifetime would make the case above vacuous.
+    expect(sessionLifetimeMs({ keepSignedIn: false })).not.toBe(PRE_AUTH_LIFETIME_MS)
   })
 })
 

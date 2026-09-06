@@ -76,6 +76,7 @@ x-visual: &visual
     # there and these two win over it.
     DATABASE_URL: postgres://diary:diary@postgres:5432/diary
     MEDIA_ORIGIN: http://localhost:3000
+    ADMIN_ORIGIN: http://localhost:3000
     CI: '1'
   depends_on:
     postgres:

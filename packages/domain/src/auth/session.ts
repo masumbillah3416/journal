@@ -91,6 +91,27 @@ export const SESSION_LIFETIME_MS = 12 * 60 * 60_000
  */
 export const REMEMBERED_SESSION_LIFETIME_MS = 30 * 24 * 60 * 60_000
 
+/**
+ * How long the identifier a browser carries BEFORE it has signed in lasts.
+ *
+ * One hour, and it is deliberately not either of the two above. That
+ * identifier authenticates nothing — no `sessions` row names it — and its
+ * whole job is to bind a one-time code to the browser that asked for one
+ * (`apps/web/lib/auth/otpService.ts`), so it needs to outlive a reader who
+ * types a password, reads an email and comes back, and nothing more.
+ * `apps/web/lib/auth/browserSession.ts` is what mints it and what sets it
+ * under this lifetime; `startSession` replaces it with a real one, under
+ * {@link SESSION_LIFETIME_MS} or {@link REMEMBERED_SESSION_LIFETIME_MS}, the
+ * moment a sign-in completes.
+ *
+ * One hour rather than five minutes (the challenge's own life) because the
+ * hourly resend ceiling means a reader can legitimately still be part-way
+ * through a sign-in an hour after the first code was issued, and rather than
+ * twelve because an abandoned sign-in should not leave a browser carrying the
+ * same identifier all day.
+ */
+export const PRE_AUTH_LIFETIME_MS = 60 * 60_000
+
 /** How many milliseconds are in one second, for the `Max-Age` conversion. */
 const MS_PER_SECOND = 1_000
 

@@ -47,6 +47,7 @@
  * `book` global's own title.
  */
 import { expect, test } from '@playwright/test'
+import { aSignedInSession, removeSignedInFixture } from './support/adminSession'
 
 /** The reset request screen's address. */
 const RESET_PATH = '/admin/reset'
@@ -63,7 +64,7 @@ const SIGN_IN_PATH = '/admin/sign-in'
  */
 const RESET_REQUEST_ENDPOINT = `${RESET_PATH}/request`
 
-/** The signed-in state's address. */
+/** The signed-in state's address. Guarded from Task 10 on — see the hook below. */
 const SIGNED_IN_PATH = '/admin/sign-in/done'
 
 /**
@@ -108,6 +109,27 @@ const rotationDegrees = (transform: string): number => {
   return (Math.atan2(b, a) * 180) / Math.PI
 }
 
+/**
+ * Gives every test in this file a live session before it runs.
+ *
+ * `/admin/sign-in/done` is guarded from Phase 2 Task 10 on: without one, the
+ * four cases that visit it would be redirected to `/admin/sign-in` and would
+ * fail on a missing element rather than on the thing they are about.
+ * `e2e/support/adminSession.ts` says why a browser cannot sign itself in here.
+ *
+ * The cookie is set at `Path=/admin`, the scope `SECURITY.md` gives it: at `/`
+ * it would be sent to the diary too, which is the one thing that scope exists
+ * to prevent. The reset screens ignore it, so setting it for every test costs
+ * them nothing.
+ */
+test.beforeEach(async ({ context, baseURL }) => {
+  await context.addCookies([{ name: 'td-session', value: await aSignedInSession(), url: `${baseURL ?? ''}/admin` }])
+})
+
+test.afterAll(async () => {
+  await removeSignedInFixture()
+})
+
 test('reaches the reset screen from the password screen’s own "Forgotten" link', async ({ page }) => {
   // The defect ruling F47 closed, approached from the reader's side: the two
   // spellings of this path agreed with each other for four tasks while
@@ -142,24 +164,48 @@ test('answers the address the reset email builds, rather than 404ing on it', asy
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('That link has expired')
 })
 
-test('404s on the address §3.3’s own form posts to, rather than drawing a screen', async ({ page }) => {
-  // RULING F56, from the reader's side. Mounting `[token]` above this address
-  // made `request` a valid token spelling, so submitting the reset form
-  // answered 200 with "That link has expired" - a screen telling the reader
-  // that a link they never asked for was dead, on the one screen whose whole
-  // subject is that link. It answered 404 the day before, and does again.
+test('never draws a screen at the address §3.3’s own form posts to', async ({ page, baseURL }) => {
+  // RULING F56, from the reader's side, restated for the world Task 10 made.
+  // Mounting `[token]` above this address made `request` a valid token
+  // spelling, so submitting the reset form answered 200 with "That link has
+  // expired" - a screen telling the reader that a link they never asked for was
+  // dead, on the one screen whose whole subject is that link.
   //
-  // BOTH VERBS. The form's own submission is the `POST`; the `GET` is what a
-  // reader who types the address, or a crawler that finds it, receives. Both
-  // resolved to the expired screen before the reservation.
-  const submitted = await page.request.post(RESET_REQUEST_ENDPOINT, { form: { email: 'reader@wanderings.travel' } })
-  expect(submitted.status()).toBe(404)
-  // The status alone would pass on a 404 that still carried the expired
+  // WHAT CHANGED, AND WHAT DID NOT. `POST` is now a real endpoint and answers
+  // 303 rather than 404; `GET` still answers 404, by a `GET` handler of its own
+  // rather than by the reservation, because a `route.ts` with only a `POST`
+  // answers 405. What has to hold in every one of those worlds is the thing the
+  // ruling is about: this address never draws the expired screen.
+  const submitted = await page.request.post(RESET_REQUEST_ENDPOINT, {
+    // The admin refuses a cross-site mutation, and a request library sends no
+    // `Origin` of its own - so this header is what a browser form would have
+    // sent. Without it the answer is 403, which the case below asserts.
+    headers: { origin: baseURL ?? '' },
+    form: { email: 'reader@wanderings.travel' },
+    maxRedirects: 0,
+  })
+  expect(submitted.status()).toBe(303)
+  expect(submitted.headers()['location']).toContain(RESET_PATH)
+  // The status alone would pass on an answer that still carried the expired
   // screen's copy, which is the sentence that made this a defect.
   expect(await submitted.text()).not.toContain('That link has expired')
 
   const visited = await page.goto(RESET_REQUEST_ENDPOINT)
   expect(visited?.status()).toBe(404)
+  expect(await page.content()).not.toContain('That link has expired')
+})
+
+test('refuses a post to that address from anywhere but one of our own pages', async ({ page }) => {
+  // The CSRF half of Task 10, from the reader's side and against the running
+  // app: `page.request.post` sends no `Origin`, which is what a script, a
+  // `curl` or a scan sends, and the admin refuses it before any handler runs.
+  const forged = await page.request.post(RESET_REQUEST_ENDPOINT, {
+    form: { email: 'reader@wanderings.travel' },
+    maxRedirects: 0,
+  })
+
+  expect(forged.status()).toBe(403)
+  expect(await forged.text()).toBe('')
 })
 
 test('still answers a token that merely resembles a reserved word', async ({ page }) => {

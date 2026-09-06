@@ -84,6 +84,28 @@ All provider credentials live in each platform's own secret store, never in the 
   admin's Publish screen restore feature (design spec §4, Phase 4) — an author-facing
   rollback for content mistakes that never needs an engineer.
 
+## The sign-in surface, and the one thing that stops it working for a real reader
+
+Phase 2 Task 10 mounted the four `POST` endpoints the sign-in screens post to, so the
+whole flow works end to end **on the server**. Two operational facts follow, and neither is
+visible from the code that was added:
+
+- **`ADMIN_ORIGIN` is now a required environment variable** and the process refuses to boot
+  without it (`apps/web/lib/env.ts`). It is the origin every emailed password-reset link is
+  built against, and it is deliberately not derived from the request's `Host` header — a
+  link built from one is a link an attacker points at their own machine by setting that
+  header while asking for somebody else's address. Set it to the origin the admin is
+  actually served at, per environment. It is **not** `MEDIA_ORIGIN`: in production that is
+  the media bucket's public origin, which serves no admin. `.env.example` carries it.
+- **The only mailer adapter prints to the terminal.** `apps/web/lib/adapters/console-mailer.ts`
+  is the sole implementation of `MailerPort`, so every one-time sign-in code and every reset
+  link this surface issues goes to the server's own console and nowhere else. Nothing is
+  delivered to the wrong person, but nothing is delivered to the right one either: **a
+  reader cannot complete a sign-in on an account with the second factor on, and cannot
+  complete a password reset at all, until a sending adapter lands.** Until then, an operator
+  reading the process log is the delivery mechanism. `docs/security.md` records it beside
+  the other things Task 10 did not close.
+
 ## Rotate secrets
 
 1. Generate the new credential at the provider (Neon connection string, R2 access key,

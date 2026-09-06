@@ -56,11 +56,21 @@
  *    server. Only an empty password is refused here; the copy is the
  *    prototype's, unchanged.
  *
- * WHAT THIS PANE DOES NOT DO. It does not submit by `fetch`, set a cookie,
- * carry a CSRF token or render a server-side refusal - all four are the route
- * handler's, which Task 10 owns (`apps/web/lib/auth/signIn.ts`'s header makes
- * the same split for the same reason). A pane that both decided and responded
- * could not be tested for the decision alone.
+ * IT NOW RENDERS A SERVER-SIDE REFUSAL, AND IT RENDERS EXACTLY ONE. Task 10
+ * mounted the endpoint this form posts to, and {@link PasswordStepProps.refusal}
+ * is what that endpoint's redirect carries back - decided by
+ * `@travel-diary/domain/auth/signInScreen`'s `passwordStepView`, which has one
+ * refusal state because `signIn.ts` has one refusal. The message goes into the
+ * SAME error box the two client-side checks use, since SCREENS.md §3.1
+ * specifies one error box, and it goes as soon as the reader types, for the
+ * reason the client-side one does: typing is how they answer it.
+ *
+ * WHAT THIS PANE STILL DOES NOT DO. It does not submit by `fetch`, set a
+ * cookie, or carry a CSRF token. The first is deliberate (a real `POST` works
+ * with no JavaScript); the second is the endpoint's; and the third is
+ * `apps/web/middleware.ts`'s, which refuses a cross-site mutation to any
+ * `/admin` address before a handler is reached - so there is no token for this
+ * form to carry and no per-visitor state to mint one against.
  * Depends on: react, `RESET_PATH` (../../lib/auth/resetPath),
  * ./signIn.module.css.
  */
@@ -113,6 +123,12 @@ export interface PasswordStepProps {
    * the browser is never asked, and never consulted about it.
    */
   readonly codeStepRequired: boolean
+  /**
+   * What the server said about the last submission, or `null` when there was
+   * none. One message for every reason a sign-in can be refused - see
+   * `@travel-diary/domain/auth/signInScreen`, which is what decides it.
+   */
+  readonly refusal?: string | null
 }
 
 /**
@@ -156,14 +172,25 @@ const firstProblem = (values: { readonly email: string; readonly password: strin
 /**
  * Renders the password step.
  *
- * @param props - Whether the code step runs, from the server.
+ * @param props - See {@link PasswordStepProps}: whether the code step runs, and
+ *   what the server said about the last submission. Both come from the route.
  * @returns The pane, as a real `POST` form.
  * @example
- * <PasswordStep codeStepRequired={content.codeStepRequired} />
+ * <PasswordStep codeStepRequired={content.codeStepRequired} refusal={view.message} />
  */
-export const PasswordStep = ({ codeStepRequired }: PasswordStepProps): React.JSX.Element => {
+export const PasswordStep = ({ codeStepRequired, refusal = null }: PasswordStepProps): React.JSX.Element => {
   const [revealed, setRevealed] = useState(false)
   const [problem, setProblem] = useState<FieldError | null>(null)
+  // The server's refusal is state rather than a straight read of the prop,
+  // because it has to go when the reader starts answering it - and it is
+  // separate from `problem` because the two have different subjects: `problem`
+  // names a field, and a refusal is about the pair.
+  const [refusalStanding, setRefusalStanding] = useState(refusal !== null)
+
+  // The field-level message wins when there is one: a reader who has just
+  // emptied the password box needs to be told that before they are told again
+  // that the last attempt failed.
+  const message = problem?.message ?? (refusalStanding ? refusal : null)
 
   const checkBeforeSending = (event: React.SyntheticEvent<HTMLFormElement>): void => {
     const entered = new FormData(event.currentTarget)
@@ -180,6 +207,7 @@ export const PasswordStep = ({ codeStepRequired }: PasswordStepProps): React.JSX
   // clean form costs no state update and no re-render.
   const clearProblem = (): void => {
     if (problem !== null) setProblem(null)
+    if (refusalStanding) setRefusalStanding(false)
   }
 
   return (
@@ -248,10 +276,10 @@ export const PasswordStep = ({ codeStepRequired }: PasswordStepProps): React.JSX
           </div>
         </div>
 
-        {problem !== null && (
+        {message !== null && (
           <div className={styles.error} id={ERROR_ID} role="alert">
             <span aria-hidden="true" className={styles.errorMark} />
-            <p className={styles.errorText}>{problem.message}</p>
+            <p className={styles.errorText}>{message}</p>
           </div>
         )}
 

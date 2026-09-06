@@ -150,6 +150,7 @@ export default defineConfig({
             DATABASE_URL: 'postgres://unit-test:unused@localhost:5432/unit-test',
             PAYLOAD_SECRET: 'unit-test-secret-value-not-used-for-real-auth',
             MEDIA_ORIGIN: 'http://localhost:3000',
+            ADMIN_ORIGIN: 'http://localhost:3000',
           },
         },
       },
@@ -193,6 +194,7 @@ export default defineConfig({
             DATABASE_URL: 'postgres://unit-test:unused@localhost:5432/unit-test',
             PAYLOAD_SECRET: 'unit-test-secret-value-not-used-for-real-auth',
             MEDIA_ORIGIN: 'http://localhost:3000',
+            ADMIN_ORIGIN: 'http://localhost:3000',
           },
         },
       },
@@ -391,6 +393,24 @@ export default defineConfig({
         // DOES measure at the domain's 100% bar.
         'apps/web/lib/auth/setNewPassword.ts',
         'apps/web/lib/auth/newPasswordScreen.ts',
+        // guard.ts, services.ts, signInEndpoints.ts and resetRequestEndpoint.ts
+        // (Phase 2 Task 10) are reachable only from their own
+        // `*.integration.test.ts` files, for the same reason as every module
+        // above: each one composes a real Payload. The guard's whole question -
+        // does this identifier name a LIVE row - has no answer without the
+        // `sessions` table, and the endpoints' answers are claims about what
+        // Postgres now holds (a challenge bound to this browser, a rotated
+        // session row, a revoked one). A mocked store would let a handler that
+        // reused the pre-auth identifier pass. Gated by
+        // vitest.integration.config.ts instead, all four at 100% on every axis.
+        // Their pure halves - which addresses are public, what a cross-site
+        // mutation is, the admin's headers, the two cookies and the form
+        // reading - are `adminAccess.ts`, `browserSession.ts` and
+        // `httpForm.ts`, which this pass DOES measure, each at 100% below.
+        'apps/web/lib/auth/guard.ts',
+        'apps/web/lib/auth/services.ts',
+        'apps/web/lib/auth/signInEndpoints.ts',
+        'apps/web/lib/auth/resetRequestEndpoint.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by
@@ -575,12 +595,39 @@ export default defineConfig({
           branches: 90,
           functions: 90,
         },
+        // The three Phase 2 Task 10 modules the admin's request policy is
+        // made of. They are named individually, at the number they actually
+        // achieve, rather than left under `apps/web/lib/**`'s 95%: each is pure
+        // (no I/O, no framework, no database), each is imported by
+        // `apps/web/middleware.ts` and therefore runs in the Edge runtime where
+        // a mistake cannot be caught by anything else, and each decides
+        // something a security requirement names - which addresses answer
+        // without a session, whether a mutation came from our own pages, and
+        // what a session cookie says. 95% would leave one uncovered branch in
+        // any of them acceptable, and there is no branch here whose behaviour
+        // is not a real one.
+        'apps/web/lib/auth/adminAccess.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        'apps/web/lib/auth/browserSession.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        'apps/web/lib/auth/httpForm.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
         // The middleware takes no decision of its own - which surface a
         // request is served is `servedReadingSurface`'s, gated at 100% in the
-        // domain - so what is left in it is three routing outcomes and a
-        // matcher, every one of them reachable from a plain `NextRequest`
-        // (apps/web/middleware.test.ts). 100% is the number that is actually
-        // achieved there, not a rounded-up one.
+        // domain, and the admin's request policy is `lib/auth/adminAccess.ts`'s
+        // - so what is left in it is three routing outcomes, three admin
+        // outcomes and a matcher, every one of them reachable from a plain
+        // `NextRequest` (apps/web/middleware.test.ts). 100% is the number that
+        // is actually achieved there, not a rounded-up one.
         'apps/web/middleware.ts': {
           lines: 100,
           branches: 100,
