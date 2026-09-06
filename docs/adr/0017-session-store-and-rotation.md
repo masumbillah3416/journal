@@ -86,11 +86,14 @@ discard between requests.
   and hands them to `sessionState`; the conditions are deliberately absent from the
   `WHERE` clause. Expressing a rule in both SQL and TypeScript is a rule neither test can
   break by itself — the reasoning `rateLimit.ts` already carries for its window floor.
-- **Access is per-user ownership, not a flat refusal.** `read`, `update` and `delete`
-  narrow to `{ user: { equals: req.user.id } }`; `create` is refused for everybody, since
-  a session is minted server-side against an identifier the client never sees. `tokenHash`
-  is unreadable and unwritable and `expiresAt` unwritable even to the owner — the two ways
-  an owner could otherwise undo the rule from inside it. See `docs/deviations.md` §29.
+- **Access is per-user ownership at the collection, and a flat refusal at every field.**
+  `read`, `update` and `delete` narrow to `{ user: { equals: req.user.id } }`; `create` is
+  refused for everybody, since a session is minted server-side against an identifier the
+  client never sees. **No field accepts an `update`** — not `user`, which the ownership
+  predicate itself reads; not `revokedAt`, which decides whether a revoked session stays
+  revoked; not the timestamps Payload injects. Collection-level ownership alone was tried
+  first and was necessary but not sufficient; see Consequences and `docs/deviations.md`
+  §29. Revocation is therefore server-side, through `revokeSession`/`revokeAllSessions`.
 - **The cookie is `Path=/admin`**, which is `SECURITY.md`'s "scoped to the admin path" and
   is a constraint on where the sign-in flow may live: see Consequences.
 
@@ -108,6 +111,18 @@ read back, and the "Signed in" state (`SCREENS.md` §3.4) would never render. Ph
 7–9 build those screens; they belong at `/admin/...`. This is the one consequence of this
 ADR that constrains work not yet done, and it is stated in the module header, in
 `docs/security.md`'s cookie table and here.
+
+**A per-operation guard is not a guard.** The first version of this decision restricted
+operations and two fields, and left the rest to collection-level ownership. Two holes came
+straight through it, each a field inside an operation that is correctly permitted: an
+owner could re-point `user` at another account and authenticate as them, and could write
+`revokedAt` back to `null` and un-revoke themselves. A sweep over **every field the
+collection declares**, enumerated from the config rather than from a list, then found a
+third nobody had named — `createdAt`, which Payload injects without an access rule. The
+rule that follows is the one worth carrying to Phase 4's ten screens of mutations: **the
+unit of authorization on a Payload collection is the field, not the operation**, and the
+test that proves it has to enumerate fields from the config, because a hand-written list
+is a list that goes stale.
 
 **Two tests in this area pass while the mechanism is gone, and both are guarded
 explicitly.** A rotation test that asserts only "a new identifier exists" passes while the

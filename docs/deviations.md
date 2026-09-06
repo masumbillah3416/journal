@@ -1094,8 +1094,8 @@ verified to fail when the predicate is removed.
 **What changed:** `apps/web/collections/sessions.ts` declares an `access` block:
 `read`, `update` and `delete` each return `{ user: { equals: req.user.id } }` — narrowing
 the operation to rows the caller owns and refusing outright when there is no caller —
-and `create` is `() => false`. Two fields carry their own restrictions on top:
-`tokenHash` is unreadable and unwritable through the API, and `expiresAt` is unwritable.
+and `create` is `() => false`. On top of that, **every field refuses `update`**, and
+`tokenHash` refuses `read` as well.
 
 **Rationale:** `DATA_MODEL.md`'s `sessions` section prints a field list and **no access
 block at all**. Payload applies its `defaultAccess` — `({ req: { user } }) =>
@@ -1131,6 +1131,57 @@ credential digest to whatever renders the list, and writing `expiresAt` would le
 reader grant themselves a session that never expires, since the column is the only thing
 that ends a session nobody revokes.
 
+### The second round: collection-level ownership was necessary and not sufficient
+
+The block above shipped with per-field restrictions on `tokenHash` and `expiresAt` only,
+and review round 1 found two more holes — both **fields inside an operation that is
+correctly permitted**, which is a category the first round's tests could not see because
+they enumerated operations rather than fields.
+
+- **`user` was writable by the row's owner.** It is the field `ownSessionsOnly` itself
+  reads to decide ownership. Reproduced: Alice updated her own row's `user` from 104 to
+  Bob's 105 under her own access, and her **unchanged** identifier then authenticated as
+  `{ user: '105' }`. That is privilege escalation through the field that decides
+  privilege — strictly worse than the original leak, which at least required touching
+  somebody else's row.
+- **`revokedAt` could be written back to `null`.** Reproduced: a session answering
+  `{ ok: false, error: 'revoked' }` answered `{ ok: true, value: { user: '106' } }` again
+  after one `PATCH`. "Only the owner can write it" is not a restriction here: the account
+  holder and whoever holds a stolen session are the same principal as far as this
+  collection can tell, so Revoke was decorative against exactly the person it exists to
+  stop.
+
+**A third was then found by the fix's own test, and it is the reason that test exists.**
+Round 1 also added a sweep that attempts an update on **every field the collection
+declares**, enumerated from the config rather than from a hand-written list. On its first
+run it failed on a field neither the reviewer nor the author had named: **`createdAt`**.
+Payload injects `createdAt`/`updatedAt` into a collection's field list when it sanitises
+it, an injected field carries no access rule, and so a session's owner could rewrite when
+it had been created. Nothing authenticates on that column, so it is not escalation; what
+it falsifies is the "Where you are signed in" list, whose only job is to be true.
+
+**The fix is total rather than enumerated**, for the reason the third hole demonstrates:
+every field refuses `update`, including the three that look harmless (`device`,
+`location`, `lastSeenAt`) and the two timestamps, which are now declared explicitly — with
+`index: true`, since that is what Payload's injected versions carry and omitting it
+silently drops two indexes (confirmed with `payload migrate:create` before the line was
+written). Revocation moved server-side to `revokeSession`/`revokeAllSessions`, matching
+how every other write in this phase reaches these tables.
+
+A monotonic rule for `revokedAt` — allow `null` to a timestamp, refuse the reverse — was
+considered and rejected: that is a validation somebody has to remember to keep correct,
+whereas a field nobody can write cannot be written wrong.
+
+The collection-level `update` stays owner-scoped rather than `() => false`, deliberately.
+Payload refuses at the collection level **before** it evaluates field access, so a flat
+refusal there would make all nine field predicates unreachable — uncoverable against this
+directory's 100% gate, and unprovable by any test.
+
+Eight of the nine refusals fail a named case when removed. `updatedAt`'s is the exception
+and is recorded as such at the line itself: Payload stamps that column after access runs,
+so the write never survives either way, and no test can distinguish. It is kept so the
+rule stated is total, not because it was proven.
+
 **What this cost, recorded because the cost is the lesson:** three documents in this
 repository — `apps/web/collections/signInAttempts.ts`'s header, `docs/deviations.md` §27
 and `docs/data-model.md`'s `jobs` section — described `sessions` as a server-only peer of
@@ -1142,11 +1193,14 @@ commit that adds this entry.
 **What would reverse this:** a `DATA_MODEL.md` revision that states an access rule for
 `sessions`. None exists.
 
-**Recorded as:** `docs/adr/0017-session-store-and-rotation.md`; a `// HANDOFF-DEVIATION` at the access block in
-`apps/web/collections/sessions.ts`; eleven cases in
-`apps/web/collections/sessions.access.integration.test.ts`, verified to fail when the
-block and each field-level predicate are removed (see the Task 6 report for the four
-mutation runs).
+**Recorded as:** `docs/adr/0017-session-store-and-rotation.md`; a `// HANDOFF-DEVIATION` at
+the access block and at the `user`, `revokedAt` and `expiresAt` fields in
+`apps/web/collections/sessions.ts`; twelve cases in
+`apps/web/collections/sessions.access.integration.test.ts` — including the per-field sweep
+— and the two cross-account escalation cases in
+`apps/web/lib/auth/sessions.integration.test.ts`. Verified to fail when the block and each
+field-level predicate are removed: see the Task 6 report for the full matrix, round 1 and
+round 2.
 
 ## 30 · `sessions` gains an `expiresAt` column the handoff never lists
 

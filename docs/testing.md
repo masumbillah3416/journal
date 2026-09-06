@@ -1602,7 +1602,7 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
 
   **The session layer lands in Phase 2 Task 6, before the sign-in screens that will use
   it,** because sign-in must issue a session and cannot issue what does not exist.
-  `apps/web/lib/auth/sessions.integration.test.ts` is twenty-four cases, shaped around
+  `apps/web/lib/auth/sessions.integration.test.ts` is twenty-five cases, shaped around
   the two ways a test in this area passes while the mechanism is gone:
 
   - **A rotation test that only asserts "a new identifier exists" passes while the old
@@ -1631,11 +1631,41 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   `apps/web/collections/sessions.access.integration.test.ts` is the collection's half,
   and **every case in it is cross-account**: two accounts, each with a session, asserting
   what one can do to the other's row. That is not thoroughness, it is the only shape that
-  can see the defect the file was written for — `sessions` declared no access block at
+  can see the defect the file was written for - `sessions` declared no access block at
   all, so Payload's `defaultAccess` applied and every operation was granted to "signed
   in" (`docs/deviations.md` §29). A suite with one account would have passed throughout.
-  Verified by mutation: removing the block fails five cases, and removing each of the
-  three field-level predicates fails exactly the case named for it.
+  Verified by mutation: removing the block fails five cases.
+
+  **THE PER-FIELD SWEEP IS THE PART TO CARRY INTO PHASE 4**, and it exists because the
+  first version of that file was still not enough. It enumerated OPERATIONS - read,
+  create, update, delete - and two holes came straight through it, each a field inside an
+  operation that is correctly permitted: an owner could re-point `user` at another account
+  and authenticate as them, and could write `revokedAt` back to `null` and un-revoke
+  themselves. **The unit of authorization on a Payload collection is the field, not the
+  operation.**
+
+  So the file now carries one case that attempts an update on **every field the collection
+  declares**, with the field list read off `Sessions.fields` rather than written out, and
+  the row snapshotted with `SELECT *` rather than a named column list. Both halves matter:
+  a field added tomorrow is probed the day it lands, and a column a future field adds is
+  compared without anybody remembering to add it. On its **first run** the sweep failed on
+  a field neither the reviewer nor the author had enumerated - `createdAt`, which Payload
+  injects into a collection's field list when it sanitises it, and which an injected field
+  carries no access rule for. That is the argument for the shape, in one measurement.
+
+  Verified by mutation, field by field: removing any one field's `update` refusal fails
+  the sweep, and for `user`, `revokedAt`, `tokenHash` and `expiresAt` it fails the named
+  case beside it as well. `updatedAt` is the one exception and is recorded as such at the
+  line itself - Payload stamps that column after access runs, so no test can distinguish -
+  rather than left for a later reader to assume it was proven.
+
+  One fixture lesson came out of that matrix and is worth repeating: the file's cleanup
+  used to find its rows by the `device` marker, which the sweep itself overwrites. Under
+  one mutation a row survived carrying a probe value, deleting its account then hit
+  `sessions.user_id`'s `NOT NULL` against an `ON DELETE set null` foreign key, and the
+  **whole file was skipped** on the next run with a not-null violation several cases away
+  from the cause. Cleanup now matches by owner. See `docs/data-model.md` for the
+  constraint itself.
 
   A second case covers what bounds the table: a write against one key must sweep aged rows
   belonging to **other** keys. Pruning only the key being written bounds growth by the

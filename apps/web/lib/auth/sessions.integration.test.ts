@@ -167,6 +167,22 @@ const ageSessionPastItsExpiry = async (session: SessionId): Promise<void> => {
 }
 
 /**
+ * The row id of the one session an account holds.
+ *
+ * The two review-round cases below reach for Payload's own update path, which
+ * addresses a row by id rather than by the identifier this service works in -
+ * that is the whole point of them, since it is the path the Account screen
+ * reaches these rows by. Folded rather than indexed so there is no arm no test
+ * could take.
+ * @param account - The account's row id.
+ * @returns The session row's id, or 0 when the account holds none.
+ */
+const onlySessionRowOf = async (account: number): Promise<number> => {
+  const { rows } = await payload.db.pool.query<{ id: number }>(`SELECT id FROM sessions WHERE user_id = $1`, [account])
+  return rows.reduce((highest, found) => Math.max(highest, found.id), 0)
+}
+
+/**
  * Removes every row and account this file creates, at both ends of the run.
  *
  * Sessions go first and are matched by their OWNER as well as by the device
@@ -420,27 +436,57 @@ describe('revocation', () => {
     expect(await sessions.authenticate(issued.session)).toEqual({ ok: false, error: 'revoked' })
   })
 
-  it('refuses a session revoked through the account screen\'s own route, so Revoke is not decorative', async () => {
-    // Revoked the way the Account screen does it - a Payload update by the
-    // signed-in reader, under their own access - rather than through this
-    // module, so the two paths are proven to meet on the same row.
+  it('refuses to un-revoke a session by writing revokedAt back to null through the API', async () => {
+    // FOUND BY REVIEW, ROUND 1. Revocation used to be an ordinary field write
+    // by the row's owner, which meant the owner could write it back. Measured
+    // before the fix: a session answering `{ ok: false, error: 'revoked' }`
+    // answered `{ ok: true, value: { user: '106' } }` again after one PATCH.
+    // Revoke is decorative against the one person most motivated to undo it,
+    // and this is cross-account for a reason that is easy to miss: the account
+    // holder and the thief holding a stolen session are the SAME principal as
+    // far as this collection is concerned, so "only the owner can write it" is
+    // not a restriction on the attacker at all.
     const account = await anAccount()
     const issued = await aSessionFor(account.id)
     const reader = await payload.findByID({ collection: 'users', id: account.row })
-    const { rows } = await payload.db.pool.query<{ id: number }>(`SELECT id FROM sessions WHERE user_id = $1`, [
-      account.row,
-    ])
-    const row = rows.reduce((highest, found) => Math.max(highest, found.id), 0)
+    await sessions.revokeSession({ session: issued.session, owner: account.id })
+    expect(await sessions.authenticate(issued.session)).toEqual({ ok: false, error: 'revoked' })
 
     await payload.update({
       collection: 'sessions',
-      id: row,
+      id: await onlySessionRowOf(account.row),
       overrideAccess: false,
       user: reader,
-      data: { revokedAt: new Date().toISOString() },
+      data: { revokedAt: null },
     })
 
     expect(await sessions.authenticate(issued.session)).toEqual({ ok: false, error: 'revoked' })
+  })
+
+  it('refuses to re-point a session at another account, so an owner cannot escalate into one', async () => {
+    // FOUND BY REVIEW, ROUND 1, and the sharper of the two: `user` is the very
+    // field the ownership predicate READS to decide ownership, so leaving it
+    // writable let the holder of one account rewrite whose session their own
+    // row is. Measured before the fix: Alice moved her row's `user` from 104
+    // to Bob's 105 and her UNCHANGED identifier then authenticated as
+    // `{ user: '105' }`. Cross-account by construction - a single-account
+    // fixture has no other account to escalate into, which is exactly why the
+    // first round of tests here did not see it.
+    const mine = await anAccount()
+    const theirs = await anAccount()
+    const issued = await aSessionFor(mine.id)
+    const reader = await payload.findByID({ collection: 'users', id: mine.row })
+
+    await payload.update({
+      collection: 'sessions',
+      id: await onlySessionRowOf(mine.row),
+      overrideAccess: false,
+      user: reader,
+      data: { user: theirs.row },
+    })
+
+    // The identifier is untouched. What it names must still be my account.
+    expect(await sessions.authenticate(issued.session)).toEqual({ ok: true, value: { user: mine.id } })
   })
 
   it('refuses every one of an account\'s sessions after signing out everywhere', async () => {

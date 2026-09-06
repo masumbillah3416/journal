@@ -355,10 +355,14 @@ lists.
 
 Unlike the two above, the collection behind it is **not** closed to everybody:
 `sessions` carries a per-user ownership rule (`docs/deviations.md` §29), so the Account
-screen's list and its Revoke button reach these rows through Payload's own REST/Local API
-under the signed-in reader's access — `GET`/`PATCH`/`DELETE /api/sessions`, narrowed to
-`{ user: { equals: <caller> } }`, with `tokenHash` never returned and `expiresAt` never
-writable. Those are Payload's own generated routes rather than ones this repository
-writes, which is why they have no row of their own here; what constrains them is the
-collection's access block, and `apps/web/collections/sessions.access.integration.test.ts`
-is where that is asserted.
+screen's list reaches these rows through Payload's own REST/Local API under the signed-in
+reader's access — `GET`/`DELETE /api/sessions`, narrowed to
+`{ user: { equals: <caller> } }`, with `tokenHash` never returned. **Revoke does not go
+that way.** It calls `revokeSession` above, because review round 1 found that revoking
+through a field write meant the same field could be written back; `PATCH /api/sessions/:id`
+is still admitted for the caller's own row but writes **no field at all**, every one of
+them refusing `update` (see `docs/data-model.md`). Those are Payload's own generated
+routes rather than ones this repository writes, which is why they have no row of their own
+here; what constrains them is the collection's access block, and
+`apps/web/collections/sessions.access.integration.test.ts` is where that is asserted —
+field by field, enumerated from the collection config.

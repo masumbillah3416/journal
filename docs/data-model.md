@@ -138,16 +138,43 @@ Unlike `otpChallenges.expiresAt` above, this column **is** the authorization inp
 identifier in the cookie carries no expiry of its own to disagree with it.
 
 Access is **per-user ownership**, not the flat `() => false` the three server-only
-collections carry, because the Account screen legitimately reads and revokes these rows:
-`read`, `update` and `delete` each return `{ user: { equals: req.user.id } }`, so an
-operation is narrowed to the caller's own rows and refused outright when there is no
-caller; `create` is `() => false` for everybody, since a session is minted server-side
-against a token the client never sees. Two fields are further restricted even for the
-owner: `tokenHash` is unreadable and unwritable (it is the lookup key an authentication
-matches by, and no screen needs it), and `expiresAt` is unwritable (an owner who could
-`PATCH` it could grant themselves a session that never ends). The collection previously
-declared **no access block at all**, which left Payload's `defaultAccess` applying — see
-`docs/deviations.md` §29 for what that meant and how it was found.
+collections carry, because the Account screen legitimately reads these rows: `read`,
+`update` and `delete` each return `{ user: { equals: req.user.id } }`, so an operation is
+narrowed to the caller's own rows and refused outright when there is no caller; `create`
+is `() => false` for everybody, since a session is minted server-side against a token the
+client never sees. The collection previously declared **no access block at all**, which
+left Payload's `defaultAccess` applying — see `docs/deviations.md` §29 for what that meant
+and how it was found.
+
+**No field is writable through the API, including `createdAt` and `updatedAt`.**
+Collection-level ownership was necessary and not sufficient, and this is the correction
+review round 1 forced: two fields inside an operation that is correctly permitted escaped
+it. `user` is the field the ownership predicate itself reads, so leaving it writable let
+an account holder move their own row onto another account and authenticate as them;
+`revokedAt` decides whether a revoked session stays revoked, so leaving it writable let a
+revoked session be un-revoked with one `PATCH`. A per-field sweep added in the same round
+then found a third, which nobody had enumerated: Payload injects `createdAt`/`updatedAt`
+when it sanitises a collection, an injected field carries no access rule, and `createdAt`
+was writable — a session could claim it had been signed in at any time it liked, on the
+one list whose only job is to be true. All three are closed by refusing `update` on every
+field, and the timestamps are now declared explicitly (with `index: true`, which is what
+Payload's injected versions carry) so that a rule can reach them. Revocation is therefore
+**server-side only**: `revokeSession`/`revokeAllSessions` in
+`apps/web/lib/auth/sessions.ts` are what the Account screen calls. The collection-level
+`update` stays owner-scoped rather than `() => false` because Payload refuses at the
+collection level before it evaluates field access, so a flat refusal would make all nine
+field predicates unreachable — and unreachable rules are rules no test can prove.
+
+**Deleting a `users` row that still has `sessions` rows fails the foreign key.**
+`sessions.user_id` is `NOT NULL`, while `20260831_154311_initial.ts:397` declares its
+foreign key `ON DELETE set null` — so Payload's delete hook nulls the relationship rather
+than cascading, and Postgres refuses the null. The same shape applies to
+`otp_challenges.user_id`. It has no product consequence while there is one author and no
+account-deletion screen, but it is reachable now that sessions rows actually exist: it was
+hit for real by a test fixture that deleted an account before its session (the
+`sessions.access.integration.test.ts` cleanup, which now removes sessions by owner for
+this reason). **Delete sessions and challenges before the account that owns them**, in the
+seed, in any fixture, and in whatever account-deletion flow a later phase builds.
 
 ### `jobs`
 
