@@ -32,10 +32,16 @@
  * millisecond. `attemptedAt` decides only whether an attempt is still inside
  * the window. See `packages/domain/src/auth/rateWindow.ts`.
  *
- * The rows are housekeeping, not content: `rateLimit.ts` prunes everything
- * older than the window for the key it is touching, in the same statement
- * that records the new attempt, so the table stays bounded without a
- * scheduler.
+ * The rows are housekeeping, not content: in the same statement that records
+ * a new attempt, `rateLimit.ts` prunes this key's aged rows AND a bounded
+ * batch of aged rows belonging to any other key. Both halves are load-bearing.
+ * A key-scoped prune alone would bound growth by the number of distinct keys
+ * ever seen rather than by the window — and a spray from many addresses is
+ * exactly the traffic that manufactures keys, so the unbounded case is the
+ * attack. With the cross-key sweep, cleanup is eventually complete and
+ * per-request work stays constant, so the table is bounded with no scheduler
+ * running. See `rateLimit.ts`'s own header for the sweep size and the reason
+ * it is capped.
  * Depends on: `payload`.
  */
 import type { CollectionConfig } from 'payload'
