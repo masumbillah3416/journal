@@ -1612,12 +1612,24 @@ a third config rather than three more URLs in an existing one for exactly the re
 gives for the book's: lhci's collect settings are per-run, not per-URL, and the admin is an
 authoring surface measured at a desktop viewport rather than under phone emulation.
 
-**Three of the four sign-in screens are collected, and the fourth is bounded rather than
-guessed.** `/admin/sign-in/done` is behind the session guard, so Lighthouse — which sends no
-cookie — collects the redirect rather than the screen. Rather than fabricate a session for
-the collector, it is left out and the reasoning recorded: it ships strictly fewer client
-modules than the three that are collected, because `SignedInStep` is not a `'use client'`
-component and the other three panes are, so its script total cannot exceed theirs.
+**Three of the five reachable admin addresses are collected, and the other two are bounded
+rather than guessed.** `/admin/sign-in/done` is behind the session guard, so Lighthouse —
+which sends no cookie — collects the redirect rather than the screen. Rather than fabricate a
+session for the collector it is left out, with the bound recorded: it ships strictly fewer
+client modules than the three that are collected, because `SignedInStep` is not a
+`'use client'` component and the other three panes are, so its script total cannot exceed
+theirs. `/admin/reset/<token>` renders `NewPasswordStep`, which IS a client component and so
+is not covered by that argument; its address needs a live token that changes every run, so it
+was measured directly instead — 8 scripts, 176,211 bytes gzipped, against the 320KB ceiling.
+
+**`/admin/sign-in/code` is collected with no cookie**, so what it measures is the
+no-challenge placeholder rather than the pane a signing-in reader sees. Said rather than left
+to be assumed: it is the state an unauthenticated visitor to that address is actually served,
+it renders the same shell, the same six cells and the same client bundle, and the states that
+differ from it differ in text rather than in bytes. It is also, as of Phase 2 Task 11's fix
+round, a state a reader reaches only by typing the address — an exhausted or expired
+challenge is now described rather than replaced by it (see §8 and
+`docs/qa/2026-09-07-sign-in-sweep.md`).
 
 **INP has no Lighthouse lab equivalent** — it is a field metric — so `CLAUDE.md` §6's
 ≤200ms is not asserted by any of the three configs, here or on the diary. What the lab can
@@ -1626,9 +1638,9 @@ rather than left to be assumed from a green run.
 
 **The two diary configs, last measured at Phase 1's final review** — one
 `npm run test:perf` inside `mcr.microsoft.com/playwright:v1.62.1-noble`, each config
-building the app itself first. Both were green then; `lighthouserc.book.json` is **red on
-this host today**, and the paragraph below the next table has the numbers and what was done
-to establish that it is the measurement rather than the diary that moved:
+building the app itself first. Both green then, and both green now; the paragraph below the
+next table records the one time between those two points that `lighthouserc.book.json` was
+not, and what it turned out to be:
 
 | Route (config) | Metric | Median of 5 | Gate | Margin |
 |---|---|---|---|---|
@@ -1669,19 +1681,42 @@ of the thirty is 2,941ms and the fastest 2,924ms — which is the framework floo
 measured (2,023.2ms for one styled heading with no application code) plus three panes that
 fetch nothing.
 
-**The admin gate is unaffected by the diary's bimodal split, and the diary's is currently
-red on this host.** `lighthouserc.book.json`'s `/p/1` measured medians of 3,082.6 and
-3,080.2ms across two `npm run test:perf` runs, against its unchanged 3,000ms budget. That is
-the phenomenon ADR 0008 named ("two modes about 149ms apart") and ADR 0014 characterised over
-twenty runs; the low mode still appears (one run of 2,928.8ms) but is now the rarer one. It
-is **not** Task 11's doing, and that was measured rather than argued: the whole task was
-stashed and `lighthouserc.book.json` re-run against a clean checkout of `d61ab9e`, which
-produced a median of **3,079.7ms** — the same failure with none of the change present.
-Deleting `.next` entirely and rebuilding produced 3,077.3ms, so it is not ADR 0008's warm
-volume either. **The budget has not been moved.** Raising a gate to accommodate a real
-regression is dishonest (ADR 0014 says so in its own opening); what is needed here is the
-kind of characterisation ADR 0014 did, on a host whose distribution has since shifted, and
-that is a task of its own rather than a line in this one.
+### `/p/1` went red in Phase 2, and the wrong explanation was reached for first
+
+**This is the most instructive thing in this section, so it is written down in full.**
+Phase 2 Task 11 reported `lighthouserc.book.json`'s `/p/1` at **3,082.6ms and 3,080.2ms**
+across two `npm run test:perf` runs, against its unchanged 3,000ms budget — and attributed
+it to the bimodality ADR 0008 named and ADR 0014 characterised. The evidence offered was
+that the gate measured red at `d61ab9e` with the task's own changes stashed, and again on a
+deleted `.next` (3,079.7ms and 3,077.3ms).
+
+**That baseline could not answer the question it was asked.** `d61ab9e` is on the same
+branch. A baseline separates "did we cause it" from "is the host slow tonight" only if it
+sits on the other side of the change. The one that does:
+
+```
+main   0bac9bd   2,924.3ms median   exit 0   GREEN
+branch fdff259   3,078.3ms median   exit 1   RED
+```
+
+Same host, same committed config, minutes apart, both on a deleted `.next`. The
+distributions do not overlap — main's slowest run is 8ms below the branch's fastest — so it
+was never the bimodal split. It was a Phase 2 regression, and ADR 0014's closing bullet
+forbids the explanation that was used without measuring `main` first.
+
+**The cause was a shared CSS module, and it was read out of the build rather than reasoned
+about.** `/p/1` was serving four render-blocking stylesheets where `main` serves two,
+because `app/(admin)/layout.tsx` imported `../(diary)/fonts` and `app/(admin)/admin.css`
+`@import`s the same `tokens.css` `diary.css` does. A module reachable from two route entries
+cannot be merged into either entry's stylesheet, so each became a chunk the diary had to
+fetch. The full isolation — one variable per build — and the decision are
+`docs/adr/0019-the-admin-performance-gate-and-the-css-seam.md`.
+
+Fixed by giving `(admin)` its own font declarations. `/p/1` measures **2,926.1ms and
+2,925.8ms** across two runs, within 1.8ms of `main`. **The budget was never moved.**
+
+**How to check this one first, next time:** count the `<link rel="stylesheet">` elements a
+production `/p/1` serves before looking at the LCP number. Two is the shape.
 
 ### `test:perf` stopped being a `&&` chain, because the chain hid the new gate
 

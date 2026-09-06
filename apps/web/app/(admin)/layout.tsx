@@ -24,15 +24,20 @@
  *
  * All three `next/font/local` variable classes are applied to `<html>` so
  * their generated `--font-*` custom properties are in scope for the
- * `--td-font-*` tokens `admin.css` redefines. They are imported from the
- * diary group's `fonts.ts` rather than re-declared: `next/font/local`
- * registers each face once per MODULE, so a second declaration of the same
- * five files would emit a second set of `@font-face` rules and a second
- * preload for bytes the browser already has. The module's folder is a legacy
- * of the diary being the first surface to need type, not a statement that the
- * faces belong to it.
+ * `--td-font-*` tokens `admin.css` redefines. They come from THIS group's own
+ * `./fonts.ts`, not from the diary group's.
+ *
+ * THAT IS A CORRECTION, AND IT IS THE REASON THE DIARY'S LCP GATE WENT RED.
+ * Until Phase 2 Task 11's fix round this file imported `../(diary)/fonts`, to
+ * avoid a second `@font-face` set for bytes the browser already has. Nothing
+ * was saved: `(diary)` and `(admin)` have separate root layouts, so no
+ * document ever loads both and there is no browser that already has them. What
+ * it cost was real — a module reachable from two route entries cannot be
+ * merged into either entry's stylesheet, so it became a chunk of its own that
+ * `/p/1` then had to fetch before it could paint. `./fonts.ts`'s header has
+ * the measurements and what is and is not duplicated.
  * Depends on: ./admin.css (which imports the token custom properties),
- * ../(diary)/fonts.ts.
+ * ./fonts.ts.
  */
 /* c8 ignore start -- The document shell: a Next.js root layout is never
  * imported by any test in either Vitest config (rendering one needs a real
@@ -46,7 +51,7 @@
 import type { Metadata } from 'next'
 import type React from 'react'
 import './admin.css'
-import { caveat, courierPrime, ebGaramond } from '../(diary)/fonts'
+import { caveat, courierPrime, ebGaramond } from './fonts'
 
 /**
  * The admin's fallback document title. `/admin/sign-in` overrides it with its

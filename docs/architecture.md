@@ -32,10 +32,24 @@ to `/admin` and its descendants, so a sign-in screen served from `/signin` would
 cookie it could never read back and the signed-in state would never render (phase ruling
 F41). `(admin)` is a third ROOT layout, alongside `(diary)`'s and `(payload)`'s, for the
 same reason those two are separate: Payload wraps its routes in its own `RootLayout`, and
-the diary's document is built around a scaled paper object. It shares the diary group's
-`fonts.ts` rather than re-declaring the five faces, because `next/font/local` registers
-each face once per module and a second declaration would emit a second set of
-`@font-face` rules and a second preload for bytes the browser already has.
+the diary's document is built around a scaled paper object. It declares its own
+`fonts.ts` from the same five `.woff2` files rather than importing the diary group's.
+
+**That is the CSS seam, and it is an invariant rather than a preference.** The admin group
+imported `(diary)/fonts` until Phase 2 Task 11's fix round, to avoid a second set of
+`@font-face` rules "for bytes the browser already has" — and no browser ever has them,
+because the two groups have separate root layouts and no document loads both. What the
+sharing cost was paid by the public diary: **a module reachable from both route entries
+cannot be merged into either entry's stylesheet**, so it becomes a chunk of its own, and
+that chunk was then served on `/p/1` — the route `CLAUDE.md` §6's LCP budget gates. Four
+render-blocking stylesheets where `main` served two, and the gate went red.
+
+So: a module imported by both `app/(diary)/**` and `app/(admin)/**` is a request the diary
+pays for. One crossing remains and is deliberate — `admin.css` and `diary.css` both
+`@import` `@travel-diary/tokens/tokens.css`, the single source of truth for the `--td-*`
+properties — and it was measured before it was kept, at about 1.3ms of LCP.
+`docs/adr/0019-the-admin-performance-gate-and-the-css-seam.md` has the isolation, the
+numbers and the option it rejected.
 
 `packages/domain` holds everything testable without a browser or a database: the flip
 machine, book scaling, page numbering, contents pagination, bookmark spans, the OTP
