@@ -1095,8 +1095,9 @@ would claim a measurement nothing performs.
   deleted. It needs no browser and no `page` fixture, so it costs the run a file read.
 
   **A third case was added in Phase 1's final review, for the same defect shape in a
-  different list.** `npm run test:perf` chains TWO `lhci autorun` invocations, one per
-  `lighthouserc*.json`, because lhci's collect settings are per-run rather than per-URL
+  different list.** `npm run test:perf` chains one `lhci autorun` invocation per
+  `lighthouserc*.json` — two when this case was written, **three since Phase 2 Task 11 added
+  `lighthouserc.admin.json`** — because lhci's collect settings are per-run rather than per-URL
   and the book's 1350x940 desktop viewport cannot share a run with the gallery's phone
   emulation (ADR 0014). Nothing enforced the pairing: collapsing the script to one
   command — a plausible tidy-up — would have silently stopped gating the book surface,
@@ -1107,7 +1108,10 @@ would claim a measurement nothing performs.
   hard-coding the pair is what makes it catch a THIRD configuration added and never run.
   Proved able to fail: `test:perf` was collapsed to the first command alone, the case
   failed naming `lighthouserc.book.json`, and the script was restored — both runs are
-  pasted in this task's report.
+  pasted in this task's report. **It then did exactly what it was written for.** Phase 2
+  Task 11 added `lighthouserc.admin.json` to the repository root, and the case failed naming
+  that file before `test:perf` was updated to run it — which is the third-config scenario the
+  "read the filenames off disk" decision was made for.
 
   **The fourth time, the guard was there and did not fire — so it moved into `verify`
   (ruling F57).** Phase 2 Task 9 found `e2e/codeStep.spec.ts` named by `npm run test:e2e`
@@ -1578,17 +1582,44 @@ so.**
 | `largest-contentful-paint` | `lighthouserc.json` | `/gallery/patagonia` | ≤4000ms |
 | `resource-summary:script:size` | both | `/p/1` (both surfaces), `/gallery/<slug>` | ≤184320 bytes (180KB, `CLAUDE.md` §6) |
 | `resource-summary:image:size` | `lighthouserc.json` | `/gallery/<slug>` | ≤600000 bytes |
-| `cumulative-layout-shift` | both | every collected URL | ≤0.1 |
-| `http-status-code` | both | every collected URL | `minScore: 1` |
+| `largest-contentful-paint` | `lighthouserc.admin.json` | `/admin/sign-in`, `/admin/sign-in/code`, `/admin/reset` (1440x900 desktop) | **≤3000ms** |
+| `resource-summary:script:size` | `lighthouserc.admin.json` | the same three admin routes | ≤327680 bytes (320KB, `CLAUDE.md` §6) |
+| `cumulative-layout-shift` | all three | every collected URL | ≤0.1 |
+| `http-status-code` | all three | every collected URL | `minScore: 1` |
 | — | `lighthouserc.json` | `/cms` | `http-status-code` and CLS only: no LCP, no script budget |
 
-Both configs collect `numberOfRuns: 5` and every `assertMatrix` entry carries
-`"aggregationMethod": "median"`. `npm run test:perf` runs **both** configs, and both are
-gates; `e2e/ciRegistration.test.ts` asserts that the script still names both files.
+All three configs collect `numberOfRuns: 5` and every `assertMatrix` entry carries
+`"aggregationMethod": "median"`. `npm run test:perf` runs **all three**, and all three are
+gates; `e2e/ciRegistration.test.ts` asserts that the script still names every
+`lighthouserc*.json` on disk — it reads the filenames off the repository root rather than
+hard-coding the pair, which is what made it catch `lighthouserc.admin.json` the moment that
+file landed and before the script named it.
 
-**Both gates are green.** Last measured at Phase 1's final review, one
+**`lighthouserc.admin.json` is Phase 2 Task 11, and it is the first performance gate the
+admin has ever had.** Tasks 7, 8 and 9 each reported `CLAUDE.md` §6's admin budgets
+UNRESOLVED for the same reason: `lighthouserc.json` and `lighthouserc.book.json` between them
+cover the diary's two surfaces and the gallery, and nothing covered `/admin/*` at all. It is
+a third config rather than three more URLs in an existing one for exactly the reason ADR 0014
+gives for the book's: lhci's collect settings are per-run, not per-URL, and the admin is an
+authoring surface measured at a desktop viewport rather than under phone emulation.
+
+**Three of the four sign-in screens are collected, and the fourth is bounded rather than
+guessed.** `/admin/sign-in/done` is behind the session guard, so Lighthouse — which sends no
+cookie — collects the redirect rather than the screen. Rather than fabricate a session for
+the collector, it is left out and the reasoning recorded: it ships strictly fewer client
+modules than the three that are collected, because `SignedInStep` is not a `'use client'`
+component and the other three panes are, so its script total cannot exceed theirs.
+
+**INP has no Lighthouse lab equivalent** — it is a field metric — so `CLAUDE.md` §6's
+≤200ms is not asserted by any of the three configs, here or on the diary. What the lab can
+say is total blocking time, which measured **20ms** on all three admin routes. Stated here
+rather than left to be assumed from a green run.
+
+**The two diary configs, last measured at Phase 1's final review** — one
 `npm run test:perf` inside `mcr.microsoft.com/playwright:v1.62.1-noble`, each config
-building the app itself first:
+building the app itself first. Both were green then; `lighthouserc.book.json` is **red on
+this host today**, and the paragraph below the next table has the numbers and what was done
+to establish that it is the measurement rather than the diary that moved:
 
 | Route (config) | Metric | Median of 5 | Gate | Margin |
 |---|---|---|---|---|
@@ -1609,6 +1640,65 @@ absorb, and is why `optimistic` (lhci's default, which takes the minimum) would 
 reported this route at 2,404.94ms and called 500ms of headroom that does not exist.
 `/cms` measured 4,880.39ms of LCP and 647,142 script bytes, neither of them gated, for
 the reason its row above gives.
+
+**The admin gate, measured for the first time in Phase 2 Task 11** — on this Windows host
+against a production `next build` + `next start`, five runs per URL. Run twice; the second
+run's medians are in brackets, and the gate passed both times:
+
+| Route (`lighthouserc.admin.json`) | Metric | Median of 5 | Gate | Margin |
+|---|---|---|---|---|
+| `/admin/sign-in` | LCP | **2,928.4ms** (2,927.9) | 3000 | 71.6ms |
+| `/admin/sign-in` | script | 140,641 B (identical) | 327,680 | 187,039 B |
+| `/admin/sign-in/code` | LCP | **2,928.4ms** (2,927.0) | 3000 | 71.6ms |
+| `/admin/sign-in/code` | script | 141,323 B (identical) | 327,680 | 186,357 B |
+| `/admin/reset` | LCP | **2,926.9ms** (2,928.0) | 3000 | 73.1ms |
+| `/admin/reset` | script | 140,489 B (identical) | 327,680 | 187,191 B |
+
+CLS was **0.0000** on all thirty runs and `http-status-code` scored 1 on every one. Total
+blocking time was 19–21ms throughout. The LCP spread is tight — across both runs the slowest
+of the thirty is 2,941ms and the fastest 2,924ms — which is the framework floor ADR 0008
+measured (2,023.2ms for one styled heading with no application code) plus three panes that
+fetch nothing.
+
+**The admin gate is unaffected by the diary's bimodal split, and the diary's is currently
+red on this host.** `lighthouserc.book.json`'s `/p/1` measured medians of 3,082.6 and
+3,080.2ms across two `npm run test:perf` runs, against its unchanged 3,000ms budget. That is
+the phenomenon ADR 0008 named ("two modes about 149ms apart") and ADR 0014 characterised over
+twenty runs; the low mode still appears (one run of 2,928.8ms) but is now the rarer one. It
+is **not** Task 11's doing, and that was measured rather than argued: the whole task was
+stashed and `lighthouserc.book.json` re-run against a clean checkout of `d61ab9e`, which
+produced a median of **3,079.7ms** — the same failure with none of the change present.
+Deleting `.next` entirely and rebuilding produced 3,077.3ms, so it is not ADR 0008's warm
+volume either. **The budget has not been moved.** Raising a gate to accommodate a real
+regression is dishonest (ADR 0014 says so in its own opening); what is needed here is the
+kind of characterisation ADR 0014 did, on a host whose distribution has since shifted, and
+that is a task of its own rather than a line in this one.
+
+**One ordering consequence of the chain, stated so it is not discovered.** `npm run test:perf`
+joins the three invocations with `&&`, so a red diary gate short-circuits before the admin
+config runs at all. That is the right failure mode for a gate — fail fast — but it means the
+admin numbers above were collected by invoking `lighthouserc.admin.json` directly while the
+book gate is red.
+
+**A second, independent measurement of the same budget**, because the two count differently
+and the difference is worth writing down rather than rediscovering. Lighthouse's
+`resource-summary:script:size` is the transfer size of the scripts the page actually fetched.
+Task 7's review measured the admin's route JS a different way — every script the built
+document requests, gzipped individually and summed — and got **175,552 bytes (171KB)**.
+Repeating Task 7's method now, against the same production build, on each of the four
+sign-in addresses:
+
+```
+/admin/sign-in         : 8 scripts, 176,423 bytes gzipped = 172.3 KB
+/admin/sign-in/code    : 8 scripts, 177,105 bytes gzipped = 173.0 KB
+/admin/reset           : 8 scripts, 176,271 bytes gzipped = 172.1 KB
+/admin/reset/<40 hex>  : 8 scripts, 176,211 bytes gzipped = 172.1 KB
+```
+
+So Task 7's figure still holds: three more screens and the whole route layer have landed
+since, and `/admin/sign-in` has grown by 871 bytes. Both methods sit far inside 320KB, and
+the gate asserts the Lighthouse one because that is what the diary's two configs already
+assert — a gate that measures the same budget two ways is two gates that can disagree.
 
 **Why 3000 and not 2500.** `CLAUDE.md` §6's LCP budget was 2,500ms from Phase 0 until
 Phase 1 Task 13. `docs/adr/0008-lcp-budget-and-the-framework-floor.md` measured what this
