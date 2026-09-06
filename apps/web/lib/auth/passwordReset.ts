@@ -46,16 +46,23 @@
  * that offers no secret at all, and a third `endpoint` value would need a
  * migration to add an enum member for a distinction nothing acts on.
  *
- * ONE RESIDUAL IS ACCEPTED AND NAMED RATHER THAN HIDDEN: THE TIMING. The hit
- * path performs a row update and a mail dispatch that the miss path does not,
- * so the two are distinguishable by how long they take, and by how long the
- * mail provider takes in particular. `SECURITY.md` asks for identical timing
- * of the sign-in miss and mismatch specifically, and of this endpoint asks
- * only that it "respond identically", which is discharged. Closing the timing
- * too means dispatching the mail through the queue Phase 0 built rather than
- * inline, so that the answer is composed before the provider is called —
- * which is a change to how the OTP code is sent as well, since the two must
- * not diverge, and is not this task's to make.
+ * TWO RESIDUALS ARE ACCEPTED AND NAMED RATHER THAN HIDDEN.
+ *
+ * THE FIRST IS THE TIMING. The hit path performs a row update and a mail
+ * dispatch that the miss path does not, so the two are distinguishable by how
+ * long they take, and by how long the mail provider takes in particular.
+ * `SECURITY.md` asks for identical timing of the sign-in miss and mismatch
+ * specifically, and of this endpoint asks only that it "respond identically",
+ * which is discharged. **This is a scope boundary, not an impossibility, and
+ * it has a known cost.** Closing it means dispatching the mail through the
+ * queue Phase 0 already built, so the answer is composed before the provider
+ * is called. What that costs: the OTP code is sent inline too, and the two
+ * send paths should not diverge without a reason, so the honest version of
+ * the change moves both — a change to `otpService.ts`'s tested delivery
+ * behaviour and to what "the code was sent" means when `issueChallenge`
+ * returns. Deliberately not folded into the task that introduced this module.
+ *
+ * THE SECOND IS `'delivery-failed'` — see its own declaration.
  *
  * INVARIANT — NOTHING HERE LOGS OR RETURNS AN ADDRESS OR A TOKEN. The token
  * exists only in the local binding below and in the body handed to the

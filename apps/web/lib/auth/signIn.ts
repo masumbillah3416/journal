@@ -93,7 +93,7 @@
 import { pbkdf2, randomBytes } from 'node:crypto'
 import { type SessionId, type UserId, userId } from '@travel-diary/domain/ids'
 import { type Result, err, isOk, ok } from '@travel-diary/domain/result'
-import { AuthenticationError, LockedAuth, ValidationError } from 'payload'
+import { AuthenticationError, LockedAuth, UnverifiedEmail, ValidationError } from 'payload'
 import type { Payload } from 'payload'
 import type { OtpService } from './otpService'
 import type { SignInRateLimiter } from './rateLimit'
@@ -290,26 +290,39 @@ const accountOf = (rawId: number): UserId => {
 }
 
 /**
- * The three Payload error classes that mean "this request is refused", as
- * opposed to "this request could not be answered".
+ * Every Payload error class that means "this request is refused", as opposed
+ * to "this request could not be answered".
  *
  * Payload signals a decision by throwing, so a `catch` here has to classify
  * rather than assume — see {@link checkPassword} for what assuming cost. Each
- * of the three is on the list for a reason and none is speculative:
- * `AuthenticationError` is a wrong password; `LockedAuth` is an account locked
- * by a request racing this one, past the read above; `ValidationError` is an
- * absent or whitespace-only password, which `loginOperation` refuses before it
- * looks anything up. A reader can cause all three by typing, and none of them
- * is an incident.
+ * entry is a thing a READER CAN CAUSE BY TYPING, and none of them is an
+ * incident: `AuthenticationError` is a wrong password; `LockedAuth` is an
+ * account locked by a request racing this one, past the read above;
+ * `ValidationError` is an absent or whitespace-only password, which
+ * `loginOperation` refuses before it looks anything up.
+ *
+ * `UnverifiedEmail` IS ON THE LIST WHILE IT IS STILL UNREACHABLE, DELIBERATELY.
+ * `loginOperation` throws it when `collectionConfig.auth.verify` is set and the
+ * account's `_verified` is false, and `apps/web/collections/users.ts` sets no
+ * `verify` — so nothing can raise it today. It is listed anyway because the day
+ * somebody switches verification on, an unverified reader's own sign-in would
+ * otherwise fall through to `'unavailable'`: their every attempt would be
+ * reported to the operator as an outage, which is precisely the reader-caused
+ * log flooding the "says nothing to the operator about an ordinary wrong
+ * password" case exists to prevent. Omitting it costs nothing to write and is
+ * invisible to find later — the symptom is a log filling up, three files away
+ * from the config change that caused it.
  *
  * Written as a list tested with `some` rather than a chain of `instanceof`s
  * joined by `||`, so there is ONE branch here and both of its arms are
- * reachable. A chain would add an arm per class, and `LockedAuth`'s could only
- * be reached through a race no test can schedule — an unreachable arm excused
- * by a comment, which is what this repository keeps finding under lowered
- * thresholds.
+ * reachable however long the list grows. A chain would add an arm per class,
+ * and neither `LockedAuth`'s nor `UnverifiedEmail`'s could be reached — one
+ * needs a race no test can schedule, the other a config this repository does
+ * not set — so each would be an unreachable arm excused by a comment, which is
+ * what this repository keeps finding under lowered thresholds. That shape is
+ * also why adding `UnverifiedEmail` here is one line rather than a decision.
  */
-const PAYLOAD_REFUSALS = [AuthenticationError, LockedAuth, ValidationError]
+const PAYLOAD_REFUSALS = [AuthenticationError, LockedAuth, UnverifiedEmail, ValidationError]
 
 /**
  * What the operator is told when Payload cannot answer at all.

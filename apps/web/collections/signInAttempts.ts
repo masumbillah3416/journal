@@ -80,18 +80,16 @@ export const SignInAttempts: CollectionConfig = {
     // closed set rather than free text: an attempt is counted per account or
     // per address, and a third value would be a window nothing enforces.
     //
-    // `'account'` IS NOW A SLIGHT MISNOMER ON THE PASSWORD ENDPOINT, AND THE
-    // VALUE IS DELIBERATELY LEFT ALONE. Since phase ruling F43 that dimension
-    // holds a hash of the CLAIMED ADDRESS there rather than an account row id
-    // (see `subject` below) — because at the password step no account is known
-    // yet. `'subject'` would name it better across both endpoints, and it is
-    // not worth what changing it costs: this is a Payload `select`, so the
-    // value is a Postgres enum member, and renaming it means a migration that
-    // adds the new member, rewrites every live row, and drops the old one —
-    // and `ALTER TYPE` cannot drop an enum member, so the down migration has
-    // to recreate the type and re-point the column. That is real risk on the
-    // table an attacker's traffic lands in, bought for a better word. If a
-    // future migration touches this table for another reason, rename it then.
+    // `'account'` NAMES THE DIMENSION, NOT THE ENCODING OF THE SUBJECT, and it
+    // is still the right name after phase ruling F43. What the enum says is
+    // WHAT IS BEING LIMITED — `SECURITY.md` §3 asks for a window "per account
+    // and per IP" — and a per-account window is still a per-account window
+    // whether the key it counts under is the account's row id (the code
+    // endpoint, where the account is settled) or a hash of the claimed address
+    // (the password endpoint, where it is not yet known and half the requests
+    // name none). See `subject` below for that distinction, which belongs
+    // there because it is about how the key is written, not about what the
+    // window is for.
     { name: 'dimension', type: 'select', options: ['ip', 'account'], required: true },
     // Which endpoint the attempt was made against. The two are counted
     // separately (see `IP_ATTEMPT_LIMIT`): a reader who has fumbled their
