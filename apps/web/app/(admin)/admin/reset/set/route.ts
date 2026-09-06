@@ -21,7 +21,13 @@
  *
  * THE STATIC SEGMENT CANNOT COLLIDE WITH THE DYNAMIC ONE BESIDE IT. Next.js
  * resolves `set` before `[token]`, and no token can be the string `set`:
- * Payload mints them as hexadecimal.
+ * Payload mints them as hexadecimal. That reasoning was written here and not
+ * applied one directory up, where `/admin/reset/request` - which has no route
+ * of its own yet - was swallowed by `[token]` for a whole commit. It is now a
+ * list rather than a comment: `lib/auth/resetPath.ts`'s
+ * `RESERVED_RESET_SEGMENTS` names `set` and `request` both, `readNewPasswordScreen`
+ * answers 404 for either, and `resetPath.test.ts` fails the build if a new
+ * address appears under this prefix without being added (ruling F56).
  * Depends on: `handleSetNewPassword` (../../../../../lib/auth/newPasswordScreen).
  */
 /* c8 ignore start -- Framework passthrough with no authored logic whatsoever:

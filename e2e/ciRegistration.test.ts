@@ -1,5 +1,5 @@
 /**
- * ciRegistration.spec.ts — everything this repository asks CI to run is
+ * ciRegistration.test.ts — everything this repository asks CI to run is
  * actually named by the command that runs it.
  *
  * TWO SUBJECTS, ONE MECHANISM. The first is spec registration (below); the
@@ -55,18 +55,34 @@
  * the config files are read off the filesystem, the script is read out of
  * `package.json`, and the case fails naming exactly which config nothing runs.
  *
- * It needs no browser and no server, and takes no `page` fixture, so it costs
- * the run nothing but the file read. Adding a spec means adding one name to
- * one `run:` line and one npm script; adding a Lighthouse configuration means
- * adding one command to `test:perf`; this file is what says so, at the moment
- * either is forgotten.
- * Depends on: @playwright/test, node:fs, node:path, node:url,
+ * ═══ WHY IT IS A VITEST TEST IN THE `e2e` DIRECTORY (RULING F57) ═══
+ *
+ * It was a Playwright spec until the Task 9 review, and being one is why it
+ * had never fired. A spec runs in the CI browser job or in a full
+ * `npm run test:e2e` - never in `npm run verify`, the gate Husky runs before
+ * every commit - so it could only report the drift AFTER a full CI run, which
+ * is exactly how `e2e/codeStep.spec.ts` gated nothing for two commits: the
+ * detector lived in the job nobody ran. It needs no browser, no server and no
+ * `page` fixture; it reads four files off disk. So it is a `*.test.ts`,
+ * collected by `vitest.config.ts`'s `unit` project, and a commit that forgets
+ * a `run:` line now fails at the moment it is made.
+ *
+ * IT STAYS IN `e2e/` ON PURPOSE. Its whole subject is this directory's
+ * contents, and a guard that lives beside what it guards is one a reader
+ * finds when they add a spec. `playwright.config.ts` narrows its own
+ * `testMatch` to `*.spec.ts` so Playwright does not try to run this file as a
+ * browser test - Playwright's default match includes `*.test.ts`.
+ *
+ * Adding a spec means adding one name to one `run:` line and one npm script;
+ * adding a Lighthouse configuration means adding one command to `test:perf`;
+ * this file is what says so, at the moment either is forgotten.
+ * Depends on: vitest, node:fs, node:path, node:url,
  * .github/workflows/ci.yml, package.json, lighthouserc*.json.
  */
-import { expect, test } from '@playwright/test'
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { expect, test } from 'vitest'
 
 /** This directory, and the repository root one level above it. */
 const E2E_DIR = path.dirname(fileURLToPath(import.meta.url))

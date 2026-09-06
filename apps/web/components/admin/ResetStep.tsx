@@ -69,6 +69,14 @@ import styles from './signIn.module.css'
  * Exported so the handler mounts at the path this form actually targets
  * rather than at a second spelling of it, exactly as
  * `PASSWORD_STEP_ENDPOINT` is.
+ *
+ * THE SEGMENT IS RESERVED (ruling F56). `app/(admin)/admin/reset/[token]`
+ * matches any single segment under `/admin/reset`, so until `request` was
+ * named in `lib/auth/resetPath.ts`'s `RESERVED_RESET_SEGMENTS`, submitting
+ * this form answered 200 with "That link has expired" instead of the 404 it
+ * had answered before that route existed. Adding any further address under
+ * this prefix means reserving it there too, which `resetPath.test.ts` fails
+ * the build over.
  */
 export const RESET_REQUEST_ENDPOINT = '/admin/reset/request'
 
@@ -87,9 +95,10 @@ const ERROR_ID = 'reset-error'
 /**
  * The rest of the confirmation sentence, after the masked address.
  *
- * Exported so a test can assert the whole sentence without spelling the
- * prototype's copy a second time - two copies of a string that must match is
- * the shape this phase keeps finding defects in.
+ * The prototype's copy, verbatim. `ResetStep.test.tsx` spells it out a second
+ * time rather than importing it into its own assertion: an assertion pinned
+ * against the constant that renders it moves with any edit and cannot fail,
+ * which is what a specification assertion exists not to do.
  */
 export const SENT_CONFIRMATION_TAIL = ' — including the spam folder, where it usually is.'
 

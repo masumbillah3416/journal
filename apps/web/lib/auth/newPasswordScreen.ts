@@ -62,13 +62,27 @@
  * the token in the body, which is a secret an attacker forging a cross-site
  * request does not have, so a forged post can spend no link it could not
  * already spend directly. Recorded in docs/security.md.
- * Depends on: `newPasswordView` (@travel-diary/domain/auth/resetScreen), zod,
- * `getPayload` (../payload), ./setNewPassword, ./resetPath.
+ *
+ * ═══ A SIBLING ROUTE'S NAME IS NOT A TOKEN (RULING F56) ═══
+ *
+ * The `[token]` segment matches ANY single segment under `/admin/reset`,
+ * including `/admin/reset/request` - the address SCREENS.md §3.3's own "Send
+ * the link" button posts to, which Task 10 mounts. Until this guard existed,
+ * submitting §3.3's form answered 200 with "That link has expired": a screen
+ * telling the reader that a link they had never asked for was dead, on the one
+ * screen whose whole subject is that link. The guard is HERE rather than in
+ * the route file for the reason the whole module exists - a branch in
+ * `[token]/page.tsx` is a branch no coverage pass can see.
+ *
+ * Depends on: `newPasswordView` (@travel-diary/domain/auth/resetScreen),
+ * `notFound` (next/navigation), zod, `getPayload` (../payload),
+ * ./setNewPassword, ./resetPath.
  */
 import { type NewPasswordView, newPasswordView } from '@travel-diary/domain/auth/resetScreen'
+import { notFound } from 'next/navigation'
 import { z } from 'zod'
 import { getPayload } from '../payload'
-import { RESET_PATH } from './resetPath'
+import { isReservedResetSegment, RESET_PATH } from './resetPath'
 import { createNewPasswordService } from './setNewPassword'
 
 /** Where a reader goes once the new password is theirs. */
@@ -102,10 +116,17 @@ export interface NewPasswordScreenRequest {
  *
  * @param request - See {@link NewPasswordScreenRequest}.
  * @returns The view the route hands to `NewPasswordStep`.
+ * @throws The error `next/navigation`'s `notFound()` raises, when the segment
+ *   names a sibling route rather than a token - see this module's header. It
+ *   is a throw rather than a returned view because the answer is a status, not
+ *   a screen: `/admin/reset/request` must 404 exactly as it did before the
+ *   dynamic segment was mounted above it.
  * @example
  * const view = await readNewPasswordScreen({ token, state })
  */
 export const readNewPasswordScreen = async ({ token, state }: NewPasswordScreenRequest): Promise<NewPasswordView> => {
+  if (isReservedResetSegment(token)) notFound()
+
   const service = createNewPasswordService({ payload: await getPayload() })
   return newPasswordView(await service.linkState(token), state)
 }

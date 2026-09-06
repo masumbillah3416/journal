@@ -54,6 +54,15 @@ const UNKNOWN_TOKEN = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
 /** What the endpoint is asked at. Only its shape matters to `handleSetNewPassword`. */
 const ENDPOINT = 'http://localhost:3000/admin/reset/set'
 
+/**
+ * The `digest` Next.js puts on the error `notFound()` throws.
+ *
+ * Asserted rather than the error's class, because the class is `Error`: the
+ * digest is the whole of what distinguishes a 404 from any other rejection,
+ * and it is the value Next's own router reads to decide the status.
+ */
+const NOT_FOUND_DIGEST = 'NEXT_HTTP_ERROR_FALLBACK;404'
+
 /** Distinguishes one fixture from the next within a single run. */
 let fixtureCount = 0
 
@@ -197,6 +206,26 @@ describe('what a GET of the screen is told', () => {
 
   it('refuses to draw the form for a spent link, whatever the address bar asks', async () => {
     expect(await readNewPasswordScreen({ token: UNKNOWN_TOKEN, state: 'rejected' })).toBe('expired')
+  })
+
+  it('404s on a reserved segment rather than reading it as a token', async () => {
+    // Ruling F56. `[token]` sits directly above the address §3.3's own form
+    // posts to, so before the reservation `request` was a valid token
+    // spelling and "Send the link" answered 200 with "That link has expired" -
+    // a screen telling the reader that a link they never asked for is dead.
+    // The digest is Next's own contract for `notFound()`, and it is what
+    // makes the route answer 404 rather than draw anything at all.
+    await expect(readNewPasswordScreen({ token: 'request', state: undefined })).rejects.toMatchObject({
+      digest: NOT_FOUND_DIGEST,
+    })
+  })
+
+  it('draws the expired state for every reserved segment’s near neighbours', async () => {
+    // The pair that proves the case above is about the reservation and not
+    // about "any token that is not hexadecimal": both of these reach Payload,
+    // are refused there, and get a screen rather than a 404.
+    expect(await readNewPasswordScreen({ token: 'requests', state: undefined })).toBe('expired')
+    expect(await readNewPasswordScreen({ token: UNKNOWN_TOKEN, state: undefined })).toBe('expired')
   })
 })
 

@@ -45,6 +45,13 @@ const baseURL = `http://localhost:${PORT}`
 /** Shared browser test configuration for CI, local runs and headed sweeps. */
 export default defineConfig({
   testDir: './e2e',
+  // Playwright's default `testMatch` collects `*.test.ts` as well as
+  // `*.spec.ts`, and `e2e/ciRegistration.test.ts` is a Vitest test that lives
+  // here on purpose (ruling F57 - it guards this directory's registration and
+  // runs in `npm run verify`). Narrowed so the two runners cannot collect each
+  // other's files: without it, `npm run test:e2e:headed`, which names no files
+  // at all, would try to run that one as a browser test.
+  testMatch: '**/*.spec.ts',
   fullyParallel: true,
   // LOCALLY THIS IS A CAP ON THE DEV SERVER, NOT ON THE BROWSER. `webServer`
   // below runs `next dev` for a local run and a production build in CI, and

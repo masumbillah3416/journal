@@ -184,9 +184,13 @@ would claim a measurement nothing performs.
 - **Tool:** Vitest.
 - **Scope:** pure functions, state machines, mappers, validators. No I/O.
 - **Status:** implemented, as TWO Vitest projects (`vitest.config.ts`):
-  - `unit` — `packages/*/src/**/*.test.ts`, `apps/web/lib/**/*.test.ts` and
-    `apps/web/scripts/**/*.test.ts`, excluding `*.integration.test.ts`. Node
-    environment; these files are pure.
+  - `unit` — `packages/*/src/**/*.test.ts`, `apps/web/lib/**/*.test.ts`,
+    `apps/web/scripts/**/*.test.ts`, `apps/web/*.test.ts` and `e2e/**/*.test.ts`,
+    excluding `*.integration.test.ts`. Node environment; these files are pure. The last
+    glob collects exactly one file, `e2e/ciRegistration.test.ts` — the guard that says
+    every browser spec is named by CI and by an npm script, which is a file read rather
+    than a browser test and belongs in the pre-commit gate it protects (ruling F57, and
+    the browser-suite section below).
   - `unit-dom` — `packages/*/src/**/*.test.tsx` and `apps/web/**/*.test.tsx`, in a
     **jsdom** environment, with esbuild's automatic JSX runtime so a component test
     needs no `import React`. A separate project rather than a wider glob on `unit`
@@ -1078,7 +1082,8 @@ would claim a measurement nothing performs.
   landing a spec.
 
   **The third time, it was made impossible instead.** Task 13 added
-  **`e2e/ciRegistration.spec.ts`**, whose whole subject is the two lists above. It
+  **`e2e/ciRegistration.spec.ts`** (a Vitest test, `e2e/ciRegistration.test.ts`, since
+  Phase 2 — see below), whose whole subject is the two lists above. It
   globs `e2e/*.spec.ts` off the filesystem, reads the `- run:` command out of
   `.github/workflows/ci.yml`'s browser job and the `test:e2e` / `test:visual` /
   `test:a11y` scripts out of `package.json`, and fails naming exactly which spec is
@@ -1104,6 +1109,25 @@ would claim a measurement nothing performs.
   failed naming `lighthouserc.book.json`, and the script was restored — both runs are
   pasted in this task's report.
 
+  **The fourth time, the guard was there and did not fire — so it moved into `verify`
+  (ruling F57).** Phase 2 Task 9 found `e2e/codeStep.spec.ts` named by `npm run test:e2e`
+  and by no `- run:` line since commit `2d2b3c1`, gating nothing for two commits. The
+  guard above would have caught it — the Task 9 reviewer removed `e2e/reset.spec.ts` from
+  the CI line and watched it fail as designed — but it was a **Playwright spec**, so it
+  ran only in the CI browser job or in a full `npm run test:e2e`, never in
+  `npm run verify`, the gate Husky runs before every commit. A detector that lives in the
+  same job as the thing it detects reports the fire from inside the building. It is
+  `e2e/ciRegistration.test.ts` now: the same three cases, importing `vitest` instead of
+  `@playwright/test`, collected by `vitest.config.ts`'s `unit` project via its
+  `e2e/**/*.test.ts` glob, so a commit that forgets a `run:` line fails at the moment it
+  is made. It stays in `e2e/` because that directory is its subject, and
+  `playwright.config.ts` narrows its own `testMatch` to `**/*.spec.ts` so the two runners
+  cannot collect each other's files. It is no longer named by `test:e2e` or by the CI
+  browser job, because it is not a browser test — `npm run verify` runs it, and CI runs
+  `npm run verify:full`. Proved able to fail in its new home: `e2e/reset.spec.ts` was
+  removed from the CI `run:` line and `npx vitest run --project unit e2e/ciRegistration.test.ts`
+  failed naming it; the line was restored.
+
 - **Three viewport projects** — `desktop` (1440×900), `mid` (1000×800), `mobile`
   (390×844; `isMobile`/`hasTouch` set) — run every spec three times, once per breakpoint
   named in the Task 12 brief. All three use Chromium, not a mix of engines: this
@@ -1117,9 +1141,10 @@ would claim a measurement nothing performs.
   `e2e/notes.spec.ts`, `e2e/frames.spec.ts`, `e2e/about.spec.ts`,
   `e2e/imageWindow.spec.ts`, `e2e/serverWindow.spec.ts`, `e2e/routing.spec.ts`,
   `e2e/gallery.spec.ts`, `e2e/mobile.spec.ts`, `e2e/signIn.spec.ts`,
-  `e2e/codeStep.spec.ts`, `e2e/reset.spec.ts` and `e2e/ciRegistration.spec.ts` — the
-  authoritative list is the script itself, and `e2e/ciRegistration.spec.ts` is what makes
-  the two agree); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
+  `e2e/codeStep.spec.ts` and `e2e/reset.spec.ts` — the
+  authoritative list is the script itself, and `e2e/ciRegistration.test.ts`, which runs in
+  `npm run verify`, is what makes the two agree); `npm run test:e2e:headed` (all
+  `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.
@@ -1129,8 +1154,9 @@ would claim a measurement nothing performs.
   `e2e/smoke.spec.ts` first — a route with no console-error coverage is a route this
   suite is silently not protecting. A new spec file also needs adding to the
   `test:e2e` script AND to `.github/workflows/ci.yml`'s browser job; a spec no script
-  names is a spec CI does not run, and `e2e/ciRegistration.spec.ts` now fails the build
-  when either list is missing one rather than leaving it to be noticed two tasks later.
+  names is a spec CI does not run, and `e2e/ciRegistration.test.ts` now fails
+  `npm run verify` — the pre-commit gate, not two tasks later and not one full CI run
+  later — when either list is missing one.
 
 ### 5 · Visual regression
 
@@ -1558,7 +1584,7 @@ so.**
 
 Both configs collect `numberOfRuns: 5` and every `assertMatrix` entry carries
 `"aggregationMethod": "median"`. `npm run test:perf` runs **both** configs, and both are
-gates; `e2e/ciRegistration.spec.ts` asserts that the script still names both files.
+gates; `e2e/ciRegistration.test.ts` asserts that the script still names both files.
 
 **Both gates are green.** Last measured at Phase 1's final review, one
 `npm run test:perf` inside `mcr.microsoft.com/playwright:v1.62.1-noble`, each config

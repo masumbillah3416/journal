@@ -33,8 +33,18 @@
  * form makes goes to `RESET_REQUEST_ENDPOINT`, a sibling route Task 10 mounts
  * along with the cookie policy, the CSRF check and the admin's CSP — a Next.js
  * page cannot answer a `POST` at its own address, and until that lands this
- * screen's own form posts to a 404 exactly as the password step's does
- * (docs/deviations.md).
+ * screen's own form posts to a 404 (docs/deviations.md §39).
+ *
+ * THAT 404 IS NOT FREE, AND IT IS NOT THE PASSWORD STEP'S KIND. This header
+ * claimed until ruling F56 that the form posted to a 404 "exactly as the
+ * password step's does". It did not: `POST /admin/sign-in/password` 404s
+ * because nothing is mounted anywhere near it, while `/admin/reset/request`
+ * sits under the `[token]` route beside this file, which matches ANY single
+ * segment — so it answered 200 with "That link has expired". What restores the
+ * 404 is `lib/auth/resetPath.ts`'s `RESERVED_RESET_SEGMENTS`, read by
+ * `readNewPasswordScreen`. Measured, both verbs, against the running app:
+ * `GET` and `POST` of `/admin/reset/request` each answer 404, and
+ * `/admin/reset/<40 hex>` still answers 200.
  * Depends on: `resetRequestView` (@travel-diary/domain/auth/resetScreen),
  * `readSignInScreen` (../../../../lib/auth/readSignInScreen),
  * `ResetStep`/`SignInShell` (../../../../components/admin/).

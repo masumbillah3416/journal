@@ -192,7 +192,22 @@ describe('ResetStep, once the link is on its way', () => {
     const block = host.querySelector('[data-reset-sent]')
     expect(block).not.toBeNull()
     expect(block?.querySelector('[data-reset-sent-address]')?.textContent).toBe('he•••@wanderings.travel')
-    expect(block?.textContent).toBe(`Sent. Check he•••@wanderings.travel${SENT_CONFIRMATION_TAIL}`)
+    // THE WHOLE SENTENCE AS A LITERAL, tail included. It was written
+    // `...${SENT_CONFIRMATION_TAIL}` until the Task 9 review, which asserted
+    // the prototype's own words against the constant that renders them - so
+    // an edit to the copy moved both halves together and this case could not
+    // fail. Handoff copy is exactly what a specification assertion exists to
+    // hold still, and the second copy of the string belongs here precisely
+    // because the first one can drift.
+    expect(block?.textContent).toBe(
+      'Sent. Check he•••@wanderings.travel — including the spam folder, where it usually is.',
+    )
+  })
+
+  it('exports that tail as the constant the pane renders', () => {
+    // The other half of the pin: the case above holds the RENDER still, this
+    // one holds the exported string, so the two cannot drift apart quietly.
+    expect(SENT_CONFIRMATION_TAIL).toBe(' — including the spam folder, where it usually is.')
   })
 
   it('prints only what it was given, never an address of its own', () => {

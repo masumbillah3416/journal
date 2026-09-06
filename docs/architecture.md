@@ -185,6 +185,20 @@ HTTP into those calls and back, and is driven by an integration test with a real
 and a real Payload. `app/(admin)/admin/reset/set/route.ts` is one line: `export const POST
 = handleSetNewPassword`.
 
+**A dynamic segment answers for its siblings until it is told not to.**
+`app/(admin)/admin/reset/[token]` matches ANY single segment under `/admin/reset`,
+including `/admin/reset/request` — the address SCREENS.md §3.3's own "Send the link"
+button posts to, which Task 10 mounts. Mounting the token route therefore turned that
+address from a 404 into a 200 drawing "That link has expired", invisibly to every suite,
+because every test addressed the routes directly and none posted the form (ruling F56).
+The seam that fixes it is the same one as everything else here: the LIST of segments that
+are routes rather than tokens is `apps/web/lib/auth/resetPath.ts`'s
+`RESERVED_RESET_SEGMENTS` (pure, unit-gated), the 404 is raised by
+`readNewPasswordScreen` (integration-gated), and the route file still decides nothing.
+`resetPath.test.ts` reads the addresses this surface posts to off its own source and the
+static routes off the filesystem, and fails the build if either names a segment the list
+does not.
+
 **Which state that screen draws is decided by the LINK, not by the address bar.**
 `linkState` asks Payload whether the token still names a row whose expiry is in the
 future; `newPasswordView` combines that with the query, and a spent link draws the expired

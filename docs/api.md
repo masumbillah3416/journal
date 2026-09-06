@@ -444,10 +444,22 @@ for a different reason — see its row.
   `/admin/reset/request` (`RESET_REQUEST_ENDPOINT`, exported from
   `apps/web/components/admin/ResetStep.tsx` so the handler mounts at the path the form
   actually posts to). **Phase 2 Task 10 owns it**, along with the cookie policy, the CSRF
-  check and the admin's CSP; until then that form posts to a `404`, exactly as the
-  password step's does. The service behind it is built and proven
+  check and the admin's CSP; until then that form posts to a `404` — measured, on both
+  verbs, against the running app. The service behind it is built and proven
   (`passwordReset.integration.test.ts`), so what is missing is the endpoint rather than
   the mechanism (`docs/deviations.md` §39).
+
+  **That 404 is held by a reservation, not by absence (ruling F56).** This row said the
+  address 404s "exactly as the password step's does", and that was measurably wrong:
+  `POST /admin/sign-in/password` 404s because nothing is mounted near it, whereas
+  `/admin/reset/request` sits under `GET /admin/reset/<token>` below, whose dynamic
+  segment matches ANY single segment — so for one commit it answered `200` with the
+  expired screen, telling a reader that a link they had never asked for was dead.
+  `apps/web/lib/auth/resetPath.ts`'s `RESERVED_RESET_SEGMENTS` names `request` and `set`,
+  `readNewPasswordScreen` answers `notFound()` for either, and `resetPath.test.ts` fails
+  the build if a further address appears under `/admin/reset/` without being reserved.
+  **Task 10 mounting the handler does not retire the reservation** — a static route wins
+  over a dynamic sibling only while it is mounted at that exact path.
 
   **"Send it again" is a link back to this screen, not a second request.** The
   confirmation is told the masked address and nothing else, so there is nothing left to
@@ -476,8 +488,10 @@ for a different reason — see its row.
   "Send yourself another", with **no form and no field at all**. `metadata` sets the
   document title and `robots: { index: false, follow: false }` — which matters more here
   than on any other screen, since this address carries a live credential in its path.
-- **Errors:** none observable. A token that names nothing is not an error; it is the
-  expired state, served `200`.
+- **Errors:** `404` for a **reserved segment** — `request` and `set`, the two addresses
+  this surface names under `/admin/reset/` that are routes rather than tokens
+  (`RESERVED_RESET_SEGMENTS`, ruling F56). Everything else is not an error: a token that
+  names nothing is the expired state, served `200`.
 - **Auth requirement:** the token is the authorisation. Nothing else is read.
 - **Notes:** **this screen is not in the handoff.** `SCREENS.md` §3.3 draws the reset
   *request* in two states and stops; the prototype has no screen for the link, because a

@@ -11,7 +11,11 @@
  *    it renders a component rather than fetching an address. The first two
  *    cases below follow the reader's own path — the "Forgotten" link off the
  *    password screen, and the mailed link's shape — and assert the RESPONSE
- *    STATUS, which is the fact that was wrong.
+ *    STATUS, which is the fact that was wrong. The two after them assert the
+ *    other half of the same fact, which the first shipping of this file did
+ *    not: the address §3.3's form POSTS to answers 404 rather than being read
+ *    as a token by the dynamic route beside it (ruling F56), and a token that
+ *    merely resembles a reserved word is still a token.
  *
  * 2. THE GEOMETRY. jsdom performs no layout and loads no stylesheet, so it
  *    cannot say that §3.4's ringed circle is 62px or that §3.3's confirmation
@@ -50,6 +54,15 @@ const RESET_PATH = '/admin/reset'
 /** The password screen's address. */
 const SIGN_IN_PATH = '/admin/sign-in'
 
+/**
+ * Where SCREENS.md §3.3's "Send the link" button posts.
+ *
+ * Spelled here rather than imported: `ResetStep.tsx` is a client component and
+ * this file must be able to disagree with it. It is the address whose status
+ * ruling F56 is about.
+ */
+const RESET_REQUEST_ENDPOINT = `${RESET_PATH}/request`
+
 /** The signed-in state's address. */
 const SIGNED_IN_PATH = '/admin/sign-in/done'
 
@@ -70,6 +83,30 @@ const SIGNED_IN_MARK_INNER_PX = 20
 
 /** The rotated mark `SCREENS.md` §3.3 puts in the confirmation block. */
 const CONFIRMATION_MARK_PX = 14
+
+/** The angle both of those marks are drawn at, in degrees. */
+const MARK_ROTATION_DEGREES = 45
+
+/**
+ * The rotation a computed `transform` describes, in degrees.
+ *
+ * A computed transform is always a matrix, never the `rotate(45deg)` the
+ * stylesheet spells - and `not.toBe('none')`, which is what these two cases
+ * asserted until the Task 9 review, passes just as happily on `rotate(1deg)`.
+ * The angle is read out of the matrix instead: `matrix(a, b, ...)` is
+ * `(cos, sin)` for a pure rotation, so `atan2(b, a)` is the angle.
+ *
+ * @param transform - A computed `transform`, matrix or `none`.
+ * @returns The angle, or `NaN` for anything that is not a matrix - which
+ *   fails the comparison rather than passing it.
+ */
+const rotationDegrees = (transform: string): number => {
+  const parts = /^matrix\(([^)]+)\)$/.exec(transform)?.[1]?.split(',').map(Number)
+  const [a, b] = parts ?? []
+  if (a === undefined || b === undefined) return Number.NaN
+
+  return (Math.atan2(b, a) * 180) / Math.PI
+}
 
 test('reaches the reset screen from the password screen’s own "Forgotten" link', async ({ page }) => {
   // The defect ruling F47 closed, approached from the reader's side: the two
@@ -103,6 +140,37 @@ test('answers the address the reset email builds, rather than 404ing on it', asy
   expect(response?.status()).toBe(200)
   await expect(page.locator('[data-new-password-step]')).toHaveAttribute('data-new-password-view', 'expired')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('That link has expired')
+})
+
+test('404s on the address §3.3’s own form posts to, rather than drawing a screen', async ({ page }) => {
+  // RULING F56, from the reader's side. Mounting `[token]` above this address
+  // made `request` a valid token spelling, so submitting the reset form
+  // answered 200 with "That link has expired" - a screen telling the reader
+  // that a link they never asked for was dead, on the one screen whose whole
+  // subject is that link. It answered 404 the day before, and does again.
+  //
+  // BOTH VERBS. The form's own submission is the `POST`; the `GET` is what a
+  // reader who types the address, or a crawler that finds it, receives. Both
+  // resolved to the expired screen before the reservation.
+  const submitted = await page.request.post(RESET_REQUEST_ENDPOINT, { form: { email: 'reader@wanderings.travel' } })
+  expect(submitted.status()).toBe(404)
+  // The status alone would pass on a 404 that still carried the expired
+  // screen's copy, which is the sentence that made this a defect.
+  expect(await submitted.text()).not.toContain('That link has expired')
+
+  const visited = await page.goto(RESET_REQUEST_ENDPOINT)
+  expect(visited?.status()).toBe(404)
+})
+
+test('still answers a token that merely resembles a reserved word', async ({ page }) => {
+  // The reservation is exact, and this is what says so: a reader whose token
+  // begins with a reserved word must still reach a screen. Paired with the
+  // case above, it is the difference between reserving a word and breaking
+  // every link that starts with one.
+  const response = await page.goto(`${RESET_PATH}/requests`)
+
+  expect(response?.status()).toBe(200)
+  await expect(page.locator('[data-new-password-step]')).toHaveAttribute('data-new-password-view', 'expired')
 })
 
 test('draws no form, and prints no token, on a link it has refused', async ({ page }) => {
@@ -191,8 +259,9 @@ test('draws the confirmation block at the values SCREENS.md §3.3 gives it', asy
   expect(drawn.markWidth).toBe(CONFIRMATION_MARK_PX)
   expect(drawn.markHeight).toBe(CONFIRMATION_MARK_PX)
   // "the 14px ROTATED mark": a square that is not turned is a different mark,
-  // and `offsetWidth` alone cannot tell them apart.
-  expect(drawn.rotated).not.toBe('none')
+  // and `offsetWidth` alone cannot tell them apart. The ANGLE is asserted, not
+  // merely the presence of a transform - `rotate(1deg)` is not this mark.
+  expect(rotationDegrees(drawn.rotated)).toBeCloseTo(MARK_ROTATION_DEGREES, 1)
 })
 
 test('masks an address planted in the query rather than printing it', async ({ page }) => {
@@ -244,7 +313,7 @@ test('draws SCREENS.md §3.4’s ringed circle at 62px, holding a 20px square', 
   expect(drawn.radius).toBe('50%')
   expect(drawn.innerWidth).toBe(SIGNED_IN_MARK_INNER_PX)
   expect(drawn.innerHeight).toBe(SIGNED_IN_MARK_INNER_PX)
-  expect(drawn.rotated).not.toBe('none')
+  expect(rotationDegrees(drawn.rotated)).toBeCloseTo(MARK_ROTATION_DEGREES, 1)
 })
 
 test('offers §3.4’s three ways on, with sign-out as a POST rather than a link', async ({ page }) => {
@@ -267,18 +336,31 @@ test('draws the primary action full width and the secondary under it', async ({ 
   await page.goto(SIGNED_IN_PATH)
 
   const measured = await page.evaluate(() => {
+    const pane = document.querySelector('[data-signed-in-step]')
     const [primary, secondary] = [...document.querySelectorAll('[data-signed-in-step] a')]
     const first = primary?.getBoundingClientRect()
     const second = secondary?.getBoundingClientRect()
+    const paneStyle = pane === null ? undefined : getComputedStyle(pane)
+
     return {
       sameWidth: Math.abs((first?.width ?? 0) - (second?.width ?? 1)) < 0.5,
       gap: (second?.top ?? 0) - (first?.bottom ?? 0),
       width: first?.width ?? 0,
+      // The content box the two anchors live in. `width: 100%` under
+      // `box-sizing: border-box` means their own border box should be exactly
+      // this - which is what "full width" MEANS, and what this case's name
+      // claimed while asserting only that the two matched each other. Two
+      // controls narrowed together passed it.
+      paneContentWidth:
+        pane === null || paneStyle === undefined
+          ? 0
+          : pane.clientWidth - parseFloat(paneStyle.paddingLeft) - parseFloat(paneStyle.paddingRight),
     }
   })
 
   expect(measured.width).toBeGreaterThan(0)
   expect(measured.sameWidth).toBe(true)
+  expect(measured.width).toBeCloseTo(measured.paneContentWidth, 1)
   expect(measured.gap).toBeCloseTo(10, 1)
 })
 

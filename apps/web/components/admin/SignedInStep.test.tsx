@@ -54,11 +54,25 @@ describe('SignedInStep', () => {
     expect(host.textContent).toContain('Signed in')
   })
 
-  it('prints the status line', () => {
+  it('prints §3.4’s status line, in the words docs/deviations.md §38 settled', () => {
+    // PINNED TO THE LITERAL, not to `SIGNED_IN_STATUS`. Asserting the render
+    // against the constant that produces it is an assertion that cannot fail:
+    // an edit to the copy moves both halves together and the suite stays
+    // green. This sentence is a recorded HANDOFF-DEVIATION - it replaces the
+    // prototype's "Four changes are still unpublished from your last
+    // session.", which counts something no phase before 4 can count - so it
+    // needs the literal MORE than handoff copy does, not less. The second
+    // copy of the string is the point.
     const host = renderStep()
 
-    expect(SIGNED_IN_STATUS).not.toBe('')
-    expect(host.textContent).toContain(SIGNED_IN_STATUS)
+    expect(host.textContent).toContain('Everything you change in here stays a draft until you publish it.')
+  })
+
+  it('exports that line as the constant the deviation entry names', () => {
+    // The two halves of the pin: the case above holds the RENDER still, and
+    // this one holds the exported name docs/deviations.md §38 points at, so
+    // renaming or emptying it is a failure rather than a silent drift.
+    expect(SIGNED_IN_STATUS).toBe('Everything you change in here stays a draft until you publish it.')
   })
 
   it('draws the ringed circle and the square inside it, out of the accessibility tree', () => {
@@ -99,6 +113,15 @@ describe('SignedInStep', () => {
     expect(signOut?.textContent).toBe('Sign out and start again')
     expect(signOut?.closest('form')?.getAttribute('method')).toBe('post')
     expect(signOut?.closest('form')?.getAttribute('action')).toBe(SIGN_OUT_ENDPOINT)
+  })
+
+  it('posts the sign-out to the address docs/api.md and Task 10 both name', () => {
+    // The case above compares the form to the constant it came from, which
+    // cannot fail on a renamed endpoint. This is the literal: the handler
+    // Task 10 mounts has to be mounted HERE, and a silent change to this
+    // string would leave "Sign out and start again" posting into a 404 with
+    // every test still green.
+    expect(SIGN_OUT_ENDPOINT).toBe('/admin/sign-out')
   })
 
   it('offers exactly the three controls §3.4 names, and nothing to fill in', () => {

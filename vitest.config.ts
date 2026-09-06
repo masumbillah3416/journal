@@ -7,6 +7,10 @@
  *     Sets fixed dummy values for the three env vars `apps/web/lib/env.ts`
  *     validates at import time, so importing it never needs Docker or a real
  *     `.env` file — those values are never used to open a real connection here.
+ *     Its `include` also reaches the `e2e` directory's `.test.ts` files (NOT
+ *     its `.spec.ts` ones, which are Playwright's), for the one file there
+ *     that is a file read rather than a browser test — see that glob's own
+ *     comment and ruling F57.
  *   - unit-dom: React component tests, matched by `*.test.tsx`, in a jsdom
  *     environment. A SEPARATE project rather than a wider glob on `unit`
  *     because the environment differs: `unit`'s files are pure and run in
@@ -130,6 +134,16 @@ export default defineConfig({
             // test file would be collected by nobody, which is the exact
             // failure mode this config's header exists to prevent.
             'apps/web/*.test.ts',
+            // `e2e/ciRegistration.test.ts` (ruling F57): the guard that says
+            // every browser spec is named by CI and by an npm script. It
+            // reads four files off disk and needs no browser, so it belongs
+            // in the PRE-COMMIT gate rather than in the browser job it
+            // guards - being a Playwright spec is the whole reason it never
+            // fired while `e2e/codeStep.spec.ts` gated nothing for two
+            // commits. Only `*.test.ts` is matched here; `playwright.config.ts`
+            // owns `e2e/*.spec.ts` and narrows its own `testMatch` so the two
+            // runners cannot collect each other's files.
+            'e2e/**/*.test.ts',
           ],
           exclude: ['**/*.integration.test.ts', '**/node_modules/**'],
           env: {

@@ -1590,10 +1590,21 @@ At that point the line can name a number and this entry goes.
 ## 39 · Two more screens are mounted ahead of the handlers behind them
 
 **What changed:** `/admin/reset` and `/admin/sign-in/done` are served today, and two of the
-three `POST`s made from them are not. The reset request form targets
-`/admin/reset/request` and "Sign out and start again" targets `/admin/sign-out`; neither
-route exists, so both resolve to a 404. `/admin/sign-in/done` is also **unguarded** — it
-draws §3.4 for anybody who asks for the address.
+three `POST`s made from them are not. **Measured against the running app, not reasoned
+from the route tree** — the first row is what the Task 9 review found stated the opposite
+of what was true, and what ruling F56 fixed:
+
+| Address | What an unauthenticated reader gets |
+| --- | --- |
+| `POST /admin/reset/request` (the reset form's action) | **404.** No route is mounted — but nothing about the route tree gave that for free: `app/(admin)/admin/reset/[token]` matches any single segment under `/admin/reset`, so for the length of commit `c9fec84` this address answered **200 with "That link has expired"**, telling a reader that a link they had never asked for was dead. The 404 is held by `apps/web/lib/auth/resetPath.ts`'s `RESERVED_RESET_SEGMENTS`, which `readNewPasswordScreen` answers `notFound()` for. `GET` of the same address is also 404 |
+| `POST /admin/sign-out` | **404**, Next's own not-found page. Nothing is mounted at it and nothing dynamic sits above it |
+| `GET /admin/sign-in/done` | **200**, and **unguarded** — it draws §3.4 for anybody who asks for the address |
+
+The comparison this entry used to make — that the reset form posts to a 404 "exactly as
+the password step's does" — was wrong in the way that matters. `POST /admin/sign-in/password`
+and `POST /admin/sign-in/code/verify` really do 404, because nothing dynamic sits above
+them; `/admin/reset/request` does not have that property, and reasoning by analogy from a
+route that does is what hid the defect from three documents at once.
 
 **Rationale:** the same shape as §33, one screen further on, and the same boundary. Every
 one of those three handlers needs the cookie policy — the `Set-Cookie`, the session the
@@ -1619,8 +1630,16 @@ a proof, until the session it describes is one the server can read.
 in front of this screen. Each gets its own row in `docs/api.md` in the commit that adds
 it, and this entry goes with them.
 
+**What would reverse the reservation: nothing Task 10 does.** Mounting
+`app/(admin)/admin/reset/request/route.ts` makes `request` a static segment, which Next.js
+resolves ahead of `[token]` — but that is a framework precedence rule about a route that
+exists, and it stops protecting the address the moment the handler moves. The reservation
+stays, and `apps/web/lib/auth/resetPath.test.ts` fails the build if any further address
+appears under `/admin/reset/` without being added to it.
+
 **Recorded as:** the `RESET_REQUEST_ENDPOINT` and `SIGN_OUT_ENDPOINT` constants and the
 headers of `apps/web/components/admin/ResetStep.tsx` and
 `apps/web/components/admin/SignedInStep.tsx`, the header of
-`apps/web/app/(admin)/admin/sign-in/done/page.tsx`, and the `GET /admin/reset` and
-`GET /admin/sign-in/done` rows in `docs/api.md`.
+`apps/web/app/(admin)/admin/sign-in/done/page.tsx`, `RESERVED_RESET_SEGMENTS` in
+`apps/web/lib/auth/resetPath.ts`, and the `GET /admin/reset`, `GET /admin/reset/<token>`
+and `GET /admin/sign-in/done` rows in `docs/api.md`.

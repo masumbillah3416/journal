@@ -18,18 +18,16 @@ describe('resetRequestView', () => {
     expect(resetRequestView(undefined)).toEqual({ kind: 'pending' })
   })
 
-  it('is the sent state, naming the address, when it was', () => {
+  it('is the sent state, naming an already-masked address exactly as it arrived', () => {
+    // The value the reset endpoint redirects with is `maskEmail`'s own output,
+    // and masking it a second time must not eat the two characters it keeps.
+    // This was two cases until the Task 9 review, and the second asserted a
+    // strict subset of this one's `toEqual` - it could not fail while this
+    // passed, so it was a line of coverage rather than a behaviour.
     expect(resetRequestView('he•••@wanderings.travel')).toEqual({
       kind: 'sent',
       maskedTo: 'he•••@wanderings.travel',
     })
-  })
-
-  it('leaves an address that is already masked exactly as it arrived', () => {
-    // The value the reset endpoint redirects with is `maskEmail`'s own output,
-    // and masking it a second time must not eat the two characters it keeps.
-    expect(resetRequestView('he•••@wanderings.travel').kind).toBe('sent')
-    expect(resetRequestView('he•••@wanderings.travel')).toHaveProperty('maskedTo', 'he•••@wanderings.travel')
   })
 
   it('masks an address that arrived unmasked rather than printing it', () => {

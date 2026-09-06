@@ -4,6 +4,11 @@
  * the three ways on - "Open the admin panel", "View the diary instead" and a
  * borderless "Sign out and start again".
  *
+ * Presentational component (CLAUDE.md §3.3), as `SignInShell.tsx` is: it
+ * prints a fixed screen and decides nothing at all. It is deliberately NOT the
+ * state machine its three siblings are - there is no state to be in, which is
+ * what makes it the only server component among them.
+ *
  * A SERVER COMPONENT, and the only one of the four panes that is. It holds no
  * state, no hooks and no handlers: the two ways on are anchors and signing out
  * is a real `POST` form, so nothing on this screen needs the browser to have

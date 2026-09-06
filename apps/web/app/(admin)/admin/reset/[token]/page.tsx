@@ -29,6 +29,20 @@
  * heading, message or log (CLAUDE.md §7). The screen it draws for a token that
  * cannot be spent says so without echoing it.
  *
+ * ═══ IT DOES NOT ANSWER FOR ITS SIBLINGS (RULING F56) ═══
+ *
+ * `[token]` matches ANY single segment under `/admin/reset`, including the
+ * addresses this surface's own forms post to. Mounting it turned
+ * `/admin/reset/request` — the action of SCREENS.md §3.3's "Send the link"
+ * button, which Task 10 mounts — from a 404 into a 200 drawing "That link has
+ * expired", so §3.3's primary action told the reader a link they had never
+ * asked for was dead. `lib/auth/resetPath.ts`'s `RESERVED_RESET_SEGMENTS` is
+ * the list of segments that are routes rather than tokens, and
+ * `readNewPasswordScreen` answers `notFound()` for them: the check is THERE
+ * and not here, because a branch in this file is a branch no coverage pass can
+ * see. `lib/auth/resetPath.test.ts` fails the build if a further address
+ * appears under this prefix without being reserved.
+ *
  * WHAT THIS ROUTE DOES NOT DO. It answers `GET` only. The `POST` the form
  * makes goes to `/admin/reset/set`, a sibling route whose whole body is
  * `handleSetNewPassword` — a static segment rather than a child of this one,

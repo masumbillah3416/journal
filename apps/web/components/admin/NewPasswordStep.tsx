@@ -5,6 +5,13 @@
  * field, the button that spends the link, and the two states where the link or
  * the password has already been refused.
  *
+ * State machine at its smallest (CLAUDE.md §3.3), exactly as `ResetStep.tsx`
+ * and `PasswordStep.tsx` are: WHICH of the three states the pane is in is the
+ * server's, arriving as a `NewPasswordView` that
+ * `@travel-diary/domain/auth/resetScreen` decided, and the only transitions
+ * this module owns are the two a reader can make without a round trip -
+ * revealing the password, and being told the field is empty.
+ *
  * ═══ THIS SCREEN IS NOT IN THE HANDOFF, AND THAT IS THE POINT OF IT ═══
  *
  * `SCREENS.md` §3.3 draws the reset REQUEST in two states and stops there; the
@@ -64,7 +71,10 @@ import styles from './signIn.module.css'
  * A sibling of the reset screen rather than a child of the token's own
  * address, so the token stays out of a second URL - see this module's header.
  * A static segment, which Next.js resolves before the `[token]` dynamic one,
- * and no token can collide with it: Payload mints them as hexadecimal.
+ * and no token can collide with it: Payload mints them as hexadecimal. It is
+ * named in `lib/auth/resetPath.ts`'s `RESERVED_RESET_SEGMENTS` as well, so the
+ * reservation does not depend on that framework precedence rule holding for a
+ * handler that later moves (ruling F56).
  */
 export const SET_PASSWORD_ENDPOINT = '/admin/reset/set'
 
