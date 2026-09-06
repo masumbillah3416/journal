@@ -46,6 +46,28 @@ const baseURL = `http://localhost:${PORT}`
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
+  // LOCALLY THIS IS A CAP ON THE DEV SERVER, NOT ON THE BROWSER. `webServer`
+  // below runs `next dev` for a local run and a production build in CI, and
+  // those two have very different capacity: Next's dev server compiles each
+  // route on first request, single-threaded, so parallel workers queue behind
+  // one compile and Playwright's 30s navigation timeout expires before the
+  // page is ever served. Left uncapped, this suite failed 7 of 17 on an
+  // 8-core machine — every failure a `page.goto` or navigation timeout, not
+  // one assertion mismatch, which is precisely how it reads as seven UI
+  // defects instead of one configuration defect. CI builds first, so it has
+  // no compile-on-demand step to serialise behind and keeps full parallelism.
+  //
+  // One, not two. Two was measured as well, and left 1 of 17 failing — the
+  // surface-correction case, which resizes the viewport and is the most
+  // timing-sensitive in the suite. A local suite that fails one case in
+  // seventeen is worse than a slow one: it teaches its author to re-run
+  // rather than to read, and the next real failure arrives looking exactly
+  // like this one.
+  //
+  // Spread rather than `workers: CI ? undefined : 1` — `exactOptionalPropertyTypes`
+  // rejects an explicit `undefined` for an optional property, so CI has to be
+  // given no key at all rather than an absent value.
+  ...(process.env.CI ? {} : { workers: 1 }),
   // A test.only left in by accident must fail CI, not silently narrow the run.
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
