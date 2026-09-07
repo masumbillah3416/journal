@@ -296,8 +296,13 @@ and the guard suite at 24 passing, with an unguarded mountable module at
 `apps/web/lib/journeys/actions.ts`. `adminGuardRegistration.test.ts` now asks
 `calculateConfigForFile` for the resolved `processor` of every directive-carrying module and
 of every hypothetical action path, so a processor scoped to a Phase 4 directory fails on the
-commit that adds it. `docs/adr/0018` called a disable comment "the one thing that defeats
-the RULE"; it was one of five things, and that sentence is corrected there too.
+commit that adds it. A fifth off switch was found by the seventh review and is keyed the
+same way: an argument appended to the `lint` SCRIPT narrows what ESLint is handed while
+every config probe here still answers correctly, so the case pins the argv of `lint` and
+each link of the chain `ci.yml` → `verify:full` → `verify` → `lint`. `docs/adr/0018`
+called a disable comment "the one thing that defeats the RULE"; it was not, that sentence
+is corrected there, and this one names no count — the ADR lists what is known and says it
+is not a closed set, which is the only honest shape for a list every review has extended.
 
 Route files are checked rather than constructed, because a page is not built from a
 factory: `apps/web/lib/auth/adminGuardRegistration.test.ts` walks the whole `app/` tree,

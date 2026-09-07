@@ -431,8 +431,9 @@ beside it is a second place, and this phase's record on second places is five fo
 against. The test file's header carried the same defect from the other direction — it said
 "the twelve mutations" through the rounds in which the list grew to 23 and then to 29.
 
-**And the two questions this suite CANNOT answer**, which is why
-`apps/web/lib/auth/adminGuardRegistration.test.ts` still has three cases about the rule.
+**And the questions this suite CANNOT answer**, which is why
+`apps/web/lib/auth/adminGuardRegistration.test.ts` keeps a block of its own about the rule
+— one case per question in the table below, and no count written here.
 A `RuleTester` case proves what the rule decides about a syntax tree it is handed. It
 cannot say whether the rule is switched on, whether somebody has switched it off for a
 file, or **which files ESLint hands it at all** — and that last one is where round 5's
@@ -443,16 +444,26 @@ dev server as a real action endpoint.
 
 So the coverage check is INVERTED, and this is the arrangement to keep:
 
-| Question                                              | Where it is answered             | With what                                                                                                                                    |
-| ----------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Is this export guarded?                               | `guarded-server-actions.test.js` | `RuleTester`, over the AST                                                                                                                   |
-| Is the rule registered at `error`?                    | `adminGuardRegistration.test.ts` | a read of `eslint.config.js`                                                                                                                 |
-| Does ESLint visit every file carrying `'use server'`? | `adminGuardRegistration.test.ts` | git's listing of the repository + `ESLint#calculateConfigForFile`, asked in a child process                                                  |
-| Has anybody disabled the rule for a file?             | `adminGuardRegistration.test.ts` | the same git listing, keyed on the PRESENCE of a disable directive in any module carrying the directive, against an allowlist of exact paths |
-| Could an inline severity comment switch it off?       | `adminGuardRegistration.test.ts` | the same git listing: the files permitted to spell the rule's own id, by exact path                                                          |
-| Did a directive actually suppress a report of it?     | `adminGuardRegistration.test.ts` | `ESLint#lintFiles` over every file carrying a directive, reading `suppressedMessages`                                                        |
-| Could a `processor` strip the directive first?        | `adminGuardRegistration.test.ts` | `ESLint#calculateConfigForFile`, reading the resolved `processor` for every directive-carrying module and every hypothetical action path     |
-| Is each enumerated survivor still a survivor?         | `adminGuardRegistration.test.ts` | `ESLint#lintText` over the module each `SHAPES_THAT_GET_THROUGH` row carries, with an unguarded module as the negative control               |
+| Question                                               | Where it is answered             | With what                                                                                                                                     |
+| ------------------------------------------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Is this export guarded?                                | `guarded-server-actions.test.js` | `RuleTester`, over the AST                                                                                                                    |
+| Is the rule registered at `error`?                     | `adminGuardRegistration.test.ts` | a read of `eslint.config.js`                                                                                                                  |
+| Does ESLint visit every file carrying `'use server'`?  | `adminGuardRegistration.test.ts` | git's listing of the repository + `ESLint#calculateConfigForFile`, asked in a child process                                                   |
+| Has anybody disabled the rule for a file?              | `adminGuardRegistration.test.ts` | the same git listing, keyed on the PRESENCE of a disable directive in any module carrying the directive, against an allowlist of exact paths  |
+| Could an inline severity comment switch it off?        | `adminGuardRegistration.test.ts` | the same git listing: the files permitted to spell the rule's own id, by exact path                                                           |
+| Did a directive actually suppress a report of it?      | `adminGuardRegistration.test.ts` | `ESLint#lintFiles` over every file carrying a directive, reading `suppressedMessages`                                                         |
+| Could a `processor` strip the directive first?         | `adminGuardRegistration.test.ts` | `ESLint#calculateConfigForFile`, reading the resolved `processor` for every directive-carrying module and every hypothetical action path      |
+| Is each enumerated survivor still a survivor?          | `adminGuardRegistration.test.ts` | `ESLint#lintText` over the module each `SHAPES_THAT_GET_THROUGH` row carries, with an unguarded module as the negative control                |
+| Is the rule applied by a command nothing has narrowed? | `adminGuardRegistration.test.ts` | a read of the root `package.json`: the argv of `lint` compared whole, and each link of the chain `ci.yml` → `verify:full` → `verify` → `lint` |
+
+**The last row is the one four rounds of keys did not cover, and it is a different kind of
+question.** Every other row asks ESLint about its CONFIGURATION, through a `new ESLint({ cwd })`
+that is handed no argv and cannot see one — so `--ignore-pattern apps/web/lib/journeys/**`
+appended to the `lint` script left `npm run lint` and `npm run verify` at exit 0, at 1350
+passing, with an unguarded mountable `'use server'` module on disk at that path, while bare
+`npx eslint .` exited 1 throughout. The rule was right and nobody ran it over the file. The
+argv is compared WHOLE rather than screened for flags known to narrow it, because a list of
+dangerous flags is the enumeration this file has watched fail five times.
 
 Text is used for what text is good at — finding candidates anywhere, at extensions nobody
 enumerated — and the AST decides correctness. The listing is

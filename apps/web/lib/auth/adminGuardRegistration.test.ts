@@ -496,6 +496,61 @@ const repositoryFiles = (): readonly string[] => {
 const bytesOf = (file: string): Buffer => readFileSync(path.join(repositoryRoot, file))
 
 /**
+ * One script from the repository-root `package.json`, by name.
+ *
+ * ═══ WHY A TEST READS THE SCRIPTS AT ALL ═══
+ *
+ * The seventh whole-branch review's finding 1. Everything else in this
+ * describe block asks ESLint about its CONFIGURATION — the severity it
+ * resolves for a path, whether it walks that path, whether a processor
+ * rewrites the text first, what it suppressed — and every one of those probes
+ * builds `new ESLint({ cwd })`, which is handed no argv and cannot see one.
+ * So the rule's reach was policed from four directions and the COMMAND that
+ * applies it from none: appending `--ignore-pattern apps/web/lib/journeys/**`
+ * to the `lint` script left `npm run lint` at exit 0 and `npm run verify` at
+ * exit 0, `1350 passed`, with an ordinary unguarded mountable `'use server'`
+ * module on disk at that path and this suite at 23 passing.
+ *
+ * A rule is only ever as good as the invocation that runs it, and the
+ * invocation is three JSON strings nothing had read.
+ *
+ * @param name - The script's key in the root manifest.
+ * @returns The command that key maps to.
+ * @throws If the manifest cannot be parsed, has no `scripts` object, or does
+ *   not define that key — never returning an empty string, which would satisfy
+ *   a caller having read nothing.
+ */
+const rootScript = (name: string): string => {
+  const manifest: unknown = JSON.parse(readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8'))
+  if (typeof manifest !== 'object' || manifest === null || !('scripts' in manifest)) {
+    throw new Error('the root package.json parsed to no scripts object, so nothing below has read a command')
+  }
+  const { scripts } = manifest
+  if (typeof scripts !== 'object' || scripts === null || !(name in scripts)) {
+    throw new Error(
+      `the root package.json defines no \`${name}\` script, so the gate this case describes does not exist`,
+    )
+  }
+  const command: unknown = Reflect.get(scripts, name)
+  if (typeof command !== 'string') {
+    throw new Error(`the root package.json's \`${name}\` script is not a string`)
+  }
+  return command
+}
+
+/**
+ * The argv `npm run lint` must be, token for token.
+ *
+ * Written as the WHOLE command rather than as a list of flags that would be
+ * dangerous, because a list of dangerous flags is the enumeration this file
+ * has now watched fail five times: `--ignore-pattern` narrows what is linted,
+ * and so do `--config`, `--no-config-lookup`, `--rulesdir`, a path in place of
+ * `.`, and whatever a later ESLint adds. Anything that is not this exact
+ * command fails, and the diff that changes it says what it now runs.
+ */
+const LINT_INVOCATION: readonly string[] = ['eslint', '.', '--max-warnings', '0']
+
+/**
  * Both spellings of the directive that turns a module's exports into endpoints.
  *
  * Searched over BYTES rather than decoded text, so a file this scan has no
@@ -1103,6 +1158,47 @@ describe('the rule that reports an unguarded Server Action', () => {
     // round in which it grew again.
     expect(eslintConfig).toContain("'guarded-server-actions': guardedServerActions")
     expect(eslintConfig).toContain(`'${ACTIONS_RULE}': 'error'`)
+  })
+
+  it('is applied by a command nothing can narrow, which is the command the gates run', () => {
+    // THE SEVENTH WHOLE-BRANCH REVIEW'S FINDING 1, AND A CLASS THE OTHER
+    // FOUR KEYS CANNOT REACH. They ask ESLint what its CONFIGURATION resolves
+    // to - a severity, an ignore, a processor, a suppression - and every one
+    // of them builds `new ESLint({ cwd })`, which is handed no argv. A flag
+    // appended to the command is therefore invisible to all four: with
+    // `--ignore-pattern apps/web/lib/journeys/**` on the `lint` script and an
+    // ordinary unguarded mountable `'use server'` module at that path,
+    // `npm run lint` exited 0, `npm run verify` exited 0 at 1350 passing, and
+    // this suite stayed at 23. Bare `npx eslint .` exited 1 the whole time,
+    // which is the shape of the defect: the rule was right and nobody ran it
+    // over the file.
+    //
+    // The argv is compared WHOLE ({@link LINT_INVOCATION}) rather than
+    // screened for flags known to be dangerous, because a list of dangerous
+    // flags is the enumeration this file has watched fail five times.
+    //
+    // THE CHAIN IS ASSERTED LINK BY LINK BELOW, because a command nothing
+    // runs is not a gate: `ci.yml` runs `verify:full`, which runs `verify`,
+    // which runs `lint`, and the Husky hook CLAUDE.md §8.4 relies on runs
+    // `verify` too. Each link is one string, and each of them was unread
+    // until this case.
+    const tokensOf = (command: string): readonly string[] => command.split(/\s+/u).filter((token) => token.length > 0)
+
+    expect(
+      tokensOf(rootScript('lint')),
+      'the `lint` script is the command that applies this rule, and an argument appended to it narrows what the rule is handed without changing any configuration this suite can see: keep the command exactly `eslint . --max-warnings 0`, and if it must change, change LINT_INVOCATION in the same diff and say why',
+    ).toEqual([...LINT_INVOCATION])
+
+    expect(rootScript('verify'), 'the pre-commit gate no longer runs `npm run lint`').toContain('npm run lint')
+    expect(rootScript('verify:full'), 'the CI gate no longer runs `npm run verify`').toContain('npm run verify')
+    expect(
+      bytesOf('.github/workflows/ci.yml').toString('utf8'),
+      'no CI step runs `npm run verify:full`, so nothing in CI reaches the lint command this case pins',
+    ).toContain('run: npm run verify:full')
+    expect(
+      bytesOf('.husky/pre-commit').toString('utf8'),
+      'the Husky pre-commit hook no longer runs `npm run verify`, which is the gate CLAUDE.md §8.4 relies on',
+    ).toContain('npm run verify')
   })
 
   it('reaches every file in the repository that carries the directive, whatever its extension', () => {

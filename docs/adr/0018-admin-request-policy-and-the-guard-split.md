@@ -190,8 +190,15 @@ refuted at four sites. The others, each named where it is keyed: an inline
 nothing (round 8, keyed by the rule's id being enumerated repository-wide); a flat-config
 `processor` whose `preprocess` strips the directive prologue, which blinds all three disable
 keys at once because nothing fires (round 9, keyed by
-`calculateConfigForFile`'s resolved `processor`); and the shapes in
-`SHAPES_THAT_GET_THROUGH`, which need no comment of any kind. `adminGuardRegistration.test.ts` holds
+`calculateConfigForFile`'s resolved `processor`); an argument appended to the `lint`
+SCRIPT, which narrows what ESLint is handed without changing any configuration the four
+config probes can see — `--ignore-pattern apps/web/lib/journeys/**` left `npm run verify`
+at exit 0 with an unguarded mountable module at that path (round 10, keyed by the case
+that pins the argv of `lint` and each link of the chain `ci.yml` → `verify:full` →
+`verify` → `lint`); and the shapes in
+`SHAPES_THAT_GET_THROUGH`, which need no comment of any kind. That list is what is known
+today and is not a closed set: each of the four was found by a whole-branch review
+attacking the round that closed the one before it. `adminGuardRegistration.test.ts` holds
 the files permitted to carry one, by exact path — reading the tree it compares against off
 the same git listing rather than off a directory list, and keying on the PRESENCE of a
 directive rather than on a spelling of one, which is round 8's correction and is set out
