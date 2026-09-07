@@ -92,8 +92,9 @@ takes a credential or mints one:
   unauthenticated visitor cannot infer from the sign-in screen existing.
 - `POST /api/users/logout` destroys a session and can create none.
 
-They are `OPEN_USER_AUTH_ENDPOINTS` in `apps/web/collections/sealedUserAuth.ts`, and this
-list is not a sentence anyone has to keep in step with that array:
+They are `OPEN_USER_AUTH_ENDPOINTS` in `apps/web/collections/sealedUserAuth.ts` — the
+sealing itself is recorded as `docs/deviations.md` **§42**, which names the same three —
+and this list is not a sentence anyone has to keep in step with that array:
 `sealedUserAuth.integration.test.ts` requires the sealed and open lists together to be
 TOTAL over whatever Payload actually mounts, and walks every open entry against a real
 request, asserting it answers rather than returning the sealed `404`. The eighth
