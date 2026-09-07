@@ -219,15 +219,17 @@ and the temporary copy that produced the third row was deleted.
   ```
   2,467 B  packages/tokens/src/tokens.css        SHARED with (admin), deliberately - see the Decision
   3,338 B  app/(diary)/diary.css + the diary's own next/font @font-face rules, merged
+  28,599 B the diary's CSS modules
   ```
 
-28,599 B the diary's CSS modules
-
-```
-
-A stray fence closed that block one line early and reopened it around everything after
-it, so the rest of this ADR — including the actionable line below — rendered as code in
-any Markdown view (Phase 2's final review, finding 40).
+That block used to end one line early, at the second row: its closing fence sat above the
+third, which was left stranded at column 0, and a stray fence below it reopened a code
+block that ran to the end of the file — so everything after this point rendered as code
+in any Markdown view (Phase 2’s final review, finding 40). The first correction added
+this paragraph and never moved either fence, which put the announcement of the fix inside
+the block it was describing, where it stayed for another round (final review 9, F9-1).
+What closes it is not a sentence: `apps/web/lib/docs/fencedProse.test.ts` lexes every
+tracked Markdown file with `marked` and fails on a code block that holds prose.
 
 `/admin/sign-in` serves three of the same shape: the same shared token chunk, its own
 `admin.css` + `@font-face` merge, and its own modules.
@@ -238,4 +240,3 @@ first — while §"The cause" three paragraphs above measures three — is worth
 the error it was: a heuristic written from the intent of the fix rather than from the
 measurement sitting beside it, which is the same species as the four documents that once
 asserted `() => false` on a collection that permitted `delete`.
-```

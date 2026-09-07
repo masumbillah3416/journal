@@ -3222,6 +3222,155 @@ because other objects depend on it` — the surviving `journeys` table still use
   `down()` and confirm the case fails, and paste that failure. A reversibility test that
   has never failed is not evidence (`CLAUDE.md` §2.3).
 
+## The documentation guards
+
+**The four checks in `apps/web/lib/docs/` are not a tenth suite. They are the ninth
+whole-branch review turned into a command**, and they exist because of what that review
+counted rather than what it found: **nineteen of its twenty-one findings were reached by a
+script, not by judgement.** Nine rounds had each read roughly twenty thousand lines of
+prose and each returned about twenty findings, and the rate never fell — because prose has
+no compiler and this repository has chosen to carry an unusual amount of it. A tenth
+reading would have found twenty more. So the class that a file read can settle is settled
+by a file read, in `npm run verify`, on every commit.
+
+They are modelled on the two guards of this shape the repository already had —
+`e2e/ciRegistration.test.ts`, which refuses a spec that no CI line names, and
+`apps/web/lib/auth/securityCitations.test.ts`, which refuses a citation that resolves to no
+test case. Like both, each one **fails by name**: it prints the document, the line and the
+offending text, not an exception.
+
+They live under `apps/web/lib/docs/` for the reason `securityCitations.test.ts` lives under
+`apps/web/lib/auth/`: the `unit` project's `apps/web/lib/**/*.test.ts` glob already reaches
+there, so they run in the PRE-COMMIT gate rather than only in CI, and they needed no new
+include of their own. `apps/web/lib/docs/markdownCorpus.ts` is the one thing they share —
+the repository's Markdown, listed by `git ls-files` rather than by a directory walk, since
+a walk needs a skip list and a skip list is an enumeration that drifts.
+
+### 10.1 · `fencedProse.test.ts` — no prose is trapped in a code fence
+
+Lexes every tracked Markdown file with `marked`, the same lexer a Markdown viewer runs, and
+refuses a code block that reads as a paragraph: untagged, over forty words, carrying
+sentence punctuation and at least `INLINE_MARKDOWN_LIMIT` marks of inline Markdown (bold,
+code spans, emphasis, links). It also refuses a file whose fence lines do not pair up.
+
+**It exists because a fix was reported as landed and had not landed.** ADR 0019 closed a
+three-row measurement block one line early and reopened a block that ran to the end of the
+file; the correction added three lines of prose saying the fence had been moved, INSIDE
+that block, and never touched a fence. The document then asserted in the past tense that a
+defect the reader was looking at had been repaired, and it survived a whole further review
+that way (final review 9, F9-1).
+
+Both questions are needed and neither subsumes the other: the defect's fences were
+BALANCED — four of them — so counting could never have found it, and a block left open at
+the end of a file swallows whatever is there without necessarily reading as prose.
+
+**What walks past it, measured:** a swallowed paragraph shorter than forty words, and a
+swallowed paragraph inside a fence carrying a language tag. Both are stated at the check.
+The threshold was set from the corpus rather than guessed — the swallowed block scores
+seven inline marks, and no legitimate untagged block in this repository scores more than
+two.
+
+### 10.2 · `pathCitations.test.ts` — every backticked path and identifier resolves
+
+Over the LIVING documentation — `README.md`, `CLAUDE.md`, `docs/*.md` and `docs/adr/*.md`.
+`docs/qa/**` and `docs/superpowers/**` are excluded deliberately: they are dated records of
+what was true when they were written, and requiring their citations to resolve would train
+their authors to edit the record. `handoff/**` is the specification and is not ours to
+correct.
+
+A path resolves if git lists it, or lists a file with that basename; an ESM specifier's
+`.js` is rewritten to `.ts` first. An identifier is a backticked token that is camelCase,
+PascalCase or SCREAMING_SNAKE — that shape is the whole filter, because a list of English
+words to exclude would be another enumeration — and it resolves if it appears anywhere in
+this repository's own source.
+
+`packages/ui` was listed as a package of this workspace for two phases and has never
+existed (F9-6); `RESET_PATH` was attributed to the module that imports it rather than the
+one that declares it (F9-11). Neither survives this.
+
+Two exemption lists in that file — one for paths, one for identifiers, each named and
+explained in its own TSDoc — carry what cannot resolve and should not: a report in the
+untracked `.superpowers/` directory, a probe written to disk and deleted, a browser API, a
+symbol a document says in its own next paragraph is gone. Each entry carries its reason,
+and both lists are fail-closed in both directions: an entry no document quotes any more
+fails, and an entry that starts resolving fails, so a list can neither rot into a hole nor
+quietly excuse something real.
+
+Note what that costs, because it is a real edge: the file excludes ITSELF from the source
+corpus, so that its own exemption entries cannot resolve by quoting themselves. A constant
+declared only in that file is therefore not resolvable from prose, which is why this
+section describes the two lists rather than naming them in backticks.
+
+### 10.3 · `configCitations.test.ts` — every quoted configuration value is read back
+
+Each citation names the config, an extractor that READS THE VALUE OUT OF IT, and the
+document that must quote it. **Nothing in that file holds a copy of a budget**: writing the
+number there would be a third place for it to drift, and the check would then be edited to
+follow the mistake. Reading the config means moving a gate fails the document that
+describes it.
+
+It covers the diary, book and admin script budgets, the gallery image budget, the three LCP
+gates, `numberOfRuns`, all three measured viewports and the mobile device pixel ratio, the
+published Postgres port, and the pure-domain coverage threshold. It also requires every
+`unit` include glob in `vitest.config.ts` to be quoted in this document, and every
+`lighthouserc*.json` at the root to be named by it.
+
+Three of the ninth review's findings were this one defect in three shapes: an enumeration
+here that omitted two of the `unit` project's include globs, so an auditor checking
+CLAUDE.md §2.1's "no file is in neither config's include" audited a smaller set than the
+config collects (F9-8); a bolded present-tense claim that `npm run test:perf` runs TWO
+Lighthouse configurations, when it has run three since Task 11 (F9-9); and the one
+containment cannot settle —
+
+`npm run test:visual:container:update` was described as regenerating every baseline rather
+than only the changed ones — the mode the OTHER script passes (F9-2). Both mode words
+appear all over this document legitimately, so `contradictedSnapshotPairings` works by
+PROXIMITY: the script named nearest before a `--update-snapshots=` is the one that
+sentence describes, and the mode has to be the one that script's own compose service
+passes. The sentence that shipped the defect is a fixture in the case, so the check is
+proved able to report it rather than only to pass over the corrected text — and it cannot
+tell a quotation from a claim, which is why the defective sentence is described here
+rather than reproduced.
+
+### 10.4 · `caseCounts.test.ts` — a count in prose is a floor, or it is deleted
+
+**This is a repository rule, not just a check.** Eleven of the ninth review's twenty-one
+findings were one sentence written eleven times: an exact count of a named test file's
+cases, true the day it was typed and stale by the next task. Every earlier round produced a
+share of the same shape, and every round corrected the numbers — which is the treatment
+that guarantees the next round finds them stale again.
+
+`securityCitations.test.ts` had already written the argument: _"Pinning the exact number
+would fail every time a row gained a case, which trains its author to edit the number
+rather than read the failure."_ The rule is now repository-wide. Where the magnitude is
+worth saying, say **at least N** and let the check resolve it against the file; where it is
+not, do not carry a number.
+
+The check finds a backticked test or spec path followed within eighty characters by a
+number and the word "case" or "cases", and asks two things: is it a floor (`at least`,
+`no fewer than`, `or more`), and does the file it names declare at least that many case
+declarations. A floor above what the file holds fails too, so a floor cannot become a
+comfortable fiction.
+
+**What it does not catch, stated rather than implied:** a count with no test file named
+beside it, because nothing can resolve it; a count of a subset of a file's cases, which it
+treats as a floor over the whole file and so judges more weakly than the sentence claims;
+and a mispaired sentence that names one file and counts another's, which resolves against
+the wrong file — where that was true here, the sentence was rewritten to name the file it
+counts. Counts of other things in prose — shapes, configurations, documents — are the same
+rule applied by a person; this is the population that recurred eleven times in one review.
+
+### 10.5 · How to run them
+
+```
+npx vitest run --project unit apps/web/lib/docs        # all four
+npx vitest run --project unit apps/web/lib/docs/fencedProse.test.ts
+npm run verify                                          # what Husky runs
+```
+
+They read files and compare strings: no browser, no server, no Postgres. The whole
+directory runs in well under a second.
+
 ## Test quality rules (apply to every suite above)
 
 From `CLAUDE.md` §2.3: test names read as sentences (e.g. "returns the previous page
