@@ -205,6 +205,45 @@ describe("Payload's own REST auth endpoints on `users`", () => {
     expect(JSON.parse(await answer.text())).toMatchObject({ user: null })
   })
 
+  it('serves every endpoint the open list names, so no document has to be kept in step by hand', async () => {
+    // THE OTHER HALF OF THE TOTALITY CASE BELOW, and the eighth whole-branch
+    // review is why it exists. That case proves the two lists COVER what
+    // Payload mounts; nothing proved that the open half is actually open, so
+    // `docs/api.md` said `media`'s public read was "the only thing `/api/**`
+    // serves" while this module deliberately left three endpoints reachable
+    // and `e2e/smoke.spec.ts`'s gate on `/cms` depended on one of them
+    // answering. A sentence in a document was the only record of the open
+    // surface. This walks the array instead.
+    //
+    // WHAT IT ASSERTS is that each address is SERVED, not what it answers.
+    // Measured: `/me` answers `200 {"user":null,...}`, `/init` answers
+    // `200 {"initialized":true}`, and `/logout` answers
+    // `400 {"errors":[{"message":"No User"}]}` — a refusal from the endpoint
+    // itself for a request carrying no session, which is a different thing
+    // from the address not existing. Pinning the three bodies here would pin
+    // Payload's wording rather than this repository's decision, so what is
+    // asserted is that none of them is the SEALED answer: not `404`, and not
+    // the "Route not found" body `sealedEndpointHandler` writes.
+    const answers = await Promise.all(
+      OPEN_USER_AUTH_ENDPOINTS.map(async ({ method, path }) => {
+        const address = `/api/users${path}`
+        const answer = await handleEndpoints({
+          config: payload.config,
+          path: address,
+          request: new Request(`${ORIGIN}${address}`, { method: method.toUpperCase() }),
+        })
+        return { address, status: answer.status, body: await answer.text() }
+      }),
+    )
+
+    // THE SENTINEL. An empty open list would satisfy both assertions below
+    // having sent no request at all.
+    expect(answers.map((one) => one.address)).toContain('/api/users/me')
+
+    expect(answers.filter((one) => one.status === 404)).toEqual([])
+    expect(answers.filter((one) => one.body.includes('Route not found'))).toEqual([])
+  })
+
   it('classifies every endpoint Payload actually mounts, so an upgrade cannot add a new one silently', () => {
     // THE CASE THAT KEEPS THE OTHERS HONEST, and it has already earned its
     // place: the first version of it hand-listed Payload's CRUD paths and was

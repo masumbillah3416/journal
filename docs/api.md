@@ -76,8 +76,30 @@ endpoints are now sealed in `apps/web/collections/sealedUserAuth.ts` and `users`
 `graphQL: { disableMutations: true }`, so the same bypass is closed in both protocols.
 The one way to a session is `POST /admin/sign-in/password` and the code step behind it.
 Because no Payload auth cookie can be minted at all, the "signed in, or refused" default
-above now refuses **every** caller on this surface, and `media`'s public read is the only
-thing `/api/**` serves.
+above now refuses **every** caller on every collection and global reached through this
+surface.
+
+**Four things still answer on `/api/**`, and this is the whole list.** `media`'s public
+read, above — and three `users` auth endpoints deliberately left reachable, none of which
+takes a credential or mints one:
+
+- `GET /api/users/me` reports whoever the request's own cookie names, so with every
+  credential endpoint sealed it answers `{ "user": null }`. Payload's admin shell asks for
+  it on load, and `e2e/smoke.spec.ts`'s zero-console-errors gate on `/cms` depends on it
+  answering.
+- `GET /api/users/init` answers a boolean: whether any account exists at all. It is what
+  stops the stock admin offering to create a first user, and it reveals nothing an
+  unauthenticated visitor cannot infer from the sign-in screen existing.
+- `POST /api/users/logout` destroys a session and can create none.
+
+They are `OPEN_USER_AUTH_ENDPOINTS` in `apps/web/collections/sealedUserAuth.ts`, and this
+list is not a sentence anyone has to keep in step with that array:
+`sealedUserAuth.integration.test.ts` requires the sealed and open lists together to be
+TOTAL over whatever Payload actually mounts, and walks every open entry against a real
+request, asserting it answers rather than returning the sealed `404`. The eighth
+whole-branch review found this paragraph claiming `media` was the only thing `/api/**`
+served while the module two files away said otherwise; the case is what stops the next
+edit from being wrong the same way.
 
 **`admin.disable` does not gate these routes.** `payload.config.ts` sets
 `admin.disable: process.env.NODE_ENV === 'production'`, which disables Payload's _admin
@@ -107,9 +129,10 @@ for a different reason — see its row.
   through this route regardless of who is signed in; `sessions` narrows to the caller's
   own rows; `media` serves unhidden items to a signed-out caller, deliberately. And since
   the `users` credential endpoints are sealed, **no caller can be signed in here at all**:
-  in practice this route serves unhidden media and refuses everything else. The sealed
-  endpoints answer `404` with Payload's own "Route not found" body, byte-identical to an
-  address that was never mounted.
+  in practice this route serves unhidden media and the three open `users` auth endpoints
+  named above — `GET /me`, `GET /init`, `POST /logout` — and refuses everything else. The
+  sealed endpoints answer `404` with Payload's own "Route not found" body, byte-identical
+  to an address that was never mounted.
 
 ### `POST /api/graphql`
 
