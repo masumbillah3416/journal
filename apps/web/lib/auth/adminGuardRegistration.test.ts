@@ -176,8 +176,8 @@ const NON_SERVABLE_FILES: readonly { readonly matches: (name: string) => boolean
 ]
 
 /**
- * The files permitted to carry an `eslint-disable` for the Server Action rule,
- * by exact path.
+ * The files permitted to carry an ESLint disable directive for the Server
+ * Action rule, by exact path.
  *
  * DEFAULT-DENY, the same way `ADMIN_PUBLIC_PATHS` is, and for the same reason:
  * a disable comment is the one thing that defeats
@@ -197,11 +197,113 @@ const NON_SERVABLE_FILES: readonly { readonly matches: (name: string) => boolean
  */
 const ACTIONS_RULE_EXEMPT_FILES: readonly string[] = ['apps/web/app/(payload)/layout.tsx']
 
+/**
+ * Every shape that still gets through both mechanisms, with the measurement.
+ *
+ * ═══ WHY THE LIST IS HERE AND NOT IN THE DOCUMENTS (RULING F76) ═══
+ *
+ * It was in the documents: seven sites said "TWO shapes get through", and by
+ * the fifth whole-branch review there were four — two of which could be
+ * committed with `npm run verify` at exit 0. That is the fifth consecutive
+ * round in which a count written in prose drifted from the code, and a number
+ * a human retypes in seven places will be wrong again. So the count is not
+ * written anywhere: the documents send a reader HERE, the case below fails if
+ * one of them stops pointing at this array or starts restating the sentence,
+ * and the number is whatever this array's length is on the day somebody asks.
+ *
+ * WHAT AN ENTRY MEANS. Each of these leaves `eslint .` at exit 0 and this
+ * suite green. `committable` is the second half a reader needs and the half
+ * the fourth review asked for: shape one cannot reach a commit, because the
+ * pre-commit hook runs this suite against `git ls-files --cached` and
+ * `git add -f` puts the file back in that listing; shape two can.
+ *
+ * Neither is caught rather than stated, and both refusals are decisions:
+ * catching the codegen shape means deciding whether an arbitrary string
+ * expression evaluates to `'use server'`, which no scan and no rule can do,
+ * and the honest alternative is a check over `next build`'s output, which
+ * `npm run verify` does not have.
+ */
+const SHAPES_THAT_GET_THROUGH: readonly {
+  /** What somebody would have to write. */
+  readonly shape: string
+  /** Whether the pre-commit gate lets it reach a commit. */
+  readonly committable: boolean
+  /** What was measured, on the tree that shipped it. */
+  readonly measurement: string
+}[] = [
+  {
+    shape:
+      'A disable directive for this rule in a module a `.gitignore` line also hides, which blinds the rule and hides the file from the git listing every scan here reads.',
+    committable: false,
+    measurement:
+      '`eslint .` exit 0 and this suite green while the file is hidden; `git ls-files --others --exclude-standard` does not list it; `git add` refuses it ("ignored by one of your .gitignore files"); `git add -f` puts it into `--cached`, which is a listing every scan here reads, and the pre-commit hook then fails with HEAD unmoved.',
+  },
+  {
+    shape:
+      "A committed script that assembles the directive at runtime - `['use','server'].join(' ')` written into a module during `next build`. No linted file holds the literal and the emitted module does not exist when ESLint runs.",
+    committable: true,
+    measurement:
+      '`eslint .` exit 0; `grep -c "use server"` on the script 0; this suite green; `npm run verify` exit 0. It takes a deliberate two-part diff and mounts nothing on its own.',
+  },
+]
+
+/**
+ * The files permitted to NAME the Server Action rule, by exact path.
+ *
+ * ═══ A SECOND LIST BECAUSE A DISABLE DIRECTIVE IS NOT THE ONLY INLINE OFF
+ *     SWITCH (ROUND 8) ═══
+ *
+ * ESLint also honours an inline CONFIGURATION comment — a block comment whose
+ * body reads `eslint <rule>: off`. It sets a severity rather than suppressing
+ * a report, so it carries no disable directive at all and produces no
+ * suppressed message for anything to find. Measured, on a mountable unguarded
+ * `'use server'` module at `apps/web/lib/journeys/actions.ts`: `eslint .` exit
+ * 0 and the guard suite green. It is my own shape, found while attacking the
+ * fix to the disable hole this round exists for.
+ *
+ * What such a comment MUST spell is the rule's own id, so that is what is
+ * enumerated — across the whole repository rather than only the modules
+ * carrying the directive, because a module can hide the directive from a byte
+ * scan (an escaped `'use\u0020server'`) and still be judged by this rule.
+ *
+ * Two entries, and neither is a module Next.js can mount: `eslint.config.js`
+ * is where the rule is registered, and `layout.tsx` is the one exempt file,
+ * whose disable directive names it. This file is not among them because it
+ * assembles the id from its halves — see {@link ACTIONS_RULE}, and
+ * `apps/web/lib/auth/overrideAccessSites.test.ts` for what the alternative
+ * cost: a scan that excused itself by exact path, and a document that then
+ * listed "other occurrences" with a file missing.
+ */
+const FILES_PERMITTED_TO_NAME_THE_RULE: readonly string[] = ['eslint.config.js', 'apps/web/app/(payload)/layout.tsx']
+
 /** Splits a file into lines, whichever line ending it was written with. */
 const NEWLINE = /\r?\n/u
 
-/** The rule that makes an unguarded Server Action a lint error. */
-const ACTIONS_RULE = 'travel-diary/guarded-server-actions'
+/**
+ * The rule that makes an unguarded Server Action a lint error.
+ *
+ * ASSEMBLED FROM ITS HALVES, WHICH IS LOAD-BEARING. This file scans the
+ * repository for files naming this rule; written as one literal, the scanner
+ * would be its own first match and would need an entry in its own allowlist —
+ * the shape `overrideAccessSites.test.ts` took with `OWN_PATH`, where the
+ * fifth whole-branch review found a list of "other occurrences" that omitted a
+ * file precisely because the pin excluded itself.
+ */
+const ACTIONS_RULE = ['travel-diary', 'guarded-server-actions'].join('/')
+
+/**
+ * The substring every inline ESLint disable directive spells.
+ *
+ * Assembled for the same reason as {@link ACTIONS_RULE}: a scan whose needle
+ * is written out is a scan that finds itself. Every spelling of the directive
+ * contains it — the bare form, the `-line` and `-next-line` forms, in a block
+ * comment or a line comment, with the rule id after it, with the rule id on
+ * the NEXT line, or with no rule id at all. That last freedom is the point:
+ * the fifth whole-branch review's blocker was a check that required one LINE
+ * to carry both this and the rule id, and two spellings satisfying ESLint
+ * satisfied neither half of it.
+ */
+const DISABLE_DIRECTIVE = ['eslint', 'disable'].join('-')
 
 /**
  * Every way a mounted file can apply the guard, and the `(` is the point.
@@ -357,7 +459,7 @@ const SEVERITY_PROBE_PROGRAM = [
   'const answer = {}',
   "for (const file of JSON.parse(Buffer.concat(chunks).toString('utf8'))) {",
   '  const resolved = await eslint.calculateConfigForFile(file)',
-  "  const entry = resolved?.rules?.['" + 'travel-diary/guarded-server-actions' + "']",
+  "  const entry = resolved?.rules?.['" + ACTIONS_RULE + "']",
   '  answer[file] = Array.isArray(entry) ? entry[0] : (entry ?? null)',
   '}',
   'process.stdout.write(JSON.stringify(answer))',
@@ -442,6 +544,64 @@ const pathsEslintWalks = (files: readonly string[]): readonly string[] => {
   if (!isRecord(answer)) throw new Error('the ignore probe did not answer with an object')
 
   return files.filter((file) => answer[file] !== true)
+}
+
+/**
+ * A program printing, for each file handed to it, which rules a disable
+ * directive suppressed in it.
+ *
+ * ═══ WHY ESLINT IS ASKED RATHER THAN THE FILE READ (ROUND 8) ═══
+ *
+ * A byte scan for the directive's spelling answers "is one written here". This
+ * answers "did one take effect", which is the question the control is about,
+ * and it cannot be wrong about a spelling: ESLint's own results carry
+ * `suppressedMessages`, one entry per report a directive swallowed, with the
+ * justification the author gave. So a module that hides the directive from
+ * every text scan — `'use\u0020server'`, which the rule still judges because
+ * it compares the literal's VALUE — is still caught here, because the rule
+ * fires and the suppression is recorded.
+ *
+ * Run in a child process for the measured coverage reason
+ * {@link SEVERITY_PROBE_PROGRAM} documents, and over a handful of files rather
+ * than the repository: linting everything takes twenty seconds, and the files
+ * worth linting are the ones a directive could be hiding in.
+ */
+const SUPPRESSION_PROBE_PROGRAM = [
+  "import { ESLint } from 'eslint'",
+  'const chunks = []',
+  'for await (const chunk of process.stdin) chunks.push(chunk)',
+  'const eslint = new ESLint({ cwd: process.cwd() })',
+  'const answer = {}',
+  "const files = JSON.parse(Buffer.concat(chunks).toString('utf8'))",
+  'for (const file of files) {',
+  '  const [result] = await eslint.lintFiles([file])',
+  '  answer[file] = (result?.suppressedMessages ?? []).map((message) => message.ruleId)',
+  '}',
+  'process.stdout.write(JSON.stringify(answer))',
+].join('\n')
+
+/**
+ * The files in which a disable directive suppressed the Server Action rule.
+ *
+ * @param files - Repository-relative paths that exist.
+ * @returns Those whose lint result carries a suppressed report of that rule.
+ * @throws If the child cannot be run or does not answer with an object, rather
+ *   than returning nothing — an empty answer would satisfy the case below.
+ */
+const filesSuppressingTheRule = (files: readonly string[]): readonly string[] => {
+  const printed = execFileSync(process.execPath, ['--input-type=module', '-e', SUPPRESSION_PROBE_PROGRAM], {
+    cwd: repositoryRoot,
+    input: JSON.stringify(files),
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  const answer: unknown = JSON.parse(printed)
+  if (!isRecord(answer)) throw new Error('the suppression probe did not answer with an object')
+
+  return files.filter((file) => {
+    const suppressed: unknown = answer[file]
+    return Array.isArray(suppressed) && suppressed.includes(ACTIONS_RULE)
+  })
 }
 
 /**
@@ -680,11 +840,12 @@ describe('the rule that makes an unguarded Server Action unwritable', () => {
     // THE ONLY THING THIS FILE STILL SAYS ABOUT SERVER ACTIONS, and it is a
     // question about configuration rather than about syntax — which is what
     // reading text is adequate for. What the rule DOES is asserted where the
-    // AST is, by `eslint-rules/guarded-server-actions.test.js`, over the
-    // thirty-two invalid shapes that defeated the scans this replaced, or the
-    // rule versions that replaced them — a number that file now asserts off
-    // its own array rather than spelling in a comment, because this comment
-    // said "twelve" through two rounds in which the list grew.
+    // AST is, by `eslint-rules/guarded-server-actions.test.js`, over every
+    // invalid shape that defeated the scans this replaced or the rule versions
+    // that replaced them — a list whose length that file asserts off its own
+    // array, and which no comment here spells, because this one said "twelve"
+    // through two rounds in which the list grew and "thirty-two" through the
+    // round in which it grew again.
     expect(eslintConfig).toContain("'guarded-server-actions': guardedServerActions")
     expect(eslintConfig).toContain(`'${ACTIONS_RULE}': 'error'`)
   })
@@ -730,7 +891,7 @@ describe('the rule that makes an unguarded Server Action unwritable', () => {
 
     expect(
       unreached,
-      'these files carry a "use server" directive and ESLint does not lint them with travel-diary/guarded-server-actions at error: give their extension a config block, or list them in DIRECTIVE_IN_PROSE if they are documentation',
+      `these files carry a "use server" directive and ESLint does not lint them with ${ACTIONS_RULE} at error: give their extension a config block, or list them in DIRECTIVE_IN_PROSE if they are documentation`,
     ).toEqual([])
   })
 
@@ -773,33 +934,153 @@ describe('the rule that makes an unguarded Server Action unwritable', () => {
 
     expect(
       notAtError,
-      'ESLint would not apply travel-diary/guarded-server-actions at error to these paths: an extension with no config block, or a `files` list the rule now sits inside',
+      `ESLint would not apply ${ACTIONS_RULE} at error to these paths: an extension with no config block, or a \`files\` list the rule now sits inside`,
     ).toEqual([])
   })
 
-  it('is switched off for exactly the files somebody wrote down, read off the whole repository', () => {
-    // The one thing that defeats the rule is a disable comment, so the set of
-    // them is default-deny and enumerated by exact path. The SCAN is not
-    // enumerated: it used to walk five directory names inside `apps/web`, in
-    // the file whose own header says that being outside a directory list is how
-    // five of the nine defeats worked - and it was duly defeated by a disable
-    // comment in `apps/web/actions/` and by one in `apps/web/globals/`, both
-    // real directories outside the five, as well as by anything outside
-    // `apps/web` at all. It now reads git's own listing of the repository.
+  it('is not disabled in any module carrying the directive, bar the one file somebody wrote down', () => {
+    // RULING F74, AND THE FIFTH REVIEW'S BLOCKER. The previous version of this
+    // case asked whether one LINE carried both the disable directive and this
+    // rule's id. Two spellings satisfy ESLint and not that filter: a bare
+    // directive, which disables every rule and names none, and the directive
+    // with the rule's id on the NEXT line, since ESLint parses a block
+    // comment's whole value. Measured on an ordinary mountable unguarded
+    // `'use server'` module at `apps/web/lib/journeys/actions.ts`, with a test
+    // beside it: `eslint .` exit 0, this suite green, `tsc` clean, prettier
+    // clean, `npm run verify` exit 0, and `git commit` SUCCEEDED. Neither
+    // spelling needs a `.gitignore` line, and neither is hidden from anything -
+    // they simply were not matched.
     //
-    // Matched on a line carrying BOTH `eslint-disable` and the rule's id, so a
-    // file that merely NAMES the rule - this one, the rule itself, the config -
-    // is not counted as disabling it. A document that puts both on ONE line
-    // fails this case; that is friction in the safe direction, and the fix is
-    // to break the sentence over two lines.
-    const disabling = repositoryFiles().filter((file) =>
-      bytesOf(file)
-        .toString('utf8')
-        .split(NEWLINE)
-        .some((line) => line.includes('eslint-disable') && line.includes(ACTIONS_RULE)),
+    // So the key is the PRESENCE of a disable directive in a module carrying
+    // the directive, not a spelling of one. It cannot be evaded by placement,
+    // by naming or not naming the rule, or by which comment syntax is used,
+    // because a directive that ESLint honours must spell
+    // {@link DISABLE_DIRECTIVE} somewhere in the file, and a comment cannot
+    // escape its own text.
+    //
+    // The documentation files that QUOTE the directive are excluded by exact
+    // path ({@link DIRECTIVE_IN_PROSE}) rather than by a `docs/` prefix or an
+    // `.md` suffix, for the reason that list already gives.
+    const modulesCarryingTheDirective = repositoryFiles()
+      .filter(carriesTheDirective)
+      .filter((file) => !DIRECTIVE_IN_PROSE.some((prose) => prose.path === file))
+
+    // THE SENTINELS. A listing that found nothing, or a byte comparison that
+    // matched nothing, would satisfy the assertion below having read no file.
+    expect(modulesCarryingTheDirective).toContain('apps/web/app/(payload)/layout.tsx')
+    expect(modulesCarryingTheDirective).toContain('apps/web/lib/auth/guard.ts')
+
+    const disabling = modulesCarryingTheDirective.filter((file) => bytesOf(file).includes(DISABLE_DIRECTIVE))
+
+    expect(
+      disabling.sort((left, right) => left.localeCompare(right)),
+      'these modules carry a "use server" directive and an ESLint disable directive, which switches this rule off for them: build the action from guardedAction(), or add the file to ACTIONS_RULE_EXEMPT_FILES with the reason',
+    ).toEqual([...ACTIONS_RULE_EXEMPT_FILES])
+  })
+
+  it('is named by exactly the files somebody wrote down, so an inline severity cannot switch it off unseen', () => {
+    // MINE, ROUND 8, FOUND WHILE ATTACKING THE FIX ABOVE. A disable directive
+    // is not ESLint's only inline off switch: a block comment whose body reads
+    // `eslint <rule>: off` sets a SEVERITY instead, so it spells no disable
+    // directive and suppresses no message. Measured on the same mountable
+    // unguarded module: `eslint .` exit 0 and this suite green.
+    //
+    // Such a comment must spell the rule's id, so the files permitted to spell
+    // it are enumerated - across the whole repository rather than only the
+    // modules carrying the directive, because a module can hide the directive
+    // from a byte scan (`'use\u0020server'`, whose VALUE this rule still
+    // judges) and this key must not depend on that scan.
+    const naming = repositoryFiles().filter((file) => bytesOf(file).includes(ACTIONS_RULE))
+
+    expect(
+      naming.sort((left, right) => left.localeCompare(right)),
+      'these files spell this rule\u2019s id, which is what an inline `eslint <rule>: off` comment must do: name them in FILES_PERMITTED_TO_NAME_THE_RULE with the reason, or refer to the rule by its file path instead',
+    ).toEqual([...FILES_PERMITTED_TO_NAME_THE_RULE].sort((left, right) => left.localeCompare(right)))
+  })
+
+  it('has suppressed a report of itself in exactly one file, asked of ESLint rather than of the bytes', () => {
+    // THE THIRD KEY, AND THE ONE NO SPELLING EVADES. The two above read bytes.
+    // This one asks ESLint what actually happened: every lint result carries
+    // `suppressedMessages`, one entry per report a directive swallowed. So a
+    // module that hides the directive from a byte scan - the escaped
+    // `'use\u0020server'` above, which the rule judges anyway because it
+    // compares the literal's value - is caught here, because the rule fires
+    // and the suppression is recorded.
+    //
+    // THE CANDIDATE SET IS COMPLETE, and that is why it is small enough to
+    // lint. A suppression can only come from a directive in the file it
+    // suppresses, so a file carrying no disable directive can suppress
+    // nothing, and every file that carries one is below. Linting them costs
+    // about nine seconds; linting the repository costs twenty-two.
+    const candidates = repositoryFiles().filter((file) => bytesOf(file).includes(DISABLE_DIRECTIVE))
+
+    // THE SENTINEL: a needle that matched nothing would leave this case
+    // asserting that no file suppresses the rule, having linted none.
+    expect(candidates.length).toBeGreaterThanOrEqual(8)
+    expect(candidates).toContain('apps/web/app/(payload)/layout.tsx')
+
+    expect(
+      filesSuppressingTheRule(candidates).toSorted((left, right) => left.localeCompare(right)),
+      'a disable directive in these files stopped this rule reporting something it wanted to report: build the action from guardedAction(), or add the file to ACTIONS_RULE_EXEMPT_FILES with the reason',
+    ).toEqual([...ACTIONS_RULE_EXEMPT_FILES])
+    // AN EXPLICIT BUDGET, WITH THE ARITHMETIC AT THE LINE, because this case
+    // runs a real lint over a dozen files: measured 9.1s, against a harness
+    // default of 5,000ms it was never going to fit. Sixty seconds is roughly
+    // six times the measurement, the same headroom ruling F2 settled on for
+    // the one other case here whose cost is knowable in advance - and a case
+    // that discovers its own budget in a merge gate is a flake somebody
+    // deletes as tidying.
+  }, 60_000)
+
+  it('is the only place the shapes that get through are written down, and every document points here', () => {
+    // RULING F76. "TWO shapes get through" was false at seven sites while the
+    // rule's own test table proved four, and the same sentence had already been
+    // wrong in four earlier rounds. The lesson the phase drew is that a claim
+    // about a control has to be asserted off the artefact it describes, so this
+    // case is that assertion: the count lives in {@link SHAPES_THAT_GET_THROUGH}
+    // and every document that used to restate it must point at the array by
+    // name instead.
+    //
+    // WHAT IT CANNOT DO, said plainly: it refuses the one sentence that has
+    // been wrong five times and requires the pointer. It cannot refuse every
+    // paraphrase of a count, and it does not claim to - what it makes
+    // impossible is a number sitting in prose where a reader will trust it.
+    const SURVIVOR_SENTENCE = /shapes?\s+gets?\s+through/iu
+
+    // The sentinel first: a regex that matched nothing would pass this case
+    // having read seven files and found nothing in any of them.
+    expect(SURVIVOR_SENTENCE.test('TWO shapes get through today, not one')).toBe(true)
+    expect(SURVIVOR_SENTENCE.test('the shapes that get through are enumerated')).toBe(false)
+
+    expect(SHAPES_THAT_GET_THROUGH.length).toBeGreaterThan(0)
+    for (const survivor of SHAPES_THAT_GET_THROUGH) {
+      expect(survivor.shape.length).toBeGreaterThan(40)
+      expect(survivor.measurement).toContain('eslint')
+    }
+
+    const sitesThatUsedToCount: readonly string[] = [
+      'docs/adr/0018-admin-request-policy-and-the-guard-split.md',
+      'docs/architecture.md',
+      'docs/security.md',
+      'docs/api.md',
+      'docs/testing.md',
+      'apps/web/lib/auth/guard.ts',
+      'eslint-rules/guarded-server-actions.js',
+    ]
+
+    const restating = sitesThatUsedToCount.filter((file) => SURVIVOR_SENTENCE.test(bytesOf(file).toString('utf8')))
+    const notPointing = sitesThatUsedToCount.filter(
+      (file) => !bytesOf(file).toString('utf8').includes('SHAPES_THAT_GET_THROUGH'),
     )
 
-    expect(disabling.sort((left, right) => left.localeCompare(right))).toEqual([...ACTIONS_RULE_EXEMPT_FILES])
+    expect(
+      restating,
+      'these documents restate a count of the shapes that get through instead of pointing at the array',
+    ).toEqual([])
+    expect(
+      notPointing,
+      'these documents describe what defeats the guard without sending the reader to SHAPES_THAT_GET_THROUGH',
+    ).toEqual([])
   })
 
   it('does not walk the generated directories prettier ignores, so the gate is one anybody can pass', () => {
@@ -837,10 +1118,16 @@ describe('the rule that makes an unguarded Server Action unwritable', () => {
   })
 
   it('can tell a file that disables it from one that does not', () => {
-    // Without this, a scan that matched nothing would pass the case above by
+    // Without this, a scan that matched nothing would pass the cases above by
     // agreeing with an allowlist it never tested against.
-    expect(textOf('app/(payload)/layout.tsx')).toContain(`eslint-disable-next-line ${ACTIONS_RULE}`)
-    expect(textOf('lib/auth/guard.ts')).not.toContain(`eslint-disable-next-line ${ACTIONS_RULE}`)
+    //
+    // The needle is ASSEMBLED, here as everywhere in this file: written out,
+    // this line would put the directive's own spelling into a file the scan
+    // above reads, and the scan would then have to excuse itself.
+    const nextLine = `${DISABLE_DIRECTIVE}-next-line ${ACTIONS_RULE}`
+
+    expect(textOf('app/(payload)/layout.tsx')).toContain(nextLine)
+    expect(textOf('lib/auth/guard.ts')).not.toContain(nextLine)
   })
 
   it('resolves the factory to a real file, so a module merely named like it is not it', () => {

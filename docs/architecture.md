@@ -192,8 +192,10 @@ A Server Action cannot be written unguarded: `guardedAction()`
 `eslint-rules/guarded-server-actions.js` — an ESLint rule over the AST, with no `files`
 list, so there is no directory it does not reach — reports every **value** export of a
 `'use server'` module that is not a call to it, any re-export from such a module, any
-top-level assignment in one (`module.exports = …` attaches an export no `export` keyword
-spells), and any `'use server'` directive inside a function body. The one thing it passes
+top-level statement in one that is not an import or a declaration (`module.exports = …`
+attaches an export no `export` keyword spells, and `Object.assign(module.exports, …)` did
+the same past a check that knew one node shape), and any `'use server'` directive inside a
+function body. The one thing it passes
 over is an export the parser marks `exportKind: 'type'` — `export type`, `export interface`
 and the ambient `export declare` — which emit no runtime binding for Next.js to mount. Four
 documents said "any export" until round 7, and `export = x` and `export declare const` both
@@ -228,21 +230,33 @@ script assembling the directive at runtime. Round 7 closed the first two in the 
 wrote eleven shapes of its own, six of them new; one of those six — `module.exports = { … }`
 in a `'use server'` module — was a fourth defeat and is closed too.
 
-**TWO shapes get through, and both are stated rather than left to be found.** ONE: a module
-carrying an `eslint-disable` comment in a file `.gitignore` also hides, which cannot be
-committed — `git add` refuses it, `git add -f` puts it back in `git ls-files --cached`, and
-the pre-commit hook then fails. TWO: a committed script that builds the directive at
-runtime (`['use','server'].join(' ')`), so no linted file and no byte scan contains it and
-the emitted module does not exist when ESLint runs — `npm run verify` is exit 0 with it
-present, and unlike the first shape it CAN be committed. It is documented rather than caught
-because catching it means deciding whether an arbitrary string expression evaluates to
-`'use server'`, which neither a scan nor a rule can do; the honest alternative is a check
-over `next build`'s output, which `npm run verify` does not have. It takes a deliberate
-two-line diff and it mounts nothing on its own. A disable comment on its own is deliberate:
-it is one reviewable line, and the files allowed to carry one are enumerated by exact path
-in `adminGuardRegistration.test.ts`, read off git's listing rather than off a directory
-list — round 7 wrote a disable comment into `app/(payload)/cms/journeys/`, one directory
-inside the only exempt file's own, and the case failed on it.
+Round 8 closed four more of one species — `Object.assign(module.exports, …)`,
+`Object.defineProperty`, `void (module.exports = …)` and the same assignment inside an `if`
+block, all of which walked past a rule 4 that refused one parser node shape — by inverting
+it: the top level of a `'use server'` module may now only import and declare, and an
+unrecognised statement is refused the way an unrecognised export syntax already was.
+
+**What gets through is enumerated where it can be asserted, and this document no longer
+counts it.** The shapes that get through are enumerated, with the measurement and the
+committability of each, by `SHAPES_THAT_GET_THROUGH` in
+`apps/web/lib/auth/adminGuardRegistration.test.ts` — and a case there fails if this
+document stops pointing at that array or starts restating it. No count is written here: a
+number retyped in prose has drifted from this code in every round of this phase, and seven
+sites said two while the fifth whole-branch review measured four (ruling F76).
+
+A disable comment is the deliberate off switch — one reviewable line with a reason beside
+it — and the files allowed to carry one are enumerated by exact path in
+`adminGuardRegistration.test.ts`, read off git's listing rather than off a directory list;
+round 7 wrote a disable comment into `app/(payload)/cms/journeys/`, one directory inside the
+only exempt file's own, and the case failed on it. **What round 8 replaced is the CHECK
+over that decision**, which asked whether one LINE carried both the directive and the
+rule's id: a bare directive names no rule, and a directive with the rule's id on the next
+line is still one directive to ESLint, so both left `eslint .` at exit 0 and `npm run
+verify` at exit 0 and both COMMITTED. Three keys stand over it now — the presence of a
+directive in any spelling in any module carrying `'use server'`; the rule's id, enumerated
+across the whole repository, because that is what an inline `eslint <rule>: off` severity
+comment must spell; and ESLint's own `suppressedMessages`, which is the key no spelling
+evades.
 
 Route files are checked rather than constructed, because a page is not built from a
 factory: `apps/web/lib/auth/adminGuardRegistration.test.ts` walks the whole `app/` tree,

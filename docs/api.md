@@ -959,7 +959,8 @@ export const publishJourney = guardedAction(async (session, id: string) => {
 
 That is not a convention. `eslint-rules/guarded-server-actions.js` reports every **value**
 export of a `'use server'` module that is not such a call, any re-export from one, any
-top-level assignment in one, and any `'use server'` directive inside a function body — over
+top-level statement in one that is not an import or a declaration, and any `'use server'`
+directive inside a function body — over
 the parsed AST, on every file `npm run lint` visits, with no `files` list, so there is no
 directory it does not reach, and an export spelling it does not RECOGNISE is reported rather
 than skipped. The exception is an export the parser marks `exportKind: 'type'`, which emits
@@ -968,16 +969,27 @@ no runtime binding. Until round 7 this paragraph said "no export spelling past i
 parser's node-type NAME began with `Export`, and neither does.
 
 **An action that forgets fails `npm run verify` — and `verify` rather than `lint` is the
-accurate word.** Two of the ways an action can escape the rule itself are caught by
+accurate word.** Several of the ways an action can escape the rule itself are caught by
 `apps/web/lib/auth/adminGuardRegistration.test.ts` instead: a module at an extension
 ESLint does not enumerate (`.jsx` was one for four rounds, and Next.js mounted it), and an
-`eslint-disable` comment in a file nobody listed. That test walks git's listing of the
+ESLint disable directive in a file nobody listed. That test walks git's listing of the
 repository for the literal `'use server'` and asks ESLint's own API which of those files it
-actually lints. Round 6 ran thirty-three shapes against the gate and thirty-two fail it; the
-fourth whole-branch review then ran fourteen more and **three** got through, two of which
-round 7 closed in the rule; round 7 ran eleven of its own, six of them new, and closed a
-fourth. **Two shapes get through today, not one** — `docs/adr/0018` names both, records the
-nine text scans that preceded this rule, and says why enumeration was the wrong mechanism.
+actually lints, which of them a disable directive is written in, which of them spell the
+rule's own id, and — through `suppressedMessages` — in which of them a directive actually
+stopped this rule reporting. Round 6 ran thirty-three shapes against the gate; the fourth
+whole-branch review ran fourteen more and three got through, two of which round 7 closed in
+the rule; round 7 ran eleven of its own and closed a fourth; the fifth review ran sixteen,
+eleven of them new, and defeated the rule four more ways — all four closed in round 8, two
+in the rule and two in the checks beside it.
+
+**The shapes that get through are enumerated, with the measurement and the committability
+of each, by `SHAPES_THAT_GET_THROUGH` in
+`apps/web/lib/auth/adminGuardRegistration.test.ts`** — and a case there fails if this
+document stops pointing at that array or starts restating it. No count is written here: a
+number retyped in prose has drifted from this code in every round of this phase, and seven
+sites said two while the fifth review measured four (ruling F76). `docs/adr/0018` records
+the nine text scans that preceded this rule and says why enumeration was the wrong
+mechanism.
 
 **Authorization does not stop at the guard, and Phase 4 owes the other half.** The guard
 answers "is this somebody"; Payload's collection and field access control answers "may

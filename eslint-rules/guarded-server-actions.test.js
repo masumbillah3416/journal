@@ -120,6 +120,25 @@ const VALID_CASES = [
   // here — which is what keeps round 7's rule 4 from being a repository-wide
   // ban on CommonJS.
   { code: 'module.exports = { publish: async () => Promise.resolve() }' },
+  // Nor is an unrecognised top-level statement anybody's business in a module
+  // with no directive: round 8's inversion is scoped to action modules for the
+  // same reason round 7's assignment refusal was.
+  { code: "if (typeof module !== 'undefined') { module.exports = {} }" },
+  // AN ASSIGNMENT INSIDE AN ACTION'S BODY IS ORDINARY CODE. What is refused is
+  // an assignment evaluated at MODULE LOAD, which is what can attach an
+  // endpoint; one inside a function runs when the action runs, and refusing it
+  // would make the rule one Phase 4 turns off.
+  {
+    code: [
+      "'use server'",
+      IMPORT,
+      'export const publish = guardedAction(async (session) => {',
+      '  let attempts = 0',
+      '  attempts = attempts + 1',
+      '  return Promise.resolve([session, attempts])',
+      '})',
+    ].join(NEWLINE),
+  },
 ]
 
 /** Every shape that has defeated a version of this check, or must not satisfy one. */
@@ -401,6 +420,112 @@ const INVALID_CASES = [
     code: ["'use server'", 'globalThis.publish = async () => Promise.resolve()'].join(NEWLINE),
     errors: [{ messageId: 'assignedExport' }],
   },
+  {
+    // ROUND 8, DEFEATS 1-4, AND THE REASON THE DISPATCH INVERTED. Round 7
+    // asked whether a top-level statement was an `ExpressionStatement`
+    // holding an `AssignmentExpression`, which is an ENUMERATION OF ONE
+    // PARSER NODE SHAPE inside the rule that exists because enumerations
+    // fail - the third such enumeration to fail here, `startsWith('Export')`
+    // having been the second. Four wrappers walked past it silently, each
+    // written to disk at `apps/web/lib/journeys/actions.ts` and each leaving
+    // `eslint .` at exit 0 and the guard suite green. The fix is not a longer
+    // list of wrappers: the top level of a `'use server'` module now holds
+    // only statement kinds that cannot attach an endpoint, and anything else
+    // is refused unread.
+    name: 'round 8 · Object.assign(module.exports, …), a call rather than an assignment',
+    code: [
+      "'use server'",
+      'const publish = async () => Promise.resolve()',
+      'Object.assign(module.exports, { publish })',
+    ].join(NEWLINE),
+    errors: [{ messageId: 'unrecognisedStatement' }],
+  },
+  {
+    name: 'round 8 · Object.defineProperty(module.exports, …)',
+    code: [
+      "'use server'",
+      'const publish = async () => Promise.resolve()',
+      "Object.defineProperty(module.exports, 'publish', { value: publish })",
+    ].join(NEWLINE),
+    errors: [{ messageId: 'unrecognisedStatement' }],
+  },
+  {
+    // The assignment is still there; it is the STATEMENT around it that
+    // round 7's node-shape test did not recognise.
+    name: 'round 8 · the assignment behind a typeof module guard',
+    code: [
+      "'use server'",
+      'const publish = async () => Promise.resolve()',
+      "if (typeof module !== 'undefined') { module.exports = { publish } }",
+    ].join(NEWLINE),
+    errors: [{ messageId: 'unrecognisedStatement' }],
+  },
+  {
+    name: 'round 8 · void (module.exports = …), a unary expression',
+    code: ["'use server'", 'const publish = async () => Promise.resolve()', 'void (module.exports = { publish })'].join(
+      NEWLINE,
+    ),
+    errors: [{ messageId: 'unrecognisedStatement' }],
+  },
+  {
+    // MINE, ROUND 8, found while attacking the fix above: the same
+    // attachment through a function no list of wrappers named.
+    name: 'round 8 · Reflect.set(module.exports, …), a wrapper no list named',
+    code: [
+      "'use server'",
+      'const publish = async () => Promise.resolve()',
+      "Reflect.set(module.exports, 'publish', publish)",
+    ].join(NEWLINE),
+    errors: [{ messageId: 'unrecognisedStatement' }],
+  },
+  {
+    // MINE, ROUND 8. A labelled block, so the assignment is two nodes deep.
+    name: 'round 8 · the assignment inside a labelled block',
+    code: [
+      "'use server'",
+      'const publish = async () => Promise.resolve()',
+      'attach: {',
+      '  module.exports = { publish }',
+      '}',
+    ].join(NEWLINE),
+    errors: [{ messageId: 'unrecognisedStatement' }],
+  },
+  {
+    // MINE, ROUND 8. A loop, which is neither an expression nor a branch.
+    name: 'round 8 · the assignment inside a top-level loop',
+    code: [
+      "'use server'",
+      'const publish = async () => Promise.resolve()',
+      "for (const key of ['publish']) module.exports[key] = publish",
+    ].join(NEWLINE),
+    errors: [{ messageId: 'unrecognisedStatement' }],
+  },
+  {
+    // MINE, ROUND 8. THE SHAPE A STATEMENT ALLOWLIST ALONE WOULD MISS, and
+    // the reason the assignment check sits on the assignment node itself: a
+    // `VariableDeclaration` is inert and has to stay admissible, so an
+    // assignment hidden in its initialiser is refused where it is written
+    // rather than by the statement around it.
+    name: 'round 8 · module.exports assigned inside an admissible declaration',
+    code: [
+      "'use server'",
+      'const publish = async () => Promise.resolve()',
+      'const attached = (module.exports = { publish })',
+    ].join(NEWLINE),
+    errors: [{ messageId: 'assignedExport' }],
+  },
+  {
+    // MINE, ROUND 8. A class field initialiser evaluates when the class is
+    // defined, which is module load - so it is module scope rather than a
+    // function body, and the ancestor walk has to say so.
+    name: 'round 8 · module.exports assigned in a class field initialiser',
+    code: [
+      "'use server'",
+      'const publish = async () => Promise.resolve()',
+      'class Attach { attached = (module.exports = { publish }) }',
+    ].join(NEWLINE),
+    errors: [{ messageId: 'assignedExport' }],
+  },
 ]
 
 describe('guarded-server-actions', () => {
@@ -411,13 +536,16 @@ describe('guarded-server-actions', () => {
     })
   })
 
-  it('is the list docs/testing.md counts, so neither number can drift silently', () => {
-    // `docs/testing.md` prints both figures and nothing enforced either: its
-    // "30 cases — 7 valid and 23 invalid" was right while this file's own
-    // header said twelve, and both were hand-maintained. Read off the arrays,
-    // the document's numbers fail on the commit that changes the list.
-    expect(VALID_CASES).toHaveLength(8)
-    expect(INVALID_CASES).toHaveLength(32)
+  it('is a list whose length is asserted rather than counted by hand', () => {
+    // ONE PLACE A NUMBER ABOUT THIS LIST LIVES, AND IT FAILS WHEN THE LIST
+    // CHANGES. `docs/testing.md` used to print both figures with nothing
+    // enforcing either: its "30 cases - 7 valid and 23 invalid" was right
+    // while this file's own header said twelve, and its "40 cases - 8 valid
+    // and 32 invalid" was stale within a round of these assertions being
+    // added. So the document no longer prints them and points here instead
+    // (ruling F76, the same move the survivor count made).
+    expect(VALID_CASES).toHaveLength(10)
+    expect(INVALID_CASES).toHaveLength(41)
   })
 
   it('names the factory and the directive it is written against, so neither can drift silently', () => {
@@ -434,6 +562,7 @@ describe('guarded-server-actions', () => {
       'inlineDirective',
       'notTheFactory',
       'unguarded',
+      'unrecognisedStatement',
       'unverifiable',
     ])
   })

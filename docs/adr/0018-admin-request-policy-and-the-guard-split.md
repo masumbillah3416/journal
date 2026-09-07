@@ -129,10 +129,21 @@ ESLint has already built, on every file `npm run lint` visits, and reports:
   `Export`, so it is the widening from `startsWith` to `includes` that catches them, and the
   keyword test is a belt with no current buckle — kept because `includes` is still a test on
   a name the parser chooses, and the keyword is a property of the language;
-- any top-level ASSIGNMENT in such a module, because `module.exports = { … }` attaches an
-  export no `export` keyword spells. Round 7 wrote that as `actions.cjs` at a real admin
-  address and it left `eslint .` at exit 0. Whether Next.js would mount it is a question
-  about a compiler transform; the shape is refused rather than reasoned about;
+- ANY TOP-LEVEL STATEMENT IN SUCH A MODULE THAT IS NOT AN IMPORT OR A DECLARATION, and any
+  assignment evaluated at module load wherever it is written. `module.exports = { … }`
+  attaches an export no `export` keyword spells: round 7 wrote that as `actions.cjs` at a
+  real admin address and it left `eslint .` at exit 0. Whether Next.js would mount it is a
+  question about a compiler transform, so the shape is refused rather than reasoned about —
+  but round 7 refused it by testing for ONE PARSER NODE SHAPE, an `ExpressionStatement`
+  holding an `AssignmentExpression`, and the fifth whole-branch review walked four wrappers
+  past that: `Object.assign(module.exports, …)`, `Object.defineProperty(module.exports, …)`,
+  `void (module.exports = …)`, and the same assignment inside an `if` block. Round 8
+  inverted it rather than lengthening it, because that was the third enumeration to fail
+  inside this rule: the top level of an action module may now hold only imports and
+  declarations, an unrecognised statement is refused unread, and the assignment check sits
+  on the assignment node itself so that `const attached = (module.exports = { … })` — hidden
+  inside a declaration that has to stay admissible — is refused too. An assignment inside an
+  action's own body is ordinary code and is untouched;
 - any `'use server'` directive inside a function body, anywhere in the repository, because
   such an action is dispatched as its own `POST` BEFORE the page around it renders, so that
   page's `requireAdminSession()` has not run — `SECURITY.md`'s "nothing inherits trust from
@@ -154,10 +165,12 @@ file written and never staged is still seen), finds every file whose BYTES carry
 they are guarded. It fails on the commit that introduces the next extension gap — it cannot
 fail before such a file exists.
 
-**The one thing that defeats the RULE is an `eslint-disable` comment**, which is
-deliberate: that is one line in a diff with a reason beside it.
-`adminGuardRegistration.test.ts` holds the files permitted to carry one, by exact path —
-and reads the tree it compares against off the same git listing, not off a directory list.
+**The one thing that defeats the RULE is an ESLint disable comment**, which is deliberate:
+that is one line in a diff with a reason beside it. `adminGuardRegistration.test.ts` holds
+the files permitted to carry one, by exact path — reading the tree it compares against off
+the same git listing rather than off a directory list, and keying on the PRESENCE of a
+directive rather than on a spelling of one, which is round 8's correction and is set out
+under the closure table below.
 The version this replaced enumerated five directory names inside `apps/web`, in the very
 file whose header says that being outside a directory list is how five of the nine defeats
 worked; a disable comment in `apps/web/actions/` or `apps/web/globals/` — both real
@@ -192,39 +205,67 @@ forced-into-the-index half of shape one below.
 "the one shape" was wrong for a round.** Round 7's own eleven — six of them new — closed a
 fourth. The four:
 
-| Shape                                                           | What it was                                          | Now                                    |
-| --------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------- |
-| `export = publishJourney`                                       | `TSExportAssignment` skipped by the node-type prefix | **closed** — reported `unverifiable`   |
-| `import { <any export of guard.ts> as guardedAction }`          | the file was compared, the imported name was not     | **closed** — reported `notTheFactory`  |
-| `module.exports = { deleteJourney }` in a `'use server'` module | an export no `export` keyword spells                 | **closed** — reported `assignedExport` |
-| a committed script assembling `'use server'` at build time      | no linted file, and no byte, carries the literal     | **open, and stated below**             |
+| Shape                                                                | What it was                                           | Now                                           |
+| -------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------- |
+| `export = publishJourney`                                            | `TSExportAssignment` skipped by the node-type prefix  | **closed** — reported `unverifiable`          |
+| `import { <any export of guard.ts> as guardedAction }`               | the file was compared, the imported name was not      | **closed** — reported `notTheFactory`         |
+| `module.exports = { deleteJourney }` in a `'use server'` module      | an export no `export` keyword spells                  | **closed** — reported `assignedExport`        |
+| a committed script assembling `'use server'` at build time           | no linted file, and no byte, carries the literal      | **open, and enumerated in the test**          |
+| `Object.assign(module.exports, …)` and three more wrappers           | rule 4 refused one parser node shape                  | **closed** — reported `unrecognisedStatement` |
+| a bare disable directive, or one with the rule's id on the next line | the allowlist case needed one LINE to carry both      | **closed** — three keys, below                |
+| an inline `eslint <rule>: off` severity comment                      | it spells no disable directive and suppresses nothing | **closed** — the rule's id is enumerated      |
 
-**TWO shapes get through, stated rather than left to be found.**
+**WHAT GETS THROUGH IS ENUMERATED WHERE IT CAN BE ASSERTED, AND THIS DOCUMENT NO LONGER
+COUNTS IT.** The shapes that get through are enumerated, with the measurement and the committability of
+each, by `SHAPES_THAT_GET_THROUGH` in
+`apps/web/lib/auth/adminGuardRegistration.test.ts` — and a case there fails if this
+document stops pointing at that array or starts restating it. No count is written here:
+a number retyped in prose has drifted from this code in every round of this phase, and
+seven sites said two while the fifth whole-branch review measured four (ruling F76).
 
-**ONE · a module carrying an `eslint-disable` comment in a file `.gitignore` ALSO hides.**
-The disable comment blinds the rule, and the `.gitignore` line takes the file out of the
-listing the coverage case walks. It is recorded rather than closed because such a file
-cannot be committed: `git add` refuses it, `git add -f` puts it back into
-`git ls-files --cached` — which is the listing the coverage case reads — and the pre-commit
-hook then fails with `HEAD` unmoved. Verified by trying, twice, in two separate rounds.
+**THE DISABLE DIRECTIVE IS THE DELIBERATE OFF SWITCH, AND ROUND 8 REPLACED THE CHECK OVER
+IT.** One reviewable line with a reason beside it is a decision somebody made, so it is
+allowed — for the files somebody wrote down, by exact path, in
+`adminGuardRegistration.test.ts`. What the fifth whole-branch review defeated was not that
+decision but the CHECK: it asked whether a single LINE carried both the directive and the
+rule's id, and two spellings ESLint honours satisfy neither half — a bare
+directive, which names no rule, and one with the rule's id on the NEXT line, since ESLint
+parses a block comment's whole value. Measured on an ordinary mountable unguarded
+`'use server'` module with a test beside it: `eslint .` exit 0, the guard suite green,
+`tsc` clean, prettier clean, `npm run verify` exit 0, and **`git commit` succeeded**. The
+review's sharpest observation was that the case's own comment had recommended the two-line
+form as the remedy for a false positive — the instruction for the exploit, shipped beside
+the guard. That comment is deleted rather than softened.
 
-**TWO · a committed codegen script that assembles the directive at runtime**, e.g.
-`['use','server'].join(' ')` written into a module during `next build`. No linted file
-contains the literal, so the rule never sees a `'use server'` module; the coverage case's
-byte scan finds nothing; and the emitted module does not exist when ESLint runs.
-`npm run verify` is exit 0 with the script present (measured: `Test Files 90 passed`,
-`Tests 1337 passed`), and **unlike shape one it can be committed.** It is documented rather
-than closed, and that is a decision with a reason: closing it means deciding whether an
-arbitrary string expression evaluates to `'use server'`, which no scan and no rule can do,
-and the only honest alternative is a check over `next build`'s output — which `npm run
-verify` does not have and would not be a pre-commit gate. It needs a deliberate two-line
-diff, and it mounts nothing on its own; what makes it worth stating is that a document
-which COUNTS the survivors is wrong if the count is one.
+**Three keys now stand over it, each default-deny by exact path, and each answering a
+question the last one could be wrong about:**
 
-Three costs of the factory being identified by name-and-path are worth knowing too, and all
-three fail closed: a legitimate barrel module that re-exports `guardedAction` is refused,
-`import { guardedAction as somethingElse }` is refused, and so is reaching the factory
-through a local alias (`const build = guardedAction`). All three were run in round 7.
+1. **Presence, not spelling.** No module carrying `'use server'` may hold a disable
+   directive in any spelling or position. A directive ESLint honours has to spell
+   `eslint`-`disable` somewhere in the file, and a comment cannot escape its own text.
+2. **The rule's id is enumerated across the whole repository.** A disable directive is not
+   ESLint's only inline off switch: a block comment reading `eslint <rule>: off` sets a
+   severity instead, spells no directive, and suppresses no message. Measured on the same
+   module: `eslint .` exit 0. Such a comment must spell the rule's id, and the two files
+   permitted to spell it are `eslint.config.js`, where it is registered, and the one exempt
+   file, whose directive names it.
+3. **ESLint's own `suppressedMessages`**, over every file carrying a disable directive.
+   This is the key no spelling evades, and it is why a module that hides the directive from
+   every byte scan — `'use\u0020server'`, whose VALUE the rule still judges — is caught: the
+   rule fires and the suppression is recorded, with the author's justification.
+
+**THE FACTORY IS IDENTIFIED BY NAME-AND-PATH, AND THE COSTS OF THAT ARE WORTH KNOWING.**
+Each fails closed, and each was run: a legitimate barrel module that re-exports
+`guardedAction` is refused; `import { guardedAction as somethingElse }` is refused;
+reaching the factory through a local alias (`const build = guardedAction`) is refused; and
+so is **a non-relative specifier that resolves to the real `guard.ts`** — the standard
+Next.js `@/…` alias, or a package name — because `resolvedImport` answers `undefined` for
+any specifier not starting with `.` rather than trusting a resolver the rule does not have.
+That last one is the false positive Phase 4 is most likely to meet, since `@/*` is what
+`create-next-app` scaffolds; it was stated in the rule's own TSDoc and in a `RuleTester`
+case as a decoy being refused, and named as a cost nowhere, until the fifth review found
+it. Meeting a false positive on correct code is what teaches somebody to reach for the
+disable comment the three keys above now police.
 
 **This guarantee was written as a text scan nine times and defeated nine times, which is
 why it is no longer one.** The first version matched the guard's NAME anywhere in the file,

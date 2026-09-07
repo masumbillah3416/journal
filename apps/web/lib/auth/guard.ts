@@ -38,10 +38,17 @@
  * rather than a mention of one" now asserts is NOT enough. Both halves were
  * wrong. What is actually here:
  *
- *   1 · A SERVER ACTION CANNOT BE WRITTEN UNGUARDED, and that is the primary
- *   mechanism and it lives in this file. `guardedAction` (below) takes the
- *   action, calls `requireAdminSession()`, and calls the action with the
- *   session it got, so an action has no opportunity to forget.
+ *   1 · AN UNGUARDED SERVER ACTION IS NOT A SHAPE THIS REPOSITORY'S GATE
+ *   ADMITS — which is the honest form of a sentence that said, in capitals,
+ *   that one CANNOT BE WRITTEN. It could: the fifth whole-branch review wrote
+ *   an ordinary mountable unguarded action, added one comment line, and got
+ *   `npm run verify` at exit 0 and a successful commit. The claim was stronger
+ *   than the code for the fifth consecutive round, so what is claimed here now
+ *   is what the gate does: `guardedAction` (below) takes the action, calls
+ *   `requireAdminSession()`, and calls the action with the session it got, so
+ *   an action built from it has no opportunity to forget — and every shape
+ *   that reaches a commit without it is enumerated, with its measurement, by
+ *   `SHAPES_THAT_GET_THROUGH` in `adminGuardRegistration.test.ts`.
  *   `eslint-rules/guarded-server-actions.js` admits no other shape: over the
  *   parsed AST, on every file `npm run lint` visits, with no `files` list of
  *   its own. Its REACH is proved rather than assumed —
@@ -63,9 +70,20 @@
  * 7 — including the one that mattered, a DIFFERENT export of this file aliased
  * to `guardedAction`, which the rule admitted because it compared the imported
  * FILE and never the imported NAME. Round 7 wrote eleven more, six of them new,
- * and closed a fourth. TWO shapes get through today, not one, and both are
- * recorded in `docs/adr/0018` with the measurement beside each rather than left
- * to be found.
+ * and closed a fourth. The fifth review wrote sixteen, eleven of them its own,
+ * and defeated the guard four more ways — a bare disable directive and one with
+ * the rule's id on the next line, both of which COMMITTED, and four wrappers
+ * around `module.exports` that walked past a rule refusing one node shape. All
+ * four are closed in round 8, together with a fifth found while attacking that
+ * fix.
+ *
+ * THE SHAPES THAT GET THROUGH ARE ENUMERATED WHERE THE COUNT CAN BE ASSERTED,
+ * and no number is written here: `SHAPES_THAT_GET_THROUGH` in
+ * `adminGuardRegistration.test.ts` holds each one with its measurement and
+ * whether it can be committed, and a case there fails if this file stops
+ * pointing at that array or starts restating it. Seven sites said "TWO shapes
+ * get through" while the fifth review measured four, and that sentence had
+ * been wrong in four earlier rounds too (ruling F76).
  *
  * THIS MODULE'S EXPORT SURFACE IS LOAD-BEARING, and that is what round 7's
  * defeat means for Phase 4. The rule now requires the imported name to be

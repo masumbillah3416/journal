@@ -70,37 +70,40 @@
  *    `export declare const`/`export declare function`. Those emit no runtime
  *    binding, so Next.js mounts no endpoint from them. It is a narrow
  *    exception rather than "any export", which four documents used to say.
- * 4. A top-level ASSIGNMENT in a `'use server'` module is refused too, because
+ * 4. THE TOP LEVEL OF A `'use server'` MODULE MAY ONLY IMPORT AND DECLARE.
  *    `module.exports = { deleteJourney }` attaches an export that no `export`
- *    keyword spells and rule 3 therefore cannot see. See `assignsSomething`.
+ *    keyword spells, so rule 3 cannot see it — and round 7 answered that by
+ *    refusing one node shape, an `ExpressionStatement` holding an
+ *    `AssignmentExpression`, which four wrappers then walked past
+ *    (`Object.assign`, `Object.defineProperty`, `void (…)`, an `if` block).
+ *    That was the third enumeration to fail inside this rule, so rule 4 is now
+ *    an ALLOWLIST of inert statement kinds: an unrecognised statement is
+ *    refused the way an unrecognised export syntax is. See
+ *    `INERT_TOP_LEVEL_TYPES`, and `assignmentAlreadyAnswered` for why an
+ *    assignment in an action's own body is still ordinary code.
  *
- * ═══ WHAT DEFEATS IT — TWO SHAPES, STATED RATHER THAN LEFT TO BE FOUND ═══
+ * ═══ WHAT DEFEATS IT — ENUMERATED WHERE IT CAN BE ASSERTED, NOT HERE ═══
  *
- * ONE · An `eslint-disable` comment in a file `.gitignore` also hides. The
- * disable comment alone is deliberate: it is one line in a diff with a reason
- * beside it, which is a decision somebody made — and
- * `apps/web/lib/auth/adminGuardRegistration.test.ts` fails if one naming this
- * rule appears in any file git lists for this repository. That is git's
- * listing, not a directory walk: the previous version of that check enumerated
- * five directory names inside `apps/web`, and a disable comment in
- * `apps/web/actions/` or in `packages/` sat outside all five. Everything in the
- * list above failed SILENTLY, which is the whole difference. A file
- * `.gitignore` covers is outside that listing too, so the two together blind
- * both mechanisms — and such a file cannot be committed: `git add` refuses it,
- * `git add -f` puts it back in `git ls-files --cached`, which is the listing the
- * test reads, and the pre-commit hook then fails.
+ * The shapes that still get through both mechanisms are enumerated, with the
+ * measurement and the committability of each, by `SHAPES_THAT_GET_THROUGH` in
+ * `apps/web/lib/auth/adminGuardRegistration.test.ts`; a case there fails if
+ * this file stops pointing at that array or starts restating it. No count is
+ * written here, because a count written in prose has drifted from this code in
+ * every round of this phase — seven sites said two while the fifth
+ * whole-branch review measured four (ruling F76).
  *
- * TWO · A COMMITTED SCRIPT THAT BUILDS THE DIRECTIVE AT RUNTIME, e.g.
- * `['use','server'].join(' ')` written to a module during `next build`. No
- * linted file contains the literal, the coverage case's byte scan finds
- * nothing, and the emitted module does not exist when ESLint runs — so
- * `npm run verify` is exit 0 with the script present, and unlike shape one this
- * shape CAN be committed. It is stated rather than caught, and that is a
- * decision: catching it means deciding whether an arbitrary string expression
- * can evaluate to `'use server'`, which no scan and no rule can do — the honest
- * alternative would be a check over `next build`'s output, which is not a thing
- * `npm run verify` has. It takes a deliberate two-line diff and it mounts
- * nothing on its own.
+ * WHAT AN ESLINT DISABLE COMMENT DOES TO THIS RULE, since that is the question
+ * a reader arrives with: it switches it off, deliberately — one line in a diff
+ * with a reason beside it is a decision somebody made — and
+ * `adminGuardRegistration.test.ts` then holds three keys over that decision,
+ * each default-deny by exact path. One: no module carrying the directive may
+ * hold a disable directive in ANY spelling, which is round 8's correction to a
+ * check that required one LINE to carry both the directive and this rule's id,
+ * and which a bare directive and a line-split one both walked past while
+ * committing. Two: no file may spell this rule's id, because that is what an
+ * inline `eslint <rule>: off` severity comment has to do. Three: ESLint's own
+ * `suppressedMessages` must show this rule suppressed in nothing but the one
+ * exempt file, which is the key no spelling evades.
  *
  * Depends on: node:fs and node:path, to resolve an import specifier to a real
  * file. ESLint supplies the AST and the scope analysis.
@@ -342,11 +345,105 @@ const exportsSomething = (statement, sourceCode) =>
  * (`globalThis.deleteJourney = …`, a re-assignment through an alias) would walk
  * past it.
  *
+ * ═══ WHAT THIS FUNCTION IS NO LONGER RESPONSIBLE FOR (ROUND 8) ═══
+ *
+ * It used to be the whole of rule 4, asked of a top-level statement. That made
+ * rule 4 an enumeration of ONE PARSER NODE SHAPE — the third enumeration to
+ * fail inside this rule, after `startsWith('Export')` was the second — and four
+ * wrappers walked past it with `eslint .` at exit 0 and the guard suite green:
+ * `Object.assign(module.exports, …)`, `Object.defineProperty(module.exports,
+ * …)`, `void (module.exports = …)`, and the same assignment inside an `if`
+ * block. The answer is not a longer list of wrappers. The dispatch INVERTED —
+ * see {@link isInertTopLevel} and the `Program` handler — and this function now
+ * answers one narrow question for it: whether a statement's refusal belongs to
+ * the `AssignmentExpression` listener instead, so one attachment is not
+ * reported twice.
+ *
  * @param {object} statement - A node from a `Program` body.
  * @returns {boolean} True for a top-level assignment expression statement.
  */
 const assignsSomething = (statement) =>
   statement.type === 'ExpressionStatement' && statement.expression.type === 'AssignmentExpression'
+
+/**
+ * The statement kinds the top level of a `'use server'` module may hold.
+ *
+ * AN ALLOWLIST, WHICH IS THE WHOLE POINT. Every other list in this rule's
+ * history was a denylist, and each was defeated by the spelling it did not
+ * name. Nothing here can attach an endpoint: an import binds a name, a
+ * declaration declares one, a type declaration emits nothing at all. Anything
+ * else at module scope is code that RUNS when Next.js loads the module, and
+ * there is no way to tell code that attaches an export from code that does
+ * not — so it is refused unread, which is the treatment an unrecognised export
+ * syntax (rule 3) and an unrecognised route-file kind already get.
+ *
+ * The cost is stated rather than left to be met: a `'use server'` module cannot
+ * run a statement at load. CLAUDE.md §3.3 rejects module-level mutable state
+ * anyway, an action's own body is untouched, and the refusal names the file and
+ * the line rather than failing silently.
+ */
+const INERT_TOP_LEVEL_TYPES = new Set([
+  'ImportDeclaration',
+  'VariableDeclaration',
+  'FunctionDeclaration',
+  'ClassDeclaration',
+  'EmptyStatement',
+  'TSTypeAliasDeclaration',
+  'TSInterfaceDeclaration',
+  'TSEnumDeclaration',
+  'TSDeclareFunction',
+  'TSImportEqualsDeclaration',
+])
+
+/**
+ * Whether a top-level statement of an action module can attach nothing.
+ *
+ * A DIRECTIVE IS THE ONE EXPRESSION STATEMENT ADMITTED, matched by shape
+ * rather than by value: `'use server'` is one, a bundler pragma written beside
+ * it is one, and `Object.assign(…)` — an `ExpressionStatement` whose
+ * expression is a call — is not.
+ *
+ * @param {object} statement - A node from a `Program` body.
+ * @returns {boolean} True when the statement only imports or declares.
+ */
+const isInertTopLevel = (statement) =>
+  INERT_TOP_LEVEL_TYPES.has(statement.type) ||
+  (statement.type === 'ExpressionStatement' && statement.expression.type === 'Literal')
+
+/**
+ * Whether an assignment is one rule 4 has no report to make about.
+ *
+ * TWO ANSWERS, ONE WALK, and both are about where the assignment sits.
+ *
+ * INSIDE A FUNCTION — ordinary code. An assignment at module scope runs when
+ * Next.js loads the module, which is when an export can be attached; one
+ * inside a function runs when that function is called, and refusing those
+ * would ban `let attempts = 0; attempts = attempts + 1` from an action's own
+ * body, which is how a rule becomes one Phase 4 turns off. A class FIELD
+ * initialiser is module scope rather than a function: it runs when the class
+ * is defined. `includes('Function')` covers `FunctionDeclaration`,
+ * `FunctionExpression`, `ArrowFunctionExpression` and TypeScript's
+ * declare-only shapes — a test on a name the parser chooses, the same union
+ * {@link exportsSomething} documents, and here it fails in the SAFE direction
+ * by construction: failing to recognise a function refuses an assignment
+ * rather than admitting one.
+ *
+ * INSIDE A STATEMENT ALREADY REFUSED — reported once is enough. The `Program`
+ * handler refuses `if (typeof module !== 'undefined') { module.exports = … }`
+ * as a statement the top level may not hold; reporting the assignment inside
+ * it as well would print two problems for one attachment.
+ *
+ * @param {object} node - Any node with a `parent` chain.
+ * @param {Set<object>} refusedStatements - Top-level statements already reported.
+ * @returns {boolean} True when this assignment needs no report of its own.
+ */
+const assignmentAlreadyAnswered = (node, refusedStatements) => {
+  for (let current = node.parent; current !== null && current !== undefined; current = current.parent) {
+    if (current.type.includes('Function')) return true
+    if (refusedStatements.has(current)) return true
+  }
+  return false
+}
 
 /**
  * The variable a name resolves to, searching outwards through the scope chain.
@@ -379,12 +476,32 @@ export const guardedServerActions = {
       notTheFactory:
         'guardedAction must be the export named guardedAction, imported from the file apps/web/lib/auth/guard.ts. A local binding of that name, another module named auth/guard, a barrel that re-exports it, or a DIFFERENT export of guard.ts aliased to that name, all guard nothing.',
       assignedExport:
-        'A top-level assignment in a "use server" module can attach an export no `export` keyword spells (module.exports, exports.name), and this rule cannot tell that from harmless module state. Export guardedAction(...) instead.',
+        'An assignment at the top level of a "use server" module can attach an export no `export` keyword spells (module.exports, exports.name), and this rule cannot tell that from harmless module state. Export guardedAction(...) instead.',
+      unrecognisedStatement:
+        'The top level of a "use server" module may only import and declare. This statement RUNS when Next.js loads the module, and this rule cannot tell one that attaches an endpoint from one that does not - Object.assign(module.exports, ...) is how four wrappers walked past a check that knew one shape. Export guardedAction(...) instead.',
     },
   },
 
   create(context) {
     const source = context.sourceCode
+
+    /**
+     * Whether this file's own prologue carries the directive.
+     *
+     * Set by the `Program` handler, which ESLint runs before it reaches any
+     * node inside the program, so the `AssignmentExpression` listener can rely
+     * on it. `create` is called per file, so nothing here outlives one file's
+     * traversal — this is not state shared between files.
+     */
+    let isActionModule = false
+
+    /**
+     * The top-level statements the `Program` handler has already refused.
+     *
+     * So that one attachment produces one problem — see
+     * {@link assignmentAlreadyAnswered}. Per file, like `isActionModule`.
+     */
+    const refusedStatements = new Set()
 
     /**
      * Whether an expression is a call to the IMPORTED factory.
@@ -484,14 +601,33 @@ export const guardedServerActions = {
 
       Program(program) {
         if (!hasServerPrologue(program.body)) return
+        isActionModule = true
 
         for (const statement of program.body) {
           if (exportsSomething(statement, source)) {
             checkExport(statement)
             continue
           }
-          if (assignsSomething(statement)) context.report({ node: statement, messageId: 'assignedExport' })
+          if (isInertTopLevel(statement)) continue
+          // The listener below owns every assignment, wherever it is written,
+          // so reporting here as well would report one attachment twice.
+          if (assignsSomething(statement)) continue
+
+          refusedStatements.add(statement)
+          context.report({ node: statement, messageId: 'unrecognisedStatement' })
         }
+      },
+
+      // RULE 4, ASKED OF THE ASSIGNMENT RATHER THAN OF THE STATEMENT AROUND IT
+      // (ROUND 8). `const attached = (module.exports = { … })` hides the
+      // attachment inside a `VariableDeclaration`, which has to stay
+      // admissible; asking the assignment where it is EVALUATED answers for
+      // every statement it can be written inside, including ones nobody listed.
+      AssignmentExpression(node) {
+        if (!isActionModule) return
+        if (assignmentAlreadyAnswered(node, refusedStatements)) return
+
+        context.report({ node, messageId: 'assignedExport' })
       },
     }
   },

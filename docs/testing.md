@@ -374,8 +374,8 @@ runs, behind a cross-reference pointing at silence.
 **What the suite is.** `eslint-rules/guarded-server-actions.js` is a custom ESLint rule: a
 `'use server'` module may export nothing but calls to `guardedAction(...)`
 (`apps/web/lib/auth/guard.ts`) — imported under that name, from that file, both halves
-checked — may hold no top-level assignment, and a `'use server'` directive inside a
-function body is refused outright. Its one exception is an export the parser marks
+checked — may hold nothing at its top level but imports and declarations, and a
+`'use server'` directive inside a function body is refused outright. Its one exception is an export the parser marks
 `exportKind: 'type'`, which emits no runtime binding; every other export spelling, including
 one the rule does not recognise, is reported. It exists because the same guarantee was written as a text scan **nine
 times and defeated nine times** — "every export of every module" is not a sentence text
@@ -404,14 +404,17 @@ Every case is passed through `at()`, which gives it a real `filename` under
 `apps/web/app/(admin)/admin/journeys/`: the rule resolves an import specifier against the
 importing file and compares the result with `apps/web/lib/auth/guard.ts` itself, so a
 fixture with no plausible filename would resolve nothing and every case would report
-`notTheFactory`. There are 40 cases — 8 valid (the control: every export spelling, all
-guarded, plus the shapes the prologue walk has to answer "no" to) and 32 invalid. **Both
-numbers are now asserted rather than counted by hand**, by that file's own case "is the list
-docs/testing.md counts, so neither number can drift silently", which reads the lengths off
-the two arrays: the figures here fail on the commit that changes the list. That case exists
-because this document's count was right while the test file's own header said "the twelve
-mutations" through the rounds in which the list grew to 23 and then to 29 — a hand-
-maintained number about the guard, in the guard's own file.
+`notTheFactory`. The cases are valid ones — the control: every export
+spelling, all guarded, plus the shapes the prologue walk has to answer "no" to — and
+invalid ones, one per shape that has ever defeated a version of this check. **Neither count
+is printed here, and that is round 8's correction to this paragraph.** It printed "40 cases
+— 8 valid and 32 invalid", asserted nowhere, and the arrays grew past it in the very round
+that added the assertion on the other side: what the test's own case "is a list whose
+length is asserted rather than counted by hand" pins is the ARRAY LENGTHS, so the one place
+a number lives is the place that fails when the list changes. A figure copied into prose
+beside it is a second place, and this phase's record on second places is five for five
+against. The test file's header carried the same defect from the other direction — it said
+"the twelve mutations" through the rounds in which the list grew to 23 and then to 29.
 
 **And the two questions this suite CANNOT answer**, which is why
 `apps/web/lib/auth/adminGuardRegistration.test.ts` still has three cases about the rule.
@@ -425,12 +428,14 @@ dev server as a real action endpoint.
 
 So the coverage check is INVERTED, and this is the arrangement to keep:
 
-| Question                                              | Where it is answered             | With what                                                                                   |
-| ----------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------- |
-| Is this export guarded?                               | `guarded-server-actions.test.js` | `RuleTester`, over the AST                                                                  |
-| Is the rule registered at `error`?                    | `adminGuardRegistration.test.ts` | a read of `eslint.config.js`                                                                |
-| Does ESLint visit every file carrying `'use server'`? | `adminGuardRegistration.test.ts` | git's listing of the repository + `ESLint#calculateConfigForFile`, asked in a child process |
-| Has anybody disabled the rule for a file?             | `adminGuardRegistration.test.ts` | the same git listing, against an allowlist of exact paths                                   |
+| Question                                              | Where it is answered             | With what                                                                                                                                    |
+| ----------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Is this export guarded?                               | `guarded-server-actions.test.js` | `RuleTester`, over the AST                                                                                                                   |
+| Is the rule registered at `error`?                    | `adminGuardRegistration.test.ts` | a read of `eslint.config.js`                                                                                                                 |
+| Does ESLint visit every file carrying `'use server'`? | `adminGuardRegistration.test.ts` | git's listing of the repository + `ESLint#calculateConfigForFile`, asked in a child process                                                  |
+| Has anybody disabled the rule for a file?             | `adminGuardRegistration.test.ts` | the same git listing, keyed on the PRESENCE of a disable directive in any module carrying the directive, against an allowlist of exact paths |
+| Could an inline severity comment switch it off?       | `adminGuardRegistration.test.ts` | the same git listing: the files permitted to spell the rule's own id, by exact path                                                          |
+| Did a directive actually suppress a report of it?     | `adminGuardRegistration.test.ts` | `ESLint#lintFiles` over every file carrying a directive, reading `suppressedMessages`                                                        |
 
 Text is used for what text is good at — finding candidates anywhere, at extensions nobody
 enumerated — and the AST decides correctness. The listing is
@@ -460,13 +465,34 @@ through**, so the sentence that used to end this paragraph — "the one shape th
 through" — was wrong for a round: `export = x`, a different export of the real `guard.ts`
 aliased to `guardedAction`, and a committed codegen script assembling the directive at
 runtime. Round 7 closed the first two in the rule, and ran eleven shapes of its own — six
-new — closing a fourth, `module.exports = { … }` in a `'use server'` module. **TWO shapes
-get through today**, both in `docs/adr/0018` with the measurement beside each: the
-`eslint-disable`-plus-`.gitignore` module, which cannot be committed, and the codegen
-script, which can and which leaves `npm run verify` at exit 0. Three costs of identifying
-the factory by name-and-path, all failing closed: a legitimate barrel re-exporting
-`guardedAction` is refused, `import { guardedAction as somethingElse }` is refused, and so
-is a local alias (`const build = guardedAction`).
+new — closing a fourth, `module.exports = { … }` in a `'use server'` module. **The fifth
+review ran sixteen, eleven of them its own, and defeated the guard four more ways:** a bare
+disable directive and one with the rule's id on the next line, both of which the allowlist
+case could not see because it required a single LINE to carry both strings and both of
+which COMMITTED; and four wrappers around `module.exports` that rule 4 walked past because
+it refused one parser node shape. Round 8 closed all four — two by inverting rule 4 into an
+allowlist of inert top-level statements, two by rebuilding the disable check on three keys
+(presence in any spelling, the rule's id enumerated repository-wide, and ESLint's own
+`suppressedMessages`) — and closed a fifth found while attacking that fix, an inline
+`eslint <rule>: off` severity comment.
+
+**What still gets through is enumerated where it can be asserted, and this document no
+longer counts it.** The shapes that get through are enumerated, with the measurement and
+the committability of each, by `SHAPES_THAT_GET_THROUGH` in
+`apps/web/lib/auth/adminGuardRegistration.test.ts` — and a case there fails if this
+document stops pointing at that array or starts restating it. No count is written here: a
+number retyped in prose has drifted from this code in every round of this phase, and seven
+sites said two while the fifth review measured four (ruling F76).
+
+The costs of identifying the factory by name-and-path are worth knowing, and each fails
+closed: a legitimate barrel re-exporting `guardedAction` is refused;
+`import { guardedAction as somethingElse }` is refused; a local alias
+(`const build = guardedAction`) is refused; and so is **a non-relative specifier that
+resolves to the real `guard.ts`** — the `@/…` alias `create-next-app` scaffolds, or a
+package name — because the rule answers `undefined` for any specifier not starting with `.`
+rather than trusting a resolver it does not have. That last one is the false positive Phase
+4 is most likely to meet, and it was stated in the rule's TSDoc and in a `RuleTester` case
+while three documents counted the costs as three.
 
 ### 2 · Integration
 
