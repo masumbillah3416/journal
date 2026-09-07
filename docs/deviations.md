@@ -1886,3 +1886,58 @@ the mailer's.
 `GET /admin/sign-in/code`, `POST /admin/sign-in/code/verify` and
 `POST /admin/sign-in/code/resend` rows in `docs/api.md`, and `docs/security.md`'s section
 on what Task 10 did not close.
+
+## 44 · `/admin` draws a screen the handoff never describes, because the handoff describes the panel
+
+**What changed:** `apps/web/app/(admin)/admin/page.tsx` and
+`apps/web/components/admin/PanelHome.tsx` mount a guarded screen at `/admin`: a
+"The back room" eyebrow, the heading "Still being furnished", the line
+
+> The editing screens are still being built. Everything the diary shows is already
+> published.
+
+the four groups of screens `SCREENS.md` §2 specifies, a primary "Read the diary" and a
+borderless "Sign out and start again".
+
+**Rationale:** `SCREENS.md` §3.4 gives the signed-in pane a primary action, "Open the admin
+panel", and `SignedInStep.tsx` points it at `/admin`. **Nothing was mounted there** —
+verified against the built route manifest, which carried no `/admin` entry — so a reader who
+completed the entire sign-in journey and pressed the primary button got a `404`. Phase 2's
+final review, blocker B2. It had no `docs/api.md` row, no entry here and no e2e case
+walking it, while §38 of this very file argues that "the difference between a deliberate
+choice and an oversight has to be written down".
+
+Three answers were possible and two of them are defects of the class Phase 2's final round
+exists to close:
+
+1. **Leave the 404.** The defect as found.
+2. **Redirect to `/admin/sign-in/done`.** The primary action then visibly does nothing —
+   the same silent-failure species as the resend that sent no code and the guess that was
+   never judged (§43). A button that redraws the screen it was pressed on is worse than one
+   that errors, because nothing on the screen says anything happened.
+3. **Draw a screen that says what is behind the door.** Taken.
+
+**Why this is not the placeholder text `CLAUDE.md` §1.3 bans.** It states a true fact about
+the product a reader is looking at, in the design's own voice, and it names what is coming
+rather than only that something is missing — the same standing §38's status line has, and
+for the same reason. What §1.3 forbids is a marker left for a later author (`TODO`, `TBD`,
+lorem text); this is copy, reviewed as copy, with a test pinning it to the literal.
+
+**It introduces no new design values.** `panel.module.css` restates rules
+`signIn.module.css` already carries, at the same numbers — the Courier eyebrow at
+10px/.26em, the Caveat title at 52px, the italic Garamond lede at 16.5px, the full-width
+primary at 13px/Courier 11.5px/.2em, and the borderless sign-out at 9.5px/.16em. They are
+copied rather than shared because a CSS Module's class names are local to the file that
+declares them, and a third stylesheet reachable from two route entries is precisely the
+seam ADR 0019 measures. It is a module rather than a rule in `admin.css` for a measured
+reason too: `admin.css` is loaded by the group's root layout, so every byte in it is a byte
+`/admin/sign-in` fetches before it can paint, and that route carries a Lighthouse LCP gate.
+
+**What would reverse this:** Phase 4, which replaces the route's body with the panel
+`SCREENS.md` §2 describes. Nothing here is meant to survive it.
+
+**Recorded as:** `apps/web/components/admin/PanelHome.tsx` and its header,
+`PanelHome.test.tsx`, `apps/web/app/(admin)/admin/page.tsx`, the `GET /admin` row in
+`docs/api.md`, the two `e2e/signInJourney.spec.ts` cases that walk it from the signed-in
+screen's button and from a browser with no session, the `/admin` case in `e2e/a11y.spec.ts`
+and the three `admin-panel-*` baselines in `e2e/visual.spec.ts-snapshots/`.

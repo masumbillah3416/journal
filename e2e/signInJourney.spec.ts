@@ -64,6 +64,9 @@ const CODE_STEP_PATH = '/admin/sign-in/code'
 /** Where a completed sign-in lands. */
 const SIGNED_IN_PATH = '/admin/sign-in/done'
 
+/** Where SCREENS.md §3.4's primary action leads: the admin panel's root. */
+const ADMIN_PANEL_PATH = '/admin'
+
 /** The cookie the whole surface turns on. */
 const SESSION_COOKIE = 'td-session'
 
@@ -131,6 +134,34 @@ const typeTheCode = async (page: Page, code: string): Promise<void> => {
   for (let index = 0; index < CELL_COUNT; index += 1) {
     await cells.nth(index).fill(code.charAt(index))
   }
+}
+
+/**
+ * Signs a reader all the way in: the password form, then the six digits.
+ *
+ * The two steps every case below the first one needs before it can get to its
+ * own subject. It is the reader's own journey throughout — a real form fill and
+ * a real click at each step — with the single exception this file's header
+ * names, the code itself.
+ *
+ * @param page - The page under test.
+ * @param account - The address and password to type.
+ * @param email - The same address, for the challenge the helper issues.
+ * @returns Once the browser has arrived at the signed-in screen.
+ */
+const signInCompletely = async (
+  page: Page,
+  account: { readonly email: string; readonly password: string },
+  email: string,
+): Promise<void> => {
+  await submitThePasswordForm(page, account)
+  const carried = (await page.context().cookies()).find((cookie) => cookie.name === SESSION_COOKIE)
+  const { code } = await aCodeFor(email, carried?.value ?? '')
+  await typeTheCode(page, code)
+  await Promise.all([
+    page.waitForURL(`**${SIGNED_IN_PATH}`),
+    page.getByRole('button', { name: 'Verify and sign in' }).click(),
+  ])
 }
 
 /**
@@ -345,4 +376,35 @@ test('says a new code was not sent when the resend button sends none', async ({ 
 
   await expect(page.locator('#code-step-error')).toHaveText('No new code was sent. Wait a moment, then ask again.')
   expect(failures).toEqual([])
+})
+
+test('opens the admin panel from the signed-in screen’s primary action', async ({ page }, testInfo) => {
+  // BLOCKER B2, walked end to end. `/admin` was absent from the built route
+  // manifest, so the primary button on the last screen of the whole journey
+  // answered a 404 — with no api.md row, no deviation entry and no case like
+  // this one to notice. `watchedFailures` is what says so now: a 404 is a
+  // RESPONSE, not a thrown error and not a console line.
+  const failures = watchedFailures(page)
+  const { email } = journeyAccount('opener', testInfo)
+  const account = await anAccountWithACodeStep(email)
+  await signInCompletely(page, account, email)
+
+  await Promise.all([
+    page.waitForURL(`**${ADMIN_PANEL_PATH}`),
+    page.getByRole('link', { name: 'Open the admin panel' }).click(),
+  ])
+
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Still being furnished')
+  await expect(page.getByRole('link', { name: 'Read the diary' })).toHaveAttribute('href', '/p/1')
+  expect(failures, 'opening the admin panel produced console errors, page errors or 4xx/5xx responses').toEqual([])
+})
+
+test('refuses the admin panel to a browser with no session, rather than drawing it', async ({ page }) => {
+  // The other direction, and the one the guard is for: `/admin` is a NEW
+  // guarded address, so a case that only walked it while signed in would pass
+  // for a page that called no guard at all.
+  await page.goto(ADMIN_PANEL_PATH)
+
+  expect(page.url()).toContain(SIGN_IN_PATH)
+  expect(page.url()).not.toContain('/admin/sign-in/done')
 })

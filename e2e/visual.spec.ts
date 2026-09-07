@@ -538,6 +538,25 @@ test('matches the baseline screenshot of the signed-in screen', async ({ page, c
   await expect(page).toHaveScreenshot('admin-signed-in.png', { fullPage: true })
 })
 
+test('matches the baseline screenshot of the admin panel’s root', async ({ page, context, baseURL }, testInfo) => {
+  // The screen `/admin` draws, which had nothing mounted at it until Phase 2's
+  // final round (blocker B2). Guarded, so it needs a session first; the fixture
+  // account leaves `otp_required` at its default, so no `admin-sign-in-*`
+  // baseline is affected by it.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`visualpanel.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-admin-panel]')).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-panel.png', { fullPage: true })
+})
+
 test('matches the baseline screenshot of the sign-in screen', async ({ page }) => {
   // No `settled()`: there is no scaled design box on this route, and no image
   // anywhere on the screen. What has to be settled is the type — all three

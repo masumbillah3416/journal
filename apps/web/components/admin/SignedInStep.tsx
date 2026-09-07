@@ -60,6 +60,15 @@ import styles from './signIn.module.css'
 /**
  * Where "Open the admin panel" leads: the bespoke admin's own root, which
  * Phase 4 builds the ten screens of. Phase ruling F41 settled the address.
+ *
+ * IT WAS A 404 FOR THE WHOLE OF PHASE 2, and this is the note that stops that
+ * happening again to the next address a pane points at. Nothing was mounted at
+ * `/admin` — verified against the built route manifest — so the primary action
+ * on the last screen of the entire sign-in journey answered a 404, with no
+ * `docs/api.md` row, no deviation entry and no e2e case walking it. Blocker
+ * B2. `app/(admin)/admin/page.tsx` mounts it now, `docs/deviations.md` §44
+ * records what that screen is, and `e2e/signInJourney.spec.ts` presses this
+ * button and follows it.
  */
 export const ADMIN_PANEL_PATH = '/admin'
 

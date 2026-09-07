@@ -485,6 +485,28 @@ test('has no axe violations on /admin/sign-in/done, the signed-in state', async 
   await expectNoAxeViolations(page)
 })
 
+test('has no axe violations on /admin, the admin panel’s root', async ({ page, context, baseURL }, testInfo) => {
+  // The newest screen on this surface, and a guarded one: it needs a session
+  // before it will draw anything (see e2e/support/adminSession.ts). It exists
+  // because the signed-in screen's primary action pointed at an address
+  // nothing served — blocker B2 — and CLAUDE.md §2 asks for every admin screen
+  // to be checked here.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`a11ypanel.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin')
+  // The pane is drawn AND the heading is present before axe looks: a route
+  // that rendered an empty shell would have no violations either.
+  await expect(page.locator('[data-admin-panel]')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Still being furnished')
+
+  await expectNoAxeViolations(page)
+})
+
 test('meets AA contrast on the sign-in cloth panel, which axe cannot judge', async ({ page, viewport }) => {
   test.skip((viewport?.width ?? 0) < 820, 'the cloth panel is drawn only above SCREENS.md §3’s breakpoint')
 
