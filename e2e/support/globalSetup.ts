@@ -27,11 +27,20 @@
  * asserts. What it removes is the dependence on how long ago somebody last ran
  * the suite, which is not a property of the product.
  *
- * A `TRUNCATE` rather than a scoped `DELETE`, because the table is a cache of
- * attempts that can affect no decision after its window: `rateLimit.ts` prunes
- * it on every write for the same reason. Clearing it cannot make a refusal
- * into an admission for any case here, since no case asserts a refusal it did
- * not itself cause.
+ * A whole-table `DELETE` rather than a scoped one, because the table is a
+ * cache of attempts that can affect no decision after their window:
+ * `rateLimit.ts` prunes it on every write for the same reason. Clearing it
+ * cannot make a refusal into an admission for any case here, since no case
+ * asserts a refusal it did not itself cause.
+ *
+ * `DELETE` RATHER THAN `TRUNCATE`, AND THAT IS MEASURED RATHER THAN CHOSEN.
+ * The first version of this ran `TRUNCATE TABLE sign_in_attempts` and Postgres
+ * refused it: `cannot truncate a table referenced in a foreign key
+ * constraint`. `payload_locked_documents_rels` carries an
+ * `ON DELETE CASCADE` reference to this table, which `DELETE` honours by
+ * clearing those lock rows with it and `TRUNCATE` refuses without a `CASCADE`
+ * nobody should hand a whole schema. The rows are few, so the cost of the
+ * slower statement is nothing measurable.
  *
  * PATTERN (CLAUDE.md §3.3): none — this is a fixture factory's smallest form,
  * a single idempotent statement run once. It reads `DATABASE_URL` through
@@ -67,7 +76,7 @@ const clearTheAttemptWindow = async (): Promise<void> => {
       throw new Error(`${ATTEMPTS_TABLE} is not in this database; run \`npm run db:migrate\` before the browser suite`)
     }
 
-    await client.query(`TRUNCATE TABLE ${ATTEMPTS_TABLE}`)
+    await client.query(`DELETE FROM ${ATTEMPTS_TABLE}`)
   } finally {
     await client.end()
   }

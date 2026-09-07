@@ -1407,8 +1407,10 @@ true` — the only honest content while nothing writes or reads that setting and
   inside the window.
 
   **FIXED IN ROUND 8, AND THE FIX IS THE OPTION THIS PARAGRAPH USED TO OMIT.**
-  `playwright.config.ts` now names `e2e/support/globalSetup.ts`, which truncates
-  `sign_in_attempts` once before any spec starts. It touches no limit, no window length, no
+  `playwright.config.ts` now names `e2e/support/globalSetup.ts`, which clears
+  `sign_in_attempts` once before any spec starts (a `DELETE`, not a `TRUNCATE`: Postgres
+  refuses to truncate a table `payload_locked_documents_rels` references, and the first
+  version of the setup was refused exactly that way). It touches no limit, no window length, no
   endpoint and no case — every rate-limit case in this suite builds its own counts inside a
   single run — and it makes the suite idempotent: two `test:e2e:container` runs back to
   back, the second starting seconds after the first, both pass.
