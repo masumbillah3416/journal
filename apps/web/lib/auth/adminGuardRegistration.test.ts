@@ -198,56 +198,6 @@ const NON_SERVABLE_FILES: readonly { readonly matches: (name: string) => boolean
 const ACTIONS_RULE_EXEMPT_FILES: readonly string[] = ['apps/web/app/(payload)/layout.tsx']
 
 /**
- * Every shape that still gets through both mechanisms, with the measurement.
- *
- * ═══ WHY THE LIST IS HERE AND NOT IN THE DOCUMENTS (RULING F76) ═══
- *
- * It was in the documents: seven sites said "TWO shapes get through", and by
- * the fifth whole-branch review there were four — two of which could be
- * committed with `npm run verify` at exit 0. That is the fifth consecutive
- * round in which a count written in prose drifted from the code, and a number
- * a human retypes in seven places will be wrong again. So the count is not
- * written anywhere: the documents send a reader HERE, the case below fails if
- * one of them stops pointing at this array or starts restating the sentence,
- * and the number is whatever this array's length is on the day somebody asks.
- *
- * WHAT AN ENTRY MEANS. Each of these leaves `eslint .` at exit 0 and this
- * suite green. `committable` is the second half a reader needs and the half
- * the fourth review asked for: shape one cannot reach a commit, because the
- * pre-commit hook runs this suite against `git ls-files --cached` and
- * `git add -f` puts the file back in that listing; shape two can.
- *
- * Neither is caught rather than stated, and both refusals are decisions:
- * catching the codegen shape means deciding whether an arbitrary string
- * expression evaluates to `'use server'`, which no scan and no rule can do,
- * and the honest alternative is a check over `next build`'s output, which
- * `npm run verify` does not have.
- */
-const SHAPES_THAT_GET_THROUGH: readonly {
-  /** What somebody would have to write. */
-  readonly shape: string
-  /** Whether the pre-commit gate lets it reach a commit. */
-  readonly committable: boolean
-  /** What was measured, on the tree that shipped it. */
-  readonly measurement: string
-}[] = [
-  {
-    shape:
-      'A disable directive for this rule in a module a `.gitignore` line also hides, which blinds the rule and hides the file from the git listing every scan here reads.',
-    committable: false,
-    measurement:
-      '`eslint .` exit 0 and this suite green while the file is hidden; `git ls-files --others --exclude-standard` does not list it; `git add` refuses it ("ignored by one of your .gitignore files"); `git add -f` puts it into `--cached`, which is a listing every scan here reads, and the pre-commit hook then fails with HEAD unmoved.',
-  },
-  {
-    shape:
-      "A committed script that assembles the directive at runtime - `['use','server'].join(' ')` written into a module during `next build`. No linted file holds the literal and the emitted module does not exist when ESLint runs.",
-    committable: true,
-    measurement:
-      '`eslint .` exit 0; `grep -c "use server"` on the script 0; this suite green; `npm run verify` exit 0. It takes a deliberate two-part diff and mounts nothing on its own.',
-  },
-]
-
-/**
  * The files permitted to NAME the Server Action rule, by exact path.
  *
  * ═══ A SECOND LIST BECAUSE A DISABLE DIRECTIVE IS NOT THE ONLY INLINE OFF
@@ -275,6 +225,41 @@ const SHAPES_THAT_GET_THROUGH: readonly {
  * listed "other occurrences" with a file missing.
  */
 const FILES_PERMITTED_TO_NAME_THE_RULE: readonly string[] = ['eslint.config.js', 'apps/web/app/(payload)/layout.tsx']
+
+/**
+ * Hypothetical action modules, at every extension and in directories nobody
+ * named — the paths two cases below ask ESLint about.
+ *
+ * `calculateConfigForFile` answers for a path whose file does not exist, so
+ * these fail when a gap is INTRODUCED rather than when somebody first exploits
+ * one. The extensions are Next.js's default `pageExtensions` (`tsx, ts, jsx,
+ * js`, and `apps/web/next.config.ts` overrides none of them) plus the four
+ * module extensions its compiler also accepts. THAT IS A LIST, and a list is
+ * what the nine defeats taught us not to trust — which is why the coverage
+ * case beside them consults no list and walks git's own listing instead.
+ *
+ * Shared by two cases rather than written twice: the rule must be at `error`
+ * for every one of these, and none of them may be given a `processor`.
+ */
+const ACTION_PATH_PROBES: readonly string[] = [
+  'apps/web/app/(admin)/admin/journeys/actions.ts',
+  'apps/web/app/(admin)/admin/journeys/actions.tsx',
+  'apps/web/app/(admin)/admin/journeys/actions.js',
+  'apps/web/app/(admin)/admin/journeys/actions.jsx',
+  'apps/web/app/(admin)/admin/journeys/actions.mjs',
+  'apps/web/app/(admin)/admin/journeys/actions.cjs',
+  'apps/web/app/(admin)/admin/journeys/actions.mts',
+  'apps/web/app/(admin)/admin/journeys/actions.cts',
+  // Directories no `files` array in this repository names, and one of them is
+  // where two of the three round-6 defeats were written.
+  'apps/web/actions/journeys.ts',
+  'apps/web/globals/journeyActions.ts',
+  'packages/domain/src/journeyActions.ts',
+  'actions.ts',
+  // Where the sixth review's `processor` attack put its module, and round 9's
+  // own re-run of it.
+  'apps/web/lib/journeys/actions.ts',
+]
 
 /** Splits a file into lines, whichever line ending it was written with. */
 const NEWLINE = /\r?\n/u
@@ -304,6 +289,115 @@ const ACTIONS_RULE = ['travel-diary', 'guarded-server-actions'].join('/')
  * satisfied neither half of it.
  */
 const DISABLE_DIRECTIVE = ['eslint', 'disable'].join('-')
+
+/**
+ * Every shape that still gets through both mechanisms, with the measurement.
+ *
+ * ═══ WHY THE LIST IS HERE AND NOT IN THE DOCUMENTS (RULING F76) ═══
+ *
+ * It was in the documents: seven sites said "TWO shapes get through", and by
+ * the fifth whole-branch review there were four — two of which could be
+ * committed with `npm run verify` at exit 0. That is the fifth consecutive
+ * round in which a count written in prose drifted from the code, and a number
+ * a human retypes in seven places will be wrong again. So the count is not
+ * written anywhere: the documents send a reader HERE, the case below fails if
+ * one of them stops pointing at this array or starts restating the sentence,
+ * and the number is whatever this array's length is on the day somebody asks.
+ *
+ * ═══ WHAT THIS ARRAY CANNOT DO, WHICH ROUND 8 LEFT UNSAID ═══
+ *
+ * F76 made the POINTER structural and the CONTENTS trustworthy only by
+ * convention, and the ledger's summary of it — "that is the count made
+ * structural" — was half true. The sixth whole-branch review proved the other
+ * half both ways: it DELETED the committable row and the suite went 21
+ * passing, `eslint .` exit 0, prettier clean; and it wrote a live committable
+ * survivor with no row here at all and the same suite went 24 passing. Nothing
+ * tied a row to anything measurable.
+ *
+ * Round 9 pins what CAN be pinned and says plainly what cannot:
+ *
+ *   - **A ROW CANNOT BE STALE.** Each `demonstration` marked `'linted'`
+ *     carries the module text, and the case "demonstrates every shape it says
+ *     gets through" hands it to ESLint at a real config path and requires this
+ *     rule to report NOTHING. So a shape that a later round CLOSES fails here
+ *     on the commit that closes it, and has to be removed or corrected rather
+ *     than left standing as a survivor that no longer survives.
+ *   - **A ROW THAT NOTHING HERE CAN RUN SAYS SO, IN THE ROW.** The alternative
+ *     `demonstration` is `'nothing here can run it'` with the reason. That is
+ *     a disclosure, not a pin, and it is written where a reader meets the row.
+ *   - **A ROW'S ABSENCE STILL PROVES NOTHING, AND NO TEST CAN CHANGE THAT.**
+ *     Enumerating what gets through means knowing what gets through; a shape
+ *     nobody has thought of has no row, and this array does not learn about a
+ *     shape by the shape existing. Deleting a row is caught only if the shape
+ *     is one somebody re-invents. Read the array as "the shapes we know about",
+ *     never as "the shapes there are".
+ *
+ * WHAT AN ENTRY MEANS. Each of these leaves `eslint .` at exit 0 and this
+ * suite green. `committable` is the second half a reader needs and the half
+ * the fourth review asked for: shape one cannot reach a commit, because the
+ * pre-commit hook runs this suite against `git ls-files --cached` and
+ * `git add -f` puts the file back in that listing; shape two can.
+ *
+ * Neither is caught rather than stated, and both refusals are decisions:
+ * catching the codegen shape means deciding whether an arbitrary string
+ * expression evaluates to `'use server'`, which no scan and no rule can do,
+ * and the honest alternative is a check over `next build`'s output, which
+ * `npm run verify` does not have.
+ */
+const SHAPES_THAT_GET_THROUGH: readonly {
+  /** What somebody would have to write. */
+  readonly shape: string
+  /** Whether the pre-commit gate lets it reach a commit. */
+  readonly committable: boolean
+  /** What was measured, on the tree that shipped it. */
+  readonly measurement: string
+  /**
+   * How this suite checks the row is still true — or why it cannot.
+   *
+   * `'linted'` carries a module this suite hands to ESLint at `at`, requiring
+   * this rule to report nothing. `'nothing here can run it'` carries the
+   * reason instead, and is a disclosure rather than a pin.
+   */
+  readonly demonstration:
+    | { readonly kind: 'linted'; readonly at: string; readonly source: string }
+    | { readonly kind: 'nothing here can run it'; readonly because: string }
+}[] = [
+  {
+    shape:
+      'A disable directive for this rule in a module a `.gitignore` line also hides, which blinds the rule and hides the file from the git listing every scan here reads.',
+    committable: false,
+    measurement:
+      '`eslint .` exit 0 and this suite green while the file is hidden; `git ls-files --others --exclude-standard` does not list it; `git add` refuses it ("ignored by one of your .gitignore files"); `git add -f` puts it into `--cached`, which is a listing every scan here reads, and the pre-commit hook then fails with HEAD unmoved.',
+    demonstration: {
+      kind: 'linted',
+      // The repository ROOT, because it is a path no `files`-scoped block gives
+      // typescript-eslint's `projectService` — which would answer "not found in
+      // any project" for a file that does not exist and fail the parse rather
+      // than the rule. The rule itself is unscoped, so it judges this path
+      // exactly as it judges an action module inside `app/`; the case
+      // "has the rule at error for every extension Next.js serves" already
+      // probes this same path for that reason.
+      at: 'actions.ts',
+      source: [
+        `/* ${DISABLE_DIRECTIVE} */`,
+        "'use server'",
+        'export const deleteJourney = () => Promise.resolve()',
+      ].join(String.fromCharCode(10)),
+    },
+  },
+  {
+    shape:
+      "A committed script that assembles the directive at runtime - `['use','server'].join(' ')` written into a module during `next build`. No linted file holds the literal and the emitted module does not exist when ESLint runs.",
+    committable: true,
+    measurement:
+      '`eslint .` exit 0; `grep -c "use server"` on the script 0; this suite green; `npm run verify` exit 0. It takes a deliberate two-part diff and mounts nothing on its own.',
+    demonstration: {
+      kind: 'nothing here can run it',
+      because:
+        'the module ESLint would have to judge is written by `next build` and does not exist when `eslint .` runs, so there is no text to hand a linter. Demonstrating it needs a check over the build OUTPUT, which `npm run verify` does not have — and linting the SCRIPT instead would demonstrate a different claim, since a script carrying no directive is not the shape that gets through.',
+    },
+  },
+]
 
 /**
  * Every way a mounted file can apply the guard, and the `(` is the point.
@@ -602,6 +696,141 @@ const filesSuppressingTheRule = (files: readonly string[]): readonly string[] =>
     const suppressed: unknown = answer[file]
     return Array.isArray(suppressed) && suppressed.includes(ACTIONS_RULE)
   })
+}
+
+/**
+ * A program printing, for each path handed to it, the processor ESLint would
+ * run over it before any rule sees the file.
+ *
+ * ═══ THE OFF SWITCH WITH NO KEY OVER IT, UNTIL ROUND 9 ═══
+ *
+ * A flat-config block may name a `processor`, whose `preprocess` hands ESLint
+ * whatever text it likes. One whose `preprocess` drops the directive line
+ * leaves every rule in this repository judging a module with no `'use server'`
+ * prologue — so this rule reports nothing, and all three disable keys are
+ * blind at once: there is no directive to find in the bytes, no rule id to
+ * find anywhere, and no `suppressedMessages` entry, because nothing was
+ * suppressed. Nothing fired.
+ *
+ * Measured by the sixth whole-branch review, and again on round 9's own tree
+ * before this probe existed: a `processor` block for
+ * `apps/web/lib/journeys/**` plus an ordinary unguarded
+ * `export const deleteJourney` at `apps/web/lib/journeys/actions.ts` left
+ * `eslint .` at exit 0 and this suite at 24 passing. `docs/adr/0018` called a
+ * disable comment "the one thing that defeats the RULE"; this is one config
+ * hunk, exactly as visible in a diff, and it had nothing over it.
+ *
+ * It is POLICED rather than disclosed, because the answer costs ten lines:
+ * `calculateConfigForFile` reports the resolved `processor` the same way it
+ * reports the resolved severity, so the question is asked of ESLint rather
+ * than read out of the config's source text. Run in a child process for the
+ * measured coverage reason {@link SEVERITY_PROBE_PROGRAM} documents.
+ *
+ * A SECOND PROGRAM RATHER THAN A FIELD ON THE SEVERITY ONE, so that each
+ * probe's answer stays one value per path and a reply of another shape narrows
+ * to "no answer" rather than to a wrong one.
+ */
+const PROCESSOR_PROBE_PROGRAM = [
+  "import { ESLint } from 'eslint'",
+  'const chunks = []',
+  'for await (const chunk of process.stdin) chunks.push(chunk)',
+  'const eslint = new ESLint({ cwd: process.cwd() })',
+  'const answer = {}',
+  "for (const file of JSON.parse(Buffer.concat(chunks).toString('utf8'))) {",
+  '  const resolved = await eslint.calculateConfigForFile(file)',
+  '  answer[file] = resolved?.processor === undefined ? null : true',
+  '}',
+  'process.stdout.write(JSON.stringify(answer))',
+].join('\n')
+
+/**
+ * The paths ESLint would run a processor over, asked of ESLint.
+ *
+ * @param files - Repository-relative paths, which need not exist.
+ * @returns Those paths a config block gives a processor, in the order given.
+ * @throws If the child cannot be run or does not answer with an object, rather
+ *   than returning nothing — an empty answer would satisfy the case below.
+ */
+const pathsWithAProcessor = (files: readonly string[]): readonly string[] => {
+  const printed = execFileSync(process.execPath, ['--input-type=module', '-e', PROCESSOR_PROBE_PROGRAM], {
+    cwd: repositoryRoot,
+    input: JSON.stringify(files),
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  const answer: unknown = JSON.parse(printed)
+  if (!isRecord(answer)) throw new Error('the processor probe did not answer with an object')
+
+  return files.filter((file) => answer[file] === true)
+}
+
+/**
+ * A program printing, for each module text handed to it, which rules ESLint
+ * REPORTED on it — at a path the text need not occupy on disk.
+ *
+ * WHY TEXT RATHER THAN A FILE. {@link SHAPES_THAT_GET_THROUGH}'s rows claim a
+ * shape gets through, and until round 9 nothing checked the claim: the sixth
+ * whole-branch review deleted a row and the suite stayed green. Writing each
+ * row's module to disk to check it would have this suite creating and deleting
+ * files inside the repository it scans, in a gate that runs on every commit.
+ * `lintText` asks the same question with no file: ESLint resolves the config
+ * for the path it is given and runs every rule over the text.
+ *
+ * Run in a child process for the measured coverage reason
+ * {@link SEVERITY_PROBE_PROGRAM} documents — this one loads the rule itself,
+ * so it is the probe that reason was found on.
+ */
+const LINT_TEXT_PROBE_PROGRAM = [
+  "import { ESLint } from 'eslint'",
+  'const chunks = []',
+  'for await (const chunk of process.stdin) chunks.push(chunk)',
+  'const eslint = new ESLint({ cwd: process.cwd() })',
+  'const answer = []',
+  "for (const probe of JSON.parse(Buffer.concat(chunks).toString('utf8'))) {",
+  '  const [result] = await eslint.lintText(probe.source, { filePath: probe.at })',
+  '  answer.push((result?.messages ?? []).map((message) => message.ruleId ?? message.message))',
+  '}',
+  'process.stdout.write(JSON.stringify(answer))',
+].join('\n')
+
+/** One module text, and the path ESLint should resolve its config from. */
+interface LintProbe {
+  /** The config path. Need not exist on disk. */
+  readonly at: string
+  /** The module text to lint. */
+  readonly source: string
+}
+
+/**
+ * What ESLint REPORTS on each of some module texts.
+ *
+ * A suppressed report is deliberately not in the answer: a disable directive
+ * moves a report from `messages` to `suppressedMessages`, and a shape that
+ * gets through by suppressing this rule is a shape ESLint reports nothing for,
+ * which is exactly what the row claims.
+ *
+ * @param probes - Texts and the paths to resolve their config from.
+ * @returns One list of reported rule ids (or fatal messages) per probe, in
+ *   order.
+ * @throws If the child cannot be run or does not answer with one list per
+ *   probe, rather than returning nothing — a short answer would satisfy the
+ *   case below for the probes it did not cover.
+ */
+const rulesReportedOn = (probes: readonly LintProbe[]): readonly (readonly string[])[] => {
+  const printed = execFileSync(process.execPath, ['--input-type=module', '-e', LINT_TEXT_PROBE_PROGRAM], {
+    cwd: repositoryRoot,
+    input: JSON.stringify(probes),
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  const answer: unknown = JSON.parse(printed)
+  if (!Array.isArray(answer) || answer.length !== probes.length) {
+    throw new Error('the lint-text probe did not answer with one list per probe')
+  }
+
+  return answer.map((reported: unknown) =>
+    Array.isArray(reported) ? reported.filter((entry): entry is string => typeof entry === 'string') : [],
+  )
 }
 
 /**
@@ -912,25 +1141,8 @@ describe('the rule that makes an unguarded Server Action unwritable', () => {
     // extensions its compiler also accepts. That IS a list, and a list is what
     // the nine defeats taught us not to trust - which is why the case above
     // exists and does not consult one.
-    const probes = [
-      'apps/web/app/(admin)/admin/journeys/actions.ts',
-      'apps/web/app/(admin)/admin/journeys/actions.tsx',
-      'apps/web/app/(admin)/admin/journeys/actions.js',
-      'apps/web/app/(admin)/admin/journeys/actions.jsx',
-      'apps/web/app/(admin)/admin/journeys/actions.mjs',
-      'apps/web/app/(admin)/admin/journeys/actions.cjs',
-      'apps/web/app/(admin)/admin/journeys/actions.mts',
-      'apps/web/app/(admin)/admin/journeys/actions.cts',
-      // Directories no `files` array in this repository names, and one of them
-      // is where two of the three round-6 defeats were written.
-      'apps/web/actions/journeys.ts',
-      'apps/web/globals/journeyActions.ts',
-      'packages/domain/src/journeyActions.ts',
-      'actions.ts',
-    ]
-
-    const severities = configuredSeverities(probes)
-    const notAtError = probes.filter((probe) => severities.get(probe) !== ERROR_SEVERITY)
+    const severities = configuredSeverities(ACTION_PATH_PROBES)
+    const notAtError = ACTION_PATH_PROBES.filter((probe) => severities.get(probe) !== ERROR_SEVERITY)
 
     expect(
       notAtError,
@@ -1080,6 +1292,92 @@ describe('the rule that makes an unguarded Server Action unwritable', () => {
     expect(
       notPointing,
       'these documents describe what defeats the guard without sending the reader to SHAPES_THAT_GET_THROUGH',
+    ).toEqual([])
+  })
+
+  it('demonstrates every shape it says gets through, so a row cannot be stale', () => {
+    // THE CONTENTS OF THE SURVIVOR ARRAY, PINNED - the sixth whole-branch
+    // review's finding 5, and the third "guard on a guard written in the same
+    // edit" in this phase. Before this case the array's only floors were its
+    // length, each shape's length and the word "eslint" in each measurement,
+    // so a row could be deleted (measured: 21 passing) or could go on claiming
+    // a shape a later round had closed. What is pinned is the CLAIM: a row
+    // marked `'linted'` carries the module, and this rule must report nothing
+    // for it.
+    //
+    // WHAT IT STILL CANNOT DO is written at the array and is worth repeating
+    // where it is asserted: a row's ABSENCE proves nothing, because
+    // enumerating what gets through means knowing what gets through. This
+    // fails on a row that has stopped being true. It cannot fail on a shape
+    // nobody has thought of.
+    // `flatMap` rather than `filter`, so the row is narrowed by the ternary
+    // that reads it and no unreachable arm has to be written to re-narrow it.
+    const linted = SHAPES_THAT_GET_THROUGH.flatMap((survivor) =>
+      survivor.demonstration.kind === 'linted'
+        ? [{ at: survivor.demonstration.at, source: survivor.demonstration.source }]
+        : [],
+    )
+
+    // THE SENTINEL, AND IT IS A NEGATIVE CONTROL RATHER THAN A COUNT. A probe
+    // that answered "nothing reported" for everything - a broken child, a
+    // config that stopped applying at this path - would "demonstrate" every
+    // row. So an ordinary unguarded action module goes through the same probe
+    // and MUST be reported.
+    const control: LintProbe = {
+      at: 'actions.ts',
+      source: ["'use server'", 'export const deleteJourney = () => Promise.resolve()'].join(String.fromCharCode(10)),
+    }
+    const [reportedOnControl, ...reportedOnRows] = rulesReportedOn([control, ...linted])
+    expect(reportedOnControl, 'the probe reports nothing even for a plainly unguarded action module').toContain(
+      ACTIONS_RULE,
+    )
+
+    const stillTrue = linted.filter((_probe, index) => !(reportedOnRows[index] ?? []).includes(ACTIONS_RULE))
+
+    // The sentinel counts rows CARRYING a module rather than surviving ones,
+    // so that a stale row fails on the sentence naming it rather than on this.
+    expect(linted.length, 'no row in SHAPES_THAT_GET_THROUGH carries a module for this case to lint').toBeGreaterThan(0)
+    expect(
+      linted.length - stillTrue.length,
+      'these rows say a shape gets through and this rule reports it: the shape was closed, so correct the row or delete it',
+    ).toBe(0)
+
+    // And a row nothing here can run says so in the row, rather than being
+    // trusted by convention.
+    for (const survivor of SHAPES_THAT_GET_THROUGH) {
+      if (survivor.demonstration.kind === 'nothing here can run it') {
+        expect(survivor.demonstration.because.length).toBeGreaterThan(80)
+      }
+    }
+  }, 60_000)
+
+  it('lets no processor strip the directive before this rule is handed the file', () => {
+    // FINDING 4, POLICED RATHER THAN DISCLOSED. A flat-config `processor`
+    // whose `preprocess` drops the directive line defeats the rule and all
+    // three disable keys at once - no directive in the bytes, no rule id
+    // anywhere, and no `suppressedMessages`, because nothing fired. Measured
+    // on round 9's own tree: `eslint .` exit 0 and this suite at 24 passing,
+    // with an unguarded mountable module at
+    // `apps/web/lib/journeys/actions.ts`.
+    //
+    // Asked of ESLint's own config resolution, so where the key sits in
+    // `eslint.config.js` is not something this case can be wrong about; and
+    // asked BOTH of the modules that exist and of paths nobody has written,
+    // so a processor scoped to a Phase 4 directory fails on the commit that
+    // adds it rather than on the commit that exploits it.
+    const carrying = repositoryFiles()
+      .filter(carriesTheDirective)
+      .filter((file) => !DIRECTIVE_IN_PROSE.some((prose) => prose.path === file))
+
+    // THE SENTINEL: a listing that found nothing would satisfy this having
+    // probed only the hypothetical paths.
+    expect(carrying).toContain('apps/web/lib/auth/guard.ts')
+
+    const probes = [...carrying, ...ACTION_PATH_PROBES]
+
+    expect(
+      pathsWithAProcessor(probes),
+      'a config block gives these paths a processor, which hands every rule text of its own choosing: this rule cannot see a directive a preprocess step removed',
     ).toEqual([])
   })
 

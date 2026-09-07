@@ -436,11 +436,29 @@ So the coverage check is INVERTED, and this is the arrangement to keep:
 | Has anybody disabled the rule for a file?             | `adminGuardRegistration.test.ts` | the same git listing, keyed on the PRESENCE of a disable directive in any module carrying the directive, against an allowlist of exact paths |
 | Could an inline severity comment switch it off?       | `adminGuardRegistration.test.ts` | the same git listing: the files permitted to spell the rule's own id, by exact path                                                          |
 | Did a directive actually suppress a report of it?     | `adminGuardRegistration.test.ts` | `ESLint#lintFiles` over every file carrying a directive, reading `suppressedMessages`                                                        |
+| Could a `processor` strip the directive first?        | `adminGuardRegistration.test.ts` | `ESLint#calculateConfigForFile`, reading the resolved `processor` for every directive-carrying module and every hypothetical action path     |
+| Is each enumerated survivor still a survivor?         | `adminGuardRegistration.test.ts` | `ESLint#lintText` over the module each `SHAPES_THAT_GET_THROUGH` row carries, with an unguarded module as the negative control               |
 
 Text is used for what text is good at — finding candidates anywhere, at extensions nobody
 enumerated — and the AST decides correctness. The listing is
 `git ls-files --cached --others --exclude-standard`, so a file written and never staged is
 still seen, and no skip list of `node_modules`/`.next`/`coverage` has to be maintained.
+
+**The last two rows are round 9's, and each closes something the sixth whole-branch review
+measured.** A flat-config `processor` whose `preprocess` drops the directive line hands
+every rule a module with no `'use server'` prologue, so the rule reports nothing and all
+three disable keys go blind at once — no directive in the bytes, no rule id anywhere, no
+suppressed message, because nothing fired. Re-measured on round 9's own tree before the key
+existed: `eslint .` exit 0 and the suite at 24 passing, with an unguarded mountable module
+at `apps/web/lib/journeys/actions.ts`. It is policed rather than disclosed because
+`calculateConfigForFile` reports a resolved `processor` exactly as it reports a resolved
+severity, so the answer costs ten lines. And `SHAPES_THAT_GET_THROUGH`'s CONTENTS were
+unpinned: the reviewer deleted the committable row and the suite stayed green at 21 passing,
+and wrote a live survivor with no row at all and it stayed green at 24. Each row now carries
+either the module text this suite lints — requiring the rule to report nothing, so a row
+that a later round CLOSES fails on that commit — or an explicit statement of why nothing
+here can run it. **A row's absence still proves nothing, and no test can change that**:
+enumerating what gets through means knowing what gets through. The array says so at itself.
 
 **The severity probe runs in a child process, and the reason is a measured coverage
 interaction rather than a preference.** ESLint loads `eslint.config.js` — and through it
