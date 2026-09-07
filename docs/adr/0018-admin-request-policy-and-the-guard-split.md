@@ -257,7 +257,12 @@ each, by `SHAPES_THAT_GET_THROUGH` in
 `apps/web/lib/auth/adminGuardRegistration.test.ts` — and a case there fails if this
 document stops pointing at that array or starts restating it. No count is written here:
 a number retyped in prose has drifted from this code in every round of this phase, and
-seven sites said two while the fifth whole-branch review measured four (ruling F76).
+seven sites said two while the fifth whole-branch review measured four (ruling F76). The case reads EVERY file git lists, not a
+named handful, and it flattens comment and quote continuations before matching, because
+the seventh whole-branch review defeated the earlier version by splitting the sentence
+across two lines of a block comment in `guard.ts` and left the suite green. What it
+refuses is that one sentence, in any wrapping and in any file; what it does not refuse is
+a paraphrase, which the case says in its own comment rather than claiming otherwise.
 
 **THE DISABLE DIRECTIVE IS THE DELIBERATE OFF SWITCH, AND ROUND 8 REPLACED THE CHECK OVER
 IT.** One reviewable line with a reason beside it is a decision somebody made, so it is

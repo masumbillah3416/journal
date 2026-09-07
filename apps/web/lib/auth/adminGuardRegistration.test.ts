@@ -282,6 +282,47 @@ const ACTION_PATH_PROBES: readonly string[] = [
 /** Splits a file into lines, whichever line ending it was written with. */
 const NEWLINE = /\r?\n/u
 
+/** One line break, spelled rather than written, for the reason {@link NUL_SEPARATOR} gives. */
+const LINE_BREAK = String.fromCharCode(10)
+
+/**
+ * A line break with its indentation and any continuation marker, as one match.
+ *
+ * The markers are the ones a WRAPPED SENTENCE carries in this repository's own
+ * file types: ` * ` opening the next line of a block comment, `//` opening the
+ * next line of a line comment, `>` opening the next line of a Markdown quote,
+ * and `#` opening the next line of a shell or YAML comment. `*\/` is excluded
+ * so the end of a block comment is not eaten as a continuation of it.
+ *
+ * WHY IT EXISTS. A scan for a sentence in a source file is a scan over text a
+ * human wrapped, and `\s+` matches the line break but not the ` * ` after it. The
+ * seventh whole-branch review defeated this file's F76 case with exactly that:
+ * the sentence it refuses, split across two lines of a block comment, in one
+ * of the files it reads. Flattening first is what makes the scan read what a
+ * reader reads rather than what a line happens to hold.
+ */
+const WRAPPED_LINE = /\r?\n[ \t]*(?:\*(?!\/)|\/\/+|>+|#+)?[ \t]*/gu
+
+/**
+ * One text with its line wrapping flattened to single spaces.
+ *
+ * @param text - The file's contents, or a sentinel string.
+ * @returns The same text with every {@link WRAPPED_LINE} replaced by one space,
+ *   so a sentence a human wrapped reads as the sentence they wrote.
+ */
+const unwrapped = (text: string): string => text.replace(WRAPPED_LINE, ' ')
+
+/**
+ * The one file allowed to spell the sentence the F76 case refuses.
+ *
+ * This one: the case's sentinels have to contain the sentence in order to
+ * prove the regex matches it, and a scan over every file the repository holds
+ * reads this file too. Named exactly, never by a `*.test.ts` pattern - a
+ * pattern would also excuse a count written into any other test file, and the
+ * whole defect being closed here is a sentence at an address nobody listed.
+ */
+const FILE_PERMITTED_TO_SPELL_THE_SENTENCE = 'apps/web/lib/auth/adminGuardRegistration.test.ts'
+
 /**
  * The rule that makes an unguarded Server Action a lint error.
  *
@@ -1375,16 +1416,51 @@ describe('the rule that reports an unguarded Server Action', () => {
     // and every document that used to restate it must point at the array by
     // name instead.
     //
-    // WHAT IT CANNOT DO, said plainly: it refuses the one sentence that has
-    // been wrong five times and requires the pointer. It cannot refuse every
-    // paraphrase of a count, and it does not claim to - what it makes
-    // impossible is a number sitting in prose where a reader will trust it.
+    // WHAT IT REFUSES, in the indicative, with the defeat that shaped each
+    // half - and the round-9 version of this paragraph said instead that "what
+    // it makes impossible is a number sitting in prose where a reader will
+    // trust it", which the seventh whole-branch review falsified in three
+    // lines. Ruling F78: a control is described by what it refuses.
+    //
+    //   1. THE SENTENCE ON ONE LINE, IN ANY FILE THE REPOSITORY HOLDS. It used
+    //      to be seven named sites. Seven named sites is an enumeration, and
+    //      the five enumerations that failed in this phase all failed the same
+    //      way: a count written into an eighth file - a new ADR, a QA report,
+    //      a README - was not looked at. The scan is the same `git ls-files`
+    //      listing every other case here uses.
+    //
+    //   2. THE SAME SENTENCE WRAPPED. `\s+` matches a newline but not the
+    //      ` * ` that opens the next line of a block comment, so the review
+    //      inserted `* Only TWO shapes` / `* get through today` into
+    //      `guard.ts` - one of the sites below, and the file a Phase 3 reader
+    //      trusts most - and this suite stayed at 23 passing with prettier
+    //      clean. Comment and quote continuations are flattened before
+    //      matching now, so a line break is not a hiding place.
+    //
+    // WHAT IT DOES NOT REFUSE, said rather than implied: a PARAPHRASE. "two
+    // survivors get past", "both of them are live", anything that renames the
+    // noun or puts a word between "shapes" and "get" - all walk past it, and no
+    // regex over English closes that. What it refuses is the one sentence that
+    // has been wrong in five rounds, in every wrapping and in every file.
     const SURVIVOR_SENTENCE = /shapes?\s+gets?\s+through/iu
 
-    // The sentinel first: a regex that matched nothing would pass this case
-    // having read seven files and found nothing in any of them.
-    expect(SURVIVOR_SENTENCE.test('TWO shapes get through today, not one')).toBe(true)
-    expect(SURVIVOR_SENTENCE.test('the shapes that get through are enumerated')).toBe(false)
+    // The sentinels first: a regex that matched nothing, or a flattener that
+    // flattened nothing, would pass this case having read every file in the
+    // repository and found nothing in any of them. The last two are the
+    // review's own counter-example and its line-comment twin.
+    // A LINE BREAK IS SPELLED, NEVER WRITTEN, here as everywhere in this file:
+    // an escape sequence a script writes into a source file is one
+    // transcription error away from being a real control byte, and this one
+    // would be invisible in a diff.
+    const wrap = LINE_BREAK
+    expect(SURVIVOR_SENTENCE.test(unwrapped('TWO shapes get through today, not one'))).toBe(true)
+    expect(SURVIVOR_SENTENCE.test(unwrapped('the shapes that get through are enumerated'))).toBe(false)
+    expect(
+      SURVIVOR_SENTENCE.test(unwrapped(` * Only TWO shapes${wrap} * get through today, and both are harmless.`)),
+    ).toBe(true)
+    expect(SURVIVOR_SENTENCE.test(unwrapped(`// Only TWO shapes${wrap}// get through today`))).toBe(true)
+    expect(SURVIVOR_SENTENCE.test(unwrapped(`> TWO shapes${wrap}> get through`))).toBe(true)
+    expect(SURVIVOR_SENTENCE.test(unwrapped(`the shapes${wrap} * that get through are enumerated`))).toBe(false)
 
     expect(SHAPES_THAT_GET_THROUGH.length).toBeGreaterThan(0)
     for (const survivor of SHAPES_THAT_GET_THROUGH) {
@@ -1402,14 +1478,22 @@ describe('the rule that reports an unguarded Server Action', () => {
       'eslint-rules/guarded-server-actions.js',
     ]
 
-    const restating = sitesThatUsedToCount.filter((file) => SURVIVOR_SENTENCE.test(bytesOf(file).toString('utf8')))
+    // THE SENTINEL FOR THE LISTING, for the same reason every other case here
+    // carries one: a `git ls-files` that answered with nothing would satisfy
+    // the assertion below having read no file at all.
+    const scanned = repositoryFiles().filter((file) => file !== FILE_PERMITTED_TO_SPELL_THE_SENTENCE)
+    expect(scanned).toContain('apps/web/lib/auth/guard.ts')
+    expect(scanned).toContain('docs/architecture.md')
+    expect(scanned).not.toContain(FILE_PERMITTED_TO_SPELL_THE_SENTENCE)
+
+    const restating = scanned.filter((file) => SURVIVOR_SENTENCE.test(unwrapped(bytesOf(file).toString('utf8'))))
     const notPointing = sitesThatUsedToCount.filter(
       (file) => !bytesOf(file).toString('utf8').includes('SHAPES_THAT_GET_THROUGH'),
     )
 
     expect(
       restating,
-      'these documents restate a count of the shapes that get through instead of pointing at the array',
+      'these files restate a count of the shapes that get through instead of pointing at SHAPES_THAT_GET_THROUGH, and a wrapped line is not an exception: the count lives in the array, which the case below demonstrates row by row',
     ).toEqual([])
     expect(
       notPointing,
