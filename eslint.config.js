@@ -28,6 +28,41 @@ export default tseslint.config(
     plugins: { 'travel-diary': { rules: { 'guarded-server-actions': guardedServerActions } } },
     rules: { 'travel-diary/guarded-server-actions': 'error' },
   },
+  // ══ `.jsx`, which ESLint enumerated for nobody ══
+  //
+  // A flat config lints the extensions some block's `files` array names, and
+  // nothing here named this one: ESLint's own default covers `.js`/`.mjs`/
+  // `.cjs` and `tseslint.configs.recommended` covers `.ts`/`.tsx`/`.mts`/
+  // `.cts`, which left `.jsx` invisible to `eslint .` — naming such a file
+  // directly answered "File ignored because no matching configuration was
+  // supplied", and the rule above could not report on a file it was never
+  // handed. Next.js's default `pageExtensions` is `tsx, ts, jsx, js` and
+  // `apps/web/next.config.ts` sets none of its own, so a `'use server'`
+  // module written as `.jsx` was a live action endpoint that passed lint,
+  // typecheck and `prettier --check` in silence. It was mounted against a
+  // running dev server and Next registered its export
+  // (`name="$ACTION_ID_00c4d417…"`), so this is a demonstrated hole rather
+  // than a theoretical one.
+  //
+  // This block adds no rule. Its whole job is to put the extension in
+  // ESLint's enumeration, after which the UNSCOPED block above applies to it
+  // like everything else. The parser is typescript-eslint's for the same
+  // reason the rest of the repository uses it, and `ecmaFeatures.jsx` is set
+  // so a `.jsx` file holding actual JSX parses rather than erroring — a parse
+  // error would fail the gate for the wrong reason and teach an author to add
+  // an ignore.
+  //
+  // AN EXTENSION LIST CANNOT BE TRUSTED COMPLETE, which is the lesson of the
+  // nine text scans, so this is not the guarantee. The guarantee is
+  // `adminGuardRegistration.test.ts`'s coverage case: it walks the repository
+  // for the literal `'use server'` and asks ESLint, through its own API,
+  // whether each file it finds is one ESLint visits with this rule at `error`.
+  // Text finds candidates at extensions nobody listed; the AST decides
+  // whether they are guarded.
+  {
+    files: ['**/*.jsx'],
+    languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },
+  },
   // Syntactic baseline — no type information needed, so it can parse every TS file
   // including config files. The three CLAUDE.md §3.1 non-negotiables live here so
   // they can never be silently dropped for a file that falls outside a tsconfig project.

@@ -25,19 +25,48 @@
  *
  * Depends on: eslint (RuleTester), typescript-eslint (the parser), vitest.
  */
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { RuleTester } from 'eslint'
 import tseslint from 'typescript-eslint'
 import { describe, expect, it } from 'vitest'
 import { guardedServerActions } from './guarded-server-actions.js'
 
-/** The import line a guarded module carries. */
-const IMPORT = "import { guardedAction } from '../lib/auth/guard'"
+/** `eslint-rules/` -> the repository root. */
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+
+/**
+ * Where every fixture below pretends to live.
+ *
+ * A REAL ADDRESS ON DISK, AND THAT IS NEW IN ROUND 6. The rule no longer
+ * pattern-matches the import specifier; it resolves it against the importing
+ * file and compares the result with `apps/web/lib/auth/guard.ts` itself. So a
+ * fixture needs a plausible `filename` for its relative specifier to resolve
+ * from, and the specifiers below are the real ones a Phase 4 action would
+ * carry — four levels up out of `journeys/`, `admin/`, `(admin)/` and `app/`,
+ * which is what `app/(admin)/admin/sign-out/route.ts` already writes.
+ *
+ * The directory itself does not exist, and does not need to: the file being
+ * resolved is `guard.ts`, not this one.
+ */
+const ACTION_FILE = path.join(repositoryRoot, 'apps/web/app/(admin)/admin/journeys/actions.ts')
+
+/** The import line a guarded module carries, resolving to the real factory. */
+const IMPORT = "import { guardedAction } from '../../../../lib/auth/guard'"
 
 /** A line break, written once so no fixture has to carry an escape. */
 const NEWLINE = String.fromCharCode(10)
 
 /** An action body, so no case is testing an empty function. */
 const BODY = 'async (session) => Promise.resolve(session)'
+
+/**
+ * Puts a case at {@link ACTION_FILE}, so every one of them resolves the same way.
+ *
+ * @param {object} testCase - A RuleTester valid or invalid case.
+ * @returns {object} The same case, given a filename.
+ */
+const at = (testCase) => ({ ...testCase, filename: ACTION_FILE })
 
 const ruleTester = new RuleTester({
   languageOptions: { parser: tseslint.parser, ecmaVersion: 2022, sourceType: 'module' },
@@ -73,7 +102,13 @@ describe('guarded-server-actions', () => {
         // A prologue that ends without the directive: the walk has to stop at
         // the first non-directive statement rather than scanning the file.
         { code: "'use strict'\nexport const publish = async () => Promise.resolve()" },
-      ],
+        // The specifier has no extension and the factory is a `.ts` file, so
+        // the resolution has to try the bare path and then append — the shape
+        // `moduleResolution: "Bundler"` gives every import in this repository.
+        {
+          code: ["'use server'", IMPORT, `export const publish = guardedAction(${BODY})`].join(NEWLINE),
+        },
+      ].map(at),
       invalid: [
         {
           name: 'round 5 · a bare arrow export',
@@ -179,7 +214,70 @@ describe('guarded-server-actions', () => {
           code: ["'use server'", IMPORT, `export const publish = wrap(${BODY})`].join('\n'),
           errors: [{ messageId: 'unguarded' }],
         },
-      ],
+        {
+          // ROUND 6, DEFEAT 2. `apps/web/lib/auth/guardedAction.ts` is a path
+          // no file in this repository has ever occupied, and the pattern that
+          // used to decide this — `/(^|\/)auth\/guard(edAction)?$/` — accepted
+          // it, so the optional group could only ever admit a forgery. A decoy
+          // exporting a no-op of that name left `eslint .` at exit 0.
+          name: 'round 6 · a decoy factory at lib/auth/guardedAction',
+          code: [
+            "'use server'",
+            "import { guardedAction } from '../../../../lib/auth/guardedAction'",
+            `export const publish = guardedAction(${BODY})`,
+          ].join(NEWLINE),
+          errors: [{ messageId: 'notTheFactory' }],
+        },
+        {
+          // ROUND 6, DEFEAT 3. The pattern was a SUFFIX match, so any directory
+          // named `auth` holding a `guard` satisfied it — including one written
+          // beside the action, four levels away from the real factory.
+          name: 'round 6 · a decoy auth/guard written beside the action',
+          code: [
+            "'use server'",
+            "import { guardedAction } from './auth/guard'",
+            `export const publish = guardedAction(${BODY})`,
+          ].join(NEWLINE),
+          errors: [{ messageId: 'notTheFactory' }],
+        },
+        {
+          // THE CASE THAT PROVES THE COMPARISON IS AGAINST ONE FILE rather than
+          // against "a specifier that resolves to something". `adminAccess.ts`
+          // is a real file in the real directory the real factory lives in, and
+          // it is still not the factory.
+          name: 'round 6 · a real module in the factory’s own directory, which is not the factory',
+          code: [
+            "'use server'",
+            "import { guardedAction } from '../../../../lib/auth/adminAccess'",
+            `export const publish = guardedAction(${BODY})`,
+          ].join(NEWLINE),
+          errors: [{ messageId: 'notTheFactory' }],
+        },
+        {
+          // A specifier that resolves to a real DIRECTORY rather than a file.
+          // `apps/web/lib/auth` exists; `canonicalFile` has to answer no for it
+          // rather than hand back a path that could compare equal to a file.
+          name: 'round 6 · a specifier naming the factory’s directory rather than the file',
+          code: [
+            "'use server'",
+            "import { guardedAction } from '../../../../lib/auth'",
+            `export const publish = guardedAction(${BODY})`,
+          ].join(NEWLINE),
+          errors: [{ messageId: 'notTheFactory' }],
+        },
+        {
+          // A bare specifier resolves to nothing here on purpose: admitting one
+          // would mean trusting a package resolver the rule does not have, and
+          // a package named `auth/guard` is a thing anybody can publish.
+          name: 'round 6 · a bare specifier that merely spells the factory’s path',
+          code: [
+            "'use server'",
+            "import { guardedAction } from 'auth/guard'",
+            `export const publish = guardedAction(${BODY})`,
+          ].join(NEWLINE),
+          errors: [{ messageId: 'notTheFactory' }],
+        },
+      ].map(at),
     })
   })
 
@@ -190,6 +288,7 @@ describe('guarded-server-actions', () => {
     const source = guardedServerActions.create.toString()
 
     expect(guardedServerActions.meta.messages.unguarded).toContain('guardedAction')
+    expect(guardedServerActions.meta.messages.notTheFactory).toContain('apps/web/lib/auth/guard.ts')
     expect(source).toContain('FACTORY')
     expect(Object.keys(guardedServerActions.meta.messages).sort()).toEqual([
       'inlineDirective',

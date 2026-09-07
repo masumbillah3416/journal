@@ -8,6 +8,6 @@
     "plugins": [{ "name": "next" }],
     "paths": { "@payload-config": ["./payload.config.ts"] }
   },
-  "include": ["**/*.ts", "**/*.tsx", "**/*.js", "next-env.d.ts", ".next/types/**/*.ts"],
+  "include": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "next-env.d.ts", ".next/types/**/*.ts"],
   "exclude": ["node_modules", ".next", "dist"]
 }

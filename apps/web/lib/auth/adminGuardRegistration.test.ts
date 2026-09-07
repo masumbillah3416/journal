@@ -102,7 +102,8 @@
  *
  * Depends on: node:fs, node:path, node:url, vitest, ./adminAccess.
  */
-import { readdirSync, readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -194,7 +195,7 @@ const NON_SERVABLE_FILES: readonly { readonly matches: (name: string) => boolean
  * mint a `payload-token`, its reachable surface is what Payload grants an
  * anonymous request — the same surface `/api/**` already exposes.
  */
-const ACTIONS_RULE_EXEMPT_FILES: readonly string[] = ['app/(payload)/layout.tsx']
+const ACTIONS_RULE_EXEMPT_FILES: readonly string[] = ['apps/web/app/(payload)/layout.tsx']
 
 /** Splits a file into lines, whichever line ending it was written with. */
 const NEWLINE = /\r?\n/u
@@ -217,6 +218,187 @@ const ACTIONS_RULE = 'travel-diary/guarded-server-actions'
  * is a check that can be satisfied by a neighbour.
  */
 const GUARD_APPLICATIONS = /(guarded|requireAdminSession|authenticateAdminRequest)\s*\(/u
+
+/**
+ * The separator `git ls-files -z` writes between paths.
+ *
+ * `String.fromCharCode(0)` rather than an escape, for the same reason the
+ * rule's own test spells a line break that way: an escape sequence written into
+ * a source file by a script is one transcription error away from being a real
+ * control byte in the file, and this one would be invisible in a diff.
+ */
+const NUL_SEPARATOR = String.fromCharCode(0)
+
+/** The repository root — `apps/web/lib/auth` -> the workspace above `apps/`. */
+const repositoryRoot = path.resolve(webRoot, '../..')
+
+/**
+ * Every file the repository holds, tracked or newly written, repository-relative.
+ *
+ * ═══ WHY GIT AND NOT A DIRECTORY WALK ═══
+ *
+ * The version this replaced enumerated five directory names
+ * (`['app','components','lib','collections','scripts']`) inside `apps/web` — in
+ * the file whose own header says that being outside a directory list is how
+ * five of the nine defeats worked. It was duly defeated by
+ * `apps/web/actions/journeys.ts` and by `apps/web/globals/journeyActions.ts`,
+ * both real directories, and by anything at all outside `apps/web`.
+ *
+ * A hand-rolled walk from the repository root would need a skip list —
+ * `node_modules`, `.next`, `coverage`, `media`, the Playwright and Lighthouse
+ * artefacts — and that skip list is the same enumeration wearing a different
+ * hat. `git ls-files` needs no list from us: the index plus the untracked files
+ * git does not ignore IS "what this repository holds", and `.gitignore` is
+ * already the repository's own written statement of what is generated rather
+ * than authored.
+ *
+ * `--others --exclude-standard` as well as `--cached` is the load-bearing part:
+ * an attack on this check writes a file, runs the gate and deletes it, and a
+ * listing of the index alone would not see a file that was never staged. What
+ * it deliberately does NOT see is a file somebody has added to `.gitignore` —
+ * which cannot be committed, and whose `.gitignore` line is a visible decision
+ * in the same diff.
+ *
+ * @returns One repository-relative path per file, with `/` separators.
+ * @throws If `git` cannot be run, rather than returning an empty list — an
+ *   empty list would satisfy every case below having read nothing.
+ */
+const repositoryFiles = (): readonly string[] => {
+  const listed = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
+    cwd: repositoryRoot,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  const files = listed.split(NUL_SEPARATOR).filter((file) => file.length > 0)
+  if (files.length === 0) throw new Error('git listed no files, so nothing below has read anything')
+  return files
+}
+
+/** The bytes of one repository file. */
+const bytesOf = (file: string): Buffer => readFileSync(path.join(repositoryRoot, file))
+
+/**
+ * Both spellings of the directive that turns a module's exports into endpoints.
+ *
+ * Searched over BYTES rather than decoded text, so a file this scan has no
+ * business decoding — a PNG baseline, the handoff's screenshots — costs one
+ * buffer comparison instead of a UTF-8 decode, and cannot throw.
+ */
+const SERVER_DIRECTIVE_SPELLINGS: readonly string[] = ["'use server'", '"use server"']
+
+/** Whether a file carries the directive anywhere in it, comments included. */
+const carriesTheDirective = (file: string): boolean => {
+  const bytes = bytesOf(file)
+  return SERVER_DIRECTIVE_SPELLINGS.some((spelling) => bytes.includes(spelling))
+}
+
+/**
+ * Files that carry the directive as PROSE rather than as a module, by exact path.
+ *
+ * DEFAULT-DENY, like {@link ACTIONS_RULE_EXEMPT_FILES}: the coverage case below
+ * requires every file carrying `'use server'` to be one ESLint lints with the
+ * rule at `error`, and these three are documentation quoting the mechanism.
+ * They are named individually rather than excused by a `docs/` prefix or a
+ * `.md` suffix, because a prefix would also excuse a `.jsx` action somebody
+ * dropped in a documentation directory, and the whole defect being closed here
+ * is a file at an address nobody listed.
+ *
+ * The consequence is stated rather than left to be met: a NEW document that
+ * quotes the directive fails this case until it is listed. That is the safe
+ * direction — the failure names the file and asks somebody whether it is prose
+ * or a module — but it is friction, and it is the price of not owning a pattern
+ * that a real action could hide behind.
+ */
+const DIRECTIVE_IN_PROSE: readonly { readonly path: string; readonly because: string }[] = [
+  { path: 'docs/adr/0018-admin-request-policy-and-the-guard-split.md', because: 'the ADR describing the rule' },
+  { path: 'docs/api.md', because: 'the shape a Phase 4 action takes, in a fenced example' },
+  { path: 'docs/architecture.md', because: 'the paragraph naming the rule and what defeats it' },
+]
+
+/** Narrows an unknown to an indexable object, so nothing below needs a cast. */
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+
+/** The severity that makes the gate fail rather than warn. */
+const ERROR_SEVERITY = 2
+
+/**
+ * The program that asks ESLint how it would configure the rule for some paths.
+ *
+ * ═══ WHY THIS RUNS IN A CHILD PROCESS ═══
+ *
+ * It could be four lines of `await new ESLint().calculateConfigForFile(...)`
+ * inline, and that is how it was first written. The reason it is not is a
+ * measured coverage-tooling interaction, not a preference: ESLint loads
+ * `eslint.config.js` — and through it `eslint-rules/guarded-server-actions.js` —
+ * with Node's own loader, so calling the ESLint API from inside a Vitest worker
+ * puts a SECOND, UNINSTRUMENTED copy of the rule in the same process. Both
+ * copies report against the same source path, the uninstrumented one's zero
+ * counts win, and `@vitest/coverage-v8` then reports the rule at 89.84% lines /
+ * 63.15% functions — with every function marked unexecuted — where the
+ * RuleTester suite alone measures it at 100/100/100 and `vitest.config.ts`
+ * gates it at 100%. Reproduced by running the two test files together and then
+ * separately.
+ *
+ * A child process keeps the two loads in two processes. It also asks the
+ * question the way `npm run lint` asks it — a fresh Node process, ESLint
+ * resolving its own config off disk — rather than the way a test harness would.
+ *
+ * The paths arrive on STDIN as JSON rather than as arguments: this repository
+ * lists over five hundred files, and Windows caps a command line at 32,767
+ * characters.
+ */
+const SEVERITY_PROBE_PROGRAM = [
+  "import { ESLint } from 'eslint'",
+  'const chunks = []',
+  'for await (const chunk of process.stdin) chunks.push(chunk)',
+  'const eslint = new ESLint({ cwd: process.cwd() })',
+  'const answer = {}',
+  "for (const file of JSON.parse(Buffer.concat(chunks).toString('utf8'))) {",
+  '  const resolved = await eslint.calculateConfigForFile(file)',
+  "  const entry = resolved?.rules?.['" + 'travel-diary/guarded-server-actions' + "']",
+  '  answer[file] = Array.isArray(entry) ? entry[0] : (entry ?? null)',
+  '}',
+  'process.stdout.write(JSON.stringify(answer))',
+].join('\n')
+
+/**
+ * How ESLint would configure {@link ACTIONS_RULE} for each of some paths.
+ *
+ * ASKED OF ESLINT RATHER THAN READ OUT OF `eslint.config.js`. The case this
+ * replaced sliced the config's source text between two markers and asserted a
+ * `files:` key was absent from the slice, which a `files:` key written AFTER
+ * the rules key sat outside of. `calculateConfigForFile` runs the same
+ * resolution `eslint .` runs, answers for a path whose file does not exist, and
+ * has no opinion about where in the file a key was written.
+ *
+ * The child's answer is narrowed rather than trusted — CLAUDE.md §3.1 bans the
+ * `any` ESLint types that method as, and this crosses a process boundary, which
+ * is a trust boundary — so a reply of any other shape reads back as
+ * `undefined`, which every caller treats as "not at error".
+ *
+ * @param files - Repository-relative paths, which need not exist.
+ * @returns The severity per path: 2 for `error`, 1 for `warn`, 0 for `off`,
+ *   undefined when it is a file ESLint does not lint at all.
+ * @throws If the child cannot be run or does not answer with an object, rather
+ *   than returning nothing — an empty answer would satisfy every case below.
+ */
+const configuredSeverities = (files: readonly string[]): ReadonlyMap<string, number | undefined> => {
+  const printed = execFileSync(process.execPath, ['--input-type=module', '-e', SEVERITY_PROBE_PROGRAM], {
+    cwd: repositoryRoot,
+    input: JSON.stringify(files),
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  const answer: unknown = JSON.parse(printed)
+  if (!isRecord(answer)) throw new Error('the severity probe did not answer with an object')
+
+  const severities = new Map<string, number | undefined>()
+  for (const file of files) {
+    const severity: unknown = answer[file]
+    severities.set(file, typeof severity === 'number' ? severity : undefined)
+  }
+  return severities
+}
 
 /** One mounted address and the file that serves it. */
 interface MountedAddress {
@@ -443,27 +625,112 @@ describe('the rule that makes an unguarded Server Action unwritable', () => {
     expect(eslintConfig).toContain(`'${ACTIONS_RULE}': 'error'`)
   })
 
-  it('applies it to every path, with no `files` list to sit outside of', () => {
-    // Five of the nine defeats were a file in a directory the check did not
-    // walk. A flat-config block carrying `files` would reintroduce exactly
-    // that, so the block that registers this rule must carry none.
-    const block = eslintConfig.slice(
-      eslintConfig.indexOf('plugins: {'),
-      eslintConfig.indexOf(`'${ACTIONS_RULE}': 'error'`),
-    )
+  it('reaches every file in the repository that carries the directive, whatever its extension', () => {
+    // THE COVERAGE CHECK, INVERTED - RULING F73.
+    //
+    // The rule keeps the AST, because judging an export is not something text
+    // matching can do. But the rule can only judge a file ESLint HANDS it, and
+    // the question of which files those are was answered by an extension list
+    // nobody had audited: a flat config lints what some block's `files` array
+    // names, and no block named `.jsx`. An unguarded `'use server'` module
+    // written as `apps/web/app/(admin)/admin/journeys/actions.jsx` therefore
+    // passed `eslint .` at exit 0 - naming it directly answered "File ignored
+    // because no matching configuration was supplied" - while a running Next.js
+    // dev server registered its export as a real action endpoint.
+    //
+    // So the two halves are put where each is strong. TEXT FINDS THE
+    // CANDIDATES, anywhere in the repository and at any extension, because a
+    // byte comparison needs no list of where to look. THE AST DECIDES
+    // CORRECTNESS, on the files text handed it. This case is the join: every
+    // file carrying the literal must be a file ESLint visits with the rule at
+    // `error`, asked of ESLint's own API rather than inferred from the config's
+    // source text.
+    //
+    // WHAT THIS DOES NOT CLAIM. It cannot fail before the file exists - a
+    // twenty-ninth extension gap is closed on the commit that first writes a
+    // module at it, not in advance. The case below narrows that for the
+    // extensions Next.js is known to serve; beyond those, this is a check that
+    // fires on the commit that would have shipped the hole, which is the commit
+    // somebody is reading.
+    const carrying = repositoryFiles().filter(carriesTheDirective)
 
-    expect(block).not.toContain('files:')
+    // THE SENTINEL. A listing that found nothing, or a byte comparison that
+    // matched nothing, would satisfy the loop below having read no file at all.
+    expect(carrying).toContain('apps/web/lib/auth/guard.ts')
+    expect(carrying).toContain('apps/web/app/(payload)/layout.tsx')
+    expect(carrying).toContain('eslint-rules/guarded-server-actions.js')
+
+    const asModules = carrying.filter((file) => !DIRECTIVE_IN_PROSE.some((prose) => prose.path === file))
+    const severities = configuredSeverities(asModules)
+    const unreached = asModules.filter((file) => severities.get(file) !== ERROR_SEVERITY)
+
+    expect(
+      unreached,
+      'these files carry a "use server" directive and ESLint does not lint them with travel-diary/guarded-server-actions at error: give their extension a config block, or list them in DIRECTIVE_IN_PROSE if they are documentation',
+    ).toEqual([])
   })
 
-  it('is switched off for exactly the files somebody wrote down', () => {
+  it('has the rule at error for every extension Next.js serves, in directories nobody listed', () => {
+    // The proactive half, and the replacement for a case that read the config's
+    // TEXT POSITIONALLY: it sliced `eslint.config.js` between `plugins: {` and
+    // the rules key and asserted no `files:` in the slice, so a `files` key
+    // written AFTER the rules key in the same object scoped the rule and the
+    // case still passed. Asked of ESLint's own config resolution instead, so
+    // where the key sits in the file is not something this case can be wrong
+    // about.
+    //
+    // The paths are HYPOTHETICAL - `calculateConfigForFile` answers for a path
+    // that does not exist - so this fails when an extension gap is introduced
+    // rather than when somebody first exploits it. The extensions are Next.js's
+    // default `pageExtensions` (`tsx, ts, jsx, js`, and
+    // `apps/web/next.config.ts` overrides none of them) plus the four module
+    // extensions its compiler also accepts. That IS a list, and a list is what
+    // the nine defeats taught us not to trust - which is why the case above
+    // exists and does not consult one.
+    const probes = [
+      'apps/web/app/(admin)/admin/journeys/actions.ts',
+      'apps/web/app/(admin)/admin/journeys/actions.tsx',
+      'apps/web/app/(admin)/admin/journeys/actions.js',
+      'apps/web/app/(admin)/admin/journeys/actions.jsx',
+      'apps/web/app/(admin)/admin/journeys/actions.mjs',
+      'apps/web/app/(admin)/admin/journeys/actions.cjs',
+      'apps/web/app/(admin)/admin/journeys/actions.mts',
+      'apps/web/app/(admin)/admin/journeys/actions.cts',
+      // Directories no `files` array in this repository names, and one of them
+      // is where two of the three round-6 defeats were written.
+      'apps/web/actions/journeys.ts',
+      'apps/web/globals/journeyActions.ts',
+      'packages/domain/src/journeyActions.ts',
+      'actions.ts',
+    ]
+
+    const severities = configuredSeverities(probes)
+    const notAtError = probes.filter((probe) => severities.get(probe) !== ERROR_SEVERITY)
+
+    expect(
+      notAtError,
+      'ESLint would not apply travel-diary/guarded-server-actions at error to these paths: an extension with no config block, or a `files` list the rule now sits inside',
+    ).toEqual([])
+  })
+
+  it('is switched off for exactly the files somebody wrote down, read off the whole repository', () => {
     // The one thing that defeats the rule is a disable comment, so the set of
-    // them is default-deny and enumerated. Read off the whole tree rather than
-    // off a directory list — being outside a directory list is how five of the
-    // nine defeats worked. Matched on a line carrying BOTH `eslint-disable` and
-    // the rule's name, so a file that merely NAMES the rule — this one, and the
-    // rule's own test — is not counted as disabling it.
-    const disabling = ['app', 'components', 'lib', 'collections', 'scripts'].flatMap(filesUnder).filter((file) =>
-      textOf(file)
+    // them is default-deny and enumerated by exact path. The SCAN is not
+    // enumerated: it used to walk five directory names inside `apps/web`, in
+    // the file whose own header says that being outside a directory list is how
+    // five of the nine defeats worked - and it was duly defeated by a disable
+    // comment in `apps/web/actions/` and by one in `apps/web/globals/`, both
+    // real directories outside the five, as well as by anything outside
+    // `apps/web` at all. It now reads git's own listing of the repository.
+    //
+    // Matched on a line carrying BOTH `eslint-disable` and the rule's id, so a
+    // file that merely NAMES the rule - this one, the rule itself, the config -
+    // is not counted as disabling it. A document that puts both on ONE line
+    // fails this case; that is friction in the safe direction, and the fix is
+    // to break the sentence over two lines.
+    const disabling = repositoryFiles().filter((file) =>
+      bytesOf(file)
+        .toString('utf8')
         .split(NEWLINE)
         .some((line) => line.includes('eslint-disable') && line.includes(ACTIONS_RULE)),
     )
@@ -476,6 +743,26 @@ describe('the rule that makes an unguarded Server Action unwritable', () => {
     // agreeing with an allowlist it never tested against.
     expect(textOf('app/(payload)/layout.tsx')).toContain(`eslint-disable-next-line ${ACTIONS_RULE}`)
     expect(textOf('lib/auth/guard.ts')).not.toContain(`eslint-disable-next-line ${ACTIONS_RULE}`)
+  })
+
+  it('resolves the factory to a real file, so a module merely named like it is not it', () => {
+    // Round 6's other two defeats, and the reason they are asserted HERE as
+    // well as in the rule's own RuleTester suite: both were about a path on
+    // disk rather than about a syntax tree. The old check tested the import
+    // specifier against a suffix pattern, so a decoy at
+    // `apps/web/lib/auth/guardedAction.ts` - a file this repository has never
+    // had, meaning the optional group could only ever admit a forgery - and an
+    // `auth/guard.ts` written beside the action and imported as `./auth/guard`
+    // both satisfied it while calling no guard.
+    //
+    // What the rule compares now is a resolved path against ONE real file, so
+    // that file has to be where the rule looks for it. This case is what fails
+    // if `guard.ts` is ever moved or renamed without the rule being told.
+    const rule = textOf('../../eslint-rules/guarded-server-actions.js')
+
+    expect(rule).toContain("'../apps/web/lib/auth/guard.ts'")
+    expect(rule).not.toContain('FACTORY_MODULE')
+    expect(filesUnder('lib/auth')).toContain('lib/auth/guard.ts')
   })
 
   it('has a factory for actions to be built from, which is what makes the rule satisfiable', () => {
