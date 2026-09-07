@@ -469,6 +469,13 @@ Text is used for what text is good at — finding candidates anywhere, at extens
 enumerated — and the AST decides correctness. The listing is
 `git ls-files --cached --others --exclude-standard`, so a file written and never staged is
 still seen, and no skip list of `node_modules`/`.next`/`coverage` has to be maintained.
+An entry in that listing that is not a regular FILE throws by name — a nested git
+repository or a submodule is reported by git as one directory entry, and the files inside
+it appear in no listing at all. It is not filtered away, because dropping it silently
+would be exactly the quiet hole this suite exists to close; before the seventh
+whole-branch review it was read like a file and killed five cases with
+`EISDIR: illegal operation on a directory, read`, which is fail-closed but tells a
+developer who has legitimately vendored a checkout nothing about what to do.
 
 **The last two rows are round 9's, and each closes something the sixth whole-branch review
 measured.** A flat-config `processor` whose `preprocess` drops the directive line hands

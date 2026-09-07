@@ -112,7 +112,7 @@
  * Depends on: node:fs, node:path, node:url, vitest, ./adminAccess.
  */
 import { execFileSync } from 'node:child_process'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -530,7 +530,43 @@ const repositoryFiles = (): readonly string[] => {
   })
   const files = listed.split(NUL_SEPARATOR).filter((file) => file.length > 0)
   if (files.length === 0) throw new Error('git listed no files, so nothing below has read anything')
+
+  // EVERY ENTRY MUST BE A FILE SOMETHING HERE CAN READ, and one kind is not:
+  // a nested git repository (a vendored checkout, a submodule) is reported by
+  // `git ls-files` as a single DIRECTORY entry, and its contents are in no
+  // listing at all. Every caller below then reads that entry and dies on
+  // `EISDIR: illegal operation on a directory, read` - five cases at once,
+  // fail-closed but saying nothing a reader can act on. The seventh
+  // whole-branch review's finding 3, measured with a real nested repository
+  // holding an unguarded module.
+  //
+  // It THROWS rather than filtering the entry away, which is the whole point:
+  // a directory entry here means files this scan cannot see, and dropping it
+  // silently would turn a loud, wrong-looking failure into a quiet hole of
+  // exactly the kind this file exists to close.
+  const unreadable = files.filter((file) => !isReadableFile(file))
+  if (unreadable.length > 0) {
+    throw new Error(
+      `git lists these as repository entries and they are not files this scan can read, so the files under them are in no listing here: ${unreadable.join(', ')}. A nested git repository or submodule is reported as one directory entry; vendor it as ordinary files, or exclude it deliberately and say so.`,
+    )
+  }
   return files
+}
+
+/**
+ * Whether one listed entry is a regular file this scan can read.
+ *
+ * @param file - A repository-relative path from the git listing.
+ * @returns True only for a regular file (or a symbolic link to one, which
+ *   `statSync` follows); false for a directory entry and for a path that
+ *   cannot be stat'd at all, such as one staged and then deleted.
+ */
+const isReadableFile = (file: string): boolean => {
+  try {
+    return statSync(path.join(repositoryRoot, file)).isFile()
+  } catch {
+    return false
+  }
 }
 
 /** The bytes of one repository file. */
