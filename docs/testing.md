@@ -1328,7 +1328,7 @@ true` — the only honest content while nothing writes or reads that setting and
   worker count and with the machine, and **no bound is claimed here**, because one was and
   it was wrong: this paragraph said "between eight and thirteen" — a range derived from two
   runs — and the next container run printed **14**. What has actually been counted, on this
-  branch: 13, 6, 14. They cluster in `e2e/mobile.spec.ts`. They are worth a
+  branch, one entry per container run in the order they happened: 13, 6, 14, 13. They cluster in `e2e/mobile.spec.ts`. They are worth a
   paragraph because a `[WebServer]` line looks exactly like the silent server-side failure
   this repository has been bitten by, and because a sweep that shrugged at it would be the
   wrong habit. What was measured, on the same build in the same image:
