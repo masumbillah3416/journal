@@ -207,9 +207,10 @@ one is a file it lints with this rule at `error`. Text finds candidates nobody e
 the AST decides whether they are guarded.
 
 **What gets through, measured rather than reasoned about.** Thirty-three shapes have been
-written to disk and run against the real gate — the nine that defeated the text scans, the
-five that beat the previous version, the three that beat the version before this one, and
-eleven invented since. **Thirty-two of the thirty-three fail `npm run verify`.** Two of
+written to disk and run against the real gate: **the twenty-three from the third whole-branch
+review's own table, re-run against this version, plus ten new ones** — and the
+twenty-three already include the nine that defeated the text scans, the five that beat the
+scan round 5 replaced and the three that beat round 5's own rule. **Thirty-two of the thirty-three fail `npm run verify`.** Two of
 them fail it without failing `npm run lint`, which is the point of having both: a disable
 comment in a directory nobody listed, and a module at an extension ESLint still does not
 enumerate, are caught by the coverage case rather than by the rule. The one shape that gets

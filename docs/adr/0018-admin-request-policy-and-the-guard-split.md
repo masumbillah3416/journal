@@ -156,9 +156,10 @@ segment — and requires:
 
 **A Phase 4 screen, route or action that does none of this fails `npm run verify` on its
 own commit — and `verify` rather than `lint` is the accurate word.** Thirty-three shapes
-have now been written to disk and run against the real gate: the nine that defeated the
-text scans, the five that beat the version before last, the three that beat the last one,
-and eleven invented since. **Thirty-two of the thirty-three fail `npm run verify`.** Two
+have now been written to disk and run against the real gate: **the twenty-three from the
+third whole-branch review's own table, re-run against this version, plus ten new ones.**
+The twenty-three already contain the nine that defeated the text scans, the five that beat
+the scan round 5 replaced, and the three that beat round 5's own rule. **Thirty-two of the thirty-three fail `npm run verify`.** Two
 fail it without failing `npm run lint` — a disable comment in a directory nobody listed,
 and a module at an extension ESLint still does not enumerate (`.mdx`, tried deliberately)
 — which is exactly why the coverage case exists alongside the rule.
