@@ -178,7 +178,7 @@ script runs. The swipe is the fourth and the only one that cannot be.
   surface, or a budget that admits ADR 0008's floor. **Do not silence it by removing the
   cookie.**
 
-- **`e2e/layout.spec.ts` did not lose its mobile case.** Its four cases are the record of
+- **`e2e/layout.spec.ts` did not lose its mobile case.** Its cases are the record of
   an S1 defect found at 390px, and below 860px there is no design box for them to ask
   about. Each is now paired with a mobile case asking the same question of the surface
   that IS drawn there: does it fill the viewport with nothing spilling out, is the page

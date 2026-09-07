@@ -193,7 +193,7 @@ and separate cases pin both branches. A fail-safe default is not a substitute fo
 injecting the value in a test.
 
 **Recorded as:** `apps/web/lib/adapters/console-mailer.ts`'s module header;
-`apps/web/lib/adapters/console-mailer.test.ts`'s header and its three
+`apps/web/lib/adapters/console-mailer.test.ts`'s header and its
 development-behaviour cases; `eslint.config.js`'s targeted `no-console` override;
 `docs/testing.md` §3 (Contract).
 
@@ -544,7 +544,7 @@ background and a different size, so it needs its own measurement rather than thi
 copied across.
 
 **Recorded as:** `apps/web/components/chrome/chrome.module.css`'s `HANDOFF-DEVIATION`
-comment at `.tabSub`; `e2e/a11y.spec.ts`'s six diary cases, which are what failed.
+comment at `.tabSub`; `e2e/a11y.spec.ts`'s at least six diary cases, which are what failed.
 
 ---
 
@@ -1244,7 +1244,7 @@ with it.
 
 **Recorded as:** `docs/adr/0017-session-store-and-rotation.md`; a `// HANDOFF-DEVIATION` at the field in
 `apps/web/collections/sessions.ts`; the migration's own reversibility case in
-`apps/web/collections/collections.integration.test.ts`; and the three lifetime cases in
+`apps/web/collections/collections.integration.test.ts`; and the lifetime cases in
 `apps/web/lib/auth/sessions.integration.test.ts` that assert the lifetime is the row's and
 not the token's.
 

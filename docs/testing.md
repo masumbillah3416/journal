@@ -335,8 +335,8 @@ check that nothing but line endings moved.
   cannot reach — whether the DELIVERED page and its scripts read storage — is
   `e2e/signIn.spec.ts`'s.
 
-  Task 9 adds the last three admin panes — `ResetStep.test.tsx` (19 cases),
-  `NewPasswordStep.test.tsx` (19) and `SignedInStep.test.tsx` (9). Two things about them
+  Task 9 adds the last three admin panes — `ResetStep.test.tsx`,
+  `NewPasswordStep.test.tsx` and `SignedInStep.test.tsx`. Two things about them
   are worth knowing. First, **every case that says a pane does NOT print something is
   paired with one that says the pane printed anything at all**: "the confirmation carries
   no address of its own" and "the expired state never prints the token" are both trivially
@@ -348,7 +348,7 @@ check that nothing but line endings moved.
   them (see the Visual regression section on what the threshold does not catch).
 
   Task 8 adds `apps/web/components/admin/CodeStep.test.tsx`, the largest component suite
-  here at 46 cases, and it is worth knowing what it deliberately does NOT prove. Its
+  here, and it is worth knowing what it deliberately does NOT prove. Its
   header names three things and hands each to `e2e/codeStep.spec.ts`: the cell widths
   (jsdom performs no layout), the paste path (jsdom performs no default paste, so
   `preventDefault` has nothing to prevent and the case cannot distinguish a working
@@ -620,7 +620,7 @@ while three documents counted the costs as three.
   `apps/web/scripts/**` and `packages/*/src/**` (no file matches that last pattern
   today — `packages/domain` and `packages/tokens` are pure, no I/O).
   Phase 2 Task 7 adds `apps/web/lib/auth/readSignInScreen.integration.test.ts`, the
-  sign-in screen's own server read. Its four flag cases are integration cases rather
+  sign-in screen's own server read. Its flag cases are integration cases rather
   than unit ones for a reason a unit test could not have: `users.otp_required` is a
   NULLABLE column with a schema default, and "what does a row written before that default
   read as" is a question only a real table answers. It fails closed in both forms — a
@@ -997,8 +997,8 @@ while three documents counted the costs as three.
   alone, and that project now carries a PHONE USER AGENT as well as a 390x844 viewport,
   because which surface a request is served is decided on the server from the user agent
   before any viewport can be measured
-  (`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`). Sixteen cases, of which
-  five could not exist anywhere else:
+  (`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`). Five of its cases could
+  not exist anywhere else:
 
   1. **A vertical scroll does not turn a page.** The rule is
      `packages/domain/src/swipe.ts`'s and is unit-tested to 100%, including both
@@ -1175,7 +1175,7 @@ data-leaf=2> subtree intercepts pointer events` — a leaf's stacking order is
   point and again forced back to `50% 50%`, and require the two buffers to differ.
 
   **`e2e/notes.spec.ts` (Phase 1 Task 10)** does the same job for the Notes page, and
-  two of its cases exist because of defects that have already happened rather than ones
+  the cases below it exist because of defects that have already happened rather than ones
   somebody imagined.
 
   The first is the highlight gaps. `SCREENS.md` §1.3 records that
@@ -1327,7 +1327,7 @@ true` — the only honest content while nothing writes or reads that setting and
   did not: the `mid` and `mobile` baselines were regenerated over a book that had been
   pushed off the screen entirely and stayed green on a blank page for two commits
   (`docs/qa/2026-09-01-diary-sweep.md`, DIARY-004). A baseline can only say "this looks
-  like it did last time"; a picture of no book is still a picture. The three cases say it
+  like it did last time"; a picture of no book is still a picture. Its cases say it
   in numbers instead, each from the symptom a reader meets rather than from the CSS that
   produced it: the design box's drawn rect is inside the area `useBookScale` measures and
   concentric with it (off-centre by 0px, spilling 0px on each side, tolerant of the
@@ -1456,7 +1456,7 @@ true` — the only honest content while nothing writes or reads that setting and
   ran only in the CI browser job or in a full `npm run test:e2e`, never in
   `npm run verify`, the gate Husky runs before every commit. A detector that lives in the
   same job as the thing it detects reports the fire from inside the building. It is
-  `e2e/ciRegistration.test.ts` now: the same three cases, importing `vitest` instead of
+  `e2e/ciRegistration.test.ts` now: the same cases, importing `vitest` instead of
   `@playwright/test`, collected by `vitest.config.ts`'s `unit` project via its
   `e2e/**/*.test.ts` glob, so a commit that forgets a `run:` line fails at the moment it
   is made. It stays in `e2e/` because that directory is its subject, and
@@ -2541,9 +2541,9 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
 - **Scope:** rate limits, lockout, OTP single-use, SVG rejection, EXIF stripping,
   authorization on every mutation.
 - **Status:** partly implemented. The OTP half of it exists as of Phase 2 Task 3:
-  `apps/web/lib/auth/otpService.integration.test.ts` is nineteen cases against a real
-  Payload and a real Postgres, one per `SECURITY.md` bullet under the first prototype
-  hole plus the resend limits — the code is never returned, never logged and never
+  `apps/web/lib/auth/otpService.integration.test.ts` runs against a real
+  Payload and a real Postgres, with at least one case per `SECURITY.md` bullet under the
+  first prototype hole plus the resend limits — the code is never returned, never logged and never
   stored in the clear; a code issued for one session is refused in another; a correct
   code works exactly once; a third wrong guess kills the challenge even for the correct
   code; expiry is derived from `createdAt` rather than the stored `expiresAt`; the
@@ -2563,7 +2563,7 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   attempt and for consumption, a per-account advisory lock for the count-and-insert.
 
   **Rate limiting and lockout land in Phase 2 Task 4, and they are two files.**
-  `apps/web/lib/auth/rateLimit.integration.test.ts` is 15 cases over the sliding window
+  `apps/web/lib/auth/rateLimit.integration.test.ts` is at least 15 cases over the sliding window
   `SECURITY.md` requires per account and per IP, and the two that carry it are real
   `Promise.all` bursts proving each dimension **independently**: twenty-eight concurrent
   attempts from ONE address against TWENTY-EIGHT accounts admit exactly twenty (so
@@ -2586,7 +2586,7 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
 
   **The session layer lands in Phase 2 Task 6, before the sign-in screens that will use
   it,** because sign-in must issue a session and cannot issue what does not exist.
-  `apps/web/lib/auth/sessions.integration.test.ts` is twenty-five cases, shaped around
+  `apps/web/lib/auth/sessions.integration.test.ts` is shaped around
   the two ways a test in this area passes while the mechanism is gone:
 
   - **A rotation test that only asserts "a new identifier exists" passes while the old
@@ -2668,8 +2668,8 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   it (`docs/adr/0016-rate-limit-window-storage.md`).
 
   **Phase 2 Task 9 adds the journey that ties the reset path together**, in
-  `apps/web/lib/auth/setNewPassword.integration.test.ts` (19 cases) and
-  `newPasswordScreen.integration.test.ts` (13). The first case of the first file is the
+  `apps/web/lib/auth/setNewPassword.integration.test.ts` and
+  `newPasswordScreen.integration.test.ts`. The first case of the first file is the
   one that matters: it requests a reset through the real service, **takes the link out of
   the console mailer's outbox rather than out of the database** — exactly as
   `lib/auth/testing/otpProbes.ts`'s `readCodeFromOutbox` takes a code out of one — spends
@@ -2696,9 +2696,8 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
 
   **Anti-enumeration and the wiring land in Phase 2 Task 5, and it is the task where
   three mechanisms stop being mechanisms.** `apps/web/lib/auth/signIn.integration.test.ts`
-  is nineteen cases and `apps/web/lib/auth/passwordReset.integration.test.ts` eight, and
-  the four traps they are shaped around are the ones this repository has already been
-  caught by:
+  and `apps/web/lib/auth/passwordReset.integration.test.ts` are shaped around four traps,
+  each one this repository has already been caught by:
 
   - **An anti-enumeration test that compares two error strings passes while the two paths
     differ in timing.** So the identical-response case compares the WHOLE returned value,
@@ -2830,8 +2829,9 @@ database.
   `process.env`-keyed path that skipped `requireAdminSession()`, kept both substrings, and
   measured `eslint`/`tsc`/prettier clean with **1,348 unit tests passing** — and the
   `c8 ignore` region over the factory said its "runtime behaviour is covered in the browser
-  by `e2e/signIn.spec.ts`", which no browser path could reach. Three cases now stand over
-  it: an unauthenticated call never reaches the action and redirects to the sign-in path; an
+  by `e2e/signIn.spec.ts`", which no browser path could reach.
+  `apps/web/lib/auth/guard.integration.test.ts` now stands over it in at least three
+  cases: an unauthenticated call never reaches the action and redirects to the sign-in path; an
   authenticated one reaches it with the session the guard produced, as its FIRST argument;
   and a call made after that session is revoked is refused, so a factory caching the session
   it first saw fails. Re-gutting the body the reviewer's way fails all three. `next/headers`
@@ -2869,7 +2869,7 @@ database.
   rather than only its shape, and then asserts that the one thing which DID differ is
   invisible from outside: only the real address has a reset token.
 
-- **`apps/web/middleware.test.ts`** gained eleven cases for the admin, and the ones that
+- **`apps/web/middleware.test.ts`** gained at least eleven cases for the admin, and the ones that
   matter are again negative: the diary's `/p/<n>` response, its `/m/<n>` rewrite and the 308
   off the internal path are each asserted to carry **none** of the admin's headers, one
   header at a time, and to be handed no minted cookie. Adding either would be a behaviour
@@ -3025,14 +3025,16 @@ The sweep driver was a temporary spec, deleted once the report was written;
 
 #### `apps/web/lib/auth/securityCitations.test.ts` — the citation column checks itself
 
-`docs/security.md`'s table quotes 113 test case names. Task 11 wrote them and claimed none
+`docs/security.md`'s table quotes a test case name for every requirement it discharges — a
+hundred and some, and the guard below asserts a FLOOR rather than the number, for the reason
+its own comment gives. Task 11 wrote them and claimed none
 was paraphrased; its review found three that were, plus nine more carrying Markdown the
 source does not (backticks inside the quotation, restyled quotes), so twelve could not be
 found by a reader who searched for them. Every one pointed at a real, correct, covering case
 — which is what makes it dangerous rather than obvious: nothing was wrong with the discharge,
 only with the citation.
 
-Nobody can hold 113 strings in their head across a rewrite. This unit test reads the document
+Nobody can hold that many strings in their head across a rewrite. This unit test reads the document
 and every `.ts`/`.tsx` file under `apps/`, `packages/` and `e2e/`, extracts the first
 argument of every `it(...)` and `test(...)` it finds, and requires each citation to be one of
 those names. It normalises exactly two things, both notation rather than words: the backslash
