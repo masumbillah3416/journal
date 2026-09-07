@@ -512,7 +512,15 @@ const INVALID_CASES = [
       'const publish = async () => Promise.resolve()',
       'const attached = (module.exports = { publish })',
     ].join(NEWLINE),
-    errors: [{ messageId: 'assignedExport' }],
+    // ROUND 9 MOVED WHICH REFUSAL ANSWERS THIS, and the moved one is the
+    // stronger of the two: the declaration is refused because its initialiser
+    // is not one of the three shapes that evaluate nothing, which is true of
+    // this assignment and of the call that replaced it in round 9's own
+    // defeats. The assignment listener would have answered it too - it still
+    // owns a BARE assignment statement - but it is not reached, because
+    // `assignmentAlreadyAnswered` finds the refused declaration above it and
+    // reports one problem for one attachment rather than two.
+    errors: [{ messageId: 'unrecognisedStatement' }],
   },
   {
     // MINE, ROUND 8. A class field initialiser evaluates when the class is
@@ -524,7 +532,116 @@ const INVALID_CASES = [
       'const publish = async () => Promise.resolve()',
       'class Attach { attached = (module.exports = { publish }) }',
     ].join(NEWLINE),
-    errors: [{ messageId: 'assignedExport' }],
+    // ROUND 9 MOVED THIS REFUSAL TOO, for the reason the case below it exists:
+    // a class body evaluates a field initialiser, a decorator, a computed key
+    // and an `extends` clause when the class is DEFINED, so the declaration is
+    // refused unread rather than walked for the four places code can hide in
+    // it. That closes the static-field CALL as well, which no assignment
+    // listener could ever have seen.
+    errors: [{ messageId: 'unrecognisedStatement' }],
+  },
+  {
+    // ROUND 9, DEFEAT 5, AND THE ONE THE SIXTH WHOLE-BRANCH REVIEW COMMITTED.
+    // Round 8's allowlist admitted statement KINDS, and reasoned about a kind
+    // as if it were inert: `VariableDeclaration` was on the list because "a
+    // declaration declares a name". It also RUNS its initialiser when Next.js
+    // loads the module, so binding the refused call to a name walked past the
+    // refusal - one token's difference from the case four entries above, which
+    // the same review measured at `eslint .` exit 0, the guard suite green,
+    // `npm run verify` exit 0 and a successful `git commit` (`523bd51`, since
+    // reset). The fifth enumeration to fail inside this rule.
+    name: 'round 9 · Object.assign(module.exports, …) bound to a name',
+    code: [
+      "'use server'",
+      'const publish = async () => Promise.resolve()',
+      'const attached = Object.assign(module.exports, { publish })',
+    ].join(NEWLINE),
+    errors: [{ messageId: 'unrecognisedStatement' }],
+  },
+  {
+    // The same defeat riding along in a module the rule otherwise verifies, so
+    // "that is not an action module" cannot be the answer to it. The guarded
+    // export is correct and reports nothing; the declaration beside it is the
+    // whole of the finding.
+    name: 'round 9 · the same attachment beside a real guarded export',
+    code: [
+      "'use server'",
+      IMPORT,
+      `export const publish = guardedAction(${BODY})`,
+      'const deleteJourney = async () => Promise.resolve()',
+      'const attached = Object.assign(module.exports, { deleteJourney })',
+    ].join(NEWLINE),
+    errors: [{ messageId: 'unrecognisedStatement' }],
+  },
+  {
+    // ROUND 9, DEFEAT 6. The attachment moved into a function that is CALLED
+    // at load: the assignment listener exempts anything under a `Function`
+    // node, correctly, because an assignment inside a function runs when the
+    // function runs - and this function runs when the module loads. What is
+    // refused is therefore the CALL, in the declaration that evaluates it.
+    name: 'round 9 · a call at load whose body does the assigning',
+    code: [
+      "'use server'",
+      'const bag = module',
+      'const attach = () => { bag.exports = { publish: async () => Promise.resolve() } }',
+      'const attachedCount = attach()',
+    ].join(NEWLINE),
+    errors: [{ messageId: 'unrecognisedStatement' }, { messageId: 'unrecognisedStatement' }],
+  },
+  {
+    // MINE, ROUND 9. A static field initialiser runs when the class is
+    // DEFINED, which is module load, and it holds a call rather than an
+    // assignment - so neither the assignment listener nor round 8's kind
+    // allowlist had anything to say about it. Refusing the class declaration
+    // unread is what closes it, together with the decorator and the computed
+    // key, without listing any of the three.
+    name: 'round 9 · a static field initialiser that attaches at class definition',
+    code: [
+      "'use server'",
+      'const publish = async () => Promise.resolve()',
+      'class Attach { static done = Object.assign(module.exports, { publish }) }',
+    ].join(NEWLINE),
+    errors: [{ messageId: 'unrecognisedStatement' }],
+  },
+  {
+    // MINE, ROUND 9. The initialiser is an array rather than the call, so a
+    // check that looked at the initialiser's own node type and stopped there
+    // would admit it. What is asked is whether the initialiser is one of the
+    // three shapes that provably evaluate nothing - and an array literal
+    // holding a call is not one of them.
+    name: 'round 9 · the attachment inside a destructured initialiser',
+    code: [
+      "'use server'",
+      'const publish = async () => Promise.resolve()',
+      'const [attached] = [Object.assign(module.exports, { publish })]',
+    ].join(NEWLINE),
+    errors: [{ messageId: 'unrecognisedStatement' }],
+  },
+  {
+    // MINE, ROUND 9. A numeric enum member may hold a computed initialiser,
+    // which TypeScript emits as an expression evaluated when the enum object
+    // is built - module load again, in a statement kind round 8's allowlist
+    // named.
+    name: 'round 9 · a computed enum member evaluated at load',
+    code: [
+      "'use server'",
+      'const attach = () => 1',
+      'enum Attach { done = attach() }',
+      'export type Marker = Attach',
+    ].join(NEWLINE),
+    errors: [{ messageId: 'unrecognisedStatement' }],
+  },
+  {
+    // MINE, ROUND 9. A tagged template calls its tag function at load, and
+    // the interpolation is evaluated to be handed to it.
+    name: 'round 9 · a tagged template evaluated at load',
+    code: [
+      "'use server'",
+      'const publish = async () => Promise.resolve()',
+      'const tag = (parts) => parts',
+      'const attached = tag`${Object.assign(module.exports, { publish })}`',
+    ].join(NEWLINE),
+    errors: [{ messageId: 'unrecognisedStatement' }],
   },
 ]
 
@@ -545,7 +662,7 @@ describe('guarded-server-actions', () => {
     // added. So the document no longer prints them and points here instead
     // (ruling F76, the same move the survivor count made).
     expect(VALID_CASES).toHaveLength(10)
-    expect(INVALID_CASES).toHaveLength(41)
+    expect(INVALID_CASES).toHaveLength(48)
   })
 
   it('names the factory and the directive it is written against, so neither can drift silently', () => {

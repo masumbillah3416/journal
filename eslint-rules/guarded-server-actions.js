@@ -70,17 +70,21 @@
  *    `export declare const`/`export declare function`. Those emit no runtime
  *    binding, so Next.js mounts no endpoint from them. It is a narrow
  *    exception rather than "any export", which four documents used to say.
- * 4. THE TOP LEVEL OF A `'use server'` MODULE MAY ONLY IMPORT AND DECLARE.
- *    `module.exports = { deleteJourney }` attaches an export that no `export`
- *    keyword spells, so rule 3 cannot see it — and round 7 answered that by
- *    refusing one node shape, an `ExpressionStatement` holding an
- *    `AssignmentExpression`, which four wrappers then walked past
- *    (`Object.assign`, `Object.defineProperty`, `void (…)`, an `if` block).
- *    That was the third enumeration to fail inside this rule, so rule 4 is now
- *    an ALLOWLIST of inert statement kinds: an unrecognised statement is
- *    refused the way an unrecognised export syntax is. See
- *    `INERT_TOP_LEVEL_TYPES`, and `assignmentAlreadyAnswered` for why an
- *    assignment in an action's own body is still ordinary code.
+ * 4. NOTHING AT THE TOP LEVEL OF A `'use server'` MODULE MAY EVALUATE
+ *    ANYTHING AT LOAD, bar a literal, a function expression and a
+ *    `guardedAction(...)` call. `module.exports = { deleteJourney }` attaches
+ *    an export that no `export` keyword spells, so rule 3 cannot see it — and
+ *    round 7 answered that by refusing one node shape, an
+ *    `ExpressionStatement` holding an `AssignmentExpression`, which four
+ *    wrappers then walked past (`Object.assign`, `Object.defineProperty`,
+ *    `void (…)`, an `if` block). Round 8 answered THAT with an allowlist of
+ *    statement KINDS, which admitted the same call bound to a name
+ *    (`const attached = Object.assign(module.exports, …)`) because a
+ *    `VariableDeclaration` was on the list. Two enumerations, both defeated,
+ *    the fifth and third inside this rule. Rule 4 now asks the question of
+ *    WHAT RUNS: see `evaluatesNothingAtLoad` and `isInertTopLevel`, and
+ *    `assignmentAlreadyAnswered` for why an assignment in an action's own body
+ *    is still ordinary code.
  *
  * ═══ WHAT DEFEATS IT — ENUMERATED WHERE IT CAN BE ASSERTED, NOT HERE ═══
  *
@@ -336,9 +340,14 @@ const exportsSomething = (statement, sourceCode) =>
  * transform, and answering it by reasoning is how this control has been wrong
  * five times. So the shape is refused instead — the same move rule 2 makes for
  * an inline directive, and for the same reason: there is no way to tell a
- * harmless top-level assignment from one that attaches an endpoint, and the
- * only cost of refusing is that a `'use server'` module cannot mutate module
- * state at load, which CLAUDE.md §3.3 rejects anyway.
+ * harmless top-level assignment from one that attaches an endpoint. The cost
+ * is stated as a refusal rather than as a guarantee, because the sixth
+ * whole-branch review found the guarantee false: an assignment written inside
+ * a function that is CALLED at load still runs at load, and this function
+ * exempts it (correctly — see {@link assignmentAlreadyAnswered}). What the
+ * rule refuses is the assignment where it is EVALUATED, and the CALL that
+ * evaluates it (see {@link isInertTopLevel}); the module-level mutable state
+ * CLAUDE.md §3.3 rejects anyway is what an author gives up.
  *
  * Broader than a `module`/`exports` name test on purpose. A test for those two
  * names would be an enumeration of identifiers, and the next spelling
@@ -366,49 +375,134 @@ const assignsSomething = (statement) =>
   statement.type === 'ExpressionStatement' && statement.expression.type === 'AssignmentExpression'
 
 /**
- * The statement kinds the top level of a `'use server'` module may hold.
+ * The statement kinds that hold no load-time expression AT ALL.
  *
- * AN ALLOWLIST, WHICH IS THE WHOLE POINT. Every other list in this rule's
- * history was a denylist, and each was defeated by the spelling it did not
- * name. Nothing here can attach an endpoint: an import binds a name, a
- * declaration declares one, a type declaration emits nothing at all. Anything
- * else at module scope is code that RUNS when Next.js loads the module, and
- * there is no way to tell code that attaches an export from code that does
- * not — so it is refused unread, which is the treatment an unrecognised export
- * syntax (rule 3) and an unrecognised route-file kind already get.
+ * ═══ THIS IS NOT THE ALLOWLIST, AND ROUND 8'S WAS (ROUND 9) ═══
  *
- * The cost is stated rather than left to be met: a `'use server'` module cannot
- * run a statement at load. CLAUDE.md §3.3 rejects module-level mutable state
- * anyway, an action's own body is untouched, and the refusal names the file and
- * the line rather than failing silently.
+ * Round 8 inverted rule 4 into an allowlist of statement KINDS and reasoned
+ * about a kind as if a kind could be inert: "an import binds a name, a
+ * declaration declares one". A declaration also RUNS ITS INITIALISER when
+ * Next.js loads the module, so `VariableDeclaration` on that list admitted
+ * every call the same list refused as a bare statement — one token apart:
+ *
+ *     Object.assign(module.exports, { deleteJourney })       → refused
+ *     const attached = Object.assign(module.exports, { … })  → admitted
+ *
+ * The sixth whole-branch review measured the second at `eslint .` exit 0, the
+ * guard suite green, `npm run verify` exit 0 and a successful `git commit`
+ * (`523bd51`, since reset). That was the FIFTH enumeration to fail inside the
+ * rule that exists because enumerations fail, after `startsWith('Export')` and
+ * `assignsSomething`, and the lesson it finally cost enough to learn is that
+ * the question has to be asked of WHAT RUNS, never of what contains it.
+ *
+ * So this set is no longer an allowlist of admissible statements. It is the
+ * much smaller claim that these kinds hold no load-time expression for
+ * {@link evaluatesNothingAtLoad} to be asked about — their CONTENTS cannot
+ * matter, whatever is written inside them:
+ *
+ *   - `ImportDeclaration` binds names, and the specifier it evaluates is a
+ *     string literal by grammar. It is here because the shape this rule
+ *     ADMITS needs it: an action module has to import the factory.
+ *   - `FunctionDeclaration` declares; its body and its parameter defaults run
+ *     when it is called, not when the module loads.
+ *   - `EmptyStatement` is a stray semicolon.
+ *   - `TSTypeAliasDeclaration`, `TSInterfaceDeclaration` and
+ *     `TSDeclareFunction` are type space and emit nothing.
+ *
+ * WHAT LEFT THIS SET IN ROUND 9, each departure a refusal rather than a check:
+ * `VariableDeclaration` (its initialisers are now asked about one by one);
+ * `ClassDeclaration` (a static or instance field initialiser, a decorator, a
+ * computed key and an `extends` clause all evaluate when the class is DEFINED,
+ * which is load — refusing the declaration unread closes all four without
+ * listing any of them); `TSEnumDeclaration` (a numeric enum member may hold a
+ * computed initialiser, which TypeScript emits as an expression evaluated when
+ * the enum object is built); and `TSImportEqualsDeclaration`
+ * (`import x = require('…')` evaluates a `require` this rule would otherwise
+ * have to reason about).
+ *
+ * The cost, stated as a refusal rather than as a guarantee: the top level of a
+ * `'use server'` module may not declare a class, an enum or a `require`-import
+ * without being refused for it. No action module in this repository does —
+ * there are none yet — the refusal names the file and the line, and CLAUDE.md
+ * §3.3 rejects module-level mutable state anyway.
  */
-const INERT_TOP_LEVEL_TYPES = new Set([
+const HOLDS_NO_LOAD_TIME_EXPRESSION = new Set([
   'ImportDeclaration',
-  'VariableDeclaration',
   'FunctionDeclaration',
-  'ClassDeclaration',
   'EmptyStatement',
   'TSTypeAliasDeclaration',
   'TSInterfaceDeclaration',
-  'TSEnumDeclaration',
   'TSDeclareFunction',
-  'TSImportEqualsDeclaration',
 ])
 
 /**
+ * Whether an expression provably evaluates nothing when the module loads.
+ *
+ * THREE SHAPES, EACH ADMITTED FOR A REASON ABOUT EVALUATION rather than about
+ * a parser name. A missing initialiser evaluates nothing because there is
+ * nothing there (`let pending`). A `Literal` evaluates to itself and calls
+ * nothing. A function or arrow EXPRESSION defines a function, and its body
+ * runs when something calls it — the same fact
+ * {@link assignmentAlreadyAnswered} already relies on. And a factory call is
+ * the one call admitted, because it is the shape the whole rule exists to
+ * require: a non-exported `const handler = guardedAction(…)` followed by
+ * `export { handler }` has to stay writable.
+ *
+ * EVERYTHING ELSE IS REFUSED UNREAD, the direction the rule already takes for
+ * an unrecognised export syntax (rule 3) and an unrecognised route-file kind.
+ * A member read can run a getter, a template literal can interpolate a call, a
+ * tagged template calls its tag, `await` runs a microtask, `new` runs a
+ * constructor, and an array or object literal can hold any of them — so none
+ * of them is reasoned about. The refusal is the answer.
+ *
+ * @param {object | null | undefined} expression - A declarator's initialiser.
+ * @param {(expression: object, node: object) => boolean} isFactoryCall -
+ *   Whether the expression is a call to the imported factory. Reports
+ *   `notTheFactory` itself when the name is right and the binding is not.
+ * @param {object} node - Where a `notTheFactory` report would be made.
+ * @returns {boolean} True when nothing runs at load.
+ */
+const evaluatesNothingAtLoad = (expression, isFactoryCall, node) =>
+  expression === null ||
+  expression === undefined ||
+  expression.type === 'Literal' ||
+  expression.type.includes('Function') ||
+  isFactoryCall(expression, node)
+
+/**
  * Whether a top-level statement of an action module can attach nothing.
+ *
+ * THE DISPATCH IS OVER WHAT THE STATEMENT EVALUATES, never over its kind. A
+ * statement is admitted when it holds no load-time expression at all
+ * ({@link HOLDS_NO_LOAD_TIME_EXPRESSION}), when it is a directive, or when it
+ * is a `VariableDeclaration` EVERY ONE of whose initialisers
+ * {@link evaluatesNothingAtLoad} admits. Anything else is refused unread.
  *
  * A DIRECTIVE IS THE ONE EXPRESSION STATEMENT ADMITTED, matched by shape
  * rather than by value: `'use server'` is one, a bundler pragma written beside
  * it is one, and `Object.assign(…)` — an `ExpressionStatement` whose
  * expression is a call — is not.
  *
+ * INVARIANT — `every` short-circuits and `isFactoryCall` reports
+ * `notTheFactory` as a side effect, so a declaration is judged left to right
+ * and stops at its first refused initialiser. One declaration therefore
+ * produces one report rather than one per declarator.
+ *
  * @param {object} statement - A node from a `Program` body.
- * @returns {boolean} True when the statement only imports or declares.
+ * @param {(expression: object, node: object) => boolean} isFactoryCall - See
+ *   {@link evaluatesNothingAtLoad}.
+ * @returns {boolean} True when the statement can attach nothing at load.
  */
-const isInertTopLevel = (statement) =>
-  INERT_TOP_LEVEL_TYPES.has(statement.type) ||
-  (statement.type === 'ExpressionStatement' && statement.expression.type === 'Literal')
+const isInertTopLevel = (statement, isFactoryCall) => {
+  if (HOLDS_NO_LOAD_TIME_EXPRESSION.has(statement.type)) return true
+  if (statement.type === 'ExpressionStatement') return statement.expression.type === 'Literal'
+  if (statement.type === 'VariableDeclaration') {
+    return statement.declarations.every((declarator) =>
+      evaluatesNothingAtLoad(declarator.init, isFactoryCall, declarator),
+    )
+  }
+  return false
+}
 
 /**
  * Whether an assignment is one rule 4 has no report to make about.
@@ -478,7 +572,7 @@ export const guardedServerActions = {
       assignedExport:
         'An assignment at the top level of a "use server" module can attach an export no `export` keyword spells (module.exports, exports.name), and this rule cannot tell that from harmless module state. Export guardedAction(...) instead.',
       unrecognisedStatement:
-        'The top level of a "use server" module may only import and declare. This statement RUNS when Next.js loads the module, and this rule cannot tell one that attaches an endpoint from one that does not - Object.assign(module.exports, ...) is how four wrappers walked past a check that knew one shape. Export guardedAction(...) instead.',
+        'This statement RUNS when Next.js loads the module, and this rule cannot tell one that attaches an endpoint from one that does not - `const attached = Object.assign(module.exports, ...)` is how a call walked past a check that admitted the declaration around it. The top level of a "use server" module may evaluate only a literal, a function expression or a guardedAction(...) call. Export guardedAction(...) instead.',
     },
   },
 
@@ -608,7 +702,7 @@ export const guardedServerActions = {
             checkExport(statement)
             continue
           }
-          if (isInertTopLevel(statement)) continue
+          if (isInertTopLevel(statement, isFactoryCall)) continue
           // The listener below owns every assignment, wherever it is written,
           // so reporting here as well would report one attachment twice.
           if (assignsSomething(statement)) continue
