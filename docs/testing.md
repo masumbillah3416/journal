@@ -1362,12 +1362,40 @@ true` — the only honest content while nothing writes or reads that setting and
   red. `docs/runbook.md` has the cleanup and the table. Reach for it before reaching for
   `git bisect`.
 
+  **THE SUITE IS NOT IDEMPOTENT INSIDE FIFTEEN MINUTES, and the second run's failure looks
+  exactly like a regression.** Measured in round 7: a container run finished green
+  (`446 passed`, 1 flaky), a second one was started about four minutes later, and
+  `e2e/reset.spec.ts:171` "never draws a screen at the address §3.3's own form posts to"
+  failed on `mid` and `mobile`, on both retries, with
+  `page.waitForURL: Test timeout of 30000ms exceeded` and the log line
+  `navigated to "http://localhost:3000/admin/reset"` — the bare address, with no `?sent=`.
+
+  That is the rate limiter working. `packages/domain/src/auth/rateWindow.ts` allows **20
+  attempts per address per 15-minute window** on the `password` endpoint, and
+  `apps/web/lib/auth/passwordReset.ts` spends that same budget for a reset request rather
+  than taking one of its own (its header says so, and why). `handleResetRequest` answers a
+  refusal with a `303` to the bare `RESET_PATH`, which is indistinguishable from a rejected
+  submission. Confirmed against the live table rather than inferred: immediately after the
+  second run, `sign_in_attempts` held **24** rows for `dimension=ip`,
+  `endpoint=password`, `subject=::1`, newest four minutes before the query — over the limit,
+  inside the window.
+
+  So a back-to-back second run of this suite (or of `test:e2e`, or a browser sweep on the
+  heels of one) is expected to fail there, and it is neither a product defect nor a flake.
+  **Wait fifteen minutes for the window to age out** — the rows prune themselves on the next
+  write — or accept the failure as the limiter's own evidence. Do not reach for the
+  limits: the case is right, the endpoint is right, and the suite exercising a real
+  anti-enumeration control twice is the thing that costs.
+
   **The server prints `⨯ Error: The destination stream closed early.` during a parallel
   run, and it is a client disconnect rather than a fault.** The count varies with the
   worker count and with the machine, and **no bound is claimed here**, because one was and
   it was wrong: this paragraph said "between eight and thirteen" — a range derived from two
   runs — and the next container run printed **14**. What has actually been counted, on this
-  branch, one entry per container run in the order they happened: 13, 6, 14, 13. They cluster in `e2e/mobile.spec.ts`. They are worth a
+  branch, one entry per container run in the order they happened: 13, 6, 14, 13, 11, 7. **The
+  figures are `test:e2e:container` runs only** — a `test:visual:container` run is a different
+  and much smaller suite and prints a quite different number (2 and 4 have been counted), so
+  comparing one against this list would look like a change and be none. They cluster in `e2e/mobile.spec.ts`. They are worth a
   paragraph because a `[WebServer]` line looks exactly like the silent server-side failure
   this repository has been bitten by, and because a sweep that shrugged at it would be the
   wrong habit. What was measured, on the same build in the same image:
