@@ -402,6 +402,65 @@ const configuredSeverities = (files: readonly string[]): ReadonlyMap<string, num
   return severities
 }
 
+/**
+ * A program printing, for each path handed to it, whether ESLint ignores it.
+ *
+ * A SECOND PROBE RATHER THAN A FIELD ON THE FIRST, because the two questions
+ * are different: `calculateConfigForFile` answers for a path ESLint would never
+ * visit, so it cannot tell a linted file from an ignored one. Run in a child
+ * process for the same measured coverage reason as
+ * {@link SEVERITY_PROBE_PROGRAM} — see its own comment.
+ */
+const IGNORE_PROBE_PROGRAM = [
+  "import { ESLint } from 'eslint'",
+  'const chunks = []',
+  'for await (const chunk of process.stdin) chunks.push(chunk)',
+  'const eslint = new ESLint({ cwd: process.cwd() })',
+  'const answer = {}',
+  "for (const file of JSON.parse(Buffer.concat(chunks).toString('utf8'))) {",
+  '  answer[file] = await eslint.isPathIgnored(file)',
+  '}',
+  'process.stdout.write(JSON.stringify(answer))',
+].join('\n')
+
+/**
+ * Whether ESLint ignores each of some paths, asked of ESLint.
+ *
+ * @param files - Repository-relative paths, which need not exist.
+ * @returns The paths ESLint does NOT ignore, in the order given.
+ * @throws If the child cannot be run or does not answer with an object, rather
+ *   than returning nothing — an empty answer would satisfy the case below.
+ */
+const pathsEslintWalks = (files: readonly string[]): readonly string[] => {
+  const printed = execFileSync(process.execPath, ['--input-type=module', '-e', IGNORE_PROBE_PROGRAM], {
+    cwd: repositoryRoot,
+    input: JSON.stringify(files),
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  const answer: unknown = JSON.parse(printed)
+  if (!isRecord(answer)) throw new Error('the ignore probe did not answer with an object')
+
+  return files.filter((file) => answer[file] !== true)
+}
+
+/**
+ * Every directory `.prettierignore` names, as a probe path inside it.
+ *
+ * Read off the file rather than listed here, so the two ignore sets cannot
+ * drift apart silently — which is exactly what happened to `.lighthouseci/`.
+ * Only directory entries are taken: `.prettierignore` also names one generated
+ * FILE and three binary globs, which are not directories ESLint walks into.
+ *
+ * @returns One `<directory>/probe.js` per directory entry.
+ */
+const generatedDirectoryProbes = (): readonly string[] =>
+  readFileSync(path.join(repositoryRoot, '.prettierignore'), 'utf8')
+    .split(NEWLINE)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#') && line.endsWith('/'))
+    .map((directory) => `${directory}probe.js`)
+
 /** One mounted address and the file that serves it. */
 interface MountedAddress {
   /** The URL Next.js serves it at, e.g. `/admin/sign-in/done`. */
@@ -741,6 +800,40 @@ describe('the rule that makes an unguarded Server Action unwritable', () => {
     )
 
     expect(disabling.sort((left, right) => left.localeCompare(right))).toEqual([...ACTIONS_RULE_EXEMPT_FILES])
+  })
+
+  it('does not walk the generated directories prettier ignores, so the gate is one anybody can pass', () => {
+    // WHY THIS SITS BESIDE THE RULE. `eslint.config.js` excludes generated
+    // artefact directories, and its own comment says why: they are
+    // `.gitignore`d, so they are invisible in `git status`, but ESLint walks
+    // the WORKING TREE — which made `npm run lint`, and therefore the
+    // pre-commit gate, pass or fail depending on whether the developer had run
+    // `test:e2e` or `test:perf` since the last clean. CLAUDE.md §11: a gate has
+    // to be one a developer can always pass honestly.
+    //
+    // The comment claimed the class was closed and it was not:
+    // `.lighthouseci/`, `blob-report/`, `build/` and `.superpowers/` were in
+    // `.prettierignore` and not in that array, so `isPathIgnored` answered
+    // false for all four while answering true for `lhci-reports/`. None held a
+    // linted extension, so nothing was failing — which is why only an
+    // executable check finds it. Asked of ESLint's own API rather than read out
+    // of the config's source text, and read off `.prettierignore` rather than
+    // from a list here, so the next directory added to one file and not the
+    // other fails on that commit.
+    const probes = generatedDirectoryProbes()
+
+    // THE SENTINEL, first: an empty `.prettierignore`, or a filter that matched
+    // no line, would satisfy the assertion below having probed nothing.
+    expect(probes.length).toBeGreaterThanOrEqual(10)
+    expect(pathsEslintWalks(probes)).toEqual([])
+  })
+
+  it('still walks this repository’s own source, so the exclusions above are not a hole', () => {
+    // Without this, an `ignores` array of `['**']` would pass the case above.
+    expect(pathsEslintWalks(['apps/web/lib/auth/guard.ts', 'eslint-rules/guarded-server-actions.js'])).toEqual([
+      'apps/web/lib/auth/guard.ts',
+      'eslint-rules/guarded-server-actions.js',
+    ])
   })
 
   it('can tell a file that disables it from one that does not', () => {

@@ -166,7 +166,7 @@ export default tseslint.config(
     files: ['scripts/run-lighthouse.mjs'],
     rules: { 'no-console': 'off' },
   },
-  // Generated output, never authored here. The last three are the browser and
+  // Generated output, never authored here. The last four are the browser and
   // performance harnesses' own artefacts, and they are listed for the same
   // reason `coverage/` already was: they are `.gitignore`d, so they are
   // invisible in `git status`, but ESLint walks the working tree rather than
@@ -177,15 +177,44 @@ export default tseslint.config(
   // viewer. A gate has to be one a developer can always pass honestly
   // (CLAUDE.md §11), so the artefacts are excluded rather than the rules
   // weakened.
+  //
+  // `.lighthouseci/`, `blob-report/`, `build/` and `.superpowers/` are the four
+  // this list MISSED, and they are round 7's correction. `.prettierignore`
+  // covers all four; this array covered none, so
+  // `new ESLint().isPathIgnored('.lighthouseci/x.js')` answered FALSE while the
+  // same probe for `lhci-reports/x.js` answered true. None of the four holds a
+  // linted extension today — Lighthouse CI writes `.html` and `.json`,
+  // Playwright's blob report writes `.zip`, `build/` is unused, and
+  // `.superpowers/` holds Markdown and diffs — which is precisely what made it
+  // worth closing rather than leaving: the defect the paragraph above says was
+  // fixed was still latent in the same file, one artefact filename away from
+  // recurring, and it was found as a latent recurrence rather than as an
+  // outage.
+  //
+  // The set is now pinned to `.prettierignore`'s own directory entries by
+  // `apps/web/lib/auth/adminGuardRegistration.test.ts`'s case "does not walk
+  // the generated directories prettier ignores", asked of ESLint's own
+  // `isPathIgnored` rather than read out of this file — so the next generated
+  // directory added to one ignore file and not the other fails a gate instead
+  // of waiting for a review to notice. The trade this makes is the same one the
+  // seven original entries already made: a directory ESLint does not walk is
+  // one `travel-diary/guarded-server-actions` does not apply to. What keeps
+  // that from being a hole is `adminGuardRegistration.test.ts`'s coverage case,
+  // which reads GIT's listing — so a `'use server'` module forced into the
+  // index from any of these directories fails there.
   {
     ignores: [
       '**/dist/**',
       '**/.next/**',
+      '**/build/**',
       'handoff/**',
       'coverage/**',
       'playwright-report/**',
       'test-results/**',
+      'blob-report/**',
       'lhci-reports/**',
+      '.lighthouseci/**',
+      '.superpowers/**',
     ],
   },
 )
