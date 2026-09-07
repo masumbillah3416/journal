@@ -148,9 +148,14 @@ down from 148,791 and 10,741. Both figures are far inside the 184,320 budget.
 
 ## Consequences
 
-- **The middleware is on the diary's page path.** Its matcher is `['/p/:path*',
-'/m/:path*']` and nothing else, so Payload's `/api` and `/cms`, the gallery, `/_next`
-  and every static asset are untouched. It is unit-tested at 100/100/100 from a plain
+- **The middleware is on the diary's page path.** Its matcher was `['/p/:path*',
+'/m/:path*']` and nothing else when this ADR was written, so Payload's `/api` and `/cms`,
+  the gallery, `/_next` and every static asset were untouched. **Amended: Phase 2's ADR
+  0018 added `/admin/:path*`** for the CSRF check and the admin security headers, which
+  this ADR's matcher sentence went on denying for the rest of the phase (Phase 2's final
+  review, finding 38). `/api` and `/cms` are still outside it — which is exactly why the
+  Payload REST credential endpoints had to be closed in the collection rather than at the
+  middleware (`apps/web/collections/sealedUserAuth.ts`). It is unit-tested at 100/100/100 from a plain
   `NextRequest` (`apps/web/middleware.test.ts`, ten cases).
 - **`/p/<n>` now varies by `Cookie` and `User-Agent` at the middleware rather than in the
   page.** The book entry no longer reads request headers at all; it is still dynamic

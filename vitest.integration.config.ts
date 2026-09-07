@@ -313,6 +313,23 @@ export default defineConfig({
         // `slotsFor` - every matched Notes/Frames page this suite creates
         // always defines `slots`.
         'apps/web/lib/readBookBundle.ts': { lines: 100, branches: 83, functions: 100 },
+        // FINDING 36 of Phase 2's final review: these three sat in this pass's
+        // `include` with NO threshold entry, and outside `vitest.config.ts`'s
+        // include as well — measured by this run and gated by nothing, which
+        // is the state CLAUDE.md §2.1 exists to forbid ("an unmeasured file
+        // looks exactly like a fully-covered one"). There is no repository-wide
+        // floor in this config to catch them either, deliberately: this pass
+        // measures a hand-picked set, so a wildcard floor would be a number
+        // nobody chose.
+        //
+        // Each number below is the one the suite ACHIEVES, not one negotiated
+        // down to it: `readCodeScreen.ts` is total at 100 across, and the two
+        // gallery readers' branch figures are the optional-field folds their
+        // own headers describe — the same shape `readBookBundle.ts` above
+        // carries, for the same reason, at the same kind of number.
+        'apps/web/lib/readGalleryBundle.ts': { lines: 100, branches: 78, functions: 100 },
+        'apps/web/lib/readGalleryDownload.ts': { lines: 100, branches: 85, functions: 100 },
+        'apps/web/lib/auth/readCodeScreen.ts': { lines: 100, branches: 100, functions: 100 },
         // seed-data.ts is a pure data literal - 100% by construction, every
         // call reads every field.
         'apps/web/scripts/seed-data.ts': { lines: 100, branches: 100, functions: 100 },

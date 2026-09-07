@@ -19,6 +19,9 @@ with the numbers.
 
 ## Context — a gate that flipped on identical code
 
+**A CITATION THAT CANNOT BE FOLLOWED, AND WHY IT IS LEFT NAMED.** The report above was a Phase 1 working note under `.superpowers/`, which is not tracked: `git ls-files .superpowers` returns nothing and no commit in this repository's history ever held it. Phase 2's final whole-branch review found four ADRs citing that directory (finding 39). The reference is kept rather than deleted because it records where the reasoning came from, but a reader must know it is unopenable — so everything this decision RESTS on is stated here rather than delegated to it. The measurements it reported are restated in full
+below, which is why this ADR is still readable without it.
+
 `.superpowers/sdd/2026-09-01-phase-1-public-diary/budget-and-housekeeping-report.md`
 closed with one open concern: `/p/1`'s LCP measured **3,015-3,167ms (median 3,022)** on
 every one of five consecutive `npm run test:perf` invocations, and had measured

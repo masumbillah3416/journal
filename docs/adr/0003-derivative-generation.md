@@ -51,9 +51,13 @@ reason. With no `ffmpeg` work to justify that worker while video is off, `sharp`
 simply runs wherever the upload request is already being handled.
 
 Clips, when re-enabled, still use `ffmpeg`/`ffprobe` for transcoding, poster extraction
-and duration probing, unchanged — that code path is the `MediaProcessor` port's
-`worker` adapter, built and contract-tested from day one per ADR 0004 but not deployed
-until video is turned back on.
+and duration probing, unchanged — that code path is to be the `MediaProcessor` port's
+`worker` adapter, which ADR 0004 specifies is built and contract-tested alongside
+`inline` rather than deferred with the deployment.
+
+**Neither adapter, nor the port, exists yet.** ADR 0004 is a decision about Phase 3 and
+says so; this sentence read as a statement about code (Phase 2's final review,
+finding 30).
 
 ## Consequences
 

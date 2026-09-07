@@ -181,11 +181,17 @@ const SAFE_METHODS: readonly string[] = ['GET', 'HEAD', 'OPTIONS']
  * from the inside. Everything else under `/admin` is guarded; see this
  * module's header for why the policy is written this way round.
  *
+ * NOTHING HERE COUNTS THE LIST IN PROSE. A comment below said "the four
+ * endpoints in this list" while the list held five, and `docs/api.md`'s own
+ * enumeration of it omitted a sixth address entirely (final review
+ * finding 32). A count written out is a count that goes stale on the next
+ * entry, and this is a security-surface list.
+ *
  * INVARIANT — an address added here is an address that answers to anybody.
- * The five endpoints in this list carry their own authorisation instead: the
- * password endpoint the credentials in its body, the two code endpoints the
- * code and the challenge bound to the browser's identifier, and the two reset
- * endpoints the token. None of them inherits trust from having been reached.
+ * Each endpoint in this list carries its own authorisation instead: the
+ * password endpoint the credentials in its body, the code endpoints the code
+ * and the challenge bound to the browser's identifier, and the reset endpoints
+ * the token. None of them inherits trust from having been reached.
  *
  * EVERY ENTRY IS THE CONSTANT THE FORM ACTUALLY POSTS TO, imported from
  * `./adminPaths.ts` rather than written out again. The list used to hold its

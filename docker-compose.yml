@@ -146,6 +146,34 @@ services:
         'npm ci --no-audit --no-fund && npx playwright test e2e/layout.spec.ts e2e/visual.spec.ts --update-snapshots=all',
       ]
 
+  # THE FULL BROWSER SUITE, IN THE SAME IMAGE. `npm run test:e2e:container`.
+  #
+  # Ruling F58 said full-suite e2e runs "go through the container, which builds first",
+  # and no such path was ever built — so every task after it reported the full suite
+  # unrun, and Phase 2's final review had to record that as a residual (its section C2).
+  # This is that path.
+  #
+  # WHAT IT BUYS IS WORKERS. `playwright.config.ts` caps local runs at ONE worker
+  # (ruling F39): the app serves the diary through one Next process that compiles a route
+  # on first request, so parallel workers on a developer's machine queue behind each
+  # other and time out. `CI: '1'` is set for every service in this file, which makes that
+  # config build once and start the production server — and lets Playwright use its
+  # default worker count. That is the difference between roughly four hours and roughly
+  # four minutes, and it is why the answer to "run the whole suite" is this service
+  # rather than a longer timeout.
+  #
+  # It runs the SAME spec list `npm run test:e2e` names, so the two cannot drift into
+  # measuring different things; `e2e/ciRegistration.test.ts` is what holds that list to
+  # CI's own.
+  e2e:
+    <<: *visual
+    command:
+      [
+        'sh',
+        '-c',
+        'npm ci --no-audit --no-fund && npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/signIn.spec.ts e2e/codeStep.spec.ts e2e/reset.spec.ts e2e/signInJourney.spec.ts',
+      ]
+
 volumes:
   visual-root-modules:
   visual-web-modules:

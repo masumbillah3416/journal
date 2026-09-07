@@ -97,9 +97,15 @@ deleted, not moved, per `SECURITY.md`), `notifyOnPublish`, `notifyWeekly`.
 
 ### `otpChallenges`
 
-`access: { read: () => false, create: () => false, update: () => false }` — server-only,
-by design; nothing about the OTP flow is reachable from the Payload REST/GraphQL API a
-client could call directly. Fields: `user` (relationship, indexed), `codeHash` (scrypt
+`access: { read: () => false, create: () => false, update: () => false, delete: () => false }`
+— server-only by design; nothing about the OTP flow is reachable from the Payload
+REST/GraphQL API a client could call directly. **The `delete` predicate is this
+repository's addition and it is printed here deliberately:** `DATA_MODEL.md` omits it,
+Payload applies its signed-in-or-refused default to whatever an access block leaves out,
+and deletion therefore fell through to any authenticated caller. This file describes that
+correction in full below, under the paragraph beginning "The `delete` predicate" — and
+then printed the three-predicate form here anyway, for the rest of the phase (Phase 2's
+final review, finding 29). Fields: `user` (relationship, indexed), `codeHash` (scrypt
 with a per-row salt, never plaintext), `sessionHash` (indexed — SHA-256 of the pre-auth
 session identifier), `expiresAt` (now + 5 minutes), `attempts` (default 0), `consumedAt`,
 `ip`.
@@ -189,15 +195,17 @@ seed, in any fixture, and in whatever account-deletion flow a later phase builds
 
 Backs the Postgres-backed `QueuePort` adapter (`apps/web/lib/adapters/postgres-queue.ts`,
 Task 9): one row per background job, today only `kind: 'transcode'` after a clip upload.
-`access: { read: () => false, create: () => false, update: () => false }` - server-only,
-reached only through the adapter's Local API calls, matching `otpChallenges` and
-`signInAttempts`. Not `sessions`, which carries a per-user ownership rule instead — see
-its own section above. `mediaId` is a plain text field, not a `relationship` to `media`: a foreign
-key here would reject the branded ids the queue's own contract suite enqueues in
-isolation from a real media row. Fields: `kind` (`transcode`), `mediaId` (text),
-`status` (`queued` | `claimed` | `completed` | `failed`, indexed, defaults to `queued`),
-`reason` (why a job failed, surfaced on the admin's Media screen in a later phase),
-`claimedAt`.
+`access: { read: () => false, create: () => false, update: () => false, delete: () => false }`
+
+- server-only, reached only through the adapter's Local API calls, matching
+  `otpChallenges` and `signInAttempts` — the fourth predicate included, for the reason the
+  `otpChallenges` section above gives. Not `sessions`, which carries a per-user ownership rule instead — see
+  its own section above. `mediaId` is a plain text field, not a `relationship` to `media`: a foreign
+  key here would reject the branded ids the queue's own contract suite enqueues in
+  isolation from a real media row. Fields: `kind` (`transcode`), `mediaId` (text),
+  `status` (`queued` | `claimed` | `completed` | `failed`, indexed, defaults to `queued`),
+  `reason` (why a job failed, surfaced on the admin's Media screen in a later phase),
+  `claimedAt`.
 
 ### `signInAttempts`
 

@@ -343,6 +343,15 @@ counter are computed) live in `packages/domain`; the half that actually reads Pa
 rows and assembles one lives in `apps/web/lib`, since touching the database is I/O the
 domain package is not allowed to do.
 
+> **The diagram below has never been rendered, and that is UNRESOLVED rather than fine.**
+> No Mermaid renderer is installed on this machine, and `CLAUDE.md` §7.1 forbids pasting
+> repository content into an online one to get a green tick — an unresolved check is
+> honest and costs a follow-up; a check bought by publishing the repository cannot be
+> undone. What HAS been done is an audit of the diagram as text against the filesystem,
+> which is what produced findings 30 and 45 of Phase 2's final review. Installing
+> `@mermaid-js/mermaid-cli` locally and running `mmdc` over this file would settle the
+> syntax; nothing else here can.
+
 ```mermaid
 flowchart TB
   subgraph domain["packages/domain — pure, 100% coverage, no I/O, no framework"]
@@ -401,11 +410,13 @@ so the two implementations are provably interchangeable.
 
 **The Fly.io worker is deferred** (`docs/adr/0004-media-pipeline-mode.md`): no video
 clips for now, so nothing claims jobs from `pgQueue` in production yet. A fourth port,
-`MediaProcessor`, gets the same treatment when Phase 3 builds it: an `inline` adapter
-(the still-image pipeline, in-process on Vercel, bypassing the queue entirely) and a
-`worker` adapter (the still pipeline plus `ffmpeg`, via `pgQueue` and the Fly.io worker
+`MediaProcessor`, is to get the same treatment when Phase 3 builds it: an `inline`
+adapter (the still-image pipeline, in-process on Vercel, bypassing the queue entirely) and
+a `worker` adapter (the still pipeline plus `ffmpeg`, via `pgQueue` and the Fly.io worker
 above) — both required to pass the same contract suite in CI, per ADR 0004, even though
-only `inline` deploys until video is turned back on.
+only `inline` would deploy until video is turned back on.
+
+**NOT BUILT.** Neither `MediaProcessor` adapter, the port itself, the contract suite or the `MEDIA_PIPELINE` variable exists in this repository: `grep -rn MediaProcessor apps packages` returns nothing, `apps/web/lib/ports/` holds only `mailer.ts`, `queue.ts` and `storage.ts`, `MEDIA_PIPELINE` is declared in neither `apps/web/lib/env.ts` nor `.env.example`, and setting it changes nothing. `docs/adr/0004-media-pipeline-mode.md` says so itself — _Nothing in this ADR is built now_ — and five documents described it in the present tense anyway (Phase 2's final review, finding 30). It is Phase 3's.
 
 ## 3 · Data flow
 
@@ -433,11 +444,11 @@ only `inline` deploys until video is turned back on.
    application route that reads a derivative's bytes back out of the store through the
    `StoragePort` and serves them as an attachment. Never a bucket URL — see
    `docs/security.md`.
-5. Uploads go straight from the browser to R2 via a presigned URL (never through Vercel,
-   which caps request bodies at ~4.5MB); a server action creates the `media` row and
-   runs the `MediaProcessor` port's `inline` adapter in-process (the `sharp` still
-   pipeline — no queue, no worker, since video is deferred per ADR 0004), marking the
-   row `ready` or `failed`. Once video is re-enabled, a `worker`-mode upload instead
+5. **(Phase 3, not built — see the note under §2's ports.)** Uploads will go straight from
+   the browser to R2 via a presigned URL (never through Vercel, which caps request bodies
+   at ~4.5MB); a server action will create the `media` row and run the `MediaProcessor`
+   port's `inline` adapter in-process (the `sharp` still pipeline — no queue, no worker,
+   since video is deferred per ADR 0004), marking the row `ready` or `failed`. Once video is re-enabled, a `worker`-mode upload instead
    writes a job row to the Postgres queue table for the Fly.io worker to claim and run
    the `sharp`/`ffmpeg` pipeline against.
 

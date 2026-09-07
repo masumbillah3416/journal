@@ -30,6 +30,30 @@ here; the ADR 0006 measurement is taken as sufficient evidence instead, as this
 document's own "Options" section anticipated ("it would still catch the image
 regression ADR 0006 fixed, which measured 3,170ms").
 
+**THE METHOD, WRITTEN HERE RATHER THAN DELEGATED.** This ADR set the 3,000ms gate the
+diary is measured against and pointed at a `.superpowers/` report for how to reproduce the
+number — a directory that is not tracked (`git ls-files .superpowers` returns nothing) and
+that no commit in this repository has ever held. Phase 2's final review found four ADRs
+doing that (finding 39). The method is four steps and belongs in the decision:
+
+1. Delete `apps/web/.next` — a warm build makes the first run of any config fast and the
+   median is then a median of the wrong thing.
+2. `npm run test:perf`, which builds with `npm run build -w apps/web`, starts the
+   production server and runs Lighthouse **five times** per URL.
+3. Read `largest-contentful-paint.numericValue` from the five
+   `lhci-reports/**/localhost-p_1-*.report.json` files and take the **median** — the same
+   `aggregationMethod` the config asserts on.
+4. The throttling is the config's, not the machine's: Lighthouse's `simulate` preset at
+   150ms RTT, 1,638Kbps and 4x CPU, with the viewport pinned in each config —
+   `lighthouserc.book.json` at 1350x940 desktop, `lighthouserc.json` at 412x823 mobile
+   (pinned in Phase 2's final round; it had been an unpinned Lighthouse default, so a
+   library bump could have moved a documented hard gate with no diff here).
+
+Measured by that method at the close of Phase 2, on a clean `.next`: the book surface
+**2925.5 / 2925.7 / 2926.1 / 2927.0 / 2928.8ms, median 2926.1**, and the mobile surface
+**2923.4 / 2924.6 / 2926.5 / 2926.9 / 2929.7ms, median 2926.5** — both against the same
+3,000ms, unmoved.
+
 **What this decision does not change.** `resource-summary:script:size` stays at
 `184320`; `cumulative-layout-shift` stays at `0.1`; `aggregationMethod: "median"` stays
 in place specifically because the lhci default (`optimistic`) takes the best of five
@@ -279,7 +303,8 @@ weakened. A red gate that is understood is worth more than a green one that was 
   `aggregationMethod: "median"` over five runs, and passes: the shipped route measures
   **~2,933ms**, about 67ms of margin. See
   `.superpowers/sdd/2026-09-01-phase-1-public-diary/owner-decisions-report.md` for the
-  re-run pasted after this decision was applied.
+  re-run pasted after this decision was applied — **and that file cannot be opened: see
+  the method section above, which is where the reproduction now lives.**
 - `resource-summary:script:size` is **141,632 bytes against the 184,320 gate** —
   unchanged by the font work (fonts are not script) and passing with 42,688 bytes to
   spare. Note what that gate now means: 137,986 of those bytes are the framework's,

@@ -176,16 +176,16 @@ A change is done only when **all** hold:
 
 ## 6 · Performance budgets — hard gates
 
-| Budget                                                                                                                                                        | Limit                                                                                  |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Page flip                                                                                                                                                     | Sustained 60fps. **Only `transform` and `opacity` animated** — never layout properties |
-| Diary route JS                                                                                                                                                | ≤ 180KB gzipped                                                                        |
-| Admin route JS                                                                                                                                                | ≤ 320KB gzipped                                                                        |
-| LCP (`/p/1`, Lighthouse `simulate` preset: 150ms RTT, 1,638Kbps, 4x CPU, median of 5; the book surface at a 1350x940 viewport, the mobile surface at 412x823) | ≤ 3.0s — see ADR 0008 for the number, ADR 0014 for the two viewports                   |
-| CLS                                                                                                                                                           | ≤ 0.1                                                                                  |
-| INP                                                                                                                                                           | ≤ 200ms                                                                                |
-| Database queries per request                                                                                                                                  | No N+1. Every list is one query with joins                                             |
-| Images                                                                                                                                                        | Always a derivative tier, never an original. `hero2x` for displays ≥2×                 |
+| Budget                                                                                                                                                                             | Limit                                                                                  |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Page flip                                                                                                                                                                          | Sustained 60fps. **Only `transform` and `opacity` animated** — never layout properties |
+| Diary route JS                                                                                                                                                                     | ≤ 180KB gzipped                                                                        |
+| Admin route JS                                                                                                                                                                     | ≤ 320KB gzipped                                                                        |
+| LCP (`/p/1`, Lighthouse `simulate` preset: 150ms RTT, 1,638Kbps, 4x CPU, median of 5; the book surface at a 1350x940 viewport, the mobile surface at a pinned 412x823 at DPR 1.75) | ≤ 3.0s — see ADR 0008 for the number, ADR 0014 for the two viewports                   |
+| CLS                                                                                                                                                                                | ≤ 0.1                                                                                  |
+| INP                                                                                                                                                                                | ≤ 200ms                                                                                |
+| Database queries per request                                                                                                                                                       | No N+1. Every list is one query with joins                                             |
+| Images                                                                                                                                                                             | Always a derivative tier, never an original. `hero2x` for displays ≥2×                 |
 
 Rules: virtualize the gallery grid past 100 tiles. Debounce or `requestAnimationFrame` every resize and scroll handler. Prefer `ResizeObserver` to resize listeners. No synchronous layout reads inside animation frames. Memoize by identity, not by deep compare. Measure before optimizing — and paste the measurement.
 
@@ -326,7 +326,7 @@ contributor never has to know where the Payload CLI lives.
 
 ```
 npm run dev              # Next + Payload against local Postgres  (→ apps/web)
-npm run verify           # typecheck + lint + unit tests + unit coverage gates  <- pre-commit
+npm run verify           # typecheck + lint + format:check + unit tests + unit coverage gates  <- pre-commit
 npm run verify:full      # verify, plus the integration suite and its own coverage gate  <- CI
 npm run test             # every Vitest project, watch mode
 npm run test:unit        # both Docker-free projects once — `unit` and `unit-dom` — with coverage
@@ -334,7 +334,10 @@ npm run test:integration # the integration project once — needs the Docker Pos
 npm run test:integration:coverage  # the same, plus the integration-only coverage gate  <- what verify:full runs
 npm run test:e2e         # Playwright
 npm run test:e2e:headed  # Playwright, visible browser — the engine for QA sweeps
-npm run test:visual      # visual regression
+npm run test:e2e:container          # the whole browser suite in the pinned image, many workers
+npm run test:visual      # visual regression - SKIPS off Linux; see docs/testing.md
+npm run test:visual:container       # visual regression in the pinned Playwright image
+npm run test:visual:container:update  # regenerate only the baselines that changed
 npm run test:a11y        # accessibility
 npm run test:perf        # Lighthouse CI budgets
 npm run db:migrate       # apply every pending migration  (→ apps/web)
@@ -344,8 +347,8 @@ npm run db:seed          # seed from the handoff prototype content  (→ apps/we
 
 **There are two gates, deliberately, and they are not the same gate.**
 
-`npm run verify` is the pre-commit gate, run by the Husky hook. It is **typecheck, lint
-and the two Docker-free Vitest projects only** — `unit` (pure, Node) and `unit-dom`
+`npm run verify` is the pre-commit gate, run by the Husky hook. It is **typecheck, lint,
+`prettier --check .` and the two Docker-free Vitest projects only** — `unit` (pure, Node) and `unit-dom`
 (`*.test.tsx`, jsdom), which `test:unit` runs together under one coverage report. No
 integration tests, no Docker. That is a decision, not
 an oversight: a pre-commit gate that fails whenever a developer's Postgres container is

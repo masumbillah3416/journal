@@ -148,6 +148,40 @@ carried across the rewrite, and the 308 off `/m/<n>`. That test file needed its 
 (`apps/web/*.test.ts`) on the `unit` project, because a test file no project's `include`
 matches is collected by nobody and its absence is silent.
 
+**Three more sit on that list and this document did not name them** — `CLAUDE.md` §2.1
+requires each exclusion to be stated at the point of exclusion **and** here, and Phase 2's
+final review found the second half missing (finding 37). Each is under a bracketed
+directory, each is wrapped `c8 ignore start`/`stop` and each was read and found to hold no
+authored decision of its own:
+
+- `(diary)/gallery/[slug]/page.tsx` — awaits the slug, reads the bundle, renders the
+  gallery. Which media a slug names, and whether the slug names a gallery at all, is
+  `packages/domain/src/gallery.ts`'s, gated at 100%.
+- `(diary)/gallery/[slug]/download/[id]/route.ts` — reads a derivative's bytes through the
+  `StoragePort` and answers them as an attachment. What it may serve, and the headers it
+  serves them under, are `packages/domain/src/galleryDownload.ts`'s and
+  `apps/web/lib/readGalleryDownload.ts`'s — the first gated at 100% here, the second by
+  `vitest.integration.config.ts`.
+- `(admin)/admin/reset/[token]/page.tsx` — awaits the params and the query, reads the
+  shell's content and the link's state, renders two components. WHICH STATE THE SCREEN
+  DRAWS is `apps/web/lib/auth/newPasswordScreen.ts`'s and, under it,
+  `@travel-diary/domain/auth/resetScreen`'s `newPasswordView` — both gated at 100%.
+
+`(admin)/admin/reset/set/route.ts` is deliberately NOT among them, and is the control that
+keeps the carve-out honest: it sits under a static segment, so its own `c8 ignore` is read
+and holds. So does `(admin)/admin/page.tsx`, the panel root Phase 2's final round mounted.
+
+**And three files sat in `vitest.integration.config.ts`'s `include` with no threshold at
+all** — `readGalleryBundle.ts`, `readGalleryDownload.ts` and `auth/readCodeScreen.ts`. All
+three were outside `vitest.config.ts`'s include too, so they were measured by one pass and
+gated by neither, which is indistinguishable in a report from being fully covered
+(finding 36). There is no repository-wide floor in that config to catch them, deliberately:
+it measures a hand-picked set, so a wildcard floor would be a number nobody chose. Each now
+carries the figure its own suite ACHIEVES — 100/100/100 for `readCodeScreen.ts`, and
+100 lines / 78 and 85 branches for the two gallery readers, whose uncovered branches are
+the optional-field folds their headers describe, the same shape `readBookBundle.ts` carries
+at 83.
+
 `apps/web/components/**` was genuinely empty until Phase 1 Task 7 (`.gitkeep` only) and
 carried no per-glob threshold override until then — a threshold against zero files is the
 vacuous pass CLAUDE.md's controller ruling for Task 1 explicitly forbade adding. Task 7,
@@ -168,9 +202,11 @@ would claim a measurement nothing performs.
 
 ## The verify gates
 
-- **`npm run verify`** — `typecheck && lint && test:unit`, where `test:unit` runs the
-  `unit` **and** `unit-dom` projects with coverage. This is the pre-commit gate: no
-  database, so a developer can always pass it honestly, even with Docker down.
+- **`npm run verify`** — `typecheck && lint && format:check && test:unit`, where
+  `format:check` is `prettier --check .` over the whole repository (ruling F31) and
+  `test:unit` runs the `unit` **and** `unit-dom` projects with coverage. This is the
+  pre-commit gate: no database, so a developer can always pass it honestly, even with
+  Docker down.
 - **`npm run verify:full`** — `verify` plus `test:integration:coverage` (which runs the
   same integration test files as `test:integration`, with `--coverage` scoped to the
   integration-only files named in the Contract and Migration sections below). This is
@@ -282,20 +318,6 @@ would claim a measurement nothing performs.
   ten contents entries — so a task that seeds more than eleven journeys owes the
   Contents body a real overflow assertion.
 
-  Two of Phase 1 Task 9's unit files carry a note of their own.
-  `packages/domain/src/coverTitle.test.ts` asserts the clamp bounds as **literals**
-  (`38`, `124`), never as `COVER_TITLE_SIZE.min`/`.max`: an assertion that reads the
-  constant it is guarding moves with that constant and can never fail. That was caught
-  by mutation, not by review — retuning the floor to 37 left the whole file green until
-  the literals went in (`CLAUDE.md` §2.3, "a test that has never failed is unproven").
-  `packages/domain/src/contentsLayout.test.ts`'s thirty-one-entry case pins **3 columns
-  × 11 rows**, which is what SCREENS.md §1.2's formula produces and _not_ the "4 columns
-  × 8 rows" the same section calls verified; the two cannot both be true for any entry
-  count, and `docs/deviations.md` §9 carries the arithmetic. The multi-column path is
-  therefore covered as arithmetic but never rendered in a browser — the seeded book has
-  ten contents entries — so a task that seeds more than eleven journeys owes the
-  Contents body a real overflow assertion.
-
 - **Run:** `npm run test:unit` (both projects, with coverage), or `npm run test` for
   watch mode across every project.
 - **Add one:** colocate `<name>.test.ts` next to `<name>.ts` — or `<name>.test.tsx` for
@@ -387,7 +409,24 @@ would claim a measurement nothing performs.
   implementation of each adapter.
 - **Scope:** `storage`, `mailer`, `queue` (design spec §6) — every port that crosses into
   an external service.
-- **Status:** implemented for all three ports (Tasks 7-9). Each port lives in
+- **Status: THE SUITES EXIST AND THE ROW IS NOT DISCHARGED, because each runs against
+  ONE implementation.** `CLAUDE.md` §2 asks for "one shared suite run against **both** the
+  local and the production implementation"; `storage` has only `local-storage.ts`, `mailer`
+  only `console-mailer.ts`, and `queue` only `postgres-queue.ts`. A suite run against one
+  adapter proves that adapter, not the interchangeability the row is about — which is the
+  whole reason the row exists, since the defect it guards against is a production adapter
+  that differs from the stand-in in some way nobody noticed.
+
+  It is a **named residual, not a gap this document is quiet about** (Phase 2's final
+  review, finding 24: it was missing from the residual list entirely). It is inherited
+  from Phase 0 and is Phase 3's to close, because Phase 3 is what brings the second
+  implementations — R2 for `storage`, a sending adapter for `mailer`, the Fly.io worker for
+  `queue`. What this phase can say for the suites is the thing that makes closing it cheap:
+  every one is already parameterised over an adapter factory rather than written against
+  the adapter it happens to have, so the second implementation is a second call, not a
+  second suite. That property is asserted below rather than assumed.
+
+- **What IS implemented for all three ports (Tasks 7-9).** Each port lives in
   `apps/web/lib/ports/<name>.ts`; each contract suite is a
   `apps/web/lib/adapters/contract/<name>-contract.ts` module exporting a
   `<name>Contract(name, makeAdapter, ...)` function that registers one parameterised
@@ -1156,13 +1195,32 @@ true` — the only honest content while nothing writes or reads that setting and
   `e2e/notes.spec.ts`, `e2e/frames.spec.ts`, `e2e/about.spec.ts`,
   `e2e/imageWindow.spec.ts`, `e2e/serverWindow.spec.ts`, `e2e/routing.spec.ts`,
   `e2e/gallery.spec.ts`, `e2e/mobile.spec.ts`, `e2e/signIn.spec.ts`,
-  `e2e/codeStep.spec.ts` and `e2e/reset.spec.ts` — the
+  `e2e/codeStep.spec.ts`, `e2e/reset.spec.ts` and `e2e/signInJourney.spec.ts` — the
   authoritative list is the script itself, and `e2e/ciRegistration.test.ts`, which runs in
-  `npm run verify`, is what makes the two agree); `npm run test:e2e:headed` (all
+  `npm run verify`, is what makes the script and CI agree. This sentence is a third copy
+  that neither of them checks, and it was missing `signInJourney.spec.ts` for the rest of
+  the phase after that file landed); `npm run test:e2e:headed` (all
   `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.
+
+  **WHICH PATH TO USE WHEN, which ruling F58 required this document to say and which it
+  did not say for the rest of the phase.** `npm run test:e2e` on the host runs at ONE
+  worker (`playwright.config.ts`, ruling F39): the dev server compiles a route on first
+  request in a single process, so parallel workers queue behind each other and time out.
+  That is right for running one spec while you work on it, and it is roughly four hours
+  for the whole list — which is why no task in Phase 2 ever ran the whole list, and why
+  the final review recorded that as a residual.
+
+  **`npm run test:e2e:container` is the whole-suite path.** It runs the same spec list in
+  the pinned `mcr.microsoft.com/playwright` image Docker Compose defines, with `CI=1` —
+  which makes `playwright.config.ts` build once, start the production server, and use its
+  default worker count. Same specs, same config, minutes instead of hours. It needs the
+  Compose Postgres up and migrated (`npm run db:migrate && npm run db:seed` on the host)
+  exactly as the visual services do. Use the host path for one spec, the container path
+  before claiming the suite is green.
+
 - **Add one:** one spec per real user journey as each is built; assert on the DOM
   reflecting the state machine (e.g. `flipMachine`'s state), not on re-deriving the
   machine's logic in the test. Every new route gets its own `test()` in
@@ -2472,9 +2530,12 @@ It drives one whole journey — unknown address, wrong password, correct passwor
 right code, session started, authenticated and revoked, reset link, credential-store outage —
 with both sinks recording: all six levels of `payload.logger`, and the mailer's own
 `logLines`. There is no third sink, and that is enforced rather than assumed:
-`eslint.config.js` sets `no-console: 'error'` repository-wide with one path-scoped exception,
-the console mailer. That is also why this file does not patch `console` — doing so would need
-the very override whose absence is the guarantee.
+`eslint.config.js` sets `no-console: 'error'` repository-wide with two path-scoped
+exceptions, each naming one file: the console mailer, and `scripts/run-lighthouse.mjs`,
+which is a terminal command rather than application code (finding 43 — this sentence said
+one). Neither is reachable from the sign-in surface. That is also why this file does not
+patch `console` — doing so would need the very kind of override whose absence over
+application code is the guarantee.
 
 **Every case reads the transcript through a guard that refuses to hand it over unless both
 sinks are demonstrably in it.** Six negatives over a string are six assertions that hold

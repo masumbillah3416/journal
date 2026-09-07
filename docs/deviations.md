@@ -117,6 +117,9 @@ between an `inline` adapter (the still pipeline only, no worker) and a `worker` 
 (the still pipeline plus `ffmpeg` transcoding, on Fly.io) — the same Ports & Adapters
 shape already used for `storage`/`mailer`/`queue`.
 
+**NOT BUILT.** Neither `MediaProcessor` adapter, the port itself, the contract suite or the `MEDIA_PIPELINE` variable exists in this repository: `grep -rn MediaProcessor apps packages` returns nothing, `apps/web/lib/ports/` holds only `mailer.ts`, `queue.ts` and `storage.ts`, `MEDIA_PIPELINE` is declared in neither `apps/web/lib/env.ts` nor `.env.example`, and setting it changes nothing. `docs/adr/0004-media-pipeline-mode.md` says so itself — _Nothing in this ADR is built now_ — and five documents described it in the present tense anyway (Phase 2's final review, finding 30). It is Phase 3's. What this entry records is the DECISION, which stands; what it does
+not record, and used to read as though it did, is a shipped pipeline.
+
 **Rationale:** this is not a departure from anything `handoff/design_handoff_travel_diary/`
 mandates — the handoff's own non-goals already describe clips as silent ~20-second loops,
 not a streaming feature, and never requires video to ship on day one. It is a departure
@@ -150,8 +153,10 @@ replaced or "improved" during implementation.
 **What changed:** `CLAUDE.md` §7 is unconditional — "never log secrets, tokens, OTP codes,
 or full email addresses" — and `SECURITY.md`'s OTP requirements assume the code reaches
 the recipient by email and nowhere else. `apps/web/lib/adapters/console-mailer.ts`, the
-development stand-in for Phase 2's Resend adapter, deliberately breaks the first half of
-that rule in one narrow case: when its `isDevelopment` option is true, the line it prints
+development stand-in for a sending adapter that **no phase has yet built** — this entry
+called it "Phase 2's Resend adapter" and Phase 2 shipped none, nor does the spec's Phase 2
+section ask for one (Phase 2's final review, finding 20) — deliberately breaks the first
+half of that rule in one narrow case: when its `isDevelopment` option is true, the line it prints
 to the terminal includes the message body, which for the only email this project sends is
 the OTP code.
 
@@ -170,9 +175,12 @@ retained. That is a materially different exposure from the one §7 exists to pre
 - **It is narrow.** The exemption covers the body only. The recipient address is masked
   to `m***@example.com` on _both_ branches — asserted by its own test — so the one thing
   §7 says about addresses holds unconditionally, in development too.
-- **It is the only one.** `eslint.config.js` carries a `no-console` override naming this
-  single file rather than a blanket disable, so an accidental `console.log` anywhere else
-  in the codebase is still a lint failure.
+- **It is one of exactly two, and both name a single file.** `eslint.config.js` carries a
+  `no-console` override for this module and one for `scripts/run-lighthouse.mjs`, whose
+  printed pass/fail summary is the whole point of a terminal command — never a blanket
+  disable, so an accidental `console.log` anywhere in application code is still a lint
+  failure. This bullet said "the only one" until the performance runner landed and nothing
+  updated it (Phase 2's final review, finding 43).
 
 **One correction this deviation caused, worth recording.** The shared mailer contract
 suite — whose "never records the message body, which carries the code" case is the §7
@@ -1943,3 +1951,30 @@ reason too: `admin.css` is loaded by the group's root layout, so every byte in i
 `docs/api.md`, the two `e2e/signInJourney.spec.ts` cases that walk it from the signed-in
 screen's button and from a browser with no session, the `/admin` case in `e2e/a11y.spec.ts`
 and the three `admin-panel-*` baselines in `e2e/visual.spec.ts-snapshots/`.
+
+## 45 · Postgres is published on host port 5433, not 5432
+
+**What changed:** `docker-compose.yml` maps the container's standard `5432` to host port
+**`5433`**, and every connection string in the repository (`.env.example`, `docker/`,
+`vitest.integration.config.ts`'s `diary_test` URL) is written against it. The brief's own
+example maps `5432:5432`.
+
+**Rationale:** a pre-existing native Postgres service already listens on this machine's
+`5432`. Connections to `localhost:5432` were silently served by THAT service rather than by
+this container, and failed authentication against unrelated credentials — a failure that
+reads as a wrong password in the repository rather than as a wrong server. Publishing on
+`5433` makes the container the only thing the repository's own connection strings can
+reach. The container's internal port is untouched, so the `visual` and `visual-update`
+Compose services still address it as `postgres:5432` over Compose's own network.
+
+**What would reverse this:** a machine with nothing on `5432`, which is most of them. The
+cost of leaving it at `5433` there is one surprising number in a connection string; the
+cost of the reverse, on a machine that does have one, is an hour spent debugging the wrong
+database.
+
+**Recorded as:** the `HANDOFF-DEVIATION` marker at `docker-compose.yml`'s header, the
+`DATABASE_URL` in `.env.example`, and `docs/runbook.md`'s local-setup section. **This entry
+exists because that marker was the one `HANDOFF-DEVIATION` in the repository with no entry
+here** — the marker itself said "See docs/deviations.md" and `5433` had zero hits in this
+file, so `CLAUDE.md` §1.1's bidirectional rule was broken exactly once (Phase 2's final
+review, finding 31).

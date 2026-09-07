@@ -20,8 +20,14 @@ Neither budget moved. `/p/1` stays at 3,000ms (ADR 0008); the admin's route-JS c
 
 ### Context
 
-`CLAUDE.md` §6 sets an LCP budget, a CLS budget and a 320KB route-JS ceiling, and until
-Phase 2 Task 11 nothing measured any of them on `/admin/*`. `lighthouserc.json` collects
+`CLAUDE.md` §6 sets an LCP budget **scoped explicitly to `/p/1`**, a CLS budget and a
+320KB admin route-JS ceiling, and until Phase 2 Task 11 nothing measured any of them on
+`/admin/*`. **The LCP number this ADR gates the three admin routes on is therefore this
+ADR's own, not §6's** — §6 names one route and this creates a hard CI gate on three more.
+That is a decision, and saying "neither budget moved" was true of the diary's gate and not
+of the admin's, which had no gate to move (Phase 2's final review, finding 41). The number
+chosen is the same 3,000ms, because the same simulated network and CPU produce it and a
+looser one would be a budget picked to fit what the screens already do. `lighthouserc.json` collects
 the diary's mobile surface, the gallery and `/cms`; `lighthouserc.book.json` collects the
 book surface at 1350x940 (ADR 0014). Tasks 7, 8 and 9 each closed reporting the admin
 budgets **UNRESOLVED** for that reason. A budget nothing measures is a budget nobody is
@@ -218,6 +224,10 @@ and the temporary copy that produced the third row was deleted.
 28,599 B the diary's CSS modules
 
 ```
+
+A stray fence closed that block one line early and reopened it around everything after
+it, so the rest of this ADR — including the actionable line below — rendered as code in
+any Markdown view (Phase 2's final review, finding 40).
 
 `/admin/sign-in` serves three of the same shape: the same shared token chunk, its own
 `admin.css` + `@font-face` merge, and its own modules.

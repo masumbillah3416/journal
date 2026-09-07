@@ -390,14 +390,21 @@ img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsaf
 
 **Which addresses are guarded.** `apps/web/lib/auth/adminAccess.ts` lists the public ones —
 `/admin/sign-in`, `/admin/sign-in/password`, `/admin/sign-in/code`,
-`/admin/sign-in/code/verify`, `/admin/reset`, `/admin/reset/request`, `/admin/reset/set`,
-and the reset link's own `/admin/reset/<token>` — and **everything else under `/admin` is
-guarded**, including addresses nobody has written yet. Guarding is
+`/admin/sign-in/code/verify`, **`/admin/sign-in/code/resend`**, `/admin/reset`,
+`/admin/reset/request`, `/admin/reset/set`, and the reset link's own
+`/admin/reset/<token>` — and **everything else under `/admin` is guarded**, including
+addresses nobody has written yet. The resend endpoint was missing from this sentence while
+sitting in `ADMIN_PUBLIC_PATHS` and carrying its own row below saying its auth requirement
+is none: a security-surface list wrong by omission (Phase 2's final review, finding 32).
+That list is now built from `apps/web/lib/auth/adminPaths.ts`'s constants — the same ones
+the forms post to — and `adminPaths.test.ts` asserts the public set matches the allowlist
+the middleware actually reads. Guarding is
 `apps/web/lib/auth/guard.ts`'s `authenticateAdminRequest`, which reads the identifier out of
 the cookie and asks the `sessions` table whether it names a live row; a page calls
 `requireAdminSession`, which redirects to `/admin/sign-in` on any refusal.
-`apps/web/lib/auth/adminGuardRegistration.test.ts` fails the pre-commit gate for any mounted
-admin address that is neither declared public nor calls the guard.
+`apps/web/lib/auth/adminGuardRegistration.test.ts` fails the pre-commit gate for any file
+under an `/admin` address that neither is declared public nor applies the guard in its own
+body — including Server Action modules, which it reads per export.
 
 **Nothing under `/api` can authenticate from this cookie.** It is `Path=/admin`, so a
 browser never sends it to `/api/...`. Payload's four routes above authenticate with

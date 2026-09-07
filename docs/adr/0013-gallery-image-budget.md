@@ -8,6 +8,9 @@ media pipeline. The reasoning below is
 `.superpowers/sdd/2026-09-01-phase-1-public-diary/closing-fixes-report.md`'s own
 "The red gate, and why it was not raised" section, carried to a decision.
 
+**A CITATION THAT CANNOT BE FOLLOWED, AND WHY IT IS LEFT NAMED.** The report above was a Phase 1 working note under `.superpowers/`, which is not tracked: `git ls-files .superpowers` returns nothing and no commit in this repository's history ever held it. Phase 2's final whole-branch review found four ADRs citing that directory (finding 39). The reference is kept rather than deleted because it records where the reasoning came from, but a reader must know it is unopenable — so everything this decision RESTS on is stated here rather than delegated to it. Everything that section argued is reproduced in
+this ADR's own Context and Decision below; nothing here depends on reading it.
+
 ## Context
 
 `docs/adr/0006-diary-image-window.md` and PH1-003
