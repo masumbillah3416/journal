@@ -49,10 +49,10 @@ doing that (finding 39). The method is four steps and belongs in the decision:
    (pinned in Phase 2's final round; it had been an unpinned Lighthouse default, so a
    library bump could have moved a documented hard gate with no diff here).
 
-Measured by that method at the close of Phase 2, on a clean `.next`: the book surface
-**2925.5 / 2925.7 / 2926.1 / 2927.0 / 2928.8ms, median 2926.1**, and the mobile surface
-**2923.4 / 2924.6 / 2926.5 / 2926.9 / 2929.7ms, median 2926.5** — both against the same
-3,000ms, unmoved.
+Measured by that method at the close of Phase 2, with `apps/web/.next` deleted first: the
+book surface **2924.9 / 2925.4 / 2927.2 / 2927.4 / 2930.0ms, median 2927.2**, and the
+mobile surface **2925.7 / 2926.6 / 2933.9 / 2934.7 / 2937.3ms, median 2933.9** — both
+against the same 3,000ms, unmoved, with 73ms and 66ms of margin.
 
 **What this decision does not change.** `resource-summary:script:size` stays at
 `184320`; `cumulative-layout-shift` stays at `0.1`; `aggregationMethod: "median"` stays
