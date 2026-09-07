@@ -1453,9 +1453,12 @@ true` — the only honest content while nothing writes or reads that setting and
   would also be 0 on a lucky ordering: count the in-window rows before and after a second
   run. `SELECT dimension, endpoint, subject, count(*) FROM sign_in_attempts GROUP BY 1, 2, 3`
   held **34 rows before the second run's specs began and 34 after it finished** (11 ×
-  `ip`/`password`/`::1` both times) for the sixth whole-branch review, and round 9 re-ran the
-  pair and reports its own figures in the same shape. Without the setup, a second run leaves
-  roughly double.
+  `ip`/`password`/`::1`, 6 × `ip`/`code`/`::1`, the rest per-account) for the sixth
+  whole-branch review — and round 9 re-ran the pair and measured **34 before and 34 after,
+  with the same 11 and 6 at the top**. Without the setup, a second run leaves roughly
+  double. Both round-9 runs: exit 0, `447 passed`, `171 skipped`, **0 flaky** (the word
+  appears zero times in either log), and `e2e/flip.spec.ts:157` — the ~2% flake carried to
+  Phase 3 by ruling — passed first attempt in both.
 
   **What this paragraph said before is worth keeping as a lesson about rationales.** It
   framed the choice as "wait fifteen minutes for the window to age out, or accept the
