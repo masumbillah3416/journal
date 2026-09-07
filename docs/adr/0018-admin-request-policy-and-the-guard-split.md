@@ -107,11 +107,28 @@ it got — so an action has no opportunity to forget.
 `eslint-rules/guarded-server-actions.js` is what admits nothing else. It reads the AST
 ESLint has already built, on every file `npm run lint` visits, and reports:
 
-- any export of a module whose directive prologue carries `'use server'` that is not a call
-  to `guardedAction` **imported from `lib/auth/guard`** — a local binding of that name
-  reports rather than satisfies it;
+- every **value** export of a module whose directive prologue carries `'use server'` that is
+  not a call to `guardedAction` — where satisfying it needs BOTH halves: the binding's
+  imported NAME must be `guardedAction` and its specifier must resolve on disk to
+  `apps/web/lib/auth/guard.ts`. So a local binding of that name reports rather than
+  satisfies it, and so does a DIFFERENT export of that same file aliased to that name. The
+  second half is round 7's correction: for one round only the file was compared, which made
+  `import { authenticateAdminRequest as guardedAction }` a live unguarded action passing
+  `eslint .`, `tsc` and the whole suite — a fail-open direction in a control whose stated
+  principle is fail-closed. An export the parser marks `exportKind: 'type'` is passed over,
+  because it emits no runtime binding;
 - any `export * from` or `export { x } from` in such a module, because nothing at that
-  point can see what another module exports;
+  point can see what another module exports — and any other export-shaped statement the
+  rule does not recognise, decided by the `export` KEYWORD rather than by whether the
+  parser's node-type name begins with `Export`. That, too, is round 7: `export = x` and
+  `export as namespace X` are named `TSExportAssignment` and
+  `TSNamespaceExportDeclaration`, so a `startsWith('Export')` dispatch skipped them in
+  silence — an enumeration of parser node-type names inside the rule that exists because
+  enumerations kept failing;
+- any top-level ASSIGNMENT in such a module, because `module.exports = { … }` attaches an
+  export no `export` keyword spells. Round 7 wrote that as `actions.cjs` at a real admin
+  address and it left `eslint .` at exit 0. Whether Next.js would mount it is a question
+  about a compiler transform; the shape is refused rather than reasoned about;
 - any `'use server'` directive inside a function body, anywhere in the repository, because
   such an action is dispatched as its own `POST` BEFORE the page around it renders, so that
   page's `requireAdminSession()` has not run — `SECURITY.md`'s "nothing inherits trust from
@@ -162,16 +179,48 @@ The twenty-three already contain the nine that defeated the text scans, the five
 the scan round 5 replaced, and the three that beat round 5's own rule. **Thirty-two of the thirty-three fail `npm run verify`.** Two
 fail it without failing `npm run lint` — a disable comment in a directory nobody listed,
 and a module at an extension ESLint still does not enumerate (`.mdx`, tried deliberately)
-— which is exactly why the coverage case exists alongside the rule.
+— which is exactly why the coverage case exists alongside the rule. Round 7 added a third
+and a fourth instance of that arrangement: a disable comment in
+`app/(payload)/cms/journeys/`, one directory inside the only exempt file's own, and the
+forced-into-the-index half of shape one below.
 
-**The one shape that gets through, stated rather than left to be found:** a module carrying
-an `eslint-disable` comment in a file `.gitignore` ALSO hides. The disable comment blinds
-the rule, and the `.gitignore` line takes the file out of the listing the coverage case
-walks. It is recorded rather than closed because such a file cannot be committed, and the
-`.gitignore` line that hid it would be in the same diff as the action. Two costs of the
-factory being identified by its path on disk are worth knowing too, and both fail closed: a
-legitimate barrel module that re-exports `guardedAction` is refused, and so is
-`import { guardedAction as somethingElse }`.
+**Then the fourth whole-branch review wrote fourteen more shapes and three got through, so
+"the one shape" was wrong for a round.** Round 7's own eleven — six of them new — closed a
+fourth. The four:
+
+| Shape                                                           | What it was                                          | Now                                    |
+| --------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------- |
+| `export = publishJourney`                                       | `TSExportAssignment` skipped by the node-type prefix | **closed** — reported `unverifiable`   |
+| `import { <any export of guard.ts> as guardedAction }`          | the file was compared, the imported name was not     | **closed** — reported `notTheFactory`  |
+| `module.exports = { deleteJourney }` in a `'use server'` module | an export no `export` keyword spells                 | **closed** — reported `assignedExport` |
+| a committed script assembling `'use server'` at build time      | no linted file, and no byte, carries the literal     | **open, and stated below**             |
+
+**TWO shapes get through, stated rather than left to be found.**
+
+**ONE · a module carrying an `eslint-disable` comment in a file `.gitignore` ALSO hides.**
+The disable comment blinds the rule, and the `.gitignore` line takes the file out of the
+listing the coverage case walks. It is recorded rather than closed because such a file
+cannot be committed: `git add` refuses it, `git add -f` puts it back into
+`git ls-files --cached` — which is the listing the coverage case reads — and the pre-commit
+hook then fails with `HEAD` unmoved. Verified by trying, twice, in two separate rounds.
+
+**TWO · a committed codegen script that assembles the directive at runtime**, e.g.
+`['use','server'].join(' ')` written into a module during `next build`. No linted file
+contains the literal, so the rule never sees a `'use server'` module; the coverage case's
+byte scan finds nothing; and the emitted module does not exist when ESLint runs.
+`npm run verify` is exit 0 with the script present (measured: `Test Files 90 passed`,
+`Tests 1337 passed`), and **unlike shape one it can be committed.** It is documented rather
+than closed, and that is a decision with a reason: closing it means deciding whether an
+arbitrary string expression evaluates to `'use server'`, which no scan and no rule can do,
+and the only honest alternative is a check over `next build`'s output — which `npm run
+verify` does not have and would not be a pre-commit gate. It needs a deliberate two-line
+diff, and it mounts nothing on its own; what makes it worth stating is that a document
+which COUNTS the survivors is wrong if the count is one.
+
+Three costs of the factory being identified by name-and-path are worth knowing too, and all
+three fail closed: a legitimate barrel module that re-exports `guardedAction` is refused,
+`import { guardedAction as somethingElse }` is refused, and so is reaching the factory
+through a local alias (`const build = guardedAction`). All three were run in round 7.
 
 **This guarantee was written as a text scan nine times and defeated nine times, which is
 why it is no longer one.** The first version matched the guard's NAME anywhere in the file,

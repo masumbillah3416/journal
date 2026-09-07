@@ -348,10 +348,13 @@ say "See docs/testing.md". This is that section — it did not exist for a round
 CLAUDE.md §1.2's own failure mode: a new test type, in a new language, in the gate Husky
 runs, behind a cross-reference pointing at silence.
 
-**What the suite is.** `eslint-rules/guarded-server-actions.js` is a custom ESLint rule:
-a `'use server'` module may export nothing but calls to `guardedAction(...)`
-(`apps/web/lib/auth/guard.ts`), and a `'use server'` directive inside a function body is
-refused outright. It exists because the same guarantee was written as a text scan **nine
+**What the suite is.** `eslint-rules/guarded-server-actions.js` is a custom ESLint rule: a
+`'use server'` module may export nothing but calls to `guardedAction(...)`
+(`apps/web/lib/auth/guard.ts`) — imported under that name, from that file, both halves
+checked — may hold no top-level assignment, and a `'use server'` directive inside a
+function body is refused outright. Its one exception is an export the parser marks
+`exportKind: 'type'`, which emits no runtime binding; every other export spelling, including
+one the rule does not recognise, is reported. It exists because the same guarantee was written as a text scan **nine
 times and defeated nine times** — "every export of every module" is not a sentence text
 matching can express, so the check is written where the exports are already parsed.
 `docs/adr/0018` is the decision; `apps/web/lib/auth/guard.ts` is the factory.
@@ -378,10 +381,14 @@ Every case is passed through `at()`, which gives it a real `filename` under
 `apps/web/app/(admin)/admin/journeys/`: the rule resolves an import specifier against the
 importing file and compares the result with `apps/web/lib/auth/guard.ts` itself, so a
 fixture with no plausible filename would resolve nothing and every case would report
-`notTheFactory`. There are 30 cases — 7 valid (the control: every export spelling, all
-guarded, plus the shapes the prologue walk has to answer "no" to) and 23 invalid, counted
-off the file rather than remembered — `grep -cE "errors: " eslint-rules/guarded-server-actions.test.js`
-counts the invalid ones.
+`notTheFactory`. There are 40 cases — 8 valid (the control: every export spelling, all
+guarded, plus the shapes the prologue walk has to answer "no" to) and 32 invalid. **Both
+numbers are now asserted rather than counted by hand**, by that file's own case "is the list
+docs/testing.md counts, so neither number can drift silently", which reads the lengths off
+the two arrays: the figures here fail on the commit that changes the list. That case exists
+because this document's count was right while the test file's own header said "the twelve
+mutations" through the rounds in which the list grew to 23 and then to 29 — a hand-
+maintained number about the guard, in the guard's own file.
 
 **And the two questions this suite CANNOT answer**, which is why
 `apps/web/lib/auth/adminGuardRegistration.test.ts` still has three cases about the rule.
@@ -423,11 +430,20 @@ written to disk and run against the real gate. **Thirty-two fail `npm run verify
 two of those fail it without failing `npm run lint`, which is the whole point of having the
 coverage case beside the rule: a disable comment in a directory nobody listed, and a module
 at an extension ESLint still does not enumerate (`.mdx` was tried), are caught by the test
-rather than by the rule. The one shape that gets through carries an `eslint-disable`
-comment in a file `.gitignore` also hides; it cannot be committed, and `docs/adr/0018`
-records it. Two costs of identifying the factory by its path on disk, both failing closed:
-a legitimate barrel re-exporting `guardedAction` is refused, and so is
-`import { guardedAction as somethingElse }`.
+rather than by the rule.
+
+**The fourth whole-branch review then ran fourteen shapes of its own and three got
+through**, so the sentence that used to end this paragraph — "the one shape that gets
+through" — was wrong for a round: `export = x`, a different export of the real `guard.ts`
+aliased to `guardedAction`, and a committed codegen script assembling the directive at
+runtime. Round 7 closed the first two in the rule, and ran eleven shapes of its own — six
+new — closing a fourth, `module.exports = { … }` in a `'use server'` module. **TWO shapes
+get through today**, both in `docs/adr/0018` with the measurement beside each: the
+`eslint-disable`-plus-`.gitignore` module, which cannot be committed, and the codegen
+script, which can and which leaves `npm run verify` at exit 0. Three costs of identifying
+the factory by name-and-path, all failing closed: a legitimate barrel re-exporting
+`guardedAction` is refused, `import { guardedAction as somethingElse }` is refused, and so
+is a local alias (`const build = guardedAction`).
 
 ### 2 · Integration
 

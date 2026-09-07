@@ -622,7 +622,10 @@ describe('the rule that makes an unguarded Server Action unwritable', () => {
     // question about configuration rather than about syntax — which is what
     // reading text is adequate for. What the rule DOES is asserted where the
     // AST is, by `eslint-rules/guarded-server-actions.test.js`, over the
-    // twelve shapes that defeated the scans this replaced.
+    // thirty-two invalid shapes that defeated the scans this replaced, or the
+    // rule versions that replaced them — a number that file now asserts off
+    // its own array rather than spelling in a comment, because this comment
+    // said "twelve" through two rounds in which the list grew.
     expect(eslintConfig).toContain("'guarded-server-actions': guardedServerActions")
     expect(eslintConfig).toContain(`'${ACTIONS_RULE}': 'error'`)
   })

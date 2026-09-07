@@ -58,8 +58,22 @@
  *   has to look elsewhere for its subject is one a neighbour can satisfy.
  *
  * Thirty-three shapes have been written to disk and run against the real gate;
- * thirty-two fail `npm run verify`. What does not is recorded in
- * `docs/adr/0018` rather than left to be found.
+ * thirty-two fail `npm run verify`. The fourth whole-branch review then wrote
+ * fourteen more and THREE got through, two of them closed in the rule by round
+ * 7 — including the one that mattered, a DIFFERENT export of this file aliased
+ * to `guardedAction`, which the rule admitted because it compared the imported
+ * FILE and never the imported NAME. Round 7 wrote eleven more, six of them new,
+ * and closed a fourth. TWO shapes get through today, not one, and both are
+ * recorded in `docs/adr/0018` with the measurement beside each rather than left
+ * to be found.
+ *
+ * THIS MODULE'S EXPORT SURFACE IS LOAD-BEARING, and that is what round 7's
+ * defeat means for Phase 4. The rule now requires the imported name to be
+ * `guardedAction`, so adding an export here no longer opens a hole — but a
+ * Phase 4 wrapper (`guardedRouteAction`, `guardedFormAction`) must COMPOSE
+ * `guardedAction` rather than be added to any list of permitted names. The rule
+ * deliberately has no such list: it can compare a name and resolve a file, and
+ * it cannot tell whether the function behind a name authenticates.
  *
  * ═══ THE COOKIE IS `Path=/admin`, SO NOTHING UNDER `/api` CAN USE IT ═══
  *

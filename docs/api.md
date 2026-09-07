@@ -957,11 +957,15 @@ export const publishJourney = guardedAction(async (session, id: string) => {
 })
 ```
 
-That is not a convention. `eslint-rules/guarded-server-actions.js` reports any export of a
-`'use server'` module that is not such a call, any re-export from one, and any
-`'use server'` directive inside a function body — over the parsed AST, on every file
-`npm run lint` visits, with no `files` list, so there is no directory it does not reach and
-no export spelling past it.
+That is not a convention. `eslint-rules/guarded-server-actions.js` reports every **value**
+export of a `'use server'` module that is not such a call, any re-export from one, any
+top-level assignment in one, and any `'use server'` directive inside a function body — over
+the parsed AST, on every file `npm run lint` visits, with no `files` list, so there is no
+directory it does not reach, and an export spelling it does not RECOGNISE is reported rather
+than skipped. The exception is an export the parser marks `exportKind: 'type'`, which emits
+no runtime binding. Until round 7 this paragraph said "no export spelling past it": `export
+= x` and `export as namespace X` both walked past, because the dispatch tested whether the
+parser's node-type NAME began with `Export`, and neither does.
 
 **An action that forgets fails `npm run verify` — and `verify` rather than `lint` is the
 accurate word.** Two of the ways an action can escape the rule itself are caught by

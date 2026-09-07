@@ -190,9 +190,14 @@ everything else under `/admin` is guarded, including screens nobody has written 
 A Server Action cannot be written unguarded: `guardedAction()`
 (`apps/web/lib/auth/guard.ts`) calls the guard and then the action, and
 `eslint-rules/guarded-server-actions.js` — an ESLint rule over the AST, with no `files`
-list, so there is no directory it does not reach — reports any export of a `'use server'`
-module that is not a call to it, any re-export from such a module, and any `'use server'`
-directive inside a function body.
+list, so there is no directory it does not reach — reports every **value** export of a
+`'use server'` module that is not a call to it, any re-export from such a module, any
+top-level assignment in one (`module.exports = …` attaches an export no `export` keyword
+spells), and any `'use server'` directive inside a function body. The one thing it passes
+over is an export the parser marks `exportKind: 'type'` — `export type`, `export interface`
+and the ambient `export declare` — which emit no runtime binding for Next.js to mount. Four
+documents said "any export" until round 7, and `export = x` and `export declare const` both
+falsified it.
 
 **The rule's reach is proved rather than asserted, and the two earlier versions of this
 paragraph claimed more than the code did.** A lint rule can only judge a file ESLint hands
@@ -213,12 +218,31 @@ twenty-three already include the nine that defeated the text scans, the five tha
 scan round 5 replaced and the three that beat round 5's own rule. **Thirty-two of the thirty-three fail `npm run verify`.** Two of
 them fail it without failing `npm run lint`, which is the point of having both: a disable
 comment in a directory nobody listed, and a module at an extension ESLint still does not
-enumerate, are caught by the coverage case rather than by the rule. The one shape that gets
-through is a module carrying an `eslint-disable` comment in a file `.gitignore` also hides
-— which cannot be committed, and whose `.gitignore` line would be in the same diff. A
-disable comment on its own is deliberate: it is one reviewable line, and the files allowed
-to carry one are enumerated by exact path in `adminGuardRegistration.test.ts`, read off
-git's listing rather than off a directory list.
+enumerate, are caught by the coverage case rather than by the rule.
+
+**Then the fourth whole-branch review wrote fourteen more, and three of them got through**,
+so this paragraph's count was wrong for a round: an `export = x`, a DIFFERENT export of the
+real `guard.ts` aliased to `guardedAction` (`eslint .` exit 0 and `tsc` clean — a fail-open
+direction in a control whose stated principle is fail-closed), and a committed codegen
+script assembling the directive at runtime. Round 7 closed the first two in the rule and
+wrote eleven shapes of its own, six of them new; one of those six — `module.exports = { … }`
+in a `'use server'` module — was a fourth defeat and is closed too.
+
+**TWO shapes get through, and both are stated rather than left to be found.** ONE: a module
+carrying an `eslint-disable` comment in a file `.gitignore` also hides, which cannot be
+committed — `git add` refuses it, `git add -f` puts it back in `git ls-files --cached`, and
+the pre-commit hook then fails. TWO: a committed script that builds the directive at
+runtime (`['use','server'].join(' ')`), so no linted file and no byte scan contains it and
+the emitted module does not exist when ESLint runs — `npm run verify` is exit 0 with it
+present, and unlike the first shape it CAN be committed. It is documented rather than caught
+because catching it means deciding whether an arbitrary string expression evaluates to
+`'use server'`, which neither a scan nor a rule can do; the honest alternative is a check
+over `next build`'s output, which `npm run verify` does not have. It takes a deliberate
+two-line diff and it mounts nothing on its own. A disable comment on its own is deliberate:
+it is one reviewable line, and the files allowed to carry one are enumerated by exact path
+in `adminGuardRegistration.test.ts`, read off git's listing rather than off a directory
+list — round 7 wrote a disable comment into `app/(payload)/cms/journeys/`, one directory
+inside the only exempt file's own, and the case failed on it.
 
 Route files are checked rather than constructed, because a page is not built from a
 factory: `apps/web/lib/auth/adminGuardRegistration.test.ts` walks the whole `app/` tree,

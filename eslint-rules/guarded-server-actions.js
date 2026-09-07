@@ -17,8 +17,9 @@
  * every module" is not a sentence text matching can express, so the check has
  * to be written where the exports are already parsed. This rule reads the AST
  * ESLint has already built, on every file `npm run lint` visits, and it has no
- * `files` list of its own — so there is no directory it does not reach and no
- * export spelling it cannot see.
+ * `files` list of its own — so there is no directory it does not reach, and an
+ * export spelling it does not RECOGNISE is reported rather than skipped, which
+ * is round 7's correction and not what round 6 did (see rule 3 below).
  *
  * ═══ WHAT "EVERY FILE `npm run lint` VISITS" IS, AND IS NOT ═══
  *
@@ -44,33 +45,62 @@
  *
  * 1. A module whose directive prologue carries `'use server'` may export
  *    nothing but calls to `guardedAction(...)`, and the callee must resolve to
- *    an IMPORT of `guardedAction` from `apps/web/lib/auth/guard` — so a local
- *    function of the same name does not satisfy it.
+ *    an import whose IMPORTED NAME is `guardedAction` and whose specifier
+ *    resolves on disk to `apps/web/lib/auth/guard.ts` — so a local function of
+ *    the same name does not satisfy it, and neither does a DIFFERENT export of
+ *    that same file aliased to the name (round 7's fail-open direction; see
+ *    `importsTheFactory`). Both halves are checked, which two earlier versions
+ *    of this sentence claimed while only the file half was.
  * 2. `'use server'` inside a function body is refused outright, wherever it
  *    appears. Such an action is dispatched as its own `POST` before the page
  *    around it renders, so a guard in that page's body does not gate it
  *    (`SECURITY.md`: nothing inherits trust from the page it was reached
  *    from). There is no way to tell that action's guard from the page's, so the
  *    shape is refused rather than analysed.
- * 3. Anything else at the top level of a `'use server'` module that this rule
- *    does not recognise as a guarded export is REPORTED. A re-export cannot be
- *    verified from here, and an export syntax nobody anticipated is exactly the
- *    shape that defeated every previous version — so the default is refusal.
+ * 3. Anything EXPORT-SHAPED at the top level of a `'use server'` module that
+ *    this rule does not recognise as a guarded export is REPORTED. A re-export
+ *    cannot be verified from here, and an export syntax nobody anticipated is
+ *    exactly the shape that defeated every previous version — so the default is
+ *    refusal. Export-shaped means the statement spells the `export` keyword, or
+ *    its node type names an export; see `exportsSomething`, which is where
+ *    round 6 was silent instead of refusing.
  *
- * ═══ WHAT DEFEATS IT, STATED RATHER THAN LEFT TO BE FOUND ═══
+ *    THE ONE EXPORT THIS RULE PASSES OVER is one the parser marks
+ *    `exportKind: 'type'` — `export type`, `export interface`, and the ambient
+ *    `export declare const`/`export declare function`. Those emit no runtime
+ *    binding, so Next.js mounts no endpoint from them. It is a narrow
+ *    exception rather than "any export", which four documents used to say.
+ * 4. A top-level ASSIGNMENT in a `'use server'` module is refused too, because
+ *    `module.exports = { deleteJourney }` attaches an export that no `export`
+ *    keyword spells and rule 3 therefore cannot see. See `assignsSomething`.
  *
- * An `eslint-disable` comment. That is deliberate: a disable comment is one
- * line in a diff with a reason beside it, which is a decision somebody made —
- * and `apps/web/lib/auth/adminGuardRegistration.test.ts` fails if one naming
- * this rule appears in any file git lists for this repository. That is git's
+ * ═══ WHAT DEFEATS IT — TWO SHAPES, STATED RATHER THAN LEFT TO BE FOUND ═══
+ *
+ * ONE · An `eslint-disable` comment in a file `.gitignore` also hides. The
+ * disable comment alone is deliberate: it is one line in a diff with a reason
+ * beside it, which is a decision somebody made — and
+ * `apps/web/lib/auth/adminGuardRegistration.test.ts` fails if one naming this
+ * rule appears in any file git lists for this repository. That is git's
  * listing, not a directory walk: the previous version of that check enumerated
  * five directory names inside `apps/web`, and a disable comment in
  * `apps/web/actions/` or in `packages/` sat outside all five. Everything in the
- * list above failed SILENTLY, which is the whole difference.
+ * list above failed SILENTLY, which is the whole difference. A file
+ * `.gitignore` covers is outside that listing too, so the two together blind
+ * both mechanisms — and such a file cannot be committed: `git add` refuses it,
+ * `git add -f` puts it back in `git ls-files --cached`, which is the listing the
+ * test reads, and the pre-commit hook then fails.
  *
- * A file `.gitignore` covers is also outside that listing — deliberately, since
- * such a file cannot be committed, and the `.gitignore` line that hid it would
- * be in the same diff.
+ * TWO · A COMMITTED SCRIPT THAT BUILDS THE DIRECTIVE AT RUNTIME, e.g.
+ * `['use','server'].join(' ')` written to a module during `next build`. No
+ * linted file contains the literal, the coverage case's byte scan finds
+ * nothing, and the emitted module does not exist when ESLint runs — so
+ * `npm run verify` is exit 0 with the script present, and unlike shape one this
+ * shape CAN be committed. It is stated rather than caught, and that is a
+ * decision: catching it means deciding whether an arbitrary string expression
+ * can evaluate to `'use server'`, which no scan and no rule can do — the honest
+ * alternative would be a check over `next build`'s output, which is not a thing
+ * `npm run verify` has. It takes a deliberate two-line diff and it mounts
+ * nothing on its own.
  *
  * Depends on: node:fs and node:path, to resolve an import specifier to a real
  * file. ESLint supplies the AST and the scope analysis.
@@ -159,20 +189,51 @@ const resolvedImport = (importer, specifier) => {
 /**
  * Whether a binding is an import of the factory, resolved on disk.
  *
- * THE ORDER OF THE TWO COMPARISONS IS LOAD-BEARING. `imported` is checked
- * against `undefined` FIRST, so a repository that had moved or renamed
- * `guard.ts` cannot admit everything: with the factory missing, `factory` is
- * `undefined` too, and a naive equality would then match every specifier that
- * also resolved to nothing — which is every specifier a decoy uses. Requiring
- * `imported` to name a real file first means the rule refuses rather than
- * relaxes when it loses the ability to check.
+ * ═══ BOTH HALVES ARE CHECKED: WHICH EXPORT, AND WHICH FILE (ROUND 7) ═══
+ *
+ * The previous version read `definition.parent.source.value` — the module
+ * SPECIFIER — and never read the name the import brought in, so ANY named
+ * export of the real `guard.ts` bound to the local name `guardedAction`
+ * satisfied it. `import { authenticateAdminRequest as guardedAction }` left
+ * `eslint .` at exit 0, `tsc -p apps/web` clean and the guard suite green,
+ * which is a FAIL-OPEN direction in a control whose whole stated principle is
+ * fail-closed. Nothing in `guard.ts` was exploitable through it, and that was
+ * luck rather than design: every export there either authenticates or is not
+ * callable with a function. Phase 4 extends this module.
+ *
+ * ONE NAME, NOT AN ALLOWLIST OF AUTHENTICATING WRAPPERS, and the choice is
+ * deliberate. A list of permitted names is a list this rule would have to
+ * TRUST: it can compare a name and resolve a file, and it cannot tell whether
+ * the function behind a name calls the guard — so an allowlist would put the
+ * security property back into a table somebody maintains, which is the
+ * enumeration failure mode this rule exists to end. A Phase 4 wrapper composes
+ * {@link module:guard.guardedAction} instead of joining a list, and then its
+ * own exports are guarded by construction.
+ *
+ * THE ORDER OF THE COMPARISONS IS LOAD-BEARING. `imported` is checked against
+ * `undefined` FIRST, so a repository that had moved or renamed `guard.ts`
+ * cannot admit everything: with the factory missing, `factory` is `undefined`
+ * too, and a naive equality would then match every specifier that also resolved
+ * to nothing — which is every specifier a decoy uses. Requiring `imported` to
+ * name a real file first means the rule refuses rather than relaxes when it
+ * loses the ability to check.
  *
  * @param {object | undefined} definition - The variable definition of the name.
  * @param {string} importerFile - Absolute path of the file holding the import.
- * @returns {boolean} True only when the specifier resolves to the factory.
+ * @returns {boolean} True only when the binding is the factory's own export,
+ *   imported from the factory's own file.
  */
 const importsTheFactory = (definition, importerFile) => {
   if (definition === undefined || definition.type !== 'ImportBinding') return false
+  // ONE COMPARISON COVERS THREE SHAPES, which is why it is written as an
+  // optional chain rather than as a type test. Only `ImportSpecifier` carries
+  // an `imported` node at all, so a default import (`import guardedAction
+  // from`) and a namespace import (`import * as guardedAction from`) both
+  // reach `undefined` here; and `imported` is a `Literal` rather than an
+  // `Identifier` for `import { 'a-b' as guardedAction }`, which has no `name`.
+  // All three answer no, and none of them throws.
+  if (definition.node.imported?.name !== FACTORY) return false
+
   const imported = resolvedImport(importerFile, String(definition.parent.source.value))
   return imported !== undefined && imported === canonicalFile(FACTORY_FILE)
 }
@@ -207,6 +268,76 @@ const hasServerPrologue = (body) => {
 }
 
 /**
+ * Whether a top-level statement exports something.
+ *
+ * ═══ THE `export` KEYWORD, NOT THE NODE TYPE'S NAME (ROUND 7) ═══
+ *
+ * The previous version asked `statement.type.startsWith('Export')`, which is an
+ * ENUMERATION OF PARSER NODE-TYPE NAMES inside the rule that exists because
+ * enumerations kept failing — and it had already failed twice:
+ * `TSExportAssignment` (`export = x`) and `TSNamespaceExportDeclaration`
+ * (`export as namespace X`) do not begin with `Export`, so `checkExport` was
+ * never called for them and the `unverifiable` fallback that carries this
+ * rule's fail-closed promise never fired. The default was SILENCE, which is
+ * what the header claimed it was not.
+ *
+ * Every export syntax ECMAScript and TypeScript have is spelled with the
+ * `export` keyword, so the keyword is what to look for: a node type nobody here
+ * has heard of still has to spell it, and then it reaches `checkExport`, is not
+ * recognised, and is REPORTED. That is the same fail-closed shape
+ * `adminGuardRegistration.test.ts` already gives an unrecognised route-file
+ * kind, expressed against the language rather than against a parser's naming.
+ *
+ * THE TWO TESTS ARE A UNION RATHER THAN A CHOICE. TypeScript permits a
+ * decorator before the keyword (`@dec export class A {}`), which makes `@` the
+ * statement's first token while the node is still an `ExportNamedDeclaration` —
+ * so the node-type test is kept, widened from `startsWith` to `includes`, as
+ * the second half. Each half has its own case in
+ * `guarded-server-actions.test.js`.
+ *
+ * INVARIANT — a statement always has a first token, so `getFirstToken` is not
+ * null-guarded here. A statement with no tokens has no source text and cannot
+ * be in a `Program` body; if some future parser produced one, this would throw
+ * and ESLint would report a fatal error on the file, which fails the gate
+ * loudly rather than passing it quietly.
+ *
+ * @param {object} statement - A node from a `Program` body.
+ * @param {object} sourceCode - ESLint's `SourceCode` for the file.
+ * @returns {boolean} True when the statement is export-shaped.
+ */
+const exportsSomething = (statement, sourceCode) =>
+  statement.type.includes('Export') || sourceCode.getFirstToken(statement).value === 'export'
+
+/**
+ * Whether a top-level statement assigns to something.
+ *
+ * ═══ WHY AN ASSIGNMENT IS REFUSED RATHER THAN ANALYSED (ROUND 7) ═══
+ *
+ * `module.exports = { deleteJourney }` and `exports.deleteJourney = …` attach an
+ * export that no `export` keyword spells, so {@link exportsSomething} cannot see
+ * them and `checkExport` is never reached. Written into a `'use server'` module
+ * this left `eslint .` at exit 0 and the guard suite green (round 7's shape N5).
+ *
+ * Whether Next.js would MOUNT such an export is a question about a compiler
+ * transform, and answering it by reasoning is how this control has been wrong
+ * five times. So the shape is refused instead — the same move rule 2 makes for
+ * an inline directive, and for the same reason: there is no way to tell a
+ * harmless top-level assignment from one that attaches an endpoint, and the
+ * only cost of refusing is that a `'use server'` module cannot mutate module
+ * state at load, which CLAUDE.md §3.3 rejects anyway.
+ *
+ * Broader than a `module`/`exports` name test on purpose. A test for those two
+ * names would be an enumeration of identifiers, and the next spelling
+ * (`globalThis.deleteJourney = …`, a re-assignment through an alias) would walk
+ * past it.
+ *
+ * @param {object} statement - A node from a `Program` body.
+ * @returns {boolean} True for a top-level assignment expression statement.
+ */
+const assignsSomething = (statement) =>
+  statement.type === 'ExpressionStatement' && statement.expression.type === 'AssignmentExpression'
+
+/**
  * The variable a name resolves to, searching outwards through the scope chain.
  *
  * @param {object | null} scope - The scope to search from.
@@ -231,11 +362,13 @@ export const guardedServerActions = {
       unguarded:
         'Server Action "{{name}}" is a POST endpoint of its own. Export guardedAction(...) instead, imported from lib/auth/guard.',
       unverifiable:
-        'A re-export cannot be checked here, and every export of a "use server" module is a POST endpoint. Declare the action in this module as guardedAction(...).',
+        'This export cannot be checked here — a re-export, or an export syntax this rule does not recognise — and every export of a "use server" module is a POST endpoint. Declare the action in this module as guardedAction(...).',
       inlineDirective:
         'A "use server" directive inside a function makes it a POST endpoint dispatched BEFORE the page around it renders, so the guard in that page does not gate it. Move it to a module whose exports are all guardedAction(...).',
       notTheFactory:
-        'guardedAction must resolve to the file apps/web/lib/auth/guard.ts. A local binding of that name, or another module named auth/guard, guards nothing.',
+        'guardedAction must be the export named guardedAction, imported from the file apps/web/lib/auth/guard.ts. A local binding of that name, another module named auth/guard, a barrel that re-exports it, or a DIFFERENT export of guard.ts aliased to that name, all guard nothing.',
+      assignedExport:
+        'A top-level assignment in a "use server" module can attach an export no `export` keyword spells (module.exports, exports.name), and this rule cannot tell that from harmless module state. Export guardedAction(...) instead.',
     },
   },
 
@@ -342,7 +475,11 @@ export const guardedServerActions = {
         if (!hasServerPrologue(program.body)) return
 
         for (const statement of program.body) {
-          if (statement.type.startsWith('Export')) checkExport(statement)
+          if (exportsSomething(statement, source)) {
+            checkExport(statement)
+            continue
+          }
+          if (assignsSomething(statement)) context.report({ node: statement, messageId: 'assignedExport' })
         }
       },
     }
