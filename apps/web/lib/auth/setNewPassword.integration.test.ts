@@ -142,6 +142,38 @@ const signInSucceeds = async (email: string, password: string): Promise<boolean>
   }
 }
 
+/** The two columns Payload's reset flow keeps on a `users` row. */
+interface ResetColumns {
+  /** The token the mailed link carries, or `null` if the row holds none. */
+  readonly reset_password_token: string | null
+  /** The instant the token stops matching, or `null`. */
+  readonly reset_password_expiration: Date | null
+}
+
+/**
+ * The reset columns of one account, read straight off the row.
+ *
+ * READ THROUGH THE POOL RATHER THAN THE LOCAL API on purpose: Payload marks
+ * both columns hidden, and the question these two cases ask is what is AT REST
+ * in the row, which is exactly the question a document-shaped read cannot
+ * answer. Every other case in this file reads the token out of the outbox, for
+ * the reason this file's header gives; these two are about the column itself.
+ *
+ * @param email - The account to read.
+ * @returns Its reset token and expiration, as Postgres holds them.
+ * @throws If the account is not there, so a missing row cannot read as an
+ *   empty one.
+ */
+const resetColumnsOf = async (email: string): Promise<ResetColumns> => {
+  const found = await payload.db.pool.query<ResetColumns>(
+    `SELECT reset_password_token, reset_password_expiration FROM users WHERE email = $1`,
+    [email],
+  )
+  const row = found.rows[0]
+  if (row === undefined) throw new Error('no account at that address, so nothing below has read a column')
+  return row
+}
+
 /** Deletes every row this file wrote. */
 const removeFixtures = async (): Promise<void> => {
   await payload.db.pool.query(`DELETE FROM sign_in_attempts WHERE subject LIKE $1`, [`${FIXTURE_IP_PREFIX}%`])
@@ -209,6 +241,61 @@ describe('the mailed link, followed end to end', () => {
     const second = await service.setNewPassword({ token, password: 'a-third-password-entirely' })
 
     expect(second).toEqual({ ok: false, error: 'invalid-token' })
+  })
+
+  it('spends the link by back-dating its expiry, and leaves the token string in the row', async () => {
+    // WHAT ACTUALLY REFUSES THE SECOND USE, pinned instead of its outcome —
+    // the eighth whole-branch review's finding 5. `passwordReset.ts` said
+    // "`resetPassword` clears it on use", and Payload does no such thing:
+    // `node_modules/payload/dist/auth/operations/resetPassword.js` names
+    // `resetPasswordToken` at exactly one line, inside the lookup `where`, and
+    // its only write to either reset column is
+    // `user.resetPasswordExpiration = new Date().toISOString()`. So the link
+    // dies because its expiry is back-dated to the instant it was spent, and
+    // the lookup demands `resetPasswordExpiration greater_than now()`. The
+    // spent token string stays in the row until the next `forgotPassword`
+    // overwrites it — which is the fact a reader of that comment would have
+    // got wrong, and the one CLAUDE.md §7 makes them care about.
+    const reader = await aReader()
+
+    await requestReset.requestPasswordReset({ email: reader, ip: anIp() })
+    const token = readTokenFromOutbox()
+    await service.setNewPassword({ token, password: REPLACEMENT_PASSWORD })
+
+    const spent = await resetColumnsOf(reader)
+
+    expect(spent.reset_password_token).toBe(token)
+    expect(spent.reset_password_expiration?.getTime() ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(Date.now())
+  })
+
+  it('honours that same token again the moment its expiry is put back into the future', async () => {
+    // THE CAUSAL HALF, and the reason the case above is worth having. It says
+    // the token survives and the expiry is back-dated; this one says the
+    // expiry is the ONLY thing refusing the second use, by putting it back and
+    // watching the same spent token be accepted.
+    //
+    // NO APPLICATION PATH DOES THIS. The `UPDATE` below is the probe, not a
+    // behaviour: Payload writes `resetPasswordExpiration` in exactly two
+    // places — `forgotPassword`, which mints a NEW token in the same write,
+    // and `resetPassword`, which back-dates it — so nothing in this repository
+    // or in Payload can revive a spent token. That is what makes the residue
+    // an at-rest fact rather than an exposure, and it is stated here because a
+    // future edit that starts writing that column alone would turn it into
+    // one.
+    const reader = await aReader()
+
+    await requestReset.requestPasswordReset({ email: reader, ip: anIp() })
+    const token = readTokenFromOutbox()
+    await service.setNewPassword({ token, password: REPLACEMENT_PASSWORD })
+    await payload.db.pool.query(`UPDATE users SET reset_password_expiration = $1 WHERE email = $2`, [
+      new Date(Date.now() + 3_600_000),
+      reader,
+    ])
+
+    const revived = await service.setNewPassword({ token, password: 'a-third-password-entirely' })
+
+    expect(revived).toEqual({ ok: true, value: undefined })
+    expect(await signInSucceeds(reader, 'a-third-password-entirely')).toBe(true)
   })
 
   it('still signs in with the password the first use set, after the second was refused', async () => {

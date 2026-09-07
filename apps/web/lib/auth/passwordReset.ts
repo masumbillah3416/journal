@@ -22,14 +22,33 @@
  * `passwordReset.integration.test.ts` compares the two answers whole, using
  * two addresses that mask to the same string.
  *
- * PAYLOAD MINTS AND LATER CONSUMES THE TOKEN. `forgotPassword` writes 20
- * CSPRNG bytes to `users.resetPasswordToken` with a one-hour expiry — which is
- * exactly `SCREENS.md`'s "The link works once and lasts an hour" — and
- * `resetPassword` clears it on use. `disableEmail: true`, because delivery
+ * PAYLOAD MINTS AND LATER SPENDS THE TOKEN. `forgotPassword` writes 20 CSPRNG
+ * bytes to `users.resetPasswordToken` with a one-hour expiry, which is
+ * `SCREENS.md`'s "lasts an hour". `disableEmail: true`, because delivery
  * belongs to the Mailer port this project already has rather than to Payload's
  * own email adapter, which nothing else here uses. Payload's own operation
  * already returns `null` rather than throwing for an address it cannot find,
  * for the same anti-enumeration reason.
+ *
+ * WHAT MAKES THE LINK SINGLE-USE IS THE EXPIRY, NOT A CLEARED TOKEN, and this
+ * comment said the opposite until the eighth whole-branch review measured it.
+ * `resetPassword` looks a row up on
+ * `resetPasswordToken equals <token> AND resetPasswordExpiration greater_than now()`
+ * and then writes `resetPasswordExpiration = now()`; it never touches the
+ * token column. (Payload's own source: `resetPasswordToken` appears at one
+ * line, the lookup's `where`.) A second use therefore finds an expiration that
+ * is no longer in the future and is refused — which is `SCREENS.md`'s "works
+ * once", reached by a different mechanism than the one written here before.
+ *
+ * THE SPENT TOKEN STRING PERSISTS IN THE ROW until the next `forgotPassword`
+ * overwrites it. That is a credential-shaped value at rest, so it is named
+ * rather than left to be discovered (CLAUDE.md §7) — and it is inert, because
+ * Payload writes `resetPasswordExpiration` in exactly two places and both are
+ * above: one mints a new token in the same write, the other back-dates. Both
+ * halves are pinned by `setNewPassword.integration.test.ts`, which reads the
+ * two columns off the row after a use, and then puts the expiry back into the
+ * future and watches the same spent token be accepted — so the day something
+ * starts writing that column alone, a named case fails.
  *
  * THE ORIGIN IS INJECTED AND IS NEVER TAKEN FROM THE REQUEST. A link built
  * from a request's `Host` header is a link an attacker can point at their own
@@ -50,9 +69,13 @@
  * the fifth whole-branch review asked for it. A reader who requests a reset
  * and then tries to sign in has FEWER attempts than the sign-in limit
  * advertises: the reset request has already spent one of the twenty per
- * address per fifteen minutes, and ten reset requests aimed at a known address
- * suspend that address's password sign-in for the rest of the window from any
- * IP (`ADDRESS_PASSWORD_ATTEMPT_LIMIT`).
+ * REQUESTING IP per fifteen minutes (`IP_ATTEMPT_LIMIT`, whose own
+ * declaration calls an IP an "address"), and ten reset requests aimed at a
+ * known EMAIL address suspend that address's password sign-in for the rest of
+ * the window from any IP (`ADDRESS_PASSWORD_ATTEMPT_LIMIT`). The two nouns
+ * are spelled apart here because the eighth whole-branch review read this
+ * sentence as naming one limit twice, which is what an overloaded word costs
+ * two lines apart (CLAUDE.md §3.2).
  *
  * That is a cost rather than a new exposure, and the difference is worth
  * stating: `ADDRESS_PASSWORD_ATTEMPT_LIMIT` plus Payload's own
