@@ -207,8 +207,8 @@ const resolvedImport = (importer, specifier) => {
  * the function behind a name calls the guard — so an allowlist would put the
  * security property back into a table somebody maintains, which is the
  * enumeration failure mode this rule exists to end. A Phase 4 wrapper composes
- * {@link module:guard.guardedAction} instead of joining a list, and then its
- * own exports are guarded by construction.
+ * `guardedAction` instead of joining a list, and then its own exports are
+ * guarded by construction.
  *
  * THE ORDER OF THE COMPARISONS IS LOAD-BEARING. `imported` is checked against
  * `undefined` FIRST, so a repository that had moved or renamed `guard.ts`
@@ -294,6 +294,17 @@ const hasServerPrologue = (body) => {
  * so the node-type test is kept, widened from `startsWith` to `includes`, as
  * the second half. Each half has its own case in
  * `guarded-server-actions.test.js`.
+ *
+ * WHICH HALF ACTUALLY CATCHES `export =` TODAY, said plainly rather than left
+ * to be inferred, because this branch's recurring defect is a claim stronger
+ * than its code: BOTH node type names contain the substring `Export`, so it is
+ * the WIDENING from `startsWith` to `includes` that reports them, and the
+ * keyword test is the belt with no current buckle. That is deliberate and it is
+ * the half worth keeping: `includes` is still a test on a name the parser
+ * chooses, and the keyword is a property of the language. No node type in this
+ * parser is export-shaped without `Export` in its name — so if one ever is,
+ * the keyword test is the only thing standing between it and silence, and it
+ * will be exercised on the day it matters rather than added then.
  *
  * INVARIANT — a statement always has a first token, so `getFirstToken` is not
  * null-guarded here. A statement with no tokens has no source text and cannot

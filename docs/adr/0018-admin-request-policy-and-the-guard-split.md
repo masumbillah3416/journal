@@ -124,7 +124,11 @@ ESLint has already built, on every file `npm run lint` visits, and reports:
   `export as namespace X` are named `TSExportAssignment` and
   `TSNamespaceExportDeclaration`, so a `startsWith('Export')` dispatch skipped them in
   silence — an enumeration of parser node-type names inside the rule that exists because
-  enumerations kept failing;
+  enumerations kept failing. Which half of that union reports the two shapes TODAY is worth
+  saying rather than leaving to be inferred: both node type names contain the substring
+  `Export`, so it is the widening from `startsWith` to `includes` that catches them, and the
+  keyword test is a belt with no current buckle — kept because `includes` is still a test on
+  a name the parser chooses, and the keyword is a property of the language;
 - any top-level ASSIGNMENT in such a module, because `module.exports = { … }` attaches an
   export no `export` keyword spells. Round 7 wrote that as `actions.cjs` at a real admin
   address and it left `eslint .` at exit 0. Whether Next.js would mount it is a question
