@@ -628,6 +628,115 @@ const rootScript = (name: string): string => {
 const LINT_INVOCATION: readonly string[] = ['eslint', '.', '--max-warnings', '0']
 
 /**
+ * One command line's tokens, with the whitespace between them discarded.
+ *
+ * @param command - A shell command as a script or a workflow step holds it.
+ * @returns Its tokens in order, so two commands are compared by what they say
+ *   rather than by how they were spaced.
+ */
+const tokensOf = (command: string): readonly string[] => command.split(/\s+/u).filter((token) => token.length > 0)
+
+/**
+ * Whether a command is one exact argv and nothing else.
+ *
+ * WHY WHOLE TOKENS RATHER THAN A SUBSTRING, and this is the eighth review's
+ * finding 2. `toContain('npm run lint')` is satisfied by `npm run lint:changed`
+ * — a prefix — so pointing `verify` at a narrowed sibling script left this
+ * suite at 24 passing with an unguarded mountable module on disk. A substring
+ * accepts a superstring, and every superstring here is a different command.
+ *
+ * @param command - The command line to judge.
+ * @param argv - The tokens it must be, in order, with nothing before or after.
+ * @returns True only for that exact token run.
+ */
+const runsExactly = (command: string, argv: readonly string[]): boolean => {
+  const tokens = tokensOf(command)
+  return tokens.length === argv.length && tokens.every((token, at) => token === argv[at])
+}
+
+/**
+ * The whole command the `verify` script must be, token for token.
+ *
+ * COMPARED WHOLE FOR THE REASON {@link LINT_INVOCATION} IS, and the eighth
+ * whole-branch review is why it is here rather than a `toContain`. Round 10
+ * asserted this link by substring, and three edits satisfy the substring while
+ * changing what runs: `npm run lint -- --ignore-pattern <dir>`, which npm
+ * appends to the script it runs; `npm run lint:changed`, which the substring
+ * matches by prefix; and `npm run lint || true`, which runs the pinned command
+ * and then discards its exit code. Comparing the script whole refuses all
+ * three without naming any of them, which is the same inversion ruling F79
+ * settled on for the rule.
+ */
+const VERIFY_INVOCATION: readonly string[] = tokensOf(
+  'npm run typecheck && npm run lint && npm run format:check && npm run test:unit',
+)
+
+/** The whole command the `verify:full` script must be, token for token, for {@link VERIFY_INVOCATION}'s reason. */
+const VERIFY_FULL_INVOCATION: readonly string[] = tokensOf('npm run verify && npm run test:integration:coverage')
+
+/** A workflow step's `run:` key, whether or not it opens the step. */
+const WORKFLOW_RUN_STEP = /^[ \t]*(?:-[ \t]+)?run:[ \t]*(.*)$/u
+
+/** A line whose first non-whitespace character opens a comment, in YAML and in a shell alike. */
+const COMMENT_LINE = /^[ \t]*#/u
+
+/** A `run:` value that opens a block scalar rather than holding the command itself. */
+const BLOCK_SCALAR = /^[|>][-+]?\d*$/u
+
+/**
+ * The commands a workflow's `run:` steps actually hand to a shell.
+ *
+ * COMMENTED-OUT STEPS ARE NOT COMMANDS, which is the other half of the eighth
+ * review's finding 2: `toContain('run: npm run verify:full')` is satisfied by
+ * `# - run: npm run verify:full   # disabled while the runner is flaky`, so
+ * commenting out CI's only gate step left this suite at 24 passing while the
+ * assertion's own message said its failure is what tells you nothing in CI
+ * reaches the lint command. Lines opening with `#` are dropped before anything
+ * is read off them.
+ *
+ * ONLY A SINGLE-LINE `run:` IS UNDERSTOOD, AND AN UNREADABLE ONE THROWS rather
+ * than being skipped. A block scalar (`run: |`) is a shape this reader cannot
+ * judge, and a reader that silently ignored what it cannot judge would report
+ * "no gate step" and "a gate step written in a shape I skipped" identically.
+ * There is no block scalar in this workflow today; the commit that writes one
+ * gets a named failure telling it to teach this function the shape.
+ *
+ * @param yaml - The workflow file's text.
+ * @returns Each non-comment step's command, in file order.
+ * @throws If a `run:` step opens a block scalar this function cannot read.
+ */
+const workflowRunCommands = (yaml: string): readonly string[] =>
+  yaml
+    .split(NEWLINE)
+    .filter((line) => !COMMENT_LINE.test(line))
+    .flatMap((line) => {
+      const command = WORKFLOW_RUN_STEP.exec(line)?.[1]
+      if (command === undefined) return []
+      // A trailing `# …` is a YAML comment on a plain scalar, not part of the
+      // command, and a step disabled by appending one must not read as the
+      // command it used to be.
+      const withoutTrailingComment = command.split(/[ \t]#/u)[0] ?? ''
+      if (BLOCK_SCALAR.test(withoutTrailingComment.trim()) || withoutTrailingComment.trim().length === 0) {
+        throw new Error(
+          `.github/workflows/ci.yml has a \`run:\` step this test cannot read (${line.trim()}): it understands a single-line command only, so teach workflowRunCommands the shape in the same diff`,
+        )
+      }
+      return [withoutTrailingComment]
+    })
+
+/**
+ * The commands a shell script's lines run, comments and blank lines dropped.
+ *
+ * @param script - The hook's text.
+ * @returns One entry per line that asks the shell to do something.
+ */
+const shellCommandLines = (script: string): readonly string[] =>
+  script
+    .split(NEWLINE)
+    .filter((line) => !COMMENT_LINE.test(line) && line.trim().length > 0)
+    .map((line) => line.trim())
+
+/**
  * Both spellings of the directive that turns a module's exports into endpoints.
  *
  * Searched over BYTES rather than decoded text, so a file this scan has no
@@ -1237,7 +1346,7 @@ describe('the rule that reports an unguarded Server Action', () => {
     expect(eslintConfig).toContain(`'${ACTIONS_RULE}': 'error'`)
   })
 
-  it('is applied by a command nothing can narrow, which is the command the gates run', () => {
+  it('pins the whole text of every command in the chain, so a narrowed one is a failing diff', () => {
     // THE SEVENTH WHOLE-BRANCH REVIEW'S FINDING 1, AND A CLASS THE OTHER
     // FOUR KEYS CANNOT REACH. They ask ESLint what its CONFIGURATION resolves
     // to - a severity, an ignore, a processor, a suppression - and every one
@@ -1259,23 +1368,77 @@ describe('the rule that reports an unguarded Server Action', () => {
     // which runs `lint`, and the Husky hook CLAUDE.md §8.4 relies on runs
     // `verify` too. Each link is one string, and each of them was unread
     // until this case.
-    const tokensOf = (command: string): readonly string[] => command.split(/\s+/u).filter((token) => token.length > 0)
-
+    //
+    // EVERY LINK IS COMPARED WHOLE, AND THAT IS THE EIGHTH REVIEW'S TWO
+    // FINDINGS. Round 10 pinned the `lint` argv whole and then asserted the
+    // three links above it by SUBSTRING, which is the hole the whole
+    // comparison exists to close, one level up. Measured on the tree that
+    // shipped it, each with an ordinary unguarded mountable `'use server'`
+    // module at `apps/web/lib/journeys/scratchAction.ts` that bare
+    // `npm run lint` reported at exit 1 throughout:
+    //
+    //   - `npm run lint -- --ignore-pattern apps/web/lib/journeys/**` in
+    //     `verify`. npm appends everything after `--` to the script it runs,
+    //     so the `lint` script stayed byte-identical to LINT_INVOCATION, this
+    //     case stayed at 24 passing, and `npm run verify` exited 0.
+    //   - `npm run lint:changed` in `verify`, pointed at a sibling script
+    //     carrying the same flag. `toContain('npm run lint')` matched it by
+    //     prefix; 24 passing.
+    //   - `# - run: npm run verify:full` in `ci.yml`.
+    //     `toContain('run: npm run verify:full')` matched the commented line;
+    //     24 passing, with nothing in CI reaching the lint command at all.
+    //
+    // WHAT THIS CASE DOES NOT KEY, said rather than left to be found (ruling
+    // F80 — a residue disclosed only in `.superpowers/` is not disclosed).
+    // These are reads of four files. They say what the gates are DEFINED as;
+    // they do not run anything and cannot say what a particular machine did.
+    //
+    //   - NOTHING MAKES ANYONE RUN THE HOOK. `git commit --no-verify`, an
+    //     unstaged `.husky/`, or `core.hooksPath` pointed elsewhere all leave
+    //     every assertion here green. CLAUDE.md §8.2 forbids the first; the
+    //     other two are a developer's own machine, which no test in this
+    //     repository can see.
+    //   - `continue-on-error: true` on CI's gate step, or a job-level `if:`
+    //     that never fires, leaves the step's text exactly as pinned. The step
+    //     is read; the workflow's semantics around it are not.
+    //   - AN ENVIRONMENT CHANGES WHAT A PINNED COMMAND DOES. A `.npmrc`, an
+    //     `npm_config_*` variable, a shell alias or a different `eslint` on
+    //     `PATH` are all outside these four files.
+    //   - `apps/web`'s own workspace scripts are unread, because no gate here
+    //     runs them.
+    //   - AND THIS IS STILL TEXT. It says the command is the pinned one; the
+    //     four cases around it are what ask ESLint whether the rule reaches a
+    //     file. Neither half runs `npm run lint` in a child process, so
+    //     neither can say that the command exits 1 on an unguarded module —
+    //     `guarded-server-actions.test.js` says that, over the AST.
     expect(
       tokensOf(rootScript('lint')),
       'the `lint` script is the command that applies this rule, and an argument appended to it narrows what the rule is handed without changing any configuration this suite can see: keep the command exactly `eslint . --max-warnings 0`, and if it must change, change LINT_INVOCATION in the same diff and say why',
     ).toEqual([...LINT_INVOCATION])
 
-    expect(rootScript('verify'), 'the pre-commit gate no longer runs `npm run lint`').toContain('npm run lint')
-    expect(rootScript('verify:full'), 'the CI gate no longer runs `npm run verify`').toContain('npm run verify')
     expect(
-      bytesOf('.github/workflows/ci.yml').toString('utf8'),
-      'no CI step runs `npm run verify:full`, so nothing in CI reaches the lint command this case pins',
-    ).toContain('run: npm run verify:full')
+      tokensOf(rootScript('verify')),
+      'the pre-commit gate is no longer exactly `npm run typecheck && npm run lint && npm run format:check && npm run test:unit`: an argument appended to `npm run lint` here narrows what ESLint is handed, a sibling script name is a different command, and `|| true` discards the exit code — change VERIFY_INVOCATION in the same diff and say what the gate now runs',
+    ).toEqual([...VERIFY_INVOCATION])
+
     expect(
-      bytesOf('.husky/pre-commit').toString('utf8'),
-      'the Husky pre-commit hook no longer runs `npm run verify`, which is the gate CLAUDE.md §8.4 relies on',
-    ).toContain('npm run verify')
+      tokensOf(rootScript('verify:full')),
+      'the CI gate is no longer exactly `npm run verify && npm run test:integration:coverage` — change VERIFY_FULL_INVOCATION in the same diff and say what CI now runs',
+    ).toEqual([...VERIFY_FULL_INVOCATION])
+
+    expect(
+      workflowRunCommands(bytesOf('.github/workflows/ci.yml').toString('utf8')).filter((command) =>
+        runsExactly(command, ['npm', 'run', 'verify:full']),
+      ),
+      'no uncommented CI step runs exactly `npm run verify:full`, so nothing in CI reaches the lint command this case pins: a commented-out step, a trailing `|| true` and a step pointed at another script all land here',
+    ).not.toEqual([])
+
+    expect(
+      shellCommandLines(bytesOf('.husky/pre-commit').toString('utf8')).filter((command) =>
+        runsExactly(command, ['npm', 'run', 'verify']),
+      ),
+      'the Husky pre-commit hook no longer runs exactly `npm run verify`, which is the gate CLAUDE.md §8.4 relies on',
+    ).not.toEqual([])
   })
 
   it('reaches every file in the repository that carries the directive, whatever its extension', () => {

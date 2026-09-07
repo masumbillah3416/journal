@@ -444,17 +444,17 @@ dev server as a real action endpoint.
 
 So the coverage check is INVERTED, and this is the arrangement to keep:
 
-| Question                                               | Where it is answered             | With what                                                                                                                                     |
-| ------------------------------------------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Is this export guarded?                                | `guarded-server-actions.test.js` | `RuleTester`, over the AST                                                                                                                    |
-| Is the rule registered at `error`?                     | `adminGuardRegistration.test.ts` | a read of `eslint.config.js`                                                                                                                  |
-| Does ESLint visit every file carrying `'use server'`?  | `adminGuardRegistration.test.ts` | git's listing of the repository + `ESLint#calculateConfigForFile`, asked in a child process                                                   |
-| Has anybody disabled the rule for a file?              | `adminGuardRegistration.test.ts` | the same git listing, keyed on the PRESENCE of a disable directive in any module carrying the directive, against an allowlist of exact paths  |
-| Could an inline severity comment switch it off?        | `adminGuardRegistration.test.ts` | the same git listing: the files permitted to spell the rule's own id, by exact path                                                           |
-| Did a directive actually suppress a report of it?      | `adminGuardRegistration.test.ts` | `ESLint#lintFiles` over every file carrying a directive, reading `suppressedMessages`                                                         |
-| Could a `processor` strip the directive first?         | `adminGuardRegistration.test.ts` | `ESLint#calculateConfigForFile`, reading the resolved `processor` for every directive-carrying module and every hypothetical action path      |
-| Is each enumerated survivor still a survivor?          | `adminGuardRegistration.test.ts` | `ESLint#lintText` over the module each `SHAPES_THAT_GET_THROUGH` row carries, with an unguarded module as the negative control                |
-| Is the rule applied by a command nothing has narrowed? | `adminGuardRegistration.test.ts` | a read of the root `package.json`: the argv of `lint` compared whole, and each link of the chain `ci.yml` → `verify:full` → `verify` → `lint` |
+| Question                                              | Where it is answered             | With what                                                                                                                                                                                                                           |
+| ----------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Is this export guarded?                               | `guarded-server-actions.test.js` | `RuleTester`, over the AST                                                                                                                                                                                                          |
+| Is the rule registered at `error`?                    | `adminGuardRegistration.test.ts` | a read of `eslint.config.js`                                                                                                                                                                                                        |
+| Does ESLint visit every file carrying `'use server'`? | `adminGuardRegistration.test.ts` | git's listing of the repository + `ESLint#calculateConfigForFile`, asked in a child process                                                                                                                                         |
+| Has anybody disabled the rule for a file?             | `adminGuardRegistration.test.ts` | the same git listing, keyed on the PRESENCE of a disable directive in any module carrying the directive, against an allowlist of exact paths                                                                                        |
+| Could an inline severity comment switch it off?       | `adminGuardRegistration.test.ts` | the same git listing: the files permitted to spell the rule's own id, by exact path                                                                                                                                                 |
+| Did a directive actually suppress a report of it?     | `adminGuardRegistration.test.ts` | `ESLint#lintFiles` over every file carrying a directive, reading `suppressedMessages`                                                                                                                                               |
+| Could a `processor` strip the directive first?        | `adminGuardRegistration.test.ts` | `ESLint#calculateConfigForFile`, reading the resolved `processor` for every directive-carrying module and every hypothetical action path                                                                                            |
+| Is each enumerated survivor still a survivor?         | `adminGuardRegistration.test.ts` | `ESLint#lintText` over the module each `SHAPES_THAT_GET_THROUGH` row carries, with an unguarded module as the negative control                                                                                                      |
+| Is every command in the gate chain the pinned one?    | `adminGuardRegistration.test.ts` | a read of four files: `lint`, `verify` and `verify:full` compared whole, token for token, plus an uncommented `run:` step in `ci.yml` and a line in `.husky/pre-commit` that are exactly `npm run verify:full` and `npm run verify` |
 
 **The last row is the one four rounds of keys did not cover, and it is a different kind of
 question.** Every other row asks ESLint about its CONFIGURATION, through a `new ESLint({ cwd })`
@@ -464,6 +464,29 @@ passing, with an unguarded mountable `'use server'` module on disk at that path,
 `npx eslint .` exited 1 throughout. The rule was right and nobody ran it over the file. The
 argv is compared WHOLE rather than screened for flags known to narrow it, because a list of
 dangerous flags is the enumeration this file has watched fail five times.
+
+**Every link of the chain is compared whole for the same reason, which round 10 got wrong one
+level up.** It pinned the `lint` argv whole and then asserted the three links above it with
+`toContain`, and a substring accepts a superstring: the eighth whole-branch review defeated it
+with `npm run lint -- --ignore-pattern apps/web/lib/journeys/**` in `verify` (npm appends
+everything after `--` to the script it runs, so the `lint` script stayed byte-identical to the
+pinned argv), with `npm run lint:changed` (matched by prefix), and with
+`# - run: npm run verify:full` (a commented-out CI step still matched
+`toContain('run: npm run verify:full')`) — 24 green in all three, and `npm run verify` at exit 0
+in the first two with an unguarded module live. `verify` and `verify:full` are now compared
+token for token like `lint`, comment lines are dropped from `ci.yml` and `.husky/pre-commit`
+before anything is read off them, and `npm run lint || true` and `run: npm run verify:full || true`
+— two shapes of the implementer's own — fail alongside the review's three.
+
+**What that row does NOT answer, since the sentence that used to sit here said it answered more
+than it did.** These are reads of four files: they say what the gates are DEFINED as, and they
+run nothing. Nothing here makes anyone run the hook (`--no-verify`, an unstaged `.husky/`, or
+`core.hooksPath` pointed elsewhere are all invisible to it); `continue-on-error: true` on CI's
+gate step, or a job-level `if:` that never fires, leaves the step's text exactly as pinned; a
+`.npmrc`, an `npm_config_*` variable or a different `eslint` on `PATH` changes what a pinned
+command does without changing the command; and `apps/web`'s own workspace scripts are unread
+because no gate runs them. Whether the command reports an unguarded module is the AST's
+question, answered by `guarded-server-actions.test.js`.
 
 Text is used for what text is good at — finding candidates anywhere, at extensions nobody
 enumerated — and the AST decides correctness. The listing is

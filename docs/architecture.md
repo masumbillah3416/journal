@@ -296,10 +296,18 @@ and the guard suite at 24 passing, with an unguarded mountable module at
 `apps/web/lib/journeys/actions.ts`. `adminGuardRegistration.test.ts` now asks
 `calculateConfigForFile` for the resolved `processor` of every directive-carrying module and
 of every hypothetical action path, so a processor scoped to a Phase 4 directory fails on the
-commit that adds it. A further off switch was found by the seventh review and is keyed the
-same way: an argument appended to the `lint` SCRIPT narrows what ESLint is handed while
-every config probe here still answers correctly, so the case pins the argv of `lint` and
-each link of the chain `ci.yml` → `verify:full` → `verify` → `lint`. `docs/adr/0018`
+commit that adds it. A further off switch was found by the seventh review, and it is keyed
+DIFFERENTLY, which is the part round 10's version of this sentence got wrong: an argument
+appended to the `lint` SCRIPT narrows what ESLint is handed while every config probe here
+still answers correctly, and no question put to ESLint can see it. So that case reads TEXT
+instead — the `lint`, `verify` and `verify:full` scripts compared token for token, and an
+uncommented `run:` step in `ci.yml` and a line in `.husky/pre-commit` that are exactly
+`npm run verify:full` and `npm run verify`. Comparing whole is what the eighth review's two
+defeats cost: `npm run lint -- --ignore-pattern <dir>` and `npm run lint:changed` both
+satisfied a `toContain('npm run lint')`, and a commented-out CI step satisfied a
+`toContain('run: npm run verify:full')`. What that case still cannot say is what a machine
+ran — `--no-verify`, `continue-on-error`, an `.npmrc` and a different `eslint` on `PATH` are
+all outside the four files it reads, and it says so where it is written. `docs/adr/0018`
 called a disable comment "the one thing that defeats the RULE"; it was not, that sentence
 is corrected there, and this one names no count — the ADR lists what is known and says it
 is not a closed set, which is the only honest shape for a list every review has extended.
