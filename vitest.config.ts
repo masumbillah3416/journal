@@ -328,12 +328,16 @@ export default defineConfig({
         // from an `*.integration.test.ts` file - it needs a real Postgres
         // server to create diary_test against - so it is gated by
         // vitest.integration.config.ts instead, same reasoning as the queue
-        // files above. Unlike migrate.ts and queue.ts (which stay
-        // ungated, tolerated at 0% in this file's repo-wide aggregate - see
-        // their own files), testPayload.ts is large enough to have pulled
-        // `apps/web/lib/**`'s aggregate below its 95% threshold here, so it
-        // needs the same explicit exclude-and-regate treatment as the queue
-        // files.
+        // files above. Unlike `apps/web/lib/ports/queue.ts` - which stays in
+        // the measured set and prints 0% because it is TYPE-ONLY, two
+        // `import type`s and two `export interface`s with no executable
+        // statement, so it contributes no counted lines to any aggregate -
+        // testPayload.ts is large enough to have pulled `apps/web/lib/**`'s
+        // aggregate below its 95% threshold here, so it needs the same
+        // explicit exclude-and-regate treatment as the queue files. This
+        // comment named migrate.ts as ungated for two rounds while migrate.ts
+        // sat in this same `exclude` array eleven lines above, at the entry
+        // just before `apps/web/scripts/seed.ts`.
         'apps/web/lib/testPayload.ts',
         // readBookBundle.ts (Task 6 of Phase 1) is reachable only from
         // readBookBundle.integration.test.ts - it needs a real Payload/

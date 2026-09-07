@@ -202,6 +202,29 @@ per CLAUDE.md §2.1.
 
 An uncovered line outside `packages/domain` requires a
 `/* c8 ignore next -- <reason> */` comment with a real reason (`CLAUDE.md` §2.1). Where a
+**A GLOB THRESHOLD GATES THE AGGREGATE OF THE FILES IT MATCHES, NOT EACH FILE — so one
+wholly untested small file inside a 95%-gated glob is absorbed rather than caught.**
+Measured in round 7 rather than reasoned about: an entirely new, entirely untested
+`apps/web/scripts/emit-actions.ts` was written to disk and `npm run verify` was **exit 0**
+with it present (`Test Files 90 passed`, `Tests 1337 passed`). That is a real gap between
+what CLAUDE.md §2 asks for — "every behaviour is tested" — and what the gate enforces, and
+it is the same mechanism `vitest.config.ts`'s own comment cites as the reason
+`testPayload.ts` needed an explicit exclude: a file only gets noticed when it is big enough
+to drag its glob's aggregate down.
+
+**It can be closed, and the instrument is `coverage.thresholds.perFile: true`** — Vitest
+applies every threshold per file rather than to the aggregate. It is not closed here, and
+the reason is blast radius rather than difficulty: turning it on makes each of the six
+per-file branch gates in `docs/deviations.md` §46 a repository-wide requirement at its
+glob's number, so the change is "raise or individually re-gate every file under
+`apps/web/lib/**`", not a flag. That is a Phase 3 decision with its own commit and its own
+measurements, and slipping it into a blocker round would be exactly the untested sweeping
+change this branch exists to stop shipping. What holds the line meanwhile is §2.1's
+requirement that a new directory arrive with its own `include` entry and a real threshold in
+the same commit, plus the per-file entries this repository already writes wherever an
+aggregate would hide something.
+
+Where a
 whole file is unreachable from any test, the honest options are two, and which one
 applies depends on whether some _other_ pass can see it: exclude-and-regate (as
 `seed.ts`, `seed-data.ts`, `testPayload.ts` and `migrate.ts` each get — excluded from the
@@ -1802,18 +1825,19 @@ That record quotes figures that have since been superseded — the 2,500ms LCP b
 above all. **No figure beneath this section is the current gate unless this table says
 so.**
 
-| Gate                           | Config                    | Route                                                                      | Limit                                                     |
-| ------------------------------ | ------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `largest-contentful-paint`     | `lighthouserc.book.json`  | `/p/1`, book surface (1350x940, `Cookie: td-reading-surface=book`)         | **≤3000ms**                                               |
-| `largest-contentful-paint`     | `lighthouserc.json`       | `/p/1`, mobile surface (Lighthouse phone emulation, no cookie)             | **≤3000ms**                                               |
-| `largest-contentful-paint`     | `lighthouserc.json`       | `/gallery/patagonia`                                                       | ≤4000ms                                                   |
-| `resource-summary:script:size` | both                      | `/p/1` (both surfaces), `/gallery/<slug>`                                  | ≤184320 bytes (180KB, `CLAUDE.md` §6)                     |
-| `resource-summary:image:size`  | `lighthouserc.json`       | `/gallery/<slug>`                                                          | ≤600000 bytes                                             |
-| `largest-contentful-paint`     | `lighthouserc.admin.json` | `/admin/sign-in`, `/admin/sign-in/code`, `/admin/reset` (1440x900 desktop) | **≤3000ms**                                               |
-| `resource-summary:script:size` | `lighthouserc.admin.json` | the same three admin routes                                                | ≤327680 bytes (320KB, `CLAUDE.md` §6)                     |
-| `cumulative-layout-shift`      | all three                 | every collected URL                                                        | ≤0.1                                                      |
-| `http-status-code`             | all three                 | every collected URL                                                        | `minScore: 1`                                             |
-| —                              | `lighthouserc.json`       | `/cms`                                                                     | `http-status-code` and CLS only: no LCP, no script budget |
+| Gate                           | Config                    | Route                                                                      | Limit                                                                                                                  |
+| ------------------------------ | ------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `largest-contentful-paint`     | `lighthouserc.book.json`  | `/p/1`, book surface (1350x940, `Cookie: td-reading-surface=book`)         | **≤3000ms**                                                                                                            |
+| `largest-contentful-paint`     | `lighthouserc.json`       | `/p/1`, mobile surface (Lighthouse phone emulation, no cookie)             | **≤3000ms**                                                                                                            |
+| `largest-contentful-paint`     | `lighthouserc.json`       | `/gallery/patagonia`                                                       | ≤4000ms                                                                                                                |
+| `resource-summary:script:size` | both                      | `/p/1` (both surfaces), `/gallery/<slug>`                                  | ≤184320 bytes (180KB, `CLAUDE.md` §6)                                                                                  |
+| `resource-summary:image:size`  | `lighthouserc.json`       | `/gallery/<slug>`                                                          | ≤600000 bytes                                                                                                          |
+| `largest-contentful-paint`     | `lighthouserc.admin.json` | `/admin/sign-in`, `/admin/sign-in/code`, `/admin/reset` (1440x900 desktop) | **≤3000ms**                                                                                                            |
+| `resource-summary:script:size` | `lighthouserc.admin.json` | the same three admin routes                                                | ≤327680 bytes (320KB, `CLAUDE.md` §6)                                                                                  |
+| `cumulative-layout-shift`      | all three                 | every collected URL                                                        | ≤0.1                                                                                                                   |
+| `http-status-code`             | all three                 | every collected URL                                                        | `minScore: 1`                                                                                                          |
+| —                              | `lighthouserc.json`       | `/cms`                                                                     | `http-status-code` and CLS only: no LCP, no script budget                                                              |
+| **none**                       | —                         | **`/admin`, `/admin/sign-in/done`, `/admin/reset/<token>`**                | **NOT GATED** — behind the guard or behind a live token; the paragraphs under this table say why, and what bounds each |
 
 All three configs collect `numberOfRuns: 5` and every `assertMatrix` entry carries
 `"aggregationMethod": "median"`. `npm run test:perf` runs **all three**, and all three are
@@ -1839,6 +1863,32 @@ client modules than the three that are collected, because `SignedInStep` is not 
 theirs. `/admin/reset/<token>` renders `NewPasswordStep`, which IS a client component and so
 is not covered by that argument; its address needs a live token that changes every run, so it
 was measured directly instead — 8 scripts, 176,211 bytes gzipped, against the 320KB ceiling.
+
+**`/admin` ITSELF HAS NO LIGHTHOUSE BUDGET, and this is the only `docs/` file that has
+said so.** `lighthouserc.admin.json`'s `url` array is the three addresses named in the table
+above; the run prints "Checking assertions against 3 URL(s)". `/admin` has a visual
+baseline, an axe case and e2e coverage, and no performance gate — so `CLAUDE.md` §6's
+admin-route JS budget is asserted on the three public admin screens and not on the screen a
+signed-in reader actually lands on. It was recorded until round 7 only in a git-ignored fix
+report, which is nowhere a reader meets after a merge.
+
+It is left out for the same reason `/admin/sign-in/done` is, and the reason is worth
+spelling out because adding the URL would look like closing it: `/admin` is behind the
+session guard, so a collector that sends no cookie is answered with a redirect to
+`/admin/sign-in` and would measure that screen twice under `/admin`'s name. Worse, it would
+assert nothing at all — the config's single `assertMatrix` entry matches
+`.*/admin/.*`, which `http://localhost:3000/admin` does not satisfy, having no path segment
+after `admin`. So a URL added without a second matrix entry is collected and never judged,
+which is the shape of green this branch has spent four reviews removing. **Closing it
+properly needs a session for the collector** — a seeded account plus an `extraHeaders`
+cookie in the collect settings, or a Playwright-driven trace — and that is Phase 4's, which
+is the phase that adds the ten screens behind the guard and will need the same fixture for
+all of them. Until then the bound is the one `/admin/sign-in/done` carries, and it is
+checkable rather than asserted: `app/(admin)/admin/page.tsx` draws
+`components/admin/PanelHome.tsx`, and neither file carries a `'use client'` directive, so
+the screen ships strictly fewer client modules than any of the three collected panes — each
+of which is a client component. That is a bound, not a measurement, and it is written here
+as one.
 
 **`/admin/sign-in/code` is collected with no cookie**, so what it measures is the
 no-challenge placeholder rather than the pane a signing-in reader sees. Said rather than left
