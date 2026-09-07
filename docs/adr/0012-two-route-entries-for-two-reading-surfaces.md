@@ -156,7 +156,7 @@ down from 148,791 and 10,741. Both figures are far inside the 184,320 budget.
   review, finding 38). `/api` and `/cms` are still outside it — which is exactly why the
   Payload REST credential endpoints had to be closed in the collection rather than at the
   middleware (`apps/web/collections/sealedUserAuth.ts`). It is unit-tested at 100/100/100 from a plain
-  `NextRequest` (`apps/web/middleware.test.ts`, ten cases).
+  `NextRequest` (`apps/web/middleware.test.ts`, 32 cases — ten when this ADR was written, and the count is now taken from the file rather than restated from memory).
 - **`/p/<n>` now varies by `Cookie` and `User-Agent` at the middleware rather than in the
   page.** The book entry no longer reads request headers at all; it is still dynamic
   because it reads `searchParams` (ADR 0009). Any future CDN in front of this app must key

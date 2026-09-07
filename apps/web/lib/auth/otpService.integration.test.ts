@@ -20,7 +20,7 @@
  * hash fails the hash case; dropping the `consumed_at` write fails single
  * use; not incrementing `attempts` fails the attempt-count, exhaustion and
  * parallel-guess cases; deriving `created_at` from the stored `expires_at`
- * fails the purge-column case; replacing `timingSafeEqual` with `===` fails
+ * fails the read-by-nothing case; replacing `timingSafeEqual` with `===` fails
  * the constant-time case; swapping `randomInt` for `Math.random` fails the
  * CSPRNG case; removing the `canResend` guard fails all three resend cases;
  * storing the session id unhashed fails the session-hash case; appending the
@@ -489,10 +489,13 @@ describe('otpService', () => {
     await issuing.service.issueChallenge(user, session, FIXTURE_IP)
     const code = readCodeFromOutbox(issuing.mailer)
 
-    // `expiresAt` is a purge index, not an authorization input. Moving it a
-    // year into the future must not extend the challenge by one millisecond:
-    // if authorization read the stored column, EXPIRY_MS would be decorative
-    // and a bad write could silently keep a challenge alive.
+    // `expiresAt` is read by NOTHING — not authorization, and not the sweep,
+    // which keys on `created_at`. Moving it a year into the future must not
+    // extend the challenge by one millisecond: if authorization read the stored
+    // column, EXPIRY_MS would be decorative and a bad write could silently keep
+    // a challenge alive. (This comment called it a purge index, which was
+    // ruling F14's invented justification — blocker B4. There is no index on
+    // the column.)
     const found = await payload.find({
       collection: 'otpChallenges',
       where: { user: { equals: Number(user) } },
@@ -501,7 +504,7 @@ describe('otpService', () => {
       depth: 0,
     })
     const row = found.docs[0]
-    if (row === undefined) throw new Error('no challenge row to move the purge date on')
+    if (row === undefined) throw new Error('no challenge row to move the stored expiry on')
     await payload.update({
       collection: 'otpChallenges',
       id: row.id,

@@ -7,8 +7,27 @@
  * `projectService` can actually resolve to a tsconfig. Depends on: typescript-eslint.
  */
 import tseslint from 'typescript-eslint'
+import { guardedServerActions } from './eslint-rules/guarded-server-actions.js'
 
 export default tseslint.config(
+  // ══ Server Actions ══
+  //
+  // A Server Action is a POST endpoint Next.js mounts under an opaque action
+  // id, reachable by anybody who has that id, and the middleware does not close
+  // it — it enforces CSRF and never authentication. Phase 2 tried NINE times to
+  // catch an unguarded one by scanning source text and was defeated every time,
+  // most recently by four export spellings and by a directory outside the
+  // scan's root list. This rule reads the AST ESLint has already built, over
+  // every file `npm run lint` visits, and admits nothing but exports built from
+  // `guardedAction()` — see the rule's own header, and
+  // `apps/web/lib/auth/guard.ts` for the factory.
+  //
+  // It sits FIRST and unscoped, before every `files`-scoped block below, so
+  // there is no path in this repository it does not apply to.
+  {
+    plugins: { 'travel-diary': { rules: { 'guarded-server-actions': guardedServerActions } } },
+    rules: { 'travel-diary/guarded-server-actions': 'error' },
+  },
   // Syntactic baseline — no type information needed, so it can parse every TS file
   // including config files. The three CLAUDE.md §3.1 non-negotiables live here so
   // they can never be silently dropped for a file that falls outside a tsconfig project.
@@ -51,6 +70,17 @@ export default tseslint.config(
         },
       ],
     },
+  },
+  {
+    // This file's own import of the rule above, and the rule's own test.
+    // `no-restricted-imports` bans a relative specifier ending `.js` because
+    // Turbopack will not resolve one to a `.ts` file — but `eslint-rules/*.js`
+    // ARE `.js` files, loaded by Node under `"type": "module"`, where the
+    // extension is required rather than optional, and Turbopack never sees
+    // them. Scoped to these paths, like the `(payload)` override below, rather
+    // than weakened globally.
+    files: ['eslint.config.js', 'eslint-rules/**/*.js'],
+    rules: { 'no-restricted-imports': 'off' },
   },
   {
     // Payload GENERATES `app/(payload)/cms/importMap.js` as a real `.js` file on

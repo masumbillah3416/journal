@@ -138,6 +138,14 @@ export default defineConfig({
             // integration project's own glob below still owns
             // `*.integration.test.ts`, and the two patterns are disjoint.
             'apps/web/collections/**/*.test.ts',
+            // `eslint-rules/**/*.test.js` — the ESLint rule that makes an
+            // unguarded Server Action a lint error, and its RuleTester cases.
+            // Both are plain JavaScript because ESLint loads a config and its
+            // plugins through Node rather than a bundler, so a `.ts` rule would
+            // need a loader inside the pre-commit hook. The rule is the guard
+            // Phase 4 rests on, so its behaviour belongs in the gate Husky runs
+            // rather than only in CI. See docs/testing.md.
+            'eslint-rules/**/*.test.js',
             // `apps/web/middleware.ts` sits at the app's own root, where
             // Next.js requires it - see its header. Without this glob its
             // test file would be collected by nobody, which is the exact
@@ -268,6 +276,12 @@ export default defineConfig({
         // and an unmeasured file looks exactly like a fully-covered one
         // (CLAUDE.md §2.1). It is named here, and gated at 100% below.
         'apps/web/middleware.ts',
+        // `eslint-rules/**/*.js` — repository tooling that ESLint loads
+        // directly, and the one piece of it that enforces a SECURITY.md
+        // requirement rather than a convention. It is measured here because an
+        // unmeasured rule is one whose branches can rot into always-passing,
+        // which is the exact failure the nine text scans before it had.
+        'eslint-rules/**/*.js',
       ],
       exclude: [
         '**/*.test.ts',
@@ -622,6 +636,14 @@ export default defineConfig({
         // what a session cookie says. 95% would leave one uncovered branch in
         // any of them acceptable, and there is no branch here whose behaviour
         // is not a real one.
+        // The Server Action rule: 100 across, and it has to be. It is the only
+        // thing standing between Phase 4's ten screens of mutations and an
+        // unguarded POST endpoint, it replaced nine text scans that were
+        // defeated because their branches were never exercised, and every
+        // branch in it is a shape somebody actually reached for. A threshold
+        // below 100 here would be a branch nobody has driven, in the file whose
+        // whole job is to have driven them.
+        'eslint-rules/**/*.js': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/auth/adminAccess.ts': {
           lines: 100,
           branches: 100,

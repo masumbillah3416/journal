@@ -114,11 +114,19 @@ visible from the code that was added:
   form posts to `POST /api/users/login`, which Phase 2's final round sealed along with
   every other `users` endpoint that takes a credential or mints one — that endpoint minted
   a session on a password alone, with no code step and none of this phase's rate limiting
-  (`docs/deviations.md` §42). `/cms` still loads and still renders its login screen; it
-  refuses every password submitted to it, in development as in production. **There is one
-  way into the admin and it is `/admin/sign-in`.** Content is loaded with `npm run db:seed`
-  until Phase 4's panel lands. If you find yourself wanting `/cms` back, the fix is to put
-  the second factor in front of it, not to unseal the endpoint.
+  (`docs/deviations.md` §42). **The failure is SILENT, and that is the part to know
+  before you meet it:** `/cms` still loads and still renders its login screen, and
+  submitting a correct password produces no message on the page at all — Payload's admin
+  reports the sealed endpoint's `404` to the browser console and leaves the form as it
+  was. A dead login with no explanation is the worst version of this trade, and it is not
+  narrowed by making the seal production-only: the sealing tests would then exercise the
+  UNSEALED path, which is the shape that hid the `lockTime` units bug for two phases.
+  Payload's admin is also not ours to add a message to. So the answer is this paragraph,
+  and the note in `docs/api.md`'s `/cms` row.
+
+  **There is one way into the admin and it is `/admin/sign-in`.** Content is loaded with
+  `npm run db:seed` until Phase 4's panel lands. If you find yourself wanting `/cms` back,
+  the fix is to put the second factor in front of it, not to unseal the endpoint.
 
 ## Rotate secrets
 

@@ -46,7 +46,7 @@ exposure surface nobody reviews.
 
 **Authorization, for all of them.** None of these routes carries its own auth check.
 Every one runs Payload's collection- and global-level access control on the operation it
-performs. Four collections declare `access` and they do not all say the same thing:
+performs. **Five** collections declare `access` and they do not all say the same thing (this sentence said four, having counted the three flat refusals as one group and then listed them separately — Phase 2's final review):
 
 - `jobs`, `otpChallenges` and `signInAttempts` refuse every operation outright —
   `read`, `create`, `update` **and `delete`**, all four predicates. The `delete` one is
@@ -170,7 +170,12 @@ for a different reason — see its row.
   `POST /api/users/login`, which is sealed (see the paragraph on the second
   authentication surface above). `/cms` is therefore a screen anyone can load and nobody
   can get past, in development as in production, and that is the recorded cost of closing
-  B5 — `docs/deviations.md` §"Payload's own admin can no longer be signed into".
+  B5 (`docs/deviations.md` §42). **The refusal is silent:** Payload's admin reports the
+  sealed endpoint's `404` to the browser console and leaves its own form unchanged, so a
+  correct password produces no message on the page. It is not a screen this repository can
+  add a message to, and making the seal production-only to avoid it would leave every
+  sealing test exercising the UNSEALED path — the shape that hid the `lockTime` units bug
+  for two phases. `docs/runbook.md` says so where an operator will meet it.
 - **Where it is exposed:** this is the one route `admin.disable` does gate —
   `payload.config.ts` sets it to `process.env.NODE_ENV === 'production'`, so the panel
   is development-only. That flag is deprecated upstream; the durable form of the same
@@ -914,50 +919,57 @@ documented above); everything remaining is a later phase's, listed below.
 
 ## Planned server actions (later phases)
 
-Not yet designed in enough detail to document with real input/output/error shapes
-without inventing them. Named here only so the shape of what's coming is visible, per
-the phase plan (design spec §4): a presigned-upload action and a create-media-row action
-(Phase 3, gated by declared type/size/per-request-file-count validation — Vercel's
-serverless functions cap request bodies at ~4.5MB, which is why upload goes straight to
-R2 rather than through an action, per design spec §9.1); sign-in, OTP verification, and
-password-reset actions (Phase 2); and the full set of admin mutations across all ten
-screens (Phase 4), each requiring Payload access-control authorization per
-`docs/security.md`'s "Authorization on every mutation" row — checked on every mutation,
-never inherited from the page it was reached from. Each of these gets a full row in this
-document, in the commit that adds it.
+**NOTHING IN PHASE 2 IS PLANNED ANY MORE, AND THREE PARAGRAPHS HERE SAID OTHERWISE FOR
+THE REST OF THE PHASE.** Task 10 mounted `POST /admin/sign-in/password`,
+`POST /admin/sign-in/code/verify`, `POST /admin/sign-in/code/resend`,
+`POST /admin/sign-out`, `POST /admin/reset/request` and `POST /admin/reset/set`, and each
+has its own full row above. This section went on describing `otpService.ts`,
+`rateLimit.ts` and `sessions.ts` as modules whose only future caller was "a server action
+that has not been written yet", while the routes that call them today sat documented
+thirty rows higher (Phase 2's final review, finding 10). Those three paragraphs are
+deleted rather than annotated: a plan that has happened is not a plan.
 
-One of those actions now has its logic waiting for it, which is worth naming so nobody
-looks for a route that does not exist: Phase 2 Task 3 built
-`apps/web/lib/auth/otpService.ts` — `issueChallenge(user, session, ip)` and
-`verifyChallenge(session, code)`. It is a module, **not** a route and not a server
-action, and deliberately so: nothing about the OTP flow is reachable from the Payload
-REST or GraphQL API (the `otpChallenges` collection returns `false` from every access
-predicate), so the only way to reach it is a server action that has not been written yet.
-When that action lands it gets its own full row here, and this paragraph goes with it.
+**What is still planned, and it is Phase 3's and Phase 4's**: a presigned-upload action
+and a create-media-row action (Phase 3, gated by declared type/size/per-request-file-count
+validation — Vercel's serverless functions cap request bodies at ~4.5MB, which is why
+upload goes straight to R2 rather than through an action, per design spec §9.1); and the
+full set of admin mutations across all ten screens (Phase 4). They are named here only so
+the shape of what is coming is visible; each gets a full row in the commit that adds it.
 
-Phase 2 Task 4 added a second such module for the same reason:
-`apps/web/lib/auth/rateLimit.ts` — `admitPasswordAttempt({ ip })` and
-`admitCodeAttempt({ ip, account })`, the sliding window `SECURITY.md` requires per
-account and per IP (`docs/adr/0016-rate-limit-window-storage.md`). Also a module, also
-not a route: its `signInAttempts` collection returns `false` from every access predicate
-too, so the sign-in and code-verification actions of Task 5 are the only things that will
-ever call it. Whichever route ends up in front of it is what supplies the `ip`, and it
-gets its row here when it lands.
+**HOW A PHASE 4 ACTION WILL BE WRITTEN, because that is now decided rather than open.**
+Every one of them is built from `guardedAction()` (`apps/web/lib/auth/guard.ts`), which
+calls `requireAdminSession()` and then the action, passing it the session:
 
-Phase 2 Task 6 added a third, and it is the one the others will be built on:
-`apps/web/lib/auth/sessions.ts` — `startSession({ user, previous, keepSignedIn, device,
-location })`, `authenticate(session)`, `revokeSession({ session, owner })` and
-`revokeAllSessions({ owner })`. Also a module rather than a route, and built **before**
-the sign-in action that will call it, because sign-in must issue a session and cannot
-issue what does not exist (`docs/adr/0017-session-store-and-rotation.md`). `startSession` hands back the identifier, the `Set-Cookie`
-value for it, and the row's expiry; whichever route ends up in front of it is what sets
-that header and what supplies the `device` and `location` labels the Account screen
-lists.
+```ts
+'use server'
+import { guardedAction } from '../../../../lib/auth/guard'
 
-Phase 2 Task 5 added the module that calls all three, and it is still not a route:
+export const publishJourney = guardedAction(async (session, id: string) => {
+  // `session.user` is the account the guard admitted. Nothing above this line
+  // ran before it.
+})
+```
+
+That is not a convention. `eslint-rules/guarded-server-actions.js` reports any export of a
+`'use server'` module that is not such a call, any re-export from one, and any
+`'use server'` directive inside a function body anywhere in the repository — over the
+parsed AST, on every file `npm run lint` visits, so there is no directory outside it and
+no export spelling past it. An action that forgets fails the pre-commit gate.
+`docs/adr/0018` records the nine text scans that preceded this rule and why enumeration
+was the wrong mechanism.
+
+**Authorization does not stop at the guard, and Phase 4 owes the other half.** The guard
+answers "is this somebody"; Payload's collection and field access control answers "may
+this somebody do this". `docs/security.md`'s "What Phase 2 hands to Phase 4" section names
+what is missing: `overrideAccess` appears nowhere in production code, so a Local API call
+runs with access control OFF unless it passes `overrideAccess: false` and a `user`; and
+`journeys`, `pages` and `users` declare no `access` block at all.
+
+Phase 2 Task 5's module, which the routes above call:
 `apps/web/lib/auth/signIn.ts` — `signIn({ email, password, browserSession, keepSignedIn,
 ip, device, location })` — plus its sibling `apps/web/lib/auth/passwordReset.ts` —
-`requestPasswordReset({ email, ip })`. `signIn` answers `ok({ status: 'otp-required',
+`requestPasswordReset({ email, ip })`. Both are reached through the mounted routes above;
+what follows is the shape a caller gets, not a plan. `signIn` answers `ok({ status: 'otp-required',
 maskedTo })` or `ok({ status: 'signed-in', session })`, or `err` with one of
 `'invalid-credentials'`, `'rate-limited'` or `'code-not-sent'`; `requestPasswordReset`
 answers `ok({ maskedTo })` or `err` with `'rate-limited'` or `'delivery-failed'`.
@@ -980,11 +992,11 @@ discovered by whoever writes the route in front of them:
   built against is a dependency of the service, not a field of the request: a link built
   from a `Host` header is a link an attacker can point at their own machine. The reset
   screen the link lands on (`/admin/reset/<token>`) is not built yet, and **Phase 2
-  Task 9 owns it**: the `[token]` route at that path, the form, the
-  `payload.resetPassword` call, the invalid/expired state, and an e2e case following
-  the mailed link (controller ruling, Task 5 review round 1). Until it lands the link
-  resolves to a 404, which is why the deviation recording this copy says so
-  (`docs/deviations.md` §31).
+  Task 9 built it**: the `[token]` route at that path, the form, the
+  `payload.resetPassword` call, the invalid/expired state, and an e2e case following the
+  mailed link (controller ruling, Task 5 review round 1). It has its own rows above; the
+  sentence that used to end here said the link resolves to a 404, which stopped being true
+  in Task 9.
 
 Unlike the two above, the collection behind it is **not** closed to everybody:
 `sessions` carries a per-user ownership rule (`docs/deviations.md` §29), so the Account

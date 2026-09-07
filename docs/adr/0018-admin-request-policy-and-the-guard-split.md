@@ -98,51 +98,74 @@ request:
 identifier names a live row — and runs in the Node server, called by the page or route
 handler that needs the answer.
 
-**What makes forgetting it impossible is a test, not a layer.**
+**Two mechanisms, and only one of them is a check.**
+
+**1 · A Server Action that is not guarded is a lint error, because the only shape the
+linter admits calls the guard first.** `guardedAction()` (`apps/web/lib/auth/guard.ts`)
+takes the action, calls `requireAdminSession()`, and then calls the action with the session
+it got — so an action has no opportunity to forget.
+`eslint-rules/guarded-server-actions.js` is what admits nothing else. It reads the AST
+ESLint has already built, on every file `npm run lint` visits, and reports:
+
+- any export of a module whose directive prologue carries `'use server'` that is not a call
+  to `guardedAction` **imported from `lib/auth/guard`** — a local binding of that name
+  reports rather than satisfies it;
+- any `export * from` or `export { x } from` in such a module, because nothing at that
+  point can see what another module exports;
+- any `'use server'` directive inside a function body, anywhere in the repository, because
+  such an action is dispatched as its own `POST` BEFORE the page around it renders, so that
+  page's `requireAdminSession()` has not run — `SECURITY.md`'s "nothing inherits trust from
+  the page it was reached from", exactly.
+
+It has no `files` list, so there is no directory it does not reach. **The one thing that
+defeats it is an `eslint-disable` comment**, which is deliberate: that is one line in a
+diff with a reason beside it. `adminGuardRegistration.test.ts` holds the files permitted to
+carry one, by exact path, so a second is a failing test rather than a second quiet comment.
+There is one today — Payload's own `serverFunction` dispatcher, which authenticates itself.
+
+**2 · Route files are checked, because a page is not built from a factory.**
 `apps/web/lib/auth/adminGuardRegistration.test.ts` walks the WHOLE `app/` tree off the
 filesystem, computes each file's address the way Next.js does — route groups contribute no
-segment — and applies four rules to everything answering under `/admin`:
+segment — and requires:
 
-- **A route file** (`page.*`/`route.*`) at a guarded address must either be declared public
-  in `adminAccess.ts` or APPLY the guard in its own body. Nothing it imports is read.
-- **Every export of every `'use server'` module** in `apps/web` must apply the guard, or
-  the module must be named in an empty, default-deny exemption list. A Server Action is a
-  `POST` endpoint of its own; the middleware does not close it, because it enforces CSRF
-  and never authentication.
-- **An inline `'use server'` inside a scanned file is refused outright.** Such an action is
-  dispatched BEFORE the page renders, so the page body's own `requireAdminSession()` does
-  not gate it — `SECURITY.md`'s "nothing inherits trust from the page it was reached from",
-  exactly. The shape is refused rather than analysed, because no text-level check can tell
-  that action's guard from the page's.
-- **A file under an admin address whose kind is not recognised FAILS**, by name. Route
-  file, action module, or one of the Next.js conventions listed with the reason it cannot
-  answer a request — anything else stops the suite rather than passing unseen.
+- **a route file** (`page.*`/`route.*`) at a guarded address either to be declared public in
+  `adminAccess.ts` or to APPLY the guard in its own body. Nothing it imports is read;
+- **every file under an `/admin` address to be accounted for** — a route file, a module
+  carrying the server directive, or one of the Next.js conventions listed with the reason
+  it cannot answer a request. Anything else fails by name rather than passing unseen.
 
-A Phase 4 screen, route or action that does none of these fails `npm run verify` on its own
+A Phase 4 screen, route or action that does none of this fails `npm run verify` on its own
 commit.
 
-**That test credited the wrong thing five times, and the fifth is why it is no longer an
-enumeration.** The first version matched the guard's NAME anywhere in the file, so deleting
-`await requireAdminSession()` left the `import` line and the header comment matching and
-every case green. The second stripped comments and imports and required a `(` — and still
-passed, because it followed a route file's imports one level and `guard.ts`'s own body
-calls `authenticateAdminRequest`. The third stopped following `guard.ts` and still credited
-a route for ANY module it imported, so a guarded route re-exporting any handler from
-`signInEndpoints.ts` passed. Ruling F61 removed the following entirely and moved the guard
-into the route file itself. Phase 2's whole-branch review then found the fourth version
-blind three ways at once: it read only `page.tsx`/`route.ts`, under a hard-coded
-`app/(admin)/admin`, so a Server Action in an `actions.ts` was never read, an action
-defined inside a scanned page was credited with the PAGE's guard call, and a route under a
-second route group was invisible to the walk.
+**This guarantee was written as a text scan nine times and defeated nine times, which is
+why it is no longer one.** The first version matched the guard's NAME anywhere in the file,
+so deleting `await requireAdminSession()` left the `import` line and the header comment
+matching and every case green. The second stripped comments and imports and required a `(`
+— and still passed, because it followed a route file's imports one level and `guard.ts`'s
+own body calls `authenticateAdminRequest`. The third stopped following `guard.ts` and still
+credited a route for ANY module it imported. Ruling F61 removed the following entirely and
+moved the guard into the route file itself. Phase 2's whole-branch review found the fourth
+version blind three ways at once: it read only `page.tsx`/`route.ts` under a hard-coded
+`app/(admin)/admin`, so a Server Action in an `actions.ts` was never read; an action defined
+inside a scanned page was credited with the PAGE's guard call; and a route under a second
+route group was invisible to the walk.
 
-Patching those three would have made a sixth inevitable, because every version so far had
-been an enumeration — of file names, of directories, of the shapes an author might use —
-and an enumeration is wrong the moment somebody uses a shape nobody listed. The current
-version discovers rather than enumerates and fails closed on what it does not recognise,
-which is the only version of this check whose blind spot is a failing test rather than a
-silent pass. Each of the four rules has a mutation of its own that was watched to fail.
-Recorded here because the lesson is not local: a structural test written to catch a missing
-call has to be shown a missing call, in every shape the call can be missing in.
+The fifth version — a walk over three named directories, splitting each module's text at
+`/^export\s+(?:const|(?:async\s+)?function)/` — was defeated **five times in five
+attempts**: by a module in a fourth directory (`apps/web/actions/`), by
+`export default async function`, by `export { name }`, by `export default name`, and by a
+single space in front of the word `export`. Only `export *` was caught, and by a different
+rule. Meanwhile three documents had been rewritten to promise "every export of every
+`'use server'` module in `apps/web`" — a claim that grew while the code stood still, which
+is B3's species inside the fix for B3.
+
+The lesson recorded here is not that the tenth pattern will hold. It is that **"every export
+of every module" is not a sentence text matching can express**, so the check has to be
+written where the exports are already parsed — and better still, the unguarded shape has to
+stop being writable. Both moves are above. Every shape in this paragraph is an invalid case
+in `eslint-rules/guarded-server-actions.test.js`, alongside a valid case carrying every
+export spelling correctly guarded, because a rule nobody can satisfy is a rule Phase 4
+turns off.
 
 **The pre-auth identifier is minted in the middleware**, on a safe method, for a public
 admin address, only when the browser is carrying no session cookie at all — so a signed-in

@@ -61,21 +61,27 @@
  *   a `.mdx` page, an extension nobody here has seen — none of them passes
  *   unseen; the suite stops and somebody decides.
  *
- *   **C · A Server Action is an endpoint, wherever it lives.** Every module in
- *   `apps/web` whose first statement is `'use server'` is a set of `POST`
- *   endpoints Next.js mounts under an opaque action id. Each of its exports
- *   must apply the guard, or the module must be declared in
- *   {@link PUBLIC_SERVER_ACTION_MODULES} — default-deny, the same way
- *   `ADMIN_PUBLIC_PATHS` is. It is not scoped to `app/`, because an action
- *   module is reachable from wherever it is imported.
+ *   **C · Server Actions are NOT this file's business, and that is round 5's
+ *   correction.** They were, for one round: this file walked three named
+ *   directories for a `'use server'` prologue and split each module's text at
+ *   `/^export\s+(?:const|(?:async\s+)?function)/` to check its exports. It was
+ *   defeated five times in five attempts — by a module in a fourth directory
+ *   (`apps/web/actions/`), by `export default async function`, by
+ *   `export { name }`, by `export default name`, and by a single space before
+ *   the word `export`. Meanwhile three documents had been rewritten to promise
+ *   "every export of every `'use server'` module in `apps/web`", which the scan
+ *   never did: B3's species again, with the claim growing while the code stood
+ *   still.
  *
- *   **D · An inline `'use server'` in a scanned file is refused outright.** An
- *   action defined inside a page body is dispatched BEFORE that page renders,
- *   so the page's own `requireAdminSession()` does not gate it —
- *   `SECURITY.md`'s "nothing inherits trust from the page it was reached from",
- *   exactly. No text-level check could tell such an action's guard from the
- *   page's, so the shape is refused rather than analysed: put the action in a
- *   module where rule C can see every export.
+ *   The fix is not a tenth pattern. "Every export of every module" is not a
+ *   sentence text matching can express, so it is written where the exports are
+ *   already parsed: `eslint-rules/guarded-server-actions.js`, an ESLint rule
+ *   over the AST, running on every file `npm run lint` visits. And the shape it
+ *   admits is one that cannot be got wrong — `guardedAction()`
+ *   (`apps/web/lib/auth/guard.ts`) calls the guard and then the action, so an
+ *   action has no opportunity to forget. What THIS file keeps is the two
+ *   questions about that arrangement which are not about a syntax tree: is the
+ *   rule still switched on, and has anybody switched it off for a file.
  *
  * ═══ HOW IT DECIDES, FOR THE FILES IT DOES RECOGNISE ═══
  *
@@ -115,9 +121,6 @@ const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.
  * Rooting at `app/` means the walk cannot be escaped by naming a directory.
  */
 const APP_DIRECTORY = 'app'
-
-/** Where a Server Action can live: anywhere this app's own code does. */
-const SERVER_ACTION_ROOTS: readonly string[] = ['app', 'components', 'lib']
 
 /** The prefix an address must carry to be this file's business. */
 const ADMIN_PREFIX = '/admin'
@@ -172,15 +175,32 @@ const NON_SERVABLE_FILES: readonly { readonly matches: (name: string) => boolean
 ]
 
 /**
- * Modules that may declare `'use server'` without guarding their exports.
+ * The files permitted to carry an `eslint-disable` for the Server Action rule,
+ * by exact path.
  *
- * EMPTY, AND DEFAULT-DENY. `ADMIN_PUBLIC_PATHS` is written the same way round
- * and for the same reason: a list of what is exempt is reviewable, while a
- * list of what is covered is a list somebody forgets to add to. A public
- * Server Action — one the diary needs, say — goes here, by exact path, with
- * the reason it answers to anybody.
+ * DEFAULT-DENY, the same way `ADMIN_PUBLIC_PATHS` is, and for the same reason:
+ * a disable comment is the one thing that defeats
+ * `eslint-rules/guarded-server-actions.js`, and it should be a decision
+ * somebody made rather than a line somebody added. A second entry here is a
+ * diff a reviewer sees.
+ *
+ * The one entry is Payload's own Server Action dispatcher. `RootLayout`
+ * requires it and its directive has to sit inside a function, because Payload's
+ * type is a function rather than a module. It is not ours to guard:
+ * `handleServerFunctions` authenticates against the `payload-token` cookie and
+ * runs Payload's own access control, and wrapping it in `guardedAction` would
+ * demand a `td-session` Payload knows nothing about. Since
+ * `apps/web/collections/sealedUserAuth.ts` sealed every endpoint that could
+ * mint a `payload-token`, its reachable surface is what Payload grants an
+ * anonymous request — the same surface `/api/**` already exposes.
  */
-const PUBLIC_SERVER_ACTION_MODULES: readonly string[] = []
+const ACTIONS_RULE_EXEMPT_FILES: readonly string[] = ['app/(payload)/layout.tsx']
+
+/** Splits a file into lines, whichever line ending it was written with. */
+const NEWLINE = /\r?\n/u
+
+/** The rule that makes an unguarded Server Action a lint error. */
+const ACTIONS_RULE = 'travel-diary/guarded-server-actions'
 
 /**
  * Every way a mounted file can apply the guard, and the `(` is the point.
@@ -197,12 +217,6 @@ const PUBLIC_SERVER_ACTION_MODULES: readonly string[] = []
  * is a check that can be satisfied by a neighbour.
  */
 const GUARD_APPLICATIONS = /(guarded|requireAdminSession|authenticateAdminRequest)\s*\(/u
-
-/** A `'use server'` directive, in either quote style. */
-const USE_SERVER = /(['"])use server\1/u
-
-/** A top-level export that a `'use server'` module turns into an endpoint. */
-const EXPORTED_BINDING = /^export\s+(?:const|(?:async\s+)?function)\s+(\w+)/gmu
 
 /** One mounted address and the file that serves it. */
 interface MountedAddress {
@@ -274,22 +288,17 @@ const sourceWithoutMentions = (source: string): string =>
 const textOf = (file: string): string => readFileSync(path.join(webRoot, file), 'utf8')
 
 /**
- * Whether a module declares `'use server'` as its FIRST statement, which is
- * what makes every one of its exports an endpoint.
+ * Whether a file mentions the `'use server'` directive at all.
+ *
+ * DELIBERATELY CRUDE, and it is not a guard: `eslint-rules/guarded-server-actions.js`
+ * decides what a Server Action module may export, over the parsed AST. This is
+ * only rule B's classifier, and it fails in the safe direction — a file it
+ * cannot recognise falls into the unaccounted list and fails the suite.
  *
  * @param source - The file's text, comments and imports already stripped.
- * @returns `true` for a Server Action module.
+ * @returns `true` when the directive appears anywhere in the file.
  */
-const isServerActionModule = (source: string): boolean => USE_SERVER.test(source.trimStart().split('\n')[0] ?? '')
-
-/**
- * Whether a file hides a `'use server'` directive somewhere other than its
- * first statement — an action defined inside a page or a component.
- *
- * @param source - The file's text, comments and imports already stripped.
- * @returns `true` when the shape rule D refuses is present.
- */
-const hasInlineServerAction = (source: string): boolean => USE_SERVER.test(source) && !isServerActionModule(source)
+const mentionsServerDirective = (source: string): boolean => /(['"])use server\1/u.test(source)
 
 /**
  * Whether a file applies the guard in its own body.
@@ -297,29 +306,6 @@ const hasInlineServerAction = (source: string): boolean => USE_SERVER.test(sourc
  * @returns `true` when the file itself calls or applies a guard.
  */
 const appliesTheGuard = (source: string): boolean => GUARD_APPLICATIONS.test(source)
-
-/**
- * The exports of a Server Action module that do not apply the guard.
- *
- * Each export is a separate `POST` endpoint, so the question is per export
- * rather than per file: a module holding one guarded action and one unguarded
- * one is a module with an unguarded endpoint in it. The source is split at
- * export boundaries and each segment — one export's own body — must contain a
- * guard application.
- *
- * @param source - The module's text, comments and imports already stripped.
- * @returns The names of the exports with no guard between them and the next.
- */
-const unguardedExportsIn = (source: string): readonly string[] => {
-  const boundaries = [...source.matchAll(EXPORTED_BINDING)]
-  return boundaries
-    .filter((match, position) => {
-      const from = match.index
-      const next = boundaries[position + 1]?.index ?? source.length
-      return !appliesTheGuard(source.slice(from, next))
-    })
-    .map((match) => match[1] ?? '')
-}
 
 describe('the admin addresses this repository mounts', () => {
   const everyAppFile = filesUnder(APP_DIRECTORY)
@@ -377,27 +363,12 @@ describe('the admin addresses this repository mounts', () => {
       const name = path.basename(file)
       if (ROUTE_FILE_NAMES.includes(name)) return false
       if (NON_SERVABLE_FILES.some((kind) => kind.matches(name))) return false
-      return !isServerActionModule(sourceWithoutMentions(textOf(file)))
+      return !mentionsServerDirective(sourceWithoutMentions(textOf(file)))
     })
 
     expect(
       unaccounted,
       'these files sit under an /admin address and this scan cannot say whether they answer a request: classify them in ROUTE_FILE_NAMES, NON_SERVABLE_FILES, or make them a guarded Server Action module',
-    ).toEqual([])
-  })
-
-  it('mounts no Server Action inside a page or a route file', () => {
-    // RULE D. A Server Action defined inside a scanned file is a separate
-    // `POST` endpoint dispatched BEFORE the page renders, so the page body's
-    // own `requireAdminSession()` does not gate it — `SECURITY.md`'s "nothing
-    // inherits trust from the page it was reached from". No text-level check
-    // can tell such an action's guard from the page's, so the shape is refused
-    // rather than analysed.
-    const inline = underAnAdminAddress.filter((file) => hasInlineServerAction(sourceWithoutMentions(textOf(file))))
-
-    expect(
-      inline,
-      "these files define a Server Action inline: an action is dispatched before the page renders, so a guard in the page body does not gate it — move it to a module whose first statement is 'use server', where every export is checked",
     ).toEqual([])
   })
 
@@ -459,83 +430,58 @@ describe('the admin addresses this repository mounts', () => {
   })
 })
 
-describe('the Server Actions this repository mounts', () => {
-  const actionModules = SERVER_ACTION_ROOTS.flatMap(filesUnder)
-    .filter((file) => file.endsWith('.ts') || file.endsWith('.tsx'))
-    .filter((file) => !file.endsWith('.test.ts') && !file.endsWith('.test.tsx'))
-    .filter((file) => isServerActionModule(sourceWithoutMentions(textOf(file))))
+describe('the rule that makes an unguarded Server Action unwritable', () => {
+  const eslintConfig = readFileSync(path.join(webRoot, '../../eslint.config.js'), 'utf8')
 
-  it('guards every export of every Server Action module', () => {
-    // RULE C. Next.js mounts each export of a `'use server'` module as its own
-    // `POST` endpoint under an opaque action id, reachable by anybody who has
-    // the id — the middleware does not close it, because it enforces CSRF and
-    // never authentication, so a request carrying a matching `Origin` reaches
-    // the action unauthenticated. The check is per EXPORT rather than per file:
-    // a module holding one guarded action and one unguarded one is a module
-    // with an unguarded endpoint in it.
-    const unguarded = actionModules
-      .filter((file) => !PUBLIC_SERVER_ACTION_MODULES.includes(file))
-      .flatMap((file) => unguardedExportsIn(sourceWithoutMentions(textOf(file))).map((name) => `${file}#${name}`))
-
-    expect(
-      unguarded,
-      'these Server Action exports apply no guard: a Server Action is a POST endpoint of its own, so call requireAdminSession() inside each one, or declare the module in PUBLIC_SERVER_ACTION_MODULES',
-    ).toEqual([])
+  it('registers the rule at error, so removing it fails the same gate the guard does', () => {
+    // THE ONLY THING THIS FILE STILL SAYS ABOUT SERVER ACTIONS, and it is a
+    // question about configuration rather than about syntax — which is what
+    // reading text is adequate for. What the rule DOES is asserted where the
+    // AST is, by `eslint-rules/guarded-server-actions.test.js`, over the
+    // twelve shapes that defeated the scans this replaced.
+    expect(eslintConfig).toContain("'guarded-server-actions': guardedServerActions")
+    expect(eslintConfig).toContain(`'${ACTIONS_RULE}': 'error'`)
   })
 
-  it('recognises a Server Action module, and only by its first statement', () => {
-    // THE SENTINEL FOR RULE C. `actionModules` is empty today — Phase 4 writes
-    // the first one — so without this the case above passes having checked
-    // nothing, which is exactly the shape that made four earlier versions of
-    // this file decorative. These drive the same predicates the walk does.
-    expect(isServerActionModule(sourceWithoutMentions("'use server'\nexport const save = async () => {}"))).toBe(true)
-    expect(isServerActionModule(sourceWithoutMentions('"use server"\nexport const save = async () => {}'))).toBe(true)
-    expect(isServerActionModule(sourceWithoutMentions('export const save = async () => {}'))).toBe(false)
-    // A directive that is not the first statement does not make the MODULE an
-    // action module — it makes the function one, which rule D refuses.
-    expect(isServerActionModule(sourceWithoutMentions('const x = 1\n"use server"'))).toBe(false)
+  it('applies it to every path, with no `files` list to sit outside of', () => {
+    // Five of the nine defeats were a file in a directory the check did not
+    // walk. A flat-config block carrying `files` would reintroduce exactly
+    // that, so the block that registers this rule must carry none.
+    const block = eslintConfig.slice(
+      eslintConfig.indexOf('plugins: {'),
+      eslintConfig.indexOf(`'${ACTIONS_RULE}': 'error'`),
+    )
+
+    expect(block).not.toContain('files:')
   })
 
-  it('finds an unguarded export inside a module whose other export is guarded', () => {
-    // THE SECOND SENTINEL, and the one that says the check is per export. A
-    // per-FILE check passes the module below, because one of its two exports
-    // calls the guard.
-    const mixed = [
-      "'use server'",
-      'export const publish = async () => {',
-      '  await requireAdminSession()',
-      '}',
-      'export const unpublish = async () => {',
-      '  await payload.update({})',
-      '}',
-    ].join('\n')
+  it('is switched off for exactly the files somebody wrote down', () => {
+    // The one thing that defeats the rule is a disable comment, so the set of
+    // them is default-deny and enumerated. Read off the whole tree rather than
+    // off a directory list — being outside a directory list is how five of the
+    // nine defeats worked. Matched on a line carrying BOTH `eslint-disable` and
+    // the rule's name, so a file that merely NAMES the rule — this one, and the
+    // rule's own test — is not counted as disabling it.
+    const disabling = ['app', 'components', 'lib', 'collections', 'scripts'].flatMap(filesUnder).filter((file) =>
+      textOf(file)
+        .split(NEWLINE)
+        .some((line) => line.includes('eslint-disable') && line.includes(ACTIONS_RULE)),
+    )
 
-    expect(unguardedExportsIn(sourceWithoutMentions(mixed))).toEqual(['unpublish'])
+    expect(disabling.sort((left, right) => left.localeCompare(right))).toEqual([...ACTIONS_RULE_EXEMPT_FILES])
   })
 
-  it('sees a Server Action defined inside a page, which a page-body guard does not gate', () => {
-    // THE SENTINEL FOR RULE D, on a fabricated page of exactly the shape the
-    // review describes: the page component calls the guard, and the action
-    // beside it is dispatched before that component ever runs.
-    const pageWithAnInlineAction = [
-      'const save = async () => {',
-      "  'use server'",
-      '  await payload.update({})',
-      '}',
-      'const Page = async () => {',
-      '  await requireAdminSession()',
-      '  return <form action={save} />',
-      '}',
-    ].join('\n')
-
-    expect(appliesTheGuard(sourceWithoutMentions(pageWithAnInlineAction))).toBe(true)
-    expect(hasInlineServerAction(sourceWithoutMentions(pageWithAnInlineAction))).toBe(true)
+  it('can tell a file that disables it from one that does not', () => {
+    // Without this, a scan that matched nothing would pass the case above by
+    // agreeing with an allowlist it never tested against.
+    expect(textOf('app/(payload)/layout.tsx')).toContain(`eslint-disable-next-line ${ACTIONS_RULE}`)
+    expect(textOf('lib/auth/guard.ts')).not.toContain(`eslint-disable-next-line ${ACTIONS_RULE}`)
   })
 
-  it('declares every exempt action module deliberately rather than by prefix', () => {
-    // Default-deny, the same way `ADMIN_PUBLIC_PATHS` is: an action that
-    // answers to anybody is one somebody wrote down. Empty today, and the case
-    // exists so that a future entry has to be a deliberate edit here.
-    expect(PUBLIC_SERVER_ACTION_MODULES).toEqual([])
+  it('has a factory for actions to be built from, which is what makes the rule satisfiable', () => {
+    // A rule nobody can satisfy is a rule Phase 4 turns off. `guardedAction`
+    // is the one shape it admits, and it lives beside the guard it calls.
+    expect(textOf('lib/auth/guard.ts')).toContain('export const guardedAction =')
+    expect(textOf('lib/auth/guard.ts')).toContain('await requireAdminSession()')
   })
 })

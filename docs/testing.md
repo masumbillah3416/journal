@@ -89,8 +89,10 @@ test can execute without a Next.js request context:
   fully excluded (no row at all in a passing run).
 - The other three — joined in Phase 1 Task 7 by the diary's own
   `(diary)/p/[n]/page.tsx` — sit under a Next.js dynamic-route directory written in
-  square brackets (`api/[...slug]/route.ts`, `cms/[[...segments]]/page.tsx` and its
-  `not-found.tsx`) —
+  square brackets (`app/(payload)/api/[...slug]/route.ts`,
+  `app/(payload)/cms/[[...segments]]/page.tsx` and
+  `app/(payload)/cms/[[...segments]]/not-found.tsx`, each by its exact path, because
+  §2.1 requires an exclusion to name the file it excuses rather than the directory) —
   required by Next.js's own routing convention. `c8 ignore start`/`stop` does not take
   effect for a file under a bracketed directory: verified by reproducing one of them
   byte-for-byte under an unbracketed sibling directory and watching the _copy_ get
@@ -142,7 +144,7 @@ bundle, render `<MobileDiary>` around the ONE addressed page. What `<n>` means i
 decision the split actually moved — is `servedReadingSurface`'s, spent by
 `apps/web/middleware.ts`, which is NOT excluded: it sits at the app's own root, is named
 in `vitest.config.ts`'s coverage `include` (no `lib/**` or `app/**` glob reaches it) and
-is gated at **100/100/100**, met by ten cases in `apps/web/middleware.test.ts` driving a
+is gated at **100/100/100**, met by 32 cases in `apps/web/middleware.test.ts` driving a
 plain `NextRequest` — a desktop and a phone user agent, both cookie values, a query
 carried across the rewrite, and the 308 off `/m/<n>`. That test file needed its own glob
 (`apps/web/*.test.ts`) on the `unit` project, because a test file no project's `include`
@@ -1213,6 +1215,32 @@ true` — the only honest content while nothing writes or reads that setting and
   for the whole list — which is why no task in Phase 2 ever ran the whole list, and why
   the final review recorded that as a residual.
 
+  **The server prints `⨯ Error: The destination stream closed early.` during a parallel
+  run, and it is a client disconnect rather than a fault.** Between eight and thirteen of
+  them appear in a full container run, clustered in `e2e/mobile.spec.ts`. They are worth a
+  paragraph because a `[WebServer]` line looks exactly like the silent server-side failure
+  this repository has been bitten by, and because a sweep that shrugged at it would be the
+  wrong habit. What was measured, on the same build in the same image:
+
+  | Run                                        | Occurrences | Result    |
+  | ------------------------------------------ | ----------- | --------- |
+  | `e2e/mobile.spec.ts`, default worker count | 6           | 17 passed |
+  | `e2e/mobile.spec.ts`, `--workers=1`        | **0**       | 17 passed |
+
+  It is a function of parallelism, not of any one case: Next's streaming renderer logs it
+  when a client goes away mid-document, which is what a Playwright worker closing its page
+  or context does to a navigation another worker's timing left in flight. Two hypotheses
+  were tested and did not reproduce it — abandoning a navigation by closing the page, and
+  fetching all thirty-three deep links concurrently through `request.get` — so the
+  remaining cause is worker teardown, which is also the only thing `--workers=1` removes.
+
+  **Nothing observable is broken, and that is asserted rather than assumed.**
+  `e2e/smoke.spec.ts` requires zero console errors, zero page errors and zero `>= 400`
+  responses on the mobile surface; `e2e/mobile.spec.ts`'s deep-link case requires all
+  thirty-three documents to answer `200` with real HTML. Both pass in the runs that print
+  the line. Revisit this if the count ever changes with a code change rather than with a
+  worker count — that would be a different thing wearing the same message.
+
   **`npm run test:e2e:container` is the whole-suite path.** It runs the same spec list in
   the pinned `mcr.microsoft.com/playwright` image Docker Compose defines, with `CI=1` —
   which makes `playwright.config.ts` build once, start the production server, and use its
@@ -2136,7 +2164,7 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   attempt and for consumption, a per-account advisory lock for the count-and-insert.
 
   **Rate limiting and lockout land in Phase 2 Task 4, and they are two files.**
-  `apps/web/lib/auth/rateLimit.integration.test.ts` is ten cases over the sliding window
+  `apps/web/lib/auth/rateLimit.integration.test.ts` is 15 cases over the sliding window
   `SECURITY.md` requires per account and per IP, and the two that carry it are real
   `Promise.all` bursts proving each dimension **independently**: twenty-eight concurrent
   attempts from ONE address against TWENTY-EIGHT accounts admit exactly twenty (so

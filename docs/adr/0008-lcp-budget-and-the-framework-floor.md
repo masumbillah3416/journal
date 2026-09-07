@@ -43,11 +43,18 @@ doing that (finding 39). The method is four steps and belongs in the decision:
 3. Read `largest-contentful-paint.numericValue` from the five
    `lhci-reports/**/localhost-p_1-*.report.json` files and take the **median** — the same
    `aggregationMethod` the config asserts on.
-4. The throttling is the config's, not the machine's: Lighthouse's `simulate` preset at
-   150ms RTT, 1,638Kbps and 4x CPU, with the viewport pinned in each config —
-   `lighthouserc.book.json` at 1350x940 desktop, `lighthouserc.json` at 412x823 mobile
-   (pinned in Phase 2's final round; it had been an unpinned Lighthouse default, so a
-   library bump could have moved a documented hard gate with no diff here).
+4. The throttling is **Lighthouse's own default and no config here pins it**:
+   `throttlingMethod: "simulate"` at 150ms RTT, 1,638Kbps and 4x CPU. Saying it was
+   "the config's, not the machine's" was half right and the wrong half — it is not the
+   machine's, and it is not written down either, so a Lighthouse release that retunes the
+   preset moves this gate with no diff in this repository. §"The measurement" below says
+   the same thing correctly, and the two contradicted each other (Phase 2's final review).
+   The VIEWPORT is pinned, in each config: `lighthouserc.book.json` at 1350x940 desktop
+   and `lighthouserc.json` at 412x823 mobile at DPR 1.75 — the mobile one in Phase 2's
+   final round, having been an unpinned default until then, which is the same defect one
+   parameter along. Pinning the throttling is the obvious next move and is deliberately
+   NOT made here: it would change the number this ADR is written against, and that is a
+   budget decision rather than a documentation fix.
 
 Measured by that method at the close of Phase 2, with `apps/web/.next` deleted first: the
 book surface **2924.9 / 2925.4 / 2927.2 / 2927.4 / 2930.0ms, median 2927.2**, and the

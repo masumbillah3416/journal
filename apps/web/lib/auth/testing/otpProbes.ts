@@ -39,7 +39,17 @@ export interface StoredChallenge {
   readonly attempts: number | null | undefined
   /** Epoch milliseconds Payload stamped the row with. */
   readonly createdAt: number
-  /** Epoch milliseconds the purge index says this row may be deleted after. */
+  /**
+   * Epoch milliseconds the row's `expires_at` column holds.
+   *
+   * READ BY NOTHING IN PRODUCTION, and this probe exists to prove exactly that:
+   * `otpService.integration.test.ts` moves the stored value a year into the
+   * future and still expects the challenge to be expired. The column is
+   * `DATA_MODEL.md`'s and is written as `createdAt + EXPIRY_MS`; the sweep that
+   * bounds the table keys on `created_at`, because a challenge outlives its own
+   * usability in the hourly resend count. This comment called it a purge index,
+   * which was ruling F14's invented justification (blocker B4).
+   */
   readonly expiresAt: number
 }
 

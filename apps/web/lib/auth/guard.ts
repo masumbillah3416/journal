@@ -167,17 +167,20 @@ export const guarded =
     return handler(request, authenticated.value)
   }
 
-/* c8 ignore start -- Framework binding with no decision of its own: read the
- * request's cookies through `next/headers`, hand them to the function above,
- * and turn its refusal into `next/navigation`'s redirect. Neither Vitest
- * project can execute it — `headers()` throws outside a request context, and
- * no integration test can supply one — so a per-file-region `c8 ignore` is
- * CLAUDE.md §2.1's honest treatment: this file's path contains no `[...]`
- * segment, so the ignore hint is read (see vitest.config.ts's own note on
- * where it is not). Everything it could get wrong is one line above it and is
- * measured; what is left is which module supplies the cookies and which
- * supplies the redirect. Its runtime behaviour is covered in the browser by
- * e2e/signIn.spec.ts. */
+/* c8 ignore start -- TWO framework bindings with no decision of their own:
+ * `requireAdminSession` reads the request's cookies through `next/headers`,
+ * hands them to the function above and turns its refusal into
+ * `next/navigation`'s redirect; `guardedAction` calls it and then calls the
+ * action. Neither Vitest project can execute either — `headers()` throws
+ * outside a request context, and no integration test can supply one — so a
+ * per-file-region `c8 ignore` is CLAUDE.md §2.1's honest treatment: this
+ * file's path contains no `[...]` segment, so the ignore hint is read (see
+ * vitest.config.ts's own note on where it is not). Everything they could get
+ * wrong is one line above this region and is measured; what is left is which
+ * module supplies the cookies, which supplies the redirect, and the ORDER of
+ * two statements — and that order is what `eslint-rules/guarded-server-actions.js`
+ * makes the only writable shape, rather than something an action remembers.
+ * Runtime behaviour is covered in the browser by e2e/signIn.spec.ts. */
 /**
  * The account behind the current request, or a redirect to the sign-in
  * screen.
@@ -200,4 +203,52 @@ export const requireAdminSession = async (): Promise<AuthenticatedSession> => {
 
   return authenticated.value
 }
+
+/**
+ * Builds a Server Action that cannot run before the guard has admitted the
+ * request.
+ *
+ * ═══ IT IS A FACTORY SO THAT THE UNGUARDED SHAPE CANNOT BE WRITTEN ═══
+ *
+ * A Server Action is a `POST` endpoint of its own, mounted by Next.js under an
+ * opaque action id and reachable by anybody who has that id. The middleware
+ * does not close it: it enforces CSRF and never authentication, so a request
+ * carrying a matching `Origin` reaches the action unauthenticated. And nothing
+ * around it helps — an action defined beside a page component is dispatched
+ * BEFORE that component renders, so the page's own `requireAdminSession()` has
+ * not run (`SECURITY.md`: nothing inherits trust from the page it was reached
+ * from).
+ *
+ * Phase 2 spent nine attempts trying to CHECK that every action remembered to
+ * call the guard, and every one of them was defeated — by a comment, an import
+ * line, a neighbouring module, a second route group, a file the walk never
+ * opened, a directory outside its root list, and four export spellings. This is
+ * the other move: the action never gets the chance to forget, because the only
+ * shape the linter admits is one built from here.
+ * `eslint-rules/guarded-server-actions.js` is what admits nothing else, reading
+ * the parsed exports rather than the file's text.
+ *
+ * THE SESSION IS THE FIRST PARAMETER, not something the action reads for
+ * itself. An action that took no session could be written to ignore the one
+ * this factory holds and read its own; taking it as an argument means the value
+ * the guard produced is the only one in scope.
+ *
+ * @param action - What to run once the request is known to be somebody's. It
+ *   receives the authenticated account first, then whatever the form sent.
+ * @returns A function of the shape a `'use server'` module exports.
+ * @example
+ * // apps/web/app/(admin)/admin/journeys/actions.ts
+ * 'use server'
+ * export const publishJourney = guardedAction(async (session, id: JourneyId) => {
+ *   // `session.user` is the account the guard admitted.
+ * })
+ */
+export const guardedAction =
+  <Args extends readonly unknown[], Result>(
+    action: (session: AuthenticatedSession, ...args: Args) => Promise<Result>,
+  ) =>
+  async (...args: Args): Promise<Result> => {
+    const session = await requireAdminSession()
+    return action(session, ...args)
+  }
 /* c8 ignore stop */

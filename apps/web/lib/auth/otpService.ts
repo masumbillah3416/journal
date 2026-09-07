@@ -809,8 +809,12 @@ export const createOtpService = ({ payload, mailer, now }: OtpServiceDependencie
     // The DOMAIN decides whether the challenge is still answerable, from
     // `created_at` and the counter - the same function `verifyChallenge`'s
     // re-read uses, so the screen and the endpoint cannot disagree about
-    // whether a code is live. `expires_at` is a purge index and is not read
-    // here either (this module's INVARIANT).
+    // whether a code is live. `expires_at` is not read here either, and it is
+    // not read anywhere: it is a stored derived value with no index and no
+    // reader, kept because `DATA_MODEL.md` declares the field. This comment
+    // called it a purge index, which was ruling F14's invented justification —
+    // the sweep in `issueChallenge` keys on `created_at` (this module's
+    // INVARIANT, and blocker B4).
     const state = challengeState(
       {
         // `Number(null)` is 0, which is exactly what a row whose counter was

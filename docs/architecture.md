@@ -185,17 +185,25 @@ five arrangements considered.
 that answer without a session — the steps of signing in and of getting back in — and
 everything else under `/admin` is guarded, including screens nobody has written yet.
 
-**What stops Phase 4 forgetting the guard is a test, not a layer.**
-`apps/web/lib/auth/adminGuardRegistration.test.ts` walks the whole `app/` tree off the
-filesystem, computes each file's address the way Next.js does — so a second route group is
-measured at the address it really answers at — and requires each route file at a guarded
-address either to be declared public or to APPLY the guard in its own body, requires every
-export of every `'use server'` module in `apps/web` to apply it too, refuses an inline
-`'use server'` inside a scanned file (such an action is dispatched before the page renders,
-so a guard in the page body does not gate it), and FAILS on any file under an admin address
-whose kind it does not recognise. It follows nothing a file imports, and it runs in the
-pre-commit gate. `docs/adr/0018` records the five versions of it that credited the wrong
-thing, and why it is no longer an enumeration.
+**What stops Phase 4 forgetting the guard is two mechanisms, and only one is a check.**
+
+A Server Action cannot be written unguarded: `guardedAction()`
+(`apps/web/lib/auth/guard.ts`) calls the guard and then the action, and
+`eslint-rules/guarded-server-actions.js` — an ESLint rule over the AST, with no `files`
+list, so no directory is outside it — reports any export of a `'use server'` module that is
+not a call to it, any re-export from such a module, and any `'use server'` directive inside
+a function body anywhere in the repository. An `eslint-disable` comment defeats it, on
+purpose: that is one reviewable line, and the files allowed to carry one are enumerated by
+exact path in `adminGuardRegistration.test.ts`.
+
+Route files are checked rather than constructed, because a page is not built from a
+factory: `apps/web/lib/auth/adminGuardRegistration.test.ts` walks the whole `app/` tree,
+computes each file's address the way Next.js does — so a second route group is measured at
+the address it really answers at — requires each route file at a guarded address either to
+be declared public or to APPLY the guard in its own body, and FAILS on any file under an
+admin address whose kind it does not recognise. It follows nothing a file imports. Both run
+in the pre-commit gate. `docs/adr/0018` records the nine text scans that preceded this and
+why enumeration was the wrong mechanism.
 
 | File                               | Responsibility                                                                                                                                                                                                                                                                                                               |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
