@@ -343,11 +343,15 @@ const DISABLE_DIRECTIVE = ['eslint', 'disable'].join('-')
  *   - **A ROW THAT NOTHING HERE CAN RUN SAYS SO, IN THE ROW.** The alternative
  *     `demonstration` is `'nothing here can run it'` with the reason. That is
  *     a disclosure, not a pin, and it is written where a reader meets the row.
- *   - **A ROW'S ABSENCE STILL PROVES NOTHING, AND NO TEST CAN CHANGE THAT.**
+ *   - **A ROW CANNOT BE REMOVED SILENTLY.** The length is asserted, the way
+ *     `eslint-rules/guarded-server-actions.test.js` asserts its own case
+ *     count, so deleting a row is a two-line diff that says what it did. That
+ *     is the most a test can do about an absence, and it is not much: it makes
+ *     a deletion visible, not impossible.
+ *   - **A MISSING ROW STILL PROVES NOTHING, AND NO TEST CAN CHANGE THAT.**
  *     Enumerating what gets through means knowing what gets through; a shape
  *     nobody has thought of has no row, and this array does not learn about a
- *     shape by the shape existing. Deleting a row is caught only if the shape
- *     is one somebody re-invents. Read the array as "the shapes we know about",
+ *     shape by the shape existing. Read it as "the shapes we know about",
  *     never as "the shapes there are".
  *
  * WHAT AN ENTRY MEANS. Each of these leaves `eslint .` at exit 0 and this
@@ -1359,6 +1363,18 @@ describe('the rule that reports an unguarded Server Action', () => {
     // The sentinel counts rows CARRYING a module rather than surviving ones,
     // so that a stale row fails on the sentence naming it rather than on this.
     expect(linted.length, 'no row in SHAPES_THAT_GET_THROUGH carries a module for this case to lint').toBeGreaterThan(0)
+
+    // AND THE MOST THAT CAN BE DONE ABOUT AN ABSENCE: removing a row is now
+    // a TWO-line diff rather than a one-line one. The sixth whole-branch
+    // review deleted the committable row and the suite stayed green, and
+    // that row is the one nothing here can lint - so the length is asserted
+    // the way `eslint-rules/guarded-server-actions.test.js` asserts its own
+    // case count. It does not make the array complete and does not pretend
+    // to: it makes a deletion say so in the diff, and it makes ADDING a
+    // survivor a deliberate act rather than an optional one. Ruling F76
+    // rules out a count in PROSE, which a reader trusts and nothing checks;
+    // this is the executable kind it asked for instead.
+    expect(SHAPES_THAT_GET_THROUGH).toHaveLength(2)
     expect(
       linted.length - stillTrue.length,
       'these rows say a shape gets through and this rule reports it: the shape was closed, so correct the row or delete it',

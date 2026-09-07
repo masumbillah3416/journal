@@ -457,7 +457,8 @@ unpinned: the reviewer deleted the committable row and the suite stayed green at
 and wrote a live survivor with no row at all and it stayed green at 24. Each row now carries
 either the module text this suite lints — requiring the rule to report nothing, so a row
 that a later round CLOSES fails on that commit — or an explicit statement of why nothing
-here can run it. **A row's absence still proves nothing, and no test can change that**:
+here can run it, and its length is asserted so a deletion is a two-line diff rather than a
+one-line one. **A missing row still proves nothing, and no test can change that**:
 enumerating what gets through means knowing what gets through. The array says so at itself.
 
 **The severity probe runs in a child process, and the reason is a measured coverage

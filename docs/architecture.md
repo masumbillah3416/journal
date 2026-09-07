@@ -265,9 +265,10 @@ sites restated a count of two while the fifth whole-branch review measured four 
 F76). **Round 9 pinned the array's CONTENTS as well as the pointer, and says what it still
 cannot do:** each row carries either the module the suite lints — requiring the rule to
 report nothing, so a row claiming a shape a later round closed fails on that commit — or an
-explicit statement of why nothing in the suite can run it. A row's ABSENCE still proves
-nothing, because enumerating what gets through means knowing what gets through; the array
-is "the shapes we know about", never "the shapes there are". The ledger's summary of ruling
+explicit statement of why nothing in the suite can run it, and the array's length is
+asserted so a deletion is a two-line diff. A MISSING row still proves nothing, because
+enumerating what gets through means knowing what gets through; the array is "the shapes we
+know about", never "the shapes there are". The ledger's summary of ruling
 F76, "that is the count made structural", overstated what shipped, and the sixth
 whole-branch review was right to correct it: it deleted the committable row and the suite
 stayed green at 21 passing.
