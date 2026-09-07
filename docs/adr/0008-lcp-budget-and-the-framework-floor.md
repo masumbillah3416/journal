@@ -61,6 +61,33 @@ book surface **2924.9 / 2925.4 / 2927.2 / 2927.4 / 2930.0ms, median 2927.2**, an
 mobile surface **2925.7 / 2926.6 / 2933.9 / 2934.7 / 2937.3ms, median 2933.9** — both
 against the same 3,000ms, unmoved, with 73ms and 66ms of margin.
 
+### The margin is thin, and a Phase 3 reader should know it before believing a red run
+
+**This gate holds on about 70ms of a 3,000ms budget, and individual runs have come within
+11ms of it.** Recorded here rather than discovered later:
+
+| When                                 | Surface       | Slowest of five | Margin on that run |
+| ------------------------------------ | ------------- | --------------- | ------------------ |
+| Phase 2, third review (warm `.next`) | mobile `/p/1` | **2,989.4ms**   | **10.6ms**         |
+| Phase 2, third review (warm `.next`) | book          | 2,946.1ms       | 53.9ms             |
+| Phase 2, close (cold `.next`, above) | mobile `/p/1` | 2,937.3ms       | 62.7ms             |
+| `fdff259`, before F68 was fixed      | mobile `/p/1` | 3,078.3ms       | **red**            |
+
+Three consequences, and none of them is "raise the budget":
+
+1. **`aggregationMethod: "median"` is what keeps this green against that spread**, and the
+   "What this decision does not change" note below is therefore load-bearing rather than
+   incidental. The lhci default takes the best of five and would loosen the gate; taking
+   the worst of five would fail it on a run where nothing had regressed.
+2. **The throttling behind the number is Lighthouse's own unpinned default** (see the
+   Status note above). A Lighthouse release that retunes the `simulate` preset moves this
+   gate with no diff in this repository. That is the most likely way `/p/1` goes red
+   without a code change.
+3. **A red `/p/1` should be re-measured five times before it is believed, and against a
+   cold `.next`.** A single run at 3,010ms is inside this spread. What distinguishes a real
+   regression is the MEDIAN moving, which is what ADR 0006's image-window regression did —
+   ~3,170-3,247ms, not one sample over the line.
+
 **What this decision does not change.** `resource-summary:script:size` stays at
 `184320`; `cumulative-layout-shift` stays at `0.1`; `aggregationMethod: "median"` stays
 in place specifically because the lhci default (`optimistic`) takes the best of five

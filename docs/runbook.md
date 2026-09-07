@@ -141,13 +141,28 @@ with no commit in between** — the same confusing shape as the wall-clock guard
 Phase 2 Task 11 found, and for the same reason: nothing in `git log` can explain it.
 Measured on this machine at the close of Phase 2, same commit, same database:
 
-| `apps/web/media`      | `seed > creates the ten journeys` | Result        |
-| --------------------- | --------------------------------- | ------------- |
-| 102,503 files, 4.5 GB | > 60,000ms                        | **timed out** |
-| 0 files               | 34,321ms                          | passed        |
-| 1,314 files, 62 MB    | ~35,000ms                         | passed        |
+| `apps/web/media`        | `seed > creates the ten journeys` | Result        |
+| ----------------------- | --------------------------------- | ------------- |
+| 102,503 files, 4.5 GB   | > 60,000ms                        | **timed out** |
+| 0 files                 | 34,321ms                          | passed        |
+| 1,314 files, 62 MB      | ~35,000ms                         | passed        |
+| 2,487 files             | (seven cases, 51.3s)              | passed        |
+| **2,919 files, 135 MB** | **29,193ms (seven cases, 45.8s)** | passed        |
 
 Directory operations on a hundred thousand files are what costs the time, not the images.
+
+**The last two rows are the point of this table working.** They were measured after the
+row above them, by the third and fourth whole-branch reviews, and the store has grown from
+1,314 to 2,919 files in the course of one review round — because every browser run, every
+`npm run db:seed` and every integration run writes a fresh set. The first case's budget is
+`SEED_TEST_TIMEOUT_MS`, 60,000ms, and 29,193ms of it is now spent; the whole seven-case
+file takes 45.8s (measured on its own: `npx vitest run --config vitest.integration.config.ts
+apps/web/scripts/seed.integration.test.ts`). The 2,487-file row is the third review's
+measurement, quoted; the row below it is this round's, taken the same way. **Cleaning up is due now, not later.** It has not been done in this round
+deliberately: doing it changes the numbers every gate in the final report was measured
+against, and a housekeeping step taken in the middle of a verification pass is a variable
+nobody asked for. It is the first thing to do after the merge, and the fix that makes it
+unnecessary is Phase 3's, named below.
 
 **To clean it up**, keep the files the databases actually reference and drop the rest.
 Every referenced name is in `media`'s `filename` column and its five `sizes_*_filename`

@@ -117,8 +117,10 @@ added by migration `20260905_202028_add_otp_session_hash`. Why the two hashed co
 two different algorithms — a slow salted hash for the code, a fast indexable one for the
 lookup key — is `docs/adr/0015-otp-challenge-hashing.md`.
 
-`expiresAt` is **written and read by nothing.** It is `createdAt + EXPIRY_MS` because the
-handoff's field list declares the column; whether a challenge is still usable is derived
+`expiresAt` is **written, and read by nothing.** (This sentence said "written and read by
+nothing", which its own next clause contradicts — the column IS written, on every
+challenge.) It is `createdAt + EXPIRY_MS` because the handoff's field list declares the
+column; whether a challenge is still usable is derived
 from `createdAt` and the domain's `EXPIRY_MS` (`packages/domain/src/auth/otpChallenge.ts`),
 never read back off this column. Two sources of truth for one fact would make `EXPIRY_MS`
 decorative and would let a bad write to `expiresAt` silently extend a challenge's life.

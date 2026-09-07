@@ -1978,3 +1978,57 @@ exists because that marker was the one `HANDOFF-DEVIATION` in the repository wit
 here** — the marker itself said "See docs/deviations.md" and `5433` had zero hits in this
 file, so `CLAUDE.md` §1.1's bidirectional rule was broken exactly once (Phase 2's final
 review, finding 31).
+
+## 46 · Six per-file branch gates sit below CLAUDE.md §2.1's 95% for `apps/web/lib/**`
+
+**What CLAUDE.md §2.1 asks for:** 95% lines, branches and functions for
+`apps/web/lib/**` and server actions. It also names its own remedy for coverage a suite
+cannot reach — `/* c8 ignore next -- <reason> */` — rather than a lower gate.
+
+**What is in the repository:** six per-file thresholds in
+`vitest.integration.config.ts`'s `coverage.thresholds` carry a branch figure under 95, and
+the measured `apps/web/lib` branch aggregate for that pass is **83.05%**.
+
+| File                                      | Lines gate | Branch gate | Landed in          |
+| ----------------------------------------- | ---------- | ----------- | ------------------ |
+| `apps/web/lib/readBookBundle.ts`          | 100        | 83          | Phase 1            |
+| `apps/web/scripts/seed.ts`                | 100        | 83          | Phase 1            |
+| `apps/web/lib/adapters/postgres-queue.ts` | **93**     | 75          | Phase 1            |
+| `apps/web/lib/testPayload.ts`             | **93**     | 75          | Phase 1            |
+| `apps/web/lib/readGalleryBundle.ts`       | 100        | 78          | Phase 2, review r2 |
+| `apps/web/lib/readGalleryDownload.ts`     | 100        | 85          | Phase 2, review r2 |
+
+Two of the six are also under 95 on LINES, at 93, and that is named here rather than left
+to the word "branch". Both have their own reason in the config beside the number:
+`postgres-queue.ts`'s two error catches (an unexpected database failure inside `enqueue()`,
+and inside `claim()`'s rollback) have no organic trigger without mocking a module we own,
+which §2.3 forbids, or deliberately breaking the test database; and `testPayload.ts`'s
+`CREATE DATABASE` branch runs only the first time any integration test ever meets a given
+Postgres volume, which is the whole point of not tearing `diary_test` down between runs.
+Those two are genuinely closer to §2.1's `c8 ignore` case than the four gallery/seed
+entries are, and are the ones to revisit first.
+
+**Rationale.** Each number is the one its suite ACHIEVES against a real Postgres, not one
+negotiated down to the code. The uncovered branches are, in every case, the same shape: a
+`?? fallback` on an optional Payload field that the ten seeded journeys happen to fill.
+Reaching them means seeding a journey with every optional field blank — a fixture decision,
+and a real one, but a fixture decision rather than a number to edit. `c8 ignore` is the
+wrong instrument here because these are not unreachable lines: they are reachable branches
+that this content does not reach, and marking them ignored would hide a gap a better
+fixture closes.
+
+**Why this entry exists.** Phase 2's third whole-branch review found the two Phase 2
+entries stated at the point of exclusion — in the config comment and in
+`docs/testing.md` — and **no `docs/deviations.md` entry anywhere**, which is CLAUDE.md
+§1.1's bidirectional rule broken again: a stated shortfall is reviewable only if it is
+stated in the place §1.2 makes the register of departures. The four Phase 1 entries had
+never been recorded here either, so all six are listed rather than only the two this phase
+added.
+
+**What would reverse this:** a seed fixture — one journey whose optional fields are all
+blank — after which each of these six can be raised to whatever the suite then achieves,
+and the ones that reach 95 can be deleted from the override list entirely. That belongs to
+whoever next touches the gallery or the seed.
+
+**Recorded as:** `vitest.integration.config.ts`'s `thresholds` comments (which name the
+departure at the point of exclusion), `docs/testing.md`'s coverage section, and this entry.

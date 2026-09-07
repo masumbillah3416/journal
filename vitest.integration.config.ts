@@ -342,6 +342,16 @@ export default defineConfig({
         // is what the final review found, is the previous state: no entry at
         // all, so the files were measured by this pass and gated by nothing.
         // A stated shortfall is reviewable; an absent one is invisible.
+        //
+        // AND IT IS NOW STATED IN THE REGISTER OF DEPARTURES TOO, which it was
+        // not: `docs/deviations.md` §46 lists all SIX per-file branch gates in
+        // this config that sit under §2.1's 95% - these two, plus
+        // `readBookBundle.ts` at 83, `seed.ts` at 83, `postgres-queue.ts` at 75
+        // and `testPayload.ts` at 75, four of which predate this branch and
+        // none of which had an entry. Stating a shortfall only at the point of
+        // exclusion is stating it where somebody already looking will see it;
+        // §1.2 makes deviations.md the place somebody NOT already looking
+        // will.
         'apps/web/lib/readGalleryBundle.ts': { lines: 100, branches: 78, functions: 100 },
         'apps/web/lib/readGalleryDownload.ts': { lines: 100, branches: 85, functions: 100 },
         'apps/web/lib/auth/readCodeScreen.ts': { lines: 100, branches: 100, functions: 100 },

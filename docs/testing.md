@@ -184,6 +184,16 @@ carries the figure its own suite ACHIEVES — 100/100/100 for `readCodeScreen.ts
 the optional-field folds their headers describe, the same shape `readBookBundle.ts` carries
 at 83.
 
+**Those branch figures are below CLAUDE.md §2.1's 95% for `apps/web/lib/**`, and that is a
+recorded deviation, not a rounding.** `docs/deviations.md` §46 lists all six per-file
+branch gates in `vitest.integration.config.ts` that sit under 95 — the two gallery readers
+this phase added, plus `readBookBundle.ts`, `seed.ts`, `postgres-queue.ts` and
+`testPayload.ts`, which predate this branch — with the measured `apps/web/lib` branch
+aggregate (83.05%), why `c8 ignore` is the wrong instrument for a reachable branch this
+content does not reach, and what would reverse it. Until this round the shortfall was
+stated at the point of exclusion and nowhere else, which is §1.1's bidirectional rule
+broken.
+
 `apps/web/components/**` was genuinely empty until Phase 1 Task 7 (`.gitkeep` only) and
 carried no per-glob threshold override until then — a threshold against zero files is the
 vacuous pass CLAUDE.md's controller ruling for Task 1 explicitly forbade adding. Task 7,
@@ -1225,8 +1235,11 @@ true` — the only honest content while nothing writes or reads that setting and
   `git bisect`.
 
   **The server prints `⨯ Error: The destination stream closed early.` during a parallel
-  run, and it is a client disconnect rather than a fault.** Between eight and thirteen of
-  them appear in a full container run, clustered in `e2e/mobile.spec.ts`. They are worth a
+  run, and it is a client disconnect rather than a fault.** The count varies with the
+  worker count and with the machine, and **no bound is claimed here**, because one was and
+  it was wrong: this paragraph said "between eight and thirteen" — a range derived from two
+  runs — and the next container run printed **14**. What has actually been counted, on this
+  branch: 13, 6, 14. They cluster in `e2e/mobile.spec.ts`. They are worth a
   paragraph because a `[WebServer]` line looks exactly like the silent server-side failure
   this repository has been bitten by, and because a sweep that shrugged at it would be the
   wrong habit. What was measured, on the same build in the same image:

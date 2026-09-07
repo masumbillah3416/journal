@@ -241,6 +241,12 @@ and 3,167ms an hour earlier.**
   files, still `aggregationMethod: "median"` over `numberOfRuns: 5`. The median setting is
   kept in both for the reason ADR 0008 gave: lhci's default is `optimistic`, which takes
   the best of five runs and would silently loosen every gate it touched.
+- **Both viewports hold on roughly 70ms of the 3,000ms, and one review run came within
+  10.6ms of it on a single sample.** ADR 0008 now carries the table of slowest-of-five
+  measurements and the three things that follow from it — chiefly that a red `/p/1` should
+  be re-measured five times, against a cold `apps/web/.next`, before it is believed, and
+  that the throttling behind the number is Lighthouse's unpinned default. Read that before
+  concluding that either of these two viewports has regressed.
 - **The gate now measures the book.** The LCP element on every book run is the Cover's own
   `<h1 class="cover-module__…">`, and the run makes 17 requests with an 11,440-byte
   document, 142,828 script bytes and no correction — against the 24 requests, 149,677
