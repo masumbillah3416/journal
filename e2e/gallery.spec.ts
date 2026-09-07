@@ -174,6 +174,16 @@ test('gives the browser a choice of derivative for every tile, rather than one s
   expect(choiceless).toEqual([])
 })
 
+/**
+ * How long to wait for the browser to choose a source for at least one tile.
+ *
+ * Generous rather than tight: the number being waited for is the browser's own
+ * lazy-loading schedule, and a tight bound on somebody else's scheduler is the
+ * shape that made this case flaky in the first place. It is a ceiling on a hang,
+ * not a budget - a page that has chosen no source in ten seconds is broken.
+ */
+const SOURCE_SELECTION_TIMEOUT_MS = 10_000
+
 test('picks the derivative this screen needs — no soft upscale, and no waste either', async ({ page }) => {
   // The measurement PH1-003 was filed on, asked of the browser rather than of
   // the markup, and asserted at every project because the defect and its
@@ -189,8 +199,33 @@ test('picks the derivative this screen needs — no soft upscale, and no waste e
   // CORRECTED for the resulting pixel density, so a correctly-served 800px tile
   // in a 354px box reports 354 - the same number a wrong one would. What is
   // observable, and what actually matters, is WHICH candidate the browser took.
-  await page.goto(GALLERY)
+  await page.goto(GALLERY, { waitUntil: 'domcontentloaded' })
   await expect(page.locator('[data-tile]').first()).toBeVisible()
+
+  // THE WAIT THIS CASE DID NOT HAVE, and the flake it caused. It waited for a
+  // tile ELEMENT to be visible and then counted images whose `currentSrc` the
+  // browser had chosen - two different events. A visible tile says the grid is
+  // laid out; it says nothing about whether the browser has run resource
+  // selection on the `img` inside it, which for a `loading="lazy"` image it
+  // does on its own schedule. The whole-branch review's container run measured
+  // `loaded` at 0 on `[mid]`'s first attempt and passed on retry, so the count
+  // below - which exists to keep the case from passing on an empty set - was
+  // the assertion that fired, rather than the one about candidates.
+  //
+  // The page is now settled only to `domcontentloaded` DELIBERATELY, so the
+  // precondition is waited for explicitly rather than arriving as a side effect
+  // of `load`. Removing this wait fails all three projects rather than one of
+  // them occasionally: measured 3 failed / 0 passed with it deleted, 3 passed
+  // with it in place.
+  await page.waitForFunction(
+    () =>
+      Array.from(document.querySelectorAll('[data-tile] img')).some(
+        (image) =>
+          image instanceof HTMLImageElement && image.currentSrc !== '' && image.getBoundingClientRect().width > 0,
+      ),
+    undefined,
+    { timeout: SOURCE_SELECTION_TIMEOUT_MS },
+  )
 
   const measured = await page.$$eval('[data-tile] img', (images) => {
     const parse = (srcset: string): { url: string; width: number }[] =>
