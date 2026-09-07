@@ -186,11 +186,16 @@ that answer without a session — the steps of signing in and of getting back in
 everything else under `/admin` is guarded, including screens nobody has written yet.
 
 **What stops Phase 4 forgetting the guard is a test, not a layer.**
-`apps/web/lib/auth/adminGuardRegistration.test.ts` reads every `page.tsx` and `route.ts`
-under `app/(admin)/admin` off the filesystem, turns each back into the address Next serves
-it at, and requires each to be either declared public or to name the guard — directly or
-through the one `lib/auth` module it re-exports its handler from. It runs in the pre-commit
-gate.
+`apps/web/lib/auth/adminGuardRegistration.test.ts` walks the whole `app/` tree off the
+filesystem, computes each file's address the way Next.js does — so a second route group is
+measured at the address it really answers at — and requires each route file at a guarded
+address either to be declared public or to APPLY the guard in its own body, requires every
+export of every `'use server'` module in `apps/web` to apply it too, refuses an inline
+`'use server'` inside a scanned file (such an action is dispatched before the page renders,
+so a guard in the page body does not gate it), and FAILS on any file under an admin address
+whose kind it does not recognise. It follows nothing a file imports, and it runs in the
+pre-commit gate. `docs/adr/0018` records the five versions of it that credited the wrong
+thing, and why it is no longer an enumeration.
 
 | File                               | Responsibility                                                                                                                                                                                                                                                                                                               |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

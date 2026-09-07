@@ -99,22 +99,50 @@ identifier names a live row — and runs in the Node server, called by the page 
 handler that needs the answer.
 
 **What makes forgetting it impossible is a test, not a layer.**
-`apps/web/lib/auth/adminGuardRegistration.test.ts` reads every `page.tsx` and `route.ts`
-under `app/(admin)/admin` off the filesystem, turns each back into the address Next serves
-it at, and requires each one either to be declared public in `adminAccess.ts` or to CALL
-the guard — itself, or in the single `lib/auth` module it re-exports its handler from. A
-Phase 4 screen that does neither fails `npm run verify` on its own commit.
+`apps/web/lib/auth/adminGuardRegistration.test.ts` walks the WHOLE `app/` tree off the
+filesystem, computes each file's address the way Next.js does — route groups contribute no
+segment — and applies four rules to everything answering under `/admin`:
 
-**That test was decorative twice, and its own mutation run caught it both times.** The
-first version matched the guard's NAME anywhere in the file, so deleting
+- **A route file** (`page.*`/`route.*`) at a guarded address must either be declared public
+  in `adminAccess.ts` or APPLY the guard in its own body. Nothing it imports is read.
+- **Every export of every `'use server'` module** in `apps/web` must apply the guard, or
+  the module must be named in an empty, default-deny exemption list. A Server Action is a
+  `POST` endpoint of its own; the middleware does not close it, because it enforces CSRF
+  and never authentication.
+- **An inline `'use server'` inside a scanned file is refused outright.** Such an action is
+  dispatched BEFORE the page renders, so the page body's own `requireAdminSession()` does
+  not gate it — `SECURITY.md`'s "nothing inherits trust from the page it was reached from",
+  exactly. The shape is refused rather than analysed, because no text-level check can tell
+  that action's guard from the page's.
+- **A file under an admin address whose kind is not recognised FAILS**, by name. Route
+  file, action module, or one of the Next.js conventions listed with the reason it cannot
+  answer a request — anything else stops the suite rather than passing unseen.
+
+A Phase 4 screen, route or action that does none of these fails `npm run verify` on its own
+commit.
+
+**That test credited the wrong thing five times, and the fifth is why it is no longer an
+enumeration.** The first version matched the guard's NAME anywhere in the file, so deleting
 `await requireAdminSession()` left the `import` line and the header comment matching and
 every case green. The second stripped comments and imports and required a `(` — and still
-passed, because it follows a route file's imports one level to credit a one-line
-`route.ts` with the guard its handler calls, and `guard.ts`'s own body calls
-`authenticateAdminRequest`. It now strips mentions AND refuses to follow the guard module
-itself, and both corrections have a case of their own. Recorded here because the lesson is
-not local: a structural test written to catch a missing call has to be shown a missing
-call.
+passed, because it followed a route file's imports one level and `guard.ts`'s own body
+calls `authenticateAdminRequest`. The third stopped following `guard.ts` and still credited
+a route for ANY module it imported, so a guarded route re-exporting any handler from
+`signInEndpoints.ts` passed. Ruling F61 removed the following entirely and moved the guard
+into the route file itself. Phase 2's whole-branch review then found the fourth version
+blind three ways at once: it read only `page.tsx`/`route.ts`, under a hard-coded
+`app/(admin)/admin`, so a Server Action in an `actions.ts` was never read, an action
+defined inside a scanned page was credited with the PAGE's guard call, and a route under a
+second route group was invisible to the walk.
+
+Patching those three would have made a sixth inevitable, because every version so far had
+been an enumeration — of file names, of directories, of the shapes an author might use —
+and an enumeration is wrong the moment somebody uses a shape nobody listed. The current
+version discovers rather than enumerates and fails closed on what it does not recognise,
+which is the only version of this check whose blind spot is a failing test rather than a
+silent pass. Each of the four rules has a mutation of its own that was watched to fail.
+Recorded here because the lesson is not local: a structural test written to catch a missing
+call has to be shown a missing call, in every shape the call can be missing in.
 
 **The pre-auth identifier is minted in the middleware**, on a safe method, for a public
 admin address, only when the browser is carrying no session cookie at all — so a signed-in
