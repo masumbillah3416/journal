@@ -1498,6 +1498,17 @@ true` — the only honest content while nothing writes or reads that setting and
   appears zero times in either log), and `e2e/flip.spec.ts:157` — the ~2% flake carried to
   Phase 3 by ruling — passed first attempt in both.
 
+  **AND THE GENERAL RULE THAT PARAGRAPH IS AN INSTANCE OF (ruling F80).** Anything a
+  reader must know in order to trust a mechanism — a residue, a fragility, the
+  measurement behind a claim — belongs in the tree: this file, the ADR, or the comment
+  on the mechanism itself. Never only in a fix report under `.superpowers/`. That is not
+  a style preference; it cost two blockers in the seventh whole-branch review. Round 9
+  knew that the F76 pointer case's regex could not cross a comment line break, wrote it
+  down in `final-fix-report-5.md`, and shipped a comment on the case asserting the
+  opposite — so the sentence a reader met said the thing was impossible while the
+  sentence that admitted otherwise was in a directory the repository does not contain.
+  From the tree's point of view, a disclosure nobody can open is not a disclosure.
+
   **What this paragraph said before is worth keeping as a lesson about rationales.** It
   framed the choice as "wait fifteen minutes for the window to age out, or accept the
   failure", and warned against loosening the limit. Both halves of that were true and the
