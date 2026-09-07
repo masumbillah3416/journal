@@ -51,6 +51,32 @@
  * (`e2e/support/coverContrast.ts`). Deleting it would leave this route's
  * contrast unasserted while the suite still looked green, which is the state
  * it was written to end.
+ * THE SIGN-IN SCREEN JOINS BOTH KINDS OF CASE (Phase 2 Task 7). Its axe case
+ * runs with NO exclusions - the whole screen is code authored here, so
+ * `landmark-one-main`, `page-has-heading-one`, `region`, `label` and
+ * `link-name` are all requirements rather than vendor noise - and it is
+ * followed by a second contrast case for the same reason the cover has one:
+ * the cloth panel is a gradient, so axe returns `color-contrast` INCOMPLETE
+ * over it and a green axe run says nothing about the four cream lines drawn
+ * on it. They are measured from the rendered pixels by the same helper.
+ * TASK 9 ADDS THE REMAINING FOUR STATES OF THE SIGN-IN SURFACE, all with no
+ * exclusions: `/admin/reset` in both of SCREENS.md §3.3's states, the screen
+ * the mailed link lands on (`/admin/reset/<token>`, in its expired state - the
+ * one a browser suite can reach without a live token), and
+ * `/admin/sign-in/done`, §3.4. Every rule in the full ruleset applies to all
+ * four: each has a `<main>`, one level-one heading, a labelled control per
+ * input and a named control per button.
+ *
+ * TASK 8 ADDS THE SECOND SIGN-IN STATE, `/admin/sign-in/code`, with no
+ * exclusions either. It is the first view in the product where `label` has six
+ * unlabelled-looking boxes to judge - the code cells carry `aria-label`s
+ * rather than visible labels, because `SCREENS.md` §3.2 gives the row one
+ * heading ("The code") and no per-cell text - and where `aria-allowed-attr`
+ * and `aria-valid-attr-value` have a `role="group"` and its `aria-labelledby`
+ * to check. The cloth and masthead contrast cases above cover this route's
+ * frame too, since it is the SAME shell drawn from the same stylesheet; only
+ * the pane differs, and the pane is dark ink on `#fffdf6`, which axe judges
+ * for itself.
  * Revisit when the bespoke admin at `/admin` replaces `/cms` as the route
  * under test (Phase 1+) — Payload's stock scaffolding will no longer be in
  * scope at all.
@@ -59,9 +85,17 @@
  * diary (`npm run db:seed`) — the cover's copy is what the last case measures.
  */
 import { expect, test } from '@playwright/test'
+import { aSignedInSession, fixtureLabel, removeSignedInFixture, SESSION_FIXTURE_DOMAIN } from './support/adminSession'
 import { expectNoAxeViolations } from './support/axe'
 import { measureContrastOverGradient } from './support/coverContrast'
 import { drawsMobileReadingMode } from './support/surface'
+
+test.afterAll(async ({}, testInfo) => {
+  // This project's own account, never the whole domain: the three viewports
+  // run in parallel and a sweeping delete takes another one's session away
+  // mid-run (see `SESSION_FIXTURE_DOMAIN`).
+  await removeSignedInFixture(`a11y.${fixtureLabel(testInfo)}@${SESSION_FIXTURE_DOMAIN}`)
+})
 
 test('has no axe violations on /cms', async ({ page }) => {
   await page.goto('/cms')
@@ -320,6 +354,19 @@ test('meets AA contrast on every line of the cover, which axe cannot judge', asy
   // for the two cover values that were changed to clear these floors.
   await page.goto('/p/1')
   await expect(page.locator('[data-page="cover"]')).toBeVisible()
+  // AND WAIT FOR THE BOOK TO BE SCALED, not merely drawn. The cover is
+  // server-rendered but `useBookScale` sets the design box's transform on the
+  // client, and every rect this measurement reads - the cover's own origin and
+  // each line's box - is the SCALED one. Measured before the transform lands,
+  // a line's box is an unscaled 1300x860 coordinate against a screenshot of a
+  // scaled element, and `coverContrast.ts` throws "a line's box fell outside
+  // the captured cover" rather than reporting a wrong ratio. Reproduced on the
+  // `mid` project (Phase 2 Task 7): one failure in two consecutive runs, the
+  // years line at y=551.8 against a cover roughly 392px tall on screen. It is
+  // the same readiness race, and the same fix, as the `/cms` case at the top of
+  // this file, and it is the wait `e2e/visual.spec.ts`'s `settled()` already
+  // makes before every screenshot of this page.
+  await expect(page.locator('[data-design-box]')).toHaveAttribute('style', /scale\(/)
 
   const measured = await measureContrastOverGradient(page, '[data-page="cover"]', COVER_LINES)
 
@@ -327,5 +374,181 @@ test('meets AA contrast on every line of the cover, which axe cannot judge', asy
   // names every line that is below its floor, with the number it reached, in
   // one run — and pinning exact ratios would make this a change-detector for
   // anti-aliasing rather than a floor.
+  expect(measured.filter((line) => line.ratio < line.minimumRatio)).toEqual([])
+})
+
+/**
+ * The sign-in cloth panel's four cream lines, with the WCAG 2.1 AA floor each
+ * one has to clear. Only the fitted title qualifies as large text (SC 1.4.3
+ * needs 24px, or 18.66px at bold): it renders at 75px for the seeded title.
+ * The 17px italic subtitle is not large, so it is held to 4.5:1 like the two
+ * Courier lines.
+ */
+const SIGN_IN_CLOTH_LINES = [
+  { name: 'eyebrow (Courier 10.5px)', selector: '[data-sign-in-cloth-eyebrow]', minimumRatio: 4.5 },
+  { name: 'title (Caveat, fitted)', selector: '[data-sign-in-cloth-title]', minimumRatio: 3 },
+  { name: 'subtitle (Garamond italic 17px)', selector: '[data-sign-in-cloth-subtitle]', minimumRatio: 4.5 },
+  { name: '"The back room" (Courier 10.5px)', selector: '[data-sign-in-cloth-footer]', minimumRatio: 4.5 },
+] as const
+
+test('has no axe violations on /admin/sign-in, the password step', async ({ page }) => {
+  await page.goto('/admin/sign-in')
+  await expect(page.locator('[data-password-step]')).toBeVisible()
+
+  // No exclusions, deliberately: every rule in the full ruleset applies to a
+  // screen this project authored end to end. The `allow` list on /cms above
+  // is scoped to Payload's own generated markup and must never be inherited
+  // here - this screen has a `<main>` (SignInShell.tsx), a level-one heading
+  // of its own ("Welcome back"), a labelled field per input and a named
+  // control per button, so every one of those rules is a requirement.
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /admin/sign-in/code, the one-time-code step', async ({ page }) => {
+  await page.goto('/admin/sign-in/code')
+  // The pane is visible AND its six cells are drawn before axe looks: a route
+  // that rendered an empty shell would have no violations either.
+  await expect(page.locator('[data-code-step-pane]')).toBeVisible()
+  await expect(page.locator('[data-code-cell]')).toHaveCount(6)
+
+  // No exclusions, for the same reason the password step has none.
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on the code step after it has refused a code', async ({ page }) => {
+  await page.goto('/admin/sign-in/code')
+  await expect(page.locator('[data-code-cell]')).toHaveCount(6)
+
+  // The error box is the one part of this pane axe never sees on a clean
+  // load, and it is a live region - `aria-describedby` on the cell group has
+  // to resolve to it, which `aria-valid-attr-value` checks only while it is
+  // in the document.
+  await page.getByRole('button', { name: 'Verify and sign in' }).click()
+  await expect(page.locator('[data-code-step-pane] [role="alert"]')).toHaveText('All six digits, then we can look.')
+
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /admin/reset, the reset request', async ({ page }) => {
+  await page.goto('/admin/reset')
+  await expect(page.locator('[data-reset-step]')).toBeVisible()
+
+  // No exclusions, for the same reason the password step has none.
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on the reset screen once the link is on its way', async ({ page }) => {
+  // The sent state is a different pane, not a variant of the one above: the
+  // form is gone, a green block is in its place and the two actions are links
+  // styled as buttons - which is exactly the shape `link-name` and
+  // `color-contrast` have something to say about.
+  await page.goto(`/admin/reset?sent=${encodeURIComponent('he•••@wanderings.travel')}`)
+  await expect(page.locator('[data-reset-sent]')).toBeVisible()
+
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on the screen the mailed link lands on', async ({ page }) => {
+  // A token that names nothing, so this is the expired state - the one an
+  // unauthenticated visitor can reach at will, and the only one of the two a
+  // browser suite can reach without a live token (see e2e/reset.spec.ts's
+  // header). The form state's own markup is the password step's, audited
+  // above, and its jsdom suite asserts the label, the toggle's accessible name
+  // and the error box's `aria-describedby` wiring.
+  await page.goto('/admin/reset/deadbeefdeadbeefdeadbeefdeadbeefdeadbeef')
+  await expect(page.locator('[data-new-password-step]')).toHaveAttribute('data-new-password-view', 'expired')
+
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /admin/sign-in/done, the signed-in state', async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  // The screen is guarded (Phase 2 Task 10), so it needs a session before it
+  // will draw anything — see e2e/support/adminSession.ts for why a browser
+  // cannot sign itself in here.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`a11y.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin/sign-in/done')
+  // The mark is drawn AND the heading is present before axe looks: a route
+  // that rendered an empty shell would have no violations either.
+  await expect(page.locator('[data-signed-in-mark]')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('The back room is open')
+
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /admin, the admin panel’s root', async ({ page, context, baseURL }, testInfo) => {
+  // The newest screen on this surface, and a guarded one: it needs a session
+  // before it will draw anything (see e2e/support/adminSession.ts). It exists
+  // because the signed-in screen's primary action pointed at an address
+  // nothing served — blocker B2 — and CLAUDE.md §2 asks for every admin screen
+  // to be checked here.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`a11ypanel.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin')
+  // The pane is drawn AND the heading is present before axe looks: a route
+  // that rendered an empty shell would have no violations either.
+  await expect(page.locator('[data-admin-panel]')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Still being furnished')
+
+  await expectNoAxeViolations(page)
+})
+
+test('meets AA contrast on the sign-in cloth panel, which axe cannot judge', async ({ page, viewport }) => {
+  test.skip((viewport?.width ?? 0) < 820, 'the cloth panel is drawn only above SCREENS.md §3’s breakpoint')
+
+  // Same limitation as the cover's case above, on the same kind of surface:
+  // axe reports `color-contrast` INCOMPLETE over a gradient, so the case
+  // before this one is green because axe declined to judge. The ratios are
+  // measured from the rendered pixels instead; see
+  // `e2e/support/coverContrast.ts` for the method, and docs/deviations.md §32
+  // for the one value that was changed to clear these floors.
+  await page.goto('/admin/sign-in')
+  await expect(page.locator('[data-sign-in-cloth]')).toBeVisible()
+
+  const measured = await measureContrastOverGradient(page, '[data-sign-in-cloth]', SIGN_IN_CLOTH_LINES)
+
+  // Asserting the shortfalls rather than each ratio in turn - see the cover's
+  // case for why - but asserting first that four lines were measured at all,
+  // because an empty result set has no line below its floor either.
+  expect(measured).toHaveLength(SIGN_IN_CLOTH_LINES.length)
+  expect(measured.filter((line) => line.ratio < line.minimumRatio)).toEqual([])
+})
+
+/**
+ * The narrow masthead's three lines, with the same floors. The masthead is a
+ * separate measurement rather than an extension of the panel's: it is a
+ * different block, drawn only below the breakpoint, over the same cloth
+ * gradient at a different inset shadow (`inset 0 0 50px` against the panel's
+ * `90px`), so the background under its lines is not the panel's background.
+ */
+const SIGN_IN_MASTHEAD_LINES = [
+  { name: 'eyebrow (Courier 9px)', selector: '[data-sign-in-masthead-eyebrow]', minimumRatio: 4.5 },
+  { name: 'title (Caveat, fitted)', selector: '[data-sign-in-masthead-title]', minimumRatio: 3 },
+  { name: '"The back room" (Courier 9px)', selector: '[data-sign-in-masthead-footer]', minimumRatio: 4.5 },
+] as const
+
+test('meets AA contrast on the sign-in masthead, which axe cannot judge either', async ({ page, viewport }) => {
+  test.skip((viewport?.width ?? 0) >= 820, 'the masthead is drawn only below SCREENS.md §3’s breakpoint')
+
+  await page.goto('/admin/sign-in')
+  await expect(page.locator('[data-sign-in-masthead]')).toBeVisible()
+
+  const measured = await measureContrastOverGradient(page, '[data-sign-in-masthead]', SIGN_IN_MASTHEAD_LINES)
+
+  expect(measured).toHaveLength(SIGN_IN_MASTHEAD_LINES.length)
   expect(measured.filter((line) => line.ratio < line.minimumRatio)).toEqual([])
 })

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { aBookChrome, aGalleryBundle, aGalleryFrame, anAboutContent, aPortrait, aJourney, galleryFrames } from './factories'
+import {
+  aBookChrome,
+  aGalleryBundle,
+  aGalleryFrame,
+  anAboutContent,
+  aPortrait,
+  aJourney,
+  galleryFrames,
+} from './factories'
 
 describe('aJourney', () => {
   it('builds a journey with sensible defaults when called with no overrides', () => {

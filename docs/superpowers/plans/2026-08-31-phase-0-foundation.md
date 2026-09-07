@@ -21,7 +21,7 @@ Copied verbatim from the spec and `CLAUDE.md`. Every task's requirements implici
 - Every module opens with a header comment naming what it does and the pattern it implements.
 - Every exported symbol carries TSDoc.
 - Documentation ships in the same commit as the code it describes.
-- One logical change per commit. Conventional Commits with a body explaining *why*. Every commit ends with `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`.
+- One logical change per commit. Conventional Commits with a body explaining _why_. Every commit ends with `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`.
 - Never `git add -A` without reading the diff. Never `--no-verify`.
 - Branded ids: `JourneyId`, `PageId`, `MediaId`, `SlotKey`. A `JourneyId` cannot be passed where a `PageId` belongs.
 - Everything author-editable is keyed by journey id. Rows are addressed by id, never by array position.
@@ -37,40 +37,42 @@ Copied verbatim from the spec and `CLAUDE.md`. Every task's requirements implici
 
 ## File Structure
 
-| Path | Responsibility |
-|---|---|
-| `package.json` | Workspace roots, the `verify` gate, shared scripts |
-| `tsconfig.base.json` | Compiler strictness inherited by every package |
-| `vitest.config.ts` | Test projects and the per-layer coverage thresholds |
-| `eslint.config.js` | Flat config: bans `any`, `!`, and `console` |
-| `docker-compose.yml` | Postgres 16 for local development and tests |
-| `.github/workflows/ci.yml` | Runs `verify` plus the browser suites |
-| `packages/domain/src/ids.ts` | Branded identifier types and their constructors |
-| `packages/domain/src/result.ts` | `Result<T, E>` for fallible operations at boundaries |
-| `packages/domain/src/contrast.ts` | WCAG relative luminance and contrast ratio |
-| `packages/tokens/src/colour.ts` | Every colour token from the handoff table |
-| `packages/tokens/src/type.ts` | Font families, sizes, letter-spacing |
-| `packages/tokens/src/geometry.ts` | Radii, padding, gaps, the design box |
-| `packages/tokens/src/tokens.css` | The same values as CSS custom properties |
-| `apps/web/payload.config.ts` | Payload configuration and collection registration |
-| `apps/web/collections/*.ts` | One file per collection |
-| `apps/web/lib/ports/*.ts` | Storage, mailer and queue interfaces |
-| `apps/web/lib/adapters/*.ts` | Local implementations of each port |
-| `apps/web/lib/adapters/contract/*.ts` | The shared suite every adapter must pass |
-| `apps/web/scripts/placeholder.ts` | Striped SVG data-URI generator |
-| `apps/web/scripts/seed.ts` | 10 journeys / 33 pages from the prototype |
-| `playwright.config.ts` | Browser projects and viewports |
+| Path                                  | Responsibility                                       |
+| ------------------------------------- | ---------------------------------------------------- |
+| `package.json`                        | Workspace roots, the `verify` gate, shared scripts   |
+| `tsconfig.base.json`                  | Compiler strictness inherited by every package       |
+| `vitest.config.ts`                    | Test projects and the per-layer coverage thresholds  |
+| `eslint.config.js`                    | Flat config: bans `any`, `!`, and `console`          |
+| `docker-compose.yml`                  | Postgres 16 for local development and tests          |
+| `.github/workflows/ci.yml`            | Runs `verify` plus the browser suites                |
+| `packages/domain/src/ids.ts`          | Branded identifier types and their constructors      |
+| `packages/domain/src/result.ts`       | `Result<T, E>` for fallible operations at boundaries |
+| `packages/domain/src/contrast.ts`     | WCAG relative luminance and contrast ratio           |
+| `packages/tokens/src/colour.ts`       | Every colour token from the handoff table            |
+| `packages/tokens/src/type.ts`         | Font families, sizes, letter-spacing                 |
+| `packages/tokens/src/geometry.ts`     | Radii, padding, gaps, the design box                 |
+| `packages/tokens/src/tokens.css`      | The same values as CSS custom properties             |
+| `apps/web/payload.config.ts`          | Payload configuration and collection registration    |
+| `apps/web/collections/*.ts`           | One file per collection                              |
+| `apps/web/lib/ports/*.ts`             | Storage, mailer and queue interfaces                 |
+| `apps/web/lib/adapters/*.ts`          | Local implementations of each port                   |
+| `apps/web/lib/adapters/contract/*.ts` | The shared suite every adapter must pass             |
+| `apps/web/scripts/placeholder.ts`     | Striped SVG data-URI generator                       |
+| `apps/web/scripts/seed.ts`            | 10 journeys / 33 pages from the prototype            |
+| `playwright.config.ts`                | Browser projects and viewports                       |
 
 ---
 
 ## Task 1: Workspace, toolchain and the verify gate
 
 **Files:**
+
 - Create: `package.json`, `tsconfig.base.json`, `vitest.config.ts`, `eslint.config.js`, `.prettierrc`, `.husky/pre-commit`, `.github/workflows/ci.yml`
 - Create: `packages/domain/package.json`, `packages/domain/tsconfig.json`, `packages/domain/src/result.ts`
 - Test: `packages/domain/src/result.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing — this is the first task.
 - Produces: `npm run verify` (typecheck + lint + test + coverage gates, exit 0 on success). `Result<T, E>` = `{ ok: true; value: T } | { ok: false; error: E }`, with constructors `ok<T>(value: T): Result<T, never>` and `err<E>(error: E): Result<never, E>`, and a guard `isOk<T, E>(r: Result<T, E>): r is { ok: true; value: T }`.
 
@@ -139,13 +141,19 @@ export default defineConfig({
       exclude: ['**/*.test.ts', '**/*.d.ts', '**/index.ts'],
       thresholds: {
         // Repository-wide floor.
-        lines: 90, branches: 90, functions: 90,
+        lines: 90,
+        branches: 90,
+        functions: 90,
         // Pure logic: every branch is a real behaviour, so every branch is covered.
         'packages/domain/src/**/*.ts': {
-          lines: 100, branches: 100, functions: 100,
+          lines: 100,
+          branches: 100,
+          functions: 100,
         },
         'apps/web/lib/**/*.ts': {
-          lines: 95, branches: 95, functions: 95,
+          lines: 95,
+          branches: 95,
+          functions: 95,
         },
       },
     },
@@ -336,10 +344,12 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 ## Task 2: Standing documentation and ADRs
 
 **Files:**
+
 - Create: `docs/architecture.md`, `docs/testing.md`, `docs/deviations.md`, `docs/runbook.md`, `docs/security.md`, `docs/api.md`, `docs/data-model.md`
 - Create: `docs/adr/0001-hosting-and-cost.md`, `docs/adr/0002-auth-mechanism.md`, `docs/adr/0003-derivative-generation.md`
 
 **Interfaces:**
+
 - Consumes: the spec's §2.1–2.3, §10, §13.
 - Produces: the documentation set `CLAUDE.md` §1.2 requires to exist. Later tasks append to these rather than creating them.
 
@@ -377,11 +387,13 @@ Use the full body format from `CLAUDE.md` §8.2.
 ## Task 3: Design tokens with contrast enforcement
 
 **Files:**
+
 - Create: `packages/tokens/package.json`, `packages/tokens/src/colour.ts`, `packages/tokens/src/type.ts`, `packages/tokens/src/geometry.ts`, `packages/tokens/src/tokens.css`
 - Create: `packages/domain/src/contrast.ts`
 - Test: `packages/domain/src/contrast.test.ts`, `packages/tokens/src/colour.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Result` from Task 1 (not required, but available).
 - Produces: `contrastRatio(foreground: string, background: string): number` and `composite(overlay: string, alpha: number, base: string): string`, both taking `#rrggbb`. `colour` — a frozen record whose keys are the handoff token names in camelCase (`paper`, `paperMount`, `inkMuted`, `creamDim`, `accent`, …). `DESIGN_BOX = { width: 1300, height: 860 }` and `MAX_SCALE = 1.7` from `geometry.ts`.
 
@@ -628,10 +640,12 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 ## Task 4: Branded identifiers
 
 **Files:**
+
 - Create: `packages/domain/src/ids.ts`
 - Test: `packages/domain/src/ids.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Result` from Task 1.
 - Produces: types `JourneyId`, `PageId`, `MediaId`, `SlotKey`, each a `string & { readonly __brand: '<name>' }`. Constructors `journeyId(raw: string): Result<JourneyId, string>` and the same shape for the rest — they reject empty and whitespace-only input.
 
@@ -703,10 +717,12 @@ with a body explaining that the handoff records five defects from per-journey st
 ## Task 5: Postgres and Payload configuration
 
 **Files:**
+
 - Create: `docker-compose.yml`, `.env.example`, `apps/web/package.json`, `apps/web/payload.config.ts`, `apps/web/lib/env.ts`, `apps/web/lib/payload.ts`
 - Test: `apps/web/lib/env.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Result` from Task 1.
 - Produces: `parseEnv(raw: Record<string, string | undefined>): Result<Env, string>` and a module-level validated `env` with `DATABASE_URL`, `PAYLOAD_SECRET`, `MEDIA_ORIGIN`. From `apps/web/lib/payload.ts`: `getPayload(): Promise<Payload>`, memoised so repeated calls in tests reuse one connection.
 
@@ -795,12 +811,14 @@ Body must record that Payload's stock admin is moved to `/cms` and disabled in p
 ## Task 6: Collections and the first migration
 
 **Files:**
+
 - Create: `apps/web/collections/media.ts`, `journeys.ts`, `pages.ts`, `users.ts`, `otpChallenges.ts`, `sessions.ts`
 - Create: `apps/web/globals/book.ts`, `about.ts`, `site.ts`
 - Modify: `apps/web/payload.config.ts`
 - Test: `apps/web/collections/collections.test.ts` (integration, against the Docker database)
 
 **Interfaces:**
+
 - Consumes: `getPayload()` from Task 5.
 - Produces: all collections registered and migrated. Later tasks query them by slug: `media`, `journeys`, `pages`, `users`, `otpChallenges`, `sessions`.
 
@@ -814,7 +832,9 @@ import { getPayload } from '../lib/payload.js'
 
 describe('collections', () => {
   let payload: Awaited<ReturnType<typeof getPayload>>
-  beforeAll(async () => { payload = await getPayload() })
+  beforeAll(async () => {
+    payload = await getPayload()
+  })
 
   it('soft-deletes journeys rather than removing rows', async () => {
     const created = await payload.create({
@@ -846,7 +866,10 @@ describe('collections', () => {
     const attempt = payload.create({
       collection: 'journeys',
       data: {
-        name: 'Marrakech', place: 'Morocco', slug: 'marrakech', dates: '1 - 8 May 2025',
+        name: 'Marrakech',
+        place: 'Morocco',
+        slug: 'marrakech',
+        dates: '1 - 8 May 2025',
         highlights: [{ text: 'a' }, { text: 'b' }, { text: 'c' }, { text: 'd' }, { text: 'e' }],
       },
     })
@@ -858,10 +881,15 @@ describe('collections', () => {
     const created = await payload.create({
       collection: 'journeys',
       data: {
-        name: 'Lisbon', place: 'Portugal', slug: 'lisbon', dates: '2 - 11 April 2025',
+        name: 'Lisbon',
+        place: 'Portugal',
+        slug: 'lisbon',
+        dates: '2 - 11 April 2025',
         tally: [
-          { key: 'PASTEIS', value: 'nineteen' }, { key: 'TRAMS', value: 'plenty' },
-          { key: 'STEPS', value: 'uncounted' }, { key: 'RAIN', value: 'none' },
+          { key: 'PASTEIS', value: 'nineteen' },
+          { key: 'TRAMS', value: 'plenty' },
+          { key: 'STEPS', value: 'uncounted' },
+          { key: 'RAIN', value: 'none' },
         ],
       },
     })
@@ -945,11 +973,13 @@ Body must state that soft delete and drafts are in the first migration deliberat
 ## Task 7: Storage port and local adapter
 
 **Files:**
+
 - Create: `apps/web/lib/ports/storage.ts`, `apps/web/lib/adapters/local-storage.ts`
 - Create: `apps/web/lib/adapters/contract/storage-contract.ts`
 - Test: `apps/web/lib/adapters/local-storage.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Result` from Task 1.
 - Produces:
 
@@ -1056,14 +1086,20 @@ Body: the contract suite exists so the R2 adapter in Phase 3 is verified by the 
 ## Task 8: Mailer port and console adapter
 
 **Files:**
+
 - Create: `apps/web/lib/ports/mailer.ts`, `apps/web/lib/adapters/console-mailer.ts`, `apps/web/lib/adapters/contract/mailer-contract.ts`
 - Test: `apps/web/lib/adapters/console-mailer.test.ts`
 
 **Interfaces:**
+
 - Produces:
 
 ```ts
-export interface SentMessage { readonly to: string; readonly subject: string; readonly text: string }
+export interface SentMessage {
+  readonly to: string
+  readonly subject: string
+  readonly text: string
+}
 
 export interface MailerPort {
   send(message: SentMessage): Promise<Result<void, string>>
@@ -1126,11 +1162,13 @@ feat(auth): add mailer port with a masking console adapter
 ## Task 9: Queue port and Postgres adapter
 
 **Files:**
+
 - Create: `apps/web/lib/ports/queue.ts`, `apps/web/lib/adapters/postgres-queue.ts`, `apps/web/lib/adapters/contract/queue-contract.ts`
 - Create: `apps/web/collections/jobs.ts`
 - Test: `apps/web/lib/adapters/postgres-queue.test.ts`
 
 **Interfaces:**
+
 - Produces:
 
 ```ts
@@ -1233,10 +1271,12 @@ Body: `FOR UPDATE SKIP LOCKED` gives single-claim semantics without a managed qu
 ## Task 10: Placeholder imagery
 
 **Files:**
+
 - Create: `apps/web/scripts/placeholder.ts`
 - Test: `apps/web/scripts/placeholder.test.ts`
 
 **Interfaces:**
+
 - Produces: `stripedPlaceholder(options: { label: string; tint: string; width: number; height: number }): string` — an SVG data-URI of 45° stripes with a centred monospace label.
 
 - [ ] **Step 1: Write the failing test**
@@ -1295,10 +1335,12 @@ feat(media): add striped placeholder generator for seed imagery
 ## Task 11: Seed data — 10 journeys, 33 pages
 
 **Files:**
+
 - Create: `apps/web/scripts/seed.ts`, `apps/web/scripts/seed-data.ts`
 - Test: `apps/web/scripts/seed.test.ts`
 
 **Interfaces:**
+
 - Consumes: collections from Task 6, `stripedPlaceholder` from Task 10, ids from Task 4.
 - Produces: `npm run db:seed`. Seeded content later relied on by Phase 1's rendering tests.
 
@@ -1336,7 +1378,8 @@ describe('seed', () => {
     await seed(payload)
 
     const lisbon = await payload.find({
-      collection: 'journeys', where: { slug: { equals: 'lisbon' } },
+      collection: 'journeys',
+      where: { slug: { equals: 'lisbon' } },
     })
     // The voice is deliberate and final. If this ever needs changing, the
     // handoff changed - not the seed.
@@ -1385,11 +1428,13 @@ Body: the seed is idempotent so it can be re-run during development, and the cop
 ## Task 12: Browser test harness
 
 **Files:**
+
 - Create: `playwright.config.ts`, `e2e/smoke.spec.ts`, `e2e/a11y.spec.ts`, `lighthouserc.json`
 - Modify: `package.json` (browser scripts), `.github/workflows/ci.yml`
 - Create: `docs/qa/.gitkeep`
 
 **Interfaces:**
+
 - Consumes: the running app from Tasks 5, 6, 11.
 - Produces: `npm run test:e2e`, `test:e2e:headed`, `test:visual`, `test:a11y`, `test:perf`. Viewport projects named `desktop` (1440×900), `mid` (1000×800), `mobile` (390×844) — the breakpoints from spec §8.2.
 
@@ -1402,7 +1447,9 @@ test('serves the diary without console errors', async ({ page }) => {
   const errors: string[] = []
   // Most defects in this design are silent - a swallowed click, a missing
   // derivative. A sweep that only looks at pixels misses them.
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(m.text())
+  })
   page.on('pageerror', (e) => errors.push(e.message))
 
   await page.goto('/')

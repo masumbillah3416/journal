@@ -5,5 +5,17 @@
     "module": "ESNext",
     "noEmit": true
   },
-  "include": ["**/*.ts", "../playwright.config.ts"]
+  "//include": "e2e/support/adminSession.ts imports this repository's own services (Payload, the session store, the OTP service) rather than duplicating what they store - see that file's header. TypeScript's project boundaries require every transitive file to be listed, so the app directories those imports reach are included here. Scoped to them rather than to all of apps/web: nothing under app/ is imported from a spec, and pulling it in would typecheck React routes under a config with no JSX settings.",
+  "include": [
+    "**/*.ts",
+    "../playwright.config.ts",
+    "../apps/web/lib/**/*.ts",
+    "../apps/web/collections/**/*.ts",
+    "../apps/web/globals/**/*.ts",
+    "../apps/web/migrations/**/*.ts",
+    "../apps/web/payload.config.ts",
+    "../apps/web/payload-types.ts",
+    "../apps/web/scripts/**/*.ts",
+    "../packages/*/src/**/*.ts"
+  ]
 }

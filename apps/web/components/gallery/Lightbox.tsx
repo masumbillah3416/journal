@@ -227,7 +227,14 @@ export const Lightbox = ({ journey, frames, openId, onOpen, onClose }: LightboxP
           Share
         </button>
 
-        <button type="button" className={styles.close} data-lightbox-close aria-label="Close" ref={closeRef} onClick={onClose}>
+        <button
+          type="button"
+          className={styles.close}
+          data-lightbox-close
+          aria-label="Close"
+          ref={closeRef}
+          onClick={onClose}
+        >
           <span aria-hidden="true">×</span>
         </button>
       </div>

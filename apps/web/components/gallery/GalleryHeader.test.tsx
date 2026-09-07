@@ -83,8 +83,9 @@ describe('GalleryHeader', () => {
   })
 
   it('prints the date range alone for a journey with no place recorded', () => {
-    expect(renderHeader({ photographs: 61, clips: 0 }, { place: '' }).querySelector('[data-gallery-meta]')?.textContent)
-      .toBe('4 - 13 Apr 2024')
+    expect(
+      renderHeader({ photographs: 61, clips: 0 }, { place: '' }).querySelector('[data-gallery-meta]')?.textContent,
+    ).toBe('4 - 13 Apr 2024')
   })
 
   it('counts the frames the gallery holds, as the prototype’s own header does', () => {

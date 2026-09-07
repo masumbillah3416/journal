@@ -73,6 +73,7 @@ export interface Config {
     users: User;
     otpChallenges: OtpChallenge;
     sessions: Session;
+    signInAttempts: SignInAttempt;
     jobs: Job;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -87,6 +88,7 @@ export interface Config {
     users: UsersSelect<false> | UsersSelect<true>;
     otpChallenges: OtpChallengesSelect<false> | OtpChallengesSelect<true>;
     sessions: SessionsSelect<false> | SessionsSelect<true>;
+    signInAttempts: SignInAttemptsSelect<false> | SignInAttemptsSelect<true>;
     jobs: JobsSelect<false> | JobsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -316,6 +318,7 @@ export interface OtpChallenge {
   id: number;
   user: number | User;
   codeHash: string;
+  sessionHash: string;
   expiresAt: string;
   attempts?: number | null;
   consumedAt?: string | null;
@@ -331,10 +334,24 @@ export interface Session {
   id: number;
   user: number | User;
   tokenHash: string;
+  expiresAt: string;
   device?: string | null;
   location?: string | null;
   lastSeenAt?: string | null;
   revokedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "signInAttempts".
+ */
+export interface SignInAttempt {
+  id: number;
+  dimension: 'ip' | 'account';
+  endpoint: 'password' | 'code';
+  subject: string;
+  attemptedAt: string;
   updatedAt: string;
   createdAt: string;
 }
@@ -399,6 +416,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'sessions';
         value: number | Session;
+      } | null)
+    | ({
+        relationTo: 'signInAttempts';
+        value: number | SignInAttempt;
       } | null)
     | ({
         relationTo: 'jobs';
@@ -634,6 +655,7 @@ export interface UsersSelect<T extends boolean = true> {
 export interface OtpChallengesSelect<T extends boolean = true> {
   user?: T;
   codeHash?: T;
+  sessionHash?: T;
   expiresAt?: T;
   attempts?: T;
   consumedAt?: T;
@@ -648,10 +670,23 @@ export interface OtpChallengesSelect<T extends boolean = true> {
 export interface SessionsSelect<T extends boolean = true> {
   user?: T;
   tokenHash?: T;
+  expiresAt?: T;
   device?: T;
   location?: T;
   lastSeenAt?: T;
   revokedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "signInAttempts_select".
+ */
+export interface SignInAttemptsSelect<T extends boolean = true> {
+  dimension?: T;
+  endpoint?: T;
+  subject?: T;
+  attemptedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

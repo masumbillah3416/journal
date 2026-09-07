@@ -61,7 +61,7 @@
  * THE PAGE-NOT-FOUND VIEW'S OWN AXE CASE IS IN `e2e/a11y.spec.ts`, not here,
  * beside the six diary pages' - that file is where "every route has one" can
  * be read off in a single list, and splitting it would be the beginning of
- * the drift `e2e/ciRegistration.spec.ts` exists to stop.
+ * the drift `e2e/ciRegistration.test.ts` exists to stop.
  * Depends on: @playwright/test, `WHOLE_BOOK_QUERY`
  * (@travel-diary/domain/contentWindow), `waitForLiveBook` (./support/liveBook),
  * the running app from

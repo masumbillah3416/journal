@@ -181,9 +181,5 @@ export type RouteQuery = Record<string, string | readonly string[] | undefined>
  * @example
  * servedContentWindow({}, 0, 33) // { from: 0, to: 3 }
  */
-export const servedContentWindow = (
-  query: RouteQuery,
-  addressedIndex: number,
-  totalPages: number,
-): ContentWindow =>
+export const servedContentWindow = (query: RouteQuery, addressedIndex: number, totalPages: number): ContentWindow =>
   query[WHOLE_BOOK_PARAM] === WHOLE_BOOK_VALUE ? wholeBook(totalPages) : contentWindow(addressedIndex, totalPages)

@@ -66,7 +66,9 @@ export const waitForLiveBook = async (page: Page): Promise<void> => {
 export const waitForWholeBook = async (page: Page): Promise<void> => {
   await page.waitForFunction(() => {
     const leaves = document.querySelectorAll('[data-leaf]').length
-    return leaves > 0 && document.querySelector('main')?.getAttribute('data-content-window') === `0-${String(leaves - 1)}`
+    return (
+      leaves > 0 && document.querySelector('main')?.getAttribute('data-content-window') === `0-${String(leaves - 1)}`
+    )
   })
 }
 

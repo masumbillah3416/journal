@@ -11,8 +11,8 @@ Three handoff documents disagree with each other on this point:
   `auth: { tokenExpiration: 60 * 60 * 24 * 7, maxLoginAttempts: 5, lockTime: 15 * 60 }`.
 - `handoff/design_handoff_travel_diary/SECURITY.md` credits **Payload's**
   `maxLoginAttempts` / `lockTime` for satisfying the account-lockout requirement on the
-  password step: *"Account lockout with a cooling-off period (Payload's
-  `maxLoginAttempts` / `lockTime` covers the password step)."*
+  password step: _"Account lockout with a cooling-off period (Payload's
+  `maxLoginAttempts` / `lockTime` covers the password step)."_
 
 Auth.js and Payload's built-in `users` auth are both complete session systems — cookie
 issuance, login attempt tracking, token expiry. Adopting the README's recommendation

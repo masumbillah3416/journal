@@ -13,12 +13,28 @@
 # `text=auto` normalises every text file to LF in the repository itself,
 # regardless of a contributor's own `core.autocrlf`, so the stored history is
 # stable and a build tool that writes LF (as Payload's codegen does) cannot
-# disagree with what git already has. Genuinely binary paths are marked
-# explicitly so they are never run through a text filter at all - `-linux.png`
-# is Playwright's visual-regression baseline set, and a filter-mangled byte in
-# one of those would fail the visual suite in a way that reads as a design
-# regression, not as a line-ending accident.
-* text=auto
+# disagree with what git already has.
+#
+# `eol=lf` settles the other half, and it was missing for seventy-eight
+# commits. `text=auto` alone says what the REPOSITORY stores; it says nothing
+# about what a checkout WRITES, so on a machine with `core.autocrlf=true` -
+# git's Windows default, and this project's own platform - a fresh clone
+# materialises every text file with CRLF. `prettier --check .` defaults to
+# `endOfLine: "lf"`, and `format:check` is a step of `npm run verify`, so
+# `git clone` followed by README.md's own setup block reported "Code style
+# issues found in 389 files" and exit 1. Measured on a clone with this
+# repository's own prettier binary, by the seventh whole-branch review.
+# CLAUDE.md §11 asks for a gate a developer can always pass honestly and
+# CLAUDE.md §1.2 asks for copy-pasteable setup; both were false on Windows
+# and true on the Linux CI runner, which is why seven rounds of gates on this
+# branch never saw it. `eol=lf` makes the working tree match the repository on
+# every platform, so the gate is the same gate everywhere it runs.
+#
+# Genuinely binary paths are marked explicitly so they are never run through a
+# text filter at all - `-linux.png` is Playwright's visual-regression baseline
+# set, and a filter-mangled byte in one of those would fail the visual suite in
+# a way that reads as a design regression, not as a line-ending accident.
+* text=auto eol=lf
 
 *.woff2 binary
 *.png binary

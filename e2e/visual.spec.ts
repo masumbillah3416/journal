@@ -72,8 +72,10 @@
  * runner — every file here is therefore `-linux.png`, and the fix for a
  * platform mismatch is to regenerate in the container, never to loosen
  * `playwright.config.ts`'s `maxDiffPixelRatio`. See
- * `.superpowers/sdd/2026-09-01-phase-1-public-diary/task-1-report.md` for the
- * container invocation.
+ * `docs/testing.md`'s Visual regression section for the container invocation
+ * and the `npm run test:visual:container` script that runs it - Phase 2 Task
+ * 7 wrote both down, because the command needed to satisfy a gate this
+ * repository enforces had until then existed only in a git-ignored report.
  *
  * The diary cases snapshot the FULL PAGE rather than the scaled design box,
  * because the design box is drawn with `transform: scale(k)` and what a reader
@@ -133,6 +135,64 @@
  * area's centre lands inside the book. Never regenerate a `diary-*` baseline
  * without that suite green in the same run.
  *
+ * TASK 8 ADDS ITS SECOND STATE, `admin-sign-in-code-*.png` - SCREENS.md
+ * §3.2's one-time-code step in the same shell. It is the one case in this file
+ * that fixes the browser's clock before navigating, because it is the one
+ * screen with a live countdown on it; see the case itself for why the fixed
+ * instant is in the past.
+ *
+ * PHASE 2 TASK 7 ADDS THE FIRST ADMIN SCREEN: `admin-sign-in-*.png`, the
+ * password step at all three projects. It is one case rather than two even
+ * though SCREENS.md §3 has two layouts, because the projects already ARE the
+ * two: `desktop` (1440) and `mid` (1000) are above the §3 breakpoint and
+ * photograph the cloth panel beside the form, and `mobile` (390) is below it
+ * and photographs the narrow masthead above a 470px shell. It does not use
+ * `settled()` - there is no scaled design box on this route - and it waits on
+ * the pane and `document.fonts.ready` only, since the screen carries no
+ * images at all.
+ *
+ * PHASE 2 TASK 9 ADDS THE LAST FOUR SIGN-IN STATES: `admin-reset-*.png`
+ * (SCREENS.md §3.3 pending), `admin-reset-sent-*.png` (§3.3 sent, with the
+ * masked address fixed in the query so the image cannot vary with the
+ * database), `admin-reset-expired-*.png` (the screen the mailed link lands on,
+ * drawn for a token that names nothing) and `admin-signed-in-*.png` (§3.4).
+ * Twelve images, three per case, for the same reason the password step's are:
+ * the three projects ARE §3's two layouts, `desktop` and `mid` above the
+ * breakpoint and `mobile` below it. None of them uses `settled()`.
+ *
+ * WHAT THESE FOUR DO NOT COVER, and it is written here because a baseline
+ * invites the assumption that it does: the geometry `SCREENS.md` states in
+ * numbers. At `maxDiffPixelRatio: 0.01` this suite was measured absorbing a
+ * 20px displacement of an entire pane (see docs/testing.md's Visual regression
+ * section), so §3.4's 62px circle, its 20px square and §3.3's 14px
+ * confirmation mark are asserted as numbers in `e2e/reset.spec.ts` instead.
+ * These images are what catches the drift those assertions do not name.
+ *
+ * ═══ THE `destination stream closed early` LINES THIS RUN PRINTS ARE BENIGN
+ * ═══
+ *
+ * A container run logs two to four of these, and they were asserted on by
+ * nothing and explained by nothing until Task 10's second fix round went and
+ * looked:
+ *
+ *     [WebServer] ⨯ Error: The destination stream closed early.
+ *
+ * It is REACT'S OWN, not this application's. `next-server`'s bundled Fizz
+ * renderer attaches `destination.on('close', …)` and raises exactly this string
+ * when the HTTP response stream closes before the render has finished — a
+ * client that went away mid-render.
+ *
+ * What makes "benign" a measurement rather than a hope: it appears only in the
+ * PARALLEL run. The container uses twelve workers with `fullyParallel: true`,
+ * where a worker finishing a test tears its context down while a navigation is
+ * still streaming; a single-worker local run of the same specs
+ * (`npm run test:e2e`, `workers: 1`) logs none at all. Nothing was mis-rendered
+ * for a reader who stayed, and no case fails at the same moment.
+ *
+ * WHAT WOULD MAKE IT A DEFECT, so nobody has to re-derive this: the same line
+ * appearing in a serial run, or appearing alongside a failing navigation. Both
+ * are visible in the same output this comment is about.
+ *
  * Baselines live in `e2e/visual.spec.ts-snapshots/` (one file per test per
  * project, auto-named by Playwright) and are committed — a snapshot with no
  * baseline to compare against protects nothing.
@@ -140,7 +200,30 @@
  * `webServer`, and the seeded diary (`npm run db:seed`).
  */
 import { expect, test, type Page } from '@playwright/test'
+import { aSignedInSession, fixtureLabel, removeSignedInFixture, SESSION_FIXTURE_DOMAIN } from './support/adminSession'
 import { drawsMobileReadingMode } from './support/surface'
+
+// OFF LINUX THIS FILE SKIPS, AND SAYING SO IS THE POINT.
+//
+// Every baseline here is `-linux.png`, generated in the pinned container for
+// the reason given at the top of this file. Playwright names the file it wants
+// after the host platform, so a Windows or macOS run asks for `-win32.png` or
+// `-darwin.png`, finds nothing, WRITES one, and every run after that compares
+// the host against itself and passes. That is not a hypothetical: 31 such
+// files were found untracked in this directory, and a full local suite
+// reported "394 passed" while these cases compared against baselines the host
+// had quietly minted for itself. The committed baselines - the ones CI gates
+// on - were never read.
+//
+// Skipping rather than failing is deliberate. On a Windows host there is no
+// correct baseline to compare against, so a failure would be noise a developer
+// learns to scroll past, and a pass is a lie. "Not run here, and here is how
+// to run it" is the only honest third option. `.gitignore` refuses the
+// host-platform files as well, so they cannot come back and be believed.
+test.skip(
+  process.platform !== 'linux',
+  'visual baselines are -linux.png, generated in mcr.microsoft.com/playwright:v1.62.1-noble — run this suite in that container (see the header) rather than on the host',
+)
 
 /**
  * Waits for a diary page to be drawn, scaled, fonted and decoded before it is
@@ -179,6 +262,76 @@ const settled = async (page: Page, selectors: { readonly book: string; readonly 
   })
 }
 
+/**
+ * Makes sure an account exists before anything in this file is screenshotted.
+ *
+ * ═══ `/cms` DRAWS A DIFFERENT SCREEN DEPENDING ON WHETHER ONE DOES ═══
+ *
+ * Payload's own admin shows "create first user" to an EMPTY database and a
+ * login form to one with any account in it. The `cms-admin*.png` baselines were
+ * taken against an empty one — and this file now creates an account for the
+ * signed-in screen's session, in whichever worker gets that test, so `/cms` was
+ * screenshotted in whichever state another worker happened to have left.
+ *
+ * Measured rather than reasoned: at 390x844, `/cms` is 1246px tall with no
+ * account and exactly 844 with one; at 1000x800 and 1440x900 it is the viewport
+ * height either way, which is why the failure only ever showed at `mobile` and
+ * why two of three container runs passed.
+ *
+ * SO THIS FILE GUARANTEES THE PRECONDITION IT BASELINES rather than inheriting
+ * it. An account always exists, `/cms` is always the login screen, and the
+ * three `cms-admin*.png` baselines were regenerated in that state. It is also
+ * the state that outlasts the fixtures: the moment this diary has its author
+ * account, every deployed instance shows the login screen too, so the previous
+ * baselines were a picture of a transient condition.
+ */
+test.beforeAll(async ({}, testInfo) => {
+  await aSignedInSession(`visual.${fixtureLabel(testInfo)}`)
+})
+
+test.afterAll(async ({}, testInfo) => {
+  // This project's own account, never the whole domain: the three viewports
+  // run in parallel and a sweeping delete takes another one's session away
+  // mid-run (see `SESSION_FIXTURE_DOMAIN`).
+  await removeSignedInFixture(`visual.${fixtureLabel(testInfo)}@${SESSION_FIXTURE_DOMAIN}`)
+})
+
+/**
+ * Waits until the document has stopped growing.
+ *
+ * ═══ WHY `networkidle` AND A VISIBLE FORM ARE NOT ENOUGH ═══
+ *
+ * Two of three container runs failed `/cms` at the mobile viewport with
+ * `Expected an image 390px by 1251px, received 390px by 844px` — 844 being the
+ * viewport height, so the page had not yet grown to its content. Payload's
+ * admin is a client application: the form becomes visible before its own
+ * layout has finished expanding the document, and `fullPage: true` measures
+ * the document.
+ *
+ * This polls the document's height until two consecutive reads agree, which
+ * waits for the thing that actually has to have happened rather than for a
+ * proxy (a network idle) or a magic number (a known height, which differs per
+ * viewport and would have to be updated with the baseline).
+ *
+ * @param page - The page to wait on.
+ * @returns Once the height has been the same twice in a row.
+ */
+const settledPageHeight = async (page: Page): Promise<void> => {
+  let previous = -1
+
+  await expect
+    .poll(
+      async () => {
+        const height = await page.evaluate(() => document.documentElement.scrollHeight)
+        const unchanged = height === previous
+        previous = height
+        return unchanged
+      },
+      { timeout: 10_000, intervals: [100, 100, 100, 200, 200, 400, 400] },
+    )
+    .toBe(true)
+}
+
 test('matches the baseline screenshot of /cms', async ({ page }) => {
   await page.goto('/cms', { waitUntil: 'networkidle' })
 
@@ -194,6 +347,11 @@ test('matches the baseline screenshot of /cms', async ({ page }) => {
   // still be up when `form` becomes visible; this is a flaky *false*
   // diff, not drift, so it is waited out rather than snapshotted.
   await expect(page.getByText(/Rendering/)).toBeHidden()
+
+  // And the document has to have finished growing, which a visible form does
+  // not imply — see `settledPageHeight` for the two-in-three-runs failure that
+  // says so.
+  await settledPageHeight(page)
 
   await expect(page).toHaveScreenshot('cms-admin.png', { fullPage: true })
 })
@@ -306,4 +464,107 @@ test('matches the baseline screenshot of the bookmark drawer over the mobile rea
   await expect(page.locator('[data-drawer]')).toBeVisible()
 
   await expect(page).toHaveScreenshot('diary-mobile-drawer.png')
+})
+
+test('matches the baseline screenshot of the one-time-code screen', async ({ page }) => {
+  // The clock is FIXED before navigation, and that is the whole reason this
+  // case is stable: SCREENS.md §3.2 puts two live countdowns on this screen -
+  // "It expires in {m:ss}" and "Send again in {n}s" - and without a fixed
+  // clock the baseline would photograph whichever second the run landed on.
+  // A time BEFORE the document was drawn is chosen deliberately: both windows
+  // then clamp to their whole length (`secondsRemaining`'s ceiling), so the
+  // image always reads "5:00" and "Send again in 30s" rather than a value that
+  // depends on how long the page took to load.
+  await page.clock.setFixedTime(new Date('2020-01-01T00:00:00Z'))
+
+  await page.goto('/admin/sign-in/code', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-code-cell]')).toHaveCount(6)
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-sign-in-code.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the reset request screen', async ({ page }) => {
+  // No `settled()`: there is no scaled design box on any of the admin routes,
+  // and no image anywhere on them. What has to be settled is the type - all
+  // three families are used here, and a screenshot taken before they load is a
+  // screenshot of the fallback stack.
+  await page.goto('/admin/reset', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-reset-step]')).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-reset.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the reset screen once the link is sent', async ({ page }) => {
+  // The masked address is FIXED in the query rather than produced by a
+  // request, so this image does not depend on which fixture the database
+  // happens to hold - the same reason the code screen fixes its clock.
+  await page.goto(`/admin/reset?sent=${encodeURIComponent('he•••@wanderings.travel')}`, { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-reset-sent]')).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-reset-sent.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the screen a spent link lands on', async ({ page }) => {
+  // A token that names nothing, so this is deterministic: the expired state is
+  // what any run of this suite gets, with no fixture to set up and none to
+  // clean away. The form state is not baselined - drawing it needs a live
+  // token, which only the integration suite can mint (e2e/reset.spec.ts's
+  // header), and its markup is the password step's, already baselined above.
+  await page.goto('/admin/reset/deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-new-password-step]')).toHaveAttribute('data-new-password-view', 'expired')
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-reset-expired.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the signed-in screen', async ({ page, context, baseURL }, testInfo) => {
+  // The screen is guarded (Phase 2 Task 10). The fixture account is written
+  // with `otp_required` left at its default, so the sign-in screen's own footer
+  // line — and therefore every `admin-sign-in-*` baseline — is unchanged by it.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`visual.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin/sign-in/done', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-signed-in-mark]')).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-signed-in.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the admin panel’s root', async ({ page, context, baseURL }, testInfo) => {
+  // The screen `/admin` draws, which had nothing mounted at it until Phase 2's
+  // final round (blocker B2). Guarded, so it needs a session first; the fixture
+  // account leaves `otp_required` at its default, so no `admin-sign-in-*`
+  // baseline is affected by it.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`visualpanel.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-admin-panel]')).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-panel.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the sign-in screen', async ({ page }) => {
+  // No `settled()`: there is no scaled design box on this route, and no image
+  // anywhere on the screen. What has to be settled is the type — all three
+  // families are used here, and a screenshot taken before they load is a
+  // screenshot of the fallback stack.
+  await page.goto('/admin/sign-in', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-password-step]')).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-sign-in.png', { fullPage: true })
 })

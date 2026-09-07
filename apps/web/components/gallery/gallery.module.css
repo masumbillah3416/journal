@@ -439,7 +439,7 @@
   line-height: 1.25;
 }
 
-/* SCREENS.md §1.9 states this line "at 45%". It is drawn at 58% instead, and
+/* HANDOFF-DEVIATION: SCREENS.md §1.9 states this line "at 45%". It is drawn at 58% instead, and
  * that is a measured accessibility correction rather than a liberty: cream at
  * 45% over the 95%-opaque scrim computes to #837d70 on #25221d, which axe
  * measures as 3.87:1 against a 4.5:1 requirement for 10px text - a real

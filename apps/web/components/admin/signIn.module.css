@@ -1,0 +1,1049 @@
+/**
+ * signIn.module.css — the sign-in screen's shell, cloth panel, narrow
+ * masthead and form panel. SCREENS.md §3, transcribed value for value.
+ *
+ * WHERE THE VALUES COME FROM. SCREENS.md §3 gives the shell's grid, radius,
+ * shadow, breakpoint maxima and both pane paddings, the field and button
+ * rules, and the error box. Everything it describes in prose rather than in
+ * numbers - the spine strip's gradient, the stitch lines' positions, the
+ * cloth column's padding, the ribbon's clip path, the stamp's perforation -
+ * is the handoff prototype's own
+ * (`handoff/design_handoff_travel_diary/Travel Diary Login.dc.html`), taken
+ * rather than invented, and named at the rule that uses it.
+ *
+ * NARROW IS A MEDIA QUERY, NOT A MEASUREMENT. The prototype decides `narrow`
+ * from `window.innerWidth` in JavaScript, re-measured on `resize` and by a
+ * `ResizeObserver`. That is a prototype's way of demonstrating a breakpoint
+ * in a fixed canvas; here it would mean the first paint is always the wide
+ * layout and a phone reflows to the narrow one after hydration - a layout
+ * shift on every load of a screen whose whole content is above the fold
+ * (CLAUDE.md §6, CLS <= 0.1). `@media (max-width: 819.98px)` gets it right on
+ * the first frame with no client JavaScript at all. `819.98px` rather than
+ * `819px` because SCREENS.md's boundary is "< 820px" and a viewport can be a
+ * fractional width.
+ *
+ * COLOURS ARE `--td-*` TOKENS WHEREVER THE TOKEN TABLE NAMES THE ROLE. Four
+ * groups are literals here, each for a stated reason:
+ *
+ *   1. The cloth's overlay stops and its cream text and rules
+ *      (`rgba(255,255,255,.035)`, `rgba(0,0,0,.03)`, `rgba(232,210,161,...)`,
+ *      `rgba(238,220,180,...)`, `rgba(240,225,192,.78)`) - the same set
+ *      `cover.module.css` lists for the same reason: the handoff gives these
+ *      only as alphas over the cloth and README's colour table names none of
+ *      them.
+ *   2. The hairline alphas the design uses on this screen - `.18` for the
+ *      shell's ring, `.22` for the two pane rules, `.32` for a field's inset
+ *      ring, `.4` for an unticked checkbox, `.5` for the footer mark when the
+ *      code step is off. `--td-hairline-border-min`/`-max` are `.14` and
+ *      `.34`; none of these five is either, and rounding a specified alpha to
+ *      the nearest token would be changing the design to fit the token table.
+ *   3. The error box's own family (`rgba(152,57,43,.07)`,
+ *      `rgba(152,57,43,.32)`, `#98392b`). SCREENS.md §3.1 states all three.
+ *      `#98392b` is close to `--td-accent-hover` (`#8c3327`) and is
+ *      deliberately not written as it: an error mark and a link's hover state
+ *      are different roles, and they are not the same value.
+ *   4. The stamp's own tones (`#f4ecd9`, `#fff`, `rgba(255,255,255,.25)`) and
+ *      the drop shadows. Printed furniture on a fictional stamp, unnamed by
+ *      the token table.
+ *
+ * The cloth colour arrives as `--sign-in-cloth`, set inline by
+ * `SignInShell.tsx` from the `book` global, because an editor chooses it.
+ * Depends on: packages/tokens/src/tokens.css, loaded by the admin layout.
+ */
+
+/* HANDOFF-DEVIATION (docs/deviations.md §32): ONE value is changed here, and
+ * only one - the alpha on the two Courier lines - to bring the cloth panel's
+ * text to WCAG AA. It is the same change, for the same reason,
+ * `cover.module.css` had to make to the years line (docs/deviations.md §12).
+ *
+ * The gradient's opaque end stop below is NOT a second deviation of this
+ * screen's: it is §12's, applied to the same "cover treatment" SCREENS.md §3
+ * refers this panel to, and its base value is §1.1's `.28` rather than the
+ * login prototype's `.3` - see the `.cloth, .masthead` rule for that
+ * distinction, which the first implementation of this file got wrong.
+ *
+ * WHY AXE CANNOT SETTLE THIS. The cloth is a gradient, so axe-core reports
+ * `color-contrast` as INCOMPLETE over it rather than as a pass or a violation
+ * - a green axe run on this route means axe declined to judge, not that the
+ * ratios are sound. They are measured directly instead, from the rendered
+ * pixels, by `e2e/a11y.spec.ts`'s two sign-in contrast cases, which reuse
+ * `e2e/support/coverContrast.ts`: each line is hidden with `visibility:
+ * hidden` so its box still shows the cloth it sat on, the LIGHTEST pixel
+ * under it is taken as its background (the worst case, since the 45deg
+ * texture makes the background a range), and the line's translucent cream is
+ * flattened onto it with `packages/domain/src/contrast.ts`.
+ *
+ *   Cloth panel line      Size    Before   After    Needs
+ *   --------------------  ------  -------  -------  -----
+ *   Travel Diary          10.5px  4.429    4.865    4.5
+ *   Wanderings            75px    7.877    7.877    3      (large text)
+ *   subtitle              17px    5.269    5.269    4.5
+ *   The back room         10.5px  4.640    5.102    4.5
+ *
+ * "Before" is the FULLY undeviated screen - SCREENS.md §1.1's own `.28` end
+ * stop, left translucent, with the prototype's `.72` alpha on the two Courier
+ * lines. Only the eyebrow was below its floor, and only narrowly. The title
+ * and subtitle do not move at all, because neither change touches them; "The
+ * back room" moves because it shares the eyebrow's rule. Figures are the
+ * `desktop` project's; `mid` measures the same lines within 0.003.
+ *
+ * THE ONE CHANGE, at the rule it affects:
+ *   `.clothEyebrow`/`.clothBackRoom`'s alpha rises from `.72` to `.78`.
+ * No new colour is introduced, and every other value on this screen is still
+ * the handoff's own. The gradient's opacity is NOT a deviation from
+ * SCREENS.md - see `.cloth, .masthead` below for what it is instead. */
+
+.stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* SCREENS.md §3: "Centred on the desk background, padding: 24px, page
+   * scrolls if short." `min-height: 100vh` with the document's own scroll is
+   * what "scrolls if short" means in a real document; the prototype's
+   * `position: fixed; inset: 0; overflow-y: auto` is how a fixed demo canvas
+   * says the same thing, and would trap the admin's scroll in a nested box. */
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(120% 90% at 0% 0%, var(--td-desk-highlight), rgba(248, 242, 226, 0) 60%),
+    linear-gradient(180deg, var(--td-desk-from), var(--td-desk-to));
+}
+
+/* "Shell — grid, 4px radius, overflow: hidden, 0 34px 70px -34px
+ * rgba(48,38,24,.55) plus a 1px ring. Wide: minmax(0,1fr) minmax(0,1fr),
+ * max 1020px, min-height: 592px." */
+.shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  width: 100%;
+  max-width: 1020px;
+  min-height: 592px;
+  overflow: hidden;
+  border-radius: 4px;
+  box-shadow:
+    0 34px 70px -34px rgba(48, 38, 24, 0.55),
+    0 0 0 1px rgba(120, 98, 60, 0.18);
+}
+
+/* The cloth gradient both blocks share.
+ *
+ * TWO THINGS ABOUT THIS ONE LINE, and only the second is a deviation.
+ *
+ * THE BASE VALUE IS `72%`, WHICH IS SCREENS.md §1.1's `rgba(0,0,0,.28)`, NOT
+ * the login prototype's `rgba(0,0,0,.3)`. SCREENS.md §3 describes this panel
+ * as "the cover treatment", and §1.1 is where that treatment is specified -
+ * so the binding value arrives by cross-reference from the spec, not from
+ * `Travel Diary Login.dc.html`, whose `.3` is an inconsistency between two of
+ * the handoff's own artefacts. `cover.module.css` uses the same `72%` for the
+ * same colour, so the two cloth surfaces in this product are now literally
+ * one treatment rather than two that look alike. This is a correction of the
+ * first implementation, which took the login prototype's `.3` and did not say
+ * that it differed (review round 1, finding 1); measured, the difference is
+ * worth 0.06 of a contrast ratio and no line's verdict.
+ *
+ * THE OPACITY IS THE DEVIATION, and it is `cover.module.css`'s (deviations
+ * §12), not one of this screen's own: the end stop is the OPAQUE form of
+ * §1.1's `rgba(0,0,0,.28)` - the colour that overlay resolves to ON the cloth
+ * - rather than the translucent value itself. The translucent one interpolates
+ * from an opaque colour to a 28%-opaque black, so the cloth's own alpha falls
+ * to about 0.72 by mid-block and the desk behind the shell shows through,
+ * lifting the background exactly where the small Courier lines sit.
+ * `color-mix` rather than a literal, so it still follows whichever cloth an
+ * editor picks. */
+.cloth,
+.masthead {
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.035) 0 2px, rgba(0, 0, 0, 0.03) 2px 4px),
+    linear-gradient(160deg, var(--sign-in-cloth) 0%, color-mix(in srgb, var(--sign-in-cloth) 72%, #000) 130%);
+}
+
+/* "Cloth panel (wide only, display: none below the breakpoint)". */
+.cloth {
+  position: relative;
+  display: block;
+  min-height: 592px;
+  box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.35);
+}
+
+/* "a 26px spine strip with two dashed stitch lines". */
+.spine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 26px;
+  background: linear-gradient(90deg, var(--td-spine-from), var(--td-spine-via) 48%, var(--td-spine-to));
+  box-shadow: inset -3px 0 8px rgba(0, 0, 0, 0.4);
+}
+
+.stitchOuter,
+.stitchInner {
+  position: absolute;
+  top: 26px;
+  bottom: 26px;
+  border-left: 1px dashed var(--td-spine-stitch);
+}
+
+.stitchOuter {
+  left: 7px;
+}
+
+.stitchInner {
+  left: 19px;
+}
+
+/* "inset 26px 26px 26px 50px and inset 33px 33px 33px 57px rules". */
+.clothRuleOuter,
+.clothRuleInner {
+  position: absolute;
+  pointer-events: none;
+}
+
+.clothRuleOuter {
+  inset: 26px 26px 26px 50px;
+  border: 1px solid rgba(232, 210, 161, 0.4);
+}
+
+.clothRuleInner {
+  inset: 33px 33px 33px 57px;
+  border: 2.5px solid rgba(232, 210, 161, 0.2);
+}
+
+/* "a centred column (eyebrow, rule, fitted title, subtitle, rule, 'The back
+ * room')". The padding, gap and rule widths are the prototype's. */
+.clothColumn {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 56px 52px 56px 76px;
+  text-align: center;
+}
+
+/* HANDOFF-DEVIATION (docs/deviations.md §32): the alpha is `.78`, not the
+ * prototype's `.72`. At `.72` the eyebrow measured 4.429:1 against the
+ * LIGHTEST pixel under it (`#334c49`) - below AA's 4.5:1 for text this size,
+ * and the only one of the panel's four lines that was. `.78` is the alpha
+ * `.clothSubtitle` already uses, so no new colour is introduced. See this
+ * file's header for why axe cannot judge these lines and
+ * `e2e/a11y.spec.ts` for where they are measured. */
+.clothEyebrow,
+.clothBackRoom {
+  margin: 0;
+  font-family: var(--td-font-courier);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  color: rgba(238, 220, 180, 0.78);
+}
+
+.clothEyebrow {
+  letter-spacing: var(--td-letter-spacing-max);
+}
+
+.clothBackRoom {
+  letter-spacing: 0.3em;
+}
+
+.clothRuleAboveTitle,
+.clothRuleBelowSubtitle {
+  flex: none;
+  width: 52px;
+  height: 1px;
+  background: rgba(232, 210, 161, 0.5);
+}
+
+.clothRuleAboveTitle {
+  margin: 16px 0 6px;
+}
+
+.clothRuleBelowSubtitle {
+  margin: 20px 0 12px;
+}
+
+/* The SIZE is set inline by SignInShell.tsx from `fitSignInTitleSize`,
+ * because it depends on the editor's own title; everything else is here. */
+.clothTitle {
+  margin: 0;
+  font-family: var(--td-font-caveat);
+  font-weight: 400;
+  line-height: 1.16;
+  color: var(--td-cream);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.22);
+}
+
+.clothSubtitle {
+  max-width: 280px;
+  margin: 10px 0 0;
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 17px;
+  line-height: 1.4;
+  color: rgba(240, 225, 192, 0.78);
+}
+
+/* "a ribbon at top: -6px; right: 64px". */
+.ribbon {
+  position: absolute;
+  top: -6px;
+  right: 64px;
+  width: 20px;
+  height: 30%;
+  background: linear-gradient(90deg, var(--td-ribbon-from), var(--td-ribbon-via) 45%, var(--td-ribbon-to));
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+  filter: drop-shadow(0 6px 8px rgba(40, 20, 12, 0.35));
+}
+
+/* "a 'PRIVATE / 01' stamp at bottom: 34px; right: 32px". The 7.5px perforated
+ * mount and the 66x80px face are the prototype's. */
+.stampMount {
+  position: absolute;
+  right: 32px;
+  bottom: 34px;
+  padding: 4px;
+  background:
+    radial-gradient(circle 3px at 50% 50%, var(--td-paper) 92%, rgba(251, 246, 233, 0) 95%) 0 0 / 7.5px 7.5px,
+    var(--td-paper);
+  transform: rotate(4deg);
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.35));
+}
+
+.stampFace {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 66px;
+  height: 80px;
+  padding: 7px 5px;
+  background: linear-gradient(170deg, var(--td-journey-accent-1), rgba(0, 0, 0, 0.25));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+.stampTop {
+  font-family: var(--td-font-courier);
+  font-size: 6.5px;
+  letter-spacing: var(--td-letter-spacing-min);
+  color: #f4ecd9;
+}
+
+.stampNumber {
+  font-family: var(--td-font-courier);
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* "Narrow masthead (below the breakpoint) — the cloth gradient, 22px 20px
+ * 20px, centred: eyebrow, fitted title (28-44px), 'The back room'." Hidden
+ * above the breakpoint, where the cloth panel says the same thing. */
+.masthead {
+  position: relative;
+  display: none;
+  padding: 22px 20px 20px;
+  text-align: center;
+  box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.3);
+}
+
+.mastheadEyebrow,
+.mastheadBackRoom {
+  margin: 0;
+  font-family: var(--td-font-courier);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.mastheadEyebrow {
+  letter-spacing: 0.34em;
+  color: rgba(238, 220, 180, 0.75);
+}
+
+/* `.7` is the prototype's, kept: measured at 4.562:1 over the masthead's own
+ * background, which clears AA's 4.5:1 - but by the narrowest margin on this
+ * screen. Any change to this alpha, to the gradient above, or to the
+ * masthead's inset shadow has to be RE-MEASURED (`e2e/a11y.spec.ts`'s
+ * masthead case) rather than reasoned about. */
+.mastheadBackRoom {
+  margin-top: 4px;
+  letter-spacing: 0.26em;
+  color: rgba(238, 220, 180, 0.7);
+}
+
+.mastheadTitle {
+  margin: 2px 0 0;
+  font-family: var(--td-font-caveat);
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--td-cream);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.22);
+}
+
+/* "Form panel — #fffdf6, vertically centred." */
+.formPanel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  background: var(--td-paper-mount);
+}
+
+/* "Pane padding 40px 42px 38px wide, 26px 20px 24px narrow." */
+.pane {
+  width: 100%;
+  min-width: 0;
+  padding: 40px 42px 38px;
+}
+
+/* ══ The password step (SCREENS.md §3.1) ══ */
+
+/* The step is a real `<form>` rather than a `<div>` (see PasswordStep.tsx's
+ * header), and a form's own default margin is not part of the design. */
+.paneForm {
+  margin: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+/* "'Welcome back' (Caveat 52px)". */
+.title {
+  margin: 1px 0 0;
+  font-family: var(--td-font-caveat);
+  font-size: 52px;
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--td-ink);
+}
+
+.lede {
+  margin: 4px 0 0;
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 16.5px;
+  line-height: 1.45;
+  color: var(--td-ink-muted);
+  text-wrap: pretty;
+}
+
+/* Both pane rules are the same hairline; only their margins differ - `22px 0
+ * 20px` above the fields, `22px 0 16px` above the footer line. */
+.rule {
+  height: 1px;
+  border: 0;
+  background: rgba(120, 98, 60, 0.22);
+}
+
+.ruleAboveFields {
+  margin: 22px 0 20px;
+}
+
+.ruleAboveFooter {
+  margin: 22px 0 16px;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.label {
+  display: block;
+  margin-bottom: 5px;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+.labelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.labelRow .label {
+  margin-bottom: 0;
+}
+
+.labelRowSpacer {
+  margin-bottom: 5px;
+}
+
+/* "Fields: #fffdf6, inset 0 0 0 1px rgba(120,98,60,.32), padding 11px 13px,
+ * Garamond 17px." */
+.field {
+  width: 100%;
+  padding: 11px 13px;
+  border: none;
+  border-radius: var(--td-radius-control);
+  background: var(--td-paper-mount);
+  box-shadow: inset 0 0 0 1px rgba(120, 98, 60, 0.32);
+  font-family: var(--td-font-garamond);
+  font-size: 17px;
+  color: var(--td-ink);
+}
+
+.passwordWrap {
+  position: relative;
+}
+
+/* "Password with a right-inset Show/Hide". The 72px of right padding is what
+ * keeps the value from running under the toggle. */
+.passwordField {
+  padding-right: 72px;
+}
+
+.reveal {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  transform: translateY(-50%);
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: var(--td-letter-spacing-min);
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+}
+
+.reveal:hover {
+  color: var(--td-ink-body);
+}
+
+.forgotten {
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: var(--td-letter-spacing-min);
+  text-transform: uppercase;
+  color: var(--td-accent);
+}
+
+.forgotten:hover {
+  color: var(--td-accent-hover);
+}
+
+/* "an error box when needed (rgba(152,57,43,.07) with a ring, an 8px rotated
+ * #98392b square, Garamond 15.5px #8c3327)". */
+.error {
+  display: flex;
+  gap: 10px;
+  padding: 11px 13px;
+  border-radius: var(--td-radius-control);
+  background: rgba(152, 57, 43, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(152, 57, 43, 0.32);
+}
+
+.errorMark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  background: #98392b;
+  transform: rotate(45deg);
+}
+
+.errorText {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--td-font-garamond);
+  font-size: 15.5px;
+  line-height: 1.4;
+  color: var(--td-accent-hover);
+  text-wrap: pretty;
+}
+
+/* "a remember-me checkbox". A real `input[type=checkbox]`, restyled - see
+ * PasswordStep.tsx's header for why it is not the prototype's button. */
+.remember {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-family: var(--td-font-garamond);
+  font-size: 16px;
+  color: var(--td-ink-body);
+  cursor: pointer;
+}
+
+.rememberBox {
+  flex: none;
+  width: 21px;
+  height: 21px;
+  margin: 0;
+  border: none;
+  border-radius: var(--td-radius-control);
+  background: var(--td-paper-mount);
+  box-shadow: inset 0 0 0 1px rgba(120, 98, 60, 0.4);
+  appearance: none;
+  cursor: pointer;
+}
+
+.rememberBox:checked {
+  background: var(--td-accent);
+  box-shadow: inset 0 0 0 1px var(--td-accent);
+}
+
+/* The tick the prototype prints inside the ticked box. Drawn as a border
+ * rather than as a glyph so it is the same shape in every font stack. */
+.rememberBox:checked::after {
+  display: block;
+  width: 5px;
+  height: 10px;
+  margin: 2px auto 0;
+  border: solid var(--td-cream-alt);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+  content: '';
+}
+
+/* "Primary button full width, 13px padding, Courier 11.5px .2em." */
+.submit {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 13px;
+  border: 1.5px solid var(--td-accent);
+  border-radius: var(--td-radius-control);
+  background: var(--td-accent);
+  font-family: var(--td-font-courier);
+  font-size: 11.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--td-cream-alt);
+  cursor: pointer;
+}
+
+.submit:hover {
+  border-color: var(--td-accent-hover);
+  background: var(--td-accent-hover);
+}
+
+/* "a footer line with a 9px mark stating whether the code step is on". */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 0;
+}
+
+.footerMark {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  transform: rotate(45deg);
+}
+
+.footerMarkOn {
+  background: var(--td-accent);
+}
+
+.footerMarkOff {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(120, 98, 60, 0.5);
+}
+
+.footerText {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 15.5px;
+  line-height: 1.4;
+  color: var(--td-ink-muted);
+  text-wrap: pretty;
+}
+
+/* ══ The one-time-code step (SCREENS.md §3.2) ══ */
+
+/* "← Back to password" (§3.2) and "← Back to sign in" (§3.3). A real link
+ * rather than the prototype's `<button>`: it goes to another address, which is
+ * what an anchor is for, and it works with no JavaScript. Every value below is
+ * the prototype's own, and both panes' versions of it are the same control, so
+ * this class is named for what it is rather than for the first pane to use it. */
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+.backLink:hover {
+  color: var(--td-accent);
+}
+
+/* Caveat 50px - two pixels smaller than §3.1's "Welcome back", which is why
+ * it is a modifier on `.title` rather than a second copy of it. Declared AFTER
+ * `.title`, so at equal specificity this font size is the one that lands.
+ *
+ * THREE OF THE FOUR STATES USE IT, which is why it is not named after any one
+ * of them: "Check your email" (§3.2), both reset titles (§3.3) and "The back
+ * room is open" (§3.4) are all 50px. Only §3.1's is 52px. */
+.titleCompact {
+  font-size: 50px;
+}
+
+/* "with the address in upright ink" - the one span in the lede that is not
+ * italic, and a step darker than the line around it. */
+.ledeAddress {
+  font-style: normal;
+  color: var(--td-ink-body);
+}
+
+/* "'The code' eyebrow". The same Courier label §3.1's fields carry, with the
+ * prototype's own 8px below it rather than a field label's 5px.
+ *
+ * The whole `margin`, not just `margin-bottom`: this label is a `<p>` (it
+ * names a GROUP of six inputs, which is not something a `<label>` can do), and
+ * a paragraph's own `1em 0` default puts 9.5px above it that the prototype's
+ * `<div>` does not have. `.label` sets only `margin-bottom`, because on the
+ * password step it is applied to a `<label>`, which has no default margin to
+ * override.
+ *
+ * MEASURED, THAT 9.5px CURRENTLY MOVES NOTHING, and saying so is the point of
+ * this note. It collapses through the zero-height top edge of the `<form>`
+ * this label opens and then with the rule's own 20px `margin-bottom`, so the
+ * rendered gap is 20px with or without this rule and every box below sits at
+ * the same y. This is therefore a rule that removes a margin the design never
+ * asked for, not a rendering fix - a collapse is what is holding the layout,
+ * and a border or padding on that form, or a rule margin under 9.5px, ends
+ * the collapse and starts the drift. `e2e/codeStep.spec.ts` pins the gap at
+ * 20px and this margin at 0. */
+.labelAboveCells {
+  margin: 0 0 8px;
+}
+
+/* "six cells (flex, gap 9px, ...)". */
+.cells {
+  display: flex;
+  gap: 9px;
+}
+
+/* "... each flex: 1, centred Courier 25px, 13px 0 padding, a 1.5px terracotta
+ * ring when filled else 1px muted".
+ *
+ * `min-width: 0` is the prototype's own, kept, and it is DEFENSIVE rather
+ * than load-bearing here - said plainly because it was measured rather than
+ * assumed. It overrides a flex item's automatic minimum size, which is what
+ * would otherwise floor each cell at the input's intrinsic width and make the
+ * row overflow the pane rather than share it; removing it and re-running
+ * `e2e/codeStep.spec.ts`'s overflow case at 390px changed nothing, because
+ * this engine already lets a form control shrink below its intrinsic width.
+ * What DOES decide how wide a cell is at 390px is the narrow pane padding
+ * below, and that has a case of its own which fails when it is wrong. */
+.cell {
+  flex: 1;
+  min-width: 0;
+  padding: 13px 0;
+  border: none;
+  border-radius: var(--td-radius-control);
+  background: var(--td-paper-mount);
+  box-shadow: inset 0 0 0 1px var(--td-hairline-border-max);
+  font-family: var(--td-font-courier);
+  font-size: 25px;
+  text-align: center;
+  color: var(--td-ink);
+}
+
+.cellFilled {
+  box-shadow: inset 0 0 0 1.5px var(--td-accent);
+}
+
+/* The prototype's `btn(true, { marginTop: '18px' })`, against `.submit`'s own
+ * 6px on the password step. Used by "Verify and sign in" (§3.2), "Send the
+ * link" and "Sign in with the new password" (§3.3). */
+.submitSpaced {
+  margin-top: 18px;
+}
+
+/* "then a resend button ... opposite an attempts counter". `margin-left: auto`
+ * on the counter rather than the prototype's empty spacer `<div>`: the same
+ * layout with one fewer element that says nothing. */
+.resendRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* The resend is its own `<form>` (see CodeStep.tsx's header), and a form's
+ * default margin is not part of the design. */
+.resendForm {
+  margin: 0;
+}
+
+.resend {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--td-accent);
+  cursor: pointer;
+}
+
+/* "inert during cooldown" - a real `disabled`, so it is inert to a pointer, to
+ * the keyboard and to a screen reader alike, rather than only looking it. */
+.resend:disabled {
+  color: var(--td-ink-muted);
+  cursor: default;
+}
+
+.attempts {
+  margin: 0 0 0 auto;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+/* ══ The reset request (SCREENS.md §3.3) ══ */
+
+/* "The link works once and lasts an hour. Nothing about the diary changes
+ * until you use it." The prototype's own line, at its own values - Garamond
+ * italic 15px rather than the lede's 16.5px, 14px below the button. */
+.resetNote {
+  margin: 14px 0 0;
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--td-ink-muted);
+  text-wrap: pretty;
+}
+
+/* "a green confirmation block (rgba(47,107,104,.07)), the 14px rotated mark,
+ * the masked address".
+ *
+ * THE GREEN IS A LITERAL, and deliberately not `--td-status-published`, which
+ * happens to be the same `#2f6b68`. A confirmation that a link is on its way
+ * and a journey's published state are different roles, and this file already
+ * makes exactly that call for `#98392b` against `--td-accent-hover` (see the
+ * header). `#2f5a4a`, the sentence's own ink, is named by no token at all. */
+.confirmation {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 15px 16px;
+  border-radius: var(--td-radius-control);
+  background: rgba(47, 107, 104, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(47, 107, 104, 0.32);
+}
+
+.confirmationMark {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background: #2f6b68;
+  transform: rotate(45deg);
+}
+
+.confirmationText {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--td-font-garamond);
+  font-size: 16px;
+  line-height: 1.4;
+  color: #2f5a4a;
+  text-wrap: pretty;
+}
+
+/* The prototype's `btn(false, ...)`: the same button, hollow. Its border and
+ * ink are `#4a4232`, which IS `--td-ink-body`'s role here - the secondary
+ * action is drawn in body ink, where the error mark above is not a link
+ * hover. The 10px is `btn(false, { marginTop: '10px' })`, the same on both
+ * screens that use it ("Send it again", "View the diary instead"). */
+.secondary {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 13px;
+  border: 1.5px solid var(--td-ink-body);
+  border-radius: var(--td-radius-control);
+  background: transparent;
+  font-family: var(--td-font-courier);
+  font-size: 11.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--td-ink-body);
+  cursor: pointer;
+}
+
+.secondary:hover {
+  border-color: var(--td-ink);
+  color: var(--td-ink);
+}
+
+/* The prototype's `textDecoration: 'none'` on the two actions that are links
+ * rather than buttons. A modifier rather than a rule on `.submit`, because
+ * `<button>` has no underline to remove and the two controls are otherwise
+ * identical. */
+.buttonLink {
+  text-decoration: none;
+}
+
+/* ══ The signed-in state (SCREENS.md §3.4) ══ */
+
+/* "a 62px ringed circle holding a 20px #2f6b68 square". The ring is an inset
+ * shadow rather than a border, so the 62px is the drawn diameter rather than
+ * 62px plus three pixels of border. */
+.signedInMark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 62px;
+  margin-bottom: 18px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px rgba(47, 107, 104, 0.5);
+}
+
+.signedInMarkInner {
+  width: 20px;
+  height: 20px;
+  background: #2f6b68;
+  transform: rotate(45deg);
+}
+
+/* The prototype's `btn(true, { marginTop: '26px' })` on "Open the admin
+ * panel", against `.submit`'s own 6px. */
+.actionFirst {
+  margin-top: 26px;
+}
+
+/* The `<form>` "Sign out and start again" posts through, at zero margin for
+ * the reason `.resendForm` gives. */
+.signOutForm {
+  margin: 0;
+}
+
+/* "a borderless 'Sign out and start again'" - the prototype's own values, and
+ * the same Courier the back link is drawn in. */
+.signOut {
+  margin-top: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+}
+
+.signOut:hover {
+  color: var(--td-accent);
+}
+
+/* "shake the shell - omShake 420ms ease, translating -6/+5/-3/+2px at
+ * 20/40/60/80%", transcribed from the prototype's own keyframes.
+ *
+ * ONLY `transform` IS ANIMATED (CLAUDE.md §6): the shell is composited and
+ * nothing about the shake touches a layout property.
+ *
+ * WHY `:has()`. SCREENS.md shakes THE SHELL, and the shell is a server
+ * component that holds no state (`SignInShell.tsx`); the pane inside it is
+ * where the wrong code is known. So the pane raises the flag and the shell
+ * reacts to it, which keeps the frame free of client JavaScript and keeps this
+ * animation somewhere the reduced-motion query below can reach. The
+ * alternative - the pane reaching up the DOM to set a class on an ancestor it
+ * does not own - is the imperative version of the same thing, and untestable
+ * without a browser. */
+@keyframes omShake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(-6px);
+  }
+
+  40% {
+    transform: translateX(5px);
+  }
+
+  60% {
+    transform: translateX(-3px);
+  }
+
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+.shell:has([data-code-step-shaking='true']) {
+  animation: omShake 420ms ease;
+}
+
+/* The handoff does not mention `prefers-reduced-motion` (docs/deviations.md
+ * §3 makes the same addition to the page flip, for the same reason). A shake
+ * is pure decoration - the error box says everything the movement does - so a
+ * reader who has asked for less motion gets the message and none of the
+ * movement. Asserted in a real browser by `e2e/codeStep.spec.ts`, which reads
+ * `animation-name` back under both settings: a test that only checked the flag
+ * was raised would say nothing at all about this query. */
+@media (prefers-reduced-motion: reduce) {
+  .shell:has([data-code-step-shaking='true']) {
+    animation: none;
+  }
+}
+
+/* The prototype's own focus ring, widened from its `input:focus` to every
+ * control on the pane: a keyboard reader has to be able to see where they
+ * are on the toggle, the checkbox, the link and the button too, and
+ * `:focus-visible` keeps it off a pointer click. */
+.pane :focus-visible {
+  outline: 2px solid rgba(163, 68, 52, 0.45);
+  outline-offset: 1px;
+}
+
+/* SCREENS.md §3: "Narrow (< 820px): single minmax(0,1fr), max 470px,
+ * min-height: 0" - the cloth panel gone, the masthead in its place. The
+ * pane's own narrow padding is REQUIRED rather than preferred: §3 records
+ * that at `40px 42px` in a 342px shell the OTP cells collapse to 7px. */
+@media (max-width: 819.98px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 470px;
+    min-height: 0;
+  }
+
+  .cloth {
+    display: none;
+  }
+
+  .masthead {
+    display: block;
+  }
+
+  .pane {
+    padding: 26px 20px 24px;
+  }
+}

@@ -82,38 +82,185 @@ it onto the media row rather than onto a `pages` slot for the same reason.
 ### `users`
 
 One row in practice. `auth: { tokenExpiration: 60 * 60 * 24 * 7, maxLoginAttempts: 5,
-lockTime: 15 * 60 }` — see `docs/adr/0002-auth-mechanism.md` for why this, and not
-Auth.js, is the credential store. Fields: `displayName` (printed on the cover),
+lockTime: 15 * 60_000 }` — see `docs/adr/0002-auth-mechanism.md` for why this, and not
+Auth.js, is the credential store. **The two durations are in different units**, which is
+Payload's API rather than a typo: `tokenExpiration` is seconds (its default is `7200`,
+two hours) and `lockTime` is milliseconds (its default is `600000`, ten minutes). This
+line read `lockTime: 15 * 60` from Phase 0 until Phase 2 Task 4, which asked for a
+cooling-off period of 900 milliseconds and got one; nothing behavioural distinguished it,
+since the account still locked and wrong passwords were still refused. Found and fixed
+when `apps/web/collections/users.lockout.integration.test.ts` first asserted the lock's
+DURATION rather than its existence (`docs/adr/0016-rate-limit-window-storage.md`). Fields: `displayName` (printed on the cover),
 `signoffDefault`, `timeZone`, `otpRequired` (checkbox, default `true` — **the only**
 source of truth for whether the OTP step runs; the prototype's `localStorage` flag is
 deleted, not moved, per `SECURITY.md`), `notifyOnPublish`, `notifyWeekly`.
 
 ### `otpChallenges`
 
-`access: { read: () => false, create: () => false, update: () => false }` — server-only,
-by design; nothing about the OTP flow is reachable from the Payload REST/GraphQL API a
-client could call directly. Fields: `user` (relationship, indexed), `codeHash` (hashed,
-never plaintext), `expiresAt` (now + 5 minutes), `attempts` (default 0), `consumedAt`,
+`access: { read: () => false, create: () => false, update: () => false, delete: () => false }`
+— server-only by design; nothing about the OTP flow is reachable from the Payload
+REST/GraphQL API a client could call directly. **The `delete` predicate is this
+repository's addition and it is printed here deliberately:** `DATA_MODEL.md` omits it,
+Payload applies its signed-in-or-refused default to whatever an access block leaves out,
+and deletion therefore fell through to any authenticated caller. This file describes that
+correction in full below, under the paragraph beginning "The `delete` predicate" — and
+then printed the three-predicate form here anyway, for the rest of the phase (Phase 2's
+final review, finding 29). Fields: `user` (relationship, indexed), `codeHash` (scrypt
+with a per-row salt, never plaintext), `sessionHash` (indexed — SHA-256 of the pre-auth
+session identifier), `expiresAt` (now + 5 minutes), `attempts` (default 0), `consumedAt`,
 `ip`.
+
+`sessionHash` is **not** in `DATA_MODEL.md`'s field list. It is the deviation recorded as
+`docs/deviations.md` §25: `SECURITY.md` requires the challenge to be bound to the session
+that started it and the handoff's own field list has nowhere to put one, so the column was
+added by migration `20260905_202028_add_otp_session_hash`. Why the two hashed columns use
+two different algorithms — a slow salted hash for the code, a fast indexable one for the
+lookup key — is `docs/adr/0015-otp-challenge-hashing.md`.
+
+`expiresAt` is **written, and read by nothing.** (This sentence said "written and read by
+nothing", which its own next clause contradicts — the column IS written, on every
+challenge.) It is `createdAt + EXPIRY_MS` because the handoff's field list declares the
+column; whether a challenge is still usable is derived
+from `createdAt` and the domain's `EXPIRY_MS` (`packages/domain/src/auth/otpChallenge.ts`),
+never read back off this column. Two sources of truth for one fact would make `EXPIRY_MS`
+decorative and would let a bad write to `expiresAt` silently extend a challenge's life.
+The behaviour lives in `apps/web/lib/auth/otpService.ts`.
+
+This paragraph used to call the column "a purge index, not an authorization input", and
+described the purge as one indexed `DELETE WHERE expires_at < now()`. **No such query
+existed** and the column carries no index — blocker B4 of Phase 2's final review,
+correcting ruling F14. The purge exists now and keys on `created_at`: a bounded cross-key
+sweep in `issueChallenge`, because a challenge is unusable after five minutes but is still
+counted by the hourly resend ceiling for an hour, so a purge on `expires_at` would delete
+rows that ceiling still needs. The retention policy and its one number are
+`packages/domain/src/auth/retention.ts`; `sessions` is swept the same way, on the two
+columns `sessionState` refuses by.
 
 ### `sessions`
 
-Backs the Account screen's "Where you are signed in" list. Without real rows here,
-"Revoke" and "Sign out everywhere" are decorative. Fields: `user`, `tokenHash`, `device`,
-`location`, `createdAt`, `lastSeenAt`, `revokedAt`.
+Backs the Account screen's "Where you are signed in" list, and is what every admin
+request is authenticated against. Without real rows here, "Revoke" and "Sign out
+everywhere" are decorative. Fields: `user`, `tokenHash`, `expiresAt`, `device`,
+`location`, `createdAt`, `lastSeenAt`, `revokedAt`. The behaviour over them is
+`apps/web/lib/auth/sessions.ts` (Phase 2 Task 6); the lifecycle arithmetic and the
+cookie's attributes are `packages/domain/src/auth/session.ts`.
+
+`expiresAt` is **not** in `DATA_MODEL.md`'s field list, and is a recorded deviation
+(`docs/deviations.md` §30, migration `20260906_004937_add_session_expiry`).
+`SECURITY.md` requires "'Keep me signed in' is a longer-lived, **revocable** session row
+— not a longer JWT", and a row with no lifetime has nothing for "longer" to describe.
+Unlike `otpChallenges.expiresAt` above, this column **is** the authorization input
+(`docs/adr/0017-session-store-and-rotation.md`):
+`sessionState` reads it, there is no second derivation of the same fact anywhere, and the
+identifier in the cookie carries no expiry of its own to disagree with it.
+
+Access is **per-user ownership**, not the flat `() => false` the three server-only
+collections carry, because the Account screen legitimately reads these rows: `read`,
+`update` and `delete` each return `{ user: { equals: req.user.id } }`, so an operation is
+narrowed to the caller's own rows and refused outright when there is no caller; `create`
+is `() => false` for everybody, since a session is minted server-side against a token the
+client never sees. The collection previously declared **no access block at all**, which
+left Payload's `defaultAccess` applying — see `docs/deviations.md` §29 for what that meant
+and how it was found.
+
+**No field is writable through the API, including `createdAt` and `updatedAt`.**
+Collection-level ownership was necessary and not sufficient, and this is the correction
+review round 1 forced: two fields inside an operation that is correctly permitted escaped
+it. `user` is the field the ownership predicate itself reads, so leaving it writable let
+an account holder move their own row onto another account and authenticate as them;
+`revokedAt` decides whether a revoked session stays revoked, so leaving it writable let a
+revoked session be un-revoked with one `PATCH`. A per-field sweep added in the same round
+then found a third, which nobody had enumerated: Payload injects `createdAt`/`updatedAt`
+when it sanitises a collection, an injected field carries no access rule, and `createdAt`
+was writable — a session could claim it had been signed in at any time it liked, on the
+one list whose only job is to be true. All three are closed by refusing `update` on every
+field, and the timestamps are now declared explicitly (with `index: true`, which is what
+Payload's injected versions carry) so that a rule can reach them. Revocation is therefore
+**server-side only**: `revokeSession`/`revokeAllSessions` in
+`apps/web/lib/auth/sessions.ts` are what the Account screen calls. The collection-level
+`update` stays owner-scoped rather than `() => false` because Payload refuses at the
+collection level before it evaluates field access, so a flat refusal would make all nine
+field predicates unreachable — and unreachable rules are rules no test can prove.
+
+**Deleting a `users` row that still has `sessions` rows fails the foreign key.**
+`sessions.user_id` is `NOT NULL`, while `20260831_154311_initial.ts:397` declares its
+foreign key `ON DELETE set null` — so Payload's delete hook nulls the relationship rather
+than cascading, and Postgres refuses the null. The same shape applies to
+`otp_challenges.user_id`. It has no product consequence while there is one author and no
+account-deletion screen, but it is reachable now that sessions rows actually exist: it was
+hit for real by a test fixture that deleted an account before its session (the
+`sessions.access.integration.test.ts` cleanup, which now removes sessions by owner for
+this reason). **Delete sessions and challenges before the account that owns them**, in the
+seed, in any fixture, and in whatever account-deletion flow a later phase builds.
 
 ### `jobs`
 
 Backs the Postgres-backed `QueuePort` adapter (`apps/web/lib/adapters/postgres-queue.ts`,
 Task 9): one row per background job, today only `kind: 'transcode'` after a clip upload.
-`access: { read: () => false, create: () => false, update: () => false }` - server-only,
-reached only through the adapter's Local API calls, matching `otpChallenges` and
-`sessions`. `mediaId` is a plain text field, not a `relationship` to `media`: a foreign
-key here would reject the branded ids the queue's own contract suite enqueues in
-isolation from a real media row. Fields: `kind` (`transcode`), `mediaId` (text),
-`status` (`queued` | `claimed` | `completed` | `failed`, indexed, defaults to `queued`),
-`reason` (why a job failed, surfaced on the admin's Media screen in a later phase),
-`claimedAt`.
+`access: { read: () => false, create: () => false, update: () => false, delete: () => false }`
+
+- server-only, reached only through the adapter's Local API calls, matching
+  `otpChallenges` and `signInAttempts` — the fourth predicate included, for the reason the
+  `otpChallenges` section above gives. Not `sessions`, which carries a per-user ownership rule instead — see
+  its own section above. `mediaId` is a plain text field, not a `relationship` to `media`: a foreign
+  key here would reject the branded ids the queue's own contract suite enqueues in
+  isolation from a real media row. Fields: `kind` (`transcode`), `mediaId` (text),
+  `status` (`queued` | `claimed` | `completed` | `failed`, indexed, defaults to `queued`),
+  `reason` (why a job failed, surfaced on the admin's Media screen in a later phase),
+  `claimedAt`.
+
+### `signInAttempts`
+
+Backs the sliding window `SECURITY.md` requires per account and per IP
+(`apps/web/lib/auth/rateLimit.ts`, Phase 2 Task 4): one row per sign-in attempt, admitted
+or refused. `access: { read, create, update, delete }`, every one `() => false` —
+server-only, like `otpChallenges` and `jobs`. The `delete` predicate is this
+repository's addition: `DATA_MODEL.md` omits it from all three access blocks
+and Payload applies its "signed in, or refused" default to whatever an access
+block leaves out, so deletion fell through to any authenticated caller
+(`docs/deviations.md` §28). Fields: `dimension`
+(`ip` | `account`), `endpoint` (`password` | `code`), `subject`, `attemptedAt`. One
+compound index over all four, in the order a lookup filters them.
+
+**What `subject` holds depends on the dimension and the endpoint**, and one of the three
+is not what its `dimension` value suggests:
+
+| `dimension` | `endpoint` | `subject`                                                                    |
+| ----------- | ---------- | ---------------------------------------------------------------------------- |
+| `ip`        | either     | the requesting IP address, in cleartext                                      |
+| `account`   | `code`     | the account's row id — known by then, since a code is issued _to_ an account |
+| `account`   | `password` | **SHA-256 of the normalised sign-in address the request claimed**            |
+
+The third row is phase ruling F43, added in Task 5 when the limiter acquired its first
+caller. At the password step the account is not yet known and half the requests name no
+account at all, so a key that needed a row id would simply be absent on the miss path —
+which is not merely a gap in coverage but an enumeration oracle, since the miss would then
+do strictly less work than the hit on the exact branch `SECURITY.md` requires to be
+indistinguishable. The code endpoint has no such problem and so keeps the row id: by the
+time a code is being guessed, the account is settled.
+
+It is hashed rather than written in cleartext because this table already holds raw IPs, and
+an address beside one would put both halves of an identity in a single table (CLAUDE.md
+§7). The hash is **not** a defence against someone holding the table who wants to know
+whether one particular address was tried — an address is guessable, so hashing it does not
+hide it. What it stops is the table being a _list of addresses_.
+
+Never two of those values in one row: a row carries one subject. Two rows written by the
+same request are still correlatable by their timestamps, which is why the claim made here
+is about what a row contains rather than about unlinkability.
+
+**Not in `DATA_MODEL.md`**, and recorded as the deviation `docs/deviations.md` §27: the
+handoff requires the window and provides nowhere to keep it. Why it is a table rather than
+a process-local `Map` — the app deploys to serverless invocations that do not share
+memory — and why it is one row per attempt rather than a counter is
+`docs/adr/0016-rate-limit-window-storage.md`.
+
+`attemptedAt` is stamped with Postgres's `clock_timestamp()`, and decides **only** whether
+an attempt is still inside the window. What orders one attempt against another is the
+row's own `id`: a `date` field is `timestamp(3)`, so two attempts can share a millisecond,
+and two attempts sharing a rank would let a limit of N admit N+1. Rows older than the
+window are pruned for the key being touched, in the same statement that records the new
+attempt, so the table stays bounded without a scheduler.
 
 ## Globals
 
@@ -155,7 +302,7 @@ From design spec §5.1:
 
 1. **Everything is keyed by journey id.** Five separate defects in the prototype came
    from per-journey state held in one global value. Client caches are `Record<JourneyId,
-   T>`, never a bare value.
+T>`, never a bare value.
 2. **Rows are addressed by id, never by array position.** Sorting a gallery by capture
    time reorders it; a positional index desyncs the selected-frame panel from the
    highlighted tile.
@@ -168,10 +315,13 @@ From design spec §5.1:
 
 ## Migration history
 
-| Migration | What it does |
-|---|---|
-| `20260831_154311_initial` | Creates all six collections and three globals above, with `deletedAt` (indexed) on `journeys` and `versions: { drafts: true }` on `journeys` and `pages` from the start — both are painful to retrofit onto a collection with existing rows, per the note above. `pages` deliberately has drafts but no `deleted_at`: a page is not independently trashed, it is deleted with the journey that owns it, which matches `DATA_MODEL.md`'s own schema and rule 4 above. Verified reversible by `collections.integration.test.ts`, which rolls **every** migration back to zero — so this file's own `down()` runs regardless of how the batches were applied — then re-applies them and asserts a journey's fields, highlights and tally round-trip through the rebuilt schema. Rows do not survive a `DROP TABLE`; what is restored is the schema's ability to hold them. See `docs/testing.md` §9. |
-| `20260831_161951_add_jobs` | Creates the `jobs` table (Task 9) backing the Postgres `QueuePort` adapter, and the `payload_locked_documents_rels.jobs_id` column/FK Payload adds for its own admin document-locking feature. Verified reversible by the same test; see the statement-order note below. |
+| Migration                              | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20260831_154311_initial`              | Creates all six collections and three globals above, with `deletedAt` (indexed) on `journeys` and `versions: { drafts: true }` on `journeys` and `pages` from the start — both are painful to retrofit onto a collection with existing rows, per the note above. `pages` deliberately has drafts but no `deleted_at`: a page is not independently trashed, it is deleted with the journey that owns it, which matches `DATA_MODEL.md`'s own schema and rule 4 above. Verified reversible by `collections.integration.test.ts`, which rolls **every** migration back to zero — so this file's own `down()` runs regardless of how the batches were applied — then re-applies them and asserts a journey's fields, highlights and tally round-trip through the rebuilt schema. Rows do not survive a `DROP TABLE`; what is restored is the schema's ability to hold them. See `docs/testing.md` §9.                                                                                                                                                                                                                 |
+| `20260831_161951_add_jobs`             | Creates the `jobs` table (Task 9) backing the Postgres `QueuePort` adapter, and the `payload_locked_documents_rels.jobs_id` column/FK Payload adds for its own admin document-locking feature. Verified reversible by the same test; see the statement-order note below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `20260905_202028_add_otp_session_hash` | Adds `otp_challenges.session_hash` (`varchar NOT NULL`) and its btree index — the session binding `SECURITY.md` requires and `DATA_MODEL.md` omits (`docs/deviations.md` §25, `docs/adr/0015-otp-challenge-hashing.md`). Its `up()` carries one hand-added statement, `DELETE FROM "otp_challenges"`, before the `ALTER`: a `NOT NULL` column with no default cannot be added to a table that has rows, and every pre-existing challenge is one the new rule can never honour anyway — it has no session binding, so it could not be redeemed. Challenges are five-minute ephemera, so nothing of value is discarded and no default has to be invented. Verified reversible by its own case in `collections.integration.test.ts`, separate from the journey case above because the two fail differently: the journey case proves tables come back and would still pass with this column silently missing. The `down()` drops the index before the column, so a re-apply's `CREATE INDEX` cannot collide with a leftover.                                                                                          |
+| `20260905_230601_add_sign_in_attempts` | Creates the `sign_in_attempts` table and its two enum types (Phase 2 Task 4) backing the sliding window `SECURITY.md` requires per account and per IP (`docs/deviations.md` §27, `docs/adr/0016-rate-limit-window-storage.md`), plus the compound index over `(dimension, endpoint, subject, attempted_at)` and the `payload_locked_documents_rels.sign_in_attempts_id` column/FK Payload adds for its own document-locking feature. Its `down()` carries the same hand-fixed statement order as `20260831_161951_add_jobs`, for the same reason — see the note beneath this table. Verified reversible by its own case in `collections.integration.test.ts`, which asserts on **all five** artefacts the migration creates rather than on the table alone — a `down()` that dropped the table and left the enum types behind would satisfy a table-only assertion and then fail its own re-apply with "type already exists".                                                                                                                                                                                     |
+| `20260906_004937_add_session_expiry`   | Adds `sessions.expires_at` (`timestamp(3) with time zone NOT NULL`) and the btree index on `sessions.token_hash` an authentication reads every admin request by (Phase 2 Task 6, `docs/deviations.md` §30). Its `up()` is hand-split into add-nullable, backfill, `SET NOT NULL`: as generated it was a single `ADD COLUMN ... NOT NULL` with no default, which succeeds only against a table with no rows — true of every database today, and false the moment one session exists, at which point `down()`-then-`up()` would fail on the survivors. The backfill is `created_at`, so a row that predates the column is expired the instant the column exists: a session whose lifetime was never recorded is a session whose lifetime is unknown, and inventing a generous one would grant an expiry nobody ever did. Verified reversible by its own case in `collections.integration.test.ts`, which asserts on the column **and** the index and on the `sessions` table surviving — this migration adds to a table it did not create, so "the table is gone" would say nothing about whether its `down()` ran. |
 
 Generated with `npm run db:migrate:create -w apps/web -- <name>`, applied with
 `npm run db:migrate -w apps/web`. Payload's generator emits a plain (non-type-only) import
@@ -218,10 +368,11 @@ content (`bookGlobalSeed`/`aboutGlobalSeed` in `seed-data.ts`) via `updateGlobal
 same way the journeys are seeded via `create`/`update`. Contents needs no storage at
 all — `DATA_MODEL.md` lists it under "Derived, not stored", generated from the ordered
 journey list. The handoff's "33 pages" names the full reading sequence (Cover + Contents
-+ thirty journey pages + About), which Phase 1's `bookBundle` assembles from these thirty
-rows and the two globals; it was never a `pages` row count. An earlier version of the
-seed got this wrong (three rows attached to the first journey as a workaround) — see
-`docs/deviations.md` §5, now a correction record rather than an active deviation.
+
+- thirty journey pages + About), which Phase 1's `bookBundle` assembles from these thirty
+  rows and the two globals; it was never a `pages` row count. An earlier version of the
+  seed got this wrong (three rows attached to the first journey as a workaround) — see
+  `docs/deviations.md` §5, now a correction record rather than an active deviation.
 
 **Both globals reach the diary beside the reading sequence, not inside it.**
 `BookBundle` carries `chrome` (the `book` global, Phase 1 Task 9) and `about` (the

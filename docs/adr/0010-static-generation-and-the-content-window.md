@@ -70,15 +70,15 @@ Route (app)
 `prerender-manifest.json` confirms `"compute": "static"` for each of the
 thirty-three, and the whole build generated 38 static pages in 1,368ms.
 
-| | dynamic (`ƒ /p/[n]`, shipped) | static (`● /p/1 …`, spike) |
-|---|---|---|
-| LCP median of 5 | **2,931.04 ms** | **2,932.92 ms** |
-| LCP runs | 2929.6 / 2930.8 / **2931.0** / 2935.7 / 3019.6 | 2928.2 / 2928.6 / **2932.9** / 2933.1 / 2937.6 |
-| Lighthouse `server-response-time` | 77–116 ms | **1.7–2.6 ms** |
-| CLS | 0 | 0 |
-| Script transfer | 142,407 | 142,407 |
-| `/p/1` document, raw | 64,837 | 71,457 (`htmlSize`, prerender manifest) |
-| `?pages=all` still widens | yes | **no — `searchParams` is empty under static rendering** |
+|                                   | dynamic (`ƒ /p/[n]`, shipped)                  | static (`● /p/1 …`, spike)                              |
+| --------------------------------- | ---------------------------------------------- | ------------------------------------------------------- |
+| LCP median of 5                   | **2,931.04 ms**                                | **2,932.92 ms**                                         |
+| LCP runs                          | 2929.6 / 2930.8 / **2931.0** / 2935.7 / 3019.6 | 2928.2 / 2928.6 / **2932.9** / 2933.1 / 2937.6          |
+| Lighthouse `server-response-time` | 77–116 ms                                      | **1.7–2.6 ms**                                          |
+| CLS                               | 0                                              | 0                                                       |
+| Script transfer                   | 142,407                                        | 142,407                                                 |
+| `/p/1` document, raw              | 64,837                                         | 71,457 (`htmlSize`, prerender manifest)                 |
+| `?pages=all` still widens         | yes                                            | **no — `searchParams` is empty under static rendering** |
 
 **Static generation removed 75–114ms of measured server response time and moved
 LCP by 1.88ms**, which is inside a single set's own spread (6.4ms across the

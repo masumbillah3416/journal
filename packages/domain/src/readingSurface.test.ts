@@ -103,7 +103,19 @@ describe('rememberedSurface', () => {
 
 describe('surfaceCookie', () => {
   it('writes the correction as a path-wide, same-site session cookie', () => {
-    expect(surfaceCookie('mobile')).toBe(`${SURFACE_COOKIE_NAME}=mobile; Path=/; SameSite=Lax`)
+    expect(surfaceCookie('mobile')).toBe(`${SURFACE_COOKIE_NAME}=mobile; Path=/; SameSite=Lax; Secure`)
+  })
+
+  // Its own case rather than left to the comparison above, so that dropping
+  // `Secure` fails a test named for `Secure` instead of one named for the
+  // cookie's shape. Phase 1 shipped this cookie without the attribute and
+  // logged it for the phase that owns cookies, which is this one: a cookie
+  // set over plain HTTP is a cookie an intermediary can write, and a written
+  // `td-reading-surface` decides which of the two reading surfaces a reader
+  // is served. `localhost` is a secure context in every current browser, so
+  // the attribute costs local development nothing.
+  it('marks the correction Secure, so it is never set or returned over plain HTTP', () => {
+    expect(surfaceCookie('mobile').split('; ')).toContain('Secure')
   })
 
   it('round-trips through the reader it is written for', () => {

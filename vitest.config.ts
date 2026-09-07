@@ -7,6 +7,10 @@
  *     Sets fixed dummy values for the three env vars `apps/web/lib/env.ts`
  *     validates at import time, so importing it never needs Docker or a real
  *     `.env` file — those values are never used to open a real connection here.
+ *     Its `include` also reaches the `e2e` directory's `.test.ts` files (NOT
+ *     its `.spec.ts` ones, which are Playwright's), for the one file there
+ *     that is a file read rather than a browser test — see that glob's own
+ *     comment and ruling F57.
  *   - unit-dom: React component tests, matched by `*.test.tsx`, in a jsdom
  *     environment. A SEPARATE project rather than a wider glob on `unit`
  *     because the environment differs: `unit`'s files are pure and run in
@@ -125,17 +129,45 @@ export default defineConfig({
             'packages/*/src/**/*.test.ts',
             'apps/web/lib/**/*.test.ts',
             'apps/web/scripts/**/*.test.ts',
+            // `apps/web/collections/**/*.test.ts` - the NON-integration ones.
+            // A collection config is a plain object and `users.ts` imports
+            // only types from `payload`, so a check over the numbers OTHER
+            // modules are written against (`users.lockout.test.ts`: the
+            // lockout window against `rateWindow.ts`'s) needs no Docker and
+            // belongs in the pre-commit gate rather than in CI. The
+            // integration project's own glob below still owns
+            // `*.integration.test.ts`, and the two patterns are disjoint.
+            'apps/web/collections/**/*.test.ts',
+            // `eslint-rules/**/*.test.js` — the ESLint rule that makes an
+            // unguarded Server Action a lint error, and its RuleTester cases.
+            // Both are plain JavaScript because ESLint loads a config and its
+            // plugins through Node rather than a bundler, so a `.ts` rule would
+            // need a loader inside the pre-commit hook. The rule is the guard
+            // Phase 4 rests on, so its behaviour belongs in the gate Husky runs
+            // rather than only in CI. See docs/testing.md.
+            'eslint-rules/**/*.test.js',
             // `apps/web/middleware.ts` sits at the app's own root, where
             // Next.js requires it - see its header. Without this glob its
             // test file would be collected by nobody, which is the exact
             // failure mode this config's header exists to prevent.
             'apps/web/*.test.ts',
+            // `e2e/ciRegistration.test.ts` (ruling F57): the guard that says
+            // every browser spec is named by CI and by an npm script. It
+            // reads four files off disk and needs no browser, so it belongs
+            // in the PRE-COMMIT gate rather than in the browser job it
+            // guards - being a Playwright spec is the whole reason it never
+            // fired while `e2e/codeStep.spec.ts` gated nothing for two
+            // commits. Only `*.test.ts` is matched here; `playwright.config.ts`
+            // owns `e2e/*.spec.ts` and narrows its own `testMatch` so the two
+            // runners cannot collect each other's files.
+            'e2e/**/*.test.ts',
           ],
           exclude: ['**/*.integration.test.ts', '**/node_modules/**'],
           env: {
             DATABASE_URL: 'postgres://unit-test:unused@localhost:5432/unit-test',
             PAYLOAD_SECRET: 'unit-test-secret-value-not-used-for-real-auth',
             MEDIA_ORIGIN: 'http://localhost:3000',
+            ADMIN_ORIGIN: 'http://localhost:3000',
           },
         },
       },
@@ -179,6 +211,7 @@ export default defineConfig({
             DATABASE_URL: 'postgres://unit-test:unused@localhost:5432/unit-test',
             PAYLOAD_SECRET: 'unit-test-secret-value-not-used-for-real-auth',
             MEDIA_ORIGIN: 'http://localhost:3000',
+            ADMIN_ORIGIN: 'http://localhost:3000',
           },
         },
       },
@@ -243,6 +276,12 @@ export default defineConfig({
         // and an unmeasured file looks exactly like a fully-covered one
         // (CLAUDE.md §2.1). It is named here, and gated at 100% below.
         'apps/web/middleware.ts',
+        // `eslint-rules/**/*.js` — repository tooling that ESLint loads
+        // directly, and the one piece of it that enforces a SECURITY.md
+        // requirement rather than a convention. It is measured here because an
+        // unmeasured rule is one whose branches can rot into always-passing,
+        // which is the exact failure the nine text scans before it had.
+        'eslint-rules/**/*.js',
       ],
       exclude: [
         '**/*.test.ts',
@@ -289,12 +328,16 @@ export default defineConfig({
         // from an `*.integration.test.ts` file - it needs a real Postgres
         // server to create diary_test against - so it is gated by
         // vitest.integration.config.ts instead, same reasoning as the queue
-        // files above. Unlike migrate.ts and queue.ts (which stay
-        // ungated, tolerated at 0% in this file's repo-wide aggregate - see
-        // their own files), testPayload.ts is large enough to have pulled
-        // `apps/web/lib/**`'s aggregate below its 95% threshold here, so it
-        // needs the same explicit exclude-and-regate treatment as the queue
-        // files.
+        // files above. Unlike `apps/web/lib/ports/queue.ts` - which stays in
+        // the measured set and prints 0% because it is TYPE-ONLY, two
+        // `import type`s and two `export interface`s with no executable
+        // statement, so it contributes no counted lines to any aggregate -
+        // testPayload.ts is large enough to have pulled `apps/web/lib/**`'s
+        // aggregate below its 95% threshold here, so it needs the same
+        // explicit exclude-and-regate treatment as the queue files. This
+        // comment named migrate.ts as ungated for two rounds while migrate.ts
+        // sat in this same `exclude` array eleven lines above, at the entry
+        // just before `apps/web/scripts/seed.ts`.
         'apps/web/lib/testPayload.ts',
         // readBookBundle.ts (Task 6 of Phase 1) is reachable only from
         // readBookBundle.integration.test.ts - it needs a real Payload/
@@ -310,6 +353,98 @@ export default defineConfig({
         // reasoning as readBookBundle.ts above.
         'apps/web/lib/readGalleryBundle.ts',
         'apps/web/lib/readGalleryDownload.ts',
+        // otpService.ts and its test-side probes (Phase 2 Task 3) are
+        // reachable only from otpService.integration.test.ts - every one of
+        // this module's operations reads or writes an `otpChallenges` row
+        // through a real Payload, and the whole point of testing it against a
+        // real Postgres is that "only a hash was stored" and "the challenge is
+        // now consumed" are claims about a database, not about a mock. Gated
+        // by vitest.integration.config.ts instead, same reasoning as
+        // readBookBundle.ts above.
+        'apps/web/lib/auth/otpService.ts',
+        'apps/web/lib/auth/testing/otpProbes.ts',
+        // rateLimit.ts (Phase 2 Task 4) is reachable only from
+        // rateLimit.integration.test.ts, for the same reason otpService.ts
+        // is: every one of its operations writes and then ranks a
+        // `signInAttempts` row, and the whole claim being tested - that a
+        // concurrent burst is admitted in arrival order up to the limit and
+        // no further - is a claim about what Postgres did, not about what a
+        // mock agreed to. Gated by vitest.integration.config.ts instead. Its
+        // pure arithmetic lives in `packages/domain/src/auth/rateWindow.ts`,
+        // which this pass DOES measure, at the domain's 100% bar.
+        'apps/web/lib/auth/rateLimit.ts',
+        // sessions.ts (Phase 2 Task 6) is reachable only from
+        // sessions.integration.test.ts, for the same reason otpService.ts and
+        // rateLimit.ts are: every one of its operations reads or writes a
+        // `sessions` row, and the claims being tested - that a superseded
+        // identifier stops authenticating, that a revoked row is refused, and
+        // that "keep me signed in" lengthens the ROW rather than the token -
+        // are claims about what Postgres holds, not about what a mock agreed
+        // to. Gated by vitest.integration.config.ts instead. Its pure logic
+        // lives in `packages/domain/src/auth/session.ts`, which this pass
+        // DOES measure, at the domain's 100% bar.
+        'apps/web/lib/auth/sessions.ts',
+        // signIn.ts and passwordReset.ts (Phase 2 Task 5) are reachable only
+        // from their own `*.integration.test.ts` files, for the same reason
+        // as the three above and one more that is specific to them: what they
+        // assert is that an unknown address and a wrong password cost the
+        // same TIME, and the time in question is a PBKDF2 derivation Payload
+        // performs inside a real login against a real row. A mocked
+        // credential store would make both arms instant and the measurement
+        // meaningless. Gated by vitest.integration.config.ts instead. Their
+        // pure logic - the mask, the window arithmetic, the session lifetimes
+        // - lives in `packages/domain/src/auth/**`, which this pass DOES
+        // measure, at the domain's 100% bar.
+        'apps/web/lib/auth/signIn.ts',
+        'apps/web/lib/auth/passwordReset.ts',
+        // readSignInScreen.ts (Phase 2 Task 7) is reachable only from
+        // readSignInScreen.integration.test.ts, for the same reason as
+        // readBookBundle.ts above: it reads a Payload global and a `users`
+        // row, and the question its cases exist to answer - what a NULLABLE
+        // `otp_required` column reads as for a row written before its schema
+        // default - has no answer without a real table. Gated by
+        // vitest.integration.config.ts instead. Its pure half, the two title
+        // clamps, lives in `packages/domain/src/auth/signInTitle.ts`, which
+        // this pass DOES measure at the domain's 100% bar.
+        'apps/web/lib/auth/readSignInScreen.ts',
+        // setNewPassword.ts and newPasswordScreen.ts (Phase 2 Task 9) are
+        // reachable only from their own `*.integration.test.ts` files, for the
+        // same reason as passwordReset.ts above: the questions they exist to
+        // answer are all held in a column Payload writes. Whether a token is
+        // honoured, whether it survives being spent, and whether the password
+        // it set is the one `login` now accepts have no answer without a real
+        // `users` row, and a mocked one would let a reset that changes nothing
+        // pass. Gated by vitest.integration.config.ts instead, both at 100% on
+        // every axis. Their pure half - which state each reset screen draws -
+        // lives in `packages/domain/src/auth/resetScreen.ts`, which this pass
+        // DOES measure at the domain's 100% bar.
+        'apps/web/lib/auth/setNewPassword.ts',
+        'apps/web/lib/auth/newPasswordScreen.ts',
+        // guard.ts, services.ts, signInEndpoints.ts and resetRequestEndpoint.ts
+        // (Phase 2 Task 10) are reachable only from their own
+        // `*.integration.test.ts` files, for the same reason as every module
+        // above: each one composes a real Payload. The guard's whole question -
+        // does this identifier name a LIVE row - has no answer without the
+        // `sessions` table, and the endpoints' answers are claims about what
+        // Postgres now holds (a challenge bound to this browser, a rotated
+        // session row, a revoked one). A mocked store would let a handler that
+        // reused the pre-auth identifier pass. Gated by
+        // vitest.integration.config.ts instead, all four at 100% on every axis.
+        // Their pure halves - which addresses are public, what a cross-site
+        // mutation is, the admin's headers, the two cookies and the form
+        // reading - are `adminAccess.ts`, `browserSession.ts` and
+        // `httpForm.ts`, which this pass DOES measure, each at 100% below.
+        'apps/web/lib/auth/guard.ts',
+        'apps/web/lib/auth/services.ts',
+        'apps/web/lib/auth/signInEndpoints.ts',
+        'apps/web/lib/auth/resetRequestEndpoint.ts',
+        // readCodeScreen.ts (Task 10's fix round) joins the same two: it reads
+        // the challenge bound to the browser's cookie through a real Payload,
+        // and what it exists to prove - that the code screen prints the SERVER's
+        // masked address, issue time and attempts rather than a placeholder - is
+        // a claim about an `otpChallenges` row. Gated by
+        // vitest.integration.config.ts instead.
+        'apps/web/lib/auth/readCodeScreen.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by
@@ -397,6 +532,26 @@ export default defineConfig({
         // future file placed beside either is not swept into the same hole.
         // Their runtime behaviour is covered in a real browser by
         // e2e/gallery.spec.ts and e2e/a11y.spec.ts.
+        // Phase 2 Task 9 adds the reset link's own screen, the first
+        // bracketed route outside the diary. It qualifies on the same three
+        // counts CLAUDE.md §2.1's carve-out requires, re-verified against the
+        // control in this same run rather than inherited. (1) It was read and
+        // holds zero authored logic: await the params and the query, read the
+        // shell's content and the link's state, render two components - with
+        // WHICH STATE THE SCREEN DRAWS delegated to
+        // `apps/web/lib/auth/newPasswordScreen.ts` (integration-tested against
+        // a real Payload and gated at 100% by vitest.integration.config.ts)
+        // and, under that, to `@travel-diary/domain/auth/resetScreen`'s
+        // `newPasswordView`, which this pass measures at 100%. (2) The tooling
+        // defect is the one named above and is a property of the path shape,
+        // which this file shares (`[token]`); `(diary)/layout.tsx` remains the
+        // control that is correctly ignored without a config entry. (3) It
+        // names its exact path, so a future file placed beside it under the
+        // same bracketed parent is not swept into the same hole. Its sibling
+        // `reset/set/route.ts` is deliberately NOT here: it sits under a
+        // static segment, so its own `c8 ignore` is read and holds. Runtime
+        // behaviour: e2e/reset.spec.ts, e2e/a11y.spec.ts, e2e/visual.spec.ts.
+        'apps/web/app/(admin)/admin/reset/\\[token\\]/page.tsx',
         'apps/web/app/(diary)/gallery/\\[slug\\]/page.tsx',
         'apps/web/app/(diary)/gallery/\\[slug\\]/download/\\[id\\]/route.ts',
         'apps/web/app/(payload)/api/\\[...slug\\]/route.ts',
@@ -474,12 +629,47 @@ export default defineConfig({
           branches: 90,
           functions: 90,
         },
+        // The three Phase 2 Task 10 modules the admin's request policy is
+        // made of. They are named individually, at the number they actually
+        // achieve, rather than left under `apps/web/lib/**`'s 95%: each is pure
+        // (no I/O, no framework, no database), each is imported by
+        // `apps/web/middleware.ts` and therefore runs in the Edge runtime where
+        // a mistake cannot be caught by anything else, and each decides
+        // something a security requirement names - which addresses answer
+        // without a session, whether a mutation came from our own pages, and
+        // what a session cookie says. 95% would leave one uncovered branch in
+        // any of them acceptable, and there is no branch here whose behaviour
+        // is not a real one.
+        // The Server Action rule: 100 across, and it has to be. It is the only
+        // thing standing between Phase 4's ten screens of mutations and an
+        // unguarded POST endpoint, it replaced nine text scans that were
+        // defeated because their branches were never exercised, and every
+        // branch in it is a shape somebody actually reached for. A threshold
+        // below 100 here would be a branch nobody has driven, in the file whose
+        // whole job is to have driven them.
+        'eslint-rules/**/*.js': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/auth/adminAccess.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        'apps/web/lib/auth/browserSession.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        'apps/web/lib/auth/httpForm.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
         // The middleware takes no decision of its own - which surface a
         // request is served is `servedReadingSurface`'s, gated at 100% in the
-        // domain - so what is left in it is three routing outcomes and a
-        // matcher, every one of them reachable from a plain `NextRequest`
-        // (apps/web/middleware.test.ts). 100% is the number that is actually
-        // achieved there, not a rounded-up one.
+        // domain, and the admin's request policy is `lib/auth/adminAccess.ts`'s
+        // - so what is left in it is three routing outcomes, three admin
+        // outcomes and a matcher, every one of them reachable from a plain
+        // `NextRequest` (apps/web/middleware.test.ts). 100% is the number that
+        // is actually achieved there, not a rounded-up one.
         'apps/web/middleware.ts': {
           lines: 100,
           branches: 100,

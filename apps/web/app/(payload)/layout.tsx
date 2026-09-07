@@ -25,6 +25,31 @@ type Args = {
   readonly children: React.ReactNode
 }
 
+/**
+ * Payload's own Server Action dispatcher, and the ONE inline `'use server'`
+ * this repository admits.
+ *
+ * `RootLayout` requires it: Payload's admin UI performs every mutation it makes
+ * through this one function, and the directive has to be inside it because
+ * Payload's own type is a function rather than a module. So it is a real POST
+ * endpoint, mounted under an opaque action id, exactly like any other.
+ *
+ * WHY IT IS EXEMPT, WRITTEN OUT RATHER THAN DISABLED QUIETLY. It is not ours to
+ * guard: `handleServerFunctions` authenticates the request itself against the
+ * `payload-token` cookie and runs Payload's own collection access control on
+ * whatever it dispatches. Wrapping it in `guardedAction` would demand a
+ * `td-session` — the bespoke panel's cookie, which Payload knows nothing about
+ * — and break `/cms` without adding a check. And since
+ * `apps/web/collections/sealedUserAuth.ts` sealed every endpoint that could
+ * mint a `payload-token`, no caller can hold one: this dispatcher's reachable
+ * surface is whatever Payload grants an anonymous request, which is the same
+ * surface `/api/**` already exposes and which `docs/api.md` documents.
+ *
+ * `apps/web/lib/auth/adminGuardRegistration.test.ts` holds an allowlist of the
+ * files permitted to carry this disable, by exact path, so a SECOND one is a
+ * failing test rather than a second quiet comment.
+ */
+// eslint-disable-next-line travel-diary/guarded-server-actions -- Payload's own dispatcher; it authenticates and access-controls itself, and cannot take our session. See the TSDoc above and docs/security.md.
 const serverFunction: ServerFunctionClient = async (args) => {
   'use server'
   return handleServerFunctions({ ...args, config, importMap })

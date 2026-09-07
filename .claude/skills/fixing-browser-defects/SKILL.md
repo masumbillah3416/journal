@@ -16,6 +16,7 @@ NO FIX WITHOUT A FAILING AUTOMATED TEST THAT REPRODUCES IT FIRST
 ```
 
 **No exceptions:**
+
 - Not for a one-line CSS change
 - Not when you can see exactly what's wrong
 - Not when the browser already confirms your fix works
@@ -36,13 +37,13 @@ A fix without a failing test proves nothing. The test can never fail, so it neve
 2. **Find the root cause.** Use `superpowers:systematic-debugging`. Do not skip to the patch. "Add `pointer-events: none`" is a fix; "the back face sits above page content and captures clicks" is a cause.
 3. **Write the failing test, at the right level:**
 
-| Defect is in | Test with |
-|---|---|
-| Pure logic — flip state, page math, contents pagination, OTP lifecycle | Vitest unit test |
-| An interaction — clicks, keyboard, swipe, routing, focus | Playwright |
-| Appearance — token, spacing, weight, layout | Playwright visual snapshot |
-| Server behaviour — access control, rate limit, upload rejection | Integration test against the test database |
-| Timing or a race | Unit test with an **injected clock**, never a sleep |
+| Defect is in                                                           | Test with                                           |
+| ---------------------------------------------------------------------- | --------------------------------------------------- |
+| Pure logic — flip state, page math, contents pagination, OTP lifecycle | Vitest unit test                                    |
+| An interaction — clicks, keyboard, swipe, routing, focus               | Playwright                                          |
+| Appearance — token, spacing, weight, layout                            | Playwright visual snapshot                          |
+| Server behaviour — access control, rate limit, upload rejection        | Integration test against the test database          |
+| Timing or a race                                                       | Unit test with an **injected clock**, never a sleep |
 
 4. **Watch it fail, and read the failure.** It must fail for the reason you diagnosed. A test that fails for a different reason is testing something else.
 5. **Fix the cause.** Not the symptom, not the nearest surface.
@@ -54,17 +55,17 @@ A fix without a failing test proves nothing. The test can never fail, so it neve
 
 ## Rationalizations
 
-| Excuse | Reality |
-|---|---|
-| "I can see exactly what's wrong" | You see the symptom. The handoff's dead Contents links looked like broken handlers; the cause was an unhidden back face. |
-| "It's a one-line CSS fix" | The `pointer-events` bug was one line and silently broke every click on the page. |
-| "A Playwright test for a visual bug is overkill" | The visual snapshot **is** the test. The design is high-fidelity; drift is a defect. |
-| "I'll add the test after I confirm the fix" | Then it can never fail, and it guards nothing. |
-| "I verified it in the browser, that's better than a test" | Manual verification is one moment. A test is every commit after. |
-| "It's flaky, not a real bug" | Flaky means a race. A race is a real bug, and it will surface in front of a reader. |
-| "The sweep already documented it, that's the reproduction" | A report is prose. A test is executable. |
-| "This is too small to be worth a test" | Small bugs are what the handoff's defect log is entirely made of. |
-| "I'll write one test covering all four findings" | Then you cannot tell which regressed. One test per defect. |
+| Excuse                                                     | Reality                                                                                                                  |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| "I can see exactly what's wrong"                           | You see the symptom. The handoff's dead Contents links looked like broken handlers; the cause was an unhidden back face. |
+| "It's a one-line CSS fix"                                  | The `pointer-events` bug was one line and silently broke every click on the page.                                        |
+| "A Playwright test for a visual bug is overkill"           | The visual snapshot **is** the test. The design is high-fidelity; drift is a defect.                                     |
+| "I'll add the test after I confirm the fix"                | Then it can never fail, and it guards nothing.                                                                           |
+| "I verified it in the browser, that's better than a test"  | Manual verification is one moment. A test is every commit after.                                                         |
+| "It's flaky, not a real bug"                               | Flaky means a race. A race is a real bug, and it will surface in front of a reader.                                      |
+| "The sweep already documented it, that's the reproduction" | A report is prose. A test is executable.                                                                                 |
+| "This is too small to be worth a test"                     | Small bugs are what the handoff's defect log is entirely made of.                                                        |
+| "I'll write one test covering all four findings"           | Then you cannot tell which regressed. One test per defect.                                                               |
 
 ## Red flags — stop and restart
 

@@ -9,7 +9,13 @@
  * Named `*.integration.test.ts` so it runs only under the `integration` Vitest
  * project (see vitest.config.ts), never in `npm run verify` (pre-commit).
  *
- * The last case is the Migration suite of CLAUDE.md §2. It replaced one named
+ * The last TWO cases are the Migration suite of CLAUDE.md §2, one per shape
+ * of migration this repository has: the journey case covers a migration that
+ * creates tables, and the `otpChallenges` case covers one that adds a column
+ * and an index to a table that already exists. They are separate because they
+ * fail differently - see the comment on the second.
+ *
+ * The first of them replaced one named
  * "runs down and up again without loss" that seeded nothing and compared
  * nothing: it called `runMigrateDown()` and `runMigrateUp()`, asserted neither
  * threw, and asserted a subsequent `find()` was defined. Both halves of its
@@ -48,7 +54,9 @@
  * database, never the developer's own dev database (Task 10/11 review
  * finding 2) - see that module's header.
  */
+import type { MigrateUpArgs } from '@payloadcms/db-postgres'
 import { Client } from 'pg'
+import { type PayloadRequest, readMigrationFiles } from 'payload'
 import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { env } from '../lib/env'
@@ -139,17 +147,327 @@ const existingTablesAmong = async (names: readonly string[]): Promise<string[]> 
   }
 }
 
+/**
+ * The marker every fixture row the access-guard cases create carries, so
+ * `afterAll` can find them all and no other suite's rows are ever matched.
+ *
+ * Those cases must operate on REAL rows. An `update` or `delete` aimed at an
+ * id that does not exist is refused by Payload for being absent rather than
+ * for being forbidden, so a guard written against `id: '1'` passes whether or
+ * not the access rule exists — which is how the missing `delete` predicate
+ * survived a test named for it.
+ */
+const GUARD_FIXTURE_MARKER = 'test-access-guard'
+
+/** The account the access-guard cases sign in as, so `afterAll` can remove it. */
+const GUARD_EDITOR_EMAIL = 'test-access-guard-editor@example.com'
+
+/** The four operations a server-only collection must refuse, whoever asks. */
+interface GuardedOperations {
+  readonly read: () => Promise<unknown>
+  readonly create: () => Promise<unknown>
+  readonly update: () => Promise<unknown>
+  readonly delete: () => Promise<unknown>
+}
+
+/**
+ * Which of the four operations a caller was actually allowed to perform.
+ *
+ * Reports the operations that SUCCEEDED rather than asserting each rejection
+ * separately, for two reasons. A failure then names the leak ("delete") rather
+ * than saying one of four assertions failed. And every promise is given its
+ * handler in the same tick it is created, so none is ever left
+ * rejected-and-unhandled while another settles - the latent race recorded on
+ * the `Promise.all` below.
+ * @param operations - The four attempts to make, each already carrying
+ *   `overrideAccess: false` and whichever caller is under test.
+ * @returns The names of the operations that were permitted, sorted. An empty
+ *   array is the only passing answer for a server-only collection.
+ */
+const operationsAllowedBy = async (operations: GuardedOperations): Promise<(keyof GuardedOperations)[]> => {
+  const names = ['read', 'create', 'update', 'delete'] as const
+  const outcomes = await Promise.all(
+    names.map((name) =>
+      operations[name]().then(
+        () => name,
+        () => undefined,
+      ),
+    ),
+  )
+  return outcomes.filter((name): name is keyof GuardedOperations => name !== undefined).sort()
+}
+
+/** The migration whose own reversibility the last case below asserts. */
+const SESSION_HASH_MIGRATION = '20260905_202028_add_otp_session_hash'
+
+/** The email the OTP migration fixture's account uses, so `afterAll` can remove it. */
+const FIXTURE_REVERSIBILITY_EMAIL = 'test-otp-reversibility@example.com'
+
+/** A stand-in SHA-256 hex value for the fixture challenge's session binding. */
+const FIXTURE_SESSION_HASH = 'f'.repeat(64)
+
+/**
+ * A challenge row for the `sessionHash` reversibility case.
+ *
+ * A factory, not a shared literal (CLAUDE.md §2.3): the test writes it twice,
+ * either side of a full schema rollback, and a shared object would let the
+ * first write's Payload-assigned id leak into the second. The hashes are
+ * fixed stand-ins rather than real ones - this case is about the column
+ * surviving a rollback, and `apps/web/lib/auth/otpService.integration.test.ts`
+ * is where what goes IN the column is asserted.
+ * @param account - The id of the user the challenge belongs to.
+ * @returns The row's data.
+ */
+const anOtpChallengeFor = (
+  account: number,
+): {
+  user: number
+  codeHash: string
+  sessionHash: string
+  expiresAt: string
+} => ({
+  user: account,
+  codeHash: 'a'.repeat(96),
+  sessionHash: FIXTURE_SESSION_HASH,
+  expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+})
+
+/**
+ * Which of the `session_hash` column and its index currently exist.
+ *
+ * Asked of `information_schema` rather than of Payload, and asked for the
+ * COLUMN rather than the table: this migration adds a column to a table it
+ * did not create, so "the table is gone" says nothing about whether its
+ * `down()` did anything at all.
+ * @returns `['column', 'index']` when both exist, a subset otherwise, sorted
+ *   so an assertion reads as a set.
+ */
+const sessionHashSchema = async (): Promise<string[]> => {
+  const client = new Client({ connectionString: env.DATABASE_URL })
+  await client.connect()
+  try {
+    const column = await client.query(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'otp_challenges' AND column_name = 'session_hash'`,
+    )
+    const index = await client.query(
+      `SELECT 1 FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = 'otp_challenges_session_hash_idx'`,
+    )
+    return [...column.rows.map(() => 'column'), ...index.rows.map(() => 'index')].sort()
+  } finally {
+    await client.end()
+  }
+}
+
+/** The migration that adds the sliding window's own table (Phase 2 Task 4). */
+const SIGN_IN_ATTEMPTS_MIGRATION = '20260905_230601_add_sign_in_attempts'
+
+/** The migration that gives a session row a lifetime of its own (Phase 2 Task 6). */
+const SESSION_EXPIRY_MIGRATION = '20260906_004937_add_session_expiry'
+
+/** The email the session-expiry fixture's account uses, so `afterAll` can remove it. */
+const FIXTURE_SESSION_EXPIRY_EMAIL = 'test-session-expiry@example.com'
+
+/** The `device` value the session-expiry fixture row carries, so `afterAll` can find it. */
+const FIXTURE_SESSION_DEVICE = 'test-session-expiry-device'
+
+/**
+ * Which of the `expires_at` column and the `token_hash` index currently
+ * exist.
+ *
+ * Asked of `information_schema` rather than of Payload, and asked for the
+ * COLUMN and the INDEX rather than for the table: this migration adds both to
+ * a table it did not create, so "the table is gone" would say nothing about
+ * whether its `down()` did anything at all — the same trap the `session_hash`
+ * case above records.
+ * @returns `['column', 'index']` when both exist, a subset otherwise, sorted
+ *   so an assertion reads as a set.
+ */
+const sessionExpirySchema = async (): Promise<string[]> => {
+  const client = new Client({ connectionString: env.DATABASE_URL })
+  await client.connect()
+  try {
+    const found = await client.query<{ artefact: string }>(
+      `SELECT 'column' AS artefact FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'sessions' AND column_name = 'expires_at'
+       UNION ALL
+       SELECT 'index' FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = 'sessions_token_hash_idx'`,
+    )
+    return found.rows.map((row) => row.artefact).sort()
+  } finally {
+    await client.end()
+  }
+}
+
+/**
+ * Which of the five schema artefacts `20260905_230601_add_sign_in_attempts`
+ * is responsible for currently exist.
+ *
+ * All five, not just the table: this migration creates two Postgres enum
+ * types and adds a column and an index to `payload_locked_documents_rels`
+ * besides, and a `down()` that dropped the table alone would leave a database
+ * its own `up()` could not be re-applied to - which is the failure the
+ * generated statement order produced for `add_jobs` and the reason that file
+ * carries a hand-fixed `down()`.
+ * @returns The names of the artefacts that exist, sorted, so an assertion
+ *   reads as a set.
+ */
+const signInAttemptsSchema = async (): Promise<string[]> => {
+  const client = new Client({ connectionString: env.DATABASE_URL })
+  await client.connect()
+  try {
+    const found = await client.query<{ artefact: string }>(
+      `SELECT 'table' AS artefact FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'sign_in_attempts'
+       UNION ALL
+       SELECT 'index' FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = 'dimension_endpoint_subject_attemptedAt_idx'
+       UNION ALL
+       SELECT 'dimension-type' FROM pg_type WHERE typname = 'enum_sign_in_attempts_dimension'
+       UNION ALL
+       SELECT 'endpoint-type' FROM pg_type WHERE typname = 'enum_sign_in_attempts_endpoint'
+       UNION ALL
+       SELECT 'locked-documents-column' FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'payload_locked_documents_rels'
+          AND column_name = 'sign_in_attempts_id'`,
+    )
+    return found.rows.map((row) => row.artefact).sort()
+  } finally {
+    await client.end()
+  }
+}
+
+/** Every artefact `signInAttemptsSchema` looks for, when the migration is applied. */
+const SIGN_IN_ATTEMPTS_SCHEMA = ['dimension-type', 'endpoint-type', 'index', 'locked-documents-column', 'table']
+
+/**
+ * Runs one migration's own `up()` or `down()`, outside Payload's batch
+ * bookkeeping.
+ *
+ * `payload.db.migrateDown()` rolls back a whole BATCH, and every migration in
+ * this repository is applied in one batch, so it cannot reverse a single
+ * migration - which is precisely what a per-migration reversibility assertion
+ * needs. Running one migration's own `up`/`down` is the narrowest way to ask
+ * "does THIS migration's down() undo THIS migration's up()".
+ *
+ * The functions come from Payload's own `readMigrationFiles`, NOT from an
+ * `import` of the migration module, and that is deliberate. A static import
+ * makes Vitest transform and register a SECOND instance of a file Payload
+ * also loads straight off disk, and `@vitest/coverage-v8` then merges two
+ * unrelated range sets into one nonsensical report: measured, the file's
+ * branch coverage fell from 100% to 60% with a synthetic "branch" map
+ * spanning its own import lines, purely from adding the import. Asking
+ * Payload for the same functions it runs itself keeps one instance and one
+ * honest measurement.
+ * @param name - The migration's name, as `payload_migrations` records it.
+ * @param direction - Which of the two to run.
+ * @param payload - The test Payload instance, for its Drizzle handle.
+ */
+const runMigrationDirection = async (
+  name: string,
+  direction: 'up' | 'down',
+  payload: Awaited<ReturnType<typeof getPayload>>,
+): Promise<void> => {
+  const files = await readMigrationFiles({ payload })
+  const migration = files.find((file) => file.name === name)
+  if (migration === undefined) throw new Error(`no migration on disk named ${name}`)
+  const run: (args: MigrateUpArgs) => Promise<void> = direction === 'up' ? migration.up : migration.down
+  await run({
+    db: payload.db.drizzle,
+    payload,
+    // Cast justified: this migration's signature destructures `req` and its
+    // body never reads it (it is declared `_req`), so the alternative is
+    // assembling a whole PayloadRequest to hand to a discarded parameter.
+    req: {} as PayloadRequest,
+  })
+}
+
 /** The three tables a journey's own fields, highlights and tally live in. */
 const JOURNEY_TABLES = ['journeys', 'journeys_highlights', 'journeys_tally'] as const
 
 describe('collections', () => {
   let payload: Awaited<ReturnType<typeof getPayload>>
+  /** The signed-in caller the three access-guard cases share. */
+  let guardEditor: Awaited<ReturnType<typeof aGuardEditor>>
+
+  /**
+   * Creates the signed-in caller the access-guard cases use.
+   *
+   * A function rather than an inline `payload.create` so the account's type is
+   * inferred for the `user:` argument below, without this file having to name
+   * any of Payload's generated types - `payload.create`'s own signature is
+   * generic over the collection slug, so there is no way to write that type
+   * down here without naming the generated `User`. The return type is
+   * therefore inferred rather than annotated, which is what makes
+   * `Awaited<ReturnType<typeof aGuardEditor>>` above say the right thing. It
+   * lives inside the describe because it needs the `payload` binding above,
+   * unlike the module-level helpers that open a `pg` client of their own.
+   * @returns The created account.
+   */
+  const aGuardEditor = async () =>
+    payload.create({
+      collection: 'users',
+      data: { email: GUARD_EDITOR_EMAIL, password: 'not-a-real-password' },
+    })
+
+  /** Removes every row and account the access-guard cases create. */
+  const removeGuardFixtures = async (): Promise<void> => {
+    const jobs = await payload.find({ collection: 'jobs', where: { mediaId: { equals: GUARD_FIXTURE_MARKER } } })
+    for (const doc of jobs.docs) await payload.delete({ collection: 'jobs', id: doc.id })
+
+    const attempts = await payload.find({
+      collection: 'signInAttempts',
+      where: { subject: { equals: GUARD_FIXTURE_MARKER } },
+    })
+    for (const doc of attempts.docs) await payload.delete({ collection: 'signInAttempts', id: doc.id })
+
+    const editors = await payload.find({ collection: 'users', where: { email: { equals: GUARD_EDITOR_EMAIL } } })
+    for (const doc of editors.docs) {
+      // Challenges first: `otp_challenges.user_id` is NOT NULL and Payload's
+      // delete hook nulls the relationship rather than cascading, so removing
+      // the account while a challenge still points at it fails the constraint.
+      const challenges = await payload.find({ collection: 'otpChallenges', where: { user: { equals: doc.id } } })
+      for (const challenge of challenges.docs) await payload.delete({ collection: 'otpChallenges', id: challenge.id })
+      await payload.delete({ collection: 'users', id: doc.id })
+    }
+  }
 
   beforeAll(async () => {
     payload = await getTestPayload()
+    // Repairs the ONE inconsistent state this file's own reversibility case
+    // can leave behind, and nothing else: `session_hash` dropped while
+    // `payload_migrations` still records its migration as applied, which
+    // `getTestPayload()`'s own `runMigrateUp()` cannot fix because it has
+    // nothing pending to apply. The `finally` in that case makes this
+    // unreachable in the ordinary way; it exists for the way a `finally`
+    // cannot cover, which is the worker being killed outright between the
+    // `down` and the `up`. Narrow on purpose: it re-runs one migration's own
+    // `up()` when the schema and the bookkeeping disagree in exactly this
+    // way, so it cannot mask a migration that genuinely failed to apply.
+    if ((await sessionHashSchema()).length === 0) {
+      await runMigrationDirection(SESSION_HASH_MIGRATION, 'up', payload)
+    }
+    // The same narrow repair for the same narrow hazard, for the session
+    // expiry case below: `expires_at` dropped while `payload_migrations`
+    // still records its migration as applied. Reachable only by the worker
+    // being killed outright between that case's `down` and its `up`, which
+    // is the one way a `finally` cannot cover.
+    if ((await sessionExpirySchema()).length === 0) {
+      await runMigrationDirection(SESSION_EXPIRY_MIGRATION, 'up', payload)
+    }
+
+    // Cleaned at BOTH ends, and the editor minted ONCE: `users.email` is
+    // unique, so a row left behind by an interrupted run - or a second case
+    // minting the same address - fails inside the fixture rather than in the
+    // assertion it was written for.
+    await removeGuardFixtures()
+    guardEditor = await aGuardEditor()
   })
 
   afterAll(async () => {
+    await removeGuardFixtures()
     // "test-marrakech" is deliberately absent: that test's create() is
     // expected to reject (the highlights-cap case), so no row ever exists.
     for (const slug of FIXTURE_SLUGS) {
@@ -170,6 +488,44 @@ describe('collections', () => {
     }
     const editors = await payload.find({ collection: 'users', where: { email: { equals: FIXTURE_USER_EMAIL } } })
     for (const doc of editors.docs) {
+      await payload.delete({ collection: 'users', id: doc.id })
+    }
+    // The OTP reversibility case creates one account either side of the
+    // rollback, and the rollback destroys the first - so the address is
+    // matched rather than a single id remembered. Its challenge row goes
+    // FIRST: `otp_challenges.user_id` is NOT NULL, and Payload's own delete
+    // hook nulls the relationship rather than cascading, so removing the
+    // account while a challenge still points at it fails the constraint.
+    // The session-expiry case's own fixtures, cleared for the same reason and
+    // in the same order: `sessions.user_id` is NOT NULL, so the session row
+    // goes before the account it points at.
+    const sessionFixtures = await payload.find({
+      collection: 'sessions',
+      where: { device: { equals: FIXTURE_SESSION_DEVICE } },
+    })
+    for (const row of sessionFixtures.docs) {
+      await payload.delete({ collection: 'sessions', id: row.id })
+    }
+    const sessionAccounts = await payload.find({
+      collection: 'users',
+      where: { email: { equals: FIXTURE_SESSION_EXPIRY_EMAIL } },
+    })
+    for (const doc of sessionAccounts.docs) {
+      await payload.delete({ collection: 'users', id: doc.id })
+    }
+
+    const otpFixtures = await payload.find({
+      collection: 'users',
+      where: { email: { equals: FIXTURE_REVERSIBILITY_EMAIL } },
+    })
+    for (const doc of otpFixtures.docs) {
+      const challenges = await payload.find({
+        collection: 'otpChallenges',
+        where: { user: { equals: doc.id } },
+      })
+      for (const challenge of challenges.docs) {
+        await payload.delete({ collection: 'otpChallenges', id: challenge.id })
+      }
       await payload.delete({ collection: 'users', id: doc.id })
     }
   })
@@ -235,43 +591,68 @@ describe('collections', () => {
     expect(created.tally?.[1]?.value).toBe('plenty')
   })
 
-  // `jobs` and `otpChallenges` declare `access: { read/create/update: () =>
-  // false }` - they are server-only, reached through the Local API and never
-  // through the REST or GraphQL routes a client can call (docs/api.md). Those
-  // predicates had no test: Payload's Local API defaults to
-  // `overrideAccess: true`, so nothing in this suite ever ran them, and the
-  // one part of the schema with a deliberate access rule was the one part
-  // whose access rule was unmeasured. `overrideAccess: false` makes Payload
-  // enforce them, which is what a REST or GraphQL request does.
-  it('refuses to read jobs for an unauthenticated caller, because the queue is server-only', async () => {
-    const read = payload.find({ collection: 'jobs', overrideAccess: false })
-
-    await expect(read).rejects.toThrow()
-  })
-
-  it('refuses to write jobs for an unauthenticated caller, so a client cannot enqueue or re-status work', async () => {
-    const create = payload.create({
+  // THE THREE SERVER-ONLY COLLECTIONS - `jobs`, `otpChallenges` and
+  // `signInAttempts` - declare an access rule of their own, and every other
+  // collection inherits Payload's default ("signed in, or refused").
+  // `overrideAccess: false` is what makes Payload run those rules at all: the
+  // Local API defaults to `true`, so nothing in this suite ever executed them
+  // and the one part of the schema with a deliberate access rule was the one
+  // part whose rule was unmeasured.
+  //
+  // EACH CASE NOW ASSERTS ALL FOUR OPERATIONS, AND FOR A SIGNED-IN CALLER AS
+  // WELL AS A SIGNED-OUT ONE. The version this replaces asserted read, create
+  // and update for a signed-out caller only, and was named "so nobody can
+  // clear or forge their own window" while checking two thirds of that - which
+  // is exactly how a missing `delete` predicate survived beside it. Payload
+  // applies `defaultAccess` to any operation an access block omits, so `delete`
+  // fell through to "any signed-in user", and a limiter whose subject can
+  // delete its own rows is not a limiter. The signed-out half of each case
+  // could never have caught it: `defaultAccess` refuses a signed-out caller
+  // anyway.
+  //
+  // THE ROWS ARE REAL. An `update` or `delete` aimed at an id that does not
+  // exist is refused for being absent rather than for being forbidden, so a
+  // guard written against `id: '1'` passes with or without the rule.
+  it('refuses every operation on jobs, signed in or out, because the queue is reached only through the adapter', async () => {
+    const row = await payload.create({
       collection: 'jobs',
-      overrideAccess: false,
-      data: { kind: 'transcode', mediaId: 'test-media-access', status: 'queued' },
+      data: { kind: 'transcode', mediaId: GUARD_FIXTURE_MARKER, status: 'queued' },
     })
-    const update = payload.update({
-      collection: 'jobs',
-      id: '1',
-      overrideAccess: false,
-      data: { status: 'failed' },
+    const editor = guardEditor
+
+    const signedOut = await operationsAllowedBy({
+      read: () => payload.find({ collection: 'jobs', overrideAccess: false }),
+      create: () =>
+        payload.create({
+          collection: 'jobs',
+          overrideAccess: false,
+          data: { kind: 'transcode', mediaId: GUARD_FIXTURE_MARKER, status: 'queued' },
+        }),
+      update: () =>
+        payload.update({ collection: 'jobs', id: row.id, overrideAccess: false, data: { status: 'failed' } }),
+      delete: () => payload.delete({ collection: 'jobs', id: row.id, overrideAccess: false }),
+    })
+    const signedIn = await operationsAllowedBy({
+      read: () => payload.find({ collection: 'jobs', overrideAccess: false, user: editor }),
+      create: () =>
+        payload.create({
+          collection: 'jobs',
+          overrideAccess: false,
+          user: editor,
+          data: { kind: 'transcode', mediaId: GUARD_FIXTURE_MARKER, status: 'queued' },
+        }),
+      update: () =>
+        payload.update({
+          collection: 'jobs',
+          id: row.id,
+          overrideAccess: false,
+          user: editor,
+          data: { status: 'failed' },
+        }),
+      delete: () => payload.delete({ collection: 'jobs', id: row.id, overrideAccess: false, user: editor }),
     })
 
-    // Both assertions are attached in ONE `Promise.all`, not awaited one
-    // after the other. `expect(p).rejects` only attaches its handler when it
-    // is called, so awaiting the first assertion to completion leaves the
-    // second promise rejected-and-unhandled for as long as that takes - and
-    // Node reports it as an unhandled rejection at the next microtask drain,
-    // which Vitest surfaces as `Errors 1 error` and a non-zero exit even
-    // though every test passed. It is a latent race rather than a certainty:
-    // it depends on which of the two rejects first, and it went from silent
-    // to reproducible when Task 14 made the seed in a sibling file slower.
-    await Promise.all([expect(create).rejects.toThrow(), expect(update).rejects.toThrow()])
+    expect({ signedOut, signedIn }).toEqual({ signedOut: [], signedIn: [] })
   })
 
   // `media` is the one collection a signed-out reader MUST be able to read.
@@ -343,35 +724,42 @@ describe('collections', () => {
     expect(asEditor.docs).toHaveLength(1)
   })
 
-  it('refuses to read otpChallenges for an unauthenticated caller, because a code hash must never be enumerable', async () => {
-    const read = payload.find({ collection: 'otpChallenges', overrideAccess: false })
+  it('refuses every operation on otpChallenges, signed in or out, so a code hash is neither enumerable nor resettable', async () => {
+    const account = guardEditor
+    const row = await payload.create({ collection: 'otpChallenges', data: anOtpChallengeFor(account.id) })
 
-    await expect(read).rejects.toThrow()
-  })
-
-  it('refuses to write otpChallenges for an unauthenticated caller, so nobody can mint or reset a challenge', async () => {
-    const create = payload.create({
-      collection: 'otpChallenges',
-      overrideAccess: false,
-      data: { user: 1, codeHash: 'never-stored-in-plaintext', expiresAt: new Date().toISOString() },
+    const signedOut = await operationsAllowedBy({
+      read: () => payload.find({ collection: 'otpChallenges', overrideAccess: false }),
+      create: () =>
+        payload.create({ collection: 'otpChallenges', overrideAccess: false, data: anOtpChallengeFor(account.id) }),
+      update: () =>
+        payload.update({ collection: 'otpChallenges', id: row.id, overrideAccess: false, data: { attempts: 0 } }),
+      delete: () => payload.delete({ collection: 'otpChallenges', id: row.id, overrideAccess: false }),
     })
-    const update = payload.update({
-      collection: 'otpChallenges',
-      id: '1',
-      overrideAccess: false,
-      data: { attempts: 0 },
+    const signedIn = await operationsAllowedBy({
+      read: () => payload.find({ collection: 'otpChallenges', overrideAccess: false, user: account }),
+      create: () =>
+        payload.create({
+          collection: 'otpChallenges',
+          overrideAccess: false,
+          user: account,
+          data: anOtpChallengeFor(account.id),
+        }),
+      update: () =>
+        payload.update({
+          collection: 'otpChallenges',
+          id: row.id,
+          overrideAccess: false,
+          user: account,
+          data: { attempts: 0 },
+        }),
+      delete: () => payload.delete({ collection: 'otpChallenges', id: row.id, overrideAccess: false, user: account }),
     })
 
-    // Both assertions are attached in ONE `Promise.all`, not awaited one
-    // after the other. `expect(p).rejects` only attaches its handler when it
-    // is called, so awaiting the first assertion to completion leaves the
-    // second promise rejected-and-unhandled for as long as that takes - and
-    // Node reports it as an unhandled rejection at the next microtask drain,
-    // which Vitest surfaces as `Errors 1 error` and a non-zero exit even
-    // though every test passed. It is a latent race rather than a certainty:
-    // it depends on which of the two rejects first, and it went from silent
-    // to reproducible when Task 14 made the seed in a sibling file slower.
-    await Promise.all([expect(create).rejects.toThrow(), expect(update).rejects.toThrow()])
+    // A signed-in `delete` here is the sharpest of the four: it would let the
+    // holder of an account throw away the attempt counter that limits guesses
+    // against their own challenge.
+    expect({ signedOut, signedIn }).toEqual({ signedOut: [], signedIn: [] })
   })
 
   it('rebuilds every table a journey, its highlights and its tally need, after rolling all migrations back to zero and re-applying them', async () => {
@@ -396,16 +784,36 @@ describe('collections', () => {
     // file's DROP path, including its hand-fixed statement order.
     await runMigrateDownToZero()
 
-    // Asserted here, mid-test, rather than with the rest below - deliberately.
-    // Payload's own migrate() calls process.exit(1) when a migration fails, so
-    // a rollback that left a table behind would kill this worker on the
-    // re-apply two lines down, before any assertion could name what went
-    // wrong. These two lines are what turn a broken down() into a readable
-    // test failure instead of a dead process.
-    expect(await appliedMigrationCount()).toBe(0)
-    expect(await existingTablesAmong(JOURNEY_TABLES)).toEqual([])
+    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS - the same
+    // reasoning as the two per-migration cases below, arrived at here later
+    // than it should have been. Between the rollback above and the re-apply
+    // below, `diary_test` has no schema at all. Either assertion inside the
+    // block can fail, and without the `finally` that failure stops being a red
+    // test and becomes a session in which nothing can be verified: every later
+    // file in this project connects to an empty database, and the damage
+    // presents as a broken fixture several files away from the test that
+    // caused it. Documenting that hazard, which is what the previous revision
+    // did, is not the same as closing it.
+    //
+    // What the `finally` covers is an ASSERTION failing while the schema is
+    // sound - the ordinary red-test case - after which the re-apply succeeds
+    // and the database heals itself. What it cannot cover is a `down()` that
+    // leaves artefacts behind, because then the re-apply legitimately fails on
+    // the collision; that case still needs the hand repair `docs/testing.md`
+    // §9 describes, and no arrangement of this test can avoid it.
+    try {
+      // Asserted here, mid-test, rather than with the rest below -
+      // deliberately. Payload's own migrate() calls process.exit(1) when a
+      // migration fails, so a rollback that left a table behind would kill
+      // this worker on the re-apply, before any assertion could name what went
+      // wrong. These two lines are what turn a broken down() into a readable
+      // test failure instead of a dead process.
+      expect(await appliedMigrationCount()).toBe(0)
+      expect(await existingTablesAmong(JOURNEY_TABLES)).toEqual([])
+    } finally {
+      await runMigrateUp()
+    }
 
-    await runMigrateUp()
     const restored = await payload.create({ collection: 'journeys', data: aReversibilityJourney() })
 
     expect({
@@ -420,5 +828,197 @@ describe('collections', () => {
       highlights: (restored.highlights ?? []).map((highlight) => highlight.text),
       tally: (restored.tally ?? []).map((row) => `${row.key ?? ''}=${row.value ?? ''}`),
     }).toEqual(captured)
+  })
+
+  // The `session_hash` column added by `20260905_202028_add_otp_session_hash`
+  // (Phase 2 Task 3, docs/deviations.md §25) gets its own case, and that case
+  // rolls back THAT MIGRATION ALONE rather than reusing the roll-to-zero
+  // above. The first version of it did reuse it, and was worthless: a
+  // reviewer replaced the migration's `down()` with a no-op and every test
+  // here still passed. Rolling to zero means the INITIAL migration's
+  // `DROP TABLE` removes `otp_challenges` outright, so "the column is gone"
+  // was true whatever this migration's `down()` did - and the assertion was
+  // on the TABLE, which the initial migration rebuilds, not on the column.
+  //
+  // This version calls the migration file's own `up()` and `down()` directly
+  // and asserts on the COLUMN and its INDEX, which is the only pair of facts
+  // this migration is responsible for. Verified by mutation: replacing
+  // `down()` with a no-op fails it (see the task report).
+  it('drops and restores only the otpChallenges session binding when its own migration is reversed', async () => {
+    expect(await sessionHashSchema()).toEqual(['column', 'index'])
+
+    await runMigrationDirection(SESSION_HASH_MIGRATION, 'down', payload)
+    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS. Between the
+    // `down` above and the `up` below, `diary_test` is in a state
+    // `payload_migrations` does not describe: the column is gone while the
+    // bookkeeping still records the migration as applied, so the next run's
+    // `runMigrateUp()` is a no-op and EVERY subsequent integration run fails
+    // against a database with no way to repair itself. Without this, one
+    // failing assertion in here stops being a red test and becomes a session
+    // in which nothing at all can be verified - and the damage presents as a
+    // broken fixture, several files away from the test that caused it. The
+    // version this replaced rolled every migration to zero, which was
+    // worthless as a test (see below) but was at least self-healing; the
+    // narrower test must not buy its precision with that blast radius.
+    try {
+      expect(await sessionHashSchema()).toEqual([])
+      // The table itself must survive: this migration adds a column to a table
+      // it did not create, so a `down()` that took the table with it would be a
+      // different and much worse kind of reversible.
+      expect(await existingTablesAmong(['otp_challenges'])).toEqual(['otp_challenges'])
+    } finally {
+      await runMigrationDirection(SESSION_HASH_MIGRATION, 'up', payload)
+    }
+
+    expect(await sessionHashSchema()).toEqual(['column', 'index'])
+    // And the rebuilt column still holds what it is for. A migration that
+    // restored a column of the wrong type or nullability would satisfy every
+    // assertion above and fail the first time anything wrote to it.
+    const account = await payload.create({
+      collection: 'users',
+      data: { email: FIXTURE_REVERSIBILITY_EMAIL, password: 'not-a-real-password' },
+    })
+    const restored = await payload.create({ collection: 'otpChallenges', data: anOtpChallengeFor(account.id) })
+
+    expect(restored.sessionHash).toBe(FIXTURE_SESSION_HASH)
+  })
+
+  it('refuses every operation on signInAttempts, signed in or out, so nobody can clear or forge their own window', async () => {
+    const attempted = new Date().toISOString()
+    const row = await payload.create({
+      collection: 'signInAttempts',
+      data: { dimension: 'ip', endpoint: 'code', subject: GUARD_FIXTURE_MARKER, attemptedAt: attempted },
+    })
+    const editor = guardEditor
+
+    const signedOut = await operationsAllowedBy({
+      read: () => payload.find({ collection: 'signInAttempts', overrideAccess: false }),
+      create: () =>
+        payload.create({
+          collection: 'signInAttempts',
+          overrideAccess: false,
+          data: { dimension: 'ip', endpoint: 'code', subject: GUARD_FIXTURE_MARKER, attemptedAt: attempted },
+        }),
+      update: () =>
+        payload.update({
+          collection: 'signInAttempts',
+          id: row.id,
+          overrideAccess: false,
+          data: { endpoint: 'password' },
+        }),
+      delete: () => payload.delete({ collection: 'signInAttempts', id: row.id, overrideAccess: false }),
+    })
+    const signedIn = await operationsAllowedBy({
+      read: () => payload.find({ collection: 'signInAttempts', overrideAccess: false, user: editor }),
+      create: () =>
+        payload.create({
+          collection: 'signInAttempts',
+          overrideAccess: false,
+          user: editor,
+          data: { dimension: 'ip', endpoint: 'code', subject: GUARD_FIXTURE_MARKER, attemptedAt: attempted },
+        }),
+      update: () =>
+        payload.update({
+          collection: 'signInAttempts',
+          id: row.id,
+          overrideAccess: false,
+          user: editor,
+          data: { endpoint: 'password' },
+        }),
+      delete: () => payload.delete({ collection: 'signInAttempts', id: row.id, overrideAccess: false, user: editor }),
+    })
+
+    // `delete` is the operation this collection cannot afford to leak: a
+    // signed-in caller who can remove their own rows has no rate limit at all,
+    // and every one of the bursts in `rateLimit.integration.test.ts` would
+    // still pass.
+    expect({ signedOut, signedIn }).toEqual({ signedOut: [], signedIn: [] })
+  })
+
+  // The sliding window's own table gets the same per-migration treatment the
+  // `session_hash` column above does, and for the same reason: rolling every
+  // migration to zero would drop this table as a side effect of the INITIAL
+  // migration's `DROP TABLE`s, so it would say nothing about whether THIS
+  // migration's `down()` did anything. This case runs that migration's own
+  // `up()`/`down()` and asserts on all five artefacts it is responsible for -
+  // the table, its compound index, its two enum types, and the column it adds
+  // to `payload_locked_documents_rels`. Verified by mutation: replacing
+  // `down()` with a no-op fails it (see the task report).
+  it('drops and restores the whole sign-in attempt window, enum types included, when its own migration is reversed', async () => {
+    expect(await signInAttemptsSchema()).toEqual(SIGN_IN_ATTEMPTS_SCHEMA)
+
+    await runMigrationDirection(SIGN_IN_ATTEMPTS_MIGRATION, 'down', payload)
+    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS - see the
+    // otpChallenges case above. Between the `down` and the `up`, `diary_test`
+    // is in a state `payload_migrations` does not describe, and the next
+    // run's `runMigrateUp()` would be a no-op against a database with no way
+    // to repair itself.
+    try {
+      expect(await signInAttemptsSchema()).toEqual([])
+    } finally {
+      await runMigrationDirection(SIGN_IN_ATTEMPTS_MIGRATION, 'up', payload)
+    }
+
+    expect(await signInAttemptsSchema()).toEqual(SIGN_IN_ATTEMPTS_SCHEMA)
+    // And the rebuilt table still holds what it is for. A migration that
+    // restored a column of the wrong type, or an enum missing a value, would
+    // satisfy every assertion above and fail the first time anything wrote.
+    const restored = await payload.create({
+      collection: 'signInAttempts',
+      data: {
+        dimension: 'account',
+        endpoint: 'password',
+        subject: 'test-reversibility',
+        attemptedAt: new Date().toISOString(),
+      },
+    })
+    await payload.delete({ collection: 'signInAttempts', id: restored.id })
+
+    expect(restored.dimension).toBe('account')
+  })
+
+  // The session row's lifetime column and the index its authentication reads
+  // by (Phase 2 Task 6, docs/deviations.md §30) get the same per-migration
+  // treatment as the two cases above, and for the same reason: rolling every
+  // migration to zero would take `sessions` with it as a side effect of the
+  // INITIAL migration's `DROP TABLE`, so it would say nothing about whether
+  // THIS migration's `down()` did anything. This case runs that migration's
+  // own `up()`/`down()` and asserts on the two artefacts it is responsible
+  // for. Verified by mutation: replacing `down()` with a no-op fails it (see
+  // the task report).
+  it('drops and restores the session lifetime column and its lookup index when its own migration is reversed', async () => {
+    expect(await sessionExpirySchema()).toEqual(['column', 'index'])
+
+    await runMigrationDirection(SESSION_EXPIRY_MIGRATION, 'down', payload)
+    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS - see the
+    // otpChallenges case above. Between the `down` and the `up`, `diary_test`
+    // is in a state `payload_migrations` does not describe, and the next
+    // run's `runMigrateUp()` would be a no-op against a database with no way
+    // to repair itself.
+    try {
+      expect(await sessionExpirySchema()).toEqual([])
+      // The table itself must survive: this migration adds a column and an
+      // index to a table it did not create, so a `down()` that took the table
+      // with it would be a different and much worse kind of reversible.
+      expect(await existingTablesAmong(['sessions'])).toEqual(['sessions'])
+    } finally {
+      await runMigrationDirection(SESSION_EXPIRY_MIGRATION, 'up', payload)
+    }
+
+    expect(await sessionExpirySchema()).toEqual(['column', 'index'])
+    // And the rebuilt column still holds what it is for. A migration that
+    // restored it nullable, or of the wrong type, would satisfy every
+    // assertion above and fail the first time a session was issued.
+    const account = await payload.create({
+      collection: 'users',
+      data: { email: FIXTURE_SESSION_EXPIRY_EMAIL, password: 'not-a-real-password' },
+    })
+    const expiresAt = new Date(Date.now() + 60 * 60_000).toISOString()
+    const session = await payload.create({
+      collection: 'sessions',
+      data: { user: account.id, tokenHash: 'e'.repeat(64), expiresAt, device: FIXTURE_SESSION_DEVICE },
+    })
+
+    expect(session.expiresAt).toBe(expiresAt)
   })
 })

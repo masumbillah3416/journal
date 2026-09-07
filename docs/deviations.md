@@ -117,6 +117,9 @@ between an `inline` adapter (the still pipeline only, no worker) and a `worker` 
 (the still pipeline plus `ffmpeg` transcoding, on Fly.io) — the same Ports & Adapters
 shape already used for `storage`/`mailer`/`queue`.
 
+**NOT BUILT.** Neither `MediaProcessor` adapter, the port itself, the contract suite or the `MEDIA_PIPELINE` variable exists in this repository: `grep -rn MediaProcessor apps packages` returns nothing, `apps/web/lib/ports/` holds only `mailer.ts`, `queue.ts` and `storage.ts`, `MEDIA_PIPELINE` is declared in neither `apps/web/lib/env.ts` nor `.env.example`, and setting it changes nothing. `docs/adr/0004-media-pipeline-mode.md` says so itself — _Nothing in this ADR is built now_ — and five documents described it in the present tense anyway (Phase 2's final review, finding 30). It is Phase 3's. What this entry records is the DECISION, which stands; what it does
+not record, and used to read as though it did, is a shipped pipeline.
+
 **Rationale:** this is not a departure from anything `handoff/design_handoff_travel_diary/`
 mandates — the handoff's own non-goals already describe clips as silent ~20-second loops,
 not a streaming feature, and never requires video to ship on day one. It is a departure
@@ -150,8 +153,10 @@ replaced or "improved" during implementation.
 **What changed:** `CLAUDE.md` §7 is unconditional — "never log secrets, tokens, OTP codes,
 or full email addresses" — and `SECURITY.md`'s OTP requirements assume the code reaches
 the recipient by email and nowhere else. `apps/web/lib/adapters/console-mailer.ts`, the
-development stand-in for Phase 2's Resend adapter, deliberately breaks the first half of
-that rule in one narrow case: when its `isDevelopment` option is true, the line it prints
+development stand-in for a sending adapter that **no phase has yet built** — this entry
+called it "Phase 2's Resend adapter" and Phase 2 shipped none, nor does the spec's Phase 2
+section ask for one (Phase 2's final review, finding 20) — deliberately breaks the first
+half of that rule in one narrow case: when its `isDevelopment` option is true, the line it prints
 to the terminal includes the message body, which for the only email this project sends is
 the OTP code.
 
@@ -168,11 +173,14 @@ retained. That is a materially different exposure from the one §7 exists to pre
   so production — where `NODE_ENV` is `production` — takes the masked branch. The
   dangerous state requires an explicit opt-in, not merely the absence of a guard.
 - **It is narrow.** The exemption covers the body only. The recipient address is masked
-  to `m***@example.com` on *both* branches — asserted by its own test — so the one thing
+  to `m***@example.com` on _both_ branches — asserted by its own test — so the one thing
   §7 says about addresses holds unconditionally, in development too.
-- **It is the only one.** `eslint.config.js` carries a `no-console` override naming this
-  single file rather than a blanket disable, so an accidental `console.log` anywhere else
-  in the codebase is still a lint failure.
+- **It is one of exactly two, and both name a single file.** `eslint.config.js` carries a
+  `no-console` override for this module and one for `scripts/run-lighthouse.mjs`, whose
+  printed pass/fail summary is the whole point of a terminal command — never a blanket
+  disable, so an accidental `console.log` anywhere in application code is still a lint
+  failure. This bullet said "the only one" until the performance runner landed and nothing
+  updated it (Phase 2's final review, finding 43).
 
 **One correction this deviation caused, worth recording.** The shared mailer contract
 suite — whose "never records the message body, which carries the code" case is the §7
@@ -185,7 +193,7 @@ and separate cases pin both branches. A fail-safe default is not a substitute fo
 injecting the value in a test.
 
 **Recorded as:** `apps/web/lib/adapters/console-mailer.ts`'s module header;
-`apps/web/lib/adapters/console-mailer.test.ts`'s header and its three
+`apps/web/lib/adapters/console-mailer.test.ts`'s header and its
 development-behaviour cases; `eslint.config.js`'s targeted `no-console` override;
 `docs/testing.md` §3 (Contract).
 
@@ -221,8 +229,10 @@ swallowed there, and would need to say so rather than discover it.
 
 **Recorded as:** `apps/web/components/book/book.module.css`'s `HANDOFF-DEVIATION` at
 `.edgeLeft`/`.edgeRight`; `apps/web/components/book/Book.tsx`'s comment at the two
-`<EdgeStrip>` elements; `apps/web/components/book/EdgeStrip.tsx`'s header;
-`docs/testing.md` §4 (End-to-end).
+`<EdgeStrip>` elements; `apps/web/components/book/EdgeStrip.tsx`'s header, which named
+this entry only after final review 9 found it recording nothing of it — the file that a
+reader opens first before moving a strip was the one file that did not carry the
+reproduction; `docs/testing.md` §4 (End-to-end).
 
 ## 9 · Contents column count follows SCREENS.md's formula, not its "verified" example
 
@@ -234,7 +244,7 @@ columns = ceil(entryCount / 11)
 rows    = ceil(entryCount / columns)
 ```
 
-What is *not* honoured is the sentence that closes the same section: "Verified: 31
+What is _not_ honoured is the sentence that closes the same section: "Verified: 31
 entries render as 4 columns × 8 rows with zero overflow." For 31 entries this formula
 gives **3 columns × 11 rows**.
 
@@ -247,7 +257,7 @@ was kept rather than the example, on three grounds: it is given as the algorithm
 code block, and an algorithm is the more precise of the two statements; the handoff's
 own prototype runs exactly it (`Travel Diary.dc.html`:
 `Math.max(1, Math.ceil(contents.length / 11))`, then
-`Math.ceil(contents.length / nCols)`); and the section's *other* stated case — eleven
+`Math.ceil(contents.length / nCols)`); and the section's _other_ stated case — eleven
 entries in a single column, which is what the seeded ten-journey book produces — holds
 only under the formula.
 
@@ -323,7 +333,7 @@ two.
 
 1. The full-bleed cloth's gradient end stop, `rgba(0,0,0,.28)`, is now **opaque**:
    `linear-gradient(160deg, {cloth} 0%, color-mix(in srgb, {cloth} 72%, #000) 130%)`. That
-   end colour is what the handoff's own 28%-opaque black *resolves to* on the cloth — the
+   end colour is what the handoff's own 28%-opaque black _resolves to_ on the cloth — the
    same tone, no longer letting anything through it.
 2. The years line's colour is `rgba(238,220,180,.78)`, not §1.1's `rgba(238,220,180,.5)`.
    `.78` is the alpha the subtitle already carries, so no new value enters the palette.
@@ -336,13 +346,13 @@ literal values. Measured from the rendered pixels in a real browser at all three
 projects, not estimated (`e2e/support/coverContrast.ts`); the `desktop` figures below are
 the tightest of the three:
 
-| Cover line | Size | Before | After | Required |
-|---|---|---|---|---|
-| "Travel Diary" eyebrow | 12px | **2.86:1** | 4.52:1 | 4.5:1 |
-| "Wanderings" title | 124px | 3.81:1 | 8.13:1 | 3:1 |
-| Subtitle | 22px italic | **2.72:1** | 5.33:1 | 4.5:1 |
-| "Kept by {owner}" | 12.5px | **2.37:1** | 4.73:1 | 4.5:1 |
-| Years | 12.5px | **1.87:1** | 5.26:1 | 4.5:1 |
+| Cover line             | Size        | Before     | After  | Required |
+| ---------------------- | ----------- | ---------- | ------ | -------- |
+| "Travel Diary" eyebrow | 12px        | **2.86:1** | 4.52:1 | 4.5:1    |
+| "Wanderings" title     | 124px       | 3.81:1     | 8.13:1 | 3:1      |
+| Subtitle               | 22px italic | **2.72:1** | 5.33:1 | 4.5:1    |
+| "Kept by {owner}"      | 12.5px      | **2.37:1** | 4.73:1 | 4.5:1    |
+| Years                  | 12.5px      | **1.87:1** | 5.26:1 | 4.5:1    |
 
 Only the 124px title is large text under SC 1.4.3, which needs 24px or 18.66px bold — the
 22px italic subtitle does **not** qualify for the 3:1 exemption and is held to 4.5:1 like
@@ -350,7 +360,7 @@ the three Courier lines.
 
 The cause was in the specified gradient rather than in the transcription; the handoff's
 own prototype renders the same way. `linear-gradient(160deg, {cloth} 0%,
-rgba(0,0,0,.28) 130%)` interpolates from an *opaque* colour to a 28%-opaque black, so the
+rgba(0,0,0,.28) 130%)` interpolates from an _opaque_ colour to a 28%-opaque black, so the
 cloth's own alpha falls to about `.72` by mid-page and the light paper face beneath the
 cover shows through, lifting the background from `#2f4a47` to roughly `#5e6d67` exactly
 where the small Courier lines sit. Making the end stop opaque removes that wash and clears
@@ -392,7 +402,7 @@ because the prototype is part of the same handoff directory.
 1. **The left column's order is the spec's, not the prototype's.** `SCREENS.md` §1.3
    numbers the left column's five children explicitly — eyebrow, highlight list, rule
    and note, **tally ticket**, then **ephemera slot**. The prototype's DOM puts the
-   ephemera scrap *above* the tally ticket. The spec's order is used. Both orders behave
+   ephemera scrap _above_ the tally ticket. The spec's order is used. Both orders behave
    identically under the flex rules the same paragraph gives (the scrap is the only
    `flex: 1` child either way), so this is a visual ordering choice, not a layout one.
 
@@ -411,7 +421,7 @@ because the prototype is part of the same handoff directory.
    costs the diary route no client JavaScript.
 
 4. **The ephemera scrap has an empty `alt`, not the prototype's `role="img"
-   aria-label="Pasted ephemera"`.** `ephemera` is a fixed role in the schema, and the
+aria-label="Pasted ephemera"`.** `ephemera` is a fixed role in the schema, and the
    thing in the slot is a texture behind tape rather than a photograph with a subject —
    the seed says as much where it creates one. An empty `alt` takes it out of the
    accessibility tree, which is what a decorative image should do; announcing "Pasted
@@ -500,14 +510,14 @@ diary route at every viewport. Measured by axe-core in the pinned Playwright con
 (`mcr.microsoft.com/playwright:v1.62.1-noble`), not estimated — the run failed 18 of 24
 cases in `e2e/a11y.spec.ts` with two distinct findings, one per tab state:
 
-| Tab state | Composite foreground | Background | Measured | Required |
-|---|---|---|---|---|
-| Inactive (`--td-ink-diary-muted` at `.62`) | `#a99f8d` | `#f6f4f1` | **2.38:1** | 4.5:1 |
-| Active (`--td-ink` at `.62`) | `#7f857e` | `#fbf6e9` | **3.50:1** | 4.5:1 |
+| Tab state                                  | Composite foreground | Background | Measured   | Required |
+| ------------------------------------------ | -------------------- | ---------- | ---------- | -------- |
+| Inactive (`--td-ink-diary-muted` at `.62`) | `#a99f8d`            | `#f6f4f1`  | **2.38:1** | 4.5:1    |
+| Active (`--td-ink` at `.62`)               | `#7f857e`            | `#fbf6e9`  | **3.50:1** | 4.5:1    |
 
 8.5px is not large text under SC 1.4.3 by any reading, so 4.5:1 is the floor. Raising the
 opacity alone cannot reach it: the inherited inactive ink (`#7a6b50`) measures 4.43:1
-*solid*, so no opacity at all clears 4.5 over paper. The colour therefore had to move too.
+_solid_, so no opacity at all clears 4.5 over paper. The colour therefore had to move too.
 `--td-ink-body` at `.78` measures ~5.0:1 in both states, and `.78` is the same lever and
 the same number §12 above used for the cover's years line, so no new value enters the
 palette.
@@ -534,7 +544,7 @@ background and a different size, so it needs its own measurement rather than thi
 copied across.
 
 **Recorded as:** `apps/web/components/chrome/chrome.module.css`'s `HANDOFF-DEVIATION`
-comment at `.tabSub`; `e2e/a11y.spec.ts`'s six diary cases, which are what failed.
+comment at `.tabSub`; `e2e/a11y.spec.ts`'s at least six diary cases, which are what failed.
 
 ---
 
@@ -579,7 +589,6 @@ red before green: with Task 8's `flex-wrap` and `min-width: min(210px, 100%)` re
 that case fails on `mobile` and passes on `desktop` and `mid`, which is exactly the shape
 of the original defect.
 
-
 ---
 
 ## 17 · NOT a deviation — the lightbox's Download goes through our own handler, because `SECURITY.md` says it must
@@ -612,7 +621,7 @@ carries no scheme and no authority and cannot resolve to `MEDIA_ORIGIN`.
 signed URL.** The planned entry said "a short-lived signed URL with
 `Content-Disposition: attachment` and a strict `Content-Type`". The route serves the
 bytes directly instead, and that is a deliberate simplification rather than an omission.
-A signed URL is what you reach for when the *store* is the thing answering the request
+A signed URL is what you reach for when the _store_ is the thing answering the request
 and your app is only issuing permission — the signature is the permission travelling
 without you. Here the app is already in the request path: it has just done four database
 checks (published journey, right journey, not hidden, downloads allowed) and it holds
@@ -659,7 +668,7 @@ for the transport.
 **Handoff, `SCREENS.md` §1.8:** "caption below truncated to one line."
 
 **The project's own standing policy**, applied by `Cover.tsx`, `Notes.tsx`,
-`PhotoMount.tsx` and `About.tsx`: an empty optional line prints *nothing* — not an empty
+`PhotoMount.tsx` and `About.tsx`: an empty optional line prints _nothing_ — not an empty
 element — because none of those fields is `required: true` and an editor who has not
 filled one in is an ordinary state, not a corrupted row.
 
@@ -723,7 +732,6 @@ not the seed. See `docs/qa/2026-09-03-phase-1-closing-sweep.md` PH1-002.
 
 **No clips, in any of them** — see §18.
 
-
 ---
 
 ## 21 · The lightbox's metadata line is cream at 58%, not 45%
@@ -783,12 +791,12 @@ exact `#3b332a`: cream label, `--td-cream-dim` sub-label, and an active tab fill
 reusing it puts `#7a6b50` ink on `rgba(120,98,60,.07)` over `#3b332a`. Measured with this
 repository's own `contrastRatio`/`composite` (`packages/domain/src/contrast.ts`):
 
-| Line | Prototype's colours | Built | WCAG 2.1 AA floor |
-|---|---|---|---|
-| tab name (Caveat 26px) | **2.28:1** | 10.57:1 | 4.5:1 (Caveat is not a large-text face at this size in the sense SC 1.4.3 means) |
-| tab sub-line (Courier 9px) | **1.68:1** | 6.10:1 | 4.5:1 |
-| active tab name | — | 10.03:1 | 4.5:1 |
-| active tab sub-line | — | 4.98:1 | 4.5:1 |
+| Line                       | Prototype's colours | Built   | WCAG 2.1 AA floor                                                                |
+| -------------------------- | ------------------- | ------- | -------------------------------------------------------------------------------- |
+| tab name (Caveat 26px)     | **2.28:1**          | 10.57:1 | 4.5:1 (Caveat is not a large-text face at this size in the sense SC 1.4.3 means) |
+| tab sub-line (Courier 9px) | **1.68:1**          | 6.10:1  | 4.5:1                                                                            |
+| active tab name            | —                   | 10.03:1 | 4.5:1                                                                            |
+| active tab sub-line        | —                   | 4.98:1  | 4.5:1                                                                            |
 
 Both prototype figures are well under the floor, and `e2e/a11y.spec.ts`'s
 drawer-open case runs axe with **no exclusions**, so the literal transcription would have
@@ -810,10 +818,10 @@ explicitly, or a redesign of the panel's background. Neither exists today.
 **Where:** `CLAUDE.md` §6's LCP row; `lighthouserc.json` and `lighthouserc.book.json`'s
 `largest-contentful-paint` assertions; `docs/adr/0008-lcp-budget-and-the-framework-floor.md`.
 
-**What the plan said.** Task 13's brief, Step 5, in full: *"Confirm Lighthouse now passes
+**What the plan said.** Task 13's brief, Step 5, in full: _"Confirm Lighthouse now passes
 against `/p/1`. If LCP exceeds 2500ms, report the measurement — do NOT raise the
-budget."* That is as explicit as an instruction gets, and it is recorded here because
-this file's preamble covers deliberate exceptions to *this project's own* standards, and
+budget."_ That is as explicit as an instruction gets, and it is recorded here because
+this file's preamble covers deliberate exceptions to _this project's own_ standards, and
 a departure from the project's own plan is one of them. Nothing in `SCREENS.md`,
 `README.md`, `DATA_MODEL.md` or `SECURITY.md` names an LCP number; the 2,500ms figure was
 this repository's, written into `CLAUDE.md` §6 in Phase 0 before any route existed.
@@ -854,7 +862,7 @@ was escalated rather than taken.
 `aggregationMethod` at `median` — the last of those specifically because lhci's default
 (`optimistic`) takes the best of five runs and would have loosened the gate a second
 time, silently. `docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md` later
-made the gate *stricter* in the dimension that mattered, by pinning the two viewports the
+made the gate _stricter_ in the dimension that mattered, by pinning the two viewports the
 two reading surfaces are actually measured at, and `docs/testing.md` §7.0 is the
 current-state table for every number involved.
 
@@ -912,3 +920,1121 @@ justification, both point here, and this entry is the single place the reasoning
 
 **What would reverse this.** Either element moving inside the design box, or a
 `SCREENS.md` revision dropping `background` from §1.7's transition. Neither exists today.
+
+## 25 · `otpChallenges` gains a `sessionHash` column the handoff never lists
+
+**What changed:** `DATA_MODEL.md` specifies the `otpChallenges` collection as `user`,
+`codeHash`, `expiresAt`, `attempts`, `consumedAt`, `ip` — six fields, none of them a
+session. This project adds a seventh: `sessionHash`, an indexed, required text column
+holding SHA-256 of the pre-auth session identifier
+(`apps/web/collections/otpChallenges.ts`, migration
+`apps/web/migrations/20260905_202028_add_otp_session_hash.ts`).
+
+**Rationale:** the handoff contradicts itself here, and the contradiction is load-bearing.
+`SECURITY.md`'s first prototype hole requires, in its own words, "Bind the challenge to
+the session that started it, so a code issued for one browser can't be redeemed in
+another" — and `DATA_MODEL.md`'s field list for the very collection that binding lives in
+has nowhere to put a session. Phase 0 implemented the field list faithfully, so the gap is
+inherited rather than introduced. Building `issueChallenge(user, session, ip)` against
+that schema would leave the `session` parameter accepted, ignored and untested: the
+binding requirement failing while appearing to hold, which is the exact failure mode the
+phase's Ruling F1 was written to prevent one task earlier. Between a field list and a
+hardening requirement, the hardening requirement wins — the same precedence
+`docs/adr/0002-auth-mechanism.md` already applied when the three handoff documents
+disagreed about auth.
+
+**Why hashed, and why not a relationship to `sessions`:** the column sits in the same row
+as `ip`, and a table that already hashes one secret should not keep the other in
+cleartext — `SECURITY.md` rotates the pre-auth session id away on login precisely because
+it is untrusted. It is SHA-256 rather than the slow, salted hash used for `codeHash`
+because this column is the _lookup key_ and must be deterministic and indexable; the
+input is a high-entropy identifier, so unlike a six-digit code there is no dictionary to
+run against it. It is not a relationship to `sessions` because at issue time the visitor
+is unauthenticated: minting `sessions` rows for pre-auth visitors would bloat that table
+and would put unauthenticated entries into the Account screen's "Where you are signed in"
+list, which is backed by real `sessions` rows. The full reasoning, including the options
+rejected, is `docs/adr/0015-otp-challenge-hashing.md`.
+
+**What would reverse this:** a `DATA_MODEL.md` revision that either adds the field or
+drops `SECURITY.md`'s session-binding requirement. Neither exists today, and the
+migration is reversible in both directions if one ever does — asserted by
+`apps/web/collections/collections.integration.test.ts`, which rolls every migration back
+to zero and re-applies it.
+
+**Recorded as:** `docs/adr/0015-otp-challenge-hashing.md`; the phase ledger's rulings
+F11 and F12; `// HANDOFF-DEVIATION` on the field itself in
+`apps/web/collections/otpChallenges.ts`.
+
+## 26 · The sign-in email's subject and body are ours, not the handoff's
+
+**What changed:** `apps/web/lib/auth/otpService.ts` sends a message with the subject
+`Your travel diary sign-in code` and a body reading, in full:
+
+```
+<the six digits>
+
+That code signs you in to the travel diary. It expires in five minutes.
+If you did not ask for it, nothing has happened and you can ignore this.
+```
+
+None of that copy comes from the handoff.
+
+**Rationale:** `SCREENS.md` §3.2 specifies the one-time-code _screen_ verbatim, down to
+the ring widths on the six cells and the wording of "A six-digit code went to {masked}.
+It expires in {m:ss}." — and says nothing whatsoever about the email that carries the
+code. The message has to say something, so this is invented text written to echo the
+screen's own language rather than to introduce a second voice. It is recorded here
+because `CLAUDE.md` §9 Pass 3 asks every copy string to be diffed against the handoff,
+and a later reader diffing this one would otherwise waste time looking for a source that
+does not exist — or, worse, "correct" it to match something.
+
+**One invariant travels with it, and it is not stylistic.** The body carries **exactly
+one run of digits, the code**. `otpService.integration.test.ts` reads the issued code
+back out of the outbox the way a reader reads it out of an inbox, then asserts those
+digits appear in no response and no log line. Adding "expires in 5 minutes" to this body
+gives the outbox reader a second number to pick up and turns those leak assertions into
+tests of the fixture rather than of the service. "five minutes" is spelled out for that
+reason. The invariant is stated at the string itself, in `otpService.ts`.
+
+**What would reverse this:** the repository owner supplying their own copy, which is
+theirs to write — this entry exists so they know it is theirs to write. Whatever replaces
+it keeps the one-run-of-digits invariant, or updates the tests that depend on it in the
+same commit.
+
+**Recorded as:** the comment on the `text` field in `apps/web/lib/auth/otpService.ts`.
+
+## 27 · A `signInAttempts` collection the data model does not describe
+
+**What changed:** this repository adds a collection `DATA_MODEL.md` does not list —
+`signInAttempts`, one row per sign-in attempt, with `dimension` (`ip` | `account`),
+`endpoint` (`password` | `code`), `subject` and `attemptedAt`
+(`apps/web/collections/signInAttempts.ts`, migration
+`apps/web/migrations/20260905_230601_add_sign_in_attempts.ts`). It is written and read
+only by `apps/web/lib/auth/rateLimit.ts`, and its access rules are `() => false` on every
+operation — `delete` included, which the handoff omits from all three server-only access
+blocks and which §28 records — matching `otpChallenges` and `jobs`. Not `sessions`, which
+declared no access rule at all when this was written; Phase 2 Task 6 gave it a per-user
+ownership rule instead of a flat refusal, since the Account screen legitimately reads and
+revokes those rows (§29).
+
+**Rationale:** `SECURITY.md`'s third prototype hole requires "Rate limit per account **and**
+per IP — a sliding window on both the password and code endpoints", and a sliding window
+has to count something that outlives the request. `DATA_MODEL.md` provides nowhere to
+count it: `otpChallenges` records codes being _issued_ rather than attempts being _made_,
+exists only for the code endpoint, and carries no per-address index. As with
+`sessionHash` (§25), the handoff's two documents disagree — one asks for a behaviour, the
+other omits the state it needs — and the hardening requirement wins, the same precedence
+`docs/adr/0002-auth-mechanism.md` applied when the three handoff documents disagreed
+about auth.
+
+**Why a table and not memory:** the obvious implementation, a `Map` of key to timestamps
+inside the process, is correct on a machine that runs one process and wrong on the host
+this project deploys to. `docs/adr/0001-hosting-and-cost.md` puts the app on Vercel, where
+each serverless invocation has its own memory, so an attacker cycling instances would
+never meet a refusal — while every local test passed, because locally there is one
+process. A limiter green in CI and absent in production is worse than none, because
+nobody looks at it again. A shared cache would also work and was rejected on cost and
+operational surface for a single-author diary, not on the merits; the full options list is
+`docs/adr/0016-rate-limit-window-storage.md`.
+
+**Why one row per attempt rather than a counter:** a counter row is a _fixed_ window,
+which an attacker straddles at the boundary to get twice the limit in a moment;
+`SECURITY.md` asks for a sliding window by name. One row per attempt also makes the
+counting race-free without a lock, which is the other half of the decision: each request
+inserts its own row and is then ranked among the rows at or before it, so there is no
+interval between a check and a write for a racer to occupy. That is the direct correction
+of the defect `docs/adr/0015-otp-challenge-hashing.md` records, where twelve parallel
+guesses were evaluated against a three-attempt budget.
+
+**What would reverse this:** a `DATA_MODEL.md` revision that either adds the collection or
+drops `SECURITY.md`'s rate-limiting requirement. Neither exists today, and the migration
+is reversible in both directions if one ever does — asserted on all five schema artefacts
+it creates by `apps/web/collections/collections.integration.test.ts`.
+
+**Recorded as:** `docs/adr/0016-rate-limit-window-storage.md`; the phase ledger's rulings
+F26 (storage), F27 (the limits) and F28 (rank, not read-then-count); a
+`// HANDOFF-DEVIATION` in the module header of `apps/web/collections/signInAttempts.ts`.
+
+## 28 · `delete` is refused on the three server-only collections, which the handoff's own schema does not do
+
+**What changed:** `jobs`, `otpChallenges` and `signInAttempts` each declare
+`delete: () => false` alongside their `read`, `create` and `update` predicates
+(`apps/web/collections/jobs.ts`, `otpChallenges.ts`, `signInAttempts.ts`).
+
+**Rationale:** `DATA_MODEL.md:174` writes the access block for `otpChallenges` as
+`access: { read: () => false, create: () => false, update: () => false }` and comments it
+`// server only`. **It is not server-only.** Payload applies its `defaultAccess` —
+`({ req: { user } }) => Boolean(user)`, "signed in, or refused" — to any operation an
+access block omits, so `delete` fell through to _any authenticated caller_. Verified
+against a real Payload rather than reasoned about: with the predicate absent, a signed-out
+delete is refused and a **signed-in delete succeeds**.
+
+The consequence differs per collection and is worst for the newest one. A caller who can
+delete `signInAttempts` rows can clear their own sliding window, which is not a rate limit
+at all; a caller who can delete an `otpChallenges` row can throw away the attempt counter
+bounding guesses against their own challenge. The collections were transcribed faithfully
+from the handoff in Phase 0, so the gap is inherited rather than introduced — this is the
+second time a handoff document has specified something its own schema cannot deliver,
+after the missing session column (§25). As there, the stated intent wins over the printed
+field list.
+
+**What this cost, recorded because the cost is the lesson:** four documents — the module
+headers, `docs/deviations.md` §27, `docs/security.md`'s rate-limit row and
+`docs/adr/0016-rate-limit-window-storage.md` — each asserted `() => false` on _every_
+operation, and a guard test sat beside them named "so nobody can clear or forge their own
+window" while asserting read, create and update for a **signed-out** caller only. The
+signed-out half could never have caught this: `defaultAccess` refuses a signed-out caller
+regardless. Those cases now assert all four operations for a signed-in caller as well, on
+**real rows** — an `update` or `delete` aimed at a non-existent id is refused for being
+absent rather than forbidden, so a guard written against `id: '1'` passes with or without
+the rule.
+
+**What would reverse this:** a `DATA_MODEL.md` revision that either adds `delete` to that
+access block or states that deletion by a signed-in user is intended. Neither exists, and
+the second would contradict the `// server only` comment beside it.
+
+**Recorded as:** a `// HANDOFF-DEVIATION` at the predicate in each of the three
+collections; three cases in `apps/web/collections/collections.integration.test.ts`, each
+verified to fail when the predicate is removed.
+
+## 29 · `sessions` gets a per-user ownership rule, where the handoff states no rule at all
+
+**What changed:** `apps/web/collections/sessions.ts` declares an `access` block:
+`read`, `update` and `delete` each return `{ user: { equals: req.user.id } }` — narrowing
+the operation to rows the caller owns and refusing outright when there is no caller —
+and `create` is `() => false`. On top of that, **every field refuses `update`**, and
+`tokenHash` refuses `read` as well.
+
+**Rationale:** `DATA_MODEL.md`'s `sessions` section prints a field list and **no access
+block at all**. Payload applies its `defaultAccess` — `({ req: { user } }) =>
+Boolean(user)`, "signed in, or refused" — to every operation an access block omits, so
+with no block at all **any signed-in user could read, update and delete every other
+user's session rows.** On the very collection that backs the Account screen's "Where you
+are signed in" list and its Revoke button, that is one account holder enumerating
+another's devices and signing them out.
+
+Verified against a real Payload rather than reasoned about, and verified _across two
+accounts_, which is the only way this class of defect is visible: with the block removed,
+Alice's `find` returns Bob's session row, her `update` sets `revokedAt` on it, and her
+`delete` removes it — five cases in
+`apps/web/collections/sessions.access.integration.test.ts` fail, and every one of them
+would have passed had the suite used a single account, because everything the broken
+configuration granted was granted to "signed in".
+
+The rule is per-user ownership rather than the flat `() => false` that §28 gave `jobs`,
+`otpChallenges` and `signInAttempts`, and the difference is deliberate: those three are
+reached only through their own server-side adapters, while the Account screen
+(`SCREENS.md` §4, Phase 4) legitimately lists a reader's own sessions and revokes them
+one at a time. A blanket refusal here would have been "secure" and would also have made
+Revoke impossible, which is the outcome `SECURITY.md` explicitly names as the thing to
+avoid — "Back the account screen's session list with real `sessions` rows, or Revoke and
+'Sign out everywhere' do nothing".
+
+`create` is refused for everybody including the account itself, because a session is
+minted server-side against an identifier the client never learns
+(`apps/web/lib/auth/sessions.ts`), so a row created through the API could only ever be a
+forgery. The two field-level restrictions close the two ways an owner could otherwise
+undo the rule from inside it: reading `tokenHash` would hand every listed device's
+credential digest to whatever renders the list, and writing `expiresAt` would let a
+reader grant themselves a session that never expires, since the column is the only thing
+that ends a session nobody revokes.
+
+### The second round: collection-level ownership was necessary and not sufficient
+
+The block above shipped with per-field restrictions on `tokenHash` and `expiresAt` only,
+and review round 1 found two more holes — both **fields inside an operation that is
+correctly permitted**, which is a category the first round's tests could not see because
+they enumerated operations rather than fields.
+
+- **`user` was writable by the row's owner.** It is the field `ownSessionsOnly` itself
+  reads to decide ownership. Reproduced: Alice updated her own row's `user` from 104 to
+  Bob's 105 under her own access, and her **unchanged** identifier then authenticated as
+  `{ user: '105' }`. That is privilege escalation through the field that decides
+  privilege — strictly worse than the original leak, which at least required touching
+  somebody else's row.
+- **`revokedAt` could be written back to `null`.** Reproduced: a session answering
+  `{ ok: false, error: 'revoked' }` answered `{ ok: true, value: { user: '106' } }` again
+  after one `PATCH`. "Only the owner can write it" is not a restriction here: the account
+  holder and whoever holds a stolen session are the same principal as far as this
+  collection can tell, so Revoke was decorative against exactly the person it exists to
+  stop.
+
+**A third was then found by the fix's own test, and it is the reason that test exists.**
+Round 1 also added a sweep that attempts an update on **every field the collection
+declares**, enumerated from the config rather than from a hand-written list. On its first
+run it failed on a field neither the reviewer nor the author had named: **`createdAt`**.
+Payload injects `createdAt`/`updatedAt` into a collection's field list when it sanitises
+it, an injected field carries no access rule, and so a session's owner could rewrite when
+it had been created. Nothing authenticates on that column, so it is not escalation; what
+it falsifies is the "Where you are signed in" list, whose only job is to be true.
+
+**The fix is total rather than enumerated**, for the reason the third hole demonstrates:
+every field refuses `update`, including the three that look harmless (`device`,
+`location`, `lastSeenAt`) and the two timestamps, which are now declared explicitly — with
+`index: true`, since that is what Payload's injected versions carry and omitting it
+silently drops two indexes (confirmed with `payload migrate:create` before the line was
+written). Revocation moved server-side to `revokeSession`/`revokeAllSessions`, matching
+how every other write in this phase reaches these tables.
+
+A monotonic rule for `revokedAt` — allow `null` to a timestamp, refuse the reverse — was
+considered and rejected: that is a validation somebody has to remember to keep correct,
+whereas a field nobody can write cannot be written wrong.
+
+The collection-level `update` stays owner-scoped rather than `() => false`, deliberately.
+Payload refuses at the collection level **before** it evaluates field access, so a flat
+refusal there would make all nine field predicates unreachable — uncoverable against this
+directory's 100% gate, and unprovable by any test.
+
+Eight of the nine refusals fail a named case when removed. `updatedAt`'s is the exception
+and is recorded as such at the line itself: Payload stamps that column after access runs,
+so the write never survives either way, and no test can distinguish. It is kept so the
+rule stated is total, not because it was proven.
+
+**What this cost, recorded because the cost is the lesson:** three documents in this
+repository — `apps/web/collections/signInAttempts.ts`'s header, `docs/deviations.md` §27
+and `docs/data-model.md`'s `jobs` section — described `sessions` as a server-only peer of
+the three collections that do refuse everybody, before anybody had read its configuration.
+It has never had one. That is the same species of unverified claim §28 records, in the
+same phase, about a neighbouring collection; all three statements are corrected in the
+commit that adds this entry.
+
+**What would reverse this:** a `DATA_MODEL.md` revision that states an access rule for
+`sessions`. None exists.
+
+**Recorded as:** `docs/adr/0017-session-store-and-rotation.md`; a `// HANDOFF-DEVIATION` at
+the access block and at the `user`, `revokedAt` and `expiresAt` fields in
+`apps/web/collections/sessions.ts`; twelve cases in
+`apps/web/collections/sessions.access.integration.test.ts` — including the per-field sweep
+— and the two cross-account escalation cases in
+`apps/web/lib/auth/sessions.integration.test.ts`. Verified to fail when the block and each
+field-level predicate are removed: see the Task 6 report for the full matrix, round 1 and
+round 2.
+
+## 30 · `sessions` gains an `expiresAt` column the handoff never lists
+
+**What changed:** `sessions` carries `expiresAt` (`timestamp(3) with time zone NOT NULL`),
+added by migration `20260906_004937_add_session_expiry` alongside a btree index on
+`token_hash`. `DATA_MODEL.md`'s field list is `{ user, tokenHash, device, location,
+createdAt, lastSeenAt, revokedAt }` — no lifetime of any kind.
+
+**Rationale:** `SECURITY.md` requires that "'Keep me signed in' is a longer-lived,
+**revocable** session row — not a longer JWT". A row with no recorded lifetime cannot be
+longer-lived than anything: it ends only when somebody revokes it, so "keep me signed in"
+would have nothing to lengthen and an unticked box would grant a session that lasts
+forever. The alternative the requirement explicitly forbids — carrying the lifetime in a
+longer signed token — is exactly what a schema with no expiry column pushes an
+implementer towards, since the token is then the only place a lifetime can live.
+
+This is the second time this handoff has required of a collection something its own field
+list cannot hold, after `otpChallenges.sessionHash` (§25). As there, the stated
+requirement wins over the printed list.
+
+Unlike `otpChallenges.expiresAt`, this column **is** the authorization input rather than a
+column nothing reads. There is no second derivation of the same fact to disagree with it:
+`sessionState` (`packages/domain/src/auth/session.ts`) reads this column and nothing else
+decides a session's lifetime, and the identifier in the cookie is opaque, so it carries no
+expiry of its own. The distinction is drawn deliberately — §25's column exists _because_
+two sources of truth for one fact would make the domain constant decorative, and here
+there is only one.
+
+**What would reverse this:** a `DATA_MODEL.md` revision adding a lifetime field to
+`sessions`, at which point this column would be the handoff's rather than ours. A revision
+dropping the "keep me signed in" requirement would also do it, and would take the feature
+with it.
+
+**Recorded as:** `docs/adr/0017-session-store-and-rotation.md`; a `// HANDOFF-DEVIATION` at the field in
+`apps/web/collections/sessions.ts`; the migration's own reversibility case in
+`apps/web/collections/collections.integration.test.ts`; and the lifetime cases in
+`apps/web/lib/auth/sessions.integration.test.ts` that assert the lifetime is the row's and
+not the token's.
+
+## 31 · The reset email's subject and body are ours, and so is the link's path
+
+**What changed:** `apps/web/lib/auth/passwordReset.ts` sends a message with the subject
+`A way back in to your travel diary` and a body reading, in full:
+
+```
+<origin>/admin/reset/<token>
+
+Open that link to choose a new password for the travel diary. The link works once and lasts an hour.
+If you did not ask for it, nothing has happened and you can ignore this.
+```
+
+Neither the copy nor the path `/admin/reset/<token>` comes from the handoff.
+
+**Rationale:** the same as §26's, one screen further on. `SCREENS.md` §3.3 specifies the
+reset _screen_ — "Send yourself a way back in", the email field, "Send the link", and the
+sent state's "The link works once and lasts an hour" — and says nothing about the email
+that carries the link, which nonetheless has to say something. The one sentence of copy
+that _is_ the handoff's, "The link works once and lasts an hour", is reused verbatim
+rather than paraphrased, so the screen and the message make the same promise about the
+same link; the rest echoes §26's voice rather than introducing a third one.
+
+The path is `/admin/reset/<token>` because phase ruling F41 settled that the bespoke
+sign-in surface mounts under `/admin` (Payload's own admin having moved to `/cms`), and
+because the session cookie is scoped `Path=/admin` — a reset screen outside it could not
+read the session it is about to establish. The hour is not ours: it is Payload's own
+`forgotPassword` expiry default, which happens to be exactly what §3.3 asks for.
+
+**The screen this link lands on now exists, and §36 records it.** When Task 5 shipped, it
+did not: the token was minted, mailed and provably consumable — `passwordReset.integration.test.ts`
+completed a reset with it and then signed in with the new password — while the address the
+link named answered 404, because Task 9's brief covered §3.3's two _request_ states and not
+the set-a-new-password screen. Phase ruling F47 gave that screen to Task 9, which built the
+`[token]` route, the form, the `payload.resetPassword` call, the invalid/expired state and
+the end-to-end case that follows the mailed link out of the mailer's outbox
+(`apps/web/lib/auth/setNewPassword.integration.test.ts`). **The path is also spelled once
+now**: `apps/web/lib/auth/resetPath.ts` holds it, both the email and the "Forgotten" link
+import it, and `resetPath.test.ts` asserts a route file exists at that address and at its
+`[token]` child — a constant that agrees with itself proves nothing about whether anything
+is mounted where it points, which is exactly how this gap survived four tasks.
+
+**What would reverse this:** the repository owner supplying their own copy, which is
+theirs to write; or a later phase moving the reset screen, at which point `RESET_PATH`
+and this entry move with it.
+
+**Recorded as:** the comment on the `text` field in `apps/web/lib/auth/passwordReset.ts`,
+which composes the message and imports the path rather than spelling it; the `RESET_PATH`
+constant itself in `apps/web/lib/auth/resetPath.ts`, which is where it is **declared** and
+the only place it is spelled; and the case in
+`apps/web/lib/auth/passwordReset.integration.test.ts` that follows the link's token
+through a completed reset. Citing the importer as the declaration site is how a reader
+looks for the constant in `passwordReset.ts`, does not find it, and re-declares it
+locally — the exact duplication `resetPath.test.ts` refuses (final review 9, F9-11).
+
+## 32 · The sign-in cloth's eyebrow alpha is `.78`, and its gradient follows §1.1 rather than the login prototype
+
+**What changed, and what only looks changed.** Three values on the sign-in screen's two
+cloth blocks are worth writing down; exactly one of them is a departure from the
+handoff's specification.
+
+1. **A deviation.** `.clothEyebrow`/`.clothBackRoom`'s colour is `rgba(238,220,180,.78)`,
+   where the handoff's login prototype has `.72`. `.78` is the alpha `.clothSubtitle`
+   already uses, so no new colour is introduced.
+2. **Not a deviation from `SCREENS.md`, but a departure from the login prototype, and the
+   first implementation of this file failed to say so.** The gradient's end stop is built
+   from `72%` — `SCREENS.md` §1.1's `rgba(0,0,0,.28)` — not from the login prototype's
+   `rgba(0,0,0,.3)`. §3 describes this panel as "the cover treatment", and §1.1 is where
+   that treatment is specified, so the binding value arrives by cross-reference from the
+   spec; the prototype's `.3` is an inconsistency between two of the handoff's own
+   artefacts, and following the spec is what the standing rule asks for. It also makes the
+   two cloth surfaces in this product literally one treatment rather than two that look
+   alike: `cover.module.css` uses the same `72%` for the same colour. **This entry
+   originally recorded the opacity change and not this base value at all, while the
+   stylesheet used `70%`** (review round 1, finding 1). Measured, the difference between
+   the two bases is worth about 0.06 of a contrast ratio and changes no line's verdict —
+   which is exactly why it could have sat there unnoticed.
+3. **`docs/deviations.md` §12's deviation, inherited rather than made again.** That end
+   stop is written as the OPAQUE form of §1.1's `rgba(0,0,0,.28)` —
+   `color-mix(in srgb, var(--sign-in-cloth) 72%, #000)`, the colour that overlay resolves
+   to on the cloth — rather than as the translucent value itself, so the desk behind the
+   shell no longer shows through the middle of the gradient. §12 is where that decision
+   and its measurements live; this screen applies it to the same treatment.
+
+**Rationale for (1).** A gradient interpolating from an opaque colour to a 28%-opaque
+black falls to about 72% opacity by mid-block, and the light desk under it lifts the
+background exactly where the small Courier lines sit. Even with §12's opaque end stop
+applied, the eyebrow measured **4.429:1** at the prototype's `.72`, against WCAG 2.1 AA's
+4.5:1 for text that size. Raising that one alpha brings both Courier lines clear:
+
+| Cloth panel line | Size          | Before | After     | Needs          |
+| ---------------- | ------------- | ------ | --------- | -------------- |
+| Travel Diary     | 10.5px        | 4.429  | **4.865** | 4.5            |
+| Wanderings       | 75px (fitted) | 7.877  | 7.877     | 3 (large text) |
+| subtitle         | 17px italic   | 5.269  | 5.269     | 4.5            |
+| The back room    | 10.5px        | 4.640  | **5.102** | 4.5            |
+
+"Before" is the fully undeviated screen — §1.1's `.28` end stop left translucent, with the
+prototype's `.72` alpha — measured, not reasoned about. The title and subtitle do not move,
+because neither change touches them; "The back room" moves because it shares the eyebrow's
+rule. Figures are the `desktop` project's; `mid` measures the same lines within 0.003.
+
+The narrow **masthead** is a separate block over the same gradient at a different inset
+shadow and needed no change at all — its three lines measure 4.785, 7.877 and **4.562**,
+all clear, the last of them by the narrowest margin on this screen, which its own rule
+records with an instruction to re-measure rather than reason about any future change.
+
+**Why axe cannot settle it:** axe-core reports `color-contrast` as INCOMPLETE over a
+gradient rather than as a pass or a violation, so a green axe run on `/admin/sign-in` means
+axe declined to judge. `CLAUDE.md` §2 requires these ratios to be asserted rather than
+assumed, so they are measured directly, from the rendered pixels, by
+`e2e/a11y.spec.ts`'s two sign-in contrast cases — reusing `e2e/support/coverContrast.ts`,
+which hides each line with `visibility: hidden` so its box still shows the cloth it sat
+on, takes the LIGHTEST pixel under it as the background (the worst case, since the 45deg
+texture makes the background a range rather than a value), and flattens the line's
+translucent cream onto it with `packages/domain/src/contrast.ts`.
+
+**What would reverse this:** a change to the cloth gradient, to the texture overlay, to
+the alpha, or to either block's inset shadow — any of which has to be re-measured rather
+than reasoned about. If a future design makes the desk behind the shell dark, §12's opaque
+end stop stops being necessary on this screen too, and the specified translucent value can
+come back. If the handoff ever reconciles its own two artefacts on `.3` versus `.28`,
+point (2) above is what records which one this repository followed and why.
+
+**Recorded as:** the `HANDOFF-DEVIATION` comment in
+`apps/web/components/admin/signIn.module.css`'s header and at the
+`.clothEyebrow`/`.clothBackRoom` rule, the note at the `.cloth, .masthead` rule that
+distinguishes (2) and (3) from (1), the note on `.mastheadBackRoom`, and the two contrast
+cases at the foot of `e2e/a11y.spec.ts`.
+
+## 33 · The one-time-code screen is mounted before the challenge behind it is
+
+> **CLOSED by Phase 2 Task 10's fix round.** The screen reads its own pending challenge:
+> `otpService.pendingChallenge` returns the masked address, the instant the code was
+> issued and the guesses already spent, and `lib/auth/readCodeScreen.ts` maps them onto the
+> three props the pane takes. `POST /admin/sign-in/code/resend` is mounted, on
+> `otpService.resendChallenge`, which resolves the account from the challenge rather than
+> from anything the browser names. `e2e/signInJourney.spec.ts` drives the whole journey in
+> a browser.
+>
+> **What remains, and it is not a gap:** a browser holding NO live challenge still gets the
+> screen, drawn with `maskEmail('')`'s three bullets. Refusing instead would make the route
+> an oracle for whether a given browser holds a challenge, which is what
+> `verifyChallenge`'s single `'invalid'` refusal spends three statements to withhold. The
+> three `admin-sign-in-code-*` baselines are that state and are unchanged.
+>
+> **And one thing this entry never knew about the route: it was STATIC.** `Date.now()` was
+> evaluated at build time, so the countdown read `0:00` for everybody five minutes after a
+> deploy — invisible in development, where every request re-renders. The route now declares
+> `dynamic = 'force-dynamic'` and reads `cookies()`, and
+> `lib/auth/codeScreenRoute.test.ts` fails if the declaration goes.
+>
+> The paragraphs below are kept as the record of what was true between Tasks 8 and 10.
+>
+> **Superseded note from the first half of Task 10.** The screen is guarded no more and no less than it was — it is a public address by
+> design, listed in `apps/web/lib/auth/adminAccess.ts`'s `ADMIN_PUBLIC_PATHS`, because a
+> reader at this step has no session. `POST /admin/sign-in/code/verify` is mounted and
+> works. What remains is the two things this entry is really about, and Task 10 found that
+> neither is a scheduling question: **reading the pending challenge back**, and **the
+> resend endpoint**, both need `otpService` to name the ACCOUNT a browser identifier holds
+> a challenge for — and it deliberately will not, because answering would tell an
+> unauthenticated caller which browsers have a live challenge, which is exactly what
+> `verifyChallenge`'s single `'invalid'` refusal exists to prevent. Closing it means a new
+> `otpService` operation that names the account without revealing whether one exists, in a
+> module gated at 100%. That is a change to Task 3's module, not to a route, and it is what
+> this entry is now waiting on. Everything below stands as written, except that "Phase 2
+> Task 10 owns the cookie policy" has happened.
+
+**What changed:** `/admin/sign-in/code` draws `SCREENS.md` §3.2's pane against no real
+challenge. The masked address it prints is `PENDING_ADDRESS_MASK`, exported from
+`apps/web/components/admin/CodeStep.tsx` and equal to `maskEmail('')` — three bullets,
+`•••` — and the two countdowns are measured from `Date.now()` at the instant the document
+was drawn rather than from the instant a code was issued. The two forms on the pane post
+to `/admin/sign-in/code/verify` and `/admin/sign-in/code/resend`. The first is mounted
+(Task 10); the second still resolves to a `404`, for the reason in the note above.
+
+**What that means today, plainly, rather than by implication:** `GET
+/admin/sign-in/code` **returns 200 to anyone who asks for it** and draws a complete
+second-factor screen — nobody has to have signed in, or typed a password, or been issued
+a code. Reloading it restarts the displayed expiry. It is not "unmounted"; it is mounted
+and unguarded. What it discloses is nothing: no address (the mask is a fixed bullet run),
+no code, no account, no session, and both of its forms post to paths that do not exist.
+The guard belongs with the cookie, and **Phase 2 Task 10's review is where it has to be
+confirmed landing** — this entry is the record that it is owed.
+
+**Rationale:** the same shape of gap `/admin/sign-in`'s own form already carries, and for
+the same reason. Everything this screen would need to say for real — which address the
+code went to, when it was issued, how many guesses the server has spent — lives in the
+`otpChallenges` row `otpService.issueChallenge` writes, keyed by the PRE-AUTH SESSION the
+browser carries in a cookie. Reading that back means the cookie policy, and **Phase 2 Task
+10 owns the cookie policy**, along with the `Set-Cookie`, the CSRF check and the admin's
+CSP. Task 8's brief is the screen.
+
+Building the screen behind a cookie that does not exist yet would have made it
+unreachable in a browser, and three of its mechanisms can only be settled in one: the cell
+widths at 390px (`SCREENS.md` §3 records the collapse this guards), the paste path past
+`maxLength="1"`, and the shake under `prefers-reduced-motion`. A screen nothing can drive
+is a screen nothing can check.
+
+**What it costs, stated rather than hidden.** A reader who reloads the screen sees the
+countdown start again. Nothing about the code's real life moves with it: what decides
+whether a code still works is `challengeState`, read from the stored row against the
+server's own clock, and the screen's countdown is a courtesy either way — `CodeStep.tsx`
+says so at the refusal it makes. The masked address echoes nothing at all, because
+`maskEmail`'s fallback for input it cannot mask is a fixed bullet run rather than a
+partial echo. Nothing is fabricated: no invented address, no invented issue time that
+claims to be a challenge's.
+
+**What reversed this:** Task 10's fix round mounted both handlers and supplied the pending
+challenge. `maskedAddress` and `issuedAt` come from the row, `attemptsSpent` comes from it
+too, and `PENDING_ADDRESS_MASK` is gone — `readCodeScreen.ts`'s `NO_PENDING_ADDRESS` is the
+one remaining spelling, used only when there is no challenge. The three visual baselines did
+NOT move, because they are taken by navigating directly to the address with no challenge in
+play, which is still the placeholder state.
+
+**Recorded as:** the header of `apps/web/app/(admin)/admin/sign-in/code/page.tsx`, the
+TSDoc on `NO_PENDING_ADDRESS` in `apps/web/lib/auth/readCodeScreen.ts` — the constant that
+replaced `PENDING_ADDRESS_MASK`, which this entry's own closure paragraph above says is
+gone and which the line you are reading went on naming for the rest of the phase — the row for
+`GET /admin/sign-in/code` in `docs/api.md`, and the case in
+`apps/web/components/admin/CodeStep.test.tsx` that pins the fallback to `'•••'`.
+
+## 34 · The last wrong code is told "1 attempt left", not the prototype's "1 attempts left"
+
+**What changed:** the handoff's login prototype builds the wrong-code message as
+`'That code is not right. ' + (3 - n) + ' attempts left.'`, which at the reader's last
+remaining guess reads "That code is not right. 1 attempts left."
+`apps/web/components/admin/CodeStep.tsx` pluralises it, so that one case reads "1 attempt
+left." and every other case is the prototype's string unchanged.
+
+**Rationale:** `SCREENS.md` §3.2 does not specify this message at all — it names the
+attempts counter and leaves the wording to the prototype — and the prototype's own copy
+is deliberate everywhere else on this screen ("nineteen tarts, no regrets" is the house
+rule). This is not a deliberate voice, it is a concatenation that never had its singular
+case looked at, and it appears at the most anxious moment the screen has: one guess left
+before the challenge is spent. Correcting agreement is not rewriting the copy; every
+other word of the sentence is the prototype's.
+
+**What would reverse this:** the repository owner preferring the prototype's string
+verbatim, which is theirs to decide.
+
+**Recorded as:** the `HANDOFF-DEVIATION` comment at `wrongCodeMessage` in
+`apps/web/components/admin/CodeStep.tsx`, and the two cases in
+`apps/web/components/admin/CodeStep.test.tsx` that assert the plural and the singular
+form separately.
+
+## 35 · The prototype's trailing rule and "Turn this step off…" line are not on the code screen
+
+**What changed:** the handoff's login prototype ends its one-time-code pane with a
+hairline rule (`margin: 20px 0 14px`) and an italic Garamond 15px line: "Turn this step
+off under Account → Getting in, if you would rather sign in with a password alone."
+Neither is rendered by `apps/web/components/admin/CodeStep.tsx`.
+
+**Rationale:** `SCREENS.md` §3.2 ends the pane at "a resend button … opposite an attempts
+counter", and it ends §3.1 with "then a rule and a footer line with a 9px mark stating
+whether the code step is on" — so the specification asks for a footer line on the
+PASSWORD step and asks for none on this one. §3.1's line is implemented, mark and all.
+Following the specification here rather than the prototype is the ordinary reading of
+which artefact binds (the same call the cloth gradient made, §32 point 2).
+
+There is a second reason not to reach for the prototype's line in particular, and it is
+the one that settles it: that sentence tells a reader to turn the second factor off. It
+is `SECURITY.md`'s second prototype hole in prose — the prototype could honour it
+instantly because the flag was a `localStorage` key anyone could set to `0`, and here it
+is `users.otpRequired`, read on the server, changeable only from an Account screen that
+Phase 4 builds. Printing an instruction to a screen that cannot be reached from it, in the
+middle of a challenge, is worse than printing nothing.
+
+**Recorded here because an unrecorded difference from the prototype is indistinguishable
+from an oversight**, which is the whole reason this file exists. It is not a deviation
+from `SCREENS.md` — nothing in §3.2 is missing — and the spec sweep for this screen found
+64 of 64 values matching.
+
+**What would reverse this:** Phase 4 shipping the Account → Getting in screen, after
+which the line names a place a reader can actually go; or the repository owner asking for
+the prototype's tail verbatim.
+
+**Recorded as:** this entry, and the note at the foot of `CodeStep.tsx`'s render, which
+names what the prototype has there and why it is not drawn.
+
+## 36 · The screen the reset link lands on is ours entirely — the handoff has none
+
+**What changed:** `apps/web/components/admin/NewPasswordStep.tsx`,
+`apps/web/app/(admin)/admin/reset/[token]/page.tsx` and `POST /admin/reset/set` draw and
+answer a screen `SCREENS.md` does not describe: one password field with a right-inset
+Show/Hide, "Set the new password", and an expired state carrying "That link has expired"
+and "Send yourself another". Every string on it is new, and so is the endpoint.
+
+**Rationale:** `SCREENS.md` §3.3 draws the reset _request_ in two states and stops there,
+and the handoff's own login prototype does the same — a prototype can pretend the link
+worked. The consequence was not theoretical: for four tasks this repository sent a real
+reset email carrying a real token to an address that answered 404, with every mechanism
+behind it green. Phase ruling F47 gave the screen to Task 9.
+
+It is **assembled from §3.3's own surface rather than invented**, so it is a departure in
+copy and not in design: the same "← Back to sign in" link, the same "Forgotten" eyebrow,
+the same Caveat 50px title, the same rule at `22px 0 20px`, §3.1's own field, Show/Hide
+and error box, and §3.3's own primary button at `margin-top: 18px`. The one sentence of
+copy that _is_ the handoff's — "The link works once and lasts an hour" — opens both of its
+ledes, so the email, the request screen and this screen make the same promise in the same
+words.
+
+**Three decisions inside it are worth naming, because each had a plausible alternative.**
+
+1. **The token travels in the body, not in the endpoint's path.** The form posts to
+   `/admin/reset/set` with a hidden `token` field rather than to
+   `/admin/reset/<token>/set`. A URL is the most copied, logged and forwarded part of a
+   request — it reaches access logs and `Referer` headers a body does not — and the token
+   is the entire authorisation for the operation. It is already in the address the reader
+   arrived at, which cannot be helped; there is no reason to put it in a second one. It
+   also keeps the handler off a bracketed route, where `@vitest/coverage-v8`'s ignore
+   hints are documented not to hold (CLAUDE.md §2.1).
+2. **The link's state is read on `GET`, and it overrules the query string.** A form drawn
+   for a spent token is a password typed for nothing. `linkState` asks the same two
+   questions `payload.resetPassword` asks — is there a row with this token, is its expiry
+   still in the future — without touching either column. It is an oracle, deliberately:
+   an unauthenticated request can ask it about any string, and what that buys is bounded
+   by the 20 CSPRNG bytes Payload mints, while the alternative is worse for the reader and
+   no better for an attacker, who can ask the same question by posting a password.
+3. **No password policy is invented.** `SECURITY.md` states none and the handoff states
+   none, so the only refusal made in the browser is an empty field — the same call
+   `PasswordStep.tsx` makes about the sign-in field, for the same reason. Payload's own
+   rule is the policy, and when it refuses, the endpoint reports it as a refused
+   _password_ rather than as a refused _link_, so a reader with a perfectly good link is
+   not sent round the whole loop for three missing characters.
+
+**What would reverse this:** the repository owner supplying their own copy or their own
+layout for this screen, which is theirs to write; or a later handoff revision describing
+it, at which point the spec binds and this entry goes.
+
+**Recorded as:** the header of `apps/web/components/admin/NewPasswordStep.tsx`, the header
+of `apps/web/lib/auth/setNewPassword.ts`, the three route rows in `docs/api.md`, and
+`apps/web/components/admin/NewPasswordStep.test.tsx` plus
+`apps/web/lib/auth/newPasswordScreen.integration.test.ts`, which assert every string and
+every redirect above.
+
+## 37 · "Send it again" is a link back to the form, not a second request
+
+**What changed:** in `SCREENS.md` §3.3's _sent_ state, the secondary control "Send it
+again" is an anchor back to `/admin/reset` — the pending form — rather than a control that
+re-sends the link.
+
+**Rationale:** the handoff's prototype keeps the reader's address in component state, so
+its own "Send it again" re-runs the request against an address it still holds. This screen
+is a real page, and by the time the confirmation is drawn the address is gone: the only
+thing that reaches it is the **masked** value, which cannot be posted anywhere. Both ways
+of keeping the real one were worse. Putting it in the redirect would write a whole address
+into a URL, and therefore into every access log the response passes through, which is
+precisely what CLAUDE.md §7 and the masking exist to prevent. Putting it in a hidden field
+would mean the sent state had to be _told_ the address, which is the same disclosure one
+layer down.
+
+The cost is one keystroke run: a reader who wants another link types the address again,
+into a mailbox they are already looking at. The control keeps its label, its position and
+its styling; only where it goes is different.
+
+**What would reverse this:** a signed, short-lived server-side handle for "the address
+this request was made with" — the same shape the pre-auth session takes — which Task 10's
+cookie policy could carry. At that point the control can post again and this entry goes.
+
+**Recorded as:** the header of `apps/web/components/admin/ResetStep.tsx`, the
+`GET /admin/reset` row in `docs/api.md`, and the case in `ResetStep.test.tsx` that asserts
+where the control leads.
+
+## 38 · SCREENS.md §3.4's status line is ours, because the prototype's counts something nothing can count
+
+**What changed:** the status line under "The back room is open" reads "Everything you
+change in here stays a draft until you publish it." The handoff's prototype prints "Four
+changes are still unpublished from your last session."
+
+**Rationale:** the prototype's number is a count of draft versions across journeys — a
+fact the Publish screen owns (`SCREENS.md` §2.8), which Phase 4 builds, and which nothing
+in this phase can compute. Printing it verbatim would be printing a number this repository
+invented, on the one screen whose whole job is to tell a reader where they stand; a made-up
+"four" is worse than no line at all, and this file exists because the difference between a
+deliberate choice and an oversight has to be written down.
+
+Printing nothing was the other option, and it drops a line §3.4 asks for by name. So the
+line stays, on the same subject the prototype's is — unpublished work — and says something
+that is true of every visit rather than a quantity nobody measured.
+`versions: { drafts: true }` on `journeys` and `pages` (DATA_MODEL.md) is what makes it
+true.
+
+**What would reverse this:** Phase 4's Publish screen, which brings a real count with it.
+At that point the line can name a number and this entry goes.
+
+**Recorded as:** the `SIGNED_IN_STATUS` constant and the header of
+`apps/web/components/admin/SignedInStep.tsx`, the `GET /admin/sign-in/done` row in
+`docs/api.md`, and the case in `SignedInStep.test.tsx` that asserts the line is printed.
+
+## 39 · Two more screens are mounted ahead of the handlers behind them
+
+> **Closed by Phase 2 Task 10.** All three rows of the table below have moved, and the
+> replacements were measured the same way — against a running server, not read off the
+> route tree:
+>
+> | Address                     | What it does now                                                                                                                                                                                                                                                                                                                                          |
+> | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | `POST /admin/reset/request` | **303** to `/admin/reset?sent=<masked>`, mounted at `app/(admin)/admin/reset/request/route.ts`. `GET` of the same address is still **404**, by an exported `GET` handler of its own rather than by the reservation — a `route.ts` with only a `POST` answers `405`, which would have been a different answer from the one the address gave the day before |
+> | `POST /admin/sign-out`      | **303** to `/admin/sign-in` with the session revoked and the cookie cleared, for a signed-in reader; the same `303` and nothing revoked for anybody else                                                                                                                                                                                                  |
+> | `GET /admin/sign-in/done`   | **303** to `/admin/sign-in` for an unauthenticated request, **200** for a live session. It calls `requireAdminSession` before it reads or draws anything                                                                                                                                                                                                  |
+>
+> The reservation stays, exactly as the last paragraph of this entry said it would.
+> Everything below is kept as the record of what was true between Tasks 9 and 10.
+
+**What changed:** `/admin/reset` and `/admin/sign-in/done` are served today, and two of the
+three `POST`s made from them are not. **Measured against the running app, not reasoned
+from the route tree** — the first row is what the Task 9 review found stated the opposite
+of what was true, and what ruling F56 fixed:
+
+| Address                                               | What an unauthenticated reader gets                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /admin/reset/request` (the reset form's action) | **404.** No route is mounted — but nothing about the route tree gave that for free: `app/(admin)/admin/reset/[token]` matches any single segment under `/admin/reset`, so for the length of commit `c9fec84` this address answered **200 with "That link has expired"**, telling a reader that a link they had never asked for was dead. The 404 is held by `apps/web/lib/auth/resetPath.ts`'s `RESERVED_RESET_SEGMENTS`, which `readNewPasswordScreen` answers `notFound()` for. `GET` of the same address is also 404 |
+| `POST /admin/sign-out`                                | **404**, Next's own not-found page. Nothing is mounted at it and nothing dynamic sits above it                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `GET /admin/sign-in/done`                             | **200**, and **unguarded** — it draws §3.4 for anybody who asks for the address                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+
+The comparison this entry used to make — that the reset form posts to a 404 "exactly as
+the password step's does" — was wrong in the way that matters. `POST /admin/sign-in/password`
+and `POST /admin/sign-in/code/verify` really do 404, because nothing dynamic sits above
+them; `/admin/reset/request` does not have that property, and reasoning by analogy from a
+route that does is what hid the defect from three documents at once.
+
+**Rationale:** the same shape as §33, one screen further on, and the same boundary. Every
+one of those three handlers needs the cookie policy — the `Set-Cookie`, the session the
+sign-out revokes, the pre-auth session a reset request is counted against, the CSRF check
+and the admin's CSP — and **Phase 2 Task 10 owns the cookie policy**. The mechanisms
+themselves are built and proven: `passwordReset.ts` mints and mails the link,
+`sessions.ts`'s `revokeSession` ends a session, and both have their own integration
+suites. What is missing is the endpoint, not the behaviour.
+
+The third `POST` — `/admin/reset/set` — **is** mounted, and the difference is the point:
+it needs no cookie at all. Its authorisation is the token in the body, so it could be
+built and proved end to end without borrowing anything Task 10 owns, which is what makes
+the mailed link work rather than 404 today.
+
+**What the unguarded signed-in screen costs, stated plainly:** nothing that a visitor
+could not already see. It carries no account, no address, no session and no data — three
+links and one fixed line of copy — and neither place it leads becomes reachable because
+this screen was reached: `/admin` is Phase 4's, and Task 10's guard is what will refuse an
+unauthenticated request for it. What it does mean is that the screen is a page rather than
+a proof, until the session it describes is one the server can read.
+
+**What reversed this:** Task 10, which mounted all three handlers and put the guard in
+front of this screen. Each has its own row in `docs/api.md`.
+
+**What would reverse the reservation: nothing Task 10 does.** Mounting
+`app/(admin)/admin/reset/request/route.ts` makes `request` a static segment, which Next.js
+resolves ahead of `[token]` — but that is a framework precedence rule about a route that
+exists, and it stops protecting the address the moment the handler moves. The reservation
+stays, and `apps/web/lib/auth/resetPath.test.ts` fails the build if any further address
+appears under `/admin/reset/` without being added to it.
+
+**Recorded as:** the `RESET_REQUEST_ENDPOINT` and `SIGN_OUT_ENDPOINT` constants and the
+headers of `apps/web/components/admin/ResetStep.tsx` and
+`apps/web/components/admin/SignedInStep.tsx`, the header of
+`apps/web/app/(admin)/admin/sign-in/done/page.tsx`, `RESERVED_RESET_SEGMENTS` in
+`apps/web/lib/auth/resetPath.ts`, and the `GET /admin/reset`, `GET /admin/reset/<token>`
+and `GET /admin/sign-in/done` rows in `docs/api.md`.
+
+## 40 · The sign-in screen's server-side refusal message is ours — the prototype never refuses one
+
+**What changed:** `SCREENS.md` §3.1 asks the password pane for "an error box when needed"
+and specifies its appearance in full — `rgba(152,57,43,.07)` with a ring, an 8px rotated
+`#98392b` square, Garamond 15.5px `#8c3327` — but no copy for a refusal that comes from the
+server. It has none to give: the handoff's prototype (`Travel Diary Login.dc.html`) never
+refuses a sign-in at all. Its `submit()` validates two things in the browser — the address
+contains an `@`, the password is not empty — and then unconditionally succeeds after a
+700ms pause. So the only two messages the prototype has are the client-side ones this
+repository already carries verbatim ("That does not look like an email address.", "Enter
+your password to carry on.").
+
+Phase 2 Task 10 mounted the endpoint the form posts to, which means a refusal is now a
+thing that happens. The message is
+`@travel-diary/domain/auth/signInScreen`'s `PASSWORD_REFUSED_MESSAGE`:
+
+> Those details did not let you in.
+
+**Rationale:** the alternative was to redirect back to a form the reader has just filled in
+and say nothing — a sign-in that silently redraws itself, which is precisely the class of
+silent failure `CLAUDE.md` §10 says a screenshot cannot catch. Writing one sentence is the
+smaller departure.
+
+**Why that sentence.** It says "those details" rather than "your password" or "that
+address" because naming either would say which one was wrong, and saying an address is
+unknown is the enumeration the whole password step spends a PBKDF2 derivation to prevent
+(`docs/security.md`, "No user enumeration"). It is one message for all FOUR refusals a
+caller without the password can provoke — an unknown address, a wrong password, a locked
+account and an exhausted rate-limit window — because the first three must be
+indistinguishable and separating the fourth would mean a second `state` word for a later
+change to attach the first three to. `signInScreen.test.ts` asserts the message names
+neither field, neither "exist" nor "locked".
+
+**A SECOND MESSAGE WAS ADDED AFTER PHASE 2'S FINAL REVIEW, AND THE FIRST VERSION OF THIS
+ENTRY ARGUED FOR THE DEFECT.** It said one message for ALL FIVE refusals, the fifth being
+a correct password whose code could not be sent — and that fifth is the one refusal
+`apps/web/lib/auth/signIn.ts` invented specifically so the screen would NOT say this. A
+reader who submits a correct password, presses "← Back to password" and submits it again
+inside the thirty-second resend cooldown was told their details were wrong; past
+`HOURLY_RESEND_CAP` every correct submission for the rest of the hour was. Blocker B1. The
+second message is `PASSWORD_CODE_UNSENT_MESSAGE`:
+
+> Your password was right, but the code could not be sent. Try again shortly.
+
+It may say the password was right because its reader has just proved it: the word is
+returned only after Payload's own comparison ACCEPTED the credential, so nobody without
+the password can reach it. It names no address, gives no count and no deadline.
+
+**What it costs, stated rather than hidden:** a genuinely rate-limited reader is told the
+same thing as one who mistyped a password. Recorded in `docs/security.md`.
+
+**What would reverse this:** a copy decision from the design's author for any of those
+states. Each state word and its message are one constant each in one module, so a third
+state is a small change — the thing to re-read first is why the four that share one word
+share it.
+
+**Recorded as:** the header of `packages/domain/src/auth/signInScreen.ts`, the cases in
+`packages/domain/src/auth/signInScreen.test.ts`, the
+`PasswordStepProps.refusal` prop in `apps/web/components/admin/PasswordStep.tsx`, and the
+`GET /admin/sign-in` and `POST /admin/sign-in/password` rows in `docs/api.md`.
+
+## 41 · A second admin cookie, `td-keep-signed-in`, which the handoff does not describe
+
+**What changed:** `SECURITY.md` describes one cookie — the session — and `SCREENS.md` §3.1
+puts a "keep me signed in" checkbox on the PASSWORD step. Phase 2 Task 10 added a second
+cookie to get the answer from that checkbox to the place the session is actually issued.
+
+**Rationale:** with the second factor on, the session is issued at the CODE step, and that
+step's form submits six digits and nothing else. Between the two there is nowhere for the
+reader's answer to live. Three options were considered:
+
+1. **Default to `false` at the code step.** Rejected: `users.otpRequired` reads as required
+   when NULL, so the second factor is on for every account by default — the checkbox would
+   do nothing at all for every reader, which is worse than any of this.
+2. **A column on `otpChallenges`.** Rejected: it would put a display preference in the one
+   table whose every other field is a credential's state, and it needs a migration for a
+   value that lives for five minutes.
+3. **A cookie carrying one bit.** Taken.
+
+**What makes it acceptable, stated as the property rather than as an assurance:** it
+carries the fixed word `yes` or nothing — never an address, a password or a code
+(`CLAUDE.md` §7) — it is read by exact equality, and it is not trusted as a credential. The
+most a forged value achieves is a thirty-day session for an account whose password and
+one-time code the holder has just supplied correctly. It is written by the password step
+EITHER WAY, so a stale `yes` from an earlier sign-in cannot lengthen this one, and it is
+cleared the moment the session it described is issued.
+
+**What would reverse this:** an `otpChallenges` design that already carried per-sign-in
+state the code step reads back — which is the same change §33 is waiting on. If that lands,
+this cookie has no reason to exist.
+
+**Recorded as:** `KEEP_SIGNED_IN_COOKIE_NAME` and its neighbours in
+`apps/web/lib/auth/browserSession.ts`, the cases in `browserSession.test.ts`, the second
+cookie table in `docs/security.md`, and the `POST /admin/sign-in/password` and
+`POST /admin/sign-in/code/verify` rows in `docs/api.md`.
+
+## 42 · Payload's own REST and GraphQL credential endpoints on `users` are sealed, and `/cms` can no longer be signed into
+
+**What changed:** `apps/web/collections/users.ts` declares an `endpoints` array
+(`apps/web/collections/sealedUserAuth.ts`) that shadows every Payload auth endpoint taking
+a credential or minting one — `login`, `first-register`, `forgot-password`,
+`reset-password`, `refresh-token`, `unlock`, `verify/:id` — with a handler answering `404`,
+and declares `graphQL: { disableMutations: true }` so the same endpoints are absent from
+the GraphQL schema. `GET /me`, `GET /init` and `POST /logout` are deliberately left
+reachable and are named in the same module with the reason each is harmless.
+
+**Rationale:** `SECURITY.md`'s second prototype hole requires the code step to be decided
+server-side "during the login handler". Until Phase 2's final review this repository had
+two login handlers. `POST /api/users/login` — live in production, since `admin.disable`
+gates only the admin panel and not `/api/**` — minted a Payload auth cookie on an email
+and a password ALONE: no code step, no per-IP or per-address window, no anti-enumeration,
+and outside `apps/web/middleware.ts`'s matcher and so outside the CSRF check and the admin
+content security policy. Every mechanism this phase built guards `/admin`; that address
+reached the same accounts and none of them applied to it. The review named it blocker B5.
+
+The alternative was to put the same limiter, the same anti-enumeration timing and the same
+code step behind Payload's handlers. Rejected: that is a second copy of
+`apps/web/lib/auth/signIn.ts` maintained against a dependency's internals, and a second
+copy of a security rule is the shape this phase caught drifting four times in eleven tasks.
+
+**The cost, which is real and is not hidden:** Payload's own admin at `/cms` signs in
+through `POST /api/users/login`, so **it can no longer be signed into** — in development
+as in production. It was already `admin.disable`d in production; `payload.config.ts`'s
+header has described it as development scaffolding rather than the product since Phase 0;
+content arrives through `npm run db:seed`; and Phase 4 builds the panel that replaces it.
+`/cms` still loads, still renders its login screen, and still passes the a11y, visual and
+smoke gates that screenshot it — what it no longer does is accept a password.
+`docs/runbook.md` says so where an operator will look.
+
+**What would reverse this:** a deployment that genuinely needs Payload's stock admin. The
+answer then is not to unseal the endpoint — it is to put the second factor in front of it,
+which means the endpoints route through `apps/web/lib/auth/signIn.ts` rather than around
+it.
+
+**Recorded as:** `apps/web/collections/sealedUserAuth.ts` and its header, the `endpoints`
+and `graphQL` entries in `apps/web/collections/users.ts`,
+`apps/web/collections/sealedUserAuth.integration.test.ts`, the `otpRequired` row and the
+"second authentication surface" paragraphs in `docs/security.md`, the Payload-owned route
+rows in `docs/api.md`, and the `/cms` note in `docs/runbook.md`.
+
+## 43 · The one-time-code screen says two things `SCREENS.md` §3.2 gives it no copy for
+
+**What changed:** `@travel-diary/domain/auth/codeScreen.ts` adds two `state` words the two
+`POST`s made from `/admin/sign-in/code` redirect with, and two sentences the pane draws in
+the error box §3.2 already specifies:
+
+> Too many tries just now. Wait a moment, then enter the code again.
+
+> No new code was sent. Wait a moment, then ask again.
+
+**Rationale:** everything that screen told a reader was derived from `attemptsSpent`, the
+count of guesses the server had spent against the challenge. That is exactly right for a
+wrong code and says nothing at all about the two answers that spend no guess, both of which
+therefore rendered as **silence** — the reader pressed a button and was handed back the
+page they had pressed it on:
+
+1. **A guess the rate limiter would not judge.** `handleCodeStep` spends the per-account
+   and per-IP code windows before comparing anything, and a refusal there never touches the
+   challenge. Under a comment claiming it was "the SAME answer a wrong code gets": the HTTP
+   answer was, the page was not. A reader who typed the CORRECT code saw nothing at all
+   (final review finding 6).
+2. **A resend that sent nothing.** The button disables itself on a cooldown measured from
+   the challenge bound to THIS browser, while the server's ceiling counts every challenge
+   the ACCOUNT has had in the hour. Past the ceiling it renders enabled and does nothing
+   (finding 14). The same silence had already hidden ruling F69's defect, where an
+   exhausted challenge could not be resent at all.
+
+Phase 2's final review groups these with blocker B1 as one class — "every refusal that is
+not 'wrong password' or 'wrong code' is rendered either as a lie or as silence" — and
+`CLAUDE.md` §10 asks that a browser defect be fixed as a class rather than as instances.
+That is why this entry exists beside §40 rather than instead of it.
+
+**Why saying these things discloses nothing.** `verifyChallenge` answers one word for a
+wrong code and for a browser holding no challenge, so that nothing says which browsers hold
+a live challenge — and the screen itself already answers that question, deliberately: it
+prints the masked address and the spent count for a browser holding one, and three bullets
+with a zero for one that is not (the SIGNIN-001..004 fix, on the ground that only the
+browser the challenge was bound to can reach the answer). Neither sentence names an
+address, an account, a code, a count or a deadline; `codeScreen.test.ts` asserts that,
+including that neither carries a digit. Both say the same thing to a stranger who forges
+the query value as to the reader they were written for.
+
+**One word for five reasons on the resend**, deliberately: the cooldown, the hourly
+ceiling, a spent rate-limit window, a mailer that declined and a browser with no challenge
+all write `unsent`. A reader can act on all five the same way.
+
+**What would reverse this:** copy from the design's author for either state, or a resend
+button whose disabled state was computed from the account's hour rather than this
+browser's challenge — which would remove the second sentence's most common cause but not
+the mailer's.
+
+**Recorded as:** `packages/domain/src/auth/codeScreen.ts` and its test, the
+`CodeStepProps.notice` prop in `apps/web/components/admin/CodeStep.tsx`, the
+`GET /admin/sign-in/code`, `POST /admin/sign-in/code/verify` and
+`POST /admin/sign-in/code/resend` rows in `docs/api.md`, and `docs/security.md`'s section
+on what Task 10 did not close.
+
+## 44 · `/admin` draws a screen the handoff never describes, because the handoff describes the panel
+
+**What changed:** `apps/web/app/(admin)/admin/page.tsx` and
+`apps/web/components/admin/PanelHome.tsx` mount a guarded screen at `/admin`: a
+"The back room" eyebrow, the heading "Still being furnished", the line
+
+> The editing screens are still being built. Everything the diary shows is already
+> published.
+
+the four groups of screens `SCREENS.md` §2 specifies, a primary "Read the diary" and a
+borderless "Sign out and start again".
+
+**Rationale:** `SCREENS.md` §3.4 gives the signed-in pane a primary action, "Open the admin
+panel", and `SignedInStep.tsx` points it at `/admin`. **Nothing was mounted there** —
+verified against the built route manifest, which carried no `/admin` entry — so a reader who
+completed the entire sign-in journey and pressed the primary button got a `404`. Phase 2's
+final review, blocker B2. It had no `docs/api.md` row, no entry here and no e2e case
+walking it, while §38 of this very file argues that "the difference between a deliberate
+choice and an oversight has to be written down".
+
+Three answers were possible and two of them are defects of the class Phase 2's final round
+exists to close:
+
+1. **Leave the 404.** The defect as found.
+2. **Redirect to `/admin/sign-in/done`.** The primary action then visibly does nothing —
+   the same silent-failure species as the resend that sent no code and the guess that was
+   never judged (§43). A button that redraws the screen it was pressed on is worse than one
+   that errors, because nothing on the screen says anything happened.
+3. **Draw a screen that says what is behind the door.** Taken.
+
+**Why this is not the placeholder text `CLAUDE.md` §1.3 bans.** It states a true fact about
+the product a reader is looking at, in the design's own voice, and it names what is coming
+rather than only that something is missing — the same standing §38's status line has, and
+for the same reason. What §1.3 forbids is a marker left for a later author (`TODO`, `TBD`,
+lorem text); this is copy, reviewed as copy, with a test pinning it to the literal.
+
+**It introduces no new design values.** `panel.module.css` restates rules
+`signIn.module.css` already carries, at the same numbers — the Courier eyebrow at
+10px/.26em, the Caveat title at 52px, the italic Garamond lede at 16.5px, the full-width
+primary at 13px/Courier 11.5px/.2em, and the borderless sign-out at 9.5px/.16em. They are
+copied rather than shared because a CSS Module's class names are local to the file that
+declares them, and a third stylesheet reachable from two route entries is precisely the
+seam ADR 0019 measures. It is a module rather than a rule in `admin.css` for a measured
+reason too: `admin.css` is loaded by the group's root layout, so every byte in it is a byte
+`/admin/sign-in` fetches before it can paint, and that route carries a Lighthouse LCP gate.
+
+**What would reverse this:** Phase 4, which replaces the route's body with the panel
+`SCREENS.md` §2 describes. Nothing here is meant to survive it.
+
+**Recorded as:** `apps/web/components/admin/PanelHome.tsx` and its header,
+`PanelHome.test.tsx`, `apps/web/app/(admin)/admin/page.tsx`, the `GET /admin` row in
+`docs/api.md`, the two `e2e/signInJourney.spec.ts` cases that walk it from the signed-in
+screen's button and from a browser with no session, the `/admin` case in `e2e/a11y.spec.ts`
+and the three `admin-panel-*` baselines in `e2e/visual.spec.ts-snapshots/`.
+
+## 45 · Postgres is published on host port 5433, not 5432
+
+**What changed:** `docker-compose.yml` maps the container's standard `5432` to host port
+**`5433`**, and every connection string in the repository (`.env.example`, `docker/`,
+`vitest.integration.config.ts`'s `diary_test` URL) is written against it. The brief's own
+example maps `5432:5432`.
+
+**Rationale:** a pre-existing native Postgres service already listens on this machine's
+`5432`. Connections to `localhost:5432` were silently served by THAT service rather than by
+this container, and failed authentication against unrelated credentials — a failure that
+reads as a wrong password in the repository rather than as a wrong server. Publishing on
+`5433` makes the container the only thing the repository's own connection strings can
+reach. The container's internal port is untouched, so the `visual` and `visual-update`
+Compose services still address it as `postgres:5432` over Compose's own network.
+
+**What would reverse this:** a machine with nothing on `5432`, which is most of them. The
+cost of leaving it at `5433` there is one surprising number in a connection string; the
+cost of the reverse, on a machine that does have one, is an hour spent debugging the wrong
+database.
+
+**Recorded as:** the `HANDOFF-DEVIATION` marker at `docker-compose.yml`'s header, the
+`DATABASE_URL` in `.env.example`, and `docs/runbook.md`'s local-setup section. **This entry
+exists because that marker was the one `HANDOFF-DEVIATION` in the repository with no entry
+here** — the marker itself said "See docs/deviations.md" and `5433` had zero hits in this
+file, so `CLAUDE.md` §1.1's bidirectional rule was broken exactly once (Phase 2's final
+review, finding 31).
+
+## 46 · Six per-file branch gates sit below CLAUDE.md §2.1's 95% for `apps/web/lib/**`
+
+**What CLAUDE.md §2.1 asks for:** 95% lines, branches and functions for
+`apps/web/lib/**` and server actions. It also names its own remedy for coverage a suite
+cannot reach — `/* c8 ignore next -- <reason> */` — rather than a lower gate.
+
+**What is in the repository:** six per-file thresholds in
+`vitest.integration.config.ts`'s `coverage.thresholds` carry a branch figure under 95, and
+the measured `apps/web/lib` branch aggregate for that pass is **83.05%**.
+
+| File                                      | Lines gate | Branch gate | Landed in          |
+| ----------------------------------------- | ---------- | ----------- | ------------------ |
+| `apps/web/lib/readBookBundle.ts`          | 100        | 83          | Phase 1            |
+| `apps/web/scripts/seed.ts`                | 100        | 83          | Phase 1            |
+| `apps/web/lib/adapters/postgres-queue.ts` | **93**     | 75          | Phase 1            |
+| `apps/web/lib/testPayload.ts`             | **93**     | 75          | Phase 1            |
+| `apps/web/lib/readGalleryBundle.ts`       | 100        | 78          | Phase 2, review r2 |
+| `apps/web/lib/readGalleryDownload.ts`     | 100        | 85          | Phase 2, review r2 |
+
+Two of the six are also under 95 on LINES, at 93, and that is named here rather than left
+to the word "branch". Both have their own reason in the config beside the number:
+`postgres-queue.ts`'s two error catches (an unexpected database failure inside `enqueue()`,
+and inside `claim()`'s rollback) have no organic trigger without mocking a module we own,
+which §2.3 forbids, or deliberately breaking the test database; and `testPayload.ts`'s
+`CREATE DATABASE` branch runs only the first time any integration test ever meets a given
+Postgres volume, which is the whole point of not tearing `diary_test` down between runs.
+Those two are genuinely closer to §2.1's `c8 ignore` case than the four gallery/seed
+entries are, and are the ones to revisit first.
+
+**Rationale.** Each number is the one its suite ACHIEVES against a real Postgres, not one
+negotiated down to the code. The uncovered branches are, in every case, the same shape: a
+`?? fallback` on an optional Payload field that the ten seeded journeys happen to fill.
+Reaching them means seeding a journey with every optional field blank — a fixture decision,
+and a real one, but a fixture decision rather than a number to edit. `c8 ignore` is the
+wrong instrument here because these are not unreachable lines: they are reachable branches
+that this content does not reach, and marking them ignored would hide a gap a better
+fixture closes.
+
+**Why this entry exists.** Phase 2's third whole-branch review found the two Phase 2
+entries stated at the point of exclusion — in the config comment and in
+`docs/testing.md` — and **no `docs/deviations.md` entry anywhere**, which is CLAUDE.md
+§1.1's bidirectional rule broken again: a stated shortfall is reviewable only if it is
+stated in the place §1.2 makes the register of departures. The four Phase 1 entries had
+never been recorded here either, so all six are listed rather than only the two this phase
+added.
+
+**What would reverse this:** a seed fixture — one journey whose optional fields are all
+blank — after which each of these six can be raised to whatever the suite then achieves,
+and the ones that reach 95 can be deleted from the override list entirely. That belongs to
+whoever next touches the gallery or the seed.
+
+**Recorded as:** `vitest.integration.config.ts`'s `thresholds` comments (which name the
+departure at the point of exclusion), `docs/testing.md`'s coverage section, and this entry.

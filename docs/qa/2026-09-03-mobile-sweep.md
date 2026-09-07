@@ -24,15 +24,15 @@ CLAUDE.md §10, nothing here was patched straight from the sweep.
 
 ## What was walked
 
-| Route | Kind | Drawer | Swipe | Scroll | axe |
-|---|---|---|---|---|---|
-| `/p/1` | Cover | ✓ | ✓ | ✓ | ✓ |
-| `/p/2` | Contents | — | — | — | ✓ |
-| `/p/3` | Journey (Notes) | ✓ | ✓ | ✓ | ✓ |
-| `/p/4` | Journey (Frames I) | — | — | — | ✓ |
-| `/p/33` | About | — | — | — | ✓ |
-| `/p/3` + drawer open | modal | ✓ | — | — | ✓ |
-| `/gallery/tokyo?from=3` | return path | — | — | — | ✓ (gallery's own case) |
+| Route                   | Kind               | Drawer | Swipe | Scroll | axe                    |
+| ----------------------- | ------------------ | ------ | ----- | ------ | ---------------------- |
+| `/p/1`                  | Cover              | ✓      | ✓     | ✓      | ✓                      |
+| `/p/2`                  | Contents           | —      | —     | —      | ✓                      |
+| `/p/3`                  | Journey (Notes)    | ✓      | ✓     | ✓      | ✓                      |
+| `/p/4`                  | Journey (Frames I) | —      | —     | —      | ✓                      |
+| `/p/33`                 | About              | —      | —     | —      | ✓                      |
+| `/p/3` + drawer open    | modal              | ✓      | —     | —      | ✓                      |
+| `/gallery/tokyo?from=3` | return path        | —      | —     | —      | ✓ (gallery's own case) |
 
 Console errors: **0**. Page errors: **0**. Responses ≥ 400: **0**. Recorded by
 `e2e/smoke.spec.ts`'s "walks every page kind of the mobile reading mode without console

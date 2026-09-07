@@ -11,7 +11,8 @@
  * Two routes exist today: `/cms` (Payload's own admin, mounted per
  * `apps/web/payload.config.ts`'s `routes.admin`) and `/p/<n>`, the public
  * diary page added with the book itself (Task 7), and the gallery route and
- * its lightbox (Task 14). Add one `test()` per route
+ * its lightbox (Task 14). Phase 2 Task 7 adds a third surface, the bespoke
+ * admin's `/admin/sign-in`. Add one `test()` per route
  * as routes are built; do not assert against a route that does not exist yet.
  *
  * The last case covers an address no route file declares and every browser
@@ -79,6 +80,33 @@ test('loads /p/1 without console errors or page errors', async ({ page }) => {
   // sets a scale; a hydration mismatch between the server's unmeasured render
   // and the client's would surface here, a beat after networkidle, and
   // nowhere else.
+  await page.waitForTimeout(500)
+
+  expect(errors).toEqual([])
+})
+
+test('loads /admin/sign-in without console errors or page errors', async ({ page }) => {
+  const errors: string[] = []
+
+  // Attached before goto(), for the same reason as the two cases above.
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      errors.push(message.text())
+    }
+  })
+  page.on('pageerror', (error) => {
+    errors.push(error.message)
+  })
+
+  const response = await page.goto('/admin/sign-in', { waitUntil: 'networkidle' })
+
+  expect(response?.ok(), `expected /admin/sign-in to respond 2xx, got ${String(response?.status())}`).toBe(true)
+
+  // The password pane is a client component rendered by a server one, so a
+  // hydration mismatch - the class of defect that would appear if any of its
+  // markup were decided in the browser rather than on the server - lands a
+  // beat after networkidle and nowhere else. That is precisely what this
+  // screen must not do: the code-step footer is the server's answer.
   await page.waitForTimeout(500)
 
   expect(errors).toEqual([])

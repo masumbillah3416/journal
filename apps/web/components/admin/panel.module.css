@@ -1,0 +1,140 @@
+/**
+ * panel.module.css — the bespoke admin panel's root screen, `/admin`.
+ *
+ * SCREENS.md DESCRIBES NO SUCH SCREEN, and this file says so rather than
+ * pretending otherwise. §2 gives the ten admin screens Phase 4 builds and §3.4
+ * gives the signed-in pane whose primary action is "Open the admin panel"; the
+ * address that action opens had nothing mounted at it, so a completed sign-in
+ * ended at a 404 (`docs/deviations.md` §44, final review blocker B2). What is
+ * here is the smallest honest thing that is neither a 404 nor a button that
+ * does nothing, and Phase 4 replaces the whole of it.
+ *
+ * IT INTRODUCES NO NEW VALUES. Every rule below is one `signIn.module.css`
+ * already carries, at the same numbers, so the two screens are one surface:
+ * the Courier eyebrow at 10px/.26em, the Caveat title, the italic Garamond
+ * lede, the full-width primary and secondary controls at 13px/Courier
+ * 11.5px/.2em, and the borderless sign-out. They are copied rather than
+ * imported because a CSS Module's class names are local to the file that
+ * declares them — sharing them would mean a third stylesheet reachable from
+ * both route entries, which is exactly the seam ADR 0019 measures and warns
+ * about.
+ *
+ * A CSS MODULE, NOT A RULE IN `admin.css`. `admin.css` is loaded by the
+ * group's root layout, so every byte in it is a byte `/admin/sign-in` fetches
+ * before it can paint — and that route carries a Lighthouse LCP gate
+ * (`lighthouserc.admin.json`). A module is loaded only by the route that
+ * imports it.
+ *
+ * Depends on: packages/tokens/src/tokens.css, loaded by the admin layout.
+ */
+
+/* The desk, and a column that never grows past a comfortable measure. The
+ * shell is deliberately not §3's grid: that shell is the sign-in door, with a
+ * cloth panel and a "PRIVATE / 01" stamp, and this screen is behind the door. */
+.panel {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.pane {
+  width: 100%;
+  max-width: 470px;
+  padding: 40px 42px 38px;
+  border-radius: var(--td-radius-control);
+  background: var(--td-paper);
+  box-shadow:
+    0 34px 70px -34px rgba(48, 38, 24, 0.55),
+    inset 0 0 0 1px rgba(120, 98, 60, 0.18);
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+.title {
+  margin: 1px 0 0;
+  font-family: var(--td-font-caveat);
+  font-size: 52px;
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--td-ink);
+}
+
+.lede {
+  margin: 4px 0 0;
+  font-family: var(--td-font-garamond);
+  font-style: italic;
+  font-size: 16.5px;
+  line-height: 1.45;
+  color: var(--td-ink-muted);
+}
+
+/* The rule §3's panes carry between a heading block and what follows, at the
+ * same alpha. */
+.rule {
+  height: 1px;
+  margin: 22px 0;
+  border: 0;
+  background: rgba(120, 98, 60, 0.22);
+}
+
+.screens {
+  margin: 0;
+  padding-left: 18px;
+  font-family: var(--td-font-garamond);
+  font-size: 16.5px;
+  line-height: 1.7;
+  color: var(--td-ink-body);
+}
+
+.primary {
+  display: block;
+  width: 100%;
+  margin-top: 22px;
+  padding: 13px;
+  border: 1.5px solid var(--td-accent);
+  border-radius: var(--td-radius-control);
+  background: var(--td-accent);
+  font-family: var(--td-font-courier);
+  font-size: 11.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+  text-decoration: none;
+  color: var(--td-cream-alt);
+  cursor: pointer;
+}
+
+.primary:hover {
+  border-color: var(--td-accent-hover);
+  background: var(--td-accent-hover);
+}
+
+.signOutForm {
+  margin: 0;
+}
+
+.signOut {
+  margin-top: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+}
+
+.signOut:hover {
+  color: var(--td-accent);
+}

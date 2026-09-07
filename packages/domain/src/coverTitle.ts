@@ -59,8 +59,13 @@ export const COVER_TITLE_SIZE = Object.freeze({ min: 38, max: typeScale.diary.co
 /**
  * Caveat's approximate advance width per character, in em. SCREENS.md §1.1:
  * "Caveat runs about 0.40em per character."
+ *
+ * Exported because it is a property of the TYPEFACE rather than of the cover:
+ * `auth/signInTitle.ts` fits the same family into the sign-in screen's two
+ * cloth blocks and must use the same figure. A second copy of `0.4` in
+ * another file would be a second source of truth for one font metric.
  */
-const CAVEAT_EM_PER_CHARACTER = 0.4
+export const CAVEAT_EM_PER_CHARACTER = 0.4
 
 /** The handoff's safety margin on the available width, for a string wider than the estimate. */
 const FIT_MARGIN = 0.9

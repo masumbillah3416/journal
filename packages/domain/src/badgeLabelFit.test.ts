@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  BADGE_LABEL_AVAILABLE_TEXT_PX,
-  BADGE_LABEL_SIZE,
-  badgeLabelFontSize,
-} from './badgeLabelFit'
+import { BADGE_LABEL_AVAILABLE_TEXT_PX, BADGE_LABEL_SIZE, badgeLabelFontSize } from './badgeLabelFit'
 
 describe('badgeLabelFontSize', () => {
   it('renders the handoff default 11px for a short label, e.g. the seeded "WIDE EYED"', () => {

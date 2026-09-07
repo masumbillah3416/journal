@@ -9,7 +9,7 @@
  * validated as a `MediaId`, and a foreign-key constraint here would reject
  * the branded test ids the contract suite enqueues in isolation from a real
  * media row. Access is `() => false` on every operation, matching
- * `otpChallenges` and `sessions` - this collection is server-only, reached
+ * `otpChallenges` and `signInAttempts` - this collection is server-only, reached
  * only through `postgres-queue.ts`'s Local API calls, never the REST/GraphQL
  * API a client could call directly.
  * Depends on: `payload`.
@@ -23,6 +23,17 @@ export const Jobs: CollectionConfig = {
     read: () => false,
     create: () => false,
     update: () => false,
+    // HANDOFF-DEVIATION: `DATA_MODEL.md` writes this access block as
+    // `{ read, create, update }` and comments it `// server only`. It is not:
+    // Payload applies its `defaultAccess` to any operation the block omits, so
+    // `delete` fell through to "any signed-in user" — verified, an
+    // authenticated caller could delete rows here while every other operation
+    // was refused. The handoff's own comment is false of the schema printed
+    // beside it, which is the second time a handoff document has specified
+    // something its own schema cannot deliver (after the missing session
+    // column, §25). `delete: () => false` is this repository's addition. See
+    // docs/deviations.md §28.
+    delete: () => false,
   },
   fields: [
     { name: 'kind', type: 'select', options: ['transcode'], required: true },

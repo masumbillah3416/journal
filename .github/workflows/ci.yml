@@ -31,6 +31,7 @@ jobs:
       # parseEnv (>= 32 characters) — never used outside this workflow.
       PAYLOAD_SECRET: ci-only-secret-value-never-used-outside-actions-32
       MEDIA_ORIGIN: http://localhost:3000
+      ADMIN_ORIGIN: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -88,6 +89,7 @@ jobs:
       DATABASE_URL: postgres://diary:diary@postgres:5432/diary
       PAYLOAD_SECRET: ci-only-secret-value-never-used-outside-actions-32
       MEDIA_ORIGIN: http://localhost:3000
+      ADMIN_ORIGIN: http://localhost:3000
       CI: true
     steps:
       - uses: actions/checkout@v4
@@ -131,12 +133,19 @@ jobs:
       # thirty-three deep links still serve their own page.
       #
       # THE LIST NO LONGER DEPENDS ON ANYONE NOTICING. Task 13 adds
-      # `e2e/ciRegistration.spec.ts`, whose whole subject is this line: it
+      # `e2e/ciRegistration.test.ts`, whose whole subject is this line: it
       # globs `e2e/*.spec.ts` off the filesystem and fails, naming the file,
       # if any of them is absent from this `run:` command or from the npm
       # scripts in package.json. It reads the command rather than the file,
       # so a spec named only in the comments above does not satisfy it. Twice
       # is enough; the convention is now enforced rather than remembered.
+      #
+      # IT DOES NOT RUN IN THIS JOB, AND THAT IS THE POINT (Phase 2, ruling
+      # F57). It was a Playwright spec named on the line below until Task 9's
+      # review, and being one is why it never fired while `e2e/codeStep.spec.ts`
+      # gated nothing for two commits: a detector that runs only in the job it
+      # guards reports the fire from inside the building. It is a Vitest test
+      # now, so `npm run verify` above - and every pre-commit hook - runs it.
       # Task 13's own `e2e/routing.spec.ts` (the 404, the per-page metadata,
       # the canonical link and the gallery return) is named here too, and
       # Task 14's `e2e/gallery.spec.ts` (the sixty-one-tile grid, the
@@ -148,7 +157,14 @@ jobs:
       # through the DevTools Protocol rather than a dispatched event, because
       # the rule it proves — that a vertical scroll never turns a page — is
       # only meaningful against a column the browser actually scrolls.
-      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/ciRegistration.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
+      # Phase 2 Task 7 adds `e2e/signIn.spec.ts`, the first spec about the
+      # bespoke admin. Three of its cases are what proves SECURITY.md's
+      # second prototype hole closed against the DELIVERED page rather than
+      # against the source — no `Storage` read during load, no script naming
+      # the prototype's flag, and the footer line unmoved when that key is
+      # planted in `localStorage` before navigation. They can only run in a
+      # browser, so this is the only place they gate a merge.
+      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/signIn.spec.ts e2e/codeStep.spec.ts e2e/reset.spec.ts e2e/signInJourney.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
       # image: chrome-launcher's own auto-detection looks for a system
       # `google-chrome`/`chromium-browser` binary, which this image does not

@@ -5,9 +5,9 @@ page by page with a realistic 3D page-flip, a bespoke admin panel for editing ev
 journey, and a sign-in screen with an optional one-time-code step. Built on Payload CMS 3
 inside Next.js, on Postgres.
 
-The source of truth for *what* to build is `handoff/design_handoff_travel_diary/`
+The source of truth for _what_ to build is `handoff/design_handoff_travel_diary/`
 (`README.md`, `SCREENS.md`, `DATA_MODEL.md`, `SECURITY.md`). The source of truth for
-*how* to build it is `CLAUDE.md`.
+_how_ to build it is `CLAUDE.md`.
 
 ## Prerequisites
 
@@ -48,7 +48,7 @@ This is an npm-workspaces monorepo:
 
 ```
 npm run dev              # Next + Payload against local Postgres  (→ apps/web)
-npm run verify           # typecheck + lint + unit + coverage gates  <- pre-commit
+npm run verify           # typecheck + lint + format:check + unit + coverage gates  <- pre-commit
 npm run verify:full      # verify + integration tests and their coverage gate  <- CI
 npm run test             # every Vitest project, watch mode
 npm run test:unit        # both Docker-free projects (unit + unit-dom) once, with coverage
@@ -56,7 +56,10 @@ npm run test:integration # integration tests only (requires DATABASE_URL)
 npm run test:integration:coverage  # the same, plus their coverage gate  <- what verify:full runs
 npm run test:e2e         # Playwright
 npm run test:e2e:headed  # Playwright, visible browser — the engine for QA sweeps
-npm run test:visual      # visual regression
+npm run test:e2e:container          # the whole browser suite in the pinned image, many workers
+npm run test:visual      # visual regression — SKIPS off Linux, see below
+npm run test:visual:container       # visual regression in the pinned Playwright image
+npm run test:visual:container:update  # regenerate the baselines that actually changed
 npm run test:a11y        # accessibility
 npm run test:perf        # Lighthouse CI budgets
 npm run db:migrate       # apply every pending migration  (→ apps/web)
@@ -65,7 +68,7 @@ npm run db:seed          # seed the ten prototype journeys and their pages  (→
 npm run db:migrate:create -w apps/web -- <name>  # generate a migration from schema changes
 ```
 
-The four commands marked *(→ apps/web)* are root passthroughs to the `apps/web`
+The four commands marked _(→ apps/web)_ are root passthroughs to the `apps/web`
 workspace script of the same name — every command above runs from the repository root.
 `db:migrate:create` is the one exception: it takes a migration name as an argument, and
 npm's argument forwarding does not survive a passthrough, so it keeps its `-w apps/web`.
@@ -73,12 +76,22 @@ npm's argument forwarding does not survive a passthrough, so it keeps its `-w ap
 `test:e2e`, `test:e2e:headed`, `test:visual` and `test:a11y` need Playwright's Chromium
 browser (`npx playwright install chromium`) and the app running (`playwright.config.ts`'s
 `webServer` starts it automatically). `test:perf` needs a system Chrome/Chromium install.
+
+**`npm run test:visual` runs NOTHING off Linux, and that is deliberate.** Font
+rasterisation, subpixel rounding and scrollbar metrics differ enough between platforms
+that a host-generated image cannot honestly be compared against CI's Ubuntu runner, so the
+spec skips rather than silently minting a `-win32.png` baseline and comparing the host
+against itself. On Windows and macOS, `npm run test:visual:container` is the invocation
+that works — it runs the same suite inside the pinned `mcr.microsoft.com/playwright` image
+Docker Compose defines, against the same committed `-linux.png` baselines CI uses.
+`docs/testing.md` has the details and `docker-compose.yml` the services.
 See `docs/testing.md` for what each suite covers today versus once the public diary
 (Phase 1) exists to test against.
 
 ## The verify gate
 
-`npm run verify` is the pre-commit gate: typecheck, lint (zero warnings), and the
+`npm run verify` is the pre-commit gate: typecheck, lint (zero warnings),
+`prettier --check .` over the whole repository, and the
 database-free tests with coverage thresholds enforced in `vitest.config.ts` (100% for
 `packages/domain/**`, 95% for `apps/web/lib/**`, 90% repository-wide). It runs in the
 pre-commit hook and must pass before any change is committed. It covers two Vitest

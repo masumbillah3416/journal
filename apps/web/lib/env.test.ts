@@ -14,13 +14,14 @@ describe('parseEnv', () => {
       DATABASE_URL: 'postgres://diary:diary@localhost:5432/diary',
       PAYLOAD_SECRET: 'a'.repeat(32),
       MEDIA_ORIGIN: 'http://localhost:3001',
+      ADMIN_ORIGIN: 'http://localhost:3000',
     })
 
     expect(result.ok).toBe(true)
   })
 
   it('rejects a missing database url rather than failing later at connect time', () => {
-    const result = parseEnv({ PAYLOAD_SECRET: 'a'.repeat(32), MEDIA_ORIGIN: 'http://x' })
+    const result = parseEnv({ PAYLOAD_SECRET: 'a'.repeat(32), MEDIA_ORIGIN: 'http://x', ADMIN_ORIGIN: 'http://x' })
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types `expect.stringContaining` as `any`; `toEqual` still type-checks the surrounding assertion.
     expect(result).toEqual({ ok: false, error: expect.stringContaining('DATABASE_URL') })
@@ -31,10 +32,26 @@ describe('parseEnv', () => {
       DATABASE_URL: 'postgres://x',
       PAYLOAD_SECRET: 'short',
       MEDIA_ORIGIN: 'http://x',
+      ADMIN_ORIGIN: 'http://x',
     })
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types `expect.stringContaining` as `any`; `toEqual` still type-checks the surrounding assertion.
     expect(result).toEqual({ ok: false, error: expect.stringContaining('PAYLOAD_SECRET') })
+  })
+
+  it('rejects a missing admin origin, rather than mailing reset links to a host nobody set', () => {
+    // Phase 2 Task 10. Without it, the only place the origin could come from is
+    // the request's own `Host` header — which is the link an attacker points at
+    // their own machine (`apps/web/lib/auth/passwordReset.ts`). Failing at boot
+    // is the alternative this schema chooses.
+    const result = parseEnv({
+      DATABASE_URL: 'postgres://x',
+      PAYLOAD_SECRET: 'a'.repeat(32),
+      MEDIA_ORIGIN: 'http://x',
+    })
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types `expect.stringContaining` as `any`; `toEqual` still type-checks the surrounding assertion.
+    expect(result).toEqual({ ok: false, error: expect.stringContaining('ADMIN_ORIGIN') })
   })
 })
 

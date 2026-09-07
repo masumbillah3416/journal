@@ -1,6 +1,9 @@
-# docker-compose.yml — local Postgres for the integration test project and `npm run dev`.
+# docker-compose.yml — local Postgres for the integration test project and `npm run dev`,
+# and the pinned Playwright container the visual-regression baselines are generated in.
 #
-# Runs only Postgres; the Next/Payload process runs on the host so it can hot-reload.
+# `docker compose up` starts Postgres and nothing else; the Next/Payload process runs on
+# the host so it can hot-reload. The two `visual*` services sit behind a Compose profile
+# and are reached with `docker compose run` (see `npm run test:visual:container`).
 # Depends on: nothing outside Docker. Data persists in ./.postgres-data (gitignored).
 #
 # HANDOFF-DEVIATION: the brief's example maps 5432:5432. This host maps the
@@ -17,6 +20,68 @@
 # volume; `apps/web/lib/testPayload.ts` creates `diary_test` itself on demand
 # for a volume (like this repository's own checked-out one) that predates
 # this script.
+
+# ══ The visual-regression container (Phase 2 Task 7) ══
+#
+# `e2e/visual.spec.ts` requires every baseline to be generated inside
+# `mcr.microsoft.com/playwright:v1.62.1-noble` and committed as `-linux.png`: font
+# rasterisation, subpixel rounding and scrollbar metrics differ enough between platforms
+# that a host-generated image cannot honestly be compared against CI's Ubuntu runner. That
+# spec now SKIPS off Linux rather than silently minting a `-win32.png` baseline and
+# comparing the host against itself — so on Windows and macOS this is the only way to run
+# it at all, and until this was written the invocation existed nowhere in the repository.
+#
+# IT CANNOT REUSE THE HOST'S `node_modules`. A Windows checkout holds Windows-built
+# binaries (`sharp`, Next's `lightningcss`, the SWC/Turbopack native packages), none of
+# which a Linux container can load — and a plain bind mount of the repository would also
+# let the container's own `npm ci` DELETE them. The four named volumes below shadow every
+# `node_modules` directory in the workspace so the container installs its own Linux tree
+# and keeps it between runs; a fifth shadows `.next`, so a production build in here never
+# collides with `npm run dev`'s on the host. Everything else — the specs, the components,
+# and `e2e/visual.spec.ts-snapshots/`, which is the point — is the live bind mount, so a
+# regenerated baseline lands straight in the working tree.
+#
+# `CI: '1'` is not decoration. `playwright.config.ts` reads it to choose
+# `npm run build && npm run start` over `next dev` and to stop reusing an already-running
+# server, and CI's own baselines are taken against a production build — a development-mode
+# image would be compared against something the runner never renders.
+#
+# The database is the `postgres` service above, addressed by service name over Compose's
+# own network rather than through the host's published 5433. It must already be migrated
+# and seeded (`npm run db:migrate && npm run db:seed` on the host): these services run the
+# browser suite, not the fixtures.
+#
+# `profiles` keeps both out of `docker compose up`, which is only ever meant to start
+# Postgres. `docker compose run` starts a profiled service anyway.
+x-visual: &visual
+  image: mcr.microsoft.com/playwright:v1.62.1-noble
+  profiles: ['visual']
+  working_dir: /work
+  # PID 1 here is a shell running npm; without an init, an interrupted run leaves the
+  # Next server and the browsers behind.
+  init: true
+  # Chromium needs more than Docker's default 64MB of shared memory, or a tab crashes
+  # mid-navigation and the failure reads as a flaky test rather than as a resource limit.
+  shm_size: '1gb'
+  volumes:
+    - '.:/work'
+    - 'visual-root-modules:/work/node_modules'
+    - 'visual-web-modules:/work/apps/web/node_modules'
+    - 'visual-domain-modules:/work/packages/domain/node_modules'
+    - 'visual-tokens-modules:/work/packages/tokens/node_modules'
+    - 'visual-next-build:/work/apps/web/.next'
+  environment:
+    # `apps/web/lib/env.ts` loads the repository's own `.env` (bind-mounted above) and
+    # never overrides a variable already set in the process, so PAYLOAD_SECRET comes from
+    # there and these two win over it.
+    DATABASE_URL: postgres://diary:diary@postgres:5432/diary
+    MEDIA_ORIGIN: http://localhost:3000
+    ADMIN_ORIGIN: http://localhost:3000
+    CI: '1'
+  depends_on:
+    postgres:
+      condition: service_healthy
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -31,3 +96,87 @@ services:
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U diary']
       interval: 5s
+
+  # Compares against the committed baselines. `npm run test:visual:container`.
+  #
+  # `e2e/layout.spec.ts` runs in the SAME invocation deliberately: docs/testing.md's
+  # standing rule is that no `diary-*` baseline is ever accepted unless that suite was
+  # green in the run that produced it — a picture of no book is still a picture, and this
+  # suite once ratified exactly that defect for four tasks.
+  visual:
+    <<: *visual
+    command: ['sh', '-c', 'npm ci --no-audit --no-fund && npx playwright test e2e/layout.spec.ts e2e/visual.spec.ts']
+
+  # Regenerates them. `npm run test:visual:container:update`.
+  #
+  # `changed`, WHICH IS A GATE RATHER THAN A PREFERENCE. This service ran
+  # `--update-snapshots=all` first, and on its very first use it rewrote fifteen
+  # `diary-*` baselines that no change in the commit could have touched and that the
+  # comparison run immediately before had just passed. They were caught and reverted by
+  # hand — and a rule that depends on somebody remembering to revert is a rule that
+  # describes the next recurrence rather than preventing it (review round 1, finding 5).
+  # `changed` writes a baseline only when the diff EXCEEDS `maxDiffPixelRatio`, plus any
+  # that are missing entirely, so a new screen's baselines still land and unrelated ones
+  # cannot be churned.
+  visual-update:
+    <<: *visual
+    command:
+      [
+        'sh',
+        '-c',
+        'npm ci --no-audit --no-fund && npx playwright test e2e/layout.spec.ts e2e/visual.spec.ts --update-snapshots=changed',
+      ]
+
+  # The opt-in. `npm run test:visual:container:update:all`.
+  #
+  # THERE IS EXACTLY ONE CASE THAT NEEDS THIS, and naming it is the point of a separate
+  # service: a baseline whose diff is UNDER `maxDiffPixelRatio` but which is nonetheless
+  # wrong — `changed` leaves such a file alone and still reports a pass, so the stale
+  # image survives the regeneration. That is not hypothetical either: the cover-contrast
+  # change (docs/deviations.md §12) moved the `mobile` cover by less than the threshold,
+  # and `changed` would have left that one baseline showing the old, failing cover.
+  # Reach for this when you have INTENDED a visual change that a comparison run did not
+  # flag — and then read `git status`, because it rewrites everything.
+  visual-update-all:
+    <<: *visual
+    command:
+      [
+        'sh',
+        '-c',
+        'npm ci --no-audit --no-fund && npx playwright test e2e/layout.spec.ts e2e/visual.spec.ts --update-snapshots=all',
+      ]
+
+  # THE FULL BROWSER SUITE, IN THE SAME IMAGE. `npm run test:e2e:container`.
+  #
+  # Ruling F58 said full-suite e2e runs "go through the container, which builds first",
+  # and no such path was ever built — so every task after it reported the full suite
+  # unrun, and Phase 2's final review had to record that as a residual (its section C2).
+  # This is that path.
+  #
+  # WHAT IT BUYS IS WORKERS. `playwright.config.ts` caps local runs at ONE worker
+  # (ruling F39): the app serves the diary through one Next process that compiles a route
+  # on first request, so parallel workers on a developer's machine queue behind each
+  # other and time out. `CI: '1'` is set for every service in this file, which makes that
+  # config build once and start the production server — and lets Playwright use its
+  # default worker count. That is the difference between roughly four hours and roughly
+  # four minutes, and it is why the answer to "run the whole suite" is this service
+  # rather than a longer timeout.
+  #
+  # It runs the SAME spec list `npm run test:e2e` names, so the two cannot drift into
+  # measuring different things; `e2e/ciRegistration.test.ts` is what holds that list to
+  # CI's own.
+  e2e:
+    <<: *visual
+    command:
+      [
+        'sh',
+        '-c',
+        'npm ci --no-audit --no-fund && npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/signIn.spec.ts e2e/codeStep.spec.ts e2e/reset.spec.ts e2e/signInJourney.spec.ts',
+      ]
+
+volumes:
+  visual-root-modules:
+  visual-web-modules:
+  visual-domain-modules:
+  visual-tokens-modules:
+  visual-next-build:

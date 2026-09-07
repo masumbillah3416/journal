@@ -36,15 +36,15 @@ Scale: verified in the design at 30 journeys / 93 pages / 33 bookmarks; seeded a
 
 ## 2 · Stack
 
-| Layer | Choice | Rationale |
-|---|---|---|
-| App | Next.js 15 (App Router) with Payload CMS 3 in-process | Drafts, version history with restore, focal point and image-size generation each have dedicated screens in this design. Payload supplies all four. |
-| Database | Postgres — Docker locally, Neon in production | Content is relational: the Contents page and bookmark ordering want joins. |
-| Object storage | Cloudflare R2 — local disk adapter in development | Zero egress. 40GB of photography served from a metered origin is the single largest cost risk. |
-| Media processing | Dedicated worker container (Fly.io), `sharp` + `ffmpeg` — **deferred, no video clips for now** (`docs/adr/0004-media-pipeline-mode.md`); stills run `sharp` in-process on Vercel until it is re-enabled | Transcoding does not fit serverless. |
-| Queue | Postgres job table | One author, bursty uploads. A managed queue is unearned complexity. |
-| Mail | Resend — console adapter in development | OTP only; a handful of messages per month. |
-| Auth | Payload's own `users` auth + a custom OTP layer | See §2.1. |
+| Layer            | Choice                                                                                                                                                                                                  | Rationale                                                                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App              | Next.js 15 (App Router) with Payload CMS 3 in-process                                                                                                                                                   | Drafts, version history with restore, focal point and image-size generation each have dedicated screens in this design. Payload supplies all four. |
+| Database         | Postgres — Docker locally, Neon in production                                                                                                                                                           | Content is relational: the Contents page and bookmark ordering want joins.                                                                         |
+| Object storage   | Cloudflare R2 — local disk adapter in development                                                                                                                                                       | Zero egress. 40GB of photography served from a metered origin is the single largest cost risk.                                                     |
+| Media processing | Dedicated worker container (Fly.io), `sharp` + `ffmpeg` — **deferred, no video clips for now** (`docs/adr/0004-media-pipeline-mode.md`); stills run `sharp` in-process on Vercel until it is re-enabled | Transcoding does not fit serverless.                                                                                                               |
+| Queue            | Postgres job table                                                                                                                                                                                      | One author, bursty uploads. A managed queue is unearned complexity.                                                                                |
+| Mail             | Resend — console adapter in development                                                                                                                                                                 | OTP only; a handful of messages per month.                                                                                                         |
+| Auth             | Payload's own `users` auth + a custom OTP layer                                                                                                                                                         | See §2.1.                                                                                                                                          |
 
 ### 2.1 Deviation: Payload auth, not Auth.js
 
@@ -99,33 +99,33 @@ Five phases. Each ends with a green suite, updated documentation, and a committe
 
 Monorepo and npm workspaces · Next 15 + Payload 3 + Postgres in Docker · design tokens from the handoff table · all collections and the first migration (including `deletedAt` and drafts) · storage / mailer / queue adapters with their shared contract suite · seed of the prototype's 10 journeys / 33 pages with placeholder imagery · the full test harness for all nine test types · `npm run verify` · pre-commit hooks · CI.
 
-*Exit:* `npm run verify` passes, the seed loads, every documentation file in `CLAUDE.md` §1.2 exists with real content.
+_Exit:_ `npm run verify` passes, the seed loads, every documentation file in `CLAUDE.md` §1.2 exists with real content.
 
 ### Phase 1 — Public diary
 
 `BookBundle` and the repositories behind it · the flip machine and its DOM binding · book scaling with the 1.7× cap · Cover, Contents, Notes, Frames I, Frames II, About · bookmark rail, bottom bar, ribbon · gallery route and lightbox · mobile reading mode with swipe · routing on real paths.
 
-*Exit:* every page type renders from seeded data; flip verified at 60fps; browser sweep committed.
+_Exit:_ every page type renders from seeded data; flip verified at 60fps; browser sweep committed.
 
 ### Phase 2 — Auth
 
 Sign-in, OTP, reset and the "signed in" state · `otpChallenges` and `sessions` · server-side rate limiting per account and per IP · lockout · anti-enumeration · cookie policy and session rotation · CSP.
 
-*Before* the admin, deliberately: `SECURITY.md` requires authorization checks on every mutation. Building ten screens of mutations first and adding access control afterwards is the retrofit that gets missed on three of them.
+_Before_ the admin, deliberately: `SECURITY.md` requires authorization checks on every mutation. Building ten screens of mutations first and adding access control afterwards is the retrofit that gets missed on three of them.
 
-*Exit:* the security test suite passes, including the negative cases; browser sweep committed.
+_Exit:_ the security test suite passes, including the negative cases; browser sweep committed.
 
 ### Phase 3 — Media pipeline
 
 Presigned direct-to-bucket upload · a `MediaProcessor` port (`docs/adr/0004-media-pipeline-mode.md`) with `inline` and `worker` adapters, selected by `MEDIA_PIPELINE` (`'inline' | 'worker'`, Zod-validated, default `'inline'`) · `inline`: magic-byte sniff, SVG rejection, EXIF read then strip, re-encode, five derivative tiers, perceptual hash and duplicate detection, all in-process on Vercel, stills only — video is deferred, so `inline` rejects `video/mp4`/`video/quicktime` at ingest even though the schema already lists them · `worker`: the same still pipeline plus `ffprobe`, H.264 transcode and poster extraction, run by the Fly.io worker this deferral leaves unbuilt — the adapter and its contract suite are built and pass in CI from day one regardless, per ADR 0004's non-negotiable · `processing` / `ready` / `failed` states · download handler.
 
-*Exit:* a still survives a full round trip via the `inline` adapter; EXIF verifiably absent; SVG verifiably rejected; both `MediaProcessor` adapters pass the same contract suite in CI. Enabling clips is Phase 3's config switch (`MEDIA_PIPELINE=worker` plus deploying the Fly.io worker), not new code — see ADR 0004.
+_Exit:_ a still survives a full round trip via the `inline` adapter; EXIF verifiably absent; SVG verifiably rejected; both `MediaProcessor` adapters pass the same contract suite in CI. Enabling clips is Phase 3's config switch (`MEDIA_PIPELINE=worker` plus deploying the Fly.io worker), not new code — see ADR 0004.
 
 ### Phase 4 — Admin
 
 Overview · Journeys · Journey editor · Media · Galleries · Book & bookmarks · Cover & About · Publish · Settings · Trash · Account.
 
-*Exit:* every screen matches `SCREENS.md`; focal points set in the admin visibly move the crop in the diary; browser sweep committed per screen group.
+_Exit:_ every screen matches `SCREENS.md`; focal points set in the admin visibly move the crop in the diary; browser sweep committed per screen group.
 
 ---
 
@@ -157,12 +157,12 @@ If this is not wired through to rendering, the admin control is decorative. It i
 
 Four boundaries carry the design's stated failure modes. Each is a small module, independently testable, named in its own header.
 
-| Module | Package | Contract |
-|---|---|---|
-| `flipMachine` | domain | Pure reducer over `{dir, from, to, go, half, busy}` with an injected clock |
-| `bookScale` | domain | `(area) → number`, `min(w/1300, h/860)` capped at 1.7 |
-| `bookBundle` | domain + web/lib | Payload rows in, one typed `BookBundle` out. The diary client reads nothing else. |
-| `storage` / `mailer` / `transcodeQueue` | web/lib | Ports with local and production adapters, one shared contract suite run against both |
+| Module                                  | Package          | Contract                                                                             |
+| --------------------------------------- | ---------------- | ------------------------------------------------------------------------------------ |
+| `flipMachine`                           | domain           | Pure reducer over `{dir, from, to, go, half, busy}` with an injected clock           |
+| `bookScale`                             | domain           | `(area) → number`, `min(w/1300, h/860)` capped at 1.7                                |
+| `bookBundle`                            | domain + web/lib | Payload rows in, one typed `BookBundle` out. The diary client reads nothing else.    |
+| `storage` / `mailer` / `transcodeQueue` | web/lib          | Ports with local and production adapters, one shared contract suite run against both |
 
 `BookBundle` is the only serialization boundary between server and diary client. The diary never learns what a Payload row looks like.
 
@@ -174,7 +174,7 @@ Four boundaries carry the design's stated failure modes. Each is a small module,
 
 Authored at exactly **1300×860**, scaled by `min(areaWidth/1300, areaHeight/860)` applied as `transform: scale(k)` with `transform-origin: center` on an element with explicit pixel dimensions. Measured on mount, on resize, via `ResizeObserver`, and after returning from a gallery.
 
-**Capped at 1.7×.** The handoff lists uncapped 4K scaling under *Known gaps*: the book grows ~2.4× at 3840 CSS px while the bookmark rail and bottom bar sit outside the transform at fixed size. Capping and centring closes it. The `hero2x` derivative tier serves the same problem for image sharpness.
+**Capped at 1.7×.** The handoff lists uncapped 4K scaling under _Known gaps_: the book grows ~2.4× at 3840 CSS px while the bookmark rail and bottom bar sit outside the transform at fixed size. Capping and centring closes it. The `hero2x` derivative tier serves the same problem for image sharpness.
 
 Frame: dark board full-bleed, 36px spine strip with dashed stitch lines at x=9 and x=27, an 11px fore-edge stack strip on the right, page area inset `14px 18px 14px 36px`.
 
@@ -212,9 +212,9 @@ Triggers: the 44px right page-edge strip, the 30px left strip, the bottom arrows
 
 The server builds `BookBundle` and statically renders every page's content; the client takes over for scaling and flipping. Publishing triggers on-demand revalidation of affected paths only.
 
-| Path | View |
-|---|---|
-| `/p/<n>` | diary page, 1-indexed |
+| Path              | View                   |
+| ----------------- | ---------------------- |
+| `/p/<n>`          | diary page, 1-indexed  |
 | `/gallery/<slug>` | that journey's gallery |
 
 Real paths, not hashes — the deep links must be indexable. The URL is written on every turn: flip commit, mobile step, bookmark jump.
@@ -233,11 +233,11 @@ Gallery tiles are the opposite: clips show a play badge and duration, because th
 
 One pattern in all three surfaces: measure the real viewport or content width into state on mount, on resize, and via `ResizeObserver`; derive a mode; drive layout from it.
 
-| Surface | Breakpoints |
-|---|---|
-| Diary | `< 860px` → mobile reading mode |
-| Admin | `≥ 1180` wide · `≥ 860` mid · below narrow |
-| Login | `< 820` → single column |
+| Surface | Breakpoints                                |
+| ------- | ------------------------------------------ |
+| Diary   | `< 860px` → mobile reading mode            |
+| Admin   | `≥ 1180` wide · `≥ 860` mid · below narrow |
+| Login   | `< 820` → single column                    |
 
 **Mobile reading mode is a separate component tree**, not media queries over the book. The handoff says it replaces the book entirely — no flip, no scaling. Sharing DOM produces a scaled book fighting a scrolling column. It has a dark header with a bookmarks drawer, a scrolling single column, full-width 4:3 photos, 52px nav buttons, and swipe (≥60px horizontal **and** 1.4× the vertical delta).
 
@@ -312,31 +312,31 @@ clips in full (§9, above).
 
 Every requirement in `SECURITY.md` has a named home. This table becomes `docs/security.md`, with file references filled in as each is built.
 
-| Requirement | Discharged by |
-|---|---|
-| OTP generated server-side with a CSPRNG | auth service, Phase 2 |
-| Only a hash stored, 5-minute expiry | `otpChallenges.codeHash`, `expiresAt` |
-| Constant-time comparison, single use | auth service; `consumedAt` set on success |
-| Code never sent to the client in any response | asserted by a security test |
-| Challenge bound to the session that started it | pre-auth session id on the challenge |
-| `otpRequired` decided server-side | `users.otpRequired`. The `localStorage` read and its `storage`/`focus` listeners are **deleted, not moved** |
-| Max 3 attempts, then invalidate and force resend | `otpChallenges.attempts` |
-| Rate limit per account **and** per IP | sliding window in Postgres, on both password and code endpoints |
-| Account lockout with cooling-off | Payload `maxLoginAttempts: 5`, `lockTime: 15m` |
-| Resend cooldown 30s plus an hourly ceiling | auth service |
-| No user enumeration | identical response **and** timing — a dummy password is hashed when the account does not exist, otherwise the timing leaks what the response hides |
-| Reset responds identically whether or not the address exists | same mechanism |
-| Sessions revocable, listed on the Account screen | real `sessions` rows checked per request |
-| Session id rotated on login | never reuse a pre-auth id |
-| Cookies `httpOnly`, `Secure`, `SameSite=Lax`, scoped to admin | cookie policy, Phase 2 |
-| CSRF protection on cookie-authenticated mutations | Phase 2 |
-| Authorization on **every** mutation | Payload access control per collection — nothing inherits trust from the page it was reached from |
-| Media served from a separate origin | R2 custom domain with its own restrictive CSP |
-| Downloads through our handler | short-lived signed URL, `Content-Disposition: attachment`, strict `Content-Type`. Never a bucket URL — direct URLs invite enumeration of everything in the bucket, including anything hidden |
-| `passwordProtect` gates server-side | a client-side check leaves the content fetchable |
-| `indexGalleries` respected | `robots.txt` **and** `X-Robots-Tag`, since pages are statically served |
-| Secrets in the platform store | never in the repo; `.env` is gitignored |
-| Offsite backups of Postgres **and** the bucket, restore tested | scheduled dump to a different provider; restore drill in `docs/runbook.md` |
+| Requirement                                                    | Discharged by                                                                                                                                                                                |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OTP generated server-side with a CSPRNG                        | auth service, Phase 2                                                                                                                                                                        |
+| Only a hash stored, 5-minute expiry                            | `otpChallenges.codeHash`, `expiresAt`                                                                                                                                                        |
+| Constant-time comparison, single use                           | auth service; `consumedAt` set on success                                                                                                                                                    |
+| Code never sent to the client in any response                  | asserted by a security test                                                                                                                                                                  |
+| Challenge bound to the session that started it                 | pre-auth session id on the challenge                                                                                                                                                         |
+| `otpRequired` decided server-side                              | `users.otpRequired`. The `localStorage` read and its `storage`/`focus` listeners are **deleted, not moved**                                                                                  |
+| Max 3 attempts, then invalidate and force resend               | `otpChallenges.attempts`                                                                                                                                                                     |
+| Rate limit per account **and** per IP                          | sliding window in Postgres, on both password and code endpoints                                                                                                                              |
+| Account lockout with cooling-off                               | Payload `maxLoginAttempts: 5`, `lockTime: 15m`                                                                                                                                               |
+| Resend cooldown 30s plus an hourly ceiling                     | auth service                                                                                                                                                                                 |
+| No user enumeration                                            | identical response **and** timing — a dummy password is hashed when the account does not exist, otherwise the timing leaks what the response hides                                           |
+| Reset responds identically whether or not the address exists   | same mechanism                                                                                                                                                                               |
+| Sessions revocable, listed on the Account screen               | real `sessions` rows checked per request                                                                                                                                                     |
+| Session id rotated on login                                    | never reuse a pre-auth id                                                                                                                                                                    |
+| Cookies `httpOnly`, `Secure`, `SameSite=Lax`, scoped to admin  | cookie policy, Phase 2                                                                                                                                                                       |
+| CSRF protection on cookie-authenticated mutations              | Phase 2                                                                                                                                                                                      |
+| Authorization on **every** mutation                            | Payload access control per collection — nothing inherits trust from the page it was reached from                                                                                             |
+| Media served from a separate origin                            | R2 custom domain with its own restrictive CSP                                                                                                                                                |
+| Downloads through our handler                                  | short-lived signed URL, `Content-Disposition: attachment`, strict `Content-Type`. Never a bucket URL — direct URLs invite enumeration of everything in the bucket, including anything hidden |
+| `passwordProtect` gates server-side                            | a client-side check leaves the content fetchable                                                                                                                                             |
+| `indexGalleries` respected                                     | `robots.txt` **and** `X-Robots-Tag`, since pages are statically served                                                                                                                       |
+| Secrets in the platform store                                  | never in the repo; `.env` is gitignored                                                                                                                                                      |
+| Offsite backups of Postgres **and** the bucket, restore tested | scheduled dump to a different provider; restore drill in `docs/runbook.md`                                                                                                                   |
 
 The last row is the one `SECURITY.md` says deserves more attention than everything above it. The realistic disaster is losing 40GB of photographs, not an attacker. "Export everything" on the Settings screen is a genuine feature, not a nicety.
 
@@ -348,19 +348,19 @@ All nine types from `CLAUDE.md` §2 are required. Coverage gates: 100% on `packa
 
 Notable cases, chosen because they encode defects the handoff records as already having happened:
 
-| Test | Guards |
-|---|---|
-| Back-face click-through (Playwright) | Contents links and gallery buttons appearing dead |
-| Latch release across every path (unit) | The book seizing mid-flip |
-| Visibility of non-current pages (Playwright) | Stranded mirrored content |
-| Gallery selection after re-sort (unit + Playwright) | Positional index desyncing from the highlighted tile |
-| Per-journey isolation (integration) | The five defects from globally held per-journey state |
-| Independent timeout handles (unit, injected clock) | The login button stranded on "Checking…" |
-| Gallery return preserves `/p/<n>` (Playwright) | Readers sharing the wrong URL |
-| OTP cells at 819px (visual) | Cells collapsing to 7px |
-| EXIF absent after upload (integration) | Publishing the author's home address |
-| SVG rejected by magic bytes (integration) | Stored XSS |
-| Enumeration timing equality (security) | Leaking which addresses exist |
+| Test                                                | Guards                                                |
+| --------------------------------------------------- | ----------------------------------------------------- |
+| Back-face click-through (Playwright)                | Contents links and gallery buttons appearing dead     |
+| Latch release across every path (unit)              | The book seizing mid-flip                             |
+| Visibility of non-current pages (Playwright)        | Stranded mirrored content                             |
+| Gallery selection after re-sort (unit + Playwright) | Positional index desyncing from the highlighted tile  |
+| Per-journey isolation (integration)                 | The five defects from globally held per-journey state |
+| Independent timeout handles (unit, injected clock)  | The login button stranded on "Checking…"              |
+| Gallery return preserves `/p/<n>` (Playwright)      | Readers sharing the wrong URL                         |
+| OTP cells at 819px (visual)                         | Cells collapsing to 7px                               |
+| EXIF absent after upload (integration)              | Publishing the author's home address                  |
+| SVG rejected by magic bytes (integration)           | Stored XSS                                            |
+| Enumeration timing equality (security)              | Leaking which addresses exist                         |
 
 Browser sweeps per `CLAUDE.md` §10 are required before any UI phase is called complete, and their reports are committed.
 
@@ -388,14 +388,14 @@ Recorded as `docs/adr/0001-hosting-and-cost.md`; the deferral as `docs/adr/0004-
 
 ## 14 · Risks
 
-| Risk | Mitigation |
-|---|---|
-| The flip is the hardest part and hardest to test | Extracted as a pure machine with an injected clock; browser tests only prove the DOM reflects it |
-| Ten admin screens is the largest surface and the easiest place to drift from spec | Visual regression per screen at each breakpoint; browser sweep before any completion claim |
-| Per-journey state leaking globally — five recorded defects | Structural: `Record<JourneyId, T>` in the type system, integration tests for isolation |
+| Risk                                                                                         | Mitigation                                                                                                                  |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| The flip is the hardest part and hardest to test                                             | Extracted as a pure machine with an injected clock; browser tests only prove the DOM reflects it                            |
+| Ten admin screens is the largest surface and the easiest place to drift from spec            | Visual regression per screen at each breakpoint; browser sweep before any completion claim                                  |
+| Per-journey state leaking globally — five recorded defects                                   | Structural: `Record<JourneyId, T>` in the type system, integration tests for isolation                                      |
 | Placeholder imagery hides real-photograph problems (aspect ratios, focal points, file sizes) | Focal point wired to rendering is a Phase 4 exit criterion; derivative tiers exercised with realistic file sizes in Phase 3 |
-| Cloud pricing changes | Adapters keep providers swappable; ADR records the decision and its date |
-| Losing the media | Offsite versioned backups with a **tested** restore, per `SECURITY.md` |
+| Cloud pricing changes                                                                        | Adapters keep providers swappable; ADR records the decision and its date                                                    |
+| Losing the media                                                                             | Offsite versioned backups with a **tested** restore, per `SECURITY.md`                                                      |
 
 ---
 

@@ -23,7 +23,7 @@ CLAUDE.md §10, nothing here was patched straight from the sweep.
 
 ### GAL-001 · Every one of the sixty-one tiles was 215x240, not square
 
-**Severity:** high — it is the one measurement `SCREENS.md` §1.8 records as *verified*
+**Severity:** high — it is the one measurement `SCREENS.md` §1.8 records as _verified_
 ("Verified with 61 tiles; must stay square and unsqueezed at 40+").
 
 **Symptom.** Every tile in the grid rendered as a portrait rectangle. Ratio measured
@@ -73,7 +73,7 @@ entry in `allow`.
 
 ### GAL-003 · A shared lightbox address did not open its frame (test defect, not app defect)
 
-**Severity:** low, and it is recorded here because the *sweep* was wrong rather than the
+**Severity:** low, and it is recorded here because the _sweep_ was wrong rather than the
 app.
 
 **Symptom.** "opens the frame a shared address names" failed with `[data-counter]` never
@@ -158,16 +158,16 @@ may the assertion that stands in for a reader who clicks early.
 
 ## What was walked, and what was found clean
 
-| Route / view | Projects | Console / `pageerror` | Notes |
-|---|---|---|---|
-| `/gallery/patagonia` (61 tiles) | desktop, mid, mobile | clean | Sixty-one tiles, all square after GAL-001. `loading="lazy"` on every one. |
-| The lightbox, opened from a tile | desktop, mid, mobile | clean | Opened, stepped with the arrows, closed with Escape, all inside `e2e/smoke.spec.ts`'s own instrumented case — a client component that mounts a document listener, moves focus and reads `navigator` has three ways to throw at mount. |
-| `/gallery/<slug>/download/<id>` | desktop | n/a (a file, not a document) | 200 with `Content-Disposition: attachment`, `Content-Type: image/png`, `nosniff`. |
-| The same id through the wrong journey's slug | desktop | n/a | 404, as every other refusal does. |
-| `/gallery/no-such-journey` | desktop | n/a | 404, not an empty grid. |
-| Return to `/p/9` by the gallery's back control | desktop, mid, mobile | clean | |
-| Return to `/p/9` by the browser's Back button | desktop, mid, mobile | clean | |
-| A gallery reached with no referrer | desktop, mid, mobile | clean | Back control points at `/p/1` — a page of the book, never `/`. |
+| Route / view                                   | Projects             | Console / `pageerror`        | Notes                                                                                                                                                                                                                                 |
+| ---------------------------------------------- | -------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/gallery/patagonia` (61 tiles)                | desktop, mid, mobile | clean                        | Sixty-one tiles, all square after GAL-001. `loading="lazy"` on every one.                                                                                                                                                             |
+| The lightbox, opened from a tile               | desktop, mid, mobile | clean                        | Opened, stepped with the arrows, closed with Escape, all inside `e2e/smoke.spec.ts`'s own instrumented case — a client component that mounts a document listener, moves focus and reads `navigator` has three ways to throw at mount. |
+| `/gallery/<slug>/download/<id>`                | desktop              | n/a (a file, not a document) | 200 with `Content-Disposition: attachment`, `Content-Type: image/png`, `nosniff`.                                                                                                                                                     |
+| The same id through the wrong journey's slug   | desktop              | n/a                          | 404, as every other refusal does.                                                                                                                                                                                                     |
+| `/gallery/no-such-journey`                     | desktop              | n/a                          | 404, not an empty grid.                                                                                                                                                                                                               |
+| Return to `/p/9` by the gallery's back control | desktop, mid, mobile | clean                        |                                                                                                                                                                                                                                       |
+| Return to `/p/9` by the browser's Back button  | desktop, mid, mobile | clean                        |                                                                                                                                                                                                                                       |
+| A gallery reached with no referrer             | desktop, mid, mobile | clean                        | Back control points at `/p/1` — a page of the book, never `/`.                                                                                                                                                                        |
 
 ## What was NOT covered, and why
 

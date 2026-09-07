@@ -8,6 +8,21 @@
  * absolute measurement of the book lives. This file exists to give that
  * geometry a name, an accessible label and a click.
  *
+ * ONE THING ABOUT ITS POSITION IS NOT THIS FILE'S TO CHANGE, and it is here
+ * because a reader who opens only this file would not otherwise meet it. The
+ * two `<EdgeStrip>` elements are children of the design box — siblings of the
+ * leaf stack, not of the leaves — which departs from SCREENS.md and is
+ * recorded as `docs/deviations.md` §8. At `z-index: 900` inside the stack, as
+ * the prototype has them, neither strip can ever be clicked: the handoff's own
+ * stacking table puts untouched leaves at `1000 - i`, so the leaf on top
+ * always intercepts the pointer. That is measured, not read off the spec —
+ * `e2e/flip.spec.ts`'s first case timed out after 30s with Playwright naming
+ * `<article class="page">…</article> from <div data-leaf="2"> subtree
+ * intercepts pointer events`. Moving either strip's DOM position or its
+ * `z-index` reopens that, and `book.module.css`'s `HANDOFF-DEVIATION` at
+ * `.edgeLeft`/`.edgeRight` and the comment at the two elements in `Book.tsx`
+ * are the rest of the record.
+ *
  * It is a real `<button>`, not the prototype's bare `<div>` with an `onClick`.
  * The strip is a control, and rendering a control as a div costs a keyboard
  * reader the affordance entirely: it would be unreachable, unlabelled and

@@ -13,6 +13,10 @@
  * own modules and registered here. `jobs` (Task 9) is this repository's own
  * addition, not part of DATA_MODEL.md - it backs the Postgres `QueuePort`
  * adapter and must be registered here for the Local API to reach it at all.
+ * `signInAttempts` (Phase 2, Task 4) is the second such addition, for the
+ * same reason: it backs the sliding window SECURITY.md requires per account
+ * and per IP, and it is registered here so the migration generator sees its
+ * table at all. Both are recorded deviations - docs/deviations.md.
  * Depends on: `@payloadcms/db-postgres`, `@payloadcms/richtext-lexical`, `payload`,
  * `sharp`, the validated `env` from `./lib/env`, `./collections/*`, `./globals/*`.
  */
@@ -28,6 +32,7 @@ import { Pages } from './collections/pages'
 import { Users } from './collections/users'
 import { OtpChallenges } from './collections/otpChallenges'
 import { Sessions } from './collections/sessions'
+import { SignInAttempts } from './collections/signInAttempts'
 import { Jobs } from './collections/jobs'
 import { About } from './globals/about'
 import { Book } from './globals/book'
@@ -51,7 +56,7 @@ export default buildConfig({
   // own generated admin binds to. The design's bespoke panel owns `/admin`,
   // so Payload's stock admin moves to `/cms` and the two never collide.
   routes: { admin: '/cms' },
-  collections: [Media, Journeys, Pages, Users, OtpChallenges, Sessions, Jobs],
+  collections: [Media, Journeys, Pages, Users, OtpChallenges, Sessions, SignInAttempts, Jobs],
   globals: [Book, About, Site],
   editor: lexicalEditor(),
   secret: env.PAYLOAD_SECRET,

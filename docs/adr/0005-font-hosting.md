@@ -22,7 +22,7 @@ mechanism — is most of what this document exists to record.
 ### Loading mechanism
 
 1. **`next/font/google`** — Next's built-in Google Fonts loader. It genuinely does
-   self-host its *output*: at build time it fetches the family's CSS and font files
+   self-host its _output_: at build time it fetches the family's CSS and font files
    from Google's servers and re-serves them from the app's own origin, so a deployed
    page never makes a runtime request to `fonts.gstatic.com`. Verified by reading
    `node_modules/next/dist/compiled/@next/font/dist/google/{fetch-css-from-google-fonts,fetch-font-file}.js`
@@ -83,7 +83,7 @@ mechanism — is most of what this document exists to record.
   reproduces; what changed is that the gate it was protecting turned out to be
   unreachable regardless. See the Consequences.
 
-  *As originally decided:* two of the three families loaded — Caveat (400) and EB
+  _As originally decided:_ two of the three families loaded — Caveat (400) and EB
   Garamond (400 upright). Courier Prime, EB Garamond's italic face, and every weight
   beyond 400 were not loaded, though every one of those `.woff2` files was committed
   (`courier-prime-regular.woff2`, `courier-prime-bold.woff2`,
@@ -101,6 +101,7 @@ mechanism — is most of what this document exists to record.
   the actual LCP element on this route and the cover title this task exists to fix. EB
   Garamond was kept over Courier Prime because it carries the diary's reading content
   (captions, notes, descriptions) rather than Courier's auxiliary labels.
+
 - **One weight per loaded family, not the handoff's full range**, per option 5/6:
   `git grep` across every `.module.css` under `apps/web/components` confirms no rule
   sets a Caveat weight other than 400, or a Garamond upright weight other than 400,
@@ -119,7 +120,7 @@ mechanism — is most of what this document exists to record.
   Consequences, which carry both the reproduction and the reason the deferral was lifted
   anyway.
 
-  *As originally decided:* `apps/web/app/(diary)/fonts.ts` calls `localFont` once per
+  _As originally decided:_ `apps/web/app/(diary)/fonts.ts` calls `localFont` once per
   loaded family and exports a `.variable` class per family;
   `apps/web/app/(diary)/layout.tsx` applies both classes to `<html>`;
   `apps/web/app/(diary)/diary.css` redefines `--td-font-caveat` and
@@ -130,11 +131,12 @@ mechanism — is most of what this document exists to record.
   it stays the shared, framework-agnostic token source, and wiring an
   app-build-tool-generated variable name into it would couple that package to
   `apps/web`'s choice of `next/font`.
+
 - **Layout shift.** `next/font/local`'s `adjustFontFallback` (on by default) reads each
   font file's own metrics and generates a size-adjusted `local(Arial)` fallback face
   (`ascent-override`/`descent-override`/`line-gap-override`/`size-adjust`), so the
   fallback-to-webfont swap does not change the text's rendered box size. `display:
-  'swap'` (next/font's own default, named explicitly at each call site) was kept
+'swap'` (next/font's own default, named explicitly at each call site) was kept
   throughout the investigation; `optional` was tried and reverted (see Consequences) —
   it changes nothing observable in this measurement method and removes a real
   guarantee (`swap` always eventually shows the true font; `optional` can permanently

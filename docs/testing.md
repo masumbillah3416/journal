@@ -45,6 +45,25 @@ Enforced by TWO configs, because no single Vitest run can execute everything:
   `scripts` files listed under Contract and Migration below, plus
   `apps/web/collections/**`, `apps/web/globals/**`, `apps/web/payload.config.ts` and
   `apps/web/migrations/**`, each gated per-file at what it genuinely measures.
+  `apps/web/lib/auth/otpService.ts` (Phase 2 Task 3), `apps/web/lib/auth/rateLimit.ts`
+  (Task 4), `apps/web/lib/auth/sessions.ts` (Task 6) and
+  `apps/web/lib/auth/signIn.ts`/`passwordReset.ts` (Task 5) are in this pass rather than
+  the Docker-free one for the same reason: every operation these modules perform writes
+  and then re-reads a row, and the claims their tests make — "only a hash was stored", "a
+  concurrent burst was admitted in arrival order up to the limit and no further", "the
+  superseded identifier no longer authenticates" — are claims about what Postgres did,
+  not about what a mock agreed to. `signIn.ts` adds a reason of its own: what it asserts
+  is that an unknown address and a wrong password cost the same TIME, and the time in
+  question is a PBKDF2 derivation Payload performs inside a real login against a real
+  row — a mocked credential store would make both arms instant and the measurement
+  meaningless. All five are gated at **100/100/100**.
+  `sessions.ts` reached that honestly rather than by construction: it measured 94%
+  branches first, and the two uncovered arms turned out to be reachable by any caller (a
+  `UserId` that is not a Payload row id, handed to
+  `revokeSession`/`revokeAllSessions`), so they were exercised rather than excused — the
+  correction `otpService.ts` had to make twice. Their pure arithmetic lives in
+  `packages/domain/src/auth/`, which the Docker-free pass measures at the domain's own
+  100% bar.
 
 **Nothing is allowed to be in neither.** That is not a stylistic preference: a file no
 config's `include` matches is not reported as 0%, it is not reported at all, and a gap
@@ -60,9 +79,12 @@ score.
 Phase 1 closes both before either holds any of the phase's own code**, rather than
 waiting for the task that lands the first server action or component to remember to add
 its own directory — the controller ruling that reordered this ahead of the pages it
-guards (see this task's own report). `apps/web/app/**` today holds only Payload's own six
-route/layout re-exports under `(payload)/` — no logic of ours, and nothing any current
-test can execute without a Next.js request context:
+guards (see this task's own report). **When that was written**, `apps/web/app/**` held
+only Payload's own six route/layout re-exports under `(payload)/` — no logic of ours, and
+nothing any test could execute without a Next.js request context. It holds the diary's
+routes and the whole `(admin)` panel now; the paragraphs below are the record of those
+six, and the exclusions they describe still name those files by their exact paths and
+nothing else:
 
 - Three of the six (`layout.tsx`, `api/graphql/route.ts`, `api/graphql-playground/route.ts`)
   carry a `c8 ignore start`/`stop` around their whole body — imports included, since an
@@ -70,8 +92,10 @@ test can execute without a Next.js request context:
   fully excluded (no row at all in a passing run).
 - The other three — joined in Phase 1 Task 7 by the diary's own
   `(diary)/p/[n]/page.tsx` — sit under a Next.js dynamic-route directory written in
-  square brackets (`api/[...slug]/route.ts`, `cms/[[...segments]]/page.tsx` and its
-  `not-found.tsx`) —
+  square brackets (`app/(payload)/api/[...slug]/route.ts`,
+  `app/(payload)/cms/[[...segments]]/page.tsx` and
+  `app/(payload)/cms/[[...segments]]/not-found.tsx`, each by its exact path, because
+  §2.1 requires an exclusion to name the file it excuses rather than the directory) —
   required by Next.js's own routing convention. `c8 ignore start`/`stop` does not take
   effect for a file under a bracketed directory: verified by reproducing one of them
   byte-for-byte under an unbracketed sibling directory and watching the _copy_ get
@@ -123,11 +147,55 @@ bundle, render `<MobileDiary>` around the ONE addressed page. What `<n>` means i
 decision the split actually moved — is `servedReadingSurface`'s, spent by
 `apps/web/middleware.ts`, which is NOT excluded: it sits at the app's own root, is named
 in `vitest.config.ts`'s coverage `include` (no `lib/**` or `app/**` glob reaches it) and
-is gated at **100/100/100**, met by ten cases in `apps/web/middleware.test.ts` driving a
+is gated at **100/100/100**, met by 32 cases in `apps/web/middleware.test.ts` driving a
 plain `NextRequest` — a desktop and a phone user agent, both cookie values, a query
 carried across the rewrite, and the 308 off `/m/<n>`. That test file needed its own glob
 (`apps/web/*.test.ts`) on the `unit` project, because a test file no project's `include`
 matches is collected by nobody and its absence is silent.
+
+**Three more sit on that list and this document did not name them** — `CLAUDE.md` §2.1
+requires each exclusion to be stated at the point of exclusion **and** here, and Phase 2's
+final review found the second half missing (finding 37). Each is under a bracketed
+directory, each is wrapped `c8 ignore start`/`stop` and each was read and found to hold no
+authored decision of its own:
+
+- `(diary)/gallery/[slug]/page.tsx` — awaits the slug, reads the bundle, renders the
+  gallery. Which media a slug names, and whether the slug names a gallery at all, is
+  `packages/domain/src/gallery.ts`'s, gated at 100%.
+- `(diary)/gallery/[slug]/download/[id]/route.ts` — reads a derivative's bytes through the
+  `StoragePort` and answers them as an attachment. What it may serve, and the headers it
+  serves them under, are `packages/domain/src/galleryDownload.ts`'s and
+  `apps/web/lib/readGalleryDownload.ts`'s — the first gated at 100% here, the second by
+  `vitest.integration.config.ts`.
+- `(admin)/admin/reset/[token]/page.tsx` — awaits the params and the query, reads the
+  shell's content and the link's state, renders two components. WHICH STATE THE SCREEN
+  DRAWS is `apps/web/lib/auth/newPasswordScreen.ts`'s and, under it,
+  `@travel-diary/domain/auth/resetScreen`'s `newPasswordView` — both gated at 100%.
+
+`(admin)/admin/reset/set/route.ts` is deliberately NOT among them, and is the control that
+keeps the carve-out honest: it sits under a static segment, so its own `c8 ignore` is read
+and holds. So does `(admin)/admin/page.tsx`, the panel root Phase 2's final round mounted.
+
+**And three files sat in `vitest.integration.config.ts`'s `include` with no threshold at
+all** — `readGalleryBundle.ts`, `readGalleryDownload.ts` and `auth/readCodeScreen.ts`. All
+three were outside `vitest.config.ts`'s include too, so they were measured by one pass and
+gated by neither, which is indistinguishable in a report from being fully covered
+(finding 36). There is no repository-wide floor in that config to catch them, deliberately:
+it measures a hand-picked set, so a wildcard floor would be a number nobody chose. Each now
+carries the figure its own suite ACHIEVES — 100/100/100 for `readCodeScreen.ts`, and
+100 lines / 78 and 85 branches for the two gallery readers, whose uncovered branches are
+the optional-field folds their headers describe, the same shape `readBookBundle.ts` carries
+at 83.
+
+**Those branch figures are below CLAUDE.md §2.1's 95% for `apps/web/lib/**`, and that is a
+recorded deviation, not a rounding.** `docs/deviations.md` §46 lists all six per-file
+branch gates in `vitest.integration.config.ts` that sit under 95 — the two gallery readers
+this phase added, plus `readBookBundle.ts`, `seed.ts`, `postgres-queue.ts` and
+`testPayload.ts`, which predate this branch — with the measured `apps/web/lib` branch
+aggregate (83.05%), why `c8 ignore` is the wrong instrument for a reachable branch this
+content does not reach, and what would reverse it. Until this round the shortfall was
+stated at the point of exclusion and nowhere else, which is §1.1's bidirectional rule
+broken.
 
 `apps/web/components/**` was genuinely empty until Phase 1 Task 7 (`.gitkeep` only) and
 carried no per-glob threshold override until then — a threshold against zero files is the
@@ -137,6 +205,29 @@ per CLAUDE.md §2.1.
 
 An uncovered line outside `packages/domain` requires a
 `/* c8 ignore next -- <reason> */` comment with a real reason (`CLAUDE.md` §2.1). Where a
+**A GLOB THRESHOLD GATES THE AGGREGATE OF THE FILES IT MATCHES, NOT EACH FILE — so one
+wholly untested small file inside a 95%-gated glob is absorbed rather than caught.**
+Measured in round 7 rather than reasoned about: an entirely new, entirely untested
+`apps/web/scripts/emit-actions.ts` was written to disk and `npm run verify` was **exit 0**
+with it present (`Test Files 90 passed`, `Tests 1337 passed`). That is a real gap between
+what CLAUDE.md §2 asks for — "every behaviour is tested" — and what the gate enforces, and
+it is the same mechanism `vitest.config.ts`'s own comment cites as the reason
+`testPayload.ts` needed an explicit exclude: a file only gets noticed when it is big enough
+to drag its glob's aggregate down.
+
+**It can be closed, and the instrument is `coverage.thresholds.perFile: true`** — Vitest
+applies every threshold per file rather than to the aggregate. It is not closed here, and
+the reason is blast radius rather than difficulty: turning it on makes each of the six
+per-file branch gates in `docs/deviations.md` §46 a repository-wide requirement at its
+glob's number, so the change is "raise or individually re-gate every file under
+`apps/web/lib/**`", not a flag. That is a Phase 3 decision with its own commit and its own
+measurements, and slipping it into a blocker round would be exactly the untested sweeping
+change this branch exists to stop shipping. What holds the line meanwhile is §2.1's
+requirement that a new directory arrive with its own `include` entry and a real threshold in
+the same commit, plus the per-file entries this repository already writes wherever an
+aggregate would hide something.
+
+Where a
 whole file is unreachable from any test, the honest options are two, and which one
 applies depends on whether some _other_ pass can see it: exclude-and-regate (as
 `seed.ts`, `seed-data.ts`, `testPayload.ts` and `migrate.ts` each get — excluded from the
@@ -149,14 +240,31 @@ would claim a measurement nothing performs.
 
 ## The verify gates
 
-- **`npm run verify`** — `typecheck && lint && test:unit`, where `test:unit` runs the
-  `unit` **and** `unit-dom` projects with coverage. This is the pre-commit gate: no
-  database, so a developer can always pass it honestly, even with Docker down.
+- **`npm run verify`** — `typecheck && lint && format:check && test:unit`, where
+  `format:check` is `prettier --check .` over the whole repository (ruling F31) and
+  `test:unit` runs the `unit` **and** `unit-dom` projects with coverage. This is the
+  pre-commit gate: no database, so a developer can always pass it honestly, even with
+  Docker down.
 - **`npm run verify:full`** — `verify` plus `test:integration:coverage` (which runs the
   same integration test files as `test:integration`, with `--coverage` scoped to the
   integration-only files named in the Contract and Migration sections below). This is
   what CI runs (`.github/workflows/ci.yml`); it requires `DATABASE_URL` for a test
   Postgres.
+
+**Line endings are part of the gate, and for seventy-eight commits they defeated it on
+Windows.** `format:check` is `prettier --check .`, whose `endOfLine` default is `lf`.
+`.gitattributes` said `* text=auto`, which normalises what the REPOSITORY stores and says
+nothing about what a checkout WRITES, so a clone on a machine with `core.autocrlf=true`
+— git's default on Windows, which is this project's own platform — got a CRLF working
+tree and `prettier --check .` reported **"Code style issues found in 389 files", exit
+1**. The seventh whole-branch review measured it on a real clone. Nobody had, because
+every gate run in this phase happened on a working tree written by editors rather than by
+a checkout. The fix is `* text=auto eol=lf`, with the reason in `.gitattributes` itself.
+
+If a working tree predates that change and `format:check` fails on files you have not
+touched, `git add --renormalize .` and a forced re-checkout (`git checkout-index -a -f`)
+rewrite it; `git status` is the check that it worked, and an empty `git diff` is the
+check that nothing but line endings moved.
 
 ## The nine suites
 
@@ -165,9 +273,32 @@ would claim a measurement nothing performs.
 - **Tool:** Vitest.
 - **Scope:** pure functions, state machines, mappers, validators. No I/O.
 - **Status:** implemented, as TWO Vitest projects (`vitest.config.ts`):
-  - `unit` — `packages/*/src/**/*.test.ts`, `apps/web/lib/**/*.test.ts` and
-    `apps/web/scripts/**/*.test.ts`, excluding `*.integration.test.ts`. Node
-    environment; these files are pure.
+  - `unit` — every glob it declares, in the order the config declares them:
+    `packages/*/src/**/*.test.ts`, `apps/web/lib/**/*.test.ts`,
+    `apps/web/scripts/**/*.test.ts`, `apps/web/collections/**/*.test.ts`,
+    `eslint-rules/**/*.test.js`, `apps/web/*.test.ts` and `e2e/**/*.test.ts`, all of them
+    excluding `*.integration.test.ts`. Node environment; these files are pure. **This
+    list is the whole of it and is meant to be diffable against the config** — CLAUDE.md
+    §2.1 names the config comment and this document as the two homes an include fact has
+    to live in, and an enumeration here that is missing a glob is how a reader audits
+    "no file is in neither config's include" against a set smaller than the real one
+    (final review 9, F9-8). Each glob beyond the `packages`, `lib` and
+    `scripts` ones exists for a reason those do not cover, and carries that reason at the
+    glob in `vitest.config.ts`:
+    - `apps/web/collections/**/*.test.ts` — the collection tests that need **no** Docker.
+      A collection config is a plain object, so a check over the numbers another module
+      is written against (`users.lockout.test.ts`, the lockout window against
+      `rateWindow.ts`'s) belongs in the pre-commit gate. `*.integration.test.ts` under the
+      same directory stays with the integration project; the two patterns are disjoint.
+    - `eslint-rules/**/*.test.js` — the rule that makes an unguarded Server Action a lint
+      error, and its `RuleTester` cases. Plain JavaScript because ESLint loads a config
+      and its plugins through Node rather than a bundler (§1a).
+    - `apps/web/*.test.ts` — `middleware.test.ts`. Next.js requires the middleware at the
+      app's own root, which no `lib/**` or `app/**` glob reaches.
+    - `e2e/**/*.test.ts` — the file reads that live beside what they guard rather than in
+      the browser job: `ciRegistration.test.ts`, the guard that says every browser spec is
+      named by CI and by an npm script (ruling F57, and the browser-suite section below).
+      Only `*.test.ts`; `playwright.config.ts` owns `e2e/*.spec.ts`.
   - `unit-dom` — `packages/*/src/**/*.test.tsx` and `apps/web/**/*.test.tsx`, in a
     **jsdom** environment, with esbuild's automatic JSX runtime so a component test
     needs no `import React`. A separate project rather than a wider glob on `unit`
@@ -193,6 +324,51 @@ would claim a measurement nothing performs.
   test that kept passing with its guarding clause deleted), because there is no red to
   notice.
 
+  Phase 2 Task 7 puts the first ADMIN components in `unit-dom`:
+  `apps/web/components/admin/SignInShell.test.tsx` and `PasswordStep.test.tsx`. The
+  second is where `SECURITY.md`'s second prototype hole is first held down — it plants
+  `om-diary-otp` in `localStorage` with the opposite answer to the server's and requires
+  the footer line not to move, and it spies on `Storage.prototype.getItem` to require
+  that nothing was read at all. Neither assertion stands alone: both are paired with one
+  that the footer line exists and says what `SCREENS.md` §3.1 says it should, because "no
+  storage was read" is trivially true of a component that rendered nothing. What jsdom
+  cannot reach — whether the DELIVERED page and its scripts read storage — is
+  `e2e/signIn.spec.ts`'s.
+
+  Task 9 adds the last three admin panes — `ResetStep.test.tsx`,
+  `NewPasswordStep.test.tsx` and `SignedInStep.test.tsx`. Two things about them
+  are worth knowing. First, **every case that says a pane does NOT print something is
+  paired with one that says the pane printed anything at all**: "the confirmation carries
+  no address of its own" and "the expired state never prints the token" are both trivially
+  true of a pane that rendered nothing, which is this phase's most common defective shape.
+  Second, **the geometry is deliberately not here**: `SCREENS.md` §3.4's 62px ringed
+  circle, its 20px square and §3.3's 14px confirmation mark are numbers jsdom cannot read,
+  because it performs no layout and loads no stylesheet, so all three are measured in a
+  real engine by `e2e/reset.spec.ts` rather than left to a screenshot that would absorb
+  them (see the Visual regression section on what the threshold does not catch).
+
+  Task 8 adds `apps/web/components/admin/CodeStep.test.tsx`, the largest component suite
+  here, and it is worth knowing what it deliberately does NOT prove. Its
+  header names three things and hands each to `e2e/codeStep.spec.ts`: the cell widths
+  (jsdom performs no layout), the paste path (jsdom performs no default paste, so
+  `preventDefault` has nothing to prevent and the case cannot distinguish a working
+  handler from a missing one on the browser's own terms), and the shake's
+  `prefers-reduced-motion` honesty (a media query is a property of the stylesheet). Two
+  of its cases were strengthened after a mutation showed them passing with the mechanism
+  removed: the Backspace case moved from cell 0 to cell 2, because at the first cell
+  "stays here" and "retreats" are the same outcome, and the countdown's non-finite guard
+  is now tested with `NaN` rather than `Infinity`, because an infinite instant already
+  falls out of the subtraction as "the window closed long ago" and passed with the guard
+  deleted.
+
+  Its numbers all come from `@travel-diary/domain/auth/otpChallenge` rather than from
+  copies, and that is proven rather than asserted: raising `MAX_ATTEMPTS` to 5 in the
+  domain fails 5 of its cases, doubling `EXPIRY_MS` fails 3, and halving
+  `RESEND_COOLDOWN_MS` fails 1. The one number that cannot follow its constant is the
+  word "Three" in "Three wrong codes…", so a case of its own pins `MAX_ATTEMPTS` to `3`
+  as a literal — the copy names the number in words, and no expression turns the constant
+  into that word.
+
   `apps/web/lib/react-harness.test.tsx` is the guard: it mounts a real React component
   into a real `document` with `react-dom/client` and reads the text back out, which is
   impossible to pass unless the file is being collected AND the environment is a DOM. It
@@ -207,21 +383,7 @@ would claim a measurement nothing performs.
   by mutation, not by review — retuning the floor to 37 left the whole file green until
   the literals went in (`CLAUDE.md` §2.3, "a test that has never failed is unproven").
   `packages/domain/src/contentsLayout.test.ts`'s thirty-one-entry case pins **3 columns
-  × 11 rows**, which is what SCREENS.md §1.2's formula produces and *not* the "4 columns
-  × 8 rows" the same section calls verified; the two cannot both be true for any entry
-  count, and `docs/deviations.md` §9 carries the arithmetic. The multi-column path is
-  therefore covered as arithmetic but never rendered in a browser — the seeded book has
-  ten contents entries — so a task that seeds more than eleven journeys owes the
-  Contents body a real overflow assertion.
-
-  Two of Phase 1 Task 9's unit files carry a note of their own.
-  `packages/domain/src/coverTitle.test.ts` asserts the clamp bounds as **literals**
-  (`38`, `124`), never as `COVER_TITLE_SIZE.min`/`.max`: an assertion that reads the
-  constant it is guarding moves with that constant and can never fail. That was caught
-  by mutation, not by review — retuning the floor to 37 left the whole file green until
-  the literals went in (`CLAUDE.md` §2.3, "a test that has never failed is unproven").
-  `packages/domain/src/contentsLayout.test.ts`'s thirty-one-entry case pins **3 columns
-  × 11 rows**, which is what SCREENS.md §1.2's formula produces and *not* the "4 columns
+  × 11 rows**, which is what SCREENS.md §1.2's formula produces and _not_ the "4 columns
   × 8 rows" the same section calls verified; the two cannot both be true for any entry
   count, and `docs/deviations.md` §9 carries the arithmetic. The multi-column path is
   therefore covered as arithmetic but never rendered in a browser — the seeded book has
@@ -238,6 +400,217 @@ would claim a measurement nothing performs.
   injected — never `Date.now()` inside logic under test (this is how `flipMachine`'s
   latch behaviour and `otpChallenges`' expiry are tested with no clock mocking library).
 
+#### 1a · The ESLint rule, and the two questions about it that are not about a syntax tree
+
+`vitest.config.ts` puts `eslint-rules/**/*.test.js` in the `unit` project and gates
+`eslint-rules/**/*.js` at **100% lines, branches and functions**, and both of those lines
+say "See docs/testing.md". This is that section — it did not exist for a round, which is
+CLAUDE.md §1.2's own failure mode: a new test type, in a new language, in the gate Husky
+runs, behind a cross-reference pointing at silence.
+
+**What the suite is.** `eslint-rules/guarded-server-actions.js` is a custom ESLint rule: a
+`'use server'` module may export nothing but calls to `guardedAction(...)`
+(`apps/web/lib/auth/guard.ts`) — imported under that name, from that file, both halves
+checked — may hold nothing at its top level but imports and declarations, and a
+`'use server'` directive inside a function body is refused outright. Its one exception is an export the parser marks
+`exportKind: 'type'`, which emits no runtime binding; every other export spelling, including
+one the rule does not recognise, is reported. It exists because the same guarantee was written as a text scan **nine
+times and defeated nine times** — "every export of every module" is not a sentence text
+matching can express, so the check is written where the exports are already parsed.
+`docs/adr/0018` is the decision; `apps/web/lib/auth/guard.ts` is the factory.
+
+**Why it is plain JavaScript.** ESLint loads a config and its plugins through Node rather
+than through a bundler, so a `.ts` rule would need a loader inside the pre-commit hook.
+The consequence is stated rather than hidden: nothing typechecks `eslint-rules/`, the same
+treatment `scripts/run-lighthouse.mjs` already has, which is why the rule takes no options
+and holds no state — everything it could get wrong is a shape, and every shape is a case.
+
+**How to run it.**
+
+```
+npx vitest run --project unit eslint-rules                      # the rule alone
+npx vitest run --project unit eslint-rules --coverage           # with its 100% gate
+npm run verify                                                  # what Husky runs
+```
+
+**How to add a case.** `eslint-rules/guarded-server-actions.test.js` uses ESLint's own
+`RuleTester` with `typescript-eslint`'s parser. An `invalid` case is a `code` string, the
+`messageId` it must report, and a `name` recording WHICH ROUND FOUND THE SHAPE — the list
+is the valuable artefact, because every entry is something somebody actually reached for.
+Every case is passed through `at()`, which gives it a real `filename` under
+`apps/web/app/(admin)/admin/journeys/`: the rule resolves an import specifier against the
+importing file and compares the result with `apps/web/lib/auth/guard.ts` itself, so a
+fixture with no plausible filename would resolve nothing and every case would report
+`notTheFactory`. The cases are valid ones — the control: every export
+spelling, all guarded, plus the shapes the prologue walk has to answer "no" to — and
+invalid ones, one per shape that has ever defeated a version of this check. **Neither count
+is printed here, and that is round 8's correction to this paragraph.** It printed "40 cases
+— 8 valid and 32 invalid", asserted nowhere, and the arrays grew past it in the very round
+that added the assertion on the other side: what the test's own case "is a list whose
+length is asserted rather than counted by hand" pins is the ARRAY LENGTHS, so the one place
+a number lives is the place that fails when the list changes. A figure copied into prose
+beside it is a second place, and this phase's record on second places is five for five
+against. The test file's header carried the same defect from the other direction — it said
+"the twelve mutations" through the rounds in which the list grew to 23 and then to 29.
+
+**And the questions this suite CANNOT answer**, which is why
+`apps/web/lib/auth/adminGuardRegistration.test.ts` keeps a block of its own about the rule
+— which the table below sets out, question by question, and no count is written here.
+A `RuleTester` case proves what the rule decides about a syntax tree it is handed. It
+cannot say whether the rule is switched on, whether somebody has switched it off for a
+file, or **which files ESLint hands it at all** — and that last one is where round 5's
+version was defeated. A flat config lints the extensions some block's `files` array names;
+nothing named `.jsx`, so an unguarded `'use server'` module written as `actions.jsx` passed
+`eslint .` at exit 0, passed `tsc`, passed `prettier --check`, and was mounted by a running
+dev server as a real action endpoint.
+
+So the coverage check is INVERTED, and this is the arrangement to keep:
+
+| Question                                              | Where it is answered             | With what                                                                                                                                                                                                                           |
+| ----------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Is this export guarded?                               | `guarded-server-actions.test.js` | `RuleTester`, over the AST                                                                                                                                                                                                          |
+| Is the rule registered at `error`?                    | `adminGuardRegistration.test.ts` | a read of `eslint.config.js`                                                                                                                                                                                                        |
+| Does ESLint visit every file carrying `'use server'`? | `adminGuardRegistration.test.ts` | git's listing of the repository + `ESLint#calculateConfigForFile`, asked in a child process                                                                                                                                         |
+| Has anybody disabled the rule for a file?             | `adminGuardRegistration.test.ts` | the same git listing, keyed on the PRESENCE of a disable directive in any module carrying the directive, against an allowlist of exact paths                                                                                        |
+| Could an inline severity comment switch it off?       | `adminGuardRegistration.test.ts` | the same git listing: the files permitted to spell the rule's own id, by exact path                                                                                                                                                 |
+| Did a directive actually suppress a report of it?     | `adminGuardRegistration.test.ts` | `ESLint#lintFiles` over every file carrying a directive, reading `suppressedMessages`                                                                                                                                               |
+| Could a `processor` strip the directive first?        | `adminGuardRegistration.test.ts` | `ESLint#calculateConfigForFile`, reading the resolved `processor` for every directive-carrying module and every hypothetical action path                                                                                            |
+| Is each enumerated survivor still a survivor?         | `adminGuardRegistration.test.ts` | `ESLint#lintText` over the module each `SHAPES_THAT_GET_THROUGH` row carries, with an unguarded module as the negative control                                                                                                      |
+| Is every command in the gate chain the pinned one?    | `adminGuardRegistration.test.ts` | a read of four files: `lint`, `verify` and `verify:full` compared whole, token for token, plus an uncommented `run:` step in `ci.yml` and a line in `.husky/pre-commit` that are exactly `npm run verify:full` and `npm run verify` |
+
+**The last row is the one four rounds of keys did not cover, and it is a different kind of
+question.** Every other row asks ESLint about its CONFIGURATION, through a `new ESLint({ cwd })`
+that is handed no argv and cannot see one — so `--ignore-pattern apps/web/lib/journeys/**`
+appended to the `lint` script left `npm run lint` and `npm run verify` at exit 0, at 1350
+passing, with an unguarded mountable `'use server'` module on disk at that path, while bare
+`npx eslint .` exited 1 throughout. The rule was right and nobody ran it over the file. The
+argv is compared WHOLE rather than screened for flags known to narrow it, because a list of
+dangerous flags is the enumeration this file has watched fail five times.
+
+**Every link of the chain is compared whole for the same reason, which round 10 got wrong one
+level up.** It pinned the `lint` argv whole and then asserted the three links above it with
+`toContain`, and a substring accepts a superstring: the eighth whole-branch review defeated it
+with `npm run lint -- --ignore-pattern apps/web/lib/journeys/**` in `verify` (npm appends
+everything after `--` to the script it runs, so the `lint` script stayed byte-identical to the
+pinned argv), with `npm run lint:changed` (matched by prefix), and with
+`# - run: npm run verify:full` (a commented-out CI step still matched
+`toContain('run: npm run verify:full')`) — 24 green in all three, and `npm run verify` at exit 0
+in the first two with an unguarded module live. `verify` and `verify:full` are now compared
+token for token like `lint`, comment lines are dropped from `ci.yml` and `.husky/pre-commit`
+before anything is read off them, and `npm run lint || true` and `run: npm run verify:full || true`
+— two shapes of the implementer's own — fail alongside the review's three.
+
+**What that row does NOT answer, since the sentence that used to sit here said it answered more
+than it did.** These are reads of four files: they say what the gates are DEFINED as, and they
+run nothing. Nothing here makes anyone run the hook (`--no-verify`, an unstaged `.husky/`, or
+`core.hooksPath` pointed elsewhere are all invisible to it); `continue-on-error: true` on CI's
+gate step, or a job-level `if:` that never fires, leaves the step's text exactly as pinned; a
+`.npmrc`, an `npm_config_*` variable or a different `eslint` on `PATH` changes what a pinned
+command does without changing the command; and `apps/web`'s own workspace scripts are unread
+because no gate runs them. Whether the command reports an unguarded module is the AST's
+question, answered by `guarded-server-actions.test.js`.
+
+Text is used for what text is good at — finding candidates anywhere, at extensions nobody
+enumerated — and the AST decides correctness. The listing is
+`git ls-files --cached --others --exclude-standard`, so a file written and never staged is
+still seen, and no skip list of `node_modules`/`.next`/`coverage` has to be maintained.
+An entry in that listing that is not a regular FILE throws by name — a nested git
+repository or a submodule is reported by git as one directory entry, and the files inside
+it appear in no listing at all. It is not filtered away, because dropping it silently
+would be exactly the quiet hole this suite exists to close; before the seventh
+whole-branch review it was read like a file and killed five cases with
+`EISDIR: illegal operation on a directory, read`, which is fail-closed but tells a
+developer who has legitimately vendored a checkout nothing about what to do.
+
+**The last two rows are round 9's, and each closes something the sixth whole-branch review
+measured.** A flat-config `processor` whose `preprocess` drops the directive line hands
+every rule a module with no `'use server'` prologue, so the rule reports nothing and all
+three disable keys go blind at once — no directive in the bytes, no rule id anywhere, no
+suppressed message, because nothing fired. Re-measured on round 9's own tree before the key
+existed: `eslint .` exit 0 and the suite at 24 passing, with an unguarded mountable module
+at `apps/web/lib/journeys/actions.ts`. It is policed rather than disclosed because
+`calculateConfigForFile` reports a resolved `processor` exactly as it reports a resolved
+severity, so the answer costs ten lines. And `SHAPES_THAT_GET_THROUGH`'s CONTENTS were
+unpinned: the reviewer deleted the committable row and the suite stayed green at 21 passing,
+and wrote a live survivor with no row at all and it stayed green at 24. Each row now carries
+either the module text this suite lints — requiring the rule to report nothing, so a row
+that a later round CLOSES fails on that commit — or an explicit statement of why nothing
+here can run it, and its length is asserted so a deletion is a two-line diff rather than a
+one-line one. **A missing row still proves nothing, and no test can change that**:
+enumerating what gets through means knowing what gets through. The array says so at itself.
+
+**The severity probe runs in a child process, and the reason is a measured coverage
+interaction rather than a preference.** ESLint loads `eslint.config.js` — and through it
+the rule — with Node's own loader. Calling the ESLint API from inside a Vitest worker
+therefore puts a SECOND, uninstrumented copy of the rule in the same process; both report
+against the same source path, the uninstrumented one's zero counts win, and
+`@vitest/coverage-v8` then reports the rule at **89.84% lines / 63.15% functions** with
+every function marked unexecuted, against the 100% gate above — while the `RuleTester`
+suite alone measures it at 100/100/100. Reproduced by running the two test files together
+and then separately. A child process keeps the two loads in two processes, and asks the
+question the way `npm run lint` asks it.
+
+**What still gets through, so nobody has to rediscover it.** Thirty-three shapes have been
+written to disk and run against the real gate. **Thirty-two fail `npm run verify`** — and
+two of those fail it without failing `npm run lint`, which is the whole point of having the
+coverage case beside the rule: a disable comment in a directory nobody listed, and a module
+at an extension ESLint still does not enumerate (`.mdx` was tried), are caught by the test
+rather than by the rule.
+
+**The fourth whole-branch review then ran fourteen shapes of its own and three got
+through**, so the sentence that used to end this paragraph — "the one shape that gets
+through" — was wrong for a round: `export = x`, a different export of the real `guard.ts`
+aliased to `guardedAction`, and a committed codegen script assembling the directive at
+runtime. Round 7 closed the first two in the rule, and ran eleven shapes of its own — six
+new — closing a fourth, `module.exports = { … }` in a `'use server'` module. **The fifth
+review ran sixteen, eleven of them its own, and defeated the guard four more ways:** a bare
+disable directive and one with the rule's id on the next line, both of which the allowlist
+case could not see because it required a single LINE to carry both strings and both of
+which COMMITTED; and four wrappers around `module.exports` that rule 4 walked past because
+it refused one parser node shape. Round 8 closed all four — two by inverting rule 4 into an
+allowlist of inert top-level statement KINDS, two by rebuilding the disable check on three
+keys (presence in any spelling, the rule's id enumerated repository-wide, and ESLint's own
+`suppressedMessages`) — and closed a fifth found while attacking that fix, an inline
+`eslint <rule>: off` severity comment.
+
+**The sixth review ran eight, all its own, and five got through — and round 8's allowlist was
+one of the things it walked past.** A statement KIND is not inert: a `VariableDeclaration`
+runs its initialiser at module load, so `const attached = Object.assign(module.exports, { … })`
+was admitted where the identical call as a bare statement was refused, and that reached a
+real commit. Round 9 asks what a statement EVALUATES instead — a declarator's initialiser
+must be a literal, a function expression or a `guardedAction(...)` call — which closes that
+shape, the same attachment through a function called at load, a static field initialiser, a
+destructured initialiser, a computed enum member and a tagged template, none of them listed.
+It also wrote the test that executes `guardedAction` (above), and the key over `processor`
+blocks (below).
+
+**What still gets through is enumerated where it can be asserted, and this document no
+longer counts it.** The shapes that get through are enumerated, with the measurement and
+the committability of each, by `SHAPES_THAT_GET_THROUGH` in
+`apps/web/lib/auth/adminGuardRegistration.test.ts` — and a case there fails if this
+document stops pointing at that array or starts restating it. No count is written here: a
+number retyped in prose has drifted from this code in every round of this phase, and seven
+sites said two while the fifth review measured four (ruling F76). The case reads EVERY file git lists, not a
+named handful, and it flattens comment and quote continuations before matching, because
+the seventh whole-branch review defeated the earlier version by splitting the sentence
+across two lines of a block comment in `guard.ts` and left the suite green. It also strips
+`*`, `_` and backticks first, because the eighth review then defeated it with the same
+sentence set in bold — 24 green, in the house style of this very document. **What it
+refuses is that one sentence in any file the repository holds, flattened across a line
+break and stripped of those three markers. What it does not refuse is a paraphrase, an
+HTML wrapping (`<b>…</b>`, `&nbsp;`) or a Markdown link** — the case asserts each of those
+non-refusals in its own sentinels rather than describing them.
+
+The costs of identifying the factory by name-and-path are worth knowing, and each fails
+closed: a legitimate barrel re-exporting `guardedAction` is refused;
+`import { guardedAction as somethingElse }` is refused; a local alias
+(`const build = guardedAction`) is refused; and so is **a non-relative specifier that
+resolves to the real `guard.ts`** — the `@/…` alias `create-next-app` scaffolds, or a
+package name — because the rule answers `undefined` for any specifier not starting with `.`
+rather than trusting a resolver it does not have. That last one is the false positive Phase
+4 is most likely to meet, and it was stated in the rule's TSDoc and in a `RuleTester` case
+while three documents counted the costs as three.
+
 ### 2 · Integration
 
 - **Tool:** Vitest + a real test Postgres.
@@ -246,20 +619,53 @@ would claim a measurement nothing performs.
   `**/*.integration.test.ts` under `apps/web/lib/**`, `apps/web/collections/**`,
   `apps/web/scripts/**` and `packages/*/src/**` (no file matches that last pattern
   today — `packages/domain` and `packages/tokens` are pure, no I/O).
+  Phase 2 Task 7 adds `apps/web/lib/auth/readSignInScreen.integration.test.ts`, the
+  sign-in screen's own server read. Its flag cases are integration cases rather
+  than unit ones for a reason a unit test could not have: `users.otp_required` is a
+  NULLABLE column with a schema default, and "what does a row written before that default
+  read as" is a question only a real table answers. It fails closed in both forms — a
+  `NULL` column and an empty `users` table, which is the state the seeded dev and CI
+  databases are actually in — and each case asserts the row it set up exists before
+  asserting what was read off it.
+
   `collections.integration.test.ts` (Task 6) exercises the schema
   rules from `DATA_MODEL.md`, the migration reversibility case (§9 below), and the
-  access control on the two server-only collections — `jobs` and `otpChallenges` declare
-  `access: { read/create/update: () => false }`, and those predicates had no test at all
-  because Payload's Local API defaults to `overrideAccess: true` and so never ran them.
-  The four cases pass `overrideAccess: false`, which is what a REST or GraphQL request
-  does, and assert every one is refused; `seed.integration.test.ts` (Task 11) exercises
-  `apps/web/scripts/seed.ts` against real `journeys`, `pages`, `media` rows and the
+  access control on the three server-only collections — `jobs`, `otpChallenges` and
+  `signInAttempts` declare `access: () => false` on read, create, update **and delete**,
+  and those predicates had no test at all because Payload's Local API defaults to
+  `overrideAccess: true` and so never ran them. One case per collection passes
+  `overrideAccess: false`, which is what a REST or GraphQL request does, and asserts that
+  **no** operation is permitted — to a signed-in caller as well as a signed-out one, and
+  against **real rows**.
+
+  Both of those qualifiers were added after a review found what their absence hid. The
+  first version of these cases asserted read, create and update for a signed-out caller
+  only, and one of them was named "so nobody can clear or forge their own window" while
+  checking two thirds of that. Payload applies its `defaultAccess` — "signed in, or
+  refused" — to any operation an access block omits, and all three blocks omitted
+  `delete`, so an authenticated caller could delete rows in every one of them: their own
+  rate-limit window, their own OTP attempt counter, the queue. The signed-out half could
+  never have caught it, because `defaultAccess` refuses a signed-out caller anyway. Real
+  rows matter for the same class of reason: an `update` or `delete` aimed at an id that
+  does not exist is refused for being absent rather than forbidden, so a guard written
+  against `id: '1'` passes with or without the rule. The predicate was added and the gap
+  recorded as `docs/deviations.md` §28; removing it again fails all three cases, each
+  naming `delete` in the operations it was allowed. `sessions.access.integration.test.ts`
+  (Phase 2 Task 6) is that file's counterpart for the one Phase 2 collection a signed-in
+  reader legitimately reaches, and it is shaped differently on purpose: **every case is
+  cross-account**, because `sessions` declared no access block at all and so granted every
+  operation to "signed in" — a defect no single-account suite can see
+  (`docs/deviations.md` §29). `sessions.integration.test.ts` under `apps/web/lib/auth/`
+  covers the behaviour over those rows: rotation, revocation and the row-governed
+  lifetime, each pinned by a mutation (see §8 below). `seed.integration.test.ts` (Task 11)
+  exercises `apps/web/scripts/seed.ts` against real `journeys`, `pages`, `media` rows and the
   `book`/`about` globals, including its idempotency (running it twice leaves the same
   ten journeys, not twenty) and the thirty-row page count (ten journeys × three — Cover,
   Contents and About are globals/derived, not `pages` rows; see `docs/deviations.md` §5).
   Its own `beforeAll` deletes the ten seeded journeys first, so the suite's coverage
   numbers (see below) do not depend on whether a previous run, or `npm run db:seed -w apps/web`
   itself, already seeded the same database.
+
 - **Isolation:** every integration test file calls `getTestPayload()`
   (`apps/web/lib/testPayload.ts`), not `getPayload()` directly. `DATABASE_URL` for the
   `integration` project (and `vitest.integration.config.ts`) points at `diary_test`, a
@@ -286,7 +692,24 @@ would claim a measurement nothing performs.
   implementation of each adapter.
 - **Scope:** `storage`, `mailer`, `queue` (design spec §6) — every port that crosses into
   an external service.
-- **Status:** implemented for all three ports (Tasks 7-9). Each port lives in
+- **Status: THE SUITES EXIST AND THE ROW IS NOT DISCHARGED, because each runs against
+  ONE implementation.** `CLAUDE.md` §2 asks for "one shared suite run against **both** the
+  local and the production implementation"; `storage` has only `local-storage.ts`, `mailer`
+  only `console-mailer.ts`, and `queue` only `postgres-queue.ts`. A suite run against one
+  adapter proves that adapter, not the interchangeability the row is about — which is the
+  whole reason the row exists, since the defect it guards against is a production adapter
+  that differs from the stand-in in some way nobody noticed.
+
+  It is a **named residual, not a gap this document is quiet about** (Phase 2's final
+  review, finding 24: it was missing from the residual list entirely). It is inherited
+  from Phase 0 and is Phase 3's to close, because Phase 3 is what brings the second
+  implementations — R2 for `storage`, a sending adapter for `mailer`, the Fly.io worker for
+  `queue`. What this phase can say for the suites is the thing that makes closing it cheap:
+  every one is already parameterised over an adapter factory rather than written against
+  the adapter it happens to have, so the second implementation is a second call, not a
+  second suite. That property is asserted below rather than assumed.
+
+- **What IS implemented for all three ports (Tasks 7-9).** Each port lives in
   `apps/web/lib/ports/<name>.ts`; each contract suite is a
   `apps/web/lib/adapters/contract/<name>-contract.ts` module exporting a
   `<name>Contract(name, makeAdapter, ...)` function that registers one parameterised
@@ -356,12 +779,13 @@ would claim a measurement nothing performs.
   `npm run verify:full` / `npm run test:integration`.
 - **Coverage for integration-only code:** `npm run verify`'s coverage pass runs without
   a database, so `postgres-queue.ts`, `queue-contract.ts`, `queue-fixtures.ts`,
-  `seed.ts`, `seed-data.ts`, `testPayload.ts` and `migrate.ts` — reachable exclusively
+  `seed.ts`, `seed-data.ts`, `testPayload.ts`, `migrate.ts` and — from Phase 2 Task 3 —
+  `auth/otpService.ts` and `auth/testing/otpProbes.ts` — reachable exclusively
   from an `*.integration.test.ts` — are excluded from `vitest.config.ts`'s coverage
   `include` rather than counted as 0%-covered there. They are gated instead by a second,
   dedicated pass, `vitest.integration.config.ts`, run via
   `npm run test:integration:coverage` (chained into `npm run verify:full`) — it runs the
-  same integration test files with `--coverage` scoped to those seven, plus
+  same integration test files with `--coverage` scoped to those nine, plus
   `apps/web/collections/**`, `apps/web/globals/**`, `apps/web/payload.config.ts` and
   `apps/web/migrations/**` (all four at 100%; see Coverage gates above).
   Thresholds are set per-file to what is genuinely achieved, not aspirational:
@@ -385,6 +809,24 @@ would claim a measurement nothing performs.
   Payload itself just generated, an out-of-bounds accent-tint index that can't happen for
   a fixed 5-element tuple); see `seed.ts`'s own `c8 ignore` comments and
   `vitest.integration.config.ts`'s threshold comment for the full list.
+  `auth/otpService.ts` (Phase 2 Task 3) is **100% on every axis**, and it is worth
+  recording that it took two corrections to get there honestly. Its first threshold was
+  93% branches with a comment claiming both missing arms were unreachable; the review
+  reached one of them (`attempts ?? 0`) with a plain
+  `payload.update({ data: { attempts: null } })` and no mocking at all. A threshold
+  lowered on a reason that is not true is worse than one lowered honestly, because the
+  comment is what stops the next reader from checking. Both arms are gone rather than
+  excused: the attempt count is `COALESCE`d in SQL, with a test that writes a NULL count
+  and expects the challenge to still verify, and the single-row `count(*)` is folded over
+  its rows rather than read through a `?.` whose empty arm nothing can take. One
+  `c8 ignore` remains, on `deriveKey`'s error arm, and its comment records the three
+  things tried before it was excused — `promisify` (no `scrypt.__promisify__` in
+  `@types/node`, so the key arrives as `unknown`), reaching it from a test (`scrypt`
+  errors only on cost parameters, which are module constants), and a branch-free settle.
+  `auth/testing/otpProbes.ts` is 100% on every axis too, like `queue-fixtures.ts` and for
+  the same reason: the probes are what make the OTP security assertions non-vacuous, so
+  each of their own refusals — an empty outbox, a message with no six-digit run, an
+  account with no challenge — is exercised rather than assumed.
 - **Add one:** write `apps/web/lib/ports/<name>.ts` (the interface, plus any guard every
   adapter must share - see `validateStorageKey` above), then
   `apps/web/lib/adapters/contract/<name>-contract.ts` (the shared suite) before any
@@ -398,9 +840,127 @@ would claim a measurement nothing performs.
 - **Scope:** real journeys — page flip, bookmark jump, gallery, lightbox, mobile swipe,
   sign-in + OTP, upload round-trip.
 - **Status:** the harness is implemented, and the first real journey it guards is the
-  book. The bespoke `/admin` panel and sign-in are still later phases; the routes this
-  app serves today are Payload's own admin at `/cms`, the diary's `/p/<n>`, and — since
-  Phase 1 Task 14 — `/gallery/<slug>` with its download handler.
+  book. The routes this app serves today are Payload's own admin at `/cms`, the diary's
+  `/p/<n>`, `/gallery/<slug>` with its download handler (Phase 1 Task 14), and — since
+  Phase 2 Task 7 — the bespoke panel's first screen at `/admin/sign-in`, joined by
+  `/admin/sign-in/code` in Task 8. The rest of the `/admin` panel is Phase 4.
+
+  **`e2e/signIn.spec.ts` (Phase 2 Task 7)** is where `SECURITY.md`'s second prototype
+  hole is proved closed **against the delivered page rather than against the source**.
+  The hole is that the OTP on/off flag lived in `localStorage['om-diary-otp']`, "where
+  anyone can set it to `0` and skip the second factor entirely"; the fix is that the code
+  step is decided from `users.otpRequired`, server-side. A grep proves only that nobody
+  typed that read — not that nothing the route ships performs one — so three cases run in
+  a browser:
+
+  1. **The page reads no browser storage.** An init script installed before the document
+     exists records every `Storage.prototype.getItem`/`key` call; the recorded list must
+     be empty.
+  2. **The prototype's own key is planted with the OPPOSITE answer** before navigation,
+     and the footer line must not move. This is the hole itself, reproduced: against the
+     handoff's prototype this case reads "the code step is switched off".
+  3. **Every script the page fetched is downloaded and searched for the key.** A bundle
+     carrying the string is a read waiting to happen even if it did not fire on this
+     load. This one has a consequence for the code: `PasswordStep.tsx` does not spell the
+     key even in a comment, because a development build ships comments verbatim and a
+     quoted key would make the case fail locally and pass in CI's minified build.
+
+  All three also assert that the footer line **exists** and says what `SCREENS.md` §3.1
+  says it should — "no storage was read" and "no script names the key" are both trivially
+  true of a page that failed to render. Four further cases cover what only a laid-out page
+  can answer: the cloth panel beside the form above 820px and the masthead instead of it
+  below (asserting the shell's own `grid-template-columns` count, not just that both
+  elements exist), the Show/Hide toggle preserving the typed value across the input's
+  `type` swap, and a refused submission staying on the screen with the field marked.
+
+  Both the `localStorage` cases were watched to fail with the mechanism put back: a
+  five-line reintroduction of the prototype's read failed cases 1 and 2, and shipping the
+  key as a client-side constant failed case 3.
+
+  **`e2e/reset.spec.ts` (Phase 2 Task 9)** carries what a component test cannot say about
+  `SCREENS.md` §3.3 and §3.4, and its first two cases are about a defect no component test
+  could ever have caught. For the whole of Tasks 5 to 8 the reset email carried a working
+  token to an address nothing answered: the constant was right, the two spellings of it
+  agreed, the token was minted and provably consumable, and `/admin/reset/<token>` was a 404. A component suite renders a component; it never fetches an address. So the first
+  case clicks the "Forgotten" link off the password screen and **reads the response
+  status**, and the second requests the mailed link's own shape and reads it again — 200,
+  with the expired state on it, rather than 404. Every other assertion in both cases would
+  hold on Next's own not-found page if the status were not read.
+
+  The rest of the file is geometry and delivered markup: the ringed circle measured at
+  62x62 with a 20x20 square inside it, the confirmation block's computed background read
+  back as `rgba(47, 107, 104, 0.07)` with its 14px mark, the two signed-in actions measured
+  to the same width 10px apart, the expired state asserted to contain the token nowhere in
+  its `innerHTML`, and a whole address planted in `?sent=` asserted to reach the page
+  masked. **What it deliberately does not do is request a reset**: `POST /admin/reset/request`
+  is mounted (Task 10), but reading the link it sends means the mailer's in-process outbox,
+  which a browser cannot see, so the journey from a request through the mailed link to a
+  changed password is proved where the outbox is — see the integration section below.
+
+  **`e2e/codeStep.spec.ts` (Phase 2 Task 8)** carries the three things about
+  `SCREENS.md` §3.2's one-time-code screen that jsdom cannot settle, and each was watched
+  to fail with its mechanism removed:
+
+  1. **The cell widths at 390px.** §3 records the exact failure this guards — "at
+     `40px 42px` in a 342px shell the OTP cells collapse" — and the fix is the narrow
+     pane padding, `26px 20px 24px`. The case pins a LITERAL 40px floor rather than
+     anything derived from the stylesheet, because a floor compared against the value it
+     is meant to hold still moves with it and can never fail. Restoring `40px 42px`
+     failed it at **35.5px**; the correct padding measures **42.83px**. A second case
+     covers the other half of the same defect, which a width floor alone would pass:
+     cells that refuse to shrink do not collapse, they overflow.
+
+     **That second case was decorative when it was first written, and the fix is worth
+     recording.** It measured the flex CONTAINER against the form panel — and a
+     block-level container is sized by its parent whatever its children do, so it could
+     never fail. Under `.cell { flex: none }` it reported the row comfortably inside the
+     panel while the row's own `scrollWidth` was 2,043 against a `clientWidth` of 302 and
+     the last cell stood 1,741px past the pane. It now measures each CELL's edges against
+     the pane's CONTENT box — which is the box the required padding actually creates —
+     and `flex: none` fails it at `pastTheRightEdge: 1741` against a floor of `0.5`. The
+     lesson generalises: a test written to cover another test's blind spot needs its own
+     mutation, or it inherits the blind spot and adds confidence on top of it.
+
+  2. **The paste.** Each cell is `maxLength="1"`, and the browser truncates a pasted
+     string to one character before `change` fires — so a jsdom case proves the handler
+     spreads digits and NOT that a reader pasting a code gets six of them (jsdom performs
+     no default paste at all for a handler to have to prevent). This case grants clipboard
+     permission, writes the code with `navigator.clipboard.writeText` and presses
+     Ctrl+V. With `onPaste` deleted it read `['1','','','','','']` — the defect itself.
+  3. **The shake under `prefers-reduced-motion`.** A media query is a property of the
+     stylesheet, so asserting that the pane raised its flag proves nothing about it. Both
+     cases read `animation-name` off the SHELL's computed style under
+     `page.emulateMedia({ reducedMotion })`, and both first assert that the refusal really
+     happened (the error box says "All six digits, then we can look." and the flag reads
+     `true`), because "nothing is animating" is trivially true of a screen that never
+     refused anything. Deleting the `@media` block failed the reduce case with
+     `signIn-module__…__omShake`; deleting the `.shell:has(…)` rule failed the other with
+     `none`.
+
+  The same file also pins §3.2's own measurements from the RENDERED page rather than
+  from the stylesheet — the title at 50px, the 20px gap between the rule and the "The
+  code" label, the row's 9px gap, each cell's 25px Courier, `13px 0` padding and centred
+  text, and the two rings side by side in one row (`1.5px` `#a34434` on a filled cell
+  against `1px rgba(120,98,60,.34)` on an empty one). Reading the computed style is what
+  makes a rule that is present but overridden fail.
+
+  One of those assertions is a DECLARATION rather than a rendered outcome, and it says
+  so: `.labelAboveCells` sets the whole `margin` because the label is a `<p>` whose
+  default `1em 0` puts 9.5px above it, and measured, **that 9.5px currently moves
+  nothing** — it collapses through the zero-height top edge of the `<form>` the label
+  opens and then with the rule's own 20px `margin-bottom`, so every box below sits at the
+  same y to the pixel with or without the rule. It is kept because a collapse is what is
+  holding that layout: a border or a padding on that form, the wrapper going away, or the
+  rule's margin dropping under 9.5px each end the collapse and start a real drift. The
+  gap assertion beside it is the rendered one, and it is the one that would catch that
+  day.
+
+  Each shake case clicks and reads inside ONE `page.evaluate`: the flag is cleared 420ms
+  later, and a click followed by a separate round trip is a race that fails under load
+  rather than under a defect. React flushes a click's state update in a **microtask**
+  rather than synchronously — measured, not assumed — so the case yields the microtask
+  queue once and then reads, and the 420ms timer that clears the flag is a macrotask
+  scheduled during that same flush and cannot have run yet.
 
   **`e2e/gallery.spec.ts` (Phase 1 Task 14)** covers the four things about the gallery
   and its lightbox that only a served, laid-out page can answer, and deliberately
@@ -437,8 +997,8 @@ would claim a measurement nothing performs.
   alone, and that project now carries a PHONE USER AGENT as well as a 390x844 viewport,
   because which surface a request is served is decided on the server from the user agent
   before any viewport can be measured
-  (`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`). Sixteen cases, of which
-  five could not exist anywhere else:
+  (`docs/adr/0011-two-reading-surfaces-chosen-on-the-server.md`). Five of its cases could
+  not exist anywhere else:
 
   1. **A vertical scroll does not turn a page.** The rule is
      `packages/domain/src/swipe.ts`'s and is unit-tested to 100%, including both
@@ -486,6 +1046,7 @@ would claim a measurement nothing performs.
      text. A route serving another route's page fails the first pair; a route thinning
      out to nothing fails the second. Measured while writing it: thirty-three distinct
      texts, the shortest 144 characters (the Cover).
+
   5. **The correction path**, in its own browser context with a DESKTOP user agent at a
      700px viewport - the one reader the server's hint gets wrong. It asserts that the
      document arrived carrying the book, that the browser corrected it to the mobile
@@ -552,7 +1113,7 @@ would claim a measurement nothing performs.
   - **The handoff's own `z-index: 900` cannot work in the handoff's own DOM
     position.** With the strips as siblings of the leaves (the prototype's
     arrangement), Playwright timed out with `<article class=page> from <div
-    data-leaf=2> subtree intercepts pointer events` — a leaf's stacking order is
+data-leaf=2> subtree intercepts pointer events` — a leaf's stacking order is
     `1000 - i`, so the current page always paints above a strip at 900. The strips
     became siblings of the STACK instead; see `docs/deviations.md` §8.
   - **The bottom arrows were unclickable at 390px.** The `mobile` project caught
@@ -579,14 +1140,14 @@ would claim a measurement nothing performs.
 
   **`e2e/pages.spec.ts` (Phase 1 Task 9)** covers the Cover and Contents pages'
   browser-only guarantees, at all three viewport projects. What the two components
-  *decide* is already covered without a browser
+  _decide_ is already covered without a browser
   (`apps/web/components/pages/Cover.test.tsx`, `Contents.test.tsx`) and so is the
   arithmetic behind those decisions (`packages/domain/src/coverTitle.test.ts`,
   `contentsLayout.test.ts`), so this file asserts only what a laid-out page can answer:
   that SCREENS.md §1's measurements stay absolute under the design box's `scale(k)`
   (`offsetTop`/`offsetLeft`/`offsetWidth` are layout coordinates a transform does not
   touch, so the washi strip still reports `top: 52; left: -26; 190x36` at 390px as at
-  1440px); that the cover title actually FITS (`fitTitleSize` sizes from an *estimate*
+  1440px); that the cover title actually FITS (`fitTitleSize` sizes from an _estimate_
   of Caveat's advance width, since no font metrics exist on the server, so only a
   browser can confirm `scrollWidth <= clientWidth` and that SCREENS.md's "last-resort"
   ellipsis never engages); and that the Contents body does not overflow its `1fr` track,
@@ -614,7 +1175,7 @@ would claim a measurement nothing performs.
   point and again forced back to `50% 50%`, and require the two buffers to differ.
 
   **`e2e/notes.spec.ts` (Phase 1 Task 10)** does the same job for the Notes page, and
-  two of its cases exist because of defects that have already happened rather than ones
+  the cases below it exist because of defects that have already happened rather than ones
   somebody imagined.
 
   The first is the highlight gaps. `SCREENS.md` §1.3 records that
@@ -638,9 +1199,10 @@ would claim a measurement nothing performs.
   crop demonstrably moves.
 
   Every selector in that file is scoped to one leaf via `Leaf.tsx`'s `data-leaf` index.
-  `Book.tsx` renders all thirty-three leaves at once, so `[data-page="notes"]` alone
-  matches ten sections and an unscoped locator is a strict-mode violation rather than a
-  wait.
+  `Book.tsx` renders every leaf of the served content window at once — the addressed
+  page and `CONTENT_WINDOW_RADIUS` either side of it, widening to all thirty-three as
+  the reader turns (ADR 0009) — so `[data-page="notes"]` alone matches several sections
+  and an unscoped locator is a strict-mode violation rather than a wait.
 
   One assertion in it records a browser fact rather than the authored one, with its
   reason at the assertion: the left column's fit is measured from its last child's
@@ -650,10 +1212,11 @@ would claim a measurement nothing performs.
   report exactly 3px of "overflow" on a column whose content fits perfectly.
 
   **`e2e/imageWindow.spec.ts` (Phase 1, the LCP fix)** covers the one thing the unit
-  suites cannot: whether the bytes actually stop arriving. `Book.tsx` renders all
-  thirty-three leaves and every leaf is absolutely positioned at `inset: 0`, so the
-  browser counts all of them as in the viewport and `loading="lazy"` defers NOTHING —
-  measured, not assumed: `/p/1` fetched all twenty of the seeded book's photographs,
+  suites cannot: whether the bytes actually stop arriving. Every leaf `Book.tsx`
+  renders is absolutely positioned at `inset: 0`, so the browser counts all of them as
+  in the viewport and `loading="lazy"` defers NOTHING — measured, not assumed, against
+  the document of the day, which carried all thirty-three (ADR 0009 narrowed it to the
+  content window afterwards): `/p/1` fetched all twenty of the seeded book's photographs,
   1,820,504 bytes, with the reader on the Cover, and the LCP gate went red at 3,247ms.
   An attribute-level assertion would have passed the whole time that was happening,
   because the `lazy` attribute was present throughout, so the first case counts real
@@ -723,9 +1286,9 @@ would claim a measurement nothing performs.
   by a decision anyone can read, and not what `SECURITY.md` asks for ("respect
   `indexGalleries` in `robots.txt` **and** with `X-Robots-Tag`"). `apps/web/public/robots.txt`
   is now served, static, and consistent with `site.indexGalleries`'s `defaultValue:
-  true` — the only honest content while nothing writes or reads that setting and the
+true` — the only honest content while nothing writes or reads that setting and the
   Settings screen that would is Phase 4. The case requires a 200, requires `User-agent:
-  *`, `Allow: /` and `Disallow: /cms`, and requires the file NOT to carry a bare
+*`, `Allow: /` and `Disallow: /cms`, and requires the file NOT to carry a bare
   `Disallow: /` or `Disallow: /p` — a line that would quietly undo every other case in
   the file without failing one of them. `docs/security.md`'s `indexGalleries` row records
   the two halves Phase 4 still owes: a generated `app/robots.ts` that reads the setting,
@@ -754,7 +1317,7 @@ would claim a measurement nothing performs.
   Two assertions in `pages.spec.ts` record a browser fact rather than the authored one, each with its
   reason at the assertion: Chromium reports the inner rule's `2.5px` border as `2px`
   (it snaps a computed border width to a whole CSS pixel, measured at
-  devicePixelRatio 1 *and* 3, so it is not a density effect), and the washi strip's
+  devicePixelRatio 1 _and_ 3, so it is not a density effect), and the washi strip's
   rotation is read back out of the resolved matrix with `atan2` rather than pinned as
   matrix digits, which differ in the sixth decimal place between Chromium builds.
 
@@ -764,7 +1327,7 @@ would claim a measurement nothing performs.
   did not: the `mid` and `mobile` baselines were regenerated over a book that had been
   pushed off the screen entirely and stayed green on a blank page for two commits
   (`docs/qa/2026-09-01-diary-sweep.md`, DIARY-004). A baseline can only say "this looks
-  like it did last time"; a picture of no book is still a picture. The three cases say it
+  like it did last time"; a picture of no book is still a picture. Its cases say it
   in numbers instead, each from the symptom a reader meets rather than from the CSS that
   produced it: the design box's drawn rect is inside the area `useBookScale` measures and
   concentric with it (off-centre by 0px, spilling 0px on each side, tolerant of the
@@ -817,13 +1380,13 @@ would claim a measurement nothing performs.
   checking immediately on navigation would have produced a false negative on exactly the
   class of defect this suite exists to catch.
 
-  Its third case asserts that `/favicon.ico` responds `200`. Every browser asks for that
-  address without being told to, and nothing declared it — the sweep recorded the 404 as
+  Its `/favicon.ico` case asserts that the address responds `200`. Every browser asks
+  for that address without being told to, and nothing declared it — the sweep recorded the 404 as
   a console `error` on every cold load of every route, and Lighthouse recorded it on a
   production build (`docs/qa/2026-09-01-diary-sweep.md`, DIARY-006). It is asserted with
   `request.get` rather than by watching a page load because whether a browser fetches
-  the address at all depends on the browser and on whether it is headed: the two cases
-  above are headless and stayed green through the whole defect.
+  the address at all depends on the browser and on whether it is headed: the page-load
+  cases above it are headless and stayed green through the whole defect.
 
   **A CI gap this file had not recorded.** `.github/workflows/ci.yml`'s `browser` job
   named only `smoke`, `a11y` and `visual` in its single `npx playwright test`
@@ -845,7 +1408,8 @@ would claim a measurement nothing performs.
   landing a spec.
 
   **The third time, it was made impossible instead.** Task 13 added
-  **`e2e/ciRegistration.spec.ts`**, whose whole subject is the two lists above. It
+  **`e2e/ciRegistration.spec.ts`** (a Vitest test, `e2e/ciRegistration.test.ts`, since
+  Phase 2 — see below), whose whole subject is the two lists above. It
   globs `e2e/*.spec.ts` off the filesystem, reads the `- run:` command out of
   `.github/workflows/ci.yml`'s browser job and the `test:e2e` / `test:visual` /
   `test:a11y` scripts out of `package.json`, and fails naming exactly which spec is
@@ -857,8 +1421,9 @@ would claim a measurement nothing performs.
   deleted. It needs no browser and no `page` fixture, so it costs the run a file read.
 
   **A third case was added in Phase 1's final review, for the same defect shape in a
-  different list.** `npm run test:perf` chains TWO `lhci autorun` invocations, one per
-  `lighthouserc*.json`, because lhci's collect settings are per-run rather than per-URL
+  different list.** `npm run test:perf` runs one `lhci autorun` invocation per
+  `lighthouserc*.json` — two when this case was written, **three since Phase 2 Task 11 added
+  `lighthouserc.admin.json`** — because lhci's collect settings are per-run rather than per-URL
   and the book's 1350x940 desktop viewport cannot share a run with the gallery's phone
   emulation (ADR 0014). Nothing enforced the pairing: collapsing the script to one
   command — a plausible tidy-up — would have silently stopped gating the book surface,
@@ -869,7 +1434,38 @@ would claim a measurement nothing performs.
   hard-coding the pair is what makes it catch a THIRD configuration added and never run.
   Proved able to fail: `test:perf` was collapsed to the first command alone, the case
   failed naming `lighthouserc.book.json`, and the script was restored — both runs are
-  pasted in this task's report.
+  pasted in this task's report. **It then did exactly what it was written for.** Phase 2
+  Task 11 added `lighthouserc.admin.json` to the repository root, and the case failed naming
+  that file before `test:perf` was updated to run it — which is the third-config scenario the
+  "read the filenames off disk" decision was made for.
+
+  **The script's shape changed under it in the same round, and the case was written to
+  survive that.** `test:perf` was a `&&` chain and is now
+  `node scripts/run-lighthouse.mjs <config> <config> <config>`, because `&&` short-circuits
+  and a red gate was hiding a newer one behind it. This case still passes unchanged: it asks
+  whether the script NAMES each config, not how it invokes them. That is also why the runner
+  takes the configs as arguments instead of globbing them itself — a runner that discovered
+  them would satisfy this case by construction, which is the shape of test that passes
+  because it cannot fail.
+
+  **The fourth time, the guard was there and did not fire — so it moved into `verify`
+  (ruling F57).** Phase 2 Task 9 found `e2e/codeStep.spec.ts` named by `npm run test:e2e`
+  and by no `- run:` line since commit `2d2b3c1`, gating nothing for two commits. The
+  guard above would have caught it — the Task 9 reviewer removed `e2e/reset.spec.ts` from
+  the CI line and watched it fail as designed — but it was a **Playwright spec**, so it
+  ran only in the CI browser job or in a full `npm run test:e2e`, never in
+  `npm run verify`, the gate Husky runs before every commit. A detector that lives in the
+  same job as the thing it detects reports the fire from inside the building. It is
+  `e2e/ciRegistration.test.ts` now: the same cases, importing `vitest` instead of
+  `@playwright/test`, collected by `vitest.config.ts`'s `unit` project via its
+  `e2e/**/*.test.ts` glob, so a commit that forgets a `run:` line fails at the moment it
+  is made. It stays in `e2e/` because that directory is its subject, and
+  `playwright.config.ts` narrows its own `testMatch` to `**/*.spec.ts` so the two runners
+  cannot collect each other's files. It is no longer named by `test:e2e` or by the CI
+  browser job, because it is not a browser test — `npm run verify` runs it, and CI runs
+  `npm run verify:full`. Proved able to fail in its new home: `e2e/reset.spec.ts` was
+  removed from the CI `run:` line and `npx vitest run --project unit e2e/ciRegistration.test.ts`
+  failed naming it; the line was restored.
 
 - **Three viewport projects** — `desktop` (1440×900), `mid` (1000×800), `mobile`
   (390×844; `isMobile`/`hasTouch` set) — run every spec three times, once per breakpoint
@@ -883,20 +1479,146 @@ would claim a measurement nothing performs.
   `e2e/pages.spec.ts`,
   `e2e/notes.spec.ts`, `e2e/frames.spec.ts`, `e2e/about.spec.ts`,
   `e2e/imageWindow.spec.ts`, `e2e/serverWindow.spec.ts`, `e2e/routing.spec.ts`,
-  `e2e/gallery.spec.ts`, `e2e/mobile.spec.ts` and `e2e/ciRegistration.spec.ts` — the
-  authoritative list is the script itself, and `e2e/ciRegistration.spec.ts` is what makes
-  the two agree); `npm run test:e2e:headed` (all `e2e/*.spec.ts`, visible browser) — this is also the engine
+  `e2e/gallery.spec.ts`, `e2e/mobile.spec.ts`, `e2e/signIn.spec.ts`,
+  `e2e/codeStep.spec.ts`, `e2e/reset.spec.ts` and `e2e/signInJourney.spec.ts` — the
+  authoritative list is the script itself, and `e2e/ciRegistration.test.ts`, which runs in
+  `npm run verify`, is what makes the script and CI agree. This sentence is a third copy
+  that neither of them checks, and it was missing `signInJourney.spec.ts` for the rest of
+  the phase after that file landed); `npm run test:e2e:headed` (all
+  `e2e/*.spec.ts`, visible browser) — this is also the engine
   `sweeping-for-browser-defects` (`.claude/skills/`) uses for manual, scripted sweeps.
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.
+
+  **WHICH PATH TO USE WHEN, which ruling F58 required this document to say and which it
+  did not say for the rest of the phase.** `npm run test:e2e` on the host runs at ONE
+  worker (`playwright.config.ts`, ruling F39): the dev server compiles a route on first
+  request in a single process, so parallel workers queue behind each other and time out.
+  That is right for running one spec while you work on it, and it is roughly four hours
+  for the whole list — which is why no task in Phase 2 ever ran the whole list, and why
+  the final review recorded that as a residual.
+
+  **One environmental cause of a timeout here, because it looks exactly like a
+  regression.** `apps/web/scripts/seed.integration.test.ts`'s first case seeds ten
+  journeys and their media, with a sixty-second budget. It passed for the whole of Phase 2
+  and then began timing out on this machine with no commit in between — because
+  `apps/web/media` had reached 102,503 files and 4.5 GB, and nothing ever deletes from it.
+  Measured on the same commit: 0 files → 34.3s and green; 102,503 files → over 60s and
+  red. `docs/runbook.md` has the cleanup and the table. Reach for it before reaching for
+  `git bisect`.
+
+  **THE SUITE IS NOT IDEMPOTENT INSIDE FIFTEEN MINUTES, and the second run's failure looks
+  exactly like a regression.** Measured in round 7: a container run finished green
+  (`446 passed`, 1 flaky), a second one was started about four minutes later, and
+  `e2e/reset.spec.ts:171` "never draws a screen at the address §3.3's own form posts to"
+  failed on `mid` and `mobile`, on both retries, with
+  `page.waitForURL: Test timeout of 30000ms exceeded` and the log line
+  `navigated to "http://localhost:3000/admin/reset"` — the bare address, with no `?sent=`.
+
+  That is the rate limiter working. `packages/domain/src/auth/rateWindow.ts` allows **20
+  attempts per address per 15-minute window** on the `password` endpoint, and
+  `apps/web/lib/auth/passwordReset.ts` spends that same budget for a reset request rather
+  than taking one of its own (its header says so, and why). `handleResetRequest` answers a
+  refusal with a `303` to the bare `RESET_PATH`, which is indistinguishable from a rejected
+  submission. Confirmed against the live table rather than inferred: immediately after the
+  second run, `sign_in_attempts` held **24** rows for `dimension=ip`,
+  `endpoint=password`, `subject=::1`, newest four minutes before the query — over the limit,
+  inside the window.
+
+  **FIXED IN ROUND 8, AND THE FIX IS THE OPTION THIS PARAGRAPH USED TO OMIT.**
+  `playwright.config.ts` now names `e2e/support/globalSetup.ts`, which clears
+  `sign_in_attempts` once before any spec starts (a `DELETE`, not a `TRUNCATE`: Postgres
+  refuses to truncate a table `payload_locked_documents_rels` references, and the first
+  version of the setup was refused exactly that way). It touches no limit, no window length, no
+  endpoint and no case — every rate-limit case in this suite builds its own counts inside a
+  single run — and it makes the suite idempotent: two `test:e2e:container` runs back to
+  back, the second starting seconds after the first, both pass.
+
+  **HOW TO RE-PROVE THAT IDEMPOTENCY, because the commit that claims it cites evidence this
+  repository does not contain.** `ff52484`'s body names a fix report under
+  `.superpowers/`, which is `.gitignore`d, so a future reader of the history cannot open the
+  proof — a branch-wide convention rather than a defect of that commit, but the claim is the
+  kind somebody will want to check. The check that settles it is not the exit code, which
+  would also be 0 on a lucky ordering: count the in-window rows before and after a second
+  run. `SELECT dimension, endpoint, subject, count(*) FROM sign_in_attempts GROUP BY 1, 2, 3`
+  held **34 rows before the second run's specs began and 34 after it finished** (11 ×
+  `ip`/`password`/`::1`, 6 × `ip`/`code`/`::1`, the rest per-account) for the sixth
+  whole-branch review — and round 9 re-ran the pair and measured **34 before and 34 after,
+  with the same 11 and 6 at the top**. Without the setup, a second run leaves roughly
+  double. Both round-9 runs: exit 0, `447 passed`, `171 skipped`, **0 flaky** (the word
+  appears zero times in either log), and `e2e/flip.spec.ts:157` — the ~2% flake carried to
+  Phase 3 by ruling — passed first attempt in both.
+
+  **AND THE GENERAL RULE THAT PARAGRAPH IS AN INSTANCE OF (ruling F80).** Anything a
+  reader must know in order to trust a mechanism — a residue, a fragility, the
+  measurement behind a claim — belongs in the tree: this file, the ADR, or the comment
+  on the mechanism itself. Never only in a fix report under `.superpowers/`. That is not
+  a style preference; it cost two blockers in the seventh whole-branch review. Round 9
+  knew that the F76 pointer case's regex could not cross a comment line break, wrote it
+  down in `final-fix-report-5.md`, and shipped a comment on the case asserting the
+  opposite — so the sentence a reader met said the thing was impossible while the
+  sentence that admitted otherwise was in a directory the repository does not contain.
+  From the tree's point of view, a disclosure nobody can open is not a disclosure.
+
+  **What this paragraph said before is worth keeping as a lesson about rationales.** It
+  framed the choice as "wait fifteen minutes for the window to age out, or accept the
+  failure", and warned against loosening the limit. Both halves of that were true and the
+  frame was a false dichotomy: the third option is fixture hygiene, and the fifth
+  whole-branch review named it independently. A rationale that reads as a principled
+  refusal while omitting the cheap correct fix is a weaker artefact than the finding it
+  accompanies. **Do still not reach for the limits** — the case is right and the endpoint is
+  right — and if the setup is ever removed, the second run's failure is the limiter's own
+  evidence rather than a regression.
+
+  **The server prints `⨯ Error: The destination stream closed early.` during a parallel
+  run, and it is a client disconnect rather than a fault.** The count varies with the
+  worker count and with the machine, and **no bound is claimed here**, because one was and
+  it was wrong: this paragraph said "between eight and thirteen" — a range derived from two
+  runs — and the next container run printed **14**. What has actually been counted, on this
+  branch, one entry per container run in the order they happened: 13, 6, 14, 13, 11, 7. **The
+  figures are `test:e2e:container` runs only** — a `test:visual:container` run is a different
+  and much smaller suite and prints a quite different number (2 and 4 have been counted), so
+  comparing one against this list would look like a change and be none. They cluster in `e2e/mobile.spec.ts`. They are worth a
+  paragraph because a `[WebServer]` line looks exactly like the silent server-side failure
+  this repository has been bitten by, and because a sweep that shrugged at it would be the
+  wrong habit. What was measured, on the same build in the same image:
+
+  | Run                                        | Occurrences | Result    |
+  | ------------------------------------------ | ----------- | --------- |
+  | `e2e/mobile.spec.ts`, default worker count | 6           | 17 passed |
+  | `e2e/mobile.spec.ts`, `--workers=1`        | **0**       | 17 passed |
+
+  It is a function of parallelism, not of any one case: Next's streaming renderer logs it
+  when a client goes away mid-document, which is what a Playwright worker closing its page
+  or context does to a navigation another worker's timing left in flight. Two hypotheses
+  were tested and did not reproduce it — abandoning a navigation by closing the page, and
+  fetching all thirty-three deep links concurrently through `request.get` — so the
+  remaining cause is worker teardown, which is also the only thing `--workers=1` removes.
+
+  **Nothing observable is broken, and that is asserted rather than assumed.**
+  `e2e/smoke.spec.ts` requires zero console errors, zero page errors and zero `>= 400`
+  responses on the mobile surface; `e2e/mobile.spec.ts`'s deep-link case requires all
+  thirty-three documents to answer `200` with real HTML. Both pass in the runs that print
+  the line. Revisit this if the count ever changes with a code change rather than with a
+  worker count — that would be a different thing wearing the same message.
+
+  **`npm run test:e2e:container` is the whole-suite path.** It runs the same spec list in
+  the pinned `mcr.microsoft.com/playwright` image Docker Compose defines, with `CI=1` —
+  which makes `playwright.config.ts` build once, start the production server, and use its
+  default worker count. Same specs, same config, minutes instead of hours. It needs the
+  Compose Postgres up and migrated (`npm run db:migrate && npm run db:seed` on the host)
+  exactly as the visual services do. Use the host path for one spec, the container path
+  before claiming the suite is green.
+
 - **Add one:** one spec per real user journey as each is built; assert on the DOM
   reflecting the state machine (e.g. `flipMachine`'s state), not on re-deriving the
   machine's logic in the test. Every new route gets its own `test()` in
   `e2e/smoke.spec.ts` first — a route with no console-error coverage is a route this
   suite is silently not protecting. A new spec file also needs adding to the
   `test:e2e` script AND to `.github/workflows/ci.yml`'s browser job; a spec no script
-  names is a spec CI does not run, and `e2e/ciRegistration.spec.ts` now fails the build
-  when either list is missing one rather than leaving it to be noticed two tasks later.
+  names is a spec CI does not run, and `e2e/ciRegistration.test.ts` now fails
+  `npm run verify` — the pre-commit gate, not two tasks later and not one full CI run
+  later — when either list is missing one.
 
 ### 5 · Visual regression
 
@@ -936,9 +1658,10 @@ would claim a measurement nothing performs.
 
   Each Task 11 baseline was captured in the same pinned-container run that regenerated
   the six older ones, and the older six MOVED for a structural reason rather than a
-  cosmetic one: `/p/1` renders all thirty-three leaves at once, so replacing thirty
-  heading-only fallback faces with thirty designed pages changes what is drawn behind
-  the current leaf in every screenshot in this suite.
+  cosmetic one: `/p/1` served all thirty-three leaves at once then (ADR 0009 narrowed it
+  to the content window afterwards), so replacing thirty heading-only fallback faces with
+  thirty designed pages changed what is drawn behind the current leaf in every screenshot
+  in this suite.
 
   The diary cases snapshot the FULL PAGE, not the scaled design box. The box is drawn
   with `transform: scale(k)`, so a box-only snapshot would be byte-identical at all
@@ -979,13 +1702,18 @@ would claim a measurement nothing performs.
   baseline unless `e2e/layout.spec.ts` was green in the SAME container run that produced
   it, and never commit one without opening the image and looking at it. A green diff
   against a wrong baseline is worth nothing.
+
 - **Status:** the mechanism is implemented and proven, and now runs in CI (Task 1 of
-  Phase 1 closed the gap below). `e2e/visual.spec.ts` snapshots every screen that exists
-  today — `/cms` — at all three breakpoints, alongside the diary's Cover, Contents and
-  Notes pages, using the exact `toHaveScreenshot`/baseline-diff machinery every further page
-  will use. Baselines are committed at
-  `e2e/visual.spec.ts-snapshots/*.png`; a snapshot suite with no baseline to compare
-  against protects nothing.
+  Phase 1 closed the gap below). `e2e/visual.spec.ts` snapshots every page type and every
+  admin screen that exists, at the three breakpoints `mobile`, `mid` and `desktop`: the
+  diary's Cover, Contents, Notes, Frames I and II, About, gallery, lightbox and
+  not-found; its mobile drawer, which is a `mobile` baseline alone because the drawer
+  exists at no other width; Payload's own `/cms`; and the bespoke panel — sign-in, its
+  code step, the signed-in state, the panel itself, and the reset screen in its sent,
+  live and expired states. **The directory is the authority, not this sentence**: the
+  baselines are committed at `e2e/visual.spec.ts-snapshots/*.png`, one file per screen
+  per breakpoint, and this list drifted a whole phase behind them once (final review 9,
+  F9-10). A snapshot suite with no baseline to compare against protects nothing.
 - **The former gap, closed:** Playwright's screenshot baselines are keyed by OS and font
   rendering, so the Windows-generated baselines Task 12 committed (suffixed `-win32.png`)
   never honestly compared against CI's Ubuntu `browser` job, regardless of whether a page
@@ -995,17 +1723,134 @@ would claim a measurement nothing performs.
   `mcr.microsoft.com/playwright:v<version>`, where `<version>` matches the
   `@playwright/test` version pinned in `package-lock.json` exactly (`.github/workflows/ci.yml`'s
   `browser` job header names the current tag; bump both together). The committed baselines
-  are now `-linux.png`, generated by running `npx playwright test e2e/visual.spec.ts
---update-snapshots` inside that exact image (see this task's report for the pasted
-  baseline-generation and clean-comparison runs) — the old `-win32.png` files were deleted,
-  not kept alongside. `browser` no longer skips `test:visual`; it runs in the same
+  are now `-linux.png`, generated inside that exact image — by hand at first, and since
+  Phase 2 Task 7 by `npm run test:visual:container:update`, which is the invocation the
+  Run bullet below documents in full (and which passes `--update-snapshots=changed`; `all`
+  is the separate `npm run test:visual:container:update:all`, for the reason the Run
+  bullet gives). The old `-win32.png` files were deleted, not
+  kept alongside. `browser` no longer skips `test:visual`; it runs in the same
   `npx playwright test` invocation as the smoke and accessibility specs.
-- **Run:** `npm run test:visual` on a developer's own machine still works for a quick
-  local check, but its baseline will not match this Ubuntu-image comparison pixel-for-pixel
-  on font rendering — treat a local mismatch as inconclusive, not as drift, and confirm
-  in the pinned image before updating a baseline. Update baselines deliberately, inside
-  the pinned image, with `npx playwright test e2e/visual.spec.ts --update-snapshots` after
-  confirming a diff is an intended change, never reflexively to make a failure go away.
+- **Run — and this is now the ONLY way to run it off Linux.** `e2e/visual.spec.ts`
+  **skips** on a Windows or macOS host rather than comparing: Playwright names the file
+  it wants after the host platform, so such a run asks for `-win32.png`, finds nothing,
+  WRITES one, and every run after that compares the host against itself and passes. That
+  is not hypothetical — 31 such files were found untracked in the snapshot directory
+  while a full local suite reported "394 passed" and the committed baselines went unread.
+  The two commands below are the whole story:
+
+  ```
+  npm run db:migrate && npm run db:seed          # once, on the host — these run the
+                                                 # suite, not the fixtures
+  npm run test:visual:container                  # compare against the committed baselines
+  npm run test:visual:container:update           # regenerate the ones that actually moved
+  npm run test:visual:container:update:all       # regenerate every one — opt-in, see below
+  ```
+
+  Both are `docker compose run --rm` against the `visual`/`visual-update` services in
+  `docker-compose.yml`, which are `mcr.microsoft.com/playwright:v1.62.1-noble` — the same
+  image, at the same tag, that CI's `browser` job runs in. **Phase 2 Task 7 wrote them
+  down.** Until then the command needed to satisfy a gate this repository enforces existed
+  nowhere in the repository: this document named the image for `test:perf` only, there was
+  no `docker run` line in `docs/` or `.github/`, and `package.json`'s `test:visual` ran
+  Playwright on the host. The service definition carries the reasoning in full; the four
+  things worth knowing here are:
+
+  - **The container installs its own `node_modules`, into named volumes.** A Windows
+    checkout holds Windows-built binaries (`sharp`, `lightningcss`, the SWC/Turbopack
+    native packages) that a Linux container cannot load, and a bare bind mount would also
+    let the container's `npm ci` delete them. Five named volumes shadow the four
+    `node_modules` directories and `apps/web/.next`; everything else, including
+    `e2e/visual.spec.ts-snapshots/`, is the live bind mount, so a regenerated baseline
+    lands straight in the working tree.
+  - **It runs with `CI=1`**, so `playwright.config.ts` boots a production build rather
+    than `next dev` — CI's own baselines are taken against a production build, and a
+    development-mode image would be compared against something the runner never renders.
+  - **`e2e/layout.spec.ts` runs in the same invocation**, because of the standing rule
+    below: never accept a regenerated `diary-*` baseline unless that suite was green in
+    the run that produced it.
+  - **`--update-snapshots=changed` is the default, and `all` is a separate, named
+    service.** This started the other way round and the first use proved why it should
+    not: `all` rewrote fifteen unrelated `diary-*` baselines that no change in that commit
+    could have touched and that the comparison run immediately before had just passed —
+    encoder and anti-aliasing noise under `maxDiffPixelRatio`, not drift, and committing
+    it would have made the next real diff unreadable. They were caught and reverted by
+    hand, which is a rule that describes the next recurrence rather than preventing one.
+    `changed` writes only baselines whose diff EXCEEDS the threshold, plus any that are
+    missing entirely, so a new screen's baselines still land on the first run and nothing
+    else moves.
+
+    **The one case that needs `all`** — and the reason the opt-in exists rather than the
+    flag being deleted — is a baseline whose diff is UNDER the threshold and which is
+    nonetheless wrong, because `changed` leaves it alone while still reporting a pass. The
+    cover-contrast change (`docs/deviations.md` §12) is the real instance: it moved the
+    `mobile` cover by less than the threshold, and `changed` would have left that one file
+    showing the old, failing cover. Reach for
+    `npm run test:visual:container:update:all` when you have INTENDED a visual change that
+    a comparison run did not flag, and read `git status` afterwards.
+
+    Either way the order is the same: **compare first, then update.** The comparison run is
+    what tells you which files are supposed to move.
+
+  `npm run test:visual` on a developer's own machine is still there, and on Linux it is
+  the quick local check; off Linux it now skips with a message naming the container
+  rather than quietly writing a host baseline.
+
+- **Phase 2 Task 7 adds the first ADMIN screen**: `admin-sign-in-*.png`, `SCREENS.md`
+  §3's sign-in shell with §3.1's password step in it. One case, three images, and that
+  covers both of the layouts §3 specifies rather than one of them — the projects already
+  ARE the breakpoint: `desktop` (1440) and `mid` (1000) are above §3's 820px boundary and
+  photograph the cloth panel beside the form, and `mobile` (390) is below it and
+  photographs the narrow masthead above a 470px shell. It does not use `settled()` (no
+  scaled design box on this route) and waits only for the pane and
+  `document.fonts.ready`, since the screen carries no images at all.
+- **Phase 2 Task 8 adds its second state**: `admin-sign-in-code-*.png`, `SCREENS.md`
+  §3.2's one-time-code step in the same shell. Three images again, and again that covers
+  both of §3's layouts rather than one. It is the only case in `e2e/visual.spec.ts` that
+  fixes the browser's clock (`page.clock.setFixedTime`) before navigating, and it has to:
+  the screen carries two LIVE countdowns — "It expires in {m:ss}" and "Send again in
+  {n}s" — so without a fixed clock the baseline photographs whichever second the run
+  landed on and every later comparison drifts against it. The fixed instant is
+  deliberately in the PAST, so both windows clamp to their whole length
+  (`secondsRemaining`'s ceiling) and the image always reads "5:00" and "Send again in
+  30s". The comparison run before the update was green on all 46 existing baselines and
+  failed only on the three missing ones; the `changed` update wrote exactly those three
+  and `git status` showed nothing else had moved.
+- **WHAT `maxDiffPixelRatio: 0.01` DOES AND DOES NOT CATCH — measured, because "the
+  visual suite passed" keeps being read as more than it is.** The threshold is a
+  proportion of the frame, so the licence it grants is an area: at the `desktop`
+  project's 1440×940 full-page frame, 1% is roughly **13,500 pixels**. A narrow column
+  of type displaced vertically is cheap in pixels, and vertical displacement of a narrow
+  column is the most common CSS regression this codebase produces — which is precisely
+  the class these baselines are assumed to cover.
+
+  **The worked example, run in the pinned container against the committed baselines.** A
+  `margin-top` was added to `.cells` on the one-time-code screen, moving everything below
+  it down, and the suite was run at each magnitude:
+
+  | Shift    | `desktop` (1440×940)         | `mid` (1000×800) | `mobile` (390×844, DPR 3)   |
+  | -------- | ---------------------------- | ---------------- | --------------------------- |
+  | **10px** | **passes**                   | **passes**       | fails — 3,323px, ratio 0.02 |
+  | **20px** | **passes**                   | fails — 9,865px  | fails — 16,096px            |
+  | **40px** | fails — 18,958px, ratio 0.02 | fails            | fails                       |
+
+  So the `desktop` baseline absorbs a **20px** vertical displacement of an entire pane
+  without a word, and only starts objecting somewhere between 20px and 40px. `mobile`
+  catches ten times less because its frame is small and its device pixel ratio is 3.
+
+  **Do not tighten the threshold.** It exists to absorb encoder and anti-aliasing noise,
+  and that noise was measured at 14-15 files varying per run (Task 7) — tightening it
+  buys a suite that cries wolf, which is how a real diff stops being read. **The rule
+  that follows instead: spacing that matters gets a numeric assertion, not a baseline.**
+  `e2e/codeStep.spec.ts`'s measurements case is the pattern — a `getComputedStyle` /
+  `getBoundingClientRect` read of the value itself, which fails on a one-pixel change at
+  every project at once.
+
+  This is the second time in two screens that the threshold has hidden something a reader
+  assumed it covered. Task 7's sub-threshold gradient change was the first, where
+  `--update-snapshots=changed` would have left three baselines stale because the
+  comparison never flagged them. A gate whose real coverage is undocumented is how "the
+  visual suite passed" becomes evidence for something it never checked.
+
 - **Add one:** one snapshot per page type per breakpoint listed in design spec §8.2
   (diary `<860px`; admin `≥1180`/`≥860`/narrow; login `<820`) as each page is built. The
   OTP-cell collapse at 819px (design spec §11) is the canonical example of a defect this
@@ -1022,8 +1867,31 @@ would claim a measurement nothing performs.
   4.5:1, per the handoff's own note). Where axe returns `incomplete` rather than a
   verdict, the ratio is measured from the rendered pixels and asserted anyway; an
   `incomplete` is never read as a pass.
-- **Status:** implemented for every view that exists, and for each designed diary page
-  in turn — `/p/1` (Cover, Task 7), `/p/2` (Contents, Task 9), `/p/3` (Notes, Task 10)
+- **Status:** implemented for every view that exists — including, since Phase 2 Task 7,
+  the first screen of the bespoke admin: `/admin/sign-in` runs `expectNoAxeViolations`
+  with **no exclusions**, and it is the first view in the product where `label`,
+  `form-field-multiple-labels` and `autocomplete-valid` have anything to judge. It is
+  followed by TWO contrast cases of the same kind the cover has, and for the same reason:
+  the cloth panel and the narrow masthead are gradients, so axe returns `color-contrast`
+  INCOMPLETE over both and a green axe run says nothing about the cream lines drawn on
+  them. Measured from the rendered pixels, the panel's eyebrow came in at 4.447:1 —
+  below AA — which is what `docs/deviations.md` §32 records and fixes; the masthead
+  needed no change and measures 4.805, 7.974 and 4.577. The masthead case runs at the
+  `mobile` project alone and the panel case at the other two, because each block is drawn
+  at one side of the breakpoint only.
+
+  **Phase 2 Task 8 adds the second sign-in state**, `/admin/sign-in/code`, in TWO cases
+  and with no exclusions either: the screen as it loads, and the screen after it has
+  refused a code. The second exists because the error box is the one part of that pane
+  axe never sees on a clean load, and it is what `aria-describedby` on the cell group has
+  to resolve to. This is also the first view in the product where `label` has six
+  boxes with no visible label to judge — `SCREENS.md` §3.2 gives the row one heading
+  ("The code") and no per-cell text, so each cell carries an `aria-label` ("Digit 1 of
+  6") and the row is a `role="group"` named by that heading. The cloth and masthead
+  contrast cases already cover this route's frame, since it is the same shell drawn from
+  the same stylesheet; its pane is dark ink on `#fffdf6`, which axe judges for itself.
+
+  Implemented for each designed diary page in turn — `/p/1` (Cover, Task 7), `/p/2` (Contents, Task 9), `/p/3` (Notes, Task 10)
   and `/p/4`, `/p/5`, `/p/33` (Frames I, Frames II and About, Task 11), because each
   page kind renders different markup on the same URL shape — plus Task 13's
   page-not-found view (`/p/999`), the one diary view that is not a page of the book and
@@ -1062,8 +1930,10 @@ would claim a measurement nothing performs.
   not by loosening the helper's default. Any _other_ violation, on this route or any
   future one, still fails the suite, and a diary route calling the helper with no
   `allow` cannot inherit `/cms`'s exclusion — each call site names its own. This
-  exclusion is revisited the moment `/cms` stops being the route under test — Phase 1's
-  bespoke `/admin` replaces it.
+  exclusion is revisited the moment `/cms` stops being the route under test — the bespoke
+  `/admin` replaces it, and Phase 2 Task 7 mounted its first screen (`/admin/sign-in`,
+  which needs no `allow` at all).
+
 - **The mobile reading mode is audited separately, because it is a separate tree**
   (Phase 1 Task 15). Six of the diary's axe cases are the BOOK's and now skip below
   860px; six new ones take their place at the `mobile` project - `/p/1`, `/p/2`, `/p/3`,
@@ -1096,7 +1966,7 @@ critical`) into the live `/cms` DOM via `page.evaluate` and calling
 `e2e/a11y.spec.ts`'s `/cms` case called `expectNoAxeViolations` immediately after
 `page.goto`, with no wait for Payload's asynchronously-rendered login form — so axe was
 analysing a nearly empty document. The gap surfaced as an intermittent failure under
-concurrent workers that named a *different* rule on each run (`region` once, a
+concurrent workers that named a _different_ rule on each run (`region` once, a
 keyboard finding on `.checkbox.field-type` another), while passing every time the case
 ran alone. The case now waits for the form and for Next's dev overlay, exactly as
 `e2e/visual.spec.ts`'s `/cms` case already did. With the analysis deterministic, a
@@ -1110,7 +1980,7 @@ of any kind — the Cover and Contents cases call `expectNoAxeViolations(page)` 
 changed so it clears AA.** axe-core reports `color-contrast` as **incomplete** on both
 diary pages (7 nodes on the Cover, 45 on Contents), because it cannot resolve a gradient
 background. Incomplete is not a violation, so the suite is green; that is axe declining to
-judge, not a contrast pass, and `CLAUDE.md` §2 requires the ratios to be *asserted*. They
+judge, not a contrast pass, and `CLAUDE.md` §2 requires the ratios to be _asserted_. They
 are now asserted by a test rather than measured by hand: `e2e/a11y.spec.ts`'s cover case
 calls `measureContrastOverGradient` (`e2e/support/coverContrast.ts`), which hides each
 line with `visibility: hidden` so its box shows only the cloth it sat on, screenshots the
@@ -1122,13 +1992,13 @@ flattens the line's own translucent cream onto it, and runs both through
 Measured with SCREENS.md §1.1's literal values, four of the five lines failed. Both
 columns below are the `desktop` project's, the tightest of the three:
 
-| Cover line | Size | Before | After | Required |
-|---|---|---|---|---|
-| "Travel Diary" eyebrow | 12px | **2.86:1** | 4.52:1 | 4.5:1 |
-| "Wanderings" title | 124px | 3.81:1 | 8.13:1 | 3:1 |
-| Subtitle | 22px italic | **2.72:1** | 5.33:1 | 4.5:1 |
-| "Kept by …" | 12.5px | **2.37:1** | 4.73:1 | 4.5:1 |
-| Years | 12.5px | **1.87:1** | 5.26:1 | 4.5:1 |
+| Cover line             | Size        | Before     | After  | Required |
+| ---------------------- | ----------- | ---------- | ------ | -------- |
+| "Travel Diary" eyebrow | 12px        | **2.86:1** | 4.52:1 | 4.5:1    |
+| "Wanderings" title     | 124px       | 3.81:1     | 8.13:1 | 3:1      |
+| Subtitle               | 22px italic | **2.72:1** | 5.33:1 | 4.5:1    |
+| "Kept by …"            | 12.5px      | **2.37:1** | 4.73:1 | 4.5:1    |
+| Years                  | 12.5px      | **1.87:1** | 5.26:1 | 4.5:1    |
 
 The 22px italic subtitle does **not** qualify for SC 1.4.3's large-text exemption, which
 needs 24px or 18.66px bold, so it is held to 4.5:1; only the 124px title is large text.
@@ -1172,35 +2042,101 @@ That record quotes figures that have since been superseded — the 2,500ms LCP b
 above all. **No figure beneath this section is the current gate unless this table says
 so.**
 
-| Gate | Config | Route | Limit |
-|---|---|---|---|
-| `largest-contentful-paint` | `lighthouserc.book.json` | `/p/1`, book surface (1350x940, `Cookie: td-reading-surface=book`) | **≤3000ms** |
-| `largest-contentful-paint` | `lighthouserc.json` | `/p/1`, mobile surface (Lighthouse phone emulation, no cookie) | **≤3000ms** |
-| `largest-contentful-paint` | `lighthouserc.json` | `/gallery/patagonia` | ≤4000ms |
-| `resource-summary:script:size` | both | `/p/1` (both surfaces), `/gallery/<slug>` | ≤184320 bytes (180KB, `CLAUDE.md` §6) |
-| `resource-summary:image:size` | `lighthouserc.json` | `/gallery/<slug>` | ≤600000 bytes |
-| `cumulative-layout-shift` | both | every collected URL | ≤0.1 |
-| `http-status-code` | both | every collected URL | `minScore: 1` |
-| — | `lighthouserc.json` | `/cms` | `http-status-code` and CLS only: no LCP, no script budget |
+| Gate                           | Config                    | Route                                                                      | Limit                                                                                                                  |
+| ------------------------------ | ------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `largest-contentful-paint`     | `lighthouserc.book.json`  | `/p/1`, book surface (1350x940, `Cookie: td-reading-surface=book`)         | **≤3000ms**                                                                                                            |
+| `largest-contentful-paint`     | `lighthouserc.json`       | `/p/1`, mobile surface (Lighthouse phone emulation, no cookie)             | **≤3000ms**                                                                                                            |
+| `largest-contentful-paint`     | `lighthouserc.json`       | `/gallery/patagonia`                                                       | ≤4000ms                                                                                                                |
+| `resource-summary:script:size` | both                      | `/p/1` (both surfaces), `/gallery/<slug>`                                  | ≤184320 bytes (180KB, `CLAUDE.md` §6)                                                                                  |
+| `resource-summary:image:size`  | `lighthouserc.json`       | `/gallery/<slug>`                                                          | ≤600000 bytes                                                                                                          |
+| `largest-contentful-paint`     | `lighthouserc.admin.json` | `/admin/sign-in`, `/admin/sign-in/code`, `/admin/reset` (1440x900 desktop) | **≤3000ms**                                                                                                            |
+| `resource-summary:script:size` | `lighthouserc.admin.json` | the same three admin routes                                                | ≤327680 bytes (320KB, `CLAUDE.md` §6)                                                                                  |
+| `cumulative-layout-shift`      | all three                 | every collected URL                                                        | ≤0.1                                                                                                                   |
+| `http-status-code`             | all three                 | every collected URL                                                        | `minScore: 1`                                                                                                          |
+| —                              | `lighthouserc.json`       | `/cms`                                                                     | `http-status-code` and CLS only: no LCP, no script budget                                                              |
+| **none**                       | —                         | **`/admin`, `/admin/sign-in/done`, `/admin/reset/<token>`**                | **NOT GATED** — behind the guard or behind a live token; the paragraphs under this table say why, and what bounds each |
 
-Both configs collect `numberOfRuns: 5` and every `assertMatrix` entry carries
-`"aggregationMethod": "median"`. `npm run test:perf` runs **both** configs, and both are
-gates; `e2e/ciRegistration.spec.ts` asserts that the script still names both files.
+All three configs collect `numberOfRuns: 5` and every `assertMatrix` entry carries
+`"aggregationMethod": "median"`. `npm run test:perf` runs **all three**, and all three are
+gates; `e2e/ciRegistration.test.ts` asserts that the script still names every
+`lighthouserc*.json` on disk — it reads the filenames off the repository root rather than
+hard-coding the pair, which is what made it catch `lighthouserc.admin.json` the moment that
+file landed and before the script named it.
 
-**Both gates are green.** Last measured at Phase 1's final review, one
+**`lighthouserc.admin.json` is Phase 2 Task 11, and it is the first performance gate the
+admin has ever had.** Tasks 7, 8 and 9 each reported `CLAUDE.md` §6's admin budgets
+UNRESOLVED for the same reason: `lighthouserc.json` and `lighthouserc.book.json` between them
+cover the diary's two surfaces and the gallery, and nothing covered `/admin/*` at all. It is
+a third config rather than three more URLs in an existing one for exactly the reason ADR 0014
+gives for the book's: lhci's collect settings are per-run, not per-URL, and the admin is an
+authoring surface measured at a desktop viewport rather than under phone emulation.
+
+**Three of the five reachable admin addresses are collected, and the other two are bounded
+rather than guessed.** `/admin/sign-in/done` is behind the session guard, so Lighthouse —
+which sends no cookie — collects the redirect rather than the screen. Rather than fabricate a
+session for the collector it is left out, with the bound recorded: it ships strictly fewer
+client modules than the three that are collected, because `SignedInStep` is not a
+`'use client'` component and the other three panes are, so its script total cannot exceed
+theirs. `/admin/reset/<token>` renders `NewPasswordStep`, which IS a client component and so
+is not covered by that argument; its address needs a live token that changes every run, so it
+was measured directly instead — 8 scripts, 176,211 bytes gzipped, against the 320KB ceiling.
+
+**`/admin` ITSELF HAS NO LIGHTHOUSE BUDGET, and this is the only `docs/` file that has
+said so.** `lighthouserc.admin.json`'s `url` array is the three addresses named in the table
+above; the run prints "Checking assertions against 3 URL(s)". `/admin` has a visual
+baseline, an axe case and e2e coverage, and no performance gate — so `CLAUDE.md` §6's
+admin-route JS budget is asserted on the three public admin screens and not on the screen a
+signed-in reader actually lands on. It was recorded until round 7 only in a git-ignored fix
+report, which is nowhere a reader meets after a merge.
+
+It is left out for the same reason `/admin/sign-in/done` is, and the reason is worth
+spelling out because adding the URL would look like closing it: `/admin` is behind the
+session guard, so a collector that sends no cookie is answered with a redirect to
+`/admin/sign-in` and would measure that screen twice under `/admin`'s name. Worse, it would
+assert nothing at all — the config's single `assertMatrix` entry matches
+`.*/admin/.*`, which `http://localhost:3000/admin` does not satisfy, having no path segment
+after `admin`. So a URL added without a second matrix entry is collected and never judged,
+which is the shape of green this branch has spent four reviews removing. **Closing it
+properly needs a session for the collector** — a seeded account plus an `extraHeaders`
+cookie in the collect settings, or a Playwright-driven trace — and that is Phase 4's, which
+is the phase that adds the ten screens behind the guard and will need the same fixture for
+all of them. Until then the bound is the one `/admin/sign-in/done` carries, and it is
+checkable rather than asserted: `app/(admin)/admin/page.tsx` draws
+`components/admin/PanelHome.tsx`, and neither file carries a `'use client'` directive, so
+the screen ships strictly fewer client modules than any of the three collected panes — each
+of which is a client component. That is a bound, not a measurement, and it is written here
+as one.
+
+**`/admin/sign-in/code` is collected with no cookie**, so what it measures is the
+no-challenge placeholder rather than the pane a signing-in reader sees. Said rather than left
+to be assumed: it is the state an unauthenticated visitor to that address is actually served,
+it renders the same shell, the same six cells and the same client bundle, and the states that
+differ from it differ in text rather than in bytes. It is also, as of Phase 2 Task 11's fix
+round, a state a reader reaches only by typing the address — an exhausted or expired
+challenge is now described rather than replaced by it (see §8 and
+`docs/qa/2026-09-07-sign-in-sweep.md`).
+
+**INP has no Lighthouse lab equivalent** — it is a field metric — so `CLAUDE.md` §6's
+≤200ms is not asserted by any of the three configs, here or on the diary. What the lab can
+say is total blocking time, which measured **20ms** on all three admin routes. Stated here
+rather than left to be assumed from a green run.
+
+**The two diary configs, last measured at Phase 1's final review** — one
 `npm run test:perf` inside `mcr.microsoft.com/playwright:v1.62.1-noble`, each config
-building the app itself first:
+building the app itself first. Both green then, and both green now; the paragraph below the
+next table records the one time between those two points that `lighthouserc.book.json` was
+not, and what it turned out to be:
 
-| Route (config) | Metric | Median of 5 | Gate | Margin |
-|---|---|---|---|---|
-| `/p/1` book (`.book.json`) | LCP | **2,934.53ms** | 3000 | 65.47ms |
-| `/p/1` book | script | 142,834 B | 184,320 | 41,486 B |
-| `/p/1` mobile (`.json`) | LCP | **2,925.59ms** | 3000 | 74.41ms |
-| `/p/1` mobile | script | 144,835 B | 184,320 | 39,485 B |
-| `/gallery/patagonia` | LCP | 3,532.70ms | 4000 | 467.30ms |
-| `/gallery/patagonia` | script | 141,711 B | 184,320 | 42,609 B |
-| `/gallery/patagonia` | image | 477,329 B | 600,000 | 122,671 B |
-| `/cms` | — | — | CLS and status only | — |
+| Route (config)             | Metric | Median of 5    | Gate                | Margin    |
+| -------------------------- | ------ | -------------- | ------------------- | --------- |
+| `/p/1` book (`.book.json`) | LCP    | **2,934.53ms** | 3000                | 65.47ms   |
+| `/p/1` book                | script | 142,834 B      | 184,320             | 41,486 B  |
+| `/p/1` mobile (`.json`)    | LCP    | **2,925.59ms** | 3000                | 74.41ms   |
+| `/p/1` mobile              | script | 144,835 B      | 184,320             | 39,485 B  |
+| `/gallery/patagonia`       | LCP    | 3,532.70ms     | 4000                | 467.30ms  |
+| `/gallery/patagonia`       | script | 141,711 B      | 184,320             | 42,609 B  |
+| `/gallery/patagonia`       | image  | 477,329 B      | 600,000             | 122,671 B |
+| `/cms`                     | —      | —              | CLS and status only | —         |
 
 CLS was **0** on all twenty runs and `http-status-code` scored **1** on every one. The
 five book runs read 2,932.28 / 2,934.41 / **2,934.53** / 2,935.14 / 2,956.60ms; the five
@@ -1211,13 +2147,111 @@ reported this route at 2,404.94ms and called 500ms of headroom that does not exi
 `/cms` measured 4,880.39ms of LCP and 647,142 script bytes, neither of them gated, for
 the reason its row above gives.
 
+**The admin gate, measured for the first time in Phase 2 Task 11** — on this Windows host
+against a production `next build` + `next start`, five runs per URL. Run twice; the second
+run's medians are in brackets, and the gate passed both times:
+
+| Route (`lighthouserc.admin.json`) | Metric | Median of 5             | Gate    | Margin    |
+| --------------------------------- | ------ | ----------------------- | ------- | --------- |
+| `/admin/sign-in`                  | LCP    | **2,928.4ms** (2,927.9) | 3000    | 71.6ms    |
+| `/admin/sign-in`                  | script | 140,641 B (identical)   | 327,680 | 187,039 B |
+| `/admin/sign-in/code`             | LCP    | **2,928.4ms** (2,927.0) | 3000    | 71.6ms    |
+| `/admin/sign-in/code`             | script | 141,323 B (identical)   | 327,680 | 186,357 B |
+| `/admin/reset`                    | LCP    | **2,926.9ms** (2,928.0) | 3000    | 73.1ms    |
+| `/admin/reset`                    | script | 140,489 B (identical)   | 327,680 | 187,191 B |
+
+CLS was **0.0000** on all thirty runs and `http-status-code` scored 1 on every one. Total
+blocking time was 19–21ms throughout. The LCP spread is tight — across both runs the slowest
+of the thirty is 2,941ms and the fastest 2,924ms — which is the framework floor ADR 0008
+measured (2,023.2ms for one styled heading with no application code) plus three panes that
+fetch nothing.
+
+### `/p/1` went red in Phase 2, and the wrong explanation was reached for first
+
+**This is the most instructive thing in this section, so it is written down in full.**
+Phase 2 Task 11 reported `lighthouserc.book.json`'s `/p/1` at **3,082.6ms and 3,080.2ms**
+across two `npm run test:perf` runs, against its unchanged 3,000ms budget — and attributed
+it to the bimodality ADR 0008 named and ADR 0014 characterised. The evidence offered was
+that the gate measured red at `d61ab9e` with the task's own changes stashed, and again on a
+deleted `.next` (3,079.7ms and 3,077.3ms).
+
+**That baseline could not answer the question it was asked.** `d61ab9e` is on the same
+branch. A baseline separates "did we cause it" from "is the host slow tonight" only if it
+sits on the other side of the change. The one that does:
+
+```
+main   0bac9bd   2,924.3ms median   exit 0   GREEN
+branch fdff259   3,078.3ms median   exit 1   RED
+```
+
+Same host, same committed config, minutes apart, both on a deleted `.next`. The
+distributions do not overlap — main's slowest run is 8ms below the branch's fastest — so it
+was never the bimodal split. It was a Phase 2 regression, and ADR 0014's closing bullet
+forbids the explanation that was used without measuring `main` first.
+
+**The cause was a shared CSS module, and it was read out of the build rather than reasoned
+about.** `/p/1` was serving four render-blocking stylesheets where `main` serves two,
+because `app/(admin)/layout.tsx` imported `../(diary)/fonts` and `app/(admin)/admin.css`
+`@import`s the same `tokens.css` `diary.css` does. A module reachable from two route entries
+cannot be merged into either entry's stylesheet, so each became a chunk the diary had to
+fetch. The full isolation — one variable per build — and the decision are
+`docs/adr/0019-the-admin-performance-gate-and-the-css-seam.md`.
+
+Fixed by giving `(admin)` its own font declarations. `/p/1` measures **2,926.1ms and
+2,925.8ms** across two runs, within 1.8ms of `main`. **The budget was never moved.**
+
+**How to check this one first, next time:** count the `<link rel="stylesheet">` elements a
+production `/p/1` serves before looking at the LCP number. **Three is the shape** — the
+shared token chunk (2,467 B), `diary.css` merged with the diary's own `@font-face` rules
+(3,338 B), and the diary's CSS modules (28,599 B). A **fourth** means something new is
+shared across the route-group seam; two would mean the token crossing had been closed, which
+nothing has decided to do. `docs/adr/0019-the-admin-performance-gate-and-the-css-seam.md`
+names all three and why the first of them is deliberate.
+
+### `test:perf` stopped being a `&&` chain, because the chain hid the new gate
+
+It ran `lhci autorun && lhci autorun && lhci autorun`. `&&` short-circuits, so while the
+book gate was red the admin gate — third in the chain, added in the same task — **never
+executed once under its own command**; the numbers in the table above exist only because the
+config was invoked directly. A gate that cannot report because an earlier gate failed is a
+gate nobody sees, and it fails silently: the command exits 1, CI shows one red step, and
+nothing says two budgets went unmeasured.
+
+`npm run test:perf` is now `node scripts/run-lighthouse.mjs <config> <config> <config>`,
+which runs every configuration it is named whatever the ones before it did, prints a
+`PASS`/`FAIL` line per config, and exits non-zero if any failed. The configs stay **named in
+`package.json` rather than discovered by the runner**: `e2e/ciRegistration.test.ts` guards
+against a config file that exists and is run by nothing, and it does that by checking that
+the script names each one — a runner that globbed them would satisfy that guard by
+construction and stop guarding anything.
+
+**A second, independent measurement of the same budget**, because the two count differently
+and the difference is worth writing down rather than rediscovering. Lighthouse's
+`resource-summary:script:size` is the transfer size of the scripts the page actually fetched.
+Task 7's review measured the admin's route JS a different way — every script the built
+document requests, gzipped individually and summed — and got **175,552 bytes (171KB)**.
+Repeating Task 7's method now, against the same production build, on each of the four
+sign-in addresses:
+
+```
+/admin/sign-in         : 8 scripts, 176,423 bytes gzipped = 172.3 KB
+/admin/sign-in/code    : 8 scripts, 177,105 bytes gzipped = 173.0 KB
+/admin/reset           : 8 scripts, 176,271 bytes gzipped = 172.1 KB
+/admin/reset/<40 hex>  : 8 scripts, 176,211 bytes gzipped = 172.1 KB
+```
+
+So Task 7's figure still holds: three more screens and the whole route layer have landed
+since, and `/admin/sign-in` has grown by 871 bytes. Both methods sit far inside 320KB, and
+the gate asserts the Lighthouse one because that is what the diary's two configs already
+assert — a gate that measures the same budget two ways is two gates that can disagree.
+
 **Why 3000 and not 2500.** `CLAUDE.md` §6's LCP budget was 2,500ms from Phase 0 until
 Phase 1 Task 13. `docs/adr/0008-lcp-budget-and-the-framework-floor.md` measured what this
 route costs with no application code at all — 2,023.2ms and 137,986 bytes of React and
 Next App Router runtime for one styled heading — which is 81% of the old budget before
 this repository writes a line, and the budget was set to **3.0s** from that measured
 floor. `docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md` then fixed
-*where* it is measured: the book at 1350x940 with the surface cookie pinned, the mobile
+_where_ it is measured: the book at 1350x940 with the surface cookie pinned, the mobile
 surface at Lighthouse's own phone emulation, both on the same `simulate` throttling
 (150ms RTT, 1,638Kbps, 4x CPU). The raise itself is recorded as a departure from the
 plan in `docs/deviations.md` §23 — Task 13 Step 5 said not to raise it — and the gate
@@ -1225,10 +2259,11 @@ was reported red and unraised for several rounds before it moved.
 
 #### 7.1 · The record
 
-- **Tool:** Lighthouse CI (`@lhci/cli`, `lighthouserc.json` and `lighthouserc.book.json`)
-  + custom probes (the custom probes — 60fps flip measurement, N+1 query detection — are
-  still not yet implemented; they need the flip and data-fetching code these budgets
-  describe).
+- **Tool:** Lighthouse CI (`@lhci/cli`, `lighthouserc.json`, `lighthouserc.book.json`
+  and — since Phase 2 Task 11 — `lighthouserc.admin.json`)
+  - custom probes (the custom probes — 60fps flip measurement, N+1 query detection — are
+    still not yet implemented; they need the flip and data-fetching code these budgets
+    describe).
 - **Scope:** the hard budgets in `CLAUDE.md` §6 — 60fps flip (only `transform`/`opacity`
   animated), diary route JS ≤180KB gzipped, admin ≤320KB, LCP **≤3.0s** (ADR 0008 for
   the number, ADR 0014 for the two viewports it is measured at), CLS ≤0.1, INP
@@ -1284,6 +2319,7 @@ was reported red and unraised for several rounds before it moved.
   at it, and pins the regression this gate exists to catch: with `loading="lazy"`
   disabled, the same route fetched all 60 tiles for **4,600,585 bytes** — 7.67× the new
   limit, so the detector still fires with room to spare.
+
 - **`/p/1` was landed as a hard gate before the page existed, deliberately.** The
   controller ruling for Task 1 was to land the gate _before_ the page it measures,
   specifically so no later task can land a regression under a budget still marked
@@ -1459,16 +2495,20 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   **stable** now: three consecutive `npm run test:perf` invocations, each with its own
   build, gave book medians of **2,930.5 / 2,931.1 / 2,927.8ms**, fifteen runs spanning
   2,926.0-2,937.8ms.
-- **`npm run test:perf` runs TWO lhci configurations, and both are gates.** Collect
+- **`npm run test:perf` ran TWO lhci configurations when this was written, and both were
+  gates.** The admin's is a third since Phase 2 Task 11; §7.0 above is the current state,
+  and this bullet is the record of why the split exists. Collect
   settings in lhci are per-run, not per-URL, so the diary's desktop viewport cannot share
   a run with the gallery's: at 1350x940 `/gallery/<slug>` picks larger derivatives and
   fetches 1,229,466 bytes of image against its 600,000 budget (ADR 0013), which would
   re-base a budget this change has no business touching. So `lighthouserc.json` collects
   `/p/1`, `/gallery/patagonia` and `/cms` on Lighthouse's phone emulation with no pinned
   cookie, and `lighthouserc.book.json` collects `/p/1` alone on the desktop viewport with
-  the cookie. Both keep `numberOfRuns: 5` and `aggregationMethod: "median"`. If you add a
-  route, add it to the first file unless it needs a viewport the first file cannot give
-  it.
+  the cookie. Every one of them keeps `numberOfRuns: 5` and
+  `aggregationMethod: "median"`. If you add a route, add it to the first file unless it
+  needs a viewport the first file cannot give it — and add the file itself to
+  `npm run test:perf`, which `e2e/ciRegistration.test.ts` requires by reading the
+  `lighthouserc*.json` files off disk.
 - **The mobile reading surface is gated too, since ADR 0014.** Dropping
   `collect.settings.extraHeaders` from `lighthouserc.json` means its `/p/1` entry now
   measures what a phone is actually served: 144,835 script bytes against the 184,320
@@ -1500,8 +2540,242 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
 - **Tool:** Vitest + scripted probes.
 - **Scope:** rate limits, lockout, OTP single-use, SVG rejection, EXIF stripping,
   authorization on every mutation.
-- **Status:** not yet implemented — this suite exercises the auth service (Phase 2) and
-  the upload worker (Phase 3), neither of which exists yet.
+- **Status:** partly implemented. The OTP half of it exists as of Phase 2 Task 3:
+  `apps/web/lib/auth/otpService.integration.test.ts` runs against a real
+  Payload and a real Postgres, with at least one case per `SECURITY.md` bullet under the
+  first prototype hole plus the resend limits — the code is never returned, never logged and never
+  stored in the clear; a code issued for one session is refused in another; a correct
+  code works exactly once; a third wrong guess kills the challenge even for the correct
+  code; expiry is derived from `createdAt` rather than the stored `expiresAt`; the
+  comparison is `crypto.timingSafeEqual`; and the code is drawn from `crypto.randomInt`.
+  Each of those was verified by **mutation** — deliberate breakages, each failing exactly
+  the case that names it and no other (the runs are pasted in that task's report).
+
+  **Three of those cases are `Promise.all` bursts, and they are the ones that found a
+  real hole.** A limit that holds one request at a time can be nothing at all: the first
+  version of the service read the attempt count, spent ~30ms hashing, and wrote the count
+  back, so twelve parallel guesses were all evaluated against a three-attempt budget, two
+  parallel correct codes both redeemed one challenge, and ten parallel requests all
+  mailed a code past an hourly ceiling of five. Every sequential test passed throughout.
+  The rule this leaves behind: **any limit expressed as read-check-write gets a parallel
+  test, and that test is confirmed to fail before the fix.** All three failed first, and
+  each is now pinned to the mechanism that fixes it — a conditional `UPDATE` for the
+  attempt and for consumption, a per-account advisory lock for the count-and-insert.
+
+  **Rate limiting and lockout land in Phase 2 Task 4, and they are two files.**
+  `apps/web/lib/auth/rateLimit.integration.test.ts` is at least 15 cases over the sliding window
+  `SECURITY.md` requires per account and per IP, and the two that carry it are real
+  `Promise.all` bursts proving each dimension **independently**: twenty-eight concurrent
+  attempts from ONE address against TWENTY-EIGHT accounts admit exactly twenty (so
+  nothing but the address can be refusing them), and eighteen concurrent attempts against
+  ONE account from EIGHTEEN addresses admit exactly ten (so nothing but the account can
+  be). Limiting only one dimension is the common mistake and it is invisible from a
+  single-dimension test — per-account alone lets a botnet spray, per-IP alone lets one
+  host grind a single account behind rotating proxies. Verified by mutation: removing the
+  per-address condition fails the address burst and NOT the account burst, and removing
+  the per-account condition fails the account cases and NOT the address burst. Removing
+  the rank ordering — so attempts standing _after_ this one are counted against it — was
+  caught by the bursts in only three runs out of four, because whether a racer's row
+  exists yet at the moment another request ranks is a matter of scheduling. A guard caught
+  three times in four is a guard that passes CI the fourth time, so the file also carries
+  a **deterministic** case for it: a key seeded with rows written at explicit ids above
+  the sequence — inside the window, stamped earlier, but ranking after the attempt that
+  follows them, which is what a racer's row looks like without the race — and the
+  assertion that the attempt is still admitted. That case fails on every run when the
+  bound is removed (five out of five, measured).
+
+  **The session layer lands in Phase 2 Task 6, before the sign-in screens that will use
+  it,** because sign-in must issue a session and cannot issue what does not exist.
+  `apps/web/lib/auth/sessions.integration.test.ts` is shaped around
+  the two ways a test in this area passes while the mechanism is gone:
+
+  - **A rotation test that only asserts "a new identifier exists" passes while the old
+    one still authenticates.** So every rotation case asserts the OLD identifier is
+    refused, and names the refusal. Verified by mutation: returning the identifier the
+    browser arrived with instead of minting one fails three cases and no others, and
+    binding the supersede clause to `NULL` — so rotation revokes nothing — fails exactly
+    the case named "stops the previous identifier authenticating the moment a new one is
+    issued".
+  - **A revocation test that checks a field was set passes while nothing reads that
+    field.** So no case asserts on `revokedAt`. Each one revokes and then attempts to
+    authenticate. Verified by mutation: deleting the line that acts on the domain's
+    verdict fails six cases across revocation, expiry and rotation.
+
+  "Keep me signed in" is asserted from three sides, because "the session lasts longer" is
+  satisfied by the wrong implementation — a longer-lived token — as readily as by the
+  right one: the stored `expires_at` column holds the long lifetime, the identifier is
+  byte-identical in shape between a remembered and an ordinary sign-in, and a remembered
+  row aged past its expiry stops authenticating while its untouched thirty-day cookie
+  still says thirty days.
+
+  Revocation is exercised through the Account screen's own route as well as through the
+  module — a Payload `update` by the signed-in reader under their own per-user access —
+  so the two paths are proven to meet on the same row rather than assumed to.
+
+  `apps/web/collections/sessions.access.integration.test.ts` is the collection's half,
+  and **every case in it is cross-account**: two accounts, each with a session, asserting
+  what one can do to the other's row. That is not thoroughness, it is the only shape that
+  can see the defect the file was written for - `sessions` declared no access block at
+  all, so Payload's `defaultAccess` applied and every operation was granted to "signed
+  in" (`docs/deviations.md` §29). A suite with one account would have passed throughout.
+  Verified by mutation: removing the block fails five cases.
+
+  **THE PER-FIELD SWEEP IS THE PART TO CARRY INTO PHASE 4**, and it exists because the
+  first version of that file was still not enough. It enumerated OPERATIONS - read,
+  create, update, delete - and two holes came straight through it, each a field inside an
+  operation that is correctly permitted: an owner could re-point `user` at another account
+  and authenticate as them, and could write `revokedAt` back to `null` and un-revoke
+  themselves. **The unit of authorization on a Payload collection is the field, not the
+  operation.**
+
+  So the file now carries one case that attempts an update on **every field the collection
+  declares**, with the field list read off `Sessions.fields` rather than written out, and
+  the row snapshotted with `SELECT *` rather than a named column list. Both halves matter:
+  a field added tomorrow is probed the day it lands, and a column a future field adds is
+  compared without anybody remembering to add it. On its **first run** the sweep failed on
+  a field neither the reviewer nor the author had enumerated - `createdAt`, which Payload
+  injects into a collection's field list when it sanitises it, and which an injected field
+  carries no access rule for. That is the argument for the shape, in one measurement.
+
+  Verified by mutation, field by field: removing any one field's `update` refusal fails
+  the sweep, and for `user`, `revokedAt`, `tokenHash` and `expiresAt` it fails the named
+  case beside it as well. `updatedAt` is the one exception and is recorded as such at the
+  line itself - Payload stamps that column after access runs, so no test can distinguish -
+  rather than left for a later reader to assume it was proven.
+
+  One fixture lesson came out of that matrix and is worth repeating: the file's cleanup
+  used to find its rows by the `device` marker, which the sweep itself overwrites. Under
+  one mutation a row survived carrying a probe value, deleting its account then hit
+  `sessions.user_id`'s `NOT NULL` against an `ON DELETE set null` foreign key, and the
+  **whole file was skipped** on the next run with a not-null violation several cases away
+  from the cause. Cleanup now matches by owner. See `docs/data-model.md` for the
+  constraint itself.
+
+  A second case covers what bounds the table: a write against one key must sweep aged rows
+  belonging to **other** keys. Pruning only the key being written bounds growth by the
+  number of distinct keys ever seen rather than by the window, and a spray from many
+  addresses is exactly what manufactures keys — three aged rows for one address were
+  measured surviving a write against another before the sweep was added.
+
+  `apps/web/collections/users.lockout.integration.test.ts` is the other file, and it
+  exercises Payload's `maxLoginAttempts`/`lockTime` for the first time since Phase 0
+  declared them. Its load-bearing case is **the correct password being refused**: a case
+  that only checked wrong passwords still failing would pass with the lockout entirely
+  absent. Writing it found a real defect — Payload takes `lockTime` in milliseconds while
+  taking `tokenExpiration`, on the same object, in seconds, so `15 * 60` had been asking
+  for a 900-millisecond cooling-off period since Phase 0. Nothing behavioural
+  distinguished it, which is why only a case asserting the lock's DURATION could catch
+  it (`docs/adr/0016-rate-limit-window-storage.md`).
+
+  **Phase 2 Task 9 adds the journey that ties the reset path together**, in
+  `apps/web/lib/auth/setNewPassword.integration.test.ts` and
+  `newPasswordScreen.integration.test.ts`. The first case of the first file is the
+  one that matters: it requests a reset through the real service, **takes the link out of
+  the console mailer's outbox rather than out of the database** — exactly as
+  `lib/auth/testing/otpProbes.ts`'s `readCodeFromOutbox` takes a code out of one — spends
+  it, and then signs in with the password it set. Reading the column instead would pass
+  with a link built from the wrong origin, a link built from the wrong path, or no link in
+  the body at all; reading the URL a reader would click is what makes it a test of the
+  journey rather than of the column.
+
+  Three of its cases exist because the obvious ones are not enough. "The new password
+  signs in" would pass for a reset that ADDED a password, so a second case requires the
+  old one to stop working. "The second use of a link is refused" would pass for an
+  implementation that cleared the account's password on the way to refusing, so a third
+  requires the first use's password to still sign in afterwards. And `refusalFrom` is
+  exported and exercised directly, because a live Payload reaches only two of its arms — a
+  403 for a token it cannot match and a 400 for a password it refuses — while a thrown
+  string, a `null` and an object with no status are what a dropped connection or a future
+  release would take, and all three must give the answer that cannot mislead.
+
+  `newPasswordScreen.integration.test.ts` drives the route layer with a real `Request` and
+  a real `Response`, which is why both of its route files hold nothing but one call each.
+  Every redirect is asserted by **status and `Location` together**: a case checking only
+  the location passes on a `200` carrying a header nothing follows, and one checking only
+  the status passes on a redirect to the wrong screen.
+
+  **Anti-enumeration and the wiring land in Phase 2 Task 5, and it is the task where
+  three mechanisms stop being mechanisms.** `apps/web/lib/auth/signIn.integration.test.ts`
+  and `apps/web/lib/auth/passwordReset.integration.test.ts` are shaped around four traps,
+  each one this repository has already been caught by:
+
+  - **An anti-enumeration test that compares two error strings passes while the two paths
+    differ in timing.** So the identical-response case compares the WHOLE returned value,
+    and a second case MEASURES both branches — twenty-five interleaved samples per arm,
+    medians compared, asserted inside a deliberately wide 0.6–1.6 band. The timing path
+    was taken here rather than the structural one Task 3 fell back to for
+    `timingSafeEqual`, and the reason is the size of the signal: there the leak was ~13ns
+    behind a ~30ms derivation and could not be measured; here the whole ~40ms derivation
+    is what is missing from the miss path, which is an order of magnitude, not a
+    fraction. **Measured: 0.90 with the dummy derivation, 0.14 without it.**
+  - **A timing case where either arm can drift into a shortcut measures nothing.** Both
+    arms would look identical if both were refused by the rate limiter before reaching a
+    hash, or if the wrong-password arm had locked its own account and stopped hashing —
+    at which point the case passes with the mechanism deleted. So every sample uses a
+    fresh requesting address, a fresh sign-in address and a fresh account: no budget and
+    no lockout counter is spent twice.
+  - **An `otpRequired` test that stubs the flag proves nothing about where it is read.**
+    So every case sets it on the ROW and hands `signIn` a request carrying the OPPOSITE
+    value as an extra property — what a client trying to force it would look like. A
+    `SignInRequest` with no such field is the only thing that makes them pass. Reading it
+    from the request instead fails three cases.
+  - **A rotation test that asserts "a new session exists" passes while the pre-auth
+    identifier still authenticates.** So the rotation case authenticates the OLD
+    identifier and expects `'revoked'`. Passing `null` as `previous` fails it and nothing
+    else.
+
+  Twelve mutations were run against this task's code and each is recorded in the task
+  report with what failed: removing the dummy derivation (the timing case, 0.14), passing
+  `null` instead of the browser's identifier (the rotation case), reading `otpRequired`
+  from the request (three cases), giving the unknown address its own refusal (two cases),
+  giving the LOCKED account its own refusal (one case), removing the limiter call (four),
+  treating a NULL `otp_required` as not-required (one), removing normalisation (one), and
+  removing the claimed-address dimension from `admitPasswordAttempt` (four in `signIn`'s
+  suite and three in `rateLimit`'s), plus three against the reset module.
+
+  Two test-quality lessons came out of that matrix and are worth repeating, because both
+  are the same shape — an assertion that is **vacuously true of the mechanism's absence**:
+
+  - The case asserting that an unknown address spends the same windows as a known one
+    originally compared the two counts to each other, and **passed under the mutation that
+    removed the limiter entirely** — two zeroes are equal. It now asserts both counts are
+    ONE.
+  - The case asserting that the operator's log line names no address originally checked
+    only that the recorded calls contained no address, and **passed while nothing was
+    logged at all**. It now asserts the call count first.
+
+  **Review round 1 added a fifth trap, and it is the one with operational teeth.** A bare
+  `catch` around Payload's login turned every throw into "wrong password" — so a database
+  outage would tell the owner their correct password was wrong and send them to reset it,
+  during an incident, with nothing recorded. `checkPassword` now returns three answers
+  rather than two, and the suite asserts the distinction in **both** directions: the
+  operator is told (and told nothing about who), the reader is told exactly what a wrong
+  password tells them, and an ordinary wrong password reports nothing at all. Three more
+  mutations, all pasted in the task report: collapsing the classification back to a bare
+  catch fails two cases, reporting every refusal fails two others, and letting the outage
+  reach the reader as its own refusal fails the case named for it.
+
+  That suite carries the phase's one deliberate test double for a third-party boundary: a
+  `Proxy` over the real `Payload` whose `login` rejects. "The credential store cannot
+  answer" has no honest inducement — the only real cause is the database being unreachable,
+  and taking `diary_test` down mid-run would take every other file with it — so the
+  boundary is substituted at the boundary, exactly as `passwordReset.integration.test.ts`
+  substitutes a refusing `MailerPort`, and never the module under test (CLAUDE.md §2.3). A
+  proxy rather than a spread: spreading a class instance drops its prototype methods, which
+  ESLint refuses and TypeScript catches.
+
+  **Fixture addresses: one documentation block per suite, and a counter that cannot leave
+  it.** The three sign-in suites clean up by IP prefix, so two sharing a block delete each
+  other's rows — harmless only because `fileParallelism` is off. They now hold TEST-NET-1
+  (`signIn`), TEST-NET-2 (`rateLimit`) and TEST-NET-3 (`passwordReset`). Each also counts
+  IPs on a counter of its own that throws past 254 rather than wrapping: `rateLimit`'s
+  addresses and accounts shared one counter that reaches about 260 over a full run, so its
+  last fixtures were `198.51.100.255` and beyond — unique strings that are not addresses.
+  Nothing failed, because `subject` is text; the fixtures had simply stopped being what
+  they claimed to be.
+
+  What is still outstanding is the upload worker's SVG and EXIF probes (Phase 3).
+
 - **Run (once added):** included in `npm run test:integration` (these probes need a real
   database and, for the upload cases, the worker), so they run under `verify:full`.
 - **Add one (once added):** each row of `docs/security.md` that names a behaviour (not
@@ -1510,13 +2784,355 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   upload has no EXIF after processing, enumeration timing is equal for a real and a fake
   account.
 
+#### The HTTP boundary (Phase 2 Task 10), which is where the guard, the CSRF refusal and the CSP are proved
+
+Four new suites, and what decides where each case lives is whether its claim is about a
+database.
+
+- **`apps/web/lib/auth/adminAccess.test.ts`, `browserSession.test.ts`, `httpForm.test.ts`
+  (unit).** Pure: a path, a method, two origins, a `Cookie` header, a `Request`. All three
+  are gated at **100/100/100 by name** in `vitest.config.ts` rather than left under
+  `apps/web/lib/**`'s 95%, because each is imported by `apps/web/middleware.ts` and
+  therefore runs in the Edge runtime, where a mistake is caught by nothing else.
+
+  The cases worth knowing about are the negative ones. `isCrossSiteMutation` has a case
+  named for an **absent** `Origin`, because a check written as `origin !== target` refuses
+  `null` by luck rather than by decision, and a later "for robustness" guard would silently
+  invert it. `isGuardedAdminPath` has a case for **an address nobody wrote down**, which is
+  what makes it a policy rather than a list. `readBrowserSession` has a case for
+  `not-td-session=stolen`, which a scan by `indexOf` would read as the reader's session.
+
+- **`apps/web/lib/auth/adminGuardRegistration.test.ts` (unit).** The structural guard: it
+  reads every `page.tsx` and `route.ts` under `app/(admin)/admin` off the filesystem, turns
+  each into the address Next serves it at, and requires each to be declared public or to
+  name the guard — directly or through the one `lib/auth` module it re-exports its handler
+  from. **Its first case is a sentinel**: the walk must have found `/admin/sign-in`,
+  `/admin/sign-in/done`, `/admin/sign-out` and `/admin/reset/[token]` by name, because a
+  scan that walked the wrong directory would find nothing and pass with every screen
+  unguarded — the decorative shape CLAUDE.md §10 names. A second sentinel requires at least
+  one guarded address to exist, so the main case cannot pass vacuously in a repository
+  where everything had been declared public.
+
+- **`apps/web/lib/auth/guard.integration.test.ts`.** Whether an identifier names a live row
+  is a fact about the `sessions` table. Four refusals — no cookie, an identifier naming no
+  row, a revoked row, an aged-out row — and the two rotation cases the task brief names:
+  the pre-auth identifier authenticates nothing before a sign-in, and **still**
+  authenticates nothing after it while the new one does. That second case is the one an
+  implementation which adopts the identifier it was handed cannot pass; "a session exists
+  afterwards" is not.
+
+  **It also EXECUTES `guardedAction`, which nothing did until round 9, and that was the
+  sixth whole-branch review's most valuable finding.** The factory an ESLint rule, an ADR
+  and four documents exist to funnel every Phase 4 mutation through had no caller anywhere;
+  the only thing over its body was two `toContain` substring assertions in
+  `adminGuardRegistration.test.ts`. The reviewer replaced the body with a
+  `process.env`-keyed path that skipped `requireAdminSession()`, kept both substrings, and
+  measured `eslint`/`tsc`/prettier clean with **1,348 unit tests passing** — and the
+  `c8 ignore` region over the factory said its "runtime behaviour is covered in the browser
+  by `e2e/signIn.spec.ts`", which no browser path could reach.
+  `apps/web/lib/auth/guard.integration.test.ts` now stands over it in at least three
+  cases: an unauthenticated call never reaches the action and redirects to the sign-in path; an
+  authenticated one reaches it with the session the guard produced, as its FIRST argument;
+  and a call made after that session is revoked is refused, so a factory caching the session
+  it first saw fails. Re-gutting the body the reviewer's way fails all three. `next/headers`
+  and `next/navigation` are stood in for — the framework's request boundary, which CLAUDE.md
+  §2.3 permits — and everything below them is a real row in a real Postgres, which is why
+  the cases live here rather than in a unit file. **`guard.ts` therefore carries no
+  `c8 ignore` region at all any more**, and its 100/100/100 in
+  `vitest.integration.config.ts` is measured over the factory rather than around it.
+
+- **`apps/web/lib/auth/signInEndpoints.integration.test.ts` and
+  `resetRequestEndpoint.integration.test.ts`.** Real `Request`s, a real Payload, and the
+  handlers calling `getPayload()` themselves — the same pairing
+  `newPasswordScreen.integration.test.ts` makes. Both are gated at **100/100/100** in
+  `vitest.integration.config.ts`.
+
+  **The indistinguishable-refusal cases compare the whole response.** `responseShape` reads
+  the status, EVERY header and the body, and the three arms are compared with one `toEqual`
+  rather than three assertions that happen to agree today — a comparison of the status and
+  the `Location` alone would pass for a handler that set a `Set-Cookie` on one arm and not
+  the other. The one value that legitimately differs, the freshly minted identifier, is
+  replaced by a fixed word rather than dropped, so the cookie's name, its every attribute
+  and its **presence** are all still compared. The timing case measures the HANDLER over 25
+  interleaved samples per arm, because the handler is what an attacker can reach; the band
+  is the same deliberately wide 0.6–1.6 `signIn.integration.test.ts` uses, and every sample
+  is fresh in every dimension so that neither arm can be pushed onto the short path.
+
+  **The code step's challenges are issued by the test's own OTP service**, bound to the
+  same browser identifier the handler will read out of the cookie. That is not a shortcut
+  around the handler — the handler's own mailer prints to a terminal, so it is the only way
+  to know the six digits — and what the handler is then asked is the real question: does
+  this code, for this browser, produce a rotated session.
+
+  **The reset endpoint's identical-answer case uses two addresses that mask to the same
+  string** (same first two characters, same domain), so the whole response is comparable
+  rather than only its shape, and then asserts that the one thing which DID differ is
+  invisible from outside: only the real address has a reset token.
+
+- **`apps/web/middleware.test.ts`** gained at least eleven cases for the admin, and the ones that
+  matter are again negative: the diary's `/p/<n>` response, its `/m/<n>` rewrite and the 308
+  off the internal path are each asserted to carry **none** of the admin's headers, one
+  header at a time, and to be handed no minted cookie. Adding either would be a behaviour
+  change to thirty-three pages this task does not own.
+
+#### Fix round 1: the suite was testing a request shape no browser makes
+
+Every route case in round 0 — unit, integration and browser — SET the `origin` header
+itself. `e2e/reset.spec.ts` did it under a comment calling it "what a browser form would
+have sent". It was not. Under the `Referrer-Policy: no-referrer` the admin then carried, a
+form-navigation `POST` sends `Origin: null`, and the cross-site check refused it: **every
+form on the surface answered `403` in a real browser**, with 1,283 unit tests, 314
+integration tests, twenty-one mutations and a green browser suite agreeing it worked.
+
+**A second defect of the same shape was underneath it.** `SCREENS.md` §3.2's pane posts six
+fields all named `code`. The handler read them through `Object.fromEntries`, which keeps one
+value per name, so it compared a single character against a six-digit code. The integration
+suite sent a single `code` field and agreed with the handler.
+
+Neither is an untested mechanism. Both are mechanisms **tested against a fiction**, and the
+rules that come out of it are:
+
+- **No browser test sets a request header.** `e2e/signInJourney.spec.ts` fills in the real
+  forms and presses the real buttons, through the second factor and out the other side; the
+  only `page.request` call left in the repository is the one case that exists to assert a
+  headerless post is refused with `403`. Reverting `Referrer-Policy` fails five cases across
+  that file and `e2e/reset.spec.ts`.
+- **A fixture builds the request the same way the product does.**
+  `signInEndpoints.integration.test.ts`'s `aPost` now appends one `code` field per digit,
+  because that is what the pane sends.
+- **The one thing a browser genuinely cannot do is named, not worked around.** The six
+  digits live in the server's own mailer outbox and the stored hash is scrypt, so
+  `e2e/support/adminSession.ts` issues a second challenge through this repository's own
+  `otpService` and reads it from an outbox the test process owns — which is exactly what
+  "Send a new code" does. Everything either side of that step is the reader's own.
+
+**The helper checks its own work.** `aSignedInSession` asks the same `authenticate` the
+guard asks before handing a session back. Without it, a fixture that failed presented as a
+guarded screen quietly redirecting and an assertion failing on a missing element — which is
+how one flaky container run read before the cause (three viewport projects sharing one
+fixture account, one project's `afterAll` deleting it under another) was found. Every
+caller now names its own account and deletes only that one.
+
+**`e2e/tsconfig.json` includes the app's `lib`, `collections`, `globals`, `migrations`,
+`scripts` and `payload.config.ts`**, because that helper calls this repository's own
+services rather than duplicating what they store. TypeScript projects must list every
+transitive file; it is scoped to those directories rather than all of `apps/web` so no React
+route is typechecked under a config with no JSX settings.
+
+#### Fix round 2: three fixture defects, and a baseline that was a picture of a transient state
+
+**"Exit 0, no flakes" was read off one run.** Three container runs after round 1 were
+clean / 2 flaky / 1 flaky, green only because CI retries once. A summary with a `flaky`
+count is not a green suite, and one run is not a measurement of an intermittency. Three
+runs are the standing check now, and this section is what they found.
+
+- **Fixtures are keyed per WORKER, not per project.** `test.afterAll` fires once per
+  worker and `playwright.config.ts` sets `fullyParallel: true`, so one project's tests
+  split across workers and each worker's cleanup deleted the account another worker of the
+  same project was still signing in as. Round 1 closed cross-_project_ sharing and left
+  this. `e2e/support/adminSession.ts`'s `fixtureLabel` is the fix, and the same mistake was
+  in `signInJourney.spec.ts`'s own four accounts.
+- **`aSignedInSession`'s self-check reads stronger than it is**, and that is now written at
+  it: it proves the session was live AT MINT TIME. Nothing about a fixture can prove the
+  row still exists a second later when the browser presents it. Only making the row nobody
+  else's does.
+- **Cleanup deletes by predicate, not by id.** A `find`-then-`delete({ id })` is not
+  atomic, and a row that vanished between the two arrived as a `NotFound` thrown from
+  inside Payload — which is what the flaky runs actually reported.
+- **`signInEndpoints`' and `resetRequestEndpoint`'s fixture addresses are unique per RUN.**
+  `rateLimit.ts` keys its second window on a HASH of the address, which no `LIKE` cleanup
+  can match, so those rows outlive `afterAll` for their fifteen minutes. Addresses derived
+  from a counter that restarts every run were reused, and two or three runs inside a
+  quarter of an hour pushed one past the ten-attempt ceiling: a case posting a CORRECT
+  password got `?state=refused`, which reads exactly like a broken handler. It was always
+  there; adding cases made it reachable sooner.
+
+**The `cms-admin*.png` baselines were regenerated, and the reason is worth reading.**
+Payload's own admin shows "create first user" to an EMPTY database and a login form to one
+with any account in it. Those baselines were taken against an empty one — and this suite
+now creates an account for the signed-in screen's session, so `/cms` was screenshotted in
+whichever state another worker had left. Measured: at 390x844 `/cms` is 1246px tall with no
+account and exactly 844 with one; at 1000x800 and 1440x900 it is the viewport height either
+way, which is why the failure only ever showed at `mobile`.
+
+The fix is that the suite now GUARANTEES the precondition it baselines, in a `beforeAll`,
+rather than inheriting it. The new state is also the durable one: from the moment this
+diary has its author account, every deployed instance shows the login screen, so the old
+baselines were a picture of a condition that only holds before anyone signs up. Both images
+were opened and compared — same unstyled treatment, only the screen differs — and
+`e2e/layout.spec.ts` was green in the run that produced them, per the standing rule.
+
+#### Task 11: the log, and the browser sweep
+
+**`apps/web/lib/auth/logSafety.integration.test.ts`** is the one security assertion that
+belongs to no single module: nothing this surface hands to a log carries a secret, a code, a
+token or a whole email address (`CLAUDE.md` §7). Every service already asserts its own call
+site — `otpService`'s suite that the mailer's terminal line carries no code, `signIn`'s that
+the credential-store report names neither address nor password. What none of them can see is
+the union, and two things had no assertion at all before this file: **reset tokens** and
+**session identifiers**.
+
+It drives one whole journey — unknown address, wrong password, correct password, wrong code,
+right code, session started, authenticated and revoked, reset link, credential-store outage —
+with both sinks recording: all six levels of `payload.logger`, and the mailer's own
+`logLines`. There is no third sink, and that is enforced rather than assumed:
+`eslint.config.js` sets `no-console: 'error'` repository-wide with two path-scoped
+exceptions, each naming one file: the console mailer, and `scripts/run-lighthouse.mjs`,
+which is a terminal command rather than application code (finding 43 — this sentence said
+one). Neither is reachable from the sign-in surface. That is also why this file does not
+patch `console` — doing so would need the very kind of override whose absence over
+application code is the guarantee.
+
+**Every case reads the transcript through a guard that refuses to hand it over unless both
+sinks are demonstrably in it.** Six negatives over a string are six assertions that hold
+trivially when the string is empty, which is this phase's most-repeated defective test shape.
+Break the drive and all six fail, rather than all six passing.
+
+Four mutations, each watched to fail the case named for it:
+
+```
+console-mailer prints message.text on the non-development branch  -> code case, reset-token case
+signIn.ts appends the address to the credential-store report      -> address case
+sessions.ts logs the identifier it has just minted                -> session case
+signIn.ts's credential-store report deleted entirely              -> all six, through the guard
+```
+
+**The browser sweep** is `docs/qa/2026-09-07-sign-in-sweep.md`: seven addresses at three
+viewports plus one driven journey, with `console`, `pageerror`, `requestfailed` and every
+response >= 400 attached before every `goto`, and 21 axe analyses with no exclusions and no
+violations. It found **four** defects — three, plus a fourth its own review found in the same
+family — all on `/admin/sign-in/code`, none visible to any assertion in this repository, and
+all four faces of one decision: `otpService` treated a challenge that could no longer be
+answered as one that had never existed. The screen therefore drew the no-challenge
+placeholder, the placeholder re-anchored both countdowns on every render, the pane's own
+"Three wrong codes" message became unreachable while its jsdom case stayed green, and "Send a
+new code" — the only move `SECURITY.md` §3 leaves an exhausted reader — mailed nothing and
+said nothing.
+
+**Fixed as one class**, per `.claude/skills/fixing-browser-defects/SKILL.md`: six cases
+written red first (five in `otpService.integration.test.ts`, one in
+`signInEndpoints.integration.test.ts`), the cause fixed in two reads rather than the four
+symptoms, and `readCodeScreen.integration.test.ts`'s "falls back to the placeholder once the
+guesses are gone" INVERTED — that case had been ratifying the defect, and was the second time
+the same case had asserted the wrong thing.
+
+**The sweep found three of the four and stopped one click short of the fourth.** It drove the
+resend button, waited out the cooldown, recorded `"Send a new code", disabled false` — and
+never pressed it. A sweep that walks up to a control and stops has not tested it.
+
+The sweep driver was a temporary spec, deleted once the report was written;
+`e2e/ciRegistration.test.ts` correctly failed while it existed and passes now.
+
+#### `apps/web/lib/auth/securityCitations.test.ts` — the citation column checks itself
+
+`docs/security.md`'s table quotes a test case name for every requirement it discharges — a
+hundred and some, and the guard below asserts a FLOOR rather than the number, for the reason
+its own comment gives. Task 11 wrote them and claimed none
+was paraphrased; its review found three that were, plus nine more carrying Markdown the
+source does not (backticks inside the quotation, restyled quotes), so twelve could not be
+found by a reader who searched for them. Every one pointed at a real, correct, covering case
+— which is what makes it dangerous rather than obvious: nothing was wrong with the discharge,
+only with the citation.
+
+Nobody can hold that many strings in their head across a rewrite. This unit test reads the document
+and every `.ts`/`.tsx` file under `apps/`, `packages/` and `e2e/`, extracts the first
+argument of every `it(...)` and `test(...)` it finds, and requires each citation to be one of
+those names. It normalises exactly two things, both notation rather than words: the backslash
+TypeScript needs before an apostrophe inside a single-quoted literal, and the curly
+apostrophe. Nothing else — so a paraphrase of any kind still fails.
+
+**Two things about it were weaker than it read, and were tightened in the same round it was
+written.** It matched only curly `“…”` runs, so a citation typed with straight quotes was not
+checked at all — and not checked SILENTLY, which is the failure mode it exists to end. And
+its corpus was every source file's whole TEXT, so a quotation that appeared only inside a
+module header comment resolved, while the case was named "are all real". It now reads both
+quote characters and matches against declarations, and it separates citations from quoted
+PROSE — the ten fragments in that table which quote the handoff, the UI or a dependency's
+message rather than a test — by an explicit list rather than by which quote character
+somebody typed. Every entry of that list must still appear in the document and must not be a
+declared case name, so an exemption cannot outlive the sentence it exempts or quietly excuse
+a real citation.
+
+Non-vacuous five ways: a floor on the number of citations found; a floor on the number of
+declarations extracted (the corpus is an extraction now, so a pattern that stopped matching
+must say so in one failure rather than 113); a sentinel string required to be ABSENT from the
+declarations, so the search is proved able to say no; a case name owned by another file
+required to be PRESENT, so an extraction that returned nothing fails here; and the
+exemption-list checks above. It excludes its own source from the corpus, which is what keeps
+the sentinel meaningful.
+
+Proved able to fail, four ways, each failing the case named for it:
+
+```
+a curly citation reworded "not from" -> "rather than"            -> unfindable
+a bogus citation typed with STRAIGHT quotes                      -> unfindable (silently ignored before)
+a citation that exists only in a module header comment           -> unfindable (resolved before)
+the sentence one prose exemption covers, deleted                 -> stale exemption
+```
+
 ### 9 · Migration
 
 - **Tool:** Vitest.
 - **Scope:** every migration runs up, down, and up again against a seeded database.
-- **Status:** implemented. `apps/web/migrations/` holds two migrations:
-  `20260831_154311_initial` (every collection and global's schema) and
-  `20260831_161951_add_jobs` (the `jobs` table backing the `queue` port, Task 9).
+- **Status:** implemented. `apps/web/migrations/` holds five migrations:
+  `20260831_154311_initial` (every collection and global's schema),
+  `20260831_161951_add_jobs` (the `jobs` table backing the `queue` port, Task 9),
+  `20260905_202028_add_otp_session_hash` (the OTP challenge's session binding, Phase 2
+  Task 3 — `docs/deviations.md` §25), `20260905_230601_add_sign_in_attempts` (the
+  sliding window's own table, Phase 2 Task 4 — `docs/deviations.md` §27) and
+  `20260906_004937_add_session_expiry` (the session row's lifetime and the index an
+  authentication reads by, Phase 2 Task 6 — `docs/deviations.md` §30). Each of the four
+  later ones has its **own** case in `collections.integration.test.ts` rather than
+  sharing one.
+
+  The `session_expiry` case asserts on the column **and** the index, and on the
+  `sessions` table surviving — this migration adds to a table it did not create, so a
+  `down()` that took the table with it would be a different and much worse kind of
+  reversible. Verified by making `down()` a no-op and watching it fail. That migration's
+  `up()` is also the first here to be hand-split rather than hand-reordered: as generated
+  it was a single `ADD COLUMN ... NOT NULL` with no default, which succeeds only against
+  a table with no rows, so `down()`-then-`up()` — the very thing this suite exists to
+  assert — would have failed the moment one session existed. Split into add-nullable,
+  backfill, `SET NOT NULL`, it holds whatever the table contains. **A generated
+  migration passing a reversibility test against an empty table is not the same as a
+  reversible migration**; check the `up()` against a populated one before believing it.
+
+  The `sign_in_attempts` case asserts on **all five** artefacts its migration creates —
+  the table, its compound index, its two enum types, and the column Payload adds to
+  `payload_locked_documents_rels` — rather than on the table alone. A `down()` that
+  dropped the table and left the enum types behind would satisfy a table-only assertion
+  and then fail its own re-apply with "type already exists", which is exactly the class
+  of bug the hand-fixed statement order in that file's `down()` exists to prevent.
+  Verified by making `down()` a no-op and watching it fail.
+
+  **All four reversibility cases re-apply in a `finally`,** including the roll-to-zero
+  one, which did not until a review pointed out that documenting its blast radius was not
+  the same as closing it. Between `runMigrateDownToZero()` and `runMigrateUp()` the
+  database has no schema at all, and an assertion failing in that gap used to leave it
+  that way: measured, one failing assertion there turned into four failed cases and a
+  `diary_test` with no `payload_migrations` table, so every later file in the project ran
+  against nothing. With the `finally`, the same failing assertion leaves all four
+  migrations applied and the schema intact — measured too. What a `finally` cannot cover
+  is a `down()` that leaves artefacts behind, because the re-apply then legitimately fails
+  on the collision; **that** case still needs hand repair (drop `sign_in_attempts`, both
+  `enum_sign_in_attempts_*` types and the `payload_locked_documents_rels` column, then let
+  the next run apply `up()` again), and it is the one to expect when mutating a `down()`
+  on purpose.
+
+  The `session_hash` case is also the one worth reading before writing another migration
+  test, because its first version was worthless and looked fine. It rolled every
+  migration back to zero and asserted the _table_ came back — which the INITIAL
+  migration's `down()`/`up()` does on its own, so the case passed with this migration's
+  `down()` replaced by a no-op. It now rolls back **that migration alone** (through the
+  same `up`/`down` functions Payload itself loads, via `readMigrationFiles` — a static
+  import would register a second copy of the file and wreck its coverage report, measured
+  at 60% branches purely from adding one) and asserts on the **column and its index**,
+  which are the only two facts this migration is responsible for. Verified by making
+  `down()` a no-op and watching it fail.
+
+  The general rule: assert on what the migration under test actually changes, and
+  reverse only that migration. A reversibility test that leans on a wider rollback is
+  measuring the wider rollback.
   `apps/web/lib/migrate.ts` wraps Payload's migration runner as `runMigrateUp`,
   `runMigrateDown`, `appliedMigrationCount` and `runMigrateDownToZero`.
   `apps/web/lib/testPayload.ts`'s `getTestPayload()` calls `runMigrateUp` once, on
@@ -1527,6 +3143,7 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   earlier version of this task found `push` silently building the schema ahead of the
   first real migration, which would have made the migration decorative rather than the
   thing that actually built the tables.
+
 - **What the reversibility test actually does.** `collections.integration.test.ts`'s
   last case — _"rebuilds every table a journey, its highlights and its tally need, after
   rolling all migrations back to zero and re-applying them"_ — writes a journey whose
@@ -1604,6 +3221,155 @@ because other objects depend on it` — the surviving `journeys` table still use
   again, assert the values round-trip. Then break one statement in the new migration's
   `down()` and confirm the case fails, and paste that failure. A reversibility test that
   has never failed is not evidence (`CLAUDE.md` §2.3).
+
+## The documentation guards
+
+**The four checks in `apps/web/lib/docs/` are not a tenth suite. They are the ninth
+whole-branch review turned into a command**, and they exist because of what that review
+counted rather than what it found: **nineteen of its twenty-one findings were reached by a
+script, not by judgement.** Nine rounds had each read roughly twenty thousand lines of
+prose and each returned about twenty findings, and the rate never fell — because prose has
+no compiler and this repository has chosen to carry an unusual amount of it. A tenth
+reading would have found twenty more. So the class that a file read can settle is settled
+by a file read, in `npm run verify`, on every commit.
+
+They are modelled on the two guards of this shape the repository already had —
+`e2e/ciRegistration.test.ts`, which refuses a spec that no CI line names, and
+`apps/web/lib/auth/securityCitations.test.ts`, which refuses a citation that resolves to no
+test case. Like both, each one **fails by name**: it prints the document, the line and the
+offending text, not an exception.
+
+They live under `apps/web/lib/docs/` for the reason `securityCitations.test.ts` lives under
+`apps/web/lib/auth/`: the `unit` project's `apps/web/lib/**/*.test.ts` glob already reaches
+there, so they run in the PRE-COMMIT gate rather than only in CI, and they needed no new
+include of their own. `apps/web/lib/docs/markdownCorpus.ts` is the one thing they share —
+the repository's Markdown, listed by `git ls-files` rather than by a directory walk, since
+a walk needs a skip list and a skip list is an enumeration that drifts.
+
+### 10.1 · `fencedProse.test.ts` — no prose is trapped in a code fence
+
+Lexes every tracked Markdown file with `marked`, the same lexer a Markdown viewer runs, and
+refuses a code block that reads as a paragraph: untagged, over forty words, carrying
+sentence punctuation and at least `INLINE_MARKDOWN_LIMIT` marks of inline Markdown (bold,
+code spans, emphasis, links). It also refuses a file whose fence lines do not pair up.
+
+**It exists because a fix was reported as landed and had not landed.** ADR 0019 closed a
+three-row measurement block one line early and reopened a block that ran to the end of the
+file; the correction added three lines of prose saying the fence had been moved, INSIDE
+that block, and never touched a fence. The document then asserted in the past tense that a
+defect the reader was looking at had been repaired, and it survived a whole further review
+that way (final review 9, F9-1).
+
+Both questions are needed and neither subsumes the other: the defect's fences were
+BALANCED — four of them — so counting could never have found it, and a block left open at
+the end of a file swallows whatever is there without necessarily reading as prose.
+
+**What walks past it, measured:** a swallowed paragraph shorter than forty words, and a
+swallowed paragraph inside a fence carrying a language tag. Both are stated at the check.
+The threshold was set from the corpus rather than guessed — the swallowed block scores
+seven inline marks, and no legitimate untagged block in this repository scores more than
+two.
+
+### 10.2 · `pathCitations.test.ts` — every backticked path and identifier resolves
+
+Over the LIVING documentation — `README.md`, `CLAUDE.md`, `docs/*.md` and `docs/adr/*.md`.
+`docs/qa/**` and `docs/superpowers/**` are excluded deliberately: they are dated records of
+what was true when they were written, and requiring their citations to resolve would train
+their authors to edit the record. `handoff/**` is the specification and is not ours to
+correct.
+
+A path resolves if git lists it, or lists a file with that basename; an ESM specifier's
+`.js` is rewritten to `.ts` first. An identifier is a backticked token that is camelCase,
+PascalCase or SCREAMING_SNAKE — that shape is the whole filter, because a list of English
+words to exclude would be another enumeration — and it resolves if it appears anywhere in
+this repository's own source.
+
+`packages/ui` was listed as a package of this workspace for two phases and has never
+existed (F9-6); `RESET_PATH` was attributed to the module that imports it rather than the
+one that declares it (F9-11). Neither survives this.
+
+Two exemption lists in that file — one for paths, one for identifiers, each named and
+explained in its own TSDoc — carry what cannot resolve and should not: a report in the
+untracked `.superpowers/` directory, a probe written to disk and deleted, a browser API, a
+symbol a document says in its own next paragraph is gone. Each entry carries its reason,
+and both lists are fail-closed in both directions: an entry no document quotes any more
+fails, and an entry that starts resolving fails, so a list can neither rot into a hole nor
+quietly excuse something real.
+
+Note what that costs, because it is a real edge: the file excludes ITSELF from the source
+corpus, so that its own exemption entries cannot resolve by quoting themselves. A constant
+declared only in that file is therefore not resolvable from prose, which is why this
+section describes the two lists rather than naming them in backticks.
+
+### 10.3 · `configCitations.test.ts` — every quoted configuration value is read back
+
+Each citation names the config, an extractor that READS THE VALUE OUT OF IT, and the
+document that must quote it. **Nothing in that file holds a copy of a budget**: writing the
+number there would be a third place for it to drift, and the check would then be edited to
+follow the mistake. Reading the config means moving a gate fails the document that
+describes it.
+
+It covers the diary, book and admin script budgets, the gallery image budget, the three LCP
+gates, `numberOfRuns`, all three measured viewports and the mobile device pixel ratio, the
+published Postgres port, and the pure-domain coverage threshold. It also requires every
+`unit` include glob in `vitest.config.ts` to be quoted in this document, and every
+`lighthouserc*.json` at the root to be named by it.
+
+Three of the ninth review's findings were this one defect in three shapes: an enumeration
+here that omitted two of the `unit` project's include globs, so an auditor checking
+CLAUDE.md §2.1's "no file is in neither config's include" audited a smaller set than the
+config collects (F9-8); a bolded present-tense claim that `npm run test:perf` runs TWO
+Lighthouse configurations, when it has run three since Task 11 (F9-9); and the one
+containment cannot settle —
+
+`npm run test:visual:container:update` was described as regenerating every baseline rather
+than only the changed ones — the mode the OTHER script passes (F9-2). Both mode words
+appear all over this document legitimately, so `contradictedSnapshotPairings` works by
+PROXIMITY: the script named nearest before a `--update-snapshots=` is the one that
+sentence describes, and the mode has to be the one that script's own compose service
+passes. The sentence that shipped the defect is a fixture in the case, so the check is
+proved able to report it rather than only to pass over the corrected text — and it cannot
+tell a quotation from a claim, which is why the defective sentence is described here
+rather than reproduced.
+
+### 10.4 · `caseCounts.test.ts` — a count in prose is a floor, or it is deleted
+
+**This is a repository rule, not just a check.** Eleven of the ninth review's twenty-one
+findings were one sentence written eleven times: an exact count of a named test file's
+cases, true the day it was typed and stale by the next task. Every earlier round produced a
+share of the same shape, and every round corrected the numbers — which is the treatment
+that guarantees the next round finds them stale again.
+
+`securityCitations.test.ts` had already written the argument: _"Pinning the exact number
+would fail every time a row gained a case, which trains its author to edit the number
+rather than read the failure."_ The rule is now repository-wide. Where the magnitude is
+worth saying, say **at least N** and let the check resolve it against the file; where it is
+not, do not carry a number.
+
+The check finds a backticked test or spec path followed within eighty characters by a
+number and the word "case" or "cases", and asks two things: is it a floor (`at least`,
+`no fewer than`, `or more`), and does the file it names declare at least that many case
+declarations. A floor above what the file holds fails too, so a floor cannot become a
+comfortable fiction.
+
+**What it does not catch, stated rather than implied:** a count with no test file named
+beside it, because nothing can resolve it; a count of a subset of a file's cases, which it
+treats as a floor over the whole file and so judges more weakly than the sentence claims;
+and a mispaired sentence that names one file and counts another's, which resolves against
+the wrong file — where that was true here, the sentence was rewritten to name the file it
+counts. Counts of other things in prose — shapes, configurations, documents — are the same
+rule applied by a person; this is the population that recurred eleven times in one review.
+
+### 10.5 · How to run them
+
+```
+npx vitest run --project unit apps/web/lib/docs        # all four
+npx vitest run --project unit apps/web/lib/docs/fencedProse.test.ts
+npm run verify                                          # what Husky runs
+```
+
+They read files and compare strings: no browser, no server, no Postgres. The whole
+directory runs in well under a second.
 
 ## Test quality rules (apply to every suite above)
 

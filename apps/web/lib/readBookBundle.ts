@@ -552,11 +552,7 @@ export const readBookBundle = cache(async (): Promise<BookBundle> => {
     // back from `find()` with no `draft: true` passed). Without this filter,
     // an unpublished draft would appear in the public book.
     where: {
-      and: [
-        { _status: { equals: 'published' } },
-        { deletedAt: { equals: null } },
-        { archived: { not_equals: true } },
-      ],
+      and: [{ _status: { equals: 'published' } }, { deletedAt: { equals: null } }, { archived: { not_equals: true } }],
     },
     select: {
       slug: true,

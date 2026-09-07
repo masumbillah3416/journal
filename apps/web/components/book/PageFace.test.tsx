@@ -14,7 +14,13 @@
  * would make that proof meaningless.
  * Depends on: react, react-dom/client, @travel-diary/domain, vitest (jsdom).
  */
-import { deriveContents, derivePages, type BookPage, type ContentsEntry, type Slot } from '@travel-diary/domain/bookBundle'
+import {
+  deriveContents,
+  derivePages,
+  type BookPage,
+  type ContentsEntry,
+  type Slot,
+} from '@travel-diary/domain/bookBundle'
 import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
 import { aBookChrome, anAboutContent, aJourney } from '@travel-diary/domain/testing/factories'
 import { act } from 'react'

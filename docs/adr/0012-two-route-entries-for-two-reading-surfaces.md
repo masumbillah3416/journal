@@ -17,19 +17,19 @@ HTML. But Turbopack compiled both component trees into the route's single client
 group, because **the split Turbopack performs is per route ENTRY, not per import**. One
 entry importing both `Book` and `MobileDiary` produced:
 
-| | one chunk group |
-|---|---|
+|                          | one chunk group                                                          |
+| ------------------------ | ------------------------------------------------------------------------ |
 | the route's client chunk | **20,161 B** raw, containing `data-design-box` AND `data-mobile-content` |
-| the route's stylesheet | **41,704 B** raw, containing `book-module__` AND `mobile-module__` |
+| the route's stylesheet   | **41,704 B** raw, containing `book-module__` AND `mobile-module__`       |
 
 Every desktop reader downloaded the mobile mode's client half and its 23,923-byte
 stylesheet; every phone downloaded the book's. Task 15 measured the cost against
 `CLAUDE.md` §6's gate and reported it rather than hiding it:
 
-| | LCP median | script | document | stylesheet | CLS |
-|---|---|---|---|---|---|
-| before the mobile mode (book) | 2,936.12 ms | 142,420 | 11,454 | — | 0 |
-| **Task 15 (book, gated)** | **3,011.36 ms** | 148,791 | 11,531 | 10,741 | 0 |
+|                               | LCP median      | script  | document | stylesheet | CLS |
+| ----------------------------- | --------------- | ------- | -------- | ---------- | --- |
+| before the mobile mode (book) | 2,936.12 ms     | 142,420 | 11,454   | —          | 0   |
+| **Task 15 (book, gated)**     | **3,011.36 ms** | 148,791 | 11,531   | 10,741     | 0   |
 
 **RED by 11.36ms against 3,000**, and 75.24ms slower than the same tree one `if` earlier.
 `next/dynamic` was tried twice, the second time through Lighthouse: 148,646 bytes against
@@ -84,30 +84,30 @@ phone emulation. Nothing left this machine (CLAUDE.md §7.1).
 
 ### What each route now compiles to
 
-| | before (one entry) | book entry | mobile entry |
-|---|---|---|---|
-| client chunk, raw | 20,161 B (both) | **11,474 B** | 18,844 B |
-| stylesheet, raw | 41,704 B (both) | **28,599 B** | 13,105 B |
-| `book-module__` present | yes | yes | **no** |
-| `mobile-module__` present | yes | **no** | yes |
+|                           | before (one entry) | book entry   | mobile entry |
+| ------------------------- | ------------------ | ------------ | ------------ |
+| client chunk, raw         | 20,161 B (both)    | **11,474 B** | 18,844 B     |
+| stylesheet, raw           | 41,704 B (both)    | **28,599 B** | 13,105 B     |
+| `book-module__` present   | yes                | yes          | **no**       |
+| `mobile-module__` present | yes                | **no**       | yes          |
 
 The book entry sheds 13,105 raw bytes of stylesheet it never applied — and a stylesheet is
 render-blocking, which is why the LCP win is larger than the script bytes alone suggest.
 
 ### LCP and transfer
 
-| | LCP median | five runs | script | document | stylesheet | CLS |
-|---|---|---|---|---|---|---|
-| Task 15 (book, gated) | 3,011.36 ms | 3,010.23–3,038.43 | 148,791 | 11,531 | 10,741 | 0 |
-| **now (book, gated)** | **2,932.66 ms** | 2,930.69 / 2,932.46 / **2,932.66** / 2,935.45 / 2,962.96 | 149,658 | 11,492 | 12,195 | 0 |
-| Task 15 (mobile surface) | 2,931.23 ms | 2,927.21–2,945.95 | 148,775 | 5,208 | — | 0 |
-| **now (mobile surface)** | **2,929.58 ms** | 2,927.22 / 2,928.47 / **2,929.58** / 2,933.15 / 2,935.74 | 144,826 | 5,224 | 6,237 | 0 |
+|                          | LCP median      | five runs                                                | script  | document | stylesheet | CLS |
+| ------------------------ | --------------- | -------------------------------------------------------- | ------- | -------- | ---------- | --- |
+| Task 15 (book, gated)    | 3,011.36 ms     | 3,010.23–3,038.43                                        | 148,791 | 11,531   | 10,741     | 0   |
+| **now (book, gated)**    | **2,932.66 ms** | 2,930.69 / 2,932.46 / **2,932.66** / 2,935.45 / 2,962.96 | 149,658 | 11,492   | 12,195     | 0   |
+| Task 15 (mobile surface) | 2,931.23 ms     | 2,927.21–2,945.95                                        | 148,775 | 5,208    | —          | 0   |
+| **now (mobile surface)** | **2,929.58 ms** | 2,927.22 / 2,928.47 / **2,929.58** / 2,933.15 / 2,935.74 | 144,826 | 5,224    | 6,237      | 0   |
 
 **The gate is GREEN: 2,932.66ms against 3,000, with 67.34ms of margin** — 78.70ms faster
 than Task 15's tree and 3.46ms faster than the same route before the mobile mode existed
 at all. `npm run test:perf` exits 0 with the pinned cookie still in place. CLS 0.
 
-**The gated script figure needs one honest note.** 149,658 is *higher* than Task 15's
+**The gated script figure needs one honest note.** 149,658 is _higher_ than Task 15's
 148,791, and it is not the book's own weight. Lighthouse emulates a 412px-wide phone, and
 `extraHeaders`' cookie is injected at the network layer where `document.cookie` cannot see
 it — so `SurfaceCorrection` measures 412px, disagrees with the served book, writes the
@@ -127,14 +127,14 @@ down from 148,791 and 10,741. Both figures are far inside the 184,320 budget.
 2. **A Turbopack chunking configuration.** Next 16.3's Turbopack exposes no
    `splitChunks`-equivalent knob in `next.config.ts`; there is nothing to configure.
 3. **Building production with webpack instead.** MEASURED, not assumed: `next build
-   --webpack` on this repository **fails outright** —
+--webpack` on this repository **fails outright** —
    `TypeError: Cannot destructure property 'loadEnvConfig' of 'i(...)' as it is undefined`
    while collecting page data for `/gallery/[slug]/download/[id]`, from `@next/env` inside
    Payload's webpack output. Even had it built, it would have meant a production bundler
    that differs from the one `next dev` uses, in a Next release that has made Turbopack the
    default.
 4. **Restructuring so the shared ancestor is thin enough to split naturally.** The shared
-   ancestor *is* the route entry. Turbopack groups a route's client references regardless
+   ancestor _is_ the route entry. Turbopack groups a route's client references regardless
    of how thin the component that imports them is, which is exactly what measurement 1
    demonstrated. Nothing below the entry can change the grouping.
 5. **Two public addresses (`/p/<n>` for the book, `/m/<n>` for the mobile surface), chosen
@@ -142,16 +142,21 @@ down from 148,791 and 10,741. Both figures are far inside the 184,320 budget.
    and needs a canonical to undo the damage, and it puts a redirect round trip in front of
    every mobile page load. The rewrite gets the same two entries with neither cost.
 6. **A `next.config.ts` `rewrites()` with `has` clauses on the cookie and a user-agent
-   regex.** It would work, and it would be a *second* definition of which reader gets which
+   regex.** It would work, and it would be a _second_ definition of which reader gets which
    surface — written in configuration no test collects, beside a domain function gated at
    100% precisely so that decision is written once. The middleware calls that function.
 
 ## Consequences
 
-- **The middleware is on the diary's page path.** Its matcher is `['/p/:path*',
-  '/m/:path*']` and nothing else, so Payload's `/api` and `/cms`, the gallery, `/_next`
-  and every static asset are untouched. It is unit-tested at 100/100/100 from a plain
-  `NextRequest` (`apps/web/middleware.test.ts`, ten cases).
+- **The middleware is on the diary's page path.** Its matcher was `['/p/:path*',
+'/m/:path*']` and nothing else when this ADR was written, so Payload's `/api` and `/cms`,
+  the gallery, `/_next` and every static asset were untouched. **Amended: Phase 2's ADR
+  0018 added `/admin/:path*`** for the CSRF check and the admin security headers, which
+  this ADR's matcher sentence went on denying for the rest of the phase (Phase 2's final
+  review, finding 38). `/api` and `/cms` are still outside it — which is exactly why the
+  Payload REST credential endpoints had to be closed in the collection rather than at the
+  middleware (`apps/web/collections/sealedUserAuth.ts`). It is unit-tested at 100/100/100 from a plain
+  `NextRequest` (`apps/web/middleware.test.ts`, at least 32 cases — ten when this ADR was written. A floor rather than an inventory: an exact count is true the day it is typed and trains its author to edit the number rather than read the failure).
 - **`/p/<n>` now varies by `Cookie` and `User-Agent` at the middleware rather than in the
   page.** The book entry no longer reads request headers at all; it is still dynamic
   because it reads `searchParams` (ADR 0009). Any future CDN in front of this app must key
@@ -163,8 +168,8 @@ down from 148,791 and 10,741. Both figures are far inside the 184,320 budget.
   carries the other's `*-module__` marker. It was proved to fail first, by importing
   `mobile.module.css` into `Book.tsx`.
 - **ADR 0011 stands, with its alternative 5 now taken.** Which surface a reader is served,
-  the cookie, the correction and its readback guard are all unchanged; only *where the
-  decision is spent* moved, from the page to the middleware.
+  the cookie, the correction and its readback guard are all unchanged; only _where the
+  decision is spent_ moved, from the page to the middleware.
 - **`docs/adr/0009`'s window and `docs/adr/0010`'s dynamic rendering are untouched.**
   `?pages=all` is carried across the rewrite, the served window is still the book entry's,
   and all thirty-three deep links still serve their own page's content in raw HTML

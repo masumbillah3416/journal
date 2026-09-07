@@ -15,7 +15,7 @@ Two earlier reports bracket this one and neither should be re-litigated:
   whole subtree, and all thirty-three pages' text is in every `/p/<n>` document. That
   question is settled.
 - `docs/adr/0005-font-hosting.md` then named the surviving, smaller claim — that the
-  page components are *script weight* — and named moving them to server-rendered
+  page components are _script weight_ — and named moving them to server-rendered
   children as the concrete way to buy LCP headroom for a third font family. This ADR is
   that change, and the measurement of whether it bought anything.
 
@@ -119,16 +119,16 @@ is windowed by construction.
 `npm run test:perf` (`lhci autorun`, `numberOfRuns: 5`, median asserted), same machine,
 same config, before and after:
 
-| | Before | After |
-|---|---|---|
-| LCP median, `/p/1` | **2,634.368 ms** | **2,634.656 ms** |
-| all five runs | 2717.2 / 2630.3 / 2638.4 / 2633.4 / 2634.4 | 2645.6 / 2630.9 / 2635.9 / 2634.7 / 2631.0 |
-| LCP phases (median run) | TTFB 454 / Load 0 / Load Time 0 / **Render Delay 2,180** | TTFB 454 / Load 0 / Load Time 0 / **Render Delay 2,181** |
-| `resource-summary:script:size` | 144,386 B | **141,632 B** |
-| document transfer | 15,751 B | 16,863 B |
-| total transfer | 242,281 B | 240,639 B |
-| images on `/p/1` | 0 | **0** |
-| CLS | 0 | 0 |
+|                                | Before                                                   | After                                                    |
+| ------------------------------ | -------------------------------------------------------- | -------------------------------------------------------- |
+| LCP median, `/p/1`             | **2,634.368 ms**                                         | **2,634.656 ms**                                         |
+| all five runs                  | 2717.2 / 2630.3 / 2638.4 / 2633.4 / 2634.4               | 2645.6 / 2630.9 / 2635.9 / 2634.7 / 2631.0               |
+| LCP phases (median run)        | TTFB 454 / Load 0 / Load Time 0 / **Render Delay 2,180** | TTFB 454 / Load 0 / Load Time 0 / **Render Delay 2,181** |
+| `resource-summary:script:size` | 144,386 B                                                | **141,632 B**                                            |
+| document transfer              | 15,751 B                                                 | 16,863 B                                                 |
+| total transfer                 | 242,281 B                                                | 240,639 B                                                |
+| images on `/p/1`               | 0                                                        | **0**                                                    |
+| CLS                            | 0                                                        | 0                                                        |
 
 **The gate is still RED at 2,635 ms against 2,500 ms, and `lighthouserc.json` is
 untouched.** The render delay did not move by one millisecond. The page components were
@@ -145,7 +145,7 @@ runtime and Payload's shared chunks, and that — plus the Caveat face under Lig
 - **All thirty-three pages' text is byte-identical in the served HTML.** `curl` against a
   production build, split at every `data-leaf` boundary, diffed before against after:
   no difference at all — `leaves: 33, total text chars: 7645, leaves with zero text: 0,
-  total <img>: 20, total media src: 0, total non-empty alt: 10` on both sides, and the
+total <img>: 20, total media src: 0, total non-empty alt: 10` on both sides, and the
   same on `/p/12` and `/p/33`.
 - **A flip no longer re-renders thirty-three page subtrees per animation frame.** The
   faces are stable element identities, so React skips them; only the twenty
@@ -169,7 +169,7 @@ runtime and Payload's shared chunks, and that — plus the Caveat face under Lig
   **ADR 0005's finding no longer reproduces.** A third and fourth font file cost this
   route nothing measurable — 38,886 bytes of extra transfer moved LCP by less than the
   run-to-run noise. What has changed is not the font cost but the floor underneath it:
-  the route now sits at ~2,634 ms with two fonts *or* four, because the 2,180 ms render
+  the route now sits at ~2,634 ms with two fonts _or_ four, because the 2,180 ms render
   delay dominates everything.
 
   They are left deferred anyway, and that is a decision, not an oversight: LCP has no
@@ -180,6 +180,7 @@ runtime and Payload's shared chunks, and that — plus the Caveat face under Lig
   and `e2e/pages.spec.ts`'s pinned-fallback test stand unchanged. What HAS changed is
   that restoring Courier Prime is now a live option blocked on a decision rather than a
   closed one blocked on a measurement.
+
 - No visual baseline moved. All twelve committed `-linux.png` baselines matched
   unchanged in `mcr.microsoft.com/playwright:v1.62.1-noble`, in the same 186-test run
   that had `e2e/layout.spec.ts` green.

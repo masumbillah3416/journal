@@ -24,7 +24,7 @@ their dev measurements, so triage is not surprised by them later.
 Departures recorded in `docs/deviations.md` are not reported as defects. Four candidate
 findings were dropped after reading it — the `· 0 clips` census copy (§18 and
 `GalleryHeader.tsx`'s own note), the bookmark sub-line's colour (§15), the lightbox
-metadata's 58% (§21) and the empty gallery caption *element* (§19). One note on §19 is at
+metadata's 58% (§21) and the empty gallery caption _element_ (§19). One note on §19 is at
 the end of this file.
 
 ---
@@ -44,7 +44,7 @@ the end of this file.
   "Journey tabs span 3 pages, so a tab is active when `index ∈ [start, start+3)`" — and
   `Book.tsx`'s header states the address rule: "THE URL IS WRITTEN ON EVERY PAGE CHANGE,
   from one effect keyed on the machine's committed index — **which is the only moment the
-  reader's page actually changes**". A page the book is animating *through* is not a page
+  reader's page actually changes**". A page the book is animating _through_ is not a page
   the reader's address, counter, label and bookmark should name.
 - **Actual:** for 981ms the diary asserts the reader is on a different page of a different
   journey, in four places at once, and writes that address to the address bar. Production
@@ -61,7 +61,7 @@ the end of this file.
   "land[s] on an anchor one page from the target, then turn[s] the single leaf between them",
   so that a jump of twenty-seven leaves is drawn as one page turn rather than the book
   unravelling. That is a sound rendering decision and is not what this defect is about — the
-  defect is that the anchor is *committed as the reader's index*, so `Book.tsx`'s address
+  defect is that the anchor is _committed as the reader's index_, so `Book.tsx`'s address
   effect, the counter, the page label and `isRailTabActive` all read it and publish it.
 
   It is not confined to a cold load. On a whole book (`def=0`) a jump from `/p/2` to the
@@ -77,6 +77,7 @@ the end of this file.
   contract — deep links, the canonical link `generateMetadata` declares, and the `?from=<n>`
   a gallery return is built from. A reader who copies the address, or whose browser records
   it, during the jump gets a page they never asked for.
+
 - **Evidence:** `docs/qa/assets/2026-09-03-phase-1-closing/desktop-jump-transit.png` — shot
   400ms after clicking **Contents**, showing the Tokyo Notes page, the Tokyo tab highlighted
   in the rail, `03 / 33` over `Tokyo — Notes` in the bar, at `/p/3` ·
@@ -124,6 +125,7 @@ the end of this file.
   the reader can download a page texture as though it were a photograph of Tokyo. The row
   already carries the `hidden` flag the query respects, so the mechanism to exclude it
   exists and is not being used.
+
 - **Evidence:** `docs/qa/assets/2026-09-03-phase-1-closing/desktop-gallery-ephemera-frame.png`,
   `mid-gallery-ephemera-frame.png`, `mobile-gallery-ephemera-frame.png` — the lightbox open
   on the scrap · the census above · `apps/web/lib/readGalleryBundle.ts`'s `where` clause ·
@@ -148,20 +150,20 @@ the end of this file.
   and no `<img>` anywhere in the diary — page slots, gallery tiles or the lightbox — carries
   a `srcset` or a `sizes` attribute, so the browser is never given a choice:
 
-  | project | DPR | tile CSS width | device px needed | served | upscale |
-  | --- | --- | --- | --- | --- | --- |
-  | desktop 1440 | 1 | 215px | 215 | 400px `thumb` | 0.54× (fine) |
-  | mid 1000 | 1 | 221px | 221 | 400px `thumb` | 0.54× (fine) |
-  | **mobile 390** | **3** | **354px** | **1062** | **400px `thumb`** | **2.66×** |
+  | project        | DPR   | tile CSS width | device px needed | served            | upscale      |
+  | -------------- | ----- | -------------- | ---------------- | ----------------- | ------------ |
+  | desktop 1440   | 1     | 215px          | 215              | 400px `thumb`     | 0.54× (fine) |
+  | mid 1000       | 1     | 221px          | 221              | 400px `thumb`     | 0.54× (fine) |
+  | **mobile 390** | **3** | **354px**      | **1062**         | **400px `thumb`** | **2.66×**    |
 
   `readGalleryBundle.ts`'s `TILE_TIERS` is `['thumb', 'tile', 'frame', 'hero']` — smallest
   first, unconditionally — and its comment states the reasoning: "A tile is at most 300 CSS
   pixels wide (`GALLERY_THUMB_SIZE.max`), so the 400px `thumb` already covers it at better
   than 1x and comfortably at 2x on the smallest tile". Both halves are measurably wrong.
-  `GALLERY_THUMB_SIZE.max` is the grid's minimum *track*
+  `GALLERY_THUMB_SIZE.max` is the grid's minimum _track_
   (`repeat(auto-fill, minmax(thumbSize, 1fr))`, `SCREENS.md` §1.8) and the `1fr` lets a tile
   grow past it: at 390px there is one column, so the tile is **354px**, not "at most 300".
-  And the widest tile therefore occurs at the *narrowest* viewport, which is exactly the
+  And the widest tile therefore occurs at the _narrowest_ viewport, which is exactly the
   device class with the highest DPR — the assumption is not merely optimistic, it is
   inverted. The `tile` tier (800px) exists for every seeded row and would cover 354px at
   DPR 2; nothing selects it.
@@ -170,6 +172,7 @@ the end of this file.
   deliberately omits it for the lightbox (its own comment says so), and
   `readBookBundle.ts`'s `DERIVATIVE_PREFERENCE` puts it first only for the `hero` role —
   a static, per-role choice with no DPR input on either surface.
+
 - **Evidence:** the table above, read from `getBoundingClientRect()` and `naturalWidth` ·
   `docs/qa/assets/2026-09-03-phase-1-closing/mobile-gallery.png` (a DPR-3 capture of the
   grid) · `apps/web/lib/readGalleryBundle.ts`'s `TILE_TIERS` and its comment ·
@@ -236,6 +239,7 @@ the end of this file.
   completely silent in production. Nothing else appears: **zero** `pageerror`, zero
   `requestfailed` and zero responses ≥ 400 across every walk of this sweep, on either build,
   other than the intended 404 for `/p/999`.
+
 - **Evidence:** the warning above, captured identically on `desktop` and `mid` against
   `next build` + `next start`; the dev capture naming `notFound_module` ·
   `apps/web/app/(diary)/not-found.tsx` and `notFound.module.css`.
@@ -279,6 +283,7 @@ the end of this file.
   connection reopens it; the 1,868ms figure above is Turbopack's compile time, not a
   network floor. Recorded at S4 as a latent hazard with a measured production margin,
   not as a defect a reader meets today.
+
 - **Evidence:** the two traces above · `apps/web/components/book/Book.tsx`'s
   `replaceState` effect and the header paragraph it contradicts ·
   `apps/web/components/book/useRestOfBook.ts`.
@@ -308,6 +313,7 @@ the end of this file.
   It clears on the mobile surface's next navigation, since every control there is a real
   link, so the exposure is one page view — but it is a shareable, bookmarkable address
   carrying a query that means nothing on the surface serving it.
+
 - **Evidence:** the crossing trace above ·
   `apps/web/components/mobile/SurfaceCorrection.tsx` · `apps/web/middleware.ts`'s rewrite ·
   `Book.tsx`'s address effect.
@@ -335,15 +341,15 @@ count was one short rather than an extra defect having been invented — the hea
 been corrected to "7 defects — S1:0 S2:2 S3:2 S4:3" to match the list it summarizes,
 rather than left to disagree with the body it introduces.
 
-| Defect | Sev | Outcome | Commit |
-| --- | --- | --- | --- |
-| PH1-001 · bookmark jump publishes its anchor | S2 | **Fixed** | `e52552d` |
-| PH1-002 · ephemera scrap published as a gallery frame | S2 | **Fixed** | `a58287e` |
-| PH1-003 · soft upscale at DPR ≥ 2, no `srcset` anywhere | S3 | **Fixed** (one residual, stated) | `88ce1c1` |
-| PH1-004 · mobile Cover drops the years line | S3 | **Fixed** | `57ad54a` |
-| PH1-005 · unused stylesheet preloaded on every page | S4 | **Fixed** | `c3b44aa` |
-| PH1-006 · address lags a committed turn | S4 | **Not fixed** — documented cost, pinned by a test | `b0140b0` |
-| PH1-007 · `?pages=all` stranded by a surface swap | S4 | **Not fixed** — outside this pass's scope | — |
+| Defect                                                  | Sev | Outcome                                           | Commit    |
+| ------------------------------------------------------- | --- | ------------------------------------------------- | --------- |
+| PH1-001 · bookmark jump publishes its anchor            | S2  | **Fixed**                                         | `e52552d` |
+| PH1-002 · ephemera scrap published as a gallery frame   | S2  | **Fixed**                                         | `a58287e` |
+| PH1-003 · soft upscale at DPR ≥ 2, no `srcset` anywhere | S3  | **Fixed** (one residual, stated)                  | `88ce1c1` |
+| PH1-004 · mobile Cover drops the years line             | S3  | **Fixed**                                         | `57ad54a` |
+| PH1-005 · unused stylesheet preloaded on every page     | S4  | **Fixed**                                         | `c3b44aa` |
+| PH1-006 · address lags a committed turn                 | S4  | **Not fixed** — documented cost, pinned by a test | `b0140b0` |
+| PH1-007 · `?pages=all` stranded by a surface swap       | S4  | **Not fixed** — outside this pass's scope         | —         |
 
 ### PH1-001 · fixed
 
@@ -367,7 +373,7 @@ it.
 
 **The rule turned out to be written three times, and that is why the fix is not one
 line.** `readGalleryBundle` builds the grid; `readGalleryDownload` re-derives the same
-list in the same order, because a download's filename carries the frame's *position*; and
+list in the same order, because a download's filename carries the frame's _position_; and
 `readBookBundle` counts it a third time for the census the Notes footer prints and the
 gallery header repeats. Fixing only the grid would have been worse than fixing nothing —
 the scrap's download address would have stayed live with every filename after it naming
@@ -387,7 +393,7 @@ slot, not on the media row.
 
 **Consequence for a future reader:** Patagonia's gallery is now **60** tiles, not 61, and
 the other nine journeys are 8 rather than 9. §1.8's verified bar ("square and unsqueezed
-at 40+") still holds and §1.9's `003 / 061` was always the counter's three-digit *format*.
+at 40+") still holds and §1.9's `003 / 061` was always the counter's three-digit _format_.
 `docs/deviations.md` §20 records the change.
 
 ### PH1-003 · fixed, with one residual stated rather than glossed
@@ -405,7 +411,7 @@ not have been a fix.
 
 **Residual.** The seeded placeholders are 900px squares, so Payload derives only `thumb`
 and `tile` for them, and 800px is the sharpest answer this database holds for a 354px tile
-at DPR 3 — 1.33× rather than the 2.66× it was. The *mechanism* was the defect and is now
+at DPR 3 — 1.33× rather than the 2.66× it was. The _mechanism_ was the defect and is now
 right; a real photograph carries `frame` and `hero` too and the same `srcset` reaches them
 with no further change. This is the same fixture ceiling this finding already declines to
 report the book's page slots on, and `hero2x` being served to nobody on the book's surface
@@ -425,14 +431,14 @@ four of which that surface already printed from §1.1 — so the set is §1.1's 
 line was the only member missing. The line takes `.coverKeptBy`'s 10px/.26em (§1.1's
 12.5px/.3em scaled for a 390px phone) with the book's own 8px top margin, no
 `text-transform`, and `docs/deviations.md` §12's `rgba(238,220,180,.78)`. That alpha sits
-*above* the neighbouring "Kept by" line's `.72`, so it cannot be the first line on this
+_above_ the neighbouring "Kept by" line's `.72`, so it cannot be the first line on this
 cloth to fail contrast.
 
 ### PH1-005 · fixed
 
 The cause was where the rules lived, not the preload. `not-found.tsx` is a sibling slot of
 `children` in the `(diary)` group's layout tree, so Next collects a CSS module imported
-there as part of the *segment's* stylesheets and preloads it on every route in the group.
+there as part of the _segment's_ stylesheets and preloads it on every route in the group.
 The rules moved into `diary.css`, which the group's layout already loads everywhere, so
 there is no second chunk to preload. Not one declaration changed, and the rendered 404 was
 opened at 1440×900 to confirm it: desk gradient, paper card with its hairline and shadow,
@@ -448,7 +454,7 @@ saying so would be stretching this task. It is a Phase 1 trade-off that this rep
 right to call out, and one whose fix is not affordable on the evidence available:
 
 - **The hold is load-bearing and measured.** `useRestOfBook` widens the document by
-  navigating to the *same* path with `?pages=all` added, because Next keys a route
+  navigating to the _same_ path with `?pages=all` added, because Next keys a route
   segment's subtree by that segment's value. Changing `/p/<n>` while that request is in
   flight remounts the book and discards the flip state — measured on a production build,
   mount count 1 → 2. Writing the address earlier is what would cost that.
@@ -492,14 +498,14 @@ two defects are re-checked here too.
 
 ### `docs/qa/2026-09-01-diary-sweep.md`
 
-| Defect | Sev | Still fixed? | How it was re-checked |
-| --- | --- | --- | --- |
-| DIARY-001 · book clipped below ~1435px, invisible at 390px | S1 | **Yes** | The design box is on screen and interactive at every viewport: `desktop` `[5, 0, 1273, 842]` inside a 1282×842 area, `mid` `[0, 92, 842, 557]` inside 842×742 — both centred to the pixel, `elementFromPoint` at the box centre returning real page content (`H1`, `DIV`), `documentElement` never scrolling horizontally. At 390px the book is correctly **not** drawn at all: the server serves `SCREENS.md` §1.10's reading surface instead, which is fully on screen. See the specific confirmation below. |
-| DIARY-002 · 9 of 13 bookmark tabs covered by the book at 1000×800 | S2 | **Yes** | Hit-tested all 13 tabs at their own centres on `/p/1`, `/p/2`, `/p/3`, `/p/4`, `/p/5` and `/p/33`, at `desktop` and `mid`: **0 covered, 0 off-viewport**, every tab resolving to itself. Clicks land — `[data-bookmark="1"]` from `/p/29` reaches `/p/2`, `[data-bookmark="32"]` reaches `/p/33`. (The *journey* of that click is PH1-001; the tab is not covered.) |
-| DIARY-003 · page-edge turn strips unreachable at ≤1000px | S2 | **Yes** | `[data-edge="left"]` (30px, `z-index: 900`) and `[data-edge="right"]` (44px) hit-test to themselves at `desktop` and `mid` on every page walked, and both turn: `/p/3` → right → `04 / 33` → left → `03 / 33`. At `mobile` they correctly do not exist — §1.10 has no book to put an edge on. |
-| DIARY-004 · `mid`/`mobile` visual baselines regenerated over the clipped book | S2 | **Yes** | Opened `e2e/visual.spec.ts-snapshots/diary-cover-mid-linux.png` and looked at it, which is the step the defect existed to force: it shows a whole book, cloth, ribbon, washi, airmail stamp and a 13-tab rail. The baseline set has since grown from 6 to 31 files and now covers all six page kinds, the gallery, the lightbox, the mobile drawer and the 404, at all three projects. |
-| DIARY-005 · no active rail tab, no "Bookmarks" eyebrow, no page label | S3 | **Yes** | `aria-current="page"` present on exactly one tab per page, and the three-page span holds: tab `2` (Tokyo) is current on `/p/3`, `/p/4` **and** `/p/5`, and hands over to tab `32` on `/p/33`. The eyebrow renders "Bookmarks". The bar prints the page label under the counter — `Tokyo — Frames I`, `Tokyo — Frames II`, `About`. Measured against §1.7: rail 158px, gap 6px, eyebrow Courier 9.5px `.22em` `rgb(115,98,71)`; active tab `#fbf6e9`, `translateX(-6px)`, `0 3px 12px -5px rgba(60,44,20,.5)` plus the 1px inset ring; inactive `rgba(120,98,60,.07)`; tint 6px at opacity 1 / .5; `transform 180ms, background 180ms`. All literal. |
-| DIARY-006 · `/favicon.ico` 404s on every cold load | S4 | **Yes** | `GET /favicon.ico` → `200 image/x-icon` on the production server, and no response ≥ 400 appeared in any walk except the intended `404` for `/p/999`. |
+| Defect                                                                        | Sev | Still fixed? | How it was re-checked                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------------------------------------------------------------- | --- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DIARY-001 · book clipped below ~1435px, invisible at 390px                    | S1  | **Yes**      | The design box is on screen and interactive at every viewport: `desktop` `[5, 0, 1273, 842]` inside a 1282×842 area, `mid` `[0, 92, 842, 557]` inside 842×742 — both centred to the pixel, `elementFromPoint` at the box centre returning real page content (`H1`, `DIV`), `documentElement` never scrolling horizontally. At 390px the book is correctly **not** drawn at all: the server serves `SCREENS.md` §1.10's reading surface instead, which is fully on screen. See the specific confirmation below.                                                                                                                                      |
+| DIARY-002 · 9 of 13 bookmark tabs covered by the book at 1000×800             | S2  | **Yes**      | Hit-tested all 13 tabs at their own centres on `/p/1`, `/p/2`, `/p/3`, `/p/4`, `/p/5` and `/p/33`, at `desktop` and `mid`: **0 covered, 0 off-viewport**, every tab resolving to itself. Clicks land — `[data-bookmark="1"]` from `/p/29` reaches `/p/2`, `[data-bookmark="32"]` reaches `/p/33`. (The _journey_ of that click is PH1-001; the tab is not covered.)                                                                                                                                                                                                                                                                                 |
+| DIARY-003 · page-edge turn strips unreachable at ≤1000px                      | S2  | **Yes**      | `[data-edge="left"]` (30px, `z-index: 900`) and `[data-edge="right"]` (44px) hit-test to themselves at `desktop` and `mid` on every page walked, and both turn: `/p/3` → right → `04 / 33` → left → `03 / 33`. At `mobile` they correctly do not exist — §1.10 has no book to put an edge on.                                                                                                                                                                                                                                                                                                                                                       |
+| DIARY-004 · `mid`/`mobile` visual baselines regenerated over the clipped book | S2  | **Yes**      | Opened `e2e/visual.spec.ts-snapshots/diary-cover-mid-linux.png` and looked at it, which is the step the defect existed to force: it shows a whole book, cloth, ribbon, washi, airmail stamp and a 13-tab rail. The baseline set has since grown from 6 to 31 files and now covers all six page kinds, the gallery, the lightbox, the mobile drawer and the 404, at all three projects.                                                                                                                                                                                                                                                              |
+| DIARY-005 · no active rail tab, no "Bookmarks" eyebrow, no page label         | S3  | **Yes**      | `aria-current="page"` present on exactly one tab per page, and the three-page span holds: tab `2` (Tokyo) is current on `/p/3`, `/p/4` **and** `/p/5`, and hands over to tab `32` on `/p/33`. The eyebrow renders "Bookmarks". The bar prints the page label under the counter — `Tokyo — Frames I`, `Tokyo — Frames II`, `About`. Measured against §1.7: rail 158px, gap 6px, eyebrow Courier 9.5px `.22em` `rgb(115,98,71)`; active tab `#fbf6e9`, `translateX(-6px)`, `0 3px 12px -5px rgba(60,44,20,.5)` plus the 1px inset ring; inactive `rgba(120,98,60,.07)`; tint 6px at opacity 1 / .5; `transform 180ms, background 180ms`. All literal. |
+| DIARY-006 · `/favicon.ico` 404s on every cold load                            | S4  | **Yes**      | `GET /favicon.ico` → `200 image/x-icon` on the production server, and no response ≥ 400 appeared in any walk except the intended `404` for `/p/999`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 **Also changed since that sweep, and re-checked because it was recorded there as interim
 behaviour:** `/p/999` no longer clamps onto page 33 and answers 200. It is a real `404`
@@ -508,20 +514,20 @@ with `not-found.tsx` rendered, at every viewport, which is what
 
 ### `docs/qa/2026-09-03-gallery-sweep.md`
 
-| Defect | Sev | Still fixed? | How it was re-checked |
-| --- | --- | --- | --- |
-| GAL-001 · all 61 tiles 215×240, not square | high | **Yes** | Measured every tile's square at all three projects: **61 of 61 at ratio 1.0000**, at 215.33px (`desktop`), 221px (`mid`) and 354px (`mobile`). `object-fit: cover` and `loading="lazy"` on every one. (The 354px tile is what PH1-003 measures against DPR 3; it is square, it is just soft.) |
-| GAL-002 · lightbox metadata line fails AA contrast | medium | **Yes** | axe-core run over the open lightbox with **no exclusions** at all three projects: zero violations. `docs/deviations.md` §21's 58% is what is rendered. |
-| GAL-003 · shared lightbox address did not open its frame | low | **Yes** | `GET /gallery/patagonia#frame-1522` followed by a real load opens the lightbox at `005 / 061` with the right caption ("Lenticular cloud, showing off"). The Share control builds that address — with `navigator.share` present it is handed `{ title: "Patagonia", url: ".../gallery/patagonia#frame-1522" }`. |
-| GAL-004 · gallery header overflowed 390px; the document scrolled sideways | high | **Yes** | At `mobile` 390×844, `documentElement.scrollWidth === clientWidth === 390` on the gallery **and** with the lightbox open. The header reads in full — "← BACK TO THE DIARY · FULL GALLERY · Patagonia · Chile · 8 – 19 January 2026 · 61 photos · 0 clips" — nothing clipped. |
-| GAL-005 · back control sent an early clicker to the cover | high | **Yes** | Read out of the **raw HTML**, with no JavaScript run, which is the assertion the fix turned on: `curl /gallery/patagonia?from=9` → `data-back-to-book="true" href="/p/9"`. A gallery reached with no `?from` gives `href="/p/1"` — a page of the book, never `/`. Clicking it returns to `/p/9` at `09 / 33` at all three viewports, and so does the browser's own Back button. |
+| Defect                                                                    | Sev    | Still fixed? | How it was re-checked                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------- | ------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GAL-001 · all 61 tiles 215×240, not square                                | high   | **Yes**      | Measured every tile's square at all three projects: **61 of 61 at ratio 1.0000**, at 215.33px (`desktop`), 221px (`mid`) and 354px (`mobile`). `object-fit: cover` and `loading="lazy"` on every one. (The 354px tile is what PH1-003 measures against DPR 3; it is square, it is just soft.)                                                                                   |
+| GAL-002 · lightbox metadata line fails AA contrast                        | medium | **Yes**      | axe-core run over the open lightbox with **no exclusions** at all three projects: zero violations. `docs/deviations.md` §21's 58% is what is rendered.                                                                                                                                                                                                                          |
+| GAL-003 · shared lightbox address did not open its frame                  | low    | **Yes**      | `GET /gallery/patagonia#frame-1522` followed by a real load opens the lightbox at `005 / 061` with the right caption ("Lenticular cloud, showing off"). The Share control builds that address — with `navigator.share` present it is handed `{ title: "Patagonia", url: ".../gallery/patagonia#frame-1522" }`.                                                                  |
+| GAL-004 · gallery header overflowed 390px; the document scrolled sideways | high   | **Yes**      | At `mobile` 390×844, `documentElement.scrollWidth === clientWidth === 390` on the gallery **and** with the lightbox open. The header reads in full — "← BACK TO THE DIARY · FULL GALLERY · Patagonia · Chile · 8 – 19 January 2026 · 61 photos · 0 clips" — nothing clipped.                                                                                                    |
+| GAL-005 · back control sent an early clicker to the cover                 | high   | **Yes**      | Read out of the **raw HTML**, with no JavaScript run, which is the assertion the fix turned on: `curl /gallery/patagonia?from=9` → `data-back-to-book="true" href="/p/9"`. A gallery reached with no `?from` gives `href="/p/1"` — a page of the book, never `/`. Clicking it returns to `/p/9` at `09 / 33` at all three viewports, and so does the browser's own Back button. |
 
 ### `docs/qa/2026-09-03-mobile-sweep.md`
 
-| Defect | Sev | Still fixed? | How it was re-checked |
-| --- | --- | --- | --- |
-| MOB-001 · scrolling column not keyboard-reachable on `/p/33` | serious | **Yes** | `[data-mobile-content]` carries `role="region"`, `tabindex="0"` and `aria-label` set to the page's own label ("Tokyo — Notes"). axe-core is clean on `/p/33` at `mobile`. |
-| MOB-002 · Next's dev overlay swallowed the previous-page arrow | medium | **Yes** | Both 52px arrows sit fully in the bar (`prev` at `[14, 782, 52, 52]`, `next` at `[324, 782, 52, 52]`), hit-test to themselves, and navigate — verified by click, by `tap` and by keyboard Enter, from `/p/2`, `/p/3`, `/p/10` and `/p/30`. No `nextjs-portal` in the production document at all. |
+| Defect                                                         | Sev     | Still fixed? | How it was re-checked                                                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------- | ------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| MOB-001 · scrolling column not keyboard-reachable on `/p/33`   | serious | **Yes**      | `[data-mobile-content]` carries `role="region"`, `tabindex="0"` and `aria-label` set to the page's own label ("Tokyo — Notes"). axe-core is clean on `/p/33` at `mobile`.                                                                                                                        |
+| MOB-002 · Next's dev overlay swallowed the previous-page arrow | medium  | **Yes**      | Both 52px arrows sit fully in the bar (`prev` at `[14, 782, 52, 52]`, `next` at `[324, 782, 52, 52]`), hit-test to themselves, and navigate — verified by click, by `tap` and by keyboard Enter, from `/p/2`, `/p/3`, `/p/10` and `/p/30`. No `nextjs-portal` in the production document at all. |
 
 ---
 
@@ -530,11 +536,11 @@ with `not-found.tsx` rendered, at every viewport, which is what
 Measured on a real `next build` + `next start`, not a dev server, and not inferred from a
 passing suite — which is the failure mode DIARY-004 recorded.
 
-| project | surface served | design box | on screen | `elementFromPoint` at its centre | doc scrolls sideways |
-| --- | --- | --- | --- | --- | --- |
-| `desktop` 1440×900 | book | `[5, 0, 1273, 842]` | **yes** | `H1` (the cover title) | no |
-| `mid` 1000×800 | book | `[0, 92, 842, 557]` | **yes** | `H1` (the cover title) | no |
-| `mobile` 390×844 | §1.10 mobile mode | *none, by design* | **yes** | the mobile page column | no |
+| project            | surface served    | design box          | on screen | `elementFromPoint` at its centre | doc scrolls sideways |
+| ------------------ | ----------------- | ------------------- | --------- | -------------------------------- | -------------------- |
+| `desktop` 1440×900 | book              | `[5, 0, 1273, 842]` | **yes**   | `H1` (the cover title)           | no                   |
+| `mid` 1000×800     | book              | `[0, 92, 842, 557]` | **yes**   | `H1` (the cover title)           | no                   |
+| `mobile` 390×844   | §1.10 mobile mode | _none, by design_   | **yes**   | the mobile page column           | no                   |
 
 **Yes at all three.** The book is drawn, centred in the area `useBookScale` measures, fully
 inside the viewport, and returns real page content — not `null` — at its own centre. At
@@ -561,6 +567,7 @@ Routes and behaviours walked with no finding. Everything here was checked on the
 production build unless noted.
 
 **The turning machinery, `desktop` and `mid`.**
+
 - **The latch always releases.** 14 next-clicks at 60ms intervals, then 14 prev-clicks,
   then a single clean turn: the book advances what a 900ms turn allows in that window and
   turns cleanly afterwards (`seized: false` at both projects). 20 clicks alternating
@@ -582,6 +589,7 @@ production build unless noted.
   every viewport.
 
 **The gallery and its lightbox, all three projects.**
+
 - 61 tiles, all square (GAL-001), `loading="lazy"`, `object-fit: cover`, no broken images.
 - The lightbox opens the frame the tile shows — tile badge `003` opens `003 / 061`
   "Guanaco, unbothered" — arrows step (`003` → `004` → `003`), the keyboard arrows step,
@@ -595,11 +603,12 @@ production build unless noted.
   `x-content-type-options: nosniff`, 44,548 bytes.
 - Returning from a gallery restores `/p/<n>`, never `/` — by the gallery's own control, by
   the browser's Back button, and from a gallery reached with no `?from` at all (`/p/1`).
-- Turning the book and *then* opening a gallery carries the page the reader is actually on:
+- Turning the book and _then_ opening a gallery carries the page the reader is actually on:
   from `/p/9`, two turns forward, the footer's link reads `/gallery/patagonia?from=11` and
   the return lands on `/p/11`.
 
 **The mobile reading surface, `mobile` 390×844.**
+
 - **The swipe rule is exactly `SCREENS.md` §1.10's**, driven through the DevTools
   Protocol's `Input.dispatchTouchEvent` rather than synthetic DOM events. A −160px
   horizontal drag turns forward; +160px turns back; a **45px** drag does not turn; a
@@ -633,12 +642,13 @@ contexts on one machine.
 
 **Two dev-mode behaviours that do NOT reproduce in production**, recorded here so a later
 reader does not rediscover them as defects:
+
 1. **A bookmark tab appears dead for 2,019ms on a cold-loaded page.** On `/p/29` in dev,
    clicking the Contents tab produces no feedback at all until `useRestOfBook`'s
    `?pages=all` document lands. `Book.tsx` holds a jump whose destination the document does
    not carry, which is the right call — turning into a blank leaf is worse. In production
    the widening lands at 65ms and the jump starts at 115ms, so there is no dead window.
-   Not a defect; the *hold* is correct and the *silence* is only visible at Turbopack's
+   Not a defect; the _hold_ is correct and the _silence_ is only visible at Turbopack's
    compile speed.
 2. **The address lag** — see PH1-006, filed at S4 for the same reason.
 

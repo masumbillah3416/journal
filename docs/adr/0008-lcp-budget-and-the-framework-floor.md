@@ -30,6 +30,64 @@ here; the ADR 0006 measurement is taken as sufficient evidence instead, as this
 document's own "Options" section anticipated ("it would still catch the image
 regression ADR 0006 fixed, which measured 3,170ms").
 
+**THE METHOD, WRITTEN HERE RATHER THAN DELEGATED.** This ADR set the 3,000ms gate the
+diary is measured against and pointed at a `.superpowers/` report for how to reproduce the
+number — a directory that is not tracked (`git ls-files .superpowers` returns nothing) and
+that no commit in this repository has ever held. Phase 2's final review found four ADRs
+doing that (finding 39). The method is four steps and belongs in the decision:
+
+1. Delete `apps/web/.next` — a warm build makes the first run of any config fast and the
+   median is then a median of the wrong thing.
+2. `npm run test:perf`, which builds with `npm run build -w apps/web`, starts the
+   production server and runs Lighthouse **five times** per URL.
+3. Read `largest-contentful-paint.numericValue` from the five
+   `lhci-reports/**/localhost-p_1-*.report.json` files and take the **median** — the same
+   `aggregationMethod` the config asserts on.
+4. The throttling is **Lighthouse's own default and no config here pins it**:
+   `throttlingMethod: "simulate"` at 150ms RTT, 1,638Kbps and 4x CPU. Saying it was
+   "the config's, not the machine's" was half right and the wrong half — it is not the
+   machine's, and it is not written down either, so a Lighthouse release that retunes the
+   preset moves this gate with no diff in this repository. §"The measurement" below says
+   the same thing correctly, and the two contradicted each other (Phase 2's final review).
+   The VIEWPORT is pinned, in each config: `lighthouserc.book.json` at 1350x940 desktop
+   and `lighthouserc.json` at 412x823 mobile at DPR 1.75 — the mobile one in Phase 2's
+   final round, having been an unpinned default until then, which is the same defect one
+   parameter along. Pinning the throttling is the obvious next move and is deliberately
+   NOT made here: it would change the number this ADR is written against, and that is a
+   budget decision rather than a documentation fix.
+
+Measured by that method at the close of Phase 2, with `apps/web/.next` deleted first: the
+book surface **2924.9 / 2925.4 / 2927.2 / 2927.4 / 2930.0ms, median 2927.2**, and the
+mobile surface **2925.7 / 2926.6 / 2933.9 / 2934.7 / 2937.3ms, median 2933.9** — both
+against the same 3,000ms, unmoved, with 73ms and 66ms of margin.
+
+### The margin is thin, and a Phase 3 reader should know it before believing a red run
+
+**This gate holds on about 70ms of a 3,000ms budget, and individual runs have come within
+11ms of it.** Recorded here rather than discovered later:
+
+| When                                 | Surface       | Slowest of five | Margin on that run |
+| ------------------------------------ | ------------- | --------------- | ------------------ |
+| Phase 2, third review (warm `.next`) | mobile `/p/1` | **2,989.4ms**   | **10.6ms**         |
+| Phase 2, third review (warm `.next`) | book          | 2,946.1ms       | 53.9ms             |
+| Phase 2, close (cold `.next`, above) | mobile `/p/1` | 2,937.3ms       | 62.7ms             |
+| `fdff259`, before F68 was fixed      | mobile `/p/1` | 3,078.3ms       | **red**            |
+
+Three consequences, and none of them is "raise the budget":
+
+1. **`aggregationMethod: "median"` is what keeps this green against that spread**, and the
+   "What this decision does not change" note below is therefore load-bearing rather than
+   incidental. The lhci default takes the best of five and would loosen the gate; taking
+   the worst of five would fail it on a run where nothing had regressed.
+2. **The throttling behind the number is Lighthouse's own unpinned default** (see the
+   Status note above). A Lighthouse release that retunes the `simulate` preset moves this
+   gate with no diff in this repository. That is the most likely way `/p/1` goes red
+   without a code change.
+3. **A red `/p/1` should be re-measured five times before it is believed, and against a
+   cold `.next`.** A single run at 3,010ms is inside this spread. What distinguishes a real
+   regression is the MEDIAN moving, which is what ADR 0006's image-window regression did —
+   ~3,170-3,247ms, not one sample over the line.
+
 **What this decision does not change.** `resource-summary:script:size` stays at
 `184320`; `cumulative-layout-shift` stays at `0.1`; `aggregationMethod: "median"` stays
 in place specifically because the lhci default (`optimistic`) takes the best of five
@@ -89,11 +147,11 @@ this measurement costs for any page at all".
 
 ### The floor
 
-| Route | LCP median | render delay | script bytes | chunks | requests |
-|---|---|---|---|---|---|
-| static `.html`, same server, zero JS | **900.8 ms** | 450.4 ms | 0 | 0 | 2 |
-| minimal Next route, one `h1` | **2,023.2 ms** | 1,571.8 ms | **137,986** | **6** | 9 |
-| `/p/1` as shipped before this task | 2,488.2 ms | 2,035.5 ms | 141,632 | 7 | 14 |
+| Route                                | LCP median     | render delay | script bytes | chunks | requests |
+| ------------------------------------ | -------------- | ------------ | ------------ | ------ | -------- |
+| static `.html`, same server, zero JS | **900.8 ms**   | 450.4 ms     | 0            | 0      | 2        |
+| minimal Next route, one `h1`         | **2,023.2 ms** | 1,571.8 ms   | **137,986**  | **6**  | 9        |
+| `/p/1` as shipped before this task   | 2,488.2 ms     | 2,035.5 ms   | 141,632      | 7      | 14       |
 
 Five runs each: static 900.4 / 900.6 / 900.8 / 901.0 / 901.6 · minimal 1504.2 /
 1505.0 / **2023.2** / 2023.6 / 2023.7 · `/p/1` 2485.1 / 2487.2 / **2488.2** / 2488.5 /
@@ -113,16 +171,16 @@ The gap between the two floors is the framework's: **1,122ms of simulated LCP, a
 Main-thread work is reported by Lighthouse as observed (unthrottled) trace time;
 Lantern multiplies CPU nodes by 4. Both columns, for the median run of each:
 
-| Task group | minimal route | `/p/1` | `/p/1` ×4 | attributable to us |
-|---|---|---|---|---|
-| Script Evaluation | 108.8 ms | 149.9 ms | 600 ms | +164 ms |
-| **Style & Layout** | 5.8 ms | **128.4 ms** | **514 ms** | **+490 ms** |
-| Other | 54.8 ms | 88.5 ms | 354 ms | +135 ms |
-| Script Parsing & Compilation | 19.1 ms | 33.0 ms | 132 ms | +56 ms |
-| Garbage Collection | 0 | 9.1 ms | 36 ms | +36 ms |
-| Parse HTML & CSS | 1.4 ms | 8.3 ms | 33 ms | +28 ms |
-| Rendering | 0.8 ms | 5.5 ms | 22 ms | +19 ms |
-| **TOTAL** | **190.6 ms** | **422.8 ms** | **1,691 ms** | **+929 ms** |
+| Task group                   | minimal route | `/p/1`       | `/p/1` ×4    | attributable to us |
+| ---------------------------- | ------------- | ------------ | ------------ | ------------------ |
+| Script Evaluation            | 108.8 ms      | 149.9 ms     | 600 ms       | +164 ms            |
+| **Style & Layout**           | 5.8 ms        | **128.4 ms** | **514 ms**   | **+490 ms**        |
+| Other                        | 54.8 ms       | 88.5 ms      | 354 ms       | +135 ms            |
+| Script Parsing & Compilation | 19.1 ms       | 33.0 ms      | 132 ms       | +56 ms             |
+| Garbage Collection           | 0             | 9.1 ms       | 36 ms        | +36 ms             |
+| Parse HTML & CSS             | 1.4 ms        | 8.3 ms       | 33 ms        | +28 ms             |
+| Rendering                    | 0.8 ms        | 5.5 ms       | 22 ms        | +19 ms             |
+| **TOTAL**                    | **190.6 ms**  | **422.8 ms** | **1,691 ms** | **+929 ms**        |
 
 `/p/1`'s 2,035.5ms render delay is therefore ~1,691ms of simulated CPU plus ~345ms of
 simulated network for the script chain. **Of it, 1,571.8ms is the floor and 463.7ms
@@ -135,17 +193,17 @@ deep links are indexable.
 
 `bootup-time`, observed, for the median `/p/1` run:
 
-| Chunk | transfer | raw | eval | parse | ×4 total | what it is |
-|---|---|---|---|---|---|---|
-| `299ekdt-sjm6b.js` | 72,280 B | 229,282 B | 130.7 ms | 9.0 ms | **563 ms** | **React DOM client + Next App Router runtime** (`react-dom`, `hydrateRoot`, `createRoot`, `MessageChannel`, `onRecoverableError`, `FlightRouterState`, `createFromReadableStream`, `next-route-announcer`) |
-| the `/p/1` document | 16,862 B | — | 8.7 ms | 10.1 ms | **687 ms** | the inline RSC flight payload plus the style/layout of 33 page faces |
-| Unattributable | — | — | 2.7 ms | 0 | 309 ms | |
-| `1vgpv7vwitdbl.js` | 43,582 B | 156,317 B | **0** | **0** | **0** | Next's client router/prefetch layer (`prefetch` ×81, `FlightRouterState` ×14, `IntersectionObserver`). 24,911 B of it unused. Downloaded, not executed before LCP |
-| `0if-vqkhyn-zc.js` | 8,919 B | 31,423 B | 0 | 0 | 0 | Next client hooks (`usePathname`, `useSearchParams`) |
-| `turbopack-0u9g73elxfcgm.js` | 4,845 B | 10,947 B | 0 | 0 | 0 | Turbopack module runtime |
-| `33t46atd3n2zd.js` | 4,228 B | 14,434 B | 0 | 0 | 0 | router/Suspense glue |
-| `0wf2rmyoojkx7.js` | 4,132 B | 12,696 B | 0 | 0 | 0 | AppRouter glue |
-| **`2-wzetw2ympk0.js`** | **3,646 B** | 8,042 B | 0 | 0 | 0 | **the diary's own chunk** — `Book`, `Leaf`, `EdgeStrip`, the flip machine, `book.module.css`'s class map |
+| Chunk                        | transfer    | raw       | eval     | parse   | ×4 total   | what it is                                                                                                                                                                                                 |
+| ---------------------------- | ----------- | --------- | -------- | ------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `299ekdt-sjm6b.js`           | 72,280 B    | 229,282 B | 130.7 ms | 9.0 ms  | **563 ms** | **React DOM client + Next App Router runtime** (`react-dom`, `hydrateRoot`, `createRoot`, `MessageChannel`, `onRecoverableError`, `FlightRouterState`, `createFromReadableStream`, `next-route-announcer`) |
+| the `/p/1` document          | 16,862 B    | —         | 8.7 ms   | 10.1 ms | **687 ms** | the inline RSC flight payload plus the style/layout of 33 page faces                                                                                                                                       |
+| Unattributable               | —           | —         | 2.7 ms   | 0       | 309 ms     |                                                                                                                                                                                                            |
+| `1vgpv7vwitdbl.js`           | 43,582 B    | 156,317 B | **0**    | **0**   | **0**      | Next's client router/prefetch layer (`prefetch` ×81, `FlightRouterState` ×14, `IntersectionObserver`). 24,911 B of it unused. Downloaded, not executed before LCP                                          |
+| `0if-vqkhyn-zc.js`           | 8,919 B     | 31,423 B  | 0        | 0       | 0          | Next client hooks (`usePathname`, `useSearchParams`)                                                                                                                                                       |
+| `turbopack-0u9g73elxfcgm.js` | 4,845 B     | 10,947 B  | 0        | 0       | 0          | Turbopack module runtime                                                                                                                                                                                   |
+| `33t46atd3n2zd.js`           | 4,228 B     | 14,434 B  | 0        | 0       | 0          | router/Suspense glue                                                                                                                                                                                       |
+| `0wf2rmyoojkx7.js`           | 4,132 B     | 12,696 B  | 0        | 0       | 0          | AppRouter glue                                                                                                                                                                                             |
+| **`2-wzetw2ympk0.js`**       | **3,646 B** | 8,042 B   | 0        | 0       | 0          | **the diary's own chunk** — `Book`, `Leaf`, `EdgeStrip`, the flip machine, `book.module.css`'s class map                                                                                                   |
 
 **The diary's own code is 3,646 of 141,632 script bytes — 2.57%** — and is below
 Lighthouse's threshold for any attributed bootup time at all. `299ekdt-sjm6b.js` owns
@@ -175,12 +233,12 @@ throttled device would do, and the projection is dominated by work that is not o
 Same method, same container, clean volume per configuration, five runs, every asset
 verified 200:
 
-| Faces self-hosted | requests | font bytes | LCP median | five runs | vs 2,500 gate |
-|---|---|---|---|---|---|
-| Caveat 400 + EB Garamond 400 | 2 | 73,554 | **2,488.2 ms** | 2485/2487/2488/2489/2494 | PASS by 11.8 ms |
-| + Courier Prime 400/700 | 4 | 112,440 | **2,637.4 ms** | 2636/2637/2637/2639/2645 | FAIL by 137 ms |
-| + EB Garamond italic **(now shipping)** | 5 | 138,277 | **2,933.8 ms** | 2932/2934/2934/2935/2943 | FAIL by 434 ms |
-| 5 faces, only Caveat preloaded | 5 | 138,277 | 2,409.9 ms | 2406/2408/2410/2411/2938 | *rejected, see below* |
+| Faces self-hosted                       | requests | font bytes | LCP median     | five runs                | vs 2,500 gate         |
+| --------------------------------------- | -------- | ---------- | -------------- | ------------------------ | --------------------- |
+| Caveat 400 + EB Garamond 400            | 2        | 73,554     | **2,488.2 ms** | 2485/2487/2488/2489/2494 | PASS by 11.8 ms       |
+| + Courier Prime 400/700                 | 4        | 112,440    | **2,637.4 ms** | 2636/2637/2637/2639/2645 | FAIL by 137 ms        |
+| + EB Garamond italic **(now shipping)** | 5        | 138,277    | **2,933.8 ms** | 2932/2934/2934/2935/2943 | FAIL by 434 ms        |
+| 5 faces, only Caveat preloaded          | 5        | 138,277    | 2,409.9 ms     | 2406/2408/2410/2411/2938 | _rejected, see below_ |
 
 **ADR 0005's original finding reproduces exactly.** Its table recorded
 "Caveat + Garamond + Courier: 2,638–2,641ms, FAIL"; that configuration measures
@@ -192,7 +250,7 @@ delaying hydration — and simulated LCP is the end of hydration.
 **`docs/adr/0007`'s contrary finding is withdrawn.** It compared a four-face build at
 2,632.98ms against a two-face baseline it measured at 2,634.66ms and concluded the
 fonts were free. On a clean volume the two-face baseline is 2,488ms; 2,634ms is this
-route's *high mode* on a warm volume, which its own five runs happened to land in
+route's _high mode_ on a warm volume, which its own five runs happened to land in
 throughout. Comparing a change against a contaminated baseline made a real 149ms cost
 read as zero. That is also why the measurement above wipes the `.next` volume between
 configurations and checks every asset's status code: one configuration in this
@@ -279,12 +337,18 @@ weakened. A red gate that is understood is worth more than a green one that was 
   `aggregationMethod: "median"` over five runs, and passes: the shipped route measures
   **~2,933ms**, about 67ms of margin. See
   `.superpowers/sdd/2026-09-01-phase-1-public-diary/owner-decisions-report.md` for the
-  re-run pasted after this decision was applied.
-- `resource-summary:script:size` is **141,632 bytes against the 184,320 gate** —
-  unchanged by the font work (fonts are not script) and passing with 42,688 bytes to
-  spare. Note what that gate now means: 137,986 of those bytes are the framework's,
-  so the "diary route JS ≤ 180KB" budget is being met almost entirely by not being
-  charged for the runtime that dominates it. This ADR does not touch that gate.
+  re-run pasted after this decision was applied — **and that file cannot be opened: see
+  the method section above, which is where the reproduction now lives.**
+- `resource-summary:script:size` **measured 141,632 bytes against the 184,320 gate when
+  this decision was taken**, unchanged by the font work (fonts are not script). Note what
+  that gate means: 137,986 of those bytes were the framework's, so the "diary route JS
+  ≤ 180KB" budget is being met almost entirely by not being charged for the runtime that
+  dominates it. This ADR does not touch that gate. **Do not budget a new dependency
+  against the headroom this line implies.** It is one measurement from one day; two
+  configurations measure `/p/1` at two viewports now (ADR 0014), both of them above this
+  figure and inside the gate, and the current pair is whatever the last
+  `npm run test:perf` wrote into `lhci-reports/`. Reading a stale figure as current
+  over-reported the headroom by about 8% for a phase (final review 9).
 - CLS is **0** on `/p/1` with all five faces preloaded, unchanged.
 - The probe route is deleted. It is reproduced verbatim above so the floor can be
   re-measured without re-deriving it.

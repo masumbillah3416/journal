@@ -7,7 +7,9 @@
       "startServerReadyPattern": "Ready in",
       "startServerReadyTimeout": 180000,
       "settings": {
-        "chromeFlags": "--no-sandbox --disable-dev-shm-usage"
+        "chromeFlags": "--no-sandbox --disable-dev-shm-usage",
+        "formFactor": "mobile",
+        "screenEmulation": { "mobile": true, "width": 412, "height": 823, "deviceScaleFactor": 1.75, "disabled": false }
       }
     },
     "assert": {

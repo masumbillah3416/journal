@@ -58,7 +58,7 @@ keep the running cost proportional to that scale.
   mechanism and the revised consequences below for the cost this defers.
 - **Resend** sends OTP mail — a handful of messages per month, no marketing-mail
   features needed.
-- **Backblaze B2**, a *different* provider from both Neon and R2, receives offsite
+- **Backblaze B2**, a _different_ provider from both Neon and R2, receives offsite
   backups of the database dump and the media bucket.
 
 All of storage, mail and the transcode queue sit behind ports (spec §6), so the provider
@@ -73,7 +73,7 @@ behind each can change without touching application code — see `docs/architect
 - **The one cost trap:** serving media through Next.js API routes or `next/image` routes
   ~40GB of photography through Vercel's metered bandwidth, which is priced to punish
   exactly that pattern. The fix — serve media from the R2 custom domain, never through
-  the app — is *also* what `SECURITY.md` independently requires (media must be served
+  the app — is _also_ what `SECURITY.md` independently requires (media must be served
   from a separate origin so a stored-content bypass can't script against the admin, and
   so downloads go through a signed-URL handler rather than a bucket URL). Security and
   cost pull toward the same architecture; there is no tension to trade off.
@@ -99,7 +99,7 @@ behind each can change without touching application code — see `docs/architect
 - **Adding the worker back** (per ADR 0004) means provisioning a Fly.io app, deploying
   the transcode worker container to it, and flipping `MEDIA_PIPELINE=worker`. No schema
   migration and no other provider change is needed — see ADR 0004's consequences.
-  Concretely, that adds back the *only* service in this stack that bills by default.
+  Concretely, that adds back the _only_ service in this stack that bills by default.
   Auto-stopping (scale-to-zero) is the right shape for it regardless of price, not just
   a cost optimization: a single author's uploads are bursty, not continuous, so the
   machine is expected to spend most of its time stopped rather than idling on standby

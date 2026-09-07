@@ -54,6 +54,12 @@
  * measured instead by `vitest.config.ts`'s `unit` project (see this file's
  * coverage `exclude` for the detail).
  *
+ * `apps/web/lib/auth/readSignInScreen.ts` (Phase 2 Task 7) joins this file for
+ * the same reason as `readBookBundle.ts`: it reads a Payload global and a
+ * `users` row, and the question its cases exist to answer - what a NULLABLE
+ * `otp_required` column reads as for a row written before its schema default -
+ * has no answer without a real table.
+ *
  * `apps/web/app/**` is NOT included here, and that is settled, not stale:
  * Task 1 of Phase 1 added it to `vitest.config.ts`'s unit coverage include
  * instead (with a 95%/95%/95% threshold that starts binding the moment
@@ -114,6 +120,20 @@ export default defineConfig({
         'apps/web/lib/readBookBundle.ts',
         'apps/web/lib/readGalleryBundle.ts',
         'apps/web/lib/readGalleryDownload.ts',
+        'apps/web/lib/auth/otpService.ts',
+        'apps/web/lib/auth/testing/otpProbes.ts',
+        'apps/web/lib/auth/rateLimit.ts',
+        'apps/web/lib/auth/sessions.ts',
+        'apps/web/lib/auth/signIn.ts',
+        'apps/web/lib/auth/passwordReset.ts',
+        'apps/web/lib/auth/readSignInScreen.ts',
+        'apps/web/lib/auth/setNewPassword.ts',
+        'apps/web/lib/auth/newPasswordScreen.ts',
+        'apps/web/lib/auth/guard.ts',
+        'apps/web/lib/auth/services.ts',
+        'apps/web/lib/auth/signInEndpoints.ts',
+        'apps/web/lib/auth/resetRequestEndpoint.ts',
+        'apps/web/lib/auth/readCodeScreen.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
         'apps/web/payload.config.ts',
@@ -160,6 +180,106 @@ export default defineConfig({
         // that has already bootstrapped `diary_test` once genuinely
         // measures, not what a first-ever run would.
         'apps/web/lib/testPayload.ts': { lines: 93, branches: 75, functions: 100 },
+        // otpService.ts (Phase 2 Task 3): 100% on every axis, and it took
+        // two corrections to get an honest 100 rather than a lowered bar.
+        // The first version of this entry sat at 93% branches and claimed
+        // both missing arms were unreachable. One of them was not: a reviewer
+        // reached `attempts ?? 0` with a plain
+        // `payload.update({ data: { attempts: null } })`, no mocking - a
+        // threshold lowered on a reason that is not true is worse than one
+        // lowered honestly, because the comment stops the next reader from
+        // checking. Both arms are gone rather than excused: the attempt count
+        // is now `COALESCE`d in SQL (with a test that writes a NULL count and
+        // expects the challenge to still work), and the single-row `count(*)`
+        // is folded over its rows instead of read through a `?.`. The one
+        // `c8 ignore` left in the file, on `deriveKey`'s error arm, records
+        // the three things tried before it was excused.
+        'apps/web/lib/auth/otpService.ts': { lines: 100, branches: 100, functions: 100 },
+        // The probes are gated at 100% on every axis, like queue-fixtures.ts
+        // above and for the same reason: they are what makes every security
+        // assertion in otpService.integration.test.ts non-vacuous, so each of
+        // their own refusals is exercised rather than assumed.
+        'apps/web/lib/auth/testing/otpProbes.ts': { lines: 100, branches: 100, functions: 100 },
+        // rateLimit.ts (Phase 2 Task 4): 100% on every axis, and honestly so
+        // rather than by construction. The module has no defensive arm to
+        // excuse: its two single-row folds are TOTAL (`Math.max` over the
+        // returned rows, with initial values that make an impossible empty
+        // result fail closed through the domain's own guards), so there is no
+        // `if (row === undefined)` here whose branch nothing could take -
+        // which is exactly how otpService.ts arrived at an honest 100 after
+        // two corrections. Every remaining branch is a real decision: the two
+        // dimensions of `admitCodeAttempt`, and the `byAddress.ok` that
+        // decides which refusal a caller is told about.
+        'apps/web/lib/auth/rateLimit.ts': { lines: 100, branches: 100, functions: 100 },
+        // sessions.ts (Phase 2 Task 6): 100% on every axis, and honestly so.
+        // It reached 94% branches first, with the two uncovered arms being
+        // `revokeSession` and `revokeAllSessions` refusing a `UserId` that is
+        // not a Payload row id - reachable by any caller, since the brand
+        // promises only a non-empty string. Both are now exercised rather
+        // than excused: otpService.ts's entry above records what happens when
+        // a threshold is lowered on a reason that turns out not to be true.
+        // The two `c8 ignore`s that remain are on the `isOk` unwraps of
+        // `sessionId`/`userId`, whose refusal arms a base64url identifier and
+        // a `NOT NULL integer` column cannot reach, and each states so at the
+        // point of the exclusion.
+        'apps/web/lib/auth/sessions.ts': { lines: 100, branches: 100, functions: 100 },
+        // signIn.ts and passwordReset.ts (Phase 2 Task 5): 100% on every
+        // axis. Neither carries a lowered bar, and both are the enforcement
+        // point rather than a mechanism - every branch in them is a real
+        // answer a request can receive, including the three that are
+        // deliberately the same answer (unknown address, wrong password,
+        // locked account). The `c8 ignore`s in `signIn.ts` are the `pbkdf2`
+        // error arm (the same arm, for the same reason, as otpService.ts's
+        // `deriveKey`), the `userId` unwrap on a `NOT NULL` primary key, and
+        // `startSession`'s `'unknown-account'` refusal reached two statements
+        // after the row was read - each states its reason at the exclusion.
+        'apps/web/lib/auth/signIn.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/auth/passwordReset.ts': { lines: 100, branches: 100, functions: 100 },
+        // readSignInScreen.ts (Phase 2 Task 7): 100% on every axis. There is
+        // nothing to excuse here - the module is two queries and four
+        // narrowings, and every one of its branches is a real editorial or
+        // schema state with a case of its own: a cleared title, a cleared
+        // subtitle, a cleared cloth colour, and the three answers
+        // `otp_required` can give (true, false, and NULL - which reads as
+        // required, like an absent account).
+        'apps/web/lib/auth/readSignInScreen.ts': { lines: 100, branches: 100, functions: 100 },
+        // setNewPassword.ts and newPasswordScreen.ts (Phase 2 Task 9): 100% on
+        // every axis, and nothing in either is excused. `refusalFrom`'s arms
+        // are the reason it is exported: a live Payload produces only two of
+        // them (a 403 for a token it cannot match and a 400 for a password it
+        // refuses), and the rest - a thrown string, a `null`, an object with
+        // no status - are what a rejected connection or a future release would
+        // take, so they are exercised directly rather than left as an
+        // untestable "cannot happen". Everything else in both files is a real
+        // answer a request can receive: two link states, two refusals, and the
+        // three redirects a submission can be given.
+        'apps/web/lib/auth/setNewPassword.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/auth/newPasswordScreen.ts': { lines: 100, branches: 100, functions: 100 },
+        // guard.ts, services.ts, signInEndpoints.ts and resetRequestEndpoint.ts
+        // (Phase 2 Task 10 — the HTTP boundary): 100% on every axis, which is
+        // the measured number rather than a rounded-up one, and nothing in any
+        // of the four is excused beyond two arms that are marked and named.
+        // `guard.ts` HAS NO `c8 ignore` REGION AS OF ROUND 9, and that is a
+        // change worth naming: it had one over `requireAdminSession` and
+        // `guardedAction`, on the ground that `headers()` throws outside a
+        // request context. It does — and `next/headers` and `next/navigation`
+        // are the framework boundary CLAUDE.md §2.3 permits standing in for,
+        // which is what `guard.integration.test.ts` now does. The sixth
+        // whole-branch review found the region's own claim that the factory's
+        // "runtime behaviour is covered in the browser" false, because nothing
+        // reached the factory at all; both functions are executed now, and the
+        // 100% below is measured over them rather than around them.
+        // `signInEndpoints.ts`
+        // has one `c8 ignore next`: `startSession` refusing an account a
+        // challenge row references, which is the fail-closed answer to that
+        // account being deleted between two statements. Everything else in all
+        // four is a real answer a request can receive — three sign-in outcomes,
+        // four code-step outcomes, two sign-out outcomes, two reset outcomes,
+        // and the four session refusals the guard distinguishes.
+        'apps/web/lib/auth/guard.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/auth/services.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/auth/signInEndpoints.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/auth/resetRequestEndpoint.ts': { lines: 100, branches: 100, functions: 100 },
         // readBookBundle.ts (Task 6 of Phase 1; Task 6 review fix round 1;
         // Task 11): 100% lines/statements/functions. 83% branches is the
         // real, measured number, RAISED again from 81% by Task 11, whose
@@ -200,6 +320,48 @@ export default defineConfig({
         // `slotsFor` - every matched Notes/Frames page this suite creates
         // always defines `slots`.
         'apps/web/lib/readBookBundle.ts': { lines: 100, branches: 83, functions: 100 },
+        // FINDING 36 of Phase 2's final review: these three sat in this pass's
+        // `include` with NO threshold entry, and outside `vitest.config.ts`'s
+        // include as well — measured by this run and gated by nothing, which
+        // is the state CLAUDE.md §2.1 exists to forbid ("an unmeasured file
+        // looks exactly like a fully-covered one"). There is no repository-wide
+        // floor in this config to catch them either, deliberately: this pass
+        // measures a hand-picked set, so a wildcard floor would be a number
+        // nobody chose.
+        //
+        // Each number below is the one the suite ACHIEVES, not one negotiated
+        // down to it: `readCodeScreen.ts` is total at 100 across, and the two
+        // gallery readers' branch figures are the optional-field folds their
+        // own headers describe — the same shape `readBookBundle.ts` above
+        // carries, for the same reason, at the same kind of number.
+        //
+        // TWO OF THE THREE SIT BELOW CLAUDE.md §2.1's 95% FOR `apps/web/lib/**`,
+        // AND THAT IS STATED HERE RATHER THAN LEFT TO BE NOTICED. 78% and 85%
+        // branches are what the suites achieve, not numbers negotiated down to
+        // the code: both files map a Payload document onto a bundle, and the
+        // uncovered branches are the `?? fallback` on optional fields that the
+        // seeded content happens to fill — `readBookBundle.ts` above carries
+        // 83% for exactly the same reason and has since Phase 1.
+        //
+        // Raising them means seeding a journey with every optional field blank,
+        // which is a fixture decision belonging to whoever next touches the
+        // gallery, not a number to be edited here. What is NOT acceptable, and
+        // is what the final review found, is the previous state: no entry at
+        // all, so the files were measured by this pass and gated by nothing.
+        // A stated shortfall is reviewable; an absent one is invisible.
+        //
+        // AND IT IS NOW STATED IN THE REGISTER OF DEPARTURES TOO, which it was
+        // not: `docs/deviations.md` §46 lists all SIX per-file branch gates in
+        // this config that sit under §2.1's 95% - these two, plus
+        // `readBookBundle.ts` at 83, `seed.ts` at 83, `postgres-queue.ts` at 75
+        // and `testPayload.ts` at 75, four of which predate this branch and
+        // none of which had an entry. Stating a shortfall only at the point of
+        // exclusion is stating it where somebody already looking will see it;
+        // §1.2 makes deviations.md the place somebody NOT already looking
+        // will.
+        'apps/web/lib/readGalleryBundle.ts': { lines: 100, branches: 78, functions: 100 },
+        'apps/web/lib/readGalleryDownload.ts': { lines: 100, branches: 85, functions: 100 },
+        'apps/web/lib/auth/readCodeScreen.ts': { lines: 100, branches: 100, functions: 100 },
         // seed-data.ts is a pure data literal - 100% by construction, every
         // call reads every field.
         'apps/web/scripts/seed-data.ts': { lines: 100, branches: 100, functions: 100 },

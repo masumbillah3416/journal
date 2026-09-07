@@ -144,9 +144,7 @@ describe('readGalleryBundle', () => {
   it('points every download at a handler of ours rather than at the store', async () => {
     const bundle = await readGalleryBundle(VERIFIED_GALLERY.slug)
 
-    expect(
-      bundle?.frames.filter((frame) => !frame.downloadHref.startsWith('/gallery/patagonia/download/')),
-    ).toEqual([])
+    expect(bundle?.frames.filter((frame) => !frame.downloadHref.startsWith('/gallery/patagonia/download/'))).toEqual([])
     expect(bundle?.frames.filter((frame) => frame.downloadHref.includes('/api/media/file/'))).toEqual([])
   })
 
