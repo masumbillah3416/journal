@@ -93,6 +93,36 @@ const ORIGIN = 'http://localhost:3000'
 /** How many samples each arm of the timing case takes. */
 const SAMPLES = 25
 
+/**
+ * The budget for the timing case below, which the 5,000 ms default never was.
+ *
+ * ═══ WHY IT IS SPELLED OUT RATHER THAN LEFT TO THE DEFAULT ═══
+ *
+ * THE ARITHMETIC, so the next person to change {@link SAMPLES} can see what it
+ * costs before a merge gate tells them: the case creates {@link SAMPLES} real
+ * accounts, each one a real PBKDF2 password hash, and then times
+ * {@link SAMPLES} refusals on EACH of two arms — and every one of those
+ * refusals performs a real ~40 ms derivation, which is the whole point of the
+ * assertion. So 25 fixtures plus 25 x 2 timed derivations is about
+ * 25 x 3 x 40 ms = 3,000 ms of key stretching alone, before a single database
+ * round trip. Measured: 4,156 ms and 4,558 ms in a full suite run.
+ *
+ * Against Vitest's 5,000 ms default that is a 9% margin with `retry` at 0, and
+ * `npm run verify:full` went RED on exactly that — 5,012 ms — on the run a
+ * merge was conditioned on, taking the integration coverage report down with
+ * it before the reporter could print. The assertion was never the problem; the
+ * harness budget was, and a cost that is knowable in advance should not be
+ * discovered in a gate. Thirty seconds is roughly six times the measured cost:
+ * enough that a loaded machine cannot reach it, and short enough that a case
+ * which has genuinely hung still fails rather than hanging the suite.
+ *
+ * NOT the other three fixes, and each was considered: widening the band hides
+ * the separation the case exists to measure, cutting {@link SAMPLES} makes a
+ * median out of fewer observations, and deleting it removes the only check
+ * that the dummy derivation is still there.
+ */
+const TIMING_CASE_TIMEOUT_MS = 30_000
+
 /** How many cells `SCREENS.md` §3.2 gives the code, and fields the pane posts. */
 const CELL_COUNT = 6
 
@@ -650,40 +680,48 @@ describe('the three refusals the password step must not tell apart', () => {
     expect(answered.headers.get('Location')).toBe(`${PASSWORD_STEP_PATH}?state=${PASSWORD_REFUSED_STATE}`)
   })
 
-  it('takes comparable time for an unknown address and a wrong password', async () => {
-    // Task 5 measured 0.90 with the dummy derivation and 0.14 without it, at
-    // the SERVICE. This measures the HANDLER, because the handler is what an
-    // attacker can reach — the same claim one layer out, against the same
-    // deliberately wide band (see `signIn.integration.test.ts` on why a tight
-    // band flakes and is then deleted).
-    //
-    // EVERY SAMPLE IS FRESH IN EVERY DIMENSION. A repeated address exhausts
-    // the window, and a repeated account locks after five wrong passwords;
-    // either would put BOTH arms on the short path, at which point this case
-    // passes with the derivation deleted.
-    const accounts: FixtureAccount[] = []
-    for (let sample = 0; sample < SAMPLES; sample += 1) accounts.push(await anAccount({ otpRequired: false }))
+  it(
+    'takes comparable time for an unknown address and a wrong password',
+    async () => {
+      // Task 5 measured 0.90 with the dummy derivation and 0.14 without it, at
+      // the SERVICE. This measures the HANDLER, because the handler is what an
+      // attacker can reach — the same claim one layer out, against the same
+      // deliberately wide band (see `signIn.integration.test.ts` on why a tight
+      // band flakes and is then deleted).
+      //
+      // EVERY SAMPLE IS FRESH IN EVERY DIMENSION. A repeated address exhausts
+      // the window, and a repeated account locks after five wrong passwords;
+      // either would put BOTH arms on the short path, at which point this case
+      // passes with the derivation deleted.
+      const accounts: FixtureAccount[] = []
+      for (let sample = 0; sample < SAMPLES; sample += 1) accounts.push(await anAccount({ otpRequired: false }))
 
-    const time = async (email: string): Promise<number> => {
-      const started = performance.now()
-      await refuse(email)
-      return performance.now() - started
-    }
+      const time = async (email: string): Promise<number> => {
+        const started = performance.now()
+        await refuse(email)
+        return performance.now() - started
+      }
 
-    const unknown: number[] = []
-    const wrong: number[] = []
-    // Interleaved, so machine drift during the run cannot favour one arm.
-    for (let sample = 0; sample < SAMPLES; sample += 1) {
-      unknown.push(await time(anUnknownAddress()))
-      const account = accounts[sample]
-      if (account === undefined) throw new Error('the timing fixtures are short')
-      wrong.push(await time(account.email))
-    }
+      const unknown: number[] = []
+      const wrong: number[] = []
+      // Interleaved, so machine drift during the run cannot favour one arm.
+      for (let sample = 0; sample < SAMPLES; sample += 1) {
+        unknown.push(await time(anUnknownAddress()))
+        const account = accounts[sample]
+        if (account === undefined) throw new Error('the timing fixtures are short')
+        wrong.push(await time(account.email))
+      }
 
-    const ratio = median(unknown) / median(wrong)
-    expect(ratio).toBeGreaterThan(0.6)
-    expect(ratio).toBeLessThan(1.6)
-  })
+      const ratio = median(unknown) / median(wrong)
+      expect(ratio).toBeGreaterThan(0.6)
+      expect(ratio).toBeLessThan(1.6)
+      // SAMPLES x 2 arms x a real ~40ms derivation, plus SAMPLES fixtures that
+      // each hash a password: about 3s of key stretching by construction, which
+      // is why this case carries its own budget instead of Vitest's 5,000ms
+      // default. See TIMING_CASE_TIMEOUT_MS before changing SAMPLES.
+    },
+    TIMING_CASE_TIMEOUT_MS,
+  )
 })
 
 describe('what the code step answers', () => {

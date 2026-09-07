@@ -114,6 +114,36 @@ const MAX_LOGIN_ATTEMPTS = 5
  */
 const SAMPLES = 25
 
+/**
+ * The budget for the timing case below, which the 5,000 ms default never was.
+ *
+ * ═══ WHY IT IS SPELLED OUT RATHER THAN LEFT TO THE DEFAULT ═══
+ *
+ * THE ARITHMETIC, so the next person to change {@link SAMPLES} can see what it
+ * costs before a merge gate tells them: the case creates {@link SAMPLES} real
+ * accounts, each one a real PBKDF2 password hash, and then times
+ * {@link SAMPLES} refusals on EACH of two arms — and every one of those
+ * refusals performs a real ~40 ms derivation, which is the whole point of the
+ * assertion. So 25 fixtures plus 25 x 2 timed derivations is about
+ * 25 x 3 x 40 ms = 3,000 ms of key stretching alone, before a single database
+ * round trip. Measured: 4,156 ms and 4,558 ms in a full suite run.
+ *
+ * Against Vitest's 5,000 ms default that is a 9% margin with `retry` at 0, and
+ * `npm run verify:full` went RED on exactly that — 5,012 ms — on the run a
+ * merge was conditioned on, taking the integration coverage report down with
+ * it before the reporter could print. The assertion was never the problem; the
+ * harness budget was, and a cost that is knowable in advance should not be
+ * discovered in a gate. Thirty seconds is roughly six times the measured cost:
+ * enough that a loaded machine cannot reach it, and short enough that a case
+ * which has genuinely hung still fails rather than hanging the suite.
+ *
+ * NOT the other three fixes, and each was considered: widening the band hides
+ * the separation the case exists to measure, cutting {@link SAMPLES} makes a
+ * median out of fewer observations, and deleting it removes the only check
+ * that the dummy derivation is still there.
+ */
+const TIMING_CASE_TIMEOUT_MS = 30_000
+
 /** Distinguishes one fixture from the next within a single run. */
 let fixtureCount = 0
 
@@ -368,58 +398,66 @@ describe('telling one refusal from another', () => {
     expect(whileLocked).toEqual(unknown)
   })
 
-  it('takes comparable time for an unknown address and a wrong password', async () => {
-    // The response can be identical while the timing still says which branch
-    // ran: a miss that skipped the key derivation would answer in about a
-    // millisecond against the ~40ms the hit path spends inside Payload.
-    //
-    // EVERY SAMPLE IS FRESH IN EVERY DIMENSION, and that is what keeps this
-    // measuring anything. A repeated sign-in address exhausts the window this
-    // task added to the password endpoint, and a repeated account locks after
-    // five wrong passwords — either would make BOTH arms take the short path,
-    // at which point the case passes with the dummy hash deleted.
-    const accounts: FixtureAccount[] = []
-    for (let sample = 0; sample < SAMPLES; sample += 1) {
-      accounts.push(await aReader({ otpRequired: false }))
-    }
+  it(
+    'takes comparable time for an unknown address and a wrong password',
+    async () => {
+      // The response can be identical while the timing still says which branch
+      // ran: a miss that skipped the key derivation would answer in about a
+      // millisecond against the ~40ms the hit path spends inside Payload.
+      //
+      // EVERY SAMPLE IS FRESH IN EVERY DIMENSION, and that is what keeps this
+      // measuring anything. A repeated sign-in address exhausts the window this
+      // task added to the password endpoint, and a repeated account locks after
+      // five wrong passwords — either would make BOTH arms take the short path,
+      // at which point the case passes with the dummy hash deleted.
+      const accounts: FixtureAccount[] = []
+      for (let sample = 0; sample < SAMPLES; sample += 1) {
+        accounts.push(await aReader({ otpRequired: false }))
+      }
 
-    const time = async (email: string): Promise<number> => {
-      const request = aRequest(email, WRONG_PASSWORD)
-      const started = performance.now()
-      await service.signIn(request)
-      return performance.now() - started
-    }
+      const time = async (email: string): Promise<number> => {
+        const request = aRequest(email, WRONG_PASSWORD)
+        const started = performance.now()
+        await service.signIn(request)
+        return performance.now() - started
+      }
 
-    const unknown: number[] = []
-    const wrong: number[] = []
-    // Interleaved, so machine drift during the run cannot favour one arm.
-    for (let sample = 0; sample < SAMPLES; sample += 1) {
-      unknown.push(await time(anUnknownAddress()))
-      const account = accounts[sample]
-      if (account === undefined) throw new Error('the timing fixtures are short')
-      wrong.push(await time(account.email))
-    }
+      const unknown: number[] = []
+      const wrong: number[] = []
+      // Interleaved, so machine drift during the run cannot favour one arm.
+      for (let sample = 0; sample < SAMPLES; sample += 1) {
+        unknown.push(await time(anUnknownAddress()))
+        const account = accounts[sample]
+        if (account === undefined) throw new Error('the timing fixtures are short')
+        wrong.push(await time(account.email))
+      }
 
-    const median = (samples: readonly number[]): number => {
-      const sorted = [...samples].sort((left, right) => left - right)
-      const middle = sorted[Math.floor(sorted.length / 2)]
-      if (middle === undefined) throw new Error('no samples')
-      return middle
-    }
+      const median = (samples: readonly number[]): number => {
+        const sorted = [...samples].sort((left, right) => left - right)
+        const middle = sorted[Math.floor(sorted.length / 2)]
+        if (middle === undefined) throw new Error('no samples')
+        return middle
+      }
 
-    // ~0.90 IS THE CORRECT ANSWER HERE, NOT A DEFECT TO BE TUNED TOWARDS 1.00.
-    // Both arms are dominated by the same ~40ms derivation, but the
-    // wrong-password arm makes two extra database round trips the miss path
-    // does not — `payload.login`'s own `findOne` and `incrementLoginAttempts` —
-    // so the miss is legitimately the faster of the two by a few milliseconds.
-    // Five consecutive runs measured 0.9036, 0.9047, 0.9146, 0.9007, 0.9015: a
-    // spread of 0.014, every run 0.30 clear of the bound below. Chasing 1.00
-    // would mean adding work to the miss path to disguise work the hit path
-    // does for a reason, which is the wrong direction entirely.
-    const ratio = median(unknown) / median(wrong)
-    expect(ratio).toBeGreaterThan(0.6)
-    expect(ratio).toBeLessThan(1.6)
-  })
+      // ~0.90 IS THE CORRECT ANSWER HERE, NOT A DEFECT TO BE TUNED TOWARDS 1.00.
+      // Both arms are dominated by the same ~40ms derivation, but the
+      // wrong-password arm makes two extra database round trips the miss path
+      // does not — `payload.login`'s own `findOne` and `incrementLoginAttempts` —
+      // so the miss is legitimately the faster of the two by a few milliseconds.
+      // Five consecutive runs measured 0.9036, 0.9047, 0.9146, 0.9007, 0.9015: a
+      // spread of 0.014, every run 0.30 clear of the bound below. Chasing 1.00
+      // would mean adding work to the miss path to disguise work the hit path
+      // does for a reason, which is the wrong direction entirely.
+      const ratio = median(unknown) / median(wrong)
+      expect(ratio).toBeGreaterThan(0.6)
+      expect(ratio).toBeLessThan(1.6)
+      // SAMPLES x 2 arms x a real ~40ms derivation, plus SAMPLES fixtures that
+      // each hash a password: about 3s of key stretching by construction, which
+      // is why this case carries its own budget instead of Vitest's 5,000ms
+      // default. See TIMING_CASE_TIMEOUT_MS before changing SAMPLES.
+    },
+    TIMING_CASE_TIMEOUT_MS,
+  )
 
   it('names neither the offered password nor the address it was offered for in a refusal', async () => {
     const known = await aReader({ otpRequired: false })

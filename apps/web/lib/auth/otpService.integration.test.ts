@@ -61,6 +61,17 @@ import { createConsoleMailer } from '../adapters/console-mailer'
 import type { MailerPort } from '../ports/mailer'
 import { getTestPayload } from '../testPayload'
 import { ISSUE_LOCK_NAMESPACE, type OtpService, createOtpService } from './otpService'
+
+/**
+ * The budget for the bounded-wait case, which is the one case here that spends
+ * real time on purpose.
+ *
+ * `otpService.ts`'s `ISSUE_LOCK_TIMEOUT_MS` is 3,000ms and the assertion is
+ * that the wait ENDS there, so three of these seconds are the behaviour rather
+ * than overhead. Ten gives that a margin a loaded machine cannot close, and
+ * says out loud that the number belongs to the service rather than to Vitest.
+ */
+const BOUNDED_WAIT_TIMEOUT_MS = 10_000
 import {
   aDifferentCode,
   challengeCountSince,
@@ -893,33 +904,43 @@ describe('otpService', () => {
     })
   })
 
-  it('gives up rather than waiting forever when another request holds the lock', async () => {
-    const { user } = await aSignInAccount()
-    const { service } = await anOtpService()
-    const accountId = accountRowId(user)
+  it(
+    'gives up rather than waiting forever when another request holds the lock',
+    async () => {
+      const { user } = await aSignInAccount()
+      const { service } = await anOtpService()
+      const accountId = accountRowId(user)
 
-    // Hold the account's lock from outside the service, the way a stalled
-    // sibling request would. The pool defaults to ten connections
-    // (apps/web/payload.config.ts), so an unbounded wait here is not one slow
-    // request - it is a connection held out of a pool of ten for as long as
-    // the holder lasts, and ten of them is the whole application stopped.
-    const holder = await payload.db.pool.connect()
-    try {
-      await holder.query('BEGIN')
-      await holder.query('SELECT pg_advisory_xact_lock($1, $2)', [ISSUE_LOCK_NAMESPACE, accountId])
+      // Hold the account's lock from outside the service, the way a stalled
+      // sibling request would. The pool defaults to ten connections
+      // (apps/web/payload.config.ts), so an unbounded wait here is not one slow
+      // request - it is a connection held out of a pool of ten for as long as
+      // the holder lasts, and ten of them is the whole application stopped.
+      const holder = await payload.db.pool.connect()
+      try {
+        await holder.query('BEGIN')
+        await holder.query('SELECT pg_advisory_xact_lock($1, $2)', [ISSUE_LOCK_NAMESPACE, accountId])
 
-      // Bounded: `lock_timeout` turns the wait into a refusal. It surfaces as
-      // a thrown Postgres error rather than one of the four Result refusals,
-      // deliberately - see the module header. A reader can act on 'cooldown';
-      // there is nothing they can do about database contention, and inventing
-      // a fifth refusal for it would put a message on the sign-in screen that
-      // describes our infrastructure.
-      await expect(service.issueChallenge(user, aSessionId('a'), FIXTURE_IP)).rejects.toThrow(/lock timeout/i)
-    } finally {
-      await holder.query('ROLLBACK')
-      holder.release()
-    }
-  })
+        // Bounded: `lock_timeout` turns the wait into a refusal. It surfaces as
+        // a thrown Postgres error rather than one of the four Result refusals,
+        // deliberately - see the module header. A reader can act on 'cooldown';
+        // there is nothing they can do about database contention, and inventing
+        // a fifth refusal for it would put a message on the sign-in screen that
+        // describes our infrastructure.
+        await expect(service.issueChallenge(user, aSessionId('a'), FIXTURE_IP)).rejects.toThrow(/lock timeout/i)
+      } finally {
+        await holder.query('ROLLBACK')
+        holder.release()
+      }
+      // This case WAITS FOR ISSUE_LOCK_TIMEOUT_MS ON PURPOSE — the refusal it
+      // asserts is the `lock_timeout` firing — so its cost is 3,000ms plus
+      // fixtures by construction, measured at 3,109ms. Against Vitest's 5,000ms
+      // default that is a 38% margin, which is the same shape that took
+      // `verify:full` red on the timing case; the budget is spelled out here for
+      // the same reason. Raising ISSUE_LOCK_TIMEOUT_MS means raising this.
+    },
+    BOUNDED_WAIT_TIMEOUT_MS,
+  )
 
   it('refuses to issue a challenge for an id that is not an account id at all', async () => {
     const { service, mailer } = await anOtpService()
