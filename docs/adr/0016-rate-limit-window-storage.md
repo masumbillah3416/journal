@@ -170,6 +170,25 @@ limiter whose table grows without bound whenever the scheduler is down has an av
 dependency it does not need, and the sweep costs one extra indexed `DELETE` inside a
 statement that was already being issued.
 
+**Amended after Phase 2's final review (blocker B4): this is now the policy for all three
+sign-in tables, and its number lives in one place.** `otp_challenges` and `sessions` were
+left with no cleanup at all in the same phase that built this sweep, under two comments
+asserting an indexed `DELETE WHERE expires_at < now()` that was never written (ruling F14,
+now corrected). Both are swept the same way now — a bounded cross-key batch riding along
+with the write that creates a row — and `PRUNE_SWEEP_ROWS` moved out of `rateLimit.ts`
+into `packages/domain/src/auth/retention.ts` so the three tables cannot end up with three
+numbers nobody decided on. Each table keeps its own definition of a dead row, and neither
+of the new ones is `expires_at`:
+
+- `otp_challenges` sweeps by `created_at` older than the **resend window** (one hour), not
+  by the challenge's own five-minute life. A challenge is unusable long before it stops
+  being counted by the hourly mailbomb ceiling, and a purge on `expires_at` would have
+  handed a reader an unlimited supply of codes fifty-five minutes early.
+- `sessions` sweeps rows that are expired **or** revoked — exactly the two conditions
+  `sessionState` refuses on, read from the same two columns, so nothing that could still
+  authenticate is removed. The row being superseded by the same statement is excluded, so
+  the `UPDATE` and the `DELETE` are never two commands racing over one row.
+
 ## Consequences
 
 - **The limiter survives a deploy target that discards process memory**, which was the

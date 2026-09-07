@@ -131,12 +131,24 @@ already hashes one secret has no business keeping the other in the clear.
   source of `codeMatches` that `timingSafeEqual` is the comparison used, with the
   measurement and the reasoning recorded beside it. That is a real limitation, stated
   rather than papered over with a threshold loose enough never to fail.
-- **`expiresAt` becomes a purge index and nothing else.** It is written as
-  `createdAt + EXPIRY_MS` so a purge is one indexed `DELETE`; authorization derives
-  expiry from `createdAt` and `EXPIRY_MS` instead, because two sources of truth for one
-  fact (CLAUDE.md §7) would make the constant decorative and let a bad write extend a
+- **`expiresAt` is written and read by nothing.** It is `createdAt + EXPIRY_MS` because
+  `DATA_MODEL.md`'s field list declares the column; authorization derives expiry from
+  `createdAt` and `EXPIRY_MS` instead, because two sources of truth for one fact
+  (CLAUDE.md §7) would make the constant decorative and let a bad write extend a
   challenge silently. Pinned by a test that moves the stored column a year into the
   future and still expects the challenge to be expired.
+
+  **AMENDED after Phase 2's final review (blocker B4).** This bullet said the column
+  "becomes a purge index and nothing else", and phase ruling F14 kept it on that ground.
+  Both were false: no purge query existed anywhere, the column carried no index, and
+  `otp_challenges` grew without bound. The purge exists now — a bounded cross-key sweep
+  riding along with every `issueChallenge`, the same shape `sign_in_attempts` uses (ADR 0016) and the same one number
+  (`PRUNE_SWEEP_ROWS`, `packages/domain/src/auth/retention.ts`) — and it keys on
+  `created_at`, not on this column. That is not a detail: a challenge is unusable after
+  five minutes but is still counted by the hourly resend ceiling for an hour, so
+  `DELETE WHERE expires_at < now()` — the exact query this ADR described — would delete
+  rows the mailbomb cap is still counting.
+
 - **Rotating the scrypt parameters is free**, and rotating the session-hash algorithm is
   not much dearer: both only affect rows younger than five minutes.
 - Recorded as deviation 25 in `docs/deviations.md` (the added column) and discharged

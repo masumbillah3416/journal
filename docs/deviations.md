@@ -1220,7 +1220,7 @@ list cannot hold, after `otpChallenges.sessionHash` (§25). As there, the stated
 requirement wins over the printed list.
 
 Unlike `otpChallenges.expiresAt`, this column **is** the authorization input rather than a
-purge index. There is no second derivation of the same fact to disagree with it:
+column nothing reads. There is no second derivation of the same fact to disagree with it:
 `sessionState` (`packages/domain/src/auth/session.ts`) reads this column and nothing else
 decides a session's lifetime, and the identifier in the cookie is opaque, so it carries no
 expiry of its own. The distinction is drawn deliberately — §25's column exists _because_

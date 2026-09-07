@@ -63,7 +63,8 @@
  * THE PRUNE RIDES ALONG WITH THE INSERT, AND IT IS NOT ONLY THIS KEY'S. Rows
  * older than the window can affect no future decision, so each write deletes
  * this key's aged rows AND a bounded batch of aged rows from any other key
- * ({@link PRUNE_SWEEP_ROWS}). The second half is what makes the table's bound
+ * (`PRUNE_SWEEP_ROWS`, @travel-diary/domain/auth/retention, which the OTP
+ * and session stores now sweep by too). The second half is what makes the bound
  * real: a key-scoped prune alone bounds growth by the number of distinct keys
  * ever seen, not by the window, and a spray from many addresses is precisely
  * the traffic that manufactures keys. With the sweep, cleanup is eventually
@@ -110,7 +111,7 @@
  *
  * Depends on: `payload` (the Local API instance, injected) and its Postgres
  * pool, `node:crypto`, and `@travel-diary/domain`'s `admitsAttempt`, the three
- * limits, the window, `UserId` and `Result`.
+ * limits, the window, `PRUNE_SWEEP_ROWS`, `UserId` and `Result`.
  */
 import { createHash } from 'node:crypto'
 import {
@@ -121,33 +122,10 @@ import {
   SIGN_IN_WINDOW_MS,
   admitsAttempt,
 } from '@travel-diary/domain/auth/rateWindow'
+import { PRUNE_SWEEP_ROWS } from '@travel-diary/domain/auth/retention'
 import type { UserId } from '@travel-diary/domain/ids'
 import type { Result } from '@travel-diary/domain/result'
 import type { Payload } from 'payload'
-
-/**
- * How many aged rows belonging to OTHER keys each write also clears.
- *
- * A key-scoped prune alone does not bound this table, and the first version of
- * this module claimed it did. Pruning only the key being written bounds growth
- * by the number of DISTINCT KEYS ever seen, not by the window: an address that
- * makes one attempt and never returns leaves its row behind for good, and a
- * spray from many addresses — the threat this limiter exists for — is exactly
- * the traffic that manufactures keys. Measured before it was fixed: three aged
- * rows for one address survived a write against a different address.
- *
- * So every write also sweeps a bounded batch of aged rows from anywhere in the
- * table, oldest first, which makes cleanup eventually complete while
- * per-request work stays constant. Fifty because it is comfortably more than
- * the keys one sign-in burst can create, so the sweep drains faster than
- * ordinary traffic fills it, and small enough that the extra `DELETE` stays a
- * few indexed rows rather than a scan a reader waits on.
- *
- * A scheduled job was the other option and was not taken: Phase 0's queue
- * exists, but a limiter whose table grows without bound whenever the scheduler
- * is down has an availability dependency it does not need. See ADR 0016.
- */
-const PRUNE_SWEEP_ROWS = 50
 
 /** Which of `SECURITY.md`'s two sliding windows an attempt is counted in. */
 type AttemptDimension = 'ip' | 'account'
@@ -262,7 +240,9 @@ const admitAttempt = async (pool: Payload['db']['pool'], key: AttemptKey): Promi
   // bound real rather than aspirational. The first `DELETE` clears everything
   // older than the window for THIS key. The second clears a bounded batch of
   // aged rows belonging to ANY OTHER key, oldest first — see
-  // {@link PRUNE_SWEEP_ROWS} for why a key-scoped prune alone is not enough.
+  // `PRUNE_SWEEP_ROWS` (@travel-diary/domain/auth/retention) for why a
+  // key-scoped prune alone is not enough — measured before it was fixed:
+  // three aged rows for one address survived a write against a different one.
   // The `INSERT` then records this attempt. A data-modifying CTE cannot see
   // another's rows, which is exactly what is wanted: neither prune can remove
   // the row being written, and the sweep's `NOT (...)` keeps the two deletes

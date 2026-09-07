@@ -73,15 +73,39 @@
  * candidate code derived and compared. See
  * `docs/adr/0015-otp-challenge-hashing.md`.
  *
- * INVARIANT — `expiresAt` IS A PURGE INDEX AND IS NEVER READ TO DECIDE
- * VALIDITY. It is written as `createdAt + EXPIRY_MS` so a purge can be one
- * indexed `DELETE WHERE expires_at < now()`. Authorization compares
- * `created_at` against `now - EXPIRY_MS` — in the claim's own `WHERE`, and in
- * `challengeState` on the re-read. Two sources of truth for one fact
- * (CLAUDE.md §7) would make `EXPIRY_MS` decorative and would let a bad write
- * to `expiresAt` silently extend a challenge's life. Pinned by the "decides
- * expiry from createdAt" test, which moves the stored column a year into the
- * future and still expects the challenge to be expired.
+ * ═══ THE TABLE IS BOUNDED BY A SWEEP, AND `expiresAt` IS NOT WHAT BOUNDS IT ═══
+ *
+ * Every `issueChallenge` also deletes a bounded batch of rows older than
+ * `RESEND_WINDOW_MS`, from any account, oldest first — the same cross-key
+ * sweep `rateLimit.ts` uses and the same one number
+ * (`PRUNE_SWEEP_ROWS`, @travel-diary/domain/auth/retention). Rows are only
+ * ever created here, so a table that sweeps up to fifty per insert drains
+ * faster than it fills, with no scheduler that has to be up.
+ *
+ * THE SWEEP KEYS ON `created_at`, AND THIS COMMENT USED TO SAY OTHERWISE.
+ * Phase 2 ruling F14 kept the `expiresAt` column on the ground that it "earns
+ * its place as a purge index (`DELETE WHERE expiresAt < now`, one indexed
+ * query)", and this header and `apps/web/collections/otpChallenges.ts` both
+ * stated that purge as though it existed. It did not: no such query was ever
+ * written, the column carries no index, and the table grew without bound —
+ * blocker B4 of Phase 2's final review. The ruling was also wrong on the
+ * merits, which is worth more than the correction: a challenge is unusable
+ * after EXPIRY_MS (five minutes) but is still COUNTED by the hourly ceiling
+ * for RESEND_WINDOW_MS (one hour), so a purge keyed on `expires_at` would
+ * delete rows the mailbomb cap is still counting.  `created_at` is the column
+ * the retention question is actually about, and it is the column the two
+ * queries that read a window already use.
+ *
+ * INVARIANT — `expiresAt` IS NEVER READ, BY ANYTHING. Not to decide validity,
+ * not to purge. It is written as `createdAt + EXPIRY_MS` because
+ * `DATA_MODEL.md`'s `otpChallenges` section declares the field and this
+ * repository transcribes that schema faithfully; every decision derives
+ * expiry from `created_at` and `EXPIRY_MS` instead — in the claim's own
+ * `WHERE`, and in `challengeState` on the re-read. Two sources of truth for
+ * one fact (CLAUDE.md §7) would make `EXPIRY_MS` decorative and would let a
+ * bad write to `expiresAt` silently extend a challenge's life. Pinned by the
+ * "decides expiry from createdAt" test, which moves the stored column a year
+ * into the future and still expects the challenge to be expired.
  *
  * INVARIANT — NOTHING HERE EVER LOGS, RETURNS OR THROWS THE CODE. The code
  * exists in exactly two places: the local `code` binding in
@@ -92,7 +116,8 @@
  * Depends on: `payload` (the Local API instance, injected) and its Postgres
  * pool, the Mailer port, `node:crypto`, and
  * `@travel-diary/domain`'s `challengeState`, `canResend`, `EXPIRY_MS`,
- * `MAX_ATTEMPTS`, `maskEmail`, the branded ids and `Result`.
+ * `MAX_ATTEMPTS`, `PRUNE_SWEEP_ROWS`, `maskEmail`, the branded ids and
+ * `Result`.
  */
 import { createHash, randomBytes, randomInt, scrypt, timingSafeEqual } from 'node:crypto'
 import { maskEmail } from '@travel-diary/domain/auth/mask'
@@ -104,6 +129,7 @@ import {
   canResend,
   challengeState,
 } from '@travel-diary/domain/auth/otpChallenge'
+import { PRUNE_SWEEP_ROWS } from '@travel-diary/domain/auth/retention'
 import { type SessionId, type UserId, userId } from '@travel-diary/domain/ids'
 import { type Result, err, isOk, ok } from '@travel-diary/domain/result'
 import type { Payload } from 'payload'
@@ -600,8 +626,34 @@ export const createOtpService = ({ payload, mailer, now }: OtpServiceDependencie
           // on. `created_at` is written explicitly, from the same instant as
           // `expires_at`, so this module's `expiresAt === createdAt +
           // EXPIRY_MS` invariant is exact rather than approximately true.
+          // ONE STATEMENT, TWO EFFECTS, and the second is what bounds the
+          // table. The `DELETE` clears a batch of rows — from ANY account —
+          // whose `created_at` is older than the rolling hour the count above
+          // reads, oldest first; the `INSERT` then writes this challenge. A
+          // data-modifying CTE cannot see another's rows, so the sweep can
+          // never touch the row being written.
+          //
+          // THE FLOOR IS THE RESEND WINDOW, NOT THE CHALLENGE'S OWN LIFE, and
+          // that is the whole reason this purge does not key on `expires_at`
+          // the way two comments in this repository used to claim it did. A
+          // challenge is unusable after EXPIRY_MS (five minutes) but is still
+          // COUNTED by the hourly ceiling for RESEND_WINDOW_MS (one hour), so
+          // `DELETE WHERE expires_at < now()` would delete rows the mailbomb
+          // cap is still counting and hand a reader an unlimited supply of
+          // codes fifty-five minutes early. Nothing reads a row older than the
+          // window: not `challengeState`, not `verifyChallenge`, not
+          // `pendingChallenge`, not this count.
           await client.query(
-            `INSERT INTO otp_challenges
+            `WITH aged AS (
+               SELECT id FROM otp_challenges
+                WHERE created_at <= $7
+                ORDER BY id
+                LIMIT $8
+             ),
+             swept AS (
+               DELETE FROM otp_challenges WHERE id IN (SELECT id FROM aged)
+             )
+             INSERT INTO otp_challenges
                (user_id, code_hash, session_hash, expires_at, attempts, ip, created_at, updated_at)
              VALUES ($1, $2, $3, $4, 0, $5, $6, $6)`,
             [
@@ -611,6 +663,8 @@ export const createOtpService = ({ payload, mailer, now }: OtpServiceDependencie
               new Date(issuedAt + EXPIRY_MS),
               ip,
               new Date(issuedAt),
+              new Date(issuedAt - RESEND_WINDOW_MS),
+              PRUNE_SWEEP_ROWS,
             ],
           )
         } else {

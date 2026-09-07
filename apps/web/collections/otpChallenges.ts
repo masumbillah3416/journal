@@ -46,10 +46,16 @@ export const OtpChallenges: CollectionConfig = {
     // docs/adr/0015-otp-challenge-hashing.md for why this column is hashed
     // differently from `codeHash` above.
     { name: 'sessionHash', type: 'text', required: true, index: true },
-    // Written as `createdAt + EXPIRY_MS`, and read ONLY by the purge query.
-    // Authorization derives expiry from `createdAt` and the domain's
-    // `EXPIRY_MS` — see otpService.ts's header for why two sources of truth
-    // for one fact would make `EXPIRY_MS` decorative.
+    // Written as `createdAt + EXPIRY_MS`, and READ BY NOTHING. This comment
+    // said "read ONLY by the purge query" and there was no purge query —
+    // blocker B4 of Phase 2's final review, and the false half of ruling F14.
+    // The purge exists now (`otpService.issueChallenge` sweeps a bounded
+    // batch on every write) and it keys on `created_at`, because a challenge
+    // is unusable after five minutes but still counted by the hourly resend
+    // ceiling for an hour. The column is kept because `DATA_MODEL.md`'s field
+    // list declares it; authorization derives expiry from `createdAt` and the
+    // domain's `EXPIRY_MS` — see otpService.ts's header for why two sources
+    // of truth for one fact would make `EXPIRY_MS` decorative.
     { name: 'expiresAt', type: 'date', required: true },
     { name: 'attempts', type: 'number', defaultValue: 0 },
     { name: 'consumedAt', type: 'date' },

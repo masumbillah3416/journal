@@ -111,13 +111,22 @@ added by migration `20260905_202028_add_otp_session_hash`. Why the two hashed co
 two different algorithms — a slow salted hash for the code, a fast indexable one for the
 lookup key — is `docs/adr/0015-otp-challenge-hashing.md`.
 
-`expiresAt` is a **purge index, not an authorization input.** It is written as
-`createdAt + EXPIRY_MS` so that expiring old challenges is one indexed
-`DELETE WHERE expires_at < now()`; whether a challenge is still usable is derived from
-`createdAt` and the domain's `EXPIRY_MS` (`packages/domain/src/auth/otpChallenge.ts`),
+`expiresAt` is **written and read by nothing.** It is `createdAt + EXPIRY_MS` because the
+handoff's field list declares the column; whether a challenge is still usable is derived
+from `createdAt` and the domain's `EXPIRY_MS` (`packages/domain/src/auth/otpChallenge.ts`),
 never read back off this column. Two sources of truth for one fact would make `EXPIRY_MS`
 decorative and would let a bad write to `expiresAt` silently extend a challenge's life.
 The behaviour lives in `apps/web/lib/auth/otpService.ts`.
+
+This paragraph used to call the column "a purge index, not an authorization input", and
+described the purge as one indexed `DELETE WHERE expires_at < now()`. **No such query
+existed** and the column carries no index — blocker B4 of Phase 2's final review,
+correcting ruling F14. The purge exists now and keys on `created_at`: a bounded cross-key
+sweep in `issueChallenge`, because a challenge is unusable after five minutes but is still
+counted by the hourly resend ceiling for an hour, so a purge on `expires_at` would delete
+rows that ceiling still needs. The retention policy and its one number are
+`packages/domain/src/auth/retention.ts`; `sessions` is swept the same way, on the two
+columns `sessionState` refuses by.
 
 ### `sessions`
 

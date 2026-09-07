@@ -200,6 +200,57 @@ const removeFixtureAccounts = async (payload: Awaited<ReturnType<typeof getTestP
 }
 
 /**
+ * Writes a challenge row aged into the past, without going through the service.
+ *
+ * The service will not write a row for an instant of the caller's choosing —
+ * it stamps `created_at` from its own clock inside the advisory lock — and the
+ * claim under test is about rows that are already old. So this inserts one
+ * directly, with the shape `issueChallenge` writes.
+ * @param user - Whose challenge it is.
+ * @param ageMs - How far in the past to stamp `created_at`.
+ */
+const anAgedChallenge = async (user: UserId, ageMs: number): Promise<void> => {
+  const createdAt = new Date(Date.now() - ageMs)
+  await payload.db.pool.query(
+    `INSERT INTO otp_challenges (user_id, code_hash, session_hash, expires_at, attempts, ip, created_at, updated_at)
+     VALUES ($1, 'not-a-real-hash', $2, $3, 0, $4, $5, $5)`,
+    [
+      accountRowId(user),
+      `aged-${String(accountRowId(user))}-${String(ageMs)}`,
+      new Date(createdAt.getTime() + EXPIRY_MS),
+      FIXTURE_IP,
+      createdAt,
+    ],
+  )
+}
+
+/**
+ * How many challenge rows an account holds.
+ * @param user - The account.
+ * @returns The row count.
+ */
+const challengeCountFor = async (user: UserId): Promise<number> => {
+  const { rows } = await payload.db.pool.query<{ held: number }>(
+    `SELECT count(*)::int AS held FROM otp_challenges WHERE user_id = $1`,
+    [accountRowId(user)],
+  )
+  return rows.reduce((total, row) => total + row.held, 0)
+}
+
+/**
+ * Empties the table of everything the sweep would take, before a sweep case.
+ *
+ * The sweep takes the OLDEST rows by id and stops at
+ * `PRUNE_SWEEP_ROWS`. Another file's leftovers ahead of this file's fixtures
+ * would fill that batch and leave the fixtures behind — a case that failed
+ * for a reason that has nothing to do with the behaviour. Clearing them makes
+ * the batch this file's own.
+ */
+const clearAgedChallenges = async (): Promise<void> => {
+  await payload.db.pool.query(`DELETE FROM otp_challenges WHERE created_at <= now() - interval '1 hour'`)
+}
+
+/**
  * The Payload row id behind a fixture's branded {@link UserId}.
  * @param user - The branded id, which for a fixture is always numeric.
  * @returns The numeric row id.
@@ -462,7 +513,11 @@ describe('otpService', () => {
     expect(await service.verifyChallenge(session, code)).toEqual({ ok: false, error: 'expired' })
   })
 
-  it('writes expiresAt as createdAt plus the expiry window, for the purge query to index', async () => {
+  it('writes expiresAt as createdAt plus the expiry window, which is the only thing it is for', async () => {
+    // The column is `DATA_MODEL.md`'s and is read by nothing — not
+    // authorization, and not the purge, which keys on `created_at`. This case
+    // says the stored value is the derived one, so a reader of the table is
+    // not misled by it.
     const { user } = await aSignInAccount()
     const { service } = await anOtpService()
 
@@ -470,6 +525,41 @@ describe('otpService', () => {
     const row = await latestChallenge(user)
 
     expect(row.expiresAt - row.createdAt).toBe(EXPIRY_MS)
+  })
+
+  it('sweeps aged challenges belonging to OTHER accounts, so the table is bounded by the window', async () => {
+    // THE CROSS-KEY HALF, which is the half that was missing. A prune scoped
+    // to the account being written bounds this table by the number of
+    // accounts ever seen rather than by the retention window — ruling F33's
+    // finding for `sign_in_attempts`, and B4's for this table.
+    await clearAgedChallenges()
+    const stale = await aSignInAccount()
+    const writer = await aSignInAccount()
+    await anAgedChallenge(stale.user, 2 * HOUR_MS)
+    await anAgedChallenge(stale.user, 3 * HOUR_MS)
+    const { service } = await anOtpService()
+
+    await service.issueChallenge(writer.user, aSessionId('sweeper'), FIXTURE_IP)
+
+    expect(await challengeCountFor(stale.user)).toBe(0)
+  })
+
+  it('leaves a challenge inside the resend window alone, because the hourly ceiling still counts it', async () => {
+    // THE CASE THAT REFUSES THE OBVIOUS PURGE. `DELETE WHERE expires_at <
+    // now()` reads correctly and is wrong: a challenge is unusable after five
+    // minutes but is still counted by the hourly mailbomb ceiling for an
+    // hour, so that purge hands a reader an unlimited supply of codes
+    // fifty-five minutes early. The row below is long expired and well inside
+    // the window.
+    await clearAgedChallenges()
+    const stale = await aSignInAccount()
+    const writer = await aSignInAccount()
+    await anAgedChallenge(stale.user, 30 * 60_000)
+    const { service } = await anOtpService()
+
+    await service.issueChallenge(writer.user, aSessionId('sweeper'), FIXTURE_IP)
+
+    expect(await challengeCountFor(stale.user)).toBe(1)
   })
 
   it('never writes the code to the log', async () => {

@@ -78,12 +78,18 @@
  * the row already names the account, and `SECURITY.md`'s prohibition is on
  * the two appearing together.
  *
+ * THE TABLE IS BOUNDED BY A SWEEP THAT RIDES ALONG WITH `startSession`. See
+ * the comment on that statement; the policy and its one number are
+ * `@travel-diary/domain/auth/retention`.
+ *
  * Depends on: `payload` (the Local API instance, injected) and its Postgres
  * pool, `node:crypto`, and `@travel-diary/domain`'s `sessionState`,
- * `sessionCookie`, `sessionLifetimeMs`, the branded ids and `Result`.
+ * `sessionCookie`, `sessionLifetimeMs`, `PRUNE_SWEEP_ROWS`, the branded ids
+ * and `Result`.
  */
 import { createHash, randomBytes } from 'node:crypto'
 import { sessionCookie, sessionLifetimeMs, sessionState } from '@travel-diary/domain/auth/session'
+import { PRUNE_SWEEP_ROWS } from '@travel-diary/domain/auth/retention'
 import { type SessionId, type UserId, sessionId, userId } from '@travel-diary/domain/ids'
 import { type Result, err, isOk, ok } from '@travel-diary/domain/result'
 import type { Payload } from 'payload'
@@ -329,11 +335,37 @@ export const createSessionService = ({ payload, now }: SessionServiceDependencie
     const expiresAt = startedAt + lifetimeMs
     const session = newIdentifier()
 
-    // ONE STATEMENT, TWO EFFECTS, and their atomicity is the point. The CTE
-    // supersedes the identifier the browser arrived with; the `INSERT` mints
-    // its replacement. A data-modifying CTE cannot see another's rows, so the
-    // revoke can never reach the row being written even in the (impossible)
-    // event that the CSPRNG returned the previous identifier.
+    // ONE STATEMENT, THREE EFFECTS, and the atomicity of the first two is the
+    // point. The `superseded` CTE revokes the identifier the browser arrived
+    // with; the `INSERT` mints its replacement. A data-modifying CTE cannot
+    // see another's rows, so the revoke can never reach the row being written
+    // even in the (impossible) event that the CSPRNG returned the previous
+    // identifier.
+    //
+    // THE THIRD EFFECT IS WHAT BOUNDS THE TABLE. `sessions` had no cleanup at
+    // all — blocker B4 of Phase 2's final review, and the same condition
+    // ruling F33 declared unacceptable for `sign_in_attempts` in this same
+    // phase. Every start now also deletes a bounded batch of rows that can no
+    // longer authenticate anybody, from ANY account, oldest first: the same
+    // cross-key sweep and the same one number
+    // (`PRUNE_SWEEP_ROWS`, @travel-diary/domain/auth/retention). A key-scoped
+    // prune would bound this table by the number of accounts ever seen rather
+    // than by anything.
+    //
+    // A ROW IS DEAD WHEN `authenticate` CAN NO LONGER ADMIT IT — expired, or
+    // revoked. That is the same pair of conditions `sessionState` refuses on,
+    // read from the same two columns, so nothing that could have authenticated
+    // is removed. The one thing it costs is that a dead row's refusal becomes
+    // `'unknown'` rather than `'expired'` or `'revoked'` once it is swept, and
+    // `guard.ts` records that nothing acts on the difference.
+    //
+    // THE ROW BEING SUPERSEDED IS EXCLUDED FROM THE SWEEP, deliberately: an
+    // arriving identifier that is already revoked would otherwise be matched
+    // by both the `UPDATE` and the `DELETE` in one statement, which is a race
+    // between two commands over one row rather than a behaviour anybody chose.
+    // `IS DISTINCT FROM` rather than `<>` so that a browser arriving with no
+    // identifier at all ($5 NULL) still sweeps, instead of comparing to NULL
+    // and excluding every row.
     //
     // `previous` IS BOUND, NOT BRANCHED ON: `token_hash = NULL` evaluates to
     // NULL rather than true, so a browser arriving with no identifier
@@ -345,6 +377,16 @@ export const createSessionService = ({ payload, now }: SessionServiceDependencie
          UPDATE sessions
             SET revoked_at = $6, updated_at = $6
           WHERE token_hash = $5 AND revoked_at IS NULL
+       ),
+       dead AS (
+         SELECT id FROM sessions
+          WHERE (expires_at <= $6 OR revoked_at IS NOT NULL)
+            AND (token_hash IS DISTINCT FROM $5)
+          ORDER BY id
+          LIMIT $8
+       ),
+       swept AS (
+         DELETE FROM sessions WHERE id IN (SELECT id FROM dead)
        )
        INSERT INTO sessions
          (user_id, token_hash, expires_at, device, location, created_at, updated_at)
@@ -358,6 +400,7 @@ export const createSessionService = ({ payload, now }: SessionServiceDependencie
         previous === null ? null : hashIdentifier(previous),
         new Date(startedAt),
         location,
+        PRUNE_SWEEP_ROWS,
       ],
     )
     // An `INSERT ... RETURNING` of one row returns exactly one row or throws,

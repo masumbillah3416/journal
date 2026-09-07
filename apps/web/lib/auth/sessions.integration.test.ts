@@ -180,6 +180,31 @@ const onlySessionRowOf = async (account: number): Promise<number> => {
 }
 
 /**
+ * How many session rows an account holds, live or dead.
+ * @param account - The account's row id.
+ * @returns The row count.
+ */
+const sessionCountOf = async (account: number): Promise<number> => {
+  const { rows } = await payload.db.pool.query<{ held: number }>(
+    `SELECT count(*)::int AS held FROM sessions WHERE user_id = $1`,
+    [account],
+  )
+  return rows.reduce((total, row) => total + row.held, 0)
+}
+
+/**
+ * Empties the table of everything the sweep would take, before a sweep case.
+ *
+ * The sweep takes the OLDEST dead rows by id and stops at `PRUNE_SWEEP_ROWS`.
+ * Another file's leftovers ahead of this file's fixtures would fill that batch
+ * and leave the fixtures behind — a case that failed for a reason that has
+ * nothing to do with the behaviour.
+ */
+const clearDeadSessions = async (): Promise<void> => {
+  await payload.db.pool.query(`DELETE FROM sessions WHERE expires_at <= now() OR revoked_at IS NOT NULL`)
+}
+
+/**
  * Removes every row and account this file creates, at both ends of the run.
  *
  * Sessions go first and are matched by their OWNER as well as by the device
@@ -419,6 +444,60 @@ describe('keep me signed in', () => {
     await ageSessionPastItsExpiry(remembered.session)
 
     expect(await sessions.authenticate(remembered.session)).toEqual({ ok: false, error: 'expired' })
+  })
+})
+
+describe('keeping the table bounded', () => {
+  it('deletes dead sessions belonging to OTHER accounts when one is started', async () => {
+    // THE CROSS-KEY HALF. A prune scoped to the account being written bounds
+    // this table by the number of accounts ever seen rather than by anything
+    // — ruling F33's finding for `sign_in_attempts`, and blocker B4's for
+    // this table, which had no cleanup at all.
+    await clearDeadSessions()
+    const stale = await anAccount()
+    const expired = await aSessionFor(stale.id)
+    await ageSessionPastItsExpiry(expired.session)
+    const revoked = await aSessionFor(stale.id)
+    await sessions.revokeSession({ session: revoked.session, owner: stale.id })
+    const writer = await anAccount()
+
+    await aSessionFor(writer.id)
+
+    expect(await sessionCountOf(stale.row)).toBe(0)
+  })
+
+  it('leaves a live session of another account alone, because it can still authenticate', async () => {
+    // The sweep's condition is exactly `sessionState`'s two refusals, read
+    // from the same two columns. A sweep one day wider than that is a reader
+    // signed out with no cause.
+    await clearDeadSessions()
+    const bystander = await anAccount()
+    const live = await aSessionFor(bystander.id)
+    const writer = await anAccount()
+
+    await aSessionFor(writer.id)
+
+    expect(await sessions.authenticate(live.session)).toEqual({ ok: true, value: { user: bystander.id } })
+  })
+
+  it('still supersedes the identifier the browser arrived with when its row is already dead', async () => {
+    // The row being superseded is excluded from the sweep, so the `UPDATE`
+    // and the `DELETE` in one statement are never two commands racing over
+    // one row. Without the exclusion this is undefined behaviour rather than
+    // a decision anybody made.
+    await clearDeadSessions()
+    const account = await anAccount()
+    const carried = await aSessionFor(account.id)
+    await ageSessionPastItsExpiry(carried.session)
+
+    const replacement = await aSessionFor(account.id, { previous: carried.session })
+
+    // `'revoked'` rather than `'unknown'` is the point: the row was SUPERSEDED
+    // by the `UPDATE`, not removed by the `DELETE`. Either answer refuses the
+    // identifier, so an assertion that only said "refused" would pass whether
+    // or not the two commands had collided over it.
+    expect(await sessions.authenticate(carried.session)).toEqual({ ok: false, error: 'revoked' })
+    expect(await sessions.authenticate(replacement.session)).toEqual({ ok: true, value: { user: account.id } })
   })
 })
 
