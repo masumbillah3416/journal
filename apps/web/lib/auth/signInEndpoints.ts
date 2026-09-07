@@ -105,6 +105,7 @@
  * services return.
  */
 import { CODE_UNJUDGED_STATE, CODE_UNSENT_STATE } from '@travel-diary/domain/auth/codeScreen'
+import { CODE_STEP_PATH, SIGNED_IN_PATH, SIGN_IN_PATH as PASSWORD_STEP_PATH } from './adminPaths'
 import { PASSWORD_CODE_UNSENT_STATE, PASSWORD_REFUSED_STATE } from '@travel-diary/domain/auth/signInScreen'
 import { z } from 'zod'
 import {
@@ -120,14 +121,15 @@ import type { GuardedHandler } from './guard'
 import { clientAddress, deviceLabel, seeOther, submittedFields, submittedForm } from './httpForm'
 import { signInServices } from './services'
 
-/** Where the password step is drawn, and where every refusal sends a reader. */
-export const PASSWORD_STEP_PATH = '/admin/sign-in'
-
-/** Where the one-time-code step is drawn. */
-export const CODE_STEP_PATH = '/admin/sign-in/code'
-
-/** Where a reader lands once a session is theirs. */
-export const SIGNED_IN_PATH = '/admin/sign-in/done'
+/**
+ * Where the password step is drawn, and where every refusal sends a reader.
+ *
+ * RE-EXPORTED FROM `./adminPaths.ts`, NOT RE-TYPED. These three were literals
+ * here and literals again in the components whose forms post to them and in
+ * `adminAccess.ts`'s allowlist, with nothing tying them — and that allowlist is
+ * default-deny, so drift redirects silently instead of erroring (seam S5).
+ */
+export { CODE_STEP_PATH, PASSWORD_STEP_PATH, SIGNED_IN_PATH }
 
 /**
  * What a submission to the password endpoint has to carry.

@@ -129,6 +129,15 @@ export default defineConfig({
             'packages/*/src/**/*.test.ts',
             'apps/web/lib/**/*.test.ts',
             'apps/web/scripts/**/*.test.ts',
+            // `apps/web/collections/**/*.test.ts` - the NON-integration ones.
+            // A collection config is a plain object and `users.ts` imports
+            // only types from `payload`, so a check over the numbers OTHER
+            // modules are written against (`users.lockout.test.ts`: the
+            // lockout window against `rateWindow.ts`'s) needs no Docker and
+            // belongs in the pre-commit gate rather than in CI. The
+            // integration project's own glob below still owns
+            // `*.integration.test.ts`, and the two patterns are disjoint.
+            'apps/web/collections/**/*.test.ts',
             // `apps/web/middleware.ts` sits at the app's own root, where
             // Next.js requires it - see its header. Without this glob its
             // test file would be collected by nobody, which is the exact

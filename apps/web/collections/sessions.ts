@@ -62,7 +62,7 @@
  *
  * WHY THE COLLECTION-LEVEL `update` IS NOT SIMPLY `() => false`. Payload
  * refuses at the collection level BEFORE it evaluates field access, so a flat
- * refusal there would make all seven field predicates unreachable - and an
+ * refusal there would make all nine fields' predicates unreachable - and an
  * unreachable predicate is an uncoverable function against this directory's
  * 100% gate, as well as a rule no test can prove. Admitting an owner's own
  * request and then writing none of its fields keeps each refusal exercised by

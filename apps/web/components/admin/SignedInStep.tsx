@@ -55,6 +55,7 @@
  */
 import { pagePath } from '@travel-diary/domain/pageAddress'
 import type React from 'react'
+import { ADMIN_PANEL_PATH as PANEL_PATH, SIGN_OUT_ENDPOINT as SIGN_OUT } from '../../lib/auth/adminPaths'
 import styles from './signIn.module.css'
 
 /**
@@ -70,7 +71,7 @@ import styles from './signIn.module.css'
  * records what that screen is, and `e2e/signInJourney.spec.ts` presses this
  * button and follows it.
  */
-export const ADMIN_PANEL_PATH = '/admin'
+export const ADMIN_PANEL_PATH = PANEL_PATH
 
 /**
  * Where "View the diary instead" leads.
@@ -90,7 +91,7 @@ export const DIARY_PATH = pagePath(0)
  * mounts at the path this form actually targets rather than at a second
  * spelling of it.
  */
-export const SIGN_OUT_ENDPOINT = '/admin/sign-out'
+export const SIGN_OUT_ENDPOINT = SIGN_OUT
 
 /**
  * The line SCREENS.md §3.4 calls a status line.

@@ -90,19 +90,26 @@
  * `notFound` (next/navigation), zod, `getPayload` (../payload),
  * ./httpForm, ./setNewPassword, ./resetPath.
  */
-import { type NewPasswordView, newPasswordView } from '@travel-diary/domain/auth/resetScreen'
+import { type NewPasswordView, newPasswordView, RESET_REFUSED_STATE } from '@travel-diary/domain/auth/resetScreen'
 import { notFound } from 'next/navigation'
 import { z } from 'zod'
+import { SIGN_IN_PATH } from './adminPaths'
 import { getPayload } from '../payload'
 import { seeOther, submittedFields } from './httpForm'
 import { isReservedResetSegment, RESET_PATH } from './resetPath'
 import { createNewPasswordService } from './setNewPassword'
 
-/** Where a reader goes once the new password is theirs. */
-const SIGN_IN_PATH = '/admin/sign-in'
-
-/** The `state` value that carries a refused password back onto the form. */
-const PASSWORD_REFUSED_STATE = 'rejected'
+/**
+ * The `state` value that carries a refused password back onto the form.
+ *
+ * IMPORTED FROM THE DOMAIN, NOT DECLARED HERE. It was a private constant in
+ * this file and a private constant again in
+ * `packages/domain/src/auth/resetScreen.ts`, which reads it — producer and
+ * consumer as two unlinked literals across a package boundary, either of which
+ * could change and silently turn the reset refusal message off (seam S4). Both
+ * were also called `PASSWORD_REFUSED_STATE`, which is the name
+ * `@travel-diary/domain/auth/signInScreen` exports for a different value.
+ */
 
 /**
  * What a submission to the endpoint has to carry.
@@ -164,5 +171,5 @@ export const handleSetNewPassword = async (request: Request): Promise<Response> 
   if (set.ok) return seeOther(SIGN_IN_PATH)
 
   const link = `${RESET_PATH}/${encodeURIComponent(token)}`
-  return seeOther(set.error === 'rejected' ? `${link}?state=${PASSWORD_REFUSED_STATE}` : link)
+  return seeOther(set.error === 'rejected' ? `${link}?state=${RESET_REFUSED_STATE}` : link)
 }

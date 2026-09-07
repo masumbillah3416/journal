@@ -148,6 +148,15 @@
  * module is imported by `apps/web/middleware.ts`, which runs in the Edge
  * runtime.
  */
+import {
+  CODE_STEP_PATH,
+  CODE_VERIFY_ENDPOINT,
+  PASSWORD_ENDPOINT,
+  RESEND_ENDPOINT,
+  RESET_REQUEST_ENDPOINT,
+  SET_PASSWORD_ENDPOINT,
+  SIGN_IN_PATH,
+} from './adminPaths'
 import { RESET_PATH } from './resetPath'
 
 /** The prefix every address of the bespoke admin panel sits under. */
@@ -173,20 +182,27 @@ const SAFE_METHODS: readonly string[] = ['GET', 'HEAD', 'OPTIONS']
  * module's header for why the policy is written this way round.
  *
  * INVARIANT — an address added here is an address that answers to anybody.
- * The four endpoints in this list carry their own authorisation instead: the
- * password endpoint the credentials in its body, the code endpoint the code
- * and the challenge bound to the browser's identifier, and the two reset
+ * The five endpoints in this list carry their own authorisation instead: the
+ * password endpoint the credentials in its body, the two code endpoints the
+ * code and the challenge bound to the browser's identifier, and the two reset
  * endpoints the token. None of them inherits trust from having been reached.
+ *
+ * EVERY ENTRY IS THE CONSTANT THE FORM ACTUALLY POSTS TO, imported from
+ * `./adminPaths.ts` rather than written out again. The list used to hold its
+ * own literals beside a component's, with nothing tying the two — and because
+ * this policy is default-deny, drift between them does not 404: the middleware
+ * treats the drifted path as guarded and the reader is redirected to sign-in
+ * with nothing anywhere saying why (seam S5).
  */
 export const ADMIN_PUBLIC_PATHS: readonly string[] = [
-  '/admin/sign-in',
-  '/admin/sign-in/password',
-  '/admin/sign-in/code',
-  '/admin/sign-in/code/verify',
-  '/admin/sign-in/code/resend',
+  SIGN_IN_PATH,
+  PASSWORD_ENDPOINT,
+  CODE_STEP_PATH,
+  CODE_VERIFY_ENDPOINT,
+  RESEND_ENDPOINT,
   RESET_PATH,
-  `${RESET_PATH}/request`,
-  `${RESET_PATH}/set`,
+  RESET_REQUEST_ENDPOINT,
+  SET_PASSWORD_ENDPOINT,
 ]
 
 /**

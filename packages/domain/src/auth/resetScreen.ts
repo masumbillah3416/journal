@@ -73,8 +73,26 @@ export type NewPasswordView =
   /** The link is good and the password was refused; the form, with the reason. */
   | 'rejected'
 
-/** The `state` value the endpoint redirects with after refusing a password. */
-const PASSWORD_REFUSED_STATE = 'rejected'
+/**
+ * The `state` value the endpoint redirects with after refusing a password.
+ *
+ * EXPORTED, AND THE NAME IS NOT `PASSWORD_REFUSED_STATE`, for two reasons that
+ * Phase 2's final review found together as seam S4.
+ *
+ * It was private, and `apps/web/lib/auth/newPasswordScreen.ts` — the endpoint
+ * that WRITES this word — declared a private constant of its own holding the
+ * same string. Producer and consumer were two unlinked literals across a
+ * package boundary, so changing either one silently degraded `?state=rejected`
+ * to `'form'`: the reset failure message would simply stop appearing, with no
+ * test failing. The one thing that must not happen to a screen whose whole job
+ * is to say a password was refused.
+ *
+ * And both were called `PASSWORD_REFUSED_STATE`, which is also the name
+ * `./signInScreen.ts` exports for a DIFFERENT value (`'refused'`). One name,
+ * three declarations, two values — the shape a reader cannot hold in their
+ * head and a search cannot disambiguate. This one is named for its own screen.
+ */
+export const RESET_REFUSED_STATE = 'rejected'
 
 /**
  * Which state the set-a-new-password screen is in.
@@ -100,5 +118,5 @@ const PASSWORD_REFUSED_STATE = 'rejected'
  */
 export const newPasswordView = (link: ResetLinkState, state: string | undefined): NewPasswordView => {
   if (link === 'spent') return 'expired'
-  return state === PASSWORD_REFUSED_STATE ? 'rejected' : 'form'
+  return state === RESET_REFUSED_STATE ? 'rejected' : 'form'
 }

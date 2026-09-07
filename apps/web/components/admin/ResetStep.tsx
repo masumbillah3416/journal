@@ -58,6 +58,7 @@
 import type { ResetRequestView } from '@travel-diary/domain/auth/resetScreen'
 import { useState } from 'react'
 import type React from 'react'
+import { RESET_REQUEST_ENDPOINT as REQUEST_ENDPOINT, SIGN_IN_PATH as SIGN_IN } from '../../lib/auth/adminPaths'
 import { RESET_PATH } from '../../lib/auth/resetPath'
 import styles from './signIn.module.css'
 
@@ -78,10 +79,10 @@ import styles from './signIn.module.css'
  * this prefix means reserving it there too, which `resetPath.test.ts` fails
  * the build over.
  */
-export const RESET_REQUEST_ENDPOINT = '/admin/reset/request'
+export const RESET_REQUEST_ENDPOINT = REQUEST_ENDPOINT
 
 /** Where the way back, and "Sign in with the new password", both lead. */
-export const SIGN_IN_PATH = '/admin/sign-in'
+export const SIGN_IN_PATH = SIGN_IN
 
 /** The eyebrow both states carry. The prototype's, verbatim. */
 const EYEBROW = 'Forgotten'

@@ -14,13 +14,12 @@
  * answer a `POST` at its own path. `components/admin/CodeStep.tsx` exports
  * `CODE_STEP_ENDPOINT`, and this directory is that constant's spelling.
  *
- * ITS SIBLING `resend` IS NOT MOUNTED, and that is recorded rather than
- * silent: `CodeStep.tsx` also draws a "Send a new code" button posting to
- * `/admin/sign-in/code/resend`, and issuing a fresh code needs the ACCOUNT a
- * challenge belongs to — which `otpService` deliberately will not name for a
- * browser identifier, since doing so would say which browsers hold a live
- * challenge. `docs/deviations.md` §33 carries it with the rest of the code
- * screen's gaps.
+ * ITS SIBLING `resend` IS MOUNTED TOO, at `../resend/route.ts`. This comment
+ * said it was not, for the whole of Phase 2 after the round that mounted it
+ * (final review, seam S11). What unblocked it was `otpService.challengeAccount`
+ * — the server-only lookup that names the account a challenge belongs to
+ * without that account ever reaching a response, which is the thing the old
+ * paragraph here said could not exist.
  * Depends on: `handleCodeStep` (../../../../../../lib/auth/signInEndpoints).
  */
 /* c8 ignore start -- Framework passthrough with no authored logic whatsoever:

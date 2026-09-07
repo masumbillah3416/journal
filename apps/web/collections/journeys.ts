@@ -5,7 +5,7 @@
  * { drafts: true }` and the indexed `deletedAt` soft-delete column are in this,
  * the first migration, deliberately — the design's 30-day trash with restore
  * and restorable editions makes both painful to retrofit onto a collection
- * with existing rows (DATA_MODEL.md, "Two notes worth heeding" / CLAUDE.md §7).
+ * with existing rows (DATA_MODEL.md, "Four notes worth heeding" / CLAUDE.md §7).
  * Depends on: `payload`.
  */
 import type { CollectionConfig } from 'payload'

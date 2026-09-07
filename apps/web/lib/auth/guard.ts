@@ -69,13 +69,14 @@ import type { Result } from '@travel-diary/domain/result'
 import { err } from '@travel-diary/domain/result'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { SIGN_IN_PATH as ADMIN_SIGN_IN_PATH } from './adminPaths'
 import { getPayload } from '../payload'
 import { clearedSessionCookie, readBrowserSession } from './browserSession'
 import type { AuthenticatedSession, SessionRefusal } from './sessions'
 import { createSessionService } from './sessions'
 
 /** Where a refused request for a guarded screen is sent. */
-export const SIGN_IN_PATH = '/admin/sign-in'
+export const SIGN_IN_PATH = ADMIN_SIGN_IN_PATH
 
 /** The status a refused mutation answers with. Never 307 - see {@link guarded}. */
 const SEE_OTHER = 303

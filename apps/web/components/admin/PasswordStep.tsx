@@ -76,6 +76,7 @@
  */
 import { useState } from 'react'
 import type React from 'react'
+import { PASSWORD_ENDPOINT } from '../../lib/auth/adminPaths'
 import { RESET_PATH } from '../../lib/auth/resetPath'
 import styles from './signIn.module.css'
 
@@ -88,7 +89,7 @@ import styles from './signIn.module.css'
  * mounts at the path this form actually targets rather than at a second
  * spelling of it.
  */
-export const PASSWORD_STEP_ENDPOINT = '/admin/sign-in/password'
+export const PASSWORD_STEP_ENDPOINT = PASSWORD_ENDPOINT
 
 /** Copy for the footer line when the code step runs. The prototype's, verbatim. */
 export const CODE_STEP_ON_NOTICE =

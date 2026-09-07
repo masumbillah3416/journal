@@ -25,6 +25,7 @@
  * Depends on: vitest, ./newPasswordScreen, ./passwordReset, ./rateLimit,
  * ./resetPath, ../adapters/console-mailer, ../testPayload.
  */
+import { RESET_REFUSED_STATE } from '@travel-diary/domain/auth/resetScreen'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createConsoleMailer } from '../adapters/console-mailer'
 import { getTestPayload } from '../testPayload'
@@ -256,6 +257,22 @@ describe('what a POST to the screen answers', () => {
 
     expect(answered.status).toBe(303)
     expect(answered.headers.get('Location')).toBe(`${RESET_PATH}/${token}?state=rejected`)
+  })
+
+  it('writes a state word the screen reads back as the refusal, end to end', async () => {
+    // SEAM S4. The word this endpoint writes and the word the screen matches on
+    // were two private constants of the same name, in two packages, with
+    // nothing tying them: change either and `?state=rejected` degrades to the
+    // plain form — the reset failure message simply stops appearing, and no
+    // test fails. This drives the real redirect and feeds its `state` straight
+    // into the real reader, so the two cannot disagree without failing here.
+    const { token } = await aMailedLink()
+
+    const answered = await post({ token, password: '' })
+    const state = new URL(answered.headers.get('Location') ?? '', ENDPOINT).searchParams.get('state') ?? undefined
+
+    expect(state).toBe(RESET_REFUSED_STATE)
+    expect(await readNewPasswordScreen({ token, state })).toBe('rejected')
   })
 
   it('leaves a refused password unset, so the old one still signs them in', async () => {

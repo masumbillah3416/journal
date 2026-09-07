@@ -62,6 +62,7 @@
 import type { NewPasswordView } from '@travel-diary/domain/auth/resetScreen'
 import { useState } from 'react'
 import type React from 'react'
+import { SET_PASSWORD_ENDPOINT as SET_ENDPOINT, SIGN_IN_PATH } from '../../lib/auth/adminPaths'
 import { RESET_PATH } from '../../lib/auth/resetPath'
 import styles from './signIn.module.css'
 
@@ -76,11 +77,9 @@ import styles from './signIn.module.css'
  * reservation does not depend on that framework precedence rule holding for a
  * handler that later moves (ruling F56).
  */
-export const SET_PASSWORD_ENDPOINT = '/admin/reset/set'
+export const SET_PASSWORD_ENDPOINT = SET_ENDPOINT
 
 /** Where the way back leads. */
-const SIGN_IN_PATH = '/admin/sign-in'
-
 /** The eyebrow every state carries, shared with SCREENS.md §3.3's own pane. */
 const EYEBROW = 'Forgotten'
 

@@ -54,8 +54,10 @@ export const RESET_PATH = '/admin/reset'
  * §3.3's primary action told the reader that a link they had never asked for
  * was dead. Next.js resolves a static segment before a dynamic one, which is
  * why `set` never had that problem, but that is a framework precedence rule
- * about routes that EXIST; `request` does not exist yet (Task 10 mounts it
- * with the cookie policy) and nothing protected it.
+ * about routes that EXIST — and when this list was written `request` did not,
+ * so nothing protected it. Task 10 mounted it; the list stays, because the
+ * precedence rule protects a route only while somebody remembers it is a route
+ * and this reserves the word whether one is mounted or not.
  *
  * INVARIANT: every word here must be one Payload could never mint. Payload
  * mints reset tokens as hexadecimal, so any word containing a letter past `f`

@@ -123,11 +123,23 @@ const withoutComments = (source: string): string =>
  */
 const addressedSegments = (): readonly string[] => {
   const quoted = new RegExp(`(['"\`])${RESET_PATH}/([A-Za-z0-9_-]+)\\1`, 'g')
+  // AND THE INTERPOLATED SPELLING, WHICH IS NOW THE CANONICAL ONE. Seam S5's
+  // fix moved every address on this surface into `./adminPaths.ts`, where the
+  // two reset endpoints are built from the constant rather than repeating it.
+  // A scan that read only the quoted literal stopped finding them the moment
+  // that landed — and said so by failing its own sentinel, which is what this
+  // file's `expect(addressed).toContain('request')` line exists for.
+  const interpolated = /\$\{RESET_PATH\}\/([A-Za-z0-9_-]+)/gu
   const found = new Set<string>()
 
   for (const file of [...sourceFilesUnder('components'), ...sourceFilesUnder('lib')]) {
-    for (const match of withoutComments(readFileSync(file, 'utf8')).matchAll(quoted)) {
+    const source = withoutComments(readFileSync(file, 'utf8'))
+    for (const match of source.matchAll(quoted)) {
       const segment = match[2]
+      if (segment !== undefined) found.add(segment)
+    }
+    for (const match of source.matchAll(interpolated)) {
+      const segment = match[1]
       if (segment !== undefined) found.add(segment)
     }
   }

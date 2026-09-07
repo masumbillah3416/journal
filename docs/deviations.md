@@ -1449,7 +1449,9 @@ NOT move, because they are taken by navigating directly to the address with no c
 play, which is still the placeholder state.
 
 **Recorded as:** the header of `apps/web/app/(admin)/admin/sign-in/code/page.tsx`, the
-TSDoc on `PENDING_ADDRESS_MASK` in `apps/web/components/admin/CodeStep.tsx`, the row for
+TSDoc on `NO_PENDING_ADDRESS` in `apps/web/lib/auth/readCodeScreen.ts` — the constant that
+replaced `PENDING_ADDRESS_MASK`, which this entry's own closure paragraph above says is
+gone and which the line you are reading went on naming for the rest of the phase — the row for
 `GET /admin/sign-in/code` in `docs/api.md`, and the case in
 `apps/web/components/admin/CodeStep.test.tsx` that pins the fallback to `'•••'`.
 

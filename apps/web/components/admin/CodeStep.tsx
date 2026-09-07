@@ -100,6 +100,7 @@ import { EXPIRY_MS, MAX_ATTEMPTS, RESEND_COOLDOWN_MS } from '@travel-diary/domai
 import { formatCountdown, secondsRemaining } from '@travel-diary/domain/auth/otpCountdown'
 import { useEffect, useRef, useState } from 'react'
 import type React from 'react'
+import { CODE_VERIFY_ENDPOINT, RESEND_ENDPOINT as RESEND_CODE_ENDPOINT, SIGN_IN_PATH } from '../../lib/auth/adminPaths'
 import styles from './signIn.module.css'
 
 /** How many cells the code has. SCREENS.md §3.2: "six cells". */
@@ -112,13 +113,13 @@ export const CELL_COUNT = 6
  * the reason `PASSWORD_STEP_ENDPOINT` gives: `/admin/sign-in/code` is a
  * `page.tsx` and a Next.js page cannot answer a `POST`.
  */
-export const CODE_STEP_ENDPOINT = '/admin/sign-in/code/verify'
+export const CODE_STEP_ENDPOINT = CODE_VERIFY_ENDPOINT
 
 /** Where the resend button posts. Its own handler, never the verification one. */
-export const RESEND_ENDPOINT = '/admin/sign-in/code/resend'
+export const RESEND_ENDPOINT = RESEND_CODE_ENDPOINT
 
 /** Where "← Back to password" leads: the first step of the same screen. */
-export const PASSWORD_STEP_PATH = '/admin/sign-in'
+export const PASSWORD_STEP_PATH = SIGN_IN_PATH
 
 /**
  * How long the shell shakes, in milliseconds. SCREENS.md §3.2: "omShake -
