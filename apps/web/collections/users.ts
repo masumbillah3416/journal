@@ -4,9 +4,21 @@
  * Transcribed verbatim from DATA_MODEL.md's `users` section. `auth` config
  * (not a plain field) is Payload's own credential-store mechanism; see
  * `docs/adr/0002-auth-mechanism.md` for why this is used instead of Auth.js.
- * Depends on: `payload`.
+ *
+ * ═══ THE SECOND AUTHENTICATION SURFACE IS SEALED HERE ═══
+ *
+ * An `auth` block makes Payload mount a set of REST endpoints — `POST
+ * /api/users/login` among them — and the mounted `/api/**` route serves them
+ * in production whether or not `/cms` is built. That endpoint minted a session
+ * on a password alone: no code step, no rate limit, no CSRF check, none of the
+ * things Phase 2 built. `endpoints` and `graphQL` below close it in both
+ * protocols; `./sealedUserAuth.ts` holds the list and the reasoning, and
+ * `sealedUserAuth.integration.test.ts` drives real requests through Payload's
+ * own dispatcher rather than asserting the config's shape.
+ * Depends on: `payload`, `./sealedUserAuth`.
  */
 import type { CollectionConfig } from 'payload'
+import { sealedUserAuthEndpoints } from './sealedUserAuth'
 
 /** The one-row author account backing sign-in and OTP-required policy. */
 export const Users: CollectionConfig = {
@@ -23,6 +35,18 @@ export const Users: CollectionConfig = {
   // exists precisely because "the account is locked" is true either way and
   // only the DURATION distinguishes a real cooling-off from a decorative one.
   auth: { tokenExpiration: 60 * 60 * 24 * 7, maxLoginAttempts: 5, lockTime: 15 * 60_000 },
+  // THE REST AUTH SURFACE, REFUSED. Declared entries shadow Payload's own by
+  // method and path, so this is the login endpoint being replaced rather than
+  // supplemented — see ./sealedUserAuth.ts.
+  endpoints: sealedUserAuthEndpoints,
+  // THE SAME HOLE IN THE OTHER PROTOCOL. `/api/graphql` is mounted beside
+  // `/api/**` and exposes `loginUser`, `forgotPasswordUser`,
+  // `resetPasswordUser`, `refreshTokenUser` and `unlockUser` as mutations —
+  // sealing only the REST paths would have left the identical bypass one
+  // request away. Queries stay on: the `User` type is referenced by
+  // `sessions.user`, and removing the collection from the schema outright
+  // would take that with it.
+  graphQL: { disableMutations: true },
   fields: [
     { name: 'displayName', type: 'text' }, // name printed on the cover
     { name: 'signoffDefault', type: 'text' },

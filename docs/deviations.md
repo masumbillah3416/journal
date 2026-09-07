@@ -1770,3 +1770,47 @@ this cookie has no reason to exist.
 `apps/web/lib/auth/browserSession.ts`, the cases in `browserSession.test.ts`, the second
 cookie table in `docs/security.md`, and the `POST /admin/sign-in/password` and
 `POST /admin/sign-in/code/verify` rows in `docs/api.md`.
+
+## 42 · Payload's own REST and GraphQL credential endpoints on `users` are sealed, and `/cms` can no longer be signed into
+
+**What changed:** `apps/web/collections/users.ts` declares an `endpoints` array
+(`apps/web/collections/sealedUserAuth.ts`) that shadows every Payload auth endpoint taking
+a credential or minting one — `login`, `first-register`, `forgot-password`,
+`reset-password`, `refresh-token`, `unlock`, `verify/:id` — with a handler answering `404`,
+and declares `graphQL: { disableMutations: true }` so the same endpoints are absent from
+the GraphQL schema. `GET /me`, `GET /init` and `POST /logout` are deliberately left
+reachable and are named in the same module with the reason each is harmless.
+
+**Rationale:** `SECURITY.md`'s second prototype hole requires the code step to be decided
+server-side "during the login handler". Until Phase 2's final review this repository had
+two login handlers. `POST /api/users/login` — live in production, since `admin.disable`
+gates only the admin panel and not `/api/**` — minted a Payload auth cookie on an email
+and a password ALONE: no code step, no per-IP or per-address window, no anti-enumeration,
+and outside `apps/web/middleware.ts`'s matcher and so outside the CSRF check and the admin
+content security policy. Every mechanism this phase built guards `/admin`; that address
+reached the same accounts and none of them applied to it. The review named it blocker B5.
+
+The alternative was to put the same limiter, the same anti-enumeration timing and the same
+code step behind Payload's handlers. Rejected: that is a second copy of
+`apps/web/lib/auth/signIn.ts` maintained against a dependency's internals, and a second
+copy of a security rule is the shape this phase caught drifting four times in eleven tasks.
+
+**The cost, which is real and is not hidden:** Payload's own admin at `/cms` signs in
+through `POST /api/users/login`, so **it can no longer be signed into** — in development
+as in production. It was already `admin.disable`d in production; `payload.config.ts`'s
+header has described it as development scaffolding rather than the product since Phase 0;
+content arrives through `npm run db:seed`; and Phase 4 builds the panel that replaces it.
+`/cms` still loads, still renders its login screen, and still passes the a11y, visual and
+smoke gates that screenshot it — what it no longer does is accept a password.
+`docs/runbook.md` says so where an operator will look.
+
+**What would reverse this:** a deployment that genuinely needs Payload's stock admin. The
+answer then is not to unseal the endpoint — it is to put the second factor in front of it,
+which means the endpoints route through `apps/web/lib/auth/signIn.ts` rather than around
+it.
+
+**Recorded as:** `apps/web/collections/sealedUserAuth.ts` and its header, the `endpoints`
+and `graphQL` entries in `apps/web/collections/users.ts`,
+`apps/web/collections/sealedUserAuth.integration.test.ts`, the `otpRequired` row and the
+"second authentication surface" paragraphs in `docs/security.md`, the Payload-owned route
+rows in `docs/api.md`, and the `/cms` note in `docs/runbook.md`.

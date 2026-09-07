@@ -105,6 +105,15 @@ visible from the code that was added:
   complete a password reset at all, until a sending adapter lands.** Until then, an operator
   reading the process log is the delivery mechanism. `docs/security.md` records it beside
   the other things Task 10 did not close.
+- **Payload's own admin at `/cms` can no longer be signed into, on purpose.** Its login
+  form posts to `POST /api/users/login`, which Phase 2's final round sealed along with
+  every other `users` endpoint that takes a credential or mints one — that endpoint minted
+  a session on a password alone, with no code step and none of this phase's rate limiting
+  (`docs/deviations.md` §42). `/cms` still loads and still renders its login screen; it
+  refuses every password submitted to it, in development as in production. **There is one
+  way into the admin and it is `/admin/sign-in`.** Content is loaded with `npm run db:seed`
+  until Phase 4's panel lands. If you find yourself wanting `/cms` back, the fix is to put
+  the second factor in front of it, not to unseal the endpoint.
 
 ## Rotate secrets
 

@@ -46,14 +46,38 @@ exposure surface nobody reviews.
 
 **Authorization, for all of them.** None of these routes carries its own auth check.
 Every one runs Payload's collection- and global-level access control on the operation it
-performs. No collection in `apps/web/collections/` declares `access` except `jobs`,
-`otpChallenges` and `signInAttempts` (all `() => false` on read/create/update —
-server-only, reachable only through the Local API); every other collection and global therefore inherits Payload's
-default access, `({ req: { user } }) => Boolean(user)` — **signed in, or refused**.
-Sign-in itself is `users`' auth collection, whose login/refresh/logout operations are
-public by construction. Phase 2 and Phase 4 tighten these per `docs/security.md`; until
-they do, "signed-in" is the whole policy, and it is enforced by Payload rather than by
-anything in this repository.
+performs. Four collections declare `access` and they do not all say the same thing:
+
+- `jobs`, `otpChallenges` and `signInAttempts` refuse every operation outright —
+  `read`, `create`, `update` **and `delete`**, all four predicates. The `delete` one is
+  this repository's addition; leaving it out is what let deletion fall through to
+  Payload's "signed in, or refused" default, which is Ruling F32 and
+  `docs/data-model.md`'s §"The `delete` predicate".
+- `sessions` declares **per-user ownership** rather than a flat refusal: `read`,
+  `update` and `delete` each return a `Where` constraining the operation to the caller's
+  own rows, and `create` is refused for everyone. See `apps/web/collections/sessions.ts`.
+- `media` declares a **public-read** rule: a signed-out caller gets
+  `{ hidden: { not_equals: true } }` rather than a refusal, so unhidden media is
+  **served, not refused** — including through `/api/media/file/<name>`. That is
+  deliberate and is what the public diary depends on (`docs/security.md`'s
+  "A hidden media item stays hidden from a signed-out reader" row).
+
+Every other collection and global inherits Payload's default access,
+`({ req: { user } }) => Boolean(user)` — **signed in, or refused**. Phase 4 tightens the
+remainder per `docs/security.md`.
+
+**Nothing can be signed in through these routes any more.** `users` carries an `auth`
+block, so Payload mounted a set of credential endpoints on it — `POST /api/users/login`
+chief among them, which minted a Payload auth cookie on an email and a password **alone**:
+no one-time code, no per-IP or per-address window, no anti-enumeration, and outside
+`apps/web/middleware.ts`'s matcher and therefore outside the CSRF check and the admin
+CSP. That was the second authentication surface Phase 2's final review found (B5). Those
+endpoints are now sealed in `apps/web/collections/sealedUserAuth.ts` and `users` declares
+`graphQL: { disableMutations: true }`, so the same bypass is closed in both protocols.
+The one way to a session is `POST /admin/sign-in/password` and the code step behind it.
+Because no Payload auth cookie can be minted at all, the "signed in, or refused" default
+above now refuses **every** caller on this surface, and `media`'s public read is the only
+thing `/api/**` serves.
 
 **`admin.disable` does not gate these routes.** `payload.config.ts` sets
 `admin.disable: process.env.NODE_ENV === 'production'`, which disables Payload's _admin
@@ -78,9 +102,14 @@ for a different reason — see its row.
 - **Errors:** `400` on validation failure, `401` when unauthenticated,
   `403` when access control refuses, `404` for an unknown collection/global/document,
   `500` on an unhandled failure.
-- **Auth requirement:** signed in, for every collection and global — see the paragraph
-  above. `jobs`, `otpChallenges` and `signInAttempts` refuse every request through this
-  route regardless of who is signed in.
+- **Auth requirement:** signed in, for every collection and global except `media` — see
+  the paragraphs above. `jobs`, `otpChallenges` and `signInAttempts` refuse every request
+  through this route regardless of who is signed in; `sessions` narrows to the caller's
+  own rows; `media` serves unhidden items to a signed-out caller, deliberately. And since
+  the `users` credential endpoints are sealed, **no caller can be signed in here at all**:
+  in practice this route serves unhidden media and refuses everything else. The sealed
+  endpoints answer `404` with Payload's own "Route not found" body, byte-identical to an
+  address that was never mounted.
 
 ### `POST /api/graphql`
 
@@ -93,7 +122,11 @@ for a different reason — see its row.
   including the authorization refusals, which surface as `FORBIDDEN`/`UNAUTHORIZED`
   extensions on a `200`.
 - **Auth requirement:** identical to the REST route — the same access control runs, on
-  the same operations. A GraphQL query is not a way around it.
+  the same operations. A GraphQL query is not a way around it. `users` declares
+  `graphQL: { disableMutations: true }`, so `loginUser`, `forgotPasswordUser`,
+  `resetPasswordUser`, `refreshTokenUser` and `unlockUser` are **not in the schema**: the
+  REST sealing above is not a way around it either. `users` queries stay in the schema
+  because `sessions.user` is a relationship to it.
 
 ### `GET /api/graphql-playground`
 
@@ -132,7 +165,12 @@ for a different reason — see its row.
 - **Errors:** Payload's own 404 view for an unmatched segment; the login screen (rather
   than an error) for an unauthenticated visitor.
 - **Auth requirement:** signed in, enforced by Payload's admin views; every operation
-  reached from it also re-runs the collection access control described above.
+  reached from it also re-runs the collection access control described above. **In
+  practice nobody can sign in here:** this screen's login form posts to
+  `POST /api/users/login`, which is sealed (see the paragraph on the second
+  authentication surface above). `/cms` is therefore a screen anyone can load and nobody
+  can get past, in development as in production, and that is the recorded cost of closing
+  B5 — `docs/deviations.md` §"Payload's own admin can no longer be signed into".
 - **Where it is exposed:** this is the one route `admin.disable` does gate —
   `payload.config.ts` sets it to `process.env.NODE_ENV === 'production'`, so the panel
   is development-only. That flag is deprecated upstream; the durable form of the same
