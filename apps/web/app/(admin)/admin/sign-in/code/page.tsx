@@ -37,7 +37,8 @@
  * pane makes go to `CODE_STEP_ENDPOINT` and `RESEND_ENDPOINT`, sibling routes
  * mounted in Task 10 and its fix round — a Next.js page cannot answer a `POST`
  * at its own address.
- * Depends on: `readSignInScreen` (../../../../../lib/auth/readSignInScreen),
+ * Depends on: `codeStepNotice` (@travel-diary/domain/auth/codeScreen),
+ * `readSignInScreen` (../../../../../lib/auth/readSignInScreen),
  * `readCodeScreen` (../../../../../lib/auth/readCodeScreen),
  * `CodeStep`/`SignInShell` (../../../../../components/admin/).
  */
@@ -54,6 +55,7 @@
  * segment, so the ignore hint is read and no config exclusion is needed. Its
  * runtime behaviour is covered in the browser by e2e/codeStep.spec.ts,
  * e2e/a11y.spec.ts and e2e/visual.spec.ts. */
+import { codeStepNotice } from '@travel-diary/domain/auth/codeScreen'
 import type { Metadata } from 'next'
 import type React from 'react'
 import { CodeStep } from '../../../../../components/admin/CodeStep'
@@ -84,10 +86,20 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
+/** What this route reads off the address. */
+interface CodeStepPageProps {
+  /** The `state` the verify or resend endpoint redirected with, when it did. */
+  readonly searchParams: Promise<{ readonly state?: string }>
+}
+
 /** Renders the one-time-code step of the sign-in screen. */
-const CodeStepPage = async (): Promise<React.JSX.Element> => {
+const CodeStepPage = async ({ searchParams }: CodeStepPageProps): Promise<React.JSX.Element> => {
   const carried = (await cookies()).toString()
-  const [content, pending] = await Promise.all([readSignInScreen(), readCodeScreen(carried, Date.now())])
+  const [content, pending, { state }] = await Promise.all([
+    readSignInScreen(),
+    readCodeScreen(carried, Date.now()),
+    searchParams,
+  ])
 
   return (
     <SignInShell book={content}>
@@ -95,6 +107,7 @@ const CodeStepPage = async (): Promise<React.JSX.Element> => {
         maskedAddress={pending.maskedAddress}
         issuedAt={pending.issuedAt}
         attemptsSpent={pending.attemptsSpent}
+        notice={codeStepNotice(state)}
       />
     </SignInShell>
   )

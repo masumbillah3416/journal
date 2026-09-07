@@ -211,10 +211,42 @@ lockout ever answered through the limiter rather than through Payload; it does n
 
 One more thing this boundary chose, which is a cost rather than a gap: **a genuinely
 rate-limited reader is told the same thing as one who mistyped a password.**
-`POST /admin/sign-in/password` puts every `SignInRefusal` through one `return`, so the three
-that must be indistinguishable — an unknown address, a wrong password, a locked account —
-cannot be separated later by a change that only meant to distinguish `'rate-limited'` from
-`'code-not-sent'`. The screen says "Those details did not let you in." for all five.
+`POST /admin/sign-in/password` puts every refusal a caller WITHOUT the password can
+provoke through one `return`, so the three that must be indistinguishable — an unknown
+address, a wrong password, a locked account — cannot be separated later by a change that
+only meant to distinguish `'rate-limited'`. The screen says "Those details did not let you
+in." for all four.
+
+**It said it for five, and the fifth was a defect that took a phase to find.**
+`'code-not-sent'` went through the same `return` until Phase 2's final review named it
+blocker B1. That refusal is reachable only after Payload has ACCEPTED the password — the
+thirty-second resend cooldown, the hourly ceiling, or a mailer that declined — so a reader
+who submitted a CORRECT password, pressed "← Back to password" and submitted it again
+inside the cooldown was told their details were wrong, and past `HOURLY_RESEND_CAP` every
+correct submission for the rest of the hour was. `apps/web/lib/auth/signIn.ts` creates that
+refusal specifically to avoid that message and says so in its own TSDoc; the endpoint above
+it wrote the message anyway. It now writes `?state=code-unsent`, which the screen draws as
+"Your password was right, but the code could not be sent. Try again shortly."
+
+**Splitting it costs the anti-enumeration property nothing**, and the reason is worth
+stating rather than asserting: the property is about what an attacker learns WITHOUT the
+password, and every path that does not reach Payload's own comparison — and every path
+where that comparison refuses — returns `'invalid-credentials'` before this word can be
+produced. `apps/web/lib/auth/signInEndpoints.integration.test.ts` holds both halves: one
+case drives a correct password twice and requires the second answer to be the new word,
+and its neighbour drives a WRONG password against the same account and requires the old
+one.
+
+**The same class had two more members on the code screen, and both were silence rather
+than a lie.** A guess the rate limiter would not judge, and a resend that sent nothing,
+each left the challenge's spent count untouched — and everything that screen tells a
+reader was derived from that count, so a pressed button returned the page it was pressed
+on. A reader who typed the CORRECT code with a shut window saw no explanation at all.
+Both now redirect with a word `@travel-diary/domain/auth/codeScreen` interprets, and
+neither word names an address, an account, a code, a count or a deadline. It is not a new
+disclosure: that screen already prints the masked address for a browser holding a live
+challenge and three bullets for one that is not, deliberately, since only the browser the
+challenge was bound to can reach the answer at all.
 
 ## What Phase 2 hands to Phase 4, named rather than left to be found
 

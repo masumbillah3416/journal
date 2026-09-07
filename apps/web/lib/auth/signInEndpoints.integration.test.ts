@@ -46,7 +46,8 @@ import {
   SESSION_LIFETIME_MS,
 } from '@travel-diary/domain/auth/session'
 import { ACCOUNT_CODE_ATTEMPT_LIMIT, IP_ATTEMPT_LIMIT } from '@travel-diary/domain/auth/rateWindow'
-import { PASSWORD_REFUSED_STATE } from '@travel-diary/domain/auth/signInScreen'
+import { CODE_UNJUDGED_STATE, CODE_UNSENT_STATE } from '@travel-diary/domain/auth/codeScreen'
+import { PASSWORD_CODE_UNSENT_STATE, PASSWORD_REFUSED_STATE } from '@travel-diary/domain/auth/signInScreen'
 import type { SessionId, UserId } from '@travel-diary/domain/ids'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createConsoleMailer } from '../adapters/console-mailer'
@@ -608,6 +609,47 @@ describe('the three refusals the password step must not tell apart', () => {
     expect(await responseShape(exhausted)).toEqual(await responseShape(await refuse(known.email)))
   })
 
+  it('tells a reader whose password was RIGHT that the code could not be sent, not that they were wrong', async () => {
+    // BLOCKER B1, and the whole point is that the password here is CORRECT.
+    // The reader submits it, gets the code step, presses "← Back to password"
+    // and submits the same correct password again inside the thirty-second
+    // resend cooldown. Until this fix that second submission answered
+    // `?state=refused`, which the screen draws as "Those details did not let
+    // you in." — sending somebody with a working password off to reset it.
+    const account = await anAccount({ otpRequired: true })
+    const submit = async (): Promise<Response> =>
+      handlePasswordStep(
+        aPost({
+          path: PASSWORD_STEP_PATH,
+          fields: { email: account.email, password: FIXTURE_PASSWORD },
+          ip: anIp(),
+        }),
+      )
+
+    const first = await submit()
+    const second = await submit()
+
+    // The sentinel: without it a first submission that had itself failed would
+    // make the second one's answer prove nothing.
+    expect(first.headers.get('Location')).toBe(CODE_STEP_PATH)
+    expect(second.status).toBe(303)
+    expect(second.headers.get('Location')).toBe(`${PASSWORD_STEP_PATH}?state=${PASSWORD_CODE_UNSENT_STATE}`)
+  })
+
+  it('still answers a WRONG password on that same account with the credential refusal', async () => {
+    // The other half of B1: the new word must be reachable only with the right
+    // password. A handler that answered `code-unsent` for everything would
+    // pass the case above and be a far worse defect than the one it fixed.
+    const account = await anAccount({ otpRequired: true })
+    await handlePasswordStep(
+      aPost({ path: PASSWORD_STEP_PATH, fields: { email: account.email, password: FIXTURE_PASSWORD }, ip: anIp() }),
+    )
+
+    const answered = await refuse(account.email)
+
+    expect(answered.headers.get('Location')).toBe(`${PASSWORD_STEP_PATH}?state=${PASSWORD_REFUSED_STATE}`)
+  })
+
   it('takes comparable time for an unknown address and a wrong password', async () => {
     // Task 5 measured 0.90 with the dummy derivation and 0.14 without it, at
     // the SERVICE. This measures the HANDLER, because the handler is what an
@@ -928,10 +970,17 @@ describe('what the code step answers', () => {
       aPost({ path: CODE_STEP_PATH, fields: { code }, cookie: carrying(session), ip }),
     )
 
-    expect(answered.headers.get('Location')).toBe(CODE_STEP_PATH)
+    // FINDING 6: it answers with a word, not with silence. This path spends no
+    // challenge attempt, so every message the screen derives from the spent
+    // count is unchanged — a reader who typed the CORRECT code, as this one
+    // did, was handed back the page they had just submitted from.
+    expect(answered.headers.get('Location')).toBe(`${CODE_STEP_PATH}?state=${CODE_UNJUDGED_STATE}`)
     expect(issuedSessionOf(answered)).toBeNull()
     const rows = await payload.db.pool.query(`SELECT id FROM sessions WHERE user_id = $1`, [Number(user)])
     expect(rows.rows).toHaveLength(0)
+    // And it really did not spend one, which is the reason the word has to
+    // exist rather than the counter doing the talking.
+    expect(await otp.pendingChallenge(session)).toMatchObject({ attemptsSpent: 0 })
   })
 })
 
@@ -982,11 +1031,21 @@ describe('what the code screen is told', () => {
     if (!issued.ok) throw new Error('the fixture challenge was not issued')
     const code = readCodeFromOutbox(mailer)
 
-    const pending = JSON.stringify(await otp.pendingChallenge(session))
+    const pending = await otp.pendingChallenge(session)
+    if (pending === null) throw new Error('the fixture challenge is not pending')
+    const serialised = JSON.stringify(pending)
 
-    expect(pending).not.toContain(email)
-    expect(pending).not.toContain(code)
-    expect(pending).not.toContain(String(user))
+    expect(serialised).not.toContain(email)
+    expect(serialised).not.toContain(code)
+    // THE ACCOUNT CHECK IS STRUCTURAL, NOT A SUBSTRING SCAN, and it had to
+    // become so: a row id is three or four digits and `issuedAt` is a
+    // thirteen-digit epoch, so `not.toContain(String(user))` matched by
+    // coincidence whenever the id happened to appear inside the timestamp —
+    // a case that fails on some runs and not others, for no reason a reader
+    // could see. What the requirement is about is that no FIELD carries the
+    // account, so the shape is asserted instead.
+    expect(Object.keys(pending).sort()).toEqual(['attemptsAllowed', 'attemptsSpent', 'issuedAt', 'maskedTo'])
+    expect(Object.values(pending).map(String)).not.toContain(String(user))
   })
 
   it('counts the guesses already spent, so the screen’s counter is the server’s', async () => {
@@ -1140,7 +1199,7 @@ describe('what asking for a new code does', () => {
     expect(await otp.pendingChallenge(session)).toMatchObject({ attemptsSpent: 0 })
   })
 
-  it('answers the same 303 for a browser with no challenge to resend, and issues nothing', async () => {
+  it('says no new code went out for a browser with no challenge to resend, and issues nothing', async () => {
     const { user } = await anAccount({ otpRequired: true })
 
     const answered = await handleResendCode(
@@ -1148,13 +1207,20 @@ describe('what asking for a new code does', () => {
     )
 
     expect(answered.status).toBe(303)
-    expect(answered.headers.get('Location')).toBe(CODE_STEP_PATH)
+    expect(answered.headers.get('Location')).toBe(`${CODE_STEP_PATH}?state=${CODE_UNSENT_STATE}`)
     expect(await challengesIssued(user)).toBe(0)
   })
 
-  it('answers the same 303 inside the cooldown, and issues nothing', async () => {
-    // A refusal the reader could see would be a way to ask whether this
-    // browser holds a live challenge.
+  it('says no new code went out inside the cooldown, and issues nothing', async () => {
+    // FINDING 14. This used to answer a bare `303`, on the ground that a
+    // visible refusal would say whether this browser holds a live challenge —
+    // which the code screen already says, by printing the masked address for a
+    // browser that holds one and three bullets for one that does not. What the
+    // silence actually bought was a button that renders enabled past the
+    // hourly ceiling (its cooldown is measured from THIS browser's challenge,
+    // the server's ceiling counts the ACCOUNT's whole hour) and does nothing
+    // when pressed. The word is the same for every reason nothing was sent, so
+    // it still tells the two apart from each other in no way at all.
     const { user, session } = await aBrowserAwaitingACode()
 
     const answered = await handleResendCode(
@@ -1162,7 +1228,51 @@ describe('what asking for a new code does', () => {
     )
 
     expect(answered.status).toBe(303)
+    expect(answered.headers.get('Location')).toBe(`${CODE_STEP_PATH}?state=${CODE_UNSENT_STATE}`)
+    expect(await challengesIssued(user)).toBe(1)
+  })
+
+  it('says nothing at all when a new code really did go out', async () => {
+    // The other half: a notice on every answer would be no better than a
+    // notice on none. `challengesIssued` is the sentinel — without it a
+    // handler that sent nothing and said nothing would pass this too.
+    const { user, session } = await aBrowserAwaitingACode()
+    await pastTheCooldown(user)
+
+    const answered = await handleResendCode(
+      aPost({ path: '/admin/sign-in/code/resend', fields: {}, cookie: carrying(session) }),
+    )
+
     expect(answered.headers.get('Location')).toBe(CODE_STEP_PATH)
+    expect(await challengesIssued(user)).toBe(2)
+  })
+
+  it('spends the code endpoint’s rate-limit window, which its scrypt cost is bounded by', async () => {
+    // FINDING 7. `otpService.issueChallenge` derives ~30ms of scrypt BEFORE
+    // taking its advisory lock and justifies the cost on the ground that
+    // "Task 4's per-account and per-IP rate limiting is what bounds the number
+    // of requests". This handler called no limiter at all, so for this
+    // endpoint that bound was enforced zero times.
+    const { user, session } = await aBrowserAwaitingACode()
+    const account = await otp.challengeAccount(session)
+    if (account === null) throw new Error('the fixture challenge names no account')
+    const limiter = createSignInRateLimiter({ payload })
+    const sharedIp = `${FIXTURE_IP_PREFIX}resend`
+    for (let spent = 0; spent < ACCOUNT_CODE_ATTEMPT_LIMIT + 2; spent += 1) {
+      await limiter.admitCodeAttempt({ ip: sharedIp, account })
+    }
+    // THE SENTINEL: the window is known to be shut at the moment the request
+    // below is made, so a loop that spent too few would not pass this quietly.
+    expect((await limiter.admitCodeAttempt({ ip: sharedIp, account })).ok).toBe(false)
+    await pastTheCooldown(user)
+
+    const answered = await handleResendCode(
+      aPost({ path: '/admin/sign-in/code/resend', fields: {}, cookie: carrying(session), ip: sharedIp }),
+    )
+
+    expect(answered.headers.get('Location')).toBe(`${CODE_STEP_PATH}?state=${CODE_UNSENT_STATE}`)
+    // Nothing was issued, which is what "the limiter ran" means here: the
+    // cooldown was aged away above, so an unmetered handler would have sent one.
     expect(await challengesIssued(user)).toBe(1)
   })
 

@@ -285,3 +285,64 @@ test('refuses a wrong code and shows the server’s own count of what is left', 
   expect(page.url()).toContain(CODE_STEP_PATH)
   expect(page.url()).not.toContain(SIGNED_IN_PATH)
 })
+
+test('tells a reader whose password was right that the code could not be sent', async ({ page }, testInfo) => {
+  // BLOCKER B1, walked the way a reader reaches it: submit a CORRECT password,
+  // press "← Back to password", submit the same correct password again inside
+  // the thirty-second resend cooldown. Until Phase 2's final round the second
+  // submission drew "Those details did not let you in." — a working password
+  // reported as wrong, on the phase's primary screen, which sends the reader to
+  // reset a password that works.
+  //
+  // It is here rather than in `signIn.spec.ts` because it needs an account with
+  // the second factor on and a challenge already issued to this browser, which
+  // is what this file's fixtures build.
+  const failures = watchedFailures(page)
+  const { email } = journeyAccount('cooldown', testInfo)
+  const account = await anAccountWithACodeStep(email)
+
+  await submitThePasswordForm(page, account)
+  await Promise.all([
+    page.waitForURL(`**${SIGN_IN_PATH}`),
+    page.getByRole('link', { name: '← Back to password' }).click(),
+  ])
+  await page.getByLabel('Email').fill(account.email)
+  await page.getByLabel('Password', { exact: true }).fill(account.password)
+  await Promise.all([
+    page.waitForURL(`**${SIGN_IN_PATH}?state=**`),
+    page.getByRole('button', { name: 'Sign in' }).click(),
+  ])
+
+  // `#sign-in-error` rather than `getByRole('alert')`: Next.js's own route
+  // announcer is a second live region on every page, and matching by role
+  // finds both.
+  await expect(page.locator('#sign-in-error')).toHaveText(
+    'Your password was right, but the code could not be sent. Try again shortly.',
+  )
+  await expect(page.locator('#sign-in-error')).not.toHaveText('Those details did not let you in.')
+  expect(failures, 'the journey produced console errors, page errors or 4xx/5xx responses').toEqual([])
+})
+
+test('says a new code was not sent when the resend button sends none', async ({ page }, testInfo) => {
+  // FINDING 14, walked. The button is inert during its own thirty-second
+  // cooldown, so the press below is made through a form submission for the
+  // reason the resend case above gives — and until this round the answer was a
+  // redirect that changed nothing on the screen at all. Past the hourly ceiling
+  // the button is not even inert: it renders enabled, because its cooldown is
+  // measured from THIS browser's challenge while the server counts the
+  // account's whole hour.
+  const failures = watchedFailures(page)
+  const { email } = journeyAccount('silent', testInfo)
+  const account = await anAccountWithACodeStep(email)
+  await submitThePasswordForm(page, account)
+
+  await Promise.all([
+    page.waitForURL(`**${CODE_STEP_PATH}?state=**`),
+    page.locator('form[action$="/resend"]').evaluate((form: HTMLFormElement) => {
+      form.submit()
+    }),
+  ])
+
+  await expect(page.locator('#code-step-error')).toHaveText('No new code was sent. Wait a moment, then ask again.')
+  expect(failures).toEqual([])
+})

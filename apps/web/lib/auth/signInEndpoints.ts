@@ -40,11 +40,33 @@
  * password and a locked account, in the same time. That is worth nothing if
  * the handler above it answers a different status, a different `Location` or a
  * different `Set-Cookie` for one of them. There is deliberately ONE refusal
- * branch below: every `SignInRefusal` — including `'rate-limited'` and
- * `'code-not-sent'` — takes the same `return`, so the three that must agree
- * cannot be separated by a change that only meant to distinguish the other
- * two. What that costs is that a genuinely rate-limited reader is told the
- * same thing as one who mistyped a password; `docs/security.md` records it.
+ * branch below for every refusal a caller WITHOUT the password can provoke:
+ * those three and `'rate-limited'` take the same `return`, so the three that
+ * must agree cannot be separated by a change that only meant to distinguish
+ * the fourth. What that costs is that a genuinely rate-limited reader is told
+ * the same thing as one who mistyped a password; `docs/security.md` records it.
+ *
+ * ═══ AND `'code-not-sent'` IS NOT ONE OF THEM (BLOCKER B1) ═══
+ *
+ * It used to be. Every `SignInRefusal` went through the one `return`, so a
+ * reader whose password was CORRECT — and who had merely resubmitted it inside
+ * the thirty-second resend cooldown — was told "Those details did not let you
+ * in.", and past `HOURLY_RESEND_CAP` every correct submission for the rest of
+ * the hour said it. `signIn.ts` creates that refusal specifically to avoid that
+ * message and says so in its own TSDoc; this module then wrote the message
+ * anyway. Two module headers stating opposite intentions about one value, and
+ * neither task review could see it: Task 5's saw the union member, Task 10's
+ * saw the collapse.
+ *
+ * THE ANTI-ENUMERATION ARGUMENT DOES NOT REACH IT, which is the reason the
+ * split is safe rather than a trade. `signIn.ts` returns `'code-not-sent'`
+ * only after `checkPassword` has ANSWERED `'accepted'`: an unknown address, a
+ * wrong password and a locked account all return `'invalid-credentials'`
+ * before that line. So this word is unreachable without the password, and a
+ * reader who sees it has already proved they hold it.
+ *
+ * The `state` word and its message are the domain's, next to the other pair,
+ * for the reason the note below this one gives.
  *
  * ═══ WHAT THE CODE STEP NOW DOES, AFTER FIX ROUND 1 ═══
  *
@@ -69,18 +91,21 @@
  * reaches a `Location`; the only thing any of these handlers puts in one is a
  * fixed `state` word (CLAUDE.md §7).
  *
- * THE REFUSAL'S ONE WORD IS SPELLED IN THE DOMAIN, NOT HERE.
- * `@travel-diary/domain/auth/signInScreen` owns both `PASSWORD_REFUSED_STATE`
- * and the message the screen draws for it, so the endpoint that writes the word
- * and the screen that reads it cannot disagree — and a second refusal state,
- * which is the change that would re-open the enumeration, has to be added in a
- * module gated at 100% with a case saying why there is only one.
+ * THE REFUSAL WORDS ARE SPELLED IN THE DOMAIN, NOT HERE.
+ * `@travel-diary/domain/auth/signInScreen` owns both words and both messages,
+ * so the endpoint that writes a word and the screen that reads it cannot
+ * disagree — and a further refusal state, which is the change that would
+ * re-open the enumeration, has to be added in a module gated at 100% with a
+ * case counting the states a caller without the password can reach.
  *
- * Depends on: `PASSWORD_REFUSED_STATE` (@travel-diary/domain/auth/signInScreen),
- * zod, ./browserSession, ./guard, ./httpForm, ./services, and the `Result`s the
+ * Depends on: `PASSWORD_REFUSED_STATE` and `PASSWORD_CODE_UNSENT_STATE`
+ * (@travel-diary/domain/auth/signInScreen), `CODE_UNJUDGED_STATE` and
+ * `CODE_UNSENT_STATE` (@travel-diary/domain/auth/codeScreen), zod,
+ * ./browserSession, ./guard, ./httpForm, ./services, and the `Result`s the
  * services return.
  */
-import { PASSWORD_REFUSED_STATE } from '@travel-diary/domain/auth/signInScreen'
+import { CODE_UNJUDGED_STATE, CODE_UNSENT_STATE } from '@travel-diary/domain/auth/codeScreen'
+import { PASSWORD_CODE_UNSENT_STATE, PASSWORD_REFUSED_STATE } from '@travel-diary/domain/auth/signInScreen'
 import { z } from 'zod'
 import {
   browserSessionCookie,
@@ -198,12 +223,20 @@ export const handlePasswordStep = async (request: Request): Promise<Response> =>
     location: null,
   })
 
-  // ONE BRANCH FOR EVERY REFUSAL. An unknown address, a wrong password and a
-  // locked account are already one value; putting `'rate-limited'` and
-  // `'code-not-sent'` through the same `return` means no later edit can
-  // separate the three by meaning to separate the other two.
+  // ONE BRANCH FOR EVERY REFUSAL A CALLER WITHOUT THE PASSWORD CAN PROVOKE.
+  // An unknown address, a wrong password and a locked account are already one
+  // value; putting `'rate-limited'` through the same `return` means no later
+  // edit can separate the three by meaning to separate the fourth.
+  //
+  // `'code-not-sent'` is deliberately NOT one of them — see this module's
+  // header. It is only reachable once the password has been accepted, and
+  // sending it here told a reader with a WORKING password to go and reset it.
+  // Written as an equality on the ONE value that leaves rather than as a list
+  // of the four that stay: a `SignInRefusal` added later then joins the
+  // indistinguishable group by default, which is the fail-closed direction.
   if (!outcome.ok) {
-    return seeOther(`${PASSWORD_STEP_PATH}?state=${PASSWORD_REFUSED_STATE}`, mintedCookie)
+    const state = outcome.error === 'code-not-sent' ? PASSWORD_CODE_UNSENT_STATE : PASSWORD_REFUSED_STATE
+    return seeOther(`${PASSWORD_STEP_PATH}?state=${state}`, mintedCookie)
   }
 
   if (outcome.value.status === 'otp-required') {
@@ -254,10 +287,22 @@ export const handleCodeStep = async (request: Request): Promise<Response> => {
   const account = await otp.challengeAccount(browserSession)
   if (account !== null) {
     const admitted = await limiter.admitCodeAttempt({ ip: clientAddress(request), account })
-    // The SAME answer a wrong code gets. Telling a reader their window is shut
-    // would say that this browser holds a live challenge, which is what
-    // `verifyChallenge`'s single `'invalid'` refusal exists to withhold.
-    if (!admitted.ok) return seeOther(CODE_STEP_PATH)
+    // THIS PATH SPENDS NO CHALLENGE ATTEMPT, SO THE SCREEN HAS TO SAY SO.
+    // It used to answer a bare `303` under a comment claiming it was "the SAME
+    // answer a wrong code gets". The HTTP answer was; the PAGE was not.
+    // Everything the code screen tells a reader is derived from the spent
+    // count, and this path leaves that count where it was — so a wrong code
+    // produced "That code is not right. 2 attempts left." and a shake, and a
+    // refused window produced nothing at all. A reader who typed the CORRECT
+    // code got back the page they had just submitted from (finding 6).
+    //
+    // The word says the guess was not judged, and it names no address, no
+    // count and no deadline. It does not re-open what `verifyChallenge`'s
+    // single `'invalid'` withholds: this screen already prints the masked
+    // address for a browser holding a live challenge and three bullets for one
+    // that is not, so "which browsers hold a challenge" is answered by the
+    // screen itself, deliberately, and not by this word.
+    if (!admitted.ok) return seeOther(`${CODE_STEP_PATH}?state=${CODE_UNJUDGED_STATE}`)
   }
 
   const verified = await otp.verifyChallenge(browserSession, submitted.data.code)
@@ -298,24 +343,37 @@ export const handleCodeStep = async (request: Request): Promise<Response> => {
  * from the challenge bound to the identifier in the cookie, so a reader cannot
  * ask for a code to be sent to somebody else's address by naming it.
  *
- * ONE ANSWER, WHATEVER HAPPENED. A fresh code, a refused resend inside the
- * thirty-second cooldown, an account past the hourly ceiling, a mailer that
- * declined, and a browser holding no challenge at all are all a `303` back to
- * the code step. `SCREENS.md` §3.2 gives the resend a cooldown label and no
- * refusal copy, and distinguishing them here would say which browsers hold a
- * live challenge.
+ * ONE ANSWER FOR EVERY REASON NOTHING WAS SENT, AND IT IS NOT SILENCE. A fresh
+ * code redirects to the code step with no `state`; a refused resend inside the
+ * thirty-second cooldown, an account past the hourly ceiling, a spent
+ * rate-limit window, a mailer that declined and a browser holding no challenge
+ * at all all redirect with {@link CODE_UNSENT_STATE}, which the screen draws as
+ * one sentence. One word for five reasons: a reader can act on all of them the
+ * same way, and a word per reason would be five things to say where the truth
+ * is one.
  *
- * THAT SAME SILENCE HID A DEFECT FOR FOUR TASKS, which is worth stating beside
- * it rather than leaving for the next reader to find. `resendChallenge` used
- * to refuse outright for a challenge that was not `'valid'`, so the button a
- * reader presses AFTER spending their third guess — the only move
- * `SECURITY.md` §3 leaves them — mailed nothing and said nothing, and this
- * handler discarded the `err` that said so. The refusal is fixed in
- * `otpService.resendChallenge`; the discard stays, because the reader must not
- * be told which browsers hold a live challenge. What stops it hiding the next
- * one is that the two states this endpoint can now be in are asserted on the
- * ROW COUNT rather than on the status — `signInEndpoints.integration.test.ts`
- * has a case for the exhausted reader that fails if nothing is issued.
+ * THE SILENCE HID A DEFECT FOR FOUR TASKS AND THEN HID ANOTHER. First,
+ * `resendChallenge` refused outright for a challenge that was not `'valid'`,
+ * so the button a reader presses AFTER spending their third guess — the only
+ * move `SECURITY.md` §3 leaves them — mailed nothing and said nothing, and
+ * this handler discarded the `err` that said so (ruling F69). That refusal was
+ * fixed and the discard was kept; the discard was the second defect. The
+ * client disables this button on a cooldown measured from the challenge bound
+ * to THIS browser, while the server's ceiling counts every challenge the
+ * ACCOUNT has had in the hour, so past the ceiling the button renders enabled
+ * and did nothing when pressed, with nothing on the screen to say why
+ * (finding 14). The `Result` is now read.
+ *
+ * IT IS ALSO METERED NOW, and it was not. `otpService.issueChallenge` derives
+ * ~30ms of scrypt BEFORE taking its advisory lock and justifies the cost on
+ * the ground that "Task 4's per-account and per-IP rate limiting is what
+ * bounds the number of requests" — and this handler called no limiter at all,
+ * so for this endpoint that bound was enforced zero times and every request
+ * past the hourly ceiling still paid a full derivation to write no row
+ * (finding 7). It spends the code endpoint's own two windows, the same ones
+ * `handleCodeStep` spends, because a resend and a guess are two ways of
+ * spending the same screen and one budget across both is what the numbers in
+ * `rateWindow.ts` were chosen against.
  *
  * @param request - The `POST`. Its body is not read; the cookie is.
  * @returns A `303` to the code step, or to the password step for a browser
@@ -327,10 +385,23 @@ export const handleResendCode = async (request: Request): Promise<Response> => {
   const browserSession = readBrowserSession(request.headers.get('cookie'))
   if (browserSession === null) return seeOther(PASSWORD_STEP_PATH)
 
-  const { otp } = await signInServices()
-  await otp.resendChallenge(browserSession, clientAddress(request))
+  const { otp, limiter } = await signInServices()
 
-  return seeOther(CODE_STEP_PATH)
+  // METERED BEFORE THE DERIVATION IS PAID FOR. `challengeAccount` is the only
+  // way to name the account a limiter key needs without the request naming it
+  // — the browser submits nothing here, which is what makes this endpoint safe
+  // to exist at all — and it is server-only: the account never reaches a
+  // response. A browser holding no challenge is metered by nothing, and needs
+  // to be: `resendChallenge` refuses it before any key is derived.
+  const account = await otp.challengeAccount(browserSession)
+  if (account !== null) {
+    const admitted = await limiter.admitCodeAttempt({ ip: clientAddress(request), account })
+    if (!admitted.ok) return seeOther(`${CODE_STEP_PATH}?state=${CODE_UNSENT_STATE}`)
+  }
+
+  const issued = await otp.resendChallenge(browserSession, clientAddress(request))
+
+  return seeOther(issued.ok ? CODE_STEP_PATH : `${CODE_STEP_PATH}?state=${CODE_UNSENT_STATE}`)
 }
 
 /**

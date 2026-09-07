@@ -410,19 +410,27 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
 ### `GET /admin/sign-in`
 
 - **Method:** `GET`. This route answers nothing else; see the note below.
-- **Input:** one optional query value, `state`. `POST /admin/sign-in/password` redirects
-  here with `?state=refused` for every refusal it can give;
-  `@travel-diary/domain/auth/signInScreen`'s `passwordStepView` is what interprets it, and
-  any other value — including one somebody typed — draws the plain form. Nothing else is
-  read: no body, and no cookie, because nobody has said who they are yet.
+- **Input:** one optional query value, `state`, and it has two words.
+  `POST /admin/sign-in/password` redirects here with `?state=refused` for every refusal a
+  caller WITHOUT the password can provoke — an unknown address, a wrong password, a locked
+  account, a spent rate-limit window — and with `?state=code-unsent` when the password was
+  ACCEPTED and no code could be sent. `@travel-diary/domain/auth/signInScreen`'s
+  `passwordStepView` is what interprets both, and any other value — including one somebody
+  typed — draws the plain form. Nothing else is read: no body, and no cookie, because
+  nobody has said who they are yet.
 - **Output:** an HTML document: `SCREENS.md` §3's shell with §3.1's password step in it —
   the cloth panel and its "PRIVATE / 01" stamp above 820px, the narrow masthead below,
   and the form panel's eyebrow, "Welcome back", lede, Email, Password with its Show/Hide,
   the remember-me checkbox, the submit button and the footer line stating whether the
   one-time-code step is on. With `?state=refused`, the error box §3.1 specifies is drawn
   above the button, saying "Those details did not let you in." — **one message for every
-  reason a sign-in can be refused** (`docs/deviations.md`, since the prototype never
-  refuses one and so has no copy for it). Its content is `apps/web/lib/auth/readSignInScreen.ts`'s
+  reason a sign-in can be refused by somebody who does not hold the password**
+  (`docs/deviations.md`, since the prototype never refuses one and so has no copy for it).
+  With `?state=code-unsent` the same box says "Your password was right, but the code could
+  not be sent. Try again shortly." — reachable only on the far side of a password Payload
+  accepted, which is why it may say so. Until Phase 2's final review both cases wrote
+  `refused`, so resubmitting a CORRECT password inside the thirty-second resend cooldown
+  was answered by telling the reader their details were wrong (blocker B1). Its content is `apps/web/lib/auth/readSignInScreen.ts`'s
   `SignInScreenContent` — the `book` global's title, subtitle and cloth colour, and
   `users.otpRequired`. `metadata` sets the document title and `robots: { index: false,
 follow: false }`.
@@ -465,8 +473,15 @@ follow: false }`.
 
 - **Method:** `GET`. This route answers nothing else; the two `POST`s made from it go to
   sibling paths named below.
-- **Input:** none. No path parameter, no query, no body and no cookie is read — see
-  "Notes" for why that is a gap rather than a design, and what closes it.
+- **Input:** **the session cookie, which is the whole basis of this screen**, and one
+  optional query value. The cookie carries the pre-auth identifier the challenge is bound
+  to; `apps/web/lib/auth/readCodeScreen.ts` reads it and answers with the masked address a
+  code went to, the instant it was issued and the guesses spent, or a placeholder that
+  names nobody when the browser holds no live challenge. The query value is `state`, with
+  two words: `wait` when `POST /admin/sign-in/code/verify` would not judge the guess, and
+  `unsent` when `POST /admin/sign-in/code/resend` sent no new code.
+  `@travel-diary/domain/auth/codeScreen`'s `codeStepNotice` interprets both, and any other
+  value — including one somebody typed — draws no notice. No body is read.
 - **Output:** an HTML document: the same `SCREENS.md` §3 shell `/admin/sign-in` draws,
   with §3.2's one-time-code step in the form panel — "← Back to password", the "Second
   step" eyebrow, "Check your email", "A six-digit code went to {masked}. It expires in
@@ -481,26 +496,28 @@ follow: false }`.
 - **Errors:** none observable. Every absent value degrades exactly as the password step's
   does, and the pane itself has no failing path: it draws the same document for every
   caller.
-- **Auth requirement:** none today, and that is temporary — see below. It is `Disallow`ed
-  in `public/robots.txt` and carries its own `noindex`.
-- **Notes:** **the pending challenge is not wired, and this route is honest about it
-  rather than inventing one** (`docs/deviations.md` §33). The masked address it prints is
-  `maskEmail('')` — `•••`, which echoes nothing — and both countdowns are measured from
-  the instant the document was drawn. What it should print instead lives in the
-  `otpChallenges` row keyed by the pre-auth session in the browser's cookie. **Task 10
-  mounted the cookie policy and did NOT close this**: reading that row back means asking
-  `otpService` which account a browser identifier holds a challenge for, and it will not
-  answer that for an unauthenticated caller — saying so would tell an attacker which
-  browsers have a live challenge, which is what `verifyChallenge`'s single `'invalid'`
-  refusal exists to prevent. It stays §33's gap, with the reason now named rather than
-  deferred.
+- **Auth requirement:** none. A reader here has no session by definition, which is why
+  `ADMIN_PUBLIC_PATHS` declares this address. It is `Disallow`ed in `public/robots.txt`
+  and carries its own `noindex`.
+- **Notes:** **the pending challenge is wired**, as of Task 10's fix round
+  (`docs/deviations.md` §33 carries the closure). A browser holding a live challenge is
+  shown the address the code actually went to, a countdown measured from when it was
+  issued, and the guesses it has spent; a browser holding none is shown `maskEmail('')` —
+  `•••`, which echoes nothing — with the countdown measured from the render. Refusing the
+  latter outright would make this route an oracle for whether a given browser holds a
+  challenge; drawing the placeholder does not.
 
-  **One of the two `POST`s this screen makes is mounted; the other is not.** The code form
-  targets `/admin/sign-in/code/verify` (`CODE_STEP_ENDPOINT`), which has its own row below.
-  The resend targets `/admin/sign-in/code/resend` (`RESEND_ENDPOINT`) and **resolves to a
-  `404`**, for the reason above: issuing a fresh code needs the account, and the account
-  behind a challenge is not knowable from the browser's identifier alone
-  (`docs/deviations.md` §33).
+  **Both `POST`s this screen makes are mounted.** The code form targets
+  `/admin/sign-in/code/verify` (`CODE_STEP_ENDPOINT`) and the resend targets
+  `/admin/sign-in/code/resend` (`RESEND_ENDPOINT`); each has its own row below. The resend
+  row's earlier claim that it "resolves to a `404`" was closed in Task 10 and is corrected
+  here.
+
+  **Two answers this screen used to give in silence now carry a word.** A guess the rate
+  limiter would not judge, and a resend that sent nothing, both leave the spent count
+  untouched — and everything this pane says was derived from that count, so a reader who
+  pressed a button got back the page they had pressed it on, including a reader who had
+  typed the CORRECT code (final review findings 6 and 14).
 
   **The code is posted as six repeated `code` fields, not one.** Each cell is
   `<input name="code" maxLength={1}>`, so the handler reads
@@ -689,11 +706,12 @@ follow: false }`.
   anti-enumeration design exists for. The `td-session` cookie is read if present, and one
   is minted if not. `X-Forwarded-For` / `X-Real-IP` name the rate-limit subject and
   `User-Agent` the device label on the account screen — neither is an authorisation input.
-- **Output:** always a `303 See Other` with an empty body. Three destinations:
+- **Output:** always a `303 See Other` with an empty body. Four destinations:
   `/admin/sign-in/done` with the issued session's `Set-Cookie` when the account has no
   second factor; `/admin/sign-in/code` with the browser's identifier and a
-  `td-keep-signed-in` cookie when it does; and `/admin/sign-in?state=refused` with the
-  browser's identifier for every refusal.
+  `td-keep-signed-in` cookie when it does; `/admin/sign-in?state=refused` for every refusal
+  a caller without the password can provoke; and `/admin/sign-in?state=code-unsent` when
+  the password was ACCEPTED and no code could be sent.
 - **Errors:** none escape. A body with no fields, and a body that is not a form at all,
   both answer `303` to `/admin/sign-in`.
 - **Auth requirement:** none — it is the door. The credentials in the body are the
@@ -701,12 +719,23 @@ follow: false }`.
 - **Notes:** **the three refusals are one response.** An unknown address, a wrong password
   and a locked account are already one value in `signIn.ts`, reached in the same time
   (medians 0.90 with the dummy PBKDF2 derivation, 0.14 without); this endpoint puts every
-  `SignInRefusal` — `'rate-limited'` and `'code-not-sent'` included — through one `return`,
-  so the three that must agree cannot be separated by a change meant to distinguish the
-  other two. `signInEndpoints.integration.test.ts` compares the status, every header and the
-  body of all three with `toEqual`, and measures the handler's own timing over 25
-  interleaved samples per arm. The cost: a genuinely rate-limited reader is told the same
-  thing as one who mistyped a password (`docs/security.md`).
+  refusal a caller WITHOUT the password can provoke — `'rate-limited'` included — through
+  one `return`, so the three that must agree cannot be separated by a change meant to
+  distinguish the fourth. `signInEndpoints.integration.test.ts` compares the status, every
+  header and the body of all three with `toEqual`, and measures the handler's own timing
+  over 25 interleaved samples per arm. The cost: a genuinely rate-limited reader is told
+  the same thing as one who mistyped a password (`docs/security.md`).
+
+  **`'code-not-sent'` is NOT one of them, and folding it in was blocker B1.** That refusal
+  is returned only after Payload has ACCEPTED the password, when the code cannot be issued
+  — the thirty-second resend cooldown, the hourly ceiling, or a mailer that declined. It
+  went through the same `return` until Phase 2's final review, so a reader who resubmitted
+  a CORRECT password inside the cooldown was told "Those details did not let you in.", and
+  past `HOURLY_RESEND_CAP` every correct submission for the rest of the hour said it. It
+  costs the anti-enumeration property nothing, because the word is unreachable without the
+  password. The branch is written as an equality on the one value that leaves rather than
+  as a list of the four that stay, so a `SignInRefusal` added later joins the
+  indistinguishable group by default.
 
   **The session identifier is rotated, and the rotation is asserted from the other side.**
   What goes into the `Set-Cookie` is always the value `startSession` minted, never the
@@ -743,9 +772,15 @@ follow: false }`.
   correct code offered by a different browser is refused (`SECURITY.md`).
 - **Notes:** a wrong code, an exhausted challenge, a consumed one and an expired one are one
   answer, because `verifyChallenge` collapses them: distinguishing them would say which
-  browsers hold a live challenge. The screen it returns to cannot yet draw that refusal —
-  the screen it returns to now draws the server's own attempts counter, so a reader can
-  see what is left. **This endpoint DOES call `rateLimit.ts`'s `admitCodeAttempt`** as of
+  browsers hold a live challenge. The screen it returns to draws the server's own attempts
+  counter, so a reader can see what is left.
+
+  **A guess the limiter would not judge redirects with `?state=wait`.** That path spends no
+  challenge attempt, so the counter does not move and every message the pane derives from
+  it is unchanged — until this word existed, a reader who typed the CORRECT code with a
+  shut window was handed back the page they had just submitted from, with nothing said
+  (final review finding 6). The word names no address, no count and no deadline; the
+  message is `@travel-diary/domain/auth/codeScreen`'s `CODE_UNJUDGED_MESSAGE`. **This endpoint DOES call `rateLimit.ts`'s `admitCodeAttempt`** as of
   the fix round — `otpService.challengeAccount` names the account a live challenge belongs
   to, server-side and never in a response, which is what that function had been waiting for
   since Task 4. The challenge's own database-enforced budget still applies underneath
@@ -764,15 +799,29 @@ follow: false }`.
   the endpoint's whole safety property: `otpService.resendChallenge` resolves the account
   from the challenge bound to the browser's own identifier, so a reader cannot have a code
   sent to an address they have not authenticated as.
-- **Output:** a `303` to `/admin/sign-in/code`, or to `/admin/sign-in` for a browser
+- **Output:** a `303` to `/admin/sign-in/code` when a new code really went out,
+  `/admin/sign-in/code?state=unsent` when none did, or `/admin/sign-in` for a browser
   carrying no identifier at all.
-- **Errors:** none observable, and that is deliberate. A fresh code, a refusal inside the
-  thirty-second cooldown, an account past the hourly ceiling, a mailer that declined, and a
-  browser holding no challenge are **one answer**: `SCREENS.md` §3.2 gives the resend a
-  cooldown label and no refusal copy, and distinguishing them would say which browsers hold
-  a live challenge.
+- **Errors:** none escape, and every reason nothing was sent is **one answer**: the
+  thirty-second cooldown, the hourly ceiling, a spent rate-limit window, a mailer that
+  declined, and a browser holding no challenge all write `?state=unsent`. `SCREENS.md` §3.2
+  gives the resend a cooldown label and no refusal copy, so the sentence is ours
+  (`docs/deviations.md`). It used to answer with **silence**, which hid two defects in
+  succession: a resend that refused an exhausted challenge outright (ruling F69), and then
+  a button that renders enabled past the hourly ceiling — its cooldown is measured from
+  the challenge bound to THIS browser, the server's ceiling counts every challenge the
+  ACCOUNT has had in the hour — and did nothing when pressed (final review finding 14).
 - **Auth requirement:** none, and it names no account. The challenge bound to the cookie is
   the authorisation.
+- **Notes:** **it spends the code endpoint's own rate-limit windows**, the same two
+  `/admin/sign-in/code/verify` spends. It called no limiter at all until Phase 2's final
+  review, while `otpService.issueChallenge` justified deriving ~30ms of scrypt before its
+  advisory lock on the grounds that "Task 4's per-account and per-IP rate limiting is what
+  bounds the number of requests" — so for this endpoint that bound was enforced zero times
+  and every request past the ceiling still paid a full derivation to write no row (final
+  review finding 7). The account the key needs comes from
+  `otpService.challengeAccount`, server-side and never in a response, so the request still
+  names nobody.
 
 ### `POST /admin/reset/request`, `GET /admin/reset/request`
 

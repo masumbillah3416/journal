@@ -27,6 +27,7 @@
  * Depends on: react, react-dom/client, vitest (jsdom),
  * @travel-diary/domain/auth/otpChallenge, ./CodeStep.
  */
+import { CODE_UNJUDGED_MESSAGE, CODE_UNSENT_MESSAGE } from '@travel-diary/domain/auth/codeScreen'
 import { EXPIRY_MS, MAX_ATTEMPTS, RESEND_COOLDOWN_MS } from '@travel-diary/domain/auth/otpChallenge'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -43,6 +44,7 @@ interface RenderOverrides {
   readonly maskedAddress?: string
   readonly issuedAt?: number
   readonly attemptsSpent?: number
+  readonly notice?: string | null
 }
 
 /**
@@ -61,11 +63,15 @@ const renderStep = (overrides: RenderOverrides = {}): HTMLElement => {
         maskedAddress={overrides.maskedAddress ?? 'he•••@wanderings.travel'}
         issuedAt={overrides.issuedAt ?? ISSUED_AT}
         attemptsSpent={overrides.attemptsSpent ?? 0}
+        notice={overrides.notice ?? null}
       />,
     )
   })
   return host
 }
+
+/** The message the pane's error box is showing, or `null` when there is none. */
+const noticeIn = (host: HTMLElement): string | null => host.querySelector('[role="alert"]')?.textContent.trim() ?? null
 
 /** The six cells, in the order they are drawn. */
 const cellsIn = (host: HTMLElement): readonly HTMLInputElement[] => [
@@ -570,6 +576,45 @@ describe('CodeStep', () => {
     // hands it is `readCodeScreen.ts`'s `NO_PENDING_ADDRESS`. What this case is
     // about is that the PANE prints a bullet run unchanged.
     expect(renderStep({ maskedAddress: '•••' }).textContent).toContain('A six-digit code went to •••.')
+  })
+
+  it('prints the notice the endpoint sent, on a submission that spent no guess', () => {
+    // FINDING 6, IN THE PANE. A guess the rate limiter would not judge, and a
+    // resend that sent nothing, both leave `attemptsSpent` where it was — so
+    // every message this pane derives is unchanged and the reader was handed
+    // back the page they had just submitted from.
+    const host = renderStep({ notice: CODE_UNJUDGED_MESSAGE })
+
+    expect(noticeIn(host)).toBe(CODE_UNJUDGED_MESSAGE)
+  })
+
+  it('prints the notice rather than the spent count’s own message, when both apply', () => {
+    // The notice describes the submission just made; the count describes every
+    // guess before it. A reader who has spent one guess and is then refused a
+    // window must be told about the window, not told again about the guess.
+    const host = renderStep({ attemptsSpent: 1, notice: CODE_UNSENT_MESSAGE })
+
+    expect(noticeIn(host)).toBe(CODE_UNSENT_MESSAGE)
+    expect(host.textContent).not.toContain('That code is not right.')
+  })
+
+  it('still counts the guesses the server spent while a notice is showing', () => {
+    // The counter is the challenge's own state and the notice is about one
+    // submission; a notice that reset the counter would lose the reader's
+    // place in `SECURITY.md` §3's three attempts.
+    const host = renderStep({ attemptsSpent: 2, notice: CODE_UNSENT_MESSAGE })
+
+    expect(host.querySelector('[data-code-attempts]')?.textContent).toBe('2 of 3 tried')
+  })
+
+  it('does not shake the shell for a notice that refused no code', () => {
+    // SCREENS.md §3.2 ties the shake to one event — "Wrong code: clear the
+    // cells, refocus cell 1, decrement attempts, and shake the shell" — and
+    // neither answer a notice carries decrements attempts. Shaking for a
+    // resend that sent nothing would say a code had been rejected.
+    const host = renderStep({ attemptsSpent: 0, notice: CODE_UNSENT_MESSAGE })
+
+    expect(paneIn(host).getAttribute('data-code-step-shaking')).toBe('false')
   })
 
   it('reads no browser storage at all while it renders', () => {

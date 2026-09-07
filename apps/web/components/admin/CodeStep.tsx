@@ -167,6 +167,24 @@ export interface CodeStepProps {
    * reader in, so nobody arrives back here after one.
    */
   readonly attemptsSpent: number
+  /**
+   * What the endpoint that redirected here wants said, or `null` when the
+   * reader arrived from the password step.
+   *
+   * A SEPARATE PROP FROM {@link CodeStepProps.attemptsSpent}, because the two
+   * answers it carries spend no guess: a submission the rate limiter would not
+   * judge, and a resend that sent nothing. Everything else on this pane is
+   * derived from the spent count, which is exactly why those two used to be
+   * rendered as silence — the count had not moved, so nothing changed and the
+   * reader was handed back the page they had just submitted from. The words
+   * and the copy are `@travel-diary/domain/auth/codeScreen`'s, so the endpoint
+   * that writes a word and the screen that reads it cannot disagree.
+   *
+   * IT TAKES PRECEDENCE over the spent count's own message: it describes what
+   * happened to the submission just made, and the count describes every guess
+   * before it.
+   */
+  readonly notice: string | null
 }
 
 /**
@@ -219,14 +237,20 @@ const landingCell = (cells: readonly string[]): number => {
  * Renders the one-time-code step.
  *
  * @param props - See {@link CodeStepProps}: where the code went, when it was
- *   issued, and how many guesses the server has already spent.
+ *   issued, how many guesses the server has already spent, and anything the
+ *   endpoint that redirected here wants said.
  * @returns The pane, as two real `POST` forms.
  * @example
- * <CodeStep maskedAddress={maskedTo} issuedAt={issuedAt} attemptsSpent={0} />
+ * <CodeStep maskedAddress={maskedTo} issuedAt={issuedAt} attemptsSpent={0} notice={null} />
  */
-export const CodeStep = ({ maskedAddress, issuedAt, attemptsSpent }: CodeStepProps): React.JSX.Element => {
+export const CodeStep = ({ maskedAddress, issuedAt, attemptsSpent, notice }: CodeStepProps): React.JSX.Element => {
   const [cells, setCells] = useState<readonly string[]>(() => Array.from({ length: CELL_COUNT }, () => ''))
-  const [message, setMessage] = useState<string | null>(() => wrongCodeMessage(attemptsSpent))
+  const [message, setMessage] = useState<string | null>(() => notice ?? wrongCodeMessage(attemptsSpent))
+  // THE SHAKE STAYS KEYED ON THE SPENT COUNT, and that is not an oversight.
+  // `SCREENS.md` §3.2 ties it to one event — "Wrong code: clear the cells,
+  // refocus cell 1, decrement attempts, and shake the shell" — and neither
+  // answer a {@link CodeStepProps.notice} carries decrements attempts. Shaking
+  // for a resend that sent nothing would say a code had been rejected.
   const [shaking, setShaking] = useState(() => attemptsSpent > 0)
   // Both countdowns start from the instant the code was issued, so the FIRST
   // render - the server's, and the browser's matching one - is the whole

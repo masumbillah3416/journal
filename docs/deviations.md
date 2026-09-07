@@ -1716,20 +1716,35 @@ smaller departure.
 **Why that sentence.** It says "those details" rather than "your password" or "that
 address" because naming either would say which one was wrong, and saying an address is
 unknown is the enumeration the whole password step spends a PBKDF2 derivation to prevent
-(`docs/security.md`, "No user enumeration"). It is one message for ALL FIVE refusals the
-endpoint can give — an unknown address, a wrong password, a locked account, an exhausted
-rate-limit window and a code that could not be sent — because the first three must be
-indistinguishable and separating the other two would mean a second `state` word for a
-later change to attach the first three to. `signInScreen.test.ts` asserts the message
-names neither field, neither "exist" nor "locked".
+(`docs/security.md`, "No user enumeration"). It is one message for all FOUR refusals a
+caller without the password can provoke — an unknown address, a wrong password, a locked
+account and an exhausted rate-limit window — because the first three must be
+indistinguishable and separating the fourth would mean a second `state` word for a later
+change to attach the first three to. `signInScreen.test.ts` asserts the message names
+neither field, neither "exist" nor "locked".
+
+**A SECOND MESSAGE WAS ADDED AFTER PHASE 2'S FINAL REVIEW, AND THE FIRST VERSION OF THIS
+ENTRY ARGUED FOR THE DEFECT.** It said one message for ALL FIVE refusals, the fifth being
+a correct password whose code could not be sent — and that fifth is the one refusal
+`apps/web/lib/auth/signIn.ts` invented specifically so the screen would NOT say this. A
+reader who submits a correct password, presses "← Back to password" and submits it again
+inside the thirty-second resend cooldown was told their details were wrong; past
+`HOURLY_RESEND_CAP` every correct submission for the rest of the hour was. Blocker B1. The
+second message is `PASSWORD_CODE_UNSENT_MESSAGE`:
+
+> Your password was right, but the code could not be sent. Try again shortly.
+
+It may say the password was right because its reader has just proved it: the word is
+returned only after Payload's own comparison ACCEPTED the credential, so nobody without
+the password can reach it. It names no address, gives no count and no deadline.
 
 **What it costs, stated rather than hidden:** a genuinely rate-limited reader is told the
-same thing as one who mistyped a password, and so is one whose correct password could not
-be followed by a code. Both are recorded in `docs/security.md`.
+same thing as one who mistyped a password. Recorded in `docs/security.md`.
 
 **What would reverse this:** a copy decision from the design's author for any of those
-states. The state word and the message are one constant each in one module, so a second
-state is a small change — the thing to re-read first is why there is only one.
+states. Each state word and its message are one constant each in one module, so a third
+state is a small change — the thing to re-read first is why the four that share one word
+share it.
 
 **Recorded as:** the header of `packages/domain/src/auth/signInScreen.ts`, the cases in
 `packages/domain/src/auth/signInScreen.test.ts`, the
@@ -1814,3 +1829,60 @@ and `graphQL` entries in `apps/web/collections/users.ts`,
 `apps/web/collections/sealedUserAuth.integration.test.ts`, the `otpRequired` row and the
 "second authentication surface" paragraphs in `docs/security.md`, the Payload-owned route
 rows in `docs/api.md`, and the `/cms` note in `docs/runbook.md`.
+
+## 43 · The one-time-code screen says two things `SCREENS.md` §3.2 gives it no copy for
+
+**What changed:** `@travel-diary/domain/auth/codeScreen.ts` adds two `state` words the two
+`POST`s made from `/admin/sign-in/code` redirect with, and two sentences the pane draws in
+the error box §3.2 already specifies:
+
+> Too many tries just now. Wait a moment, then enter the code again.
+
+> No new code was sent. Wait a moment, then ask again.
+
+**Rationale:** everything that screen told a reader was derived from `attemptsSpent`, the
+count of guesses the server had spent against the challenge. That is exactly right for a
+wrong code and says nothing at all about the two answers that spend no guess, both of which
+therefore rendered as **silence** — the reader pressed a button and was handed back the
+page they had pressed it on:
+
+1. **A guess the rate limiter would not judge.** `handleCodeStep` spends the per-account
+   and per-IP code windows before comparing anything, and a refusal there never touches the
+   challenge. Under a comment claiming it was "the SAME answer a wrong code gets": the HTTP
+   answer was, the page was not. A reader who typed the CORRECT code saw nothing at all
+   (final review finding 6).
+2. **A resend that sent nothing.** The button disables itself on a cooldown measured from
+   the challenge bound to THIS browser, while the server's ceiling counts every challenge
+   the ACCOUNT has had in the hour. Past the ceiling it renders enabled and does nothing
+   (finding 14). The same silence had already hidden ruling F69's defect, where an
+   exhausted challenge could not be resent at all.
+
+Phase 2's final review groups these with blocker B1 as one class — "every refusal that is
+not 'wrong password' or 'wrong code' is rendered either as a lie or as silence" — and
+`CLAUDE.md` §10 asks that a browser defect be fixed as a class rather than as instances.
+That is why this entry exists beside §40 rather than instead of it.
+
+**Why saying these things discloses nothing.** `verifyChallenge` answers one word for a
+wrong code and for a browser holding no challenge, so that nothing says which browsers hold
+a live challenge — and the screen itself already answers that question, deliberately: it
+prints the masked address and the spent count for a browser holding one, and three bullets
+with a zero for one that is not (the SIGNIN-001..004 fix, on the ground that only the
+browser the challenge was bound to can reach the answer). Neither sentence names an
+address, an account, a code, a count or a deadline; `codeScreen.test.ts` asserts that,
+including that neither carries a digit. Both say the same thing to a stranger who forges
+the query value as to the reader they were written for.
+
+**One word for five reasons on the resend**, deliberately: the cooldown, the hourly
+ceiling, a spent rate-limit window, a mailer that declined and a browser with no challenge
+all write `unsent`. A reader can act on all five the same way.
+
+**What would reverse this:** copy from the design's author for either state, or a resend
+button whose disabled state was computed from the account's hour rather than this
+browser's challenge — which would remove the second sentence's most common cause but not
+the mailer's.
+
+**Recorded as:** `packages/domain/src/auth/codeScreen.ts` and its test, the
+`CodeStepProps.notice` prop in `apps/web/components/admin/CodeStep.tsx`, the
+`GET /admin/sign-in/code`, `POST /admin/sign-in/code/verify` and
+`POST /admin/sign-in/code/resend` rows in `docs/api.md`, and `docs/security.md`'s section
+on what Task 10 did not close.
