@@ -340,6 +340,95 @@ would claim a measurement nothing performs.
   injected — never `Date.now()` inside logic under test (this is how `flipMachine`'s
   latch behaviour and `otpChallenges`' expiry are tested with no clock mocking library).
 
+#### 1a · The ESLint rule, and the two questions about it that are not about a syntax tree
+
+`vitest.config.ts` puts `eslint-rules/**/*.test.js` in the `unit` project and gates
+`eslint-rules/**/*.js` at **100% lines, branches and functions**, and both of those lines
+say "See docs/testing.md". This is that section — it did not exist for a round, which is
+CLAUDE.md §1.2's own failure mode: a new test type, in a new language, in the gate Husky
+runs, behind a cross-reference pointing at silence.
+
+**What the suite is.** `eslint-rules/guarded-server-actions.js` is a custom ESLint rule:
+a `'use server'` module may export nothing but calls to `guardedAction(...)`
+(`apps/web/lib/auth/guard.ts`), and a `'use server'` directive inside a function body is
+refused outright. It exists because the same guarantee was written as a text scan **nine
+times and defeated nine times** — "every export of every module" is not a sentence text
+matching can express, so the check is written where the exports are already parsed.
+`docs/adr/0018` is the decision; `apps/web/lib/auth/guard.ts` is the factory.
+
+**Why it is plain JavaScript.** ESLint loads a config and its plugins through Node rather
+than through a bundler, so a `.ts` rule would need a loader inside the pre-commit hook.
+The consequence is stated rather than hidden: nothing typechecks `eslint-rules/`, the same
+treatment `scripts/run-lighthouse.mjs` already has, which is why the rule takes no options
+and holds no state — everything it could get wrong is a shape, and every shape is a case.
+
+**How to run it.**
+
+```
+npx vitest run --project unit eslint-rules                      # the rule alone
+npx vitest run --project unit eslint-rules --coverage           # with its 100% gate
+npm run verify                                                  # what Husky runs
+```
+
+**How to add a case.** `eslint-rules/guarded-server-actions.test.js` uses ESLint's own
+`RuleTester` with `typescript-eslint`'s parser. An `invalid` case is a `code` string, the
+`messageId` it must report, and a `name` recording WHICH ROUND FOUND THE SHAPE — the list
+is the valuable artefact, because every entry is something somebody actually reached for.
+Every case is passed through `at()`, which gives it a real `filename` under
+`apps/web/app/(admin)/admin/journeys/`: the rule resolves an import specifier against the
+importing file and compares the result with `apps/web/lib/auth/guard.ts` itself, so a
+fixture with no plausible filename would resolve nothing and every case would report
+`notTheFactory`. There are 30 cases — 7 valid (the control: every export spelling, all
+guarded, plus the shapes the prologue walk has to answer "no" to) and 23 invalid, counted
+off the file rather than remembered — `grep -cE "errors: " eslint-rules/guarded-server-actions.test.js`
+counts the invalid ones.
+
+**And the two questions this suite CANNOT answer**, which is why
+`apps/web/lib/auth/adminGuardRegistration.test.ts` still has three cases about the rule.
+A `RuleTester` case proves what the rule decides about a syntax tree it is handed. It
+cannot say whether the rule is switched on, whether somebody has switched it off for a
+file, or **which files ESLint hands it at all** — and that last one is where round 5's
+version was defeated. A flat config lints the extensions some block's `files` array names;
+nothing named `.jsx`, so an unguarded `'use server'` module written as `actions.jsx` passed
+`eslint .` at exit 0, passed `tsc`, passed `prettier --check`, and was mounted by a running
+dev server as a real action endpoint.
+
+So the coverage check is INVERTED, and this is the arrangement to keep:
+
+| Question                                              | Where it is answered             | With what                                                                                   |
+| ----------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------- |
+| Is this export guarded?                               | `guarded-server-actions.test.js` | `RuleTester`, over the AST                                                                  |
+| Is the rule registered at `error`?                    | `adminGuardRegistration.test.ts` | a read of `eslint.config.js`                                                                |
+| Does ESLint visit every file carrying `'use server'`? | `adminGuardRegistration.test.ts` | git's listing of the repository + `ESLint#calculateConfigForFile`, asked in a child process |
+| Has anybody disabled the rule for a file?             | `adminGuardRegistration.test.ts` | the same git listing, against an allowlist of exact paths                                   |
+
+Text is used for what text is good at — finding candidates anywhere, at extensions nobody
+enumerated — and the AST decides correctness. The listing is
+`git ls-files --cached --others --exclude-standard`, so a file written and never staged is
+still seen, and no skip list of `node_modules`/`.next`/`coverage` has to be maintained.
+
+**The severity probe runs in a child process, and the reason is a measured coverage
+interaction rather than a preference.** ESLint loads `eslint.config.js` — and through it
+the rule — with Node's own loader. Calling the ESLint API from inside a Vitest worker
+therefore puts a SECOND, uninstrumented copy of the rule in the same process; both report
+against the same source path, the uninstrumented one's zero counts win, and
+`@vitest/coverage-v8` then reports the rule at **89.84% lines / 63.15% functions** with
+every function marked unexecuted, against the 100% gate above — while the `RuleTester`
+suite alone measures it at 100/100/100. Reproduced by running the two test files together
+and then separately. A child process keeps the two loads in two processes, and asks the
+question the way `npm run lint` asks it.
+
+**What still gets through, so nobody has to rediscover it.** Thirty-three shapes have been
+written to disk and run against the real gate. **Thirty-two fail `npm run verify`** — and
+two of those fail it without failing `npm run lint`, which is the whole point of having the
+coverage case beside the rule: a disable comment in a directory nobody listed, and a module
+at an extension ESLint still does not enumerate (`.mdx` was tried), are caught by the test
+rather than by the rule. The one shape that gets through carries an `eslint-disable`
+comment in a file `.gitignore` also hides; it cannot be committed, and `docs/adr/0018`
+records it. Two costs of identifying the factory by its path on disk, both failing closed:
+a legitimate barrel re-exporting `guardedAction` is refused, and so is
+`import { guardedAction as somethingElse }`.
+
 ### 2 · Integration
 
 - **Tool:** Vitest + a real test Postgres.

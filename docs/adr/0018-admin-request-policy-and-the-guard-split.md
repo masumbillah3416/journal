@@ -117,11 +117,31 @@ ESLint has already built, on every file `npm run lint` visits, and reports:
   page's `requireAdminSession()` has not run — `SECURITY.md`'s "nothing inherits trust from
   the page it was reached from", exactly.
 
-It has no `files` list, so there is no directory it does not reach. **The one thing that
-defeats it is an `eslint-disable` comment**, which is deliberate: that is one line in a
-diff with a reason beside it. `adminGuardRegistration.test.ts` holds the files permitted to
-carry one, by exact path, so a second is a failing test rather than a second quiet comment.
-There is one today — Payload's own `serverFunction` dispatcher, which authenticates itself.
+It has no `files` list, so there is no directory it does not reach.
+
+**But a lint rule can only judge a file ESLint hands it, and that reach is now PROVED
+rather than assumed.** ESLint lints the extensions some config block's `files` array names;
+for four rounds nothing here named `.jsx`, so an unguarded `'use server'` module written as
+`actions.jsx` passed `eslint .` at exit 0 — naming the file directly answered "File ignored
+because no matching configuration was supplied" — and a running dev server registered its
+export as a real action endpoint. `eslint.config.js` now names that extension. More to the
+point, `adminGuardRegistration.test.ts` no longer trusts an extension list at all: it takes
+git's own listing of the repository (`ls-files --cached --others --exclude-standard`, so a
+file written and never staged is still seen), finds every file whose BYTES carry
+`'use server'`, and asks ESLint's own API whether each is a file it lints with this rule at
+`error`. Text finds candidates at extensions nobody enumerated; the AST decides whether
+they are guarded. It fails on the commit that introduces the next extension gap — it cannot
+fail before such a file exists.
+
+**The one thing that defeats the RULE is an `eslint-disable` comment**, which is
+deliberate: that is one line in a diff with a reason beside it.
+`adminGuardRegistration.test.ts` holds the files permitted to carry one, by exact path —
+and reads the tree it compares against off the same git listing, not off a directory list.
+The version this replaced enumerated five directory names inside `apps/web`, in the very
+file whose header says that being outside a directory list is how five of the nine defeats
+worked; a disable comment in `apps/web/actions/` or `apps/web/globals/` — both real
+directories — or anywhere outside `apps/web` left it green. There is one permitted file
+today: Payload's own `serverFunction` dispatcher, which authenticates itself.
 
 **2 · Route files are checked, because a page is not built from a factory.**
 `apps/web/lib/auth/adminGuardRegistration.test.ts` walks the WHOLE `app/` tree off the
@@ -134,8 +154,23 @@ segment — and requires:
   carrying the server directive, or one of the Next.js conventions listed with the reason
   it cannot answer a request. Anything else fails by name rather than passing unseen.
 
-A Phase 4 screen, route or action that does none of this fails `npm run verify` on its own
-commit.
+**A Phase 4 screen, route or action that does none of this fails `npm run verify` on its
+own commit — and `verify` rather than `lint` is the accurate word.** Thirty-three shapes
+have now been written to disk and run against the real gate: the nine that defeated the
+text scans, the five that beat the version before last, the three that beat the last one,
+and eleven invented since. **Thirty-two of the thirty-three fail `npm run verify`.** Two
+fail it without failing `npm run lint` — a disable comment in a directory nobody listed,
+and a module at an extension ESLint still does not enumerate (`.mdx`, tried deliberately)
+— which is exactly why the coverage case exists alongside the rule.
+
+**The one shape that gets through, stated rather than left to be found:** a module carrying
+an `eslint-disable` comment in a file `.gitignore` ALSO hides. The disable comment blinds
+the rule, and the `.gitignore` line takes the file out of the listing the coverage case
+walks. It is recorded rather than closed because such a file cannot be committed, and the
+`.gitignore` line that hid it would be in the same diff as the action. Two costs of the
+factory being identified by its path on disk are worth knowing too, and both fail closed: a
+legitimate barrel module that re-exports `guardedAction` is refused, and so is
+`import { guardedAction as somethingElse }`.
 
 **This guarantee was written as a text scan nine times and defeated nine times, which is
 why it is no longer one.** The first version matched the guard's NAME anywhere in the file,

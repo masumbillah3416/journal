@@ -28,11 +28,38 @@
  *     the page or route handler that needs the answer, and it is the only
  *     authority on the question.
  *
- * WHAT MAKES IT UNFORGETTABLE IS A TEST, NOT A LAYER.
- * `adminGuardRegistration.test.ts` reads every route and page mounted under
- * `/admin` off the filesystem and requires each one either to be listed in
- * `ADMIN_PUBLIC_PATHS` or to reference this module. A screen added in Phase 4
- * that calls neither fails the pre-commit gate on its own commit.
+ * ═══ WHAT MAKES IT UNFORGETTABLE IS TWO MECHANISMS, AND ONLY ONE IS A
+ *     CHECK ═══
+ *
+ * This header said "a test, not a layer" for four rounds after that stopped
+ * being true, and said the test credits a file for REFERENCING this module —
+ * which is the version fix round 1 deleted, and which
+ * `adminGuardRegistration.test.ts`'s own case "reads a guard APPLICATION
+ * rather than a mention of one" now asserts is NOT enough. Both halves were
+ * wrong. What is actually here:
+ *
+ *   1 · A SERVER ACTION CANNOT BE WRITTEN UNGUARDED, and that is the primary
+ *   mechanism and it lives in this file. `guardedAction` (below) takes the
+ *   action, calls `requireAdminSession()`, and calls the action with the
+ *   session it got, so an action has no opportunity to forget.
+ *   `eslint-rules/guarded-server-actions.js` admits no other shape: over the
+ *   parsed AST, on every file `npm run lint` visits, with no `files` list of
+ *   its own. Its REACH is proved rather than assumed —
+ *   `adminGuardRegistration.test.ts` walks git's listing of the repository for
+ *   the literal `'use server'` and asks ESLint's own API whether each file it
+ *   finds is one ESLint lints with that rule at `error`.
+ *
+ *   2 · A ROUTE FILE IS CHECKED, because a page is not built from a factory.
+ *   `adminGuardRegistration.test.ts` walks the whole `app/` tree, computes each
+ *   file's address the way Next.js does, and requires every route file at a
+ *   guarded address either to be declared public in `ADMIN_PUBLIC_PATHS` or to
+ *   APPLY a guard in its own body — `requireAdminSession()` or `guarded(...)`,
+ *   a call and not a mention. It follows nothing a file imports: a check that
+ *   has to look elsewhere for its subject is one a neighbour can satisfy.
+ *
+ * Thirty-three shapes have been written to disk and run against the real gate;
+ * thirty-two fail `npm run verify`. What does not is recorded in
+ * `docs/adr/0018` rather than left to be found.
  *
  * ═══ THE COOKIE IS `Path=/admin`, SO NOTHING UNDER `/api` CAN USE IT ═══
  *

@@ -407,9 +407,16 @@ the middleware actually reads. Guarding is
 `apps/web/lib/auth/guard.ts`'s `authenticateAdminRequest`, which reads the identifier out of
 the cookie and asks the `sessions` table whether it names a live row; a page calls
 `requireAdminSession`, which redirects to `/admin/sign-in` on any refusal.
-`apps/web/lib/auth/adminGuardRegistration.test.ts` fails the pre-commit gate for any file
-under an `/admin` address that neither is declared public nor applies the guard in its own
-body — including Server Action modules, which it reads per export.
+`apps/web/lib/auth/adminGuardRegistration.test.ts` fails the pre-commit gate for any route
+file under an `/admin` address that neither is declared public nor applies the guard in its
+own body, and for any file under such an address whose kind it cannot classify. **Server
+Action modules are not its business and have not been since round 5** — this sentence said
+"including Server Action modules, which it reads per export", which was the text scan that
+was defeated five times in five attempts. Actions are judged by
+`eslint-rules/guarded-server-actions.js` over the parsed AST; what this test keeps about
+them is whether the rule is still switched on, whether anybody has switched it off for a
+file, and whether ESLint actually visits every file in the repository that carries the
+directive.
 
 **Nothing under `/api` can authenticate from this cookie.** It is `Path=/admin`, so a
 browser never sends it to `/api/...`. Payload's four routes above authenticate with
@@ -952,11 +959,19 @@ export const publishJourney = guardedAction(async (session, id: string) => {
 
 That is not a convention. `eslint-rules/guarded-server-actions.js` reports any export of a
 `'use server'` module that is not such a call, any re-export from one, and any
-`'use server'` directive inside a function body anywhere in the repository — over the
-parsed AST, on every file `npm run lint` visits, so there is no directory outside it and
-no export spelling past it. An action that forgets fails the pre-commit gate.
-`docs/adr/0018` records the nine text scans that preceded this rule and why enumeration
-was the wrong mechanism.
+`'use server'` directive inside a function body — over the parsed AST, on every file
+`npm run lint` visits, with no `files` list, so there is no directory it does not reach and
+no export spelling past it.
+
+**An action that forgets fails `npm run verify` — and `verify` rather than `lint` is the
+accurate word.** Two of the ways an action can escape the rule itself are caught by
+`apps/web/lib/auth/adminGuardRegistration.test.ts` instead: a module at an extension
+ESLint does not enumerate (`.jsx` was one for four rounds, and Next.js mounted it), and an
+`eslint-disable` comment in a file nobody listed. That test walks git's listing of the
+repository for the literal `'use server'` and asks ESLint's own API which of those files it
+actually lints. Thirty-three shapes have been run against the gate and thirty-two fail it;
+`docs/adr/0018` names the one that does not, records the nine text scans that preceded
+this rule, and says why enumeration was the wrong mechanism.
 
 **Authorization does not stop at the guard, and Phase 4 owes the other half.** The guard
 answers "is this somebody"; Payload's collection and field access control answers "may

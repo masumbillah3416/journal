@@ -313,6 +313,8 @@ const DIRECTIVE_IN_PROSE: readonly { readonly path: string; readonly because: st
   { path: 'docs/adr/0018-admin-request-policy-and-the-guard-split.md', because: 'the ADR describing the rule' },
   { path: 'docs/api.md', because: 'the shape a Phase 4 action takes, in a fenced example' },
   { path: 'docs/architecture.md', because: 'the paragraph naming the rule and what defeats it' },
+  { path: 'docs/security.md', because: 'the discharge table cell for authorization on every mutation' },
+  { path: 'docs/testing.md', because: 'the section explaining this suite, which §1.2 requires' },
 ]
 
 /** Narrows an unknown to an indexable object, so nothing below needs a cast. */
