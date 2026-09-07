@@ -1406,12 +1406,22 @@ true` — the only honest content while nothing writes or reads that setting and
   `endpoint=password`, `subject=::1`, newest four minutes before the query — over the limit,
   inside the window.
 
-  So a back-to-back second run of this suite (or of `test:e2e`, or a browser sweep on the
-  heels of one) is expected to fail there, and it is neither a product defect nor a flake.
-  **Wait fifteen minutes for the window to age out** — the rows prune themselves on the next
-  write — or accept the failure as the limiter's own evidence. Do not reach for the
-  limits: the case is right, the endpoint is right, and the suite exercising a real
-  anti-enumeration control twice is the thing that costs.
+  **FIXED IN ROUND 8, AND THE FIX IS THE OPTION THIS PARAGRAPH USED TO OMIT.**
+  `playwright.config.ts` now names `e2e/support/globalSetup.ts`, which truncates
+  `sign_in_attempts` once before any spec starts. It touches no limit, no window length, no
+  endpoint and no case — every rate-limit case in this suite builds its own counts inside a
+  single run — and it makes the suite idempotent: two `test:e2e:container` runs back to
+  back, the second starting seconds after the first, both pass.
+
+  **What this paragraph said before is worth keeping as a lesson about rationales.** It
+  framed the choice as "wait fifteen minutes for the window to age out, or accept the
+  failure", and warned against loosening the limit. Both halves of that were true and the
+  frame was a false dichotomy: the third option is fixture hygiene, and the fifth
+  whole-branch review named it independently. A rationale that reads as a principled
+  refusal while omitting the cheap correct fix is a weaker artefact than the finding it
+  accompanies. **Do still not reach for the limits** — the case is right and the endpoint is
+  right — and if the setup is ever removed, the second run's failure is the limiter's own
+  evidence rather than a regression.
 
   **The server prints `⨯ Error: The destination stream closed early.` during a parallel
   run, and it is a client disconnect rather than a fault.** The count varies with the

@@ -46,6 +46,23 @@
  * that offers no secret at all, and a third `endpoint` value would need a
  * migration to add an enum member for a distinction nothing acts on.
  *
+ * WHAT SHARING COSTS THE READER, which the reasoning above left unsaid until
+ * the fifth whole-branch review asked for it. A reader who requests a reset
+ * and then tries to sign in has FEWER attempts than the sign-in limit
+ * advertises: the reset request has already spent one of the twenty per
+ * address per fifteen minutes, and ten reset requests aimed at a known address
+ * suspend that address's password sign-in for the rest of the window from any
+ * IP (`ADDRESS_PASSWORD_ATTEMPT_LIMIT`).
+ *
+ * That is a cost rather than a new exposure, and the difference is worth
+ * stating: `ADDRESS_PASSWORD_ATTEMPT_LIMIT` plus Payload's own
+ * `maxLoginAttempts`/`lockTime` already let an unauthenticated caller deny one
+ * account from anywhere, which is inherent to per-account rate limiting rather
+ * than a consequence of the sharing. Sharing makes it cheaper and quieter; it
+ * does not create it. Phase 4 should learn this here rather than from a
+ * support ticket, and the same shared window is what makes the browser suite
+ * non-idempotent inside fifteen minutes — see `e2e/support/globalSetup.ts`.
+ *
  * TWO RESIDUALS ARE ACCEPTED AND NAMED RATHER THAN HIDDEN.
  *
  * THE FIRST IS THE TIMING. The hit path performs a row update and a mail

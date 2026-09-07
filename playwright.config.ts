@@ -52,6 +52,14 @@ export default defineConfig({
   // other's files: without it, `npm run test:e2e:headed`, which names no files
   // at all, would try to run that one as a browser test.
   testMatch: '**/*.spec.ts',
+  // ONE STATEMENT THAT MAKES THIS SUITE IDEMPOTENT. Every local request keys
+  // on `::1`, so one full run leaves more in-window rows in
+  // `sign_in_attempts` than the limiter allows, and a second run inside
+  // fifteen minutes fails `e2e/reset.spec.ts:171` — a correctly-working
+  // anti-enumeration control defeating its own suite. The setup clears that
+  // window once per run and touches no limit, no endpoint and no case; see its
+  // header, and docs/testing.md's rate-limit note.
+  globalSetup: './e2e/support/globalSetup.ts',
   fullyParallel: true,
   // LOCALLY THIS IS A CAP ON THE DEV SERVER, NOT ON THE BROWSER. `webServer`
   // below runs `next dev` for a local run and a production build in CI, and
