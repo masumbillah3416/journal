@@ -1215,6 +1215,15 @@ true` — the only honest content while nothing writes or reads that setting and
   for the whole list — which is why no task in Phase 2 ever ran the whole list, and why
   the final review recorded that as a residual.
 
+  **One environmental cause of a timeout here, because it looks exactly like a
+  regression.** `apps/web/scripts/seed.integration.test.ts`'s first case seeds ten
+  journeys and their media, with a sixty-second budget. It passed for the whole of Phase 2
+  and then began timing out on this machine with no commit in between — because
+  `apps/web/media` had reached 102,503 files and 4.5 GB, and nothing ever deletes from it.
+  Measured on the same commit: 0 files → 34.3s and green; 102,503 files → over 60s and
+  red. `docs/runbook.md` has the cleanup and the table. Reach for it before reaching for
+  `git bisect`.
+
   **The server prints `⨯ Error: The destination stream closed early.` during a parallel
   run, and it is a client disconnect rather than a fault.** Between eight and thirteen of
   them appear in a full container run, clustered in `e2e/mobile.spec.ts`. They are worth a

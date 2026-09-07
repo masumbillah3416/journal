@@ -128,6 +128,54 @@ visible from the code that was added:
   `npm run db:seed` until Phase 4's panel lands. If you find yourself wanting `/cms` back,
   the fix is to put the second factor in front of it, not to unseal the endpoint.
 
+## The local media store grows without bound, and it fails a test rather than the disk
+
+`apps/web/media` is where the local `StoragePort` adapter writes uploads and their five
+derivative tiers. It is gitignored, so it never appears in `git status`, and **nothing
+deletes a file from it**: `payload.delete` removes the row, and the bytes stay. Every
+`npm run db:seed`, and every run of `apps/web/scripts/seed.integration.test.ts`, writes a
+fresh set.
+
+**The first symptom is not a full disk. It is a test that has always passed timing out,
+with no commit in between** — the same confusing shape as the wall-clock guard suite
+Phase 2 Task 11 found, and for the same reason: nothing in `git log` can explain it.
+Measured on this machine at the close of Phase 2, same commit, same database:
+
+| `apps/web/media`      | `seed > creates the ten journeys` | Result        |
+| --------------------- | --------------------------------- | ------------- |
+| 102,503 files, 4.5 GB | > 60,000ms                        | **timed out** |
+| 0 files               | 34,321ms                          | passed        |
+| 1,314 files, 62 MB    | ~35,000ms                         | passed        |
+
+Directory operations on a hundred thousand files are what costs the time, not the images.
+
+**To clean it up**, keep the files the databases actually reference and drop the rest.
+Every referenced name is in `media`'s `filename` column and its five `sizes_*_filename`
+columns, in **both** `diary` and `diary_test`:
+
+```sh
+for db in diary diary_test; do
+  docker exec journal-postgres-1 psql -U diary -d $db -t -A -c \
+    "SELECT filename FROM media WHERE filename IS NOT NULL
+     UNION SELECT sizes_thumb_filename FROM media WHERE sizes_thumb_filename IS NOT NULL
+     UNION SELECT sizes_tile_filename FROM media WHERE sizes_tile_filename IS NOT NULL
+     UNION SELECT sizes_frame_filename FROM media WHERE sizes_frame_filename IS NOT NULL
+     UNION SELECT sizes_hero_filename FROM media WHERE sizes_hero_filename IS NOT NULL
+     UNION SELECT sizes_hero2x_filename FROM media WHERE sizes_hero2x_filename IS NOT NULL"
+done | sort -u > referenced.txt
+```
+
+Move `apps/web/media` aside, recreate it, and copy back only the names in that list. Both
+databases must be included: `diary` is what the browser suites read and `diary_test` is
+what the integration suite reads, and they share one directory. Do **not** simply delete
+the directory — the browser suites would then render a book of missing images and the
+visual baselines would fail for a reason that has nothing to do with any change.
+
+**The real fix is Phase 3's**, and it is named rather than implied: a `StoragePort` that
+deletes on `payload.delete`, which is also what the R2 adapter will need in order not to
+bill for orphans forever. Until then this is housekeeping, and the table above is what
+tells you when it is due.
+
 ## Rotate secrets
 
 1. Generate the new credential at the provider (Neon connection string, R2 access key,
