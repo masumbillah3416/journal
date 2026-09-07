@@ -28,8 +28,13 @@
  *     the page or route handler that needs the answer, and it is the only
  *     authority on the question.
  *
- * ═══ WHAT MAKES IT UNFORGETTABLE IS TWO MECHANISMS, AND ONLY ONE IS A
- *     CHECK ═══
+ * ═══ WHAT STANDS BETWEEN PHASE 4 AND A FORGOTTEN GUARD IS TWO MECHANISMS,
+ *     AND ONLY ONE IS A CHECK ═══
+ *
+ * This heading said "WHAT MAKES IT UNFORGETTABLE". Nothing here makes anything
+ * unforgettable — one mechanism removes the opportunity to forget for the
+ * shape it covers, and the other is a check, which is a thing that can be
+ * defeated and has been nine times.
  *
  * This header said "a test, not a layer" for four rounds after that stopped
  * being true, and said the test credits a file for REFERENCING this module —
@@ -38,23 +43,38 @@
  * rather than a mention of one" now asserts is NOT enough. Both halves were
  * wrong. What is actually here:
  *
- *   1 · AN UNGUARDED SERVER ACTION IS NOT A SHAPE THIS REPOSITORY'S GATE
- *   ADMITS — which is the honest form of a sentence that said, in capitals,
- *   that one CANNOT BE WRITTEN. It could: the fifth whole-branch review wrote
- *   an ordinary mountable unguarded action, added one comment line, and got
- *   `npm run verify` at exit 0 and a successful commit. The claim was stronger
- *   than the code for the fifth consecutive round, so what is claimed here now
- *   is what the gate does: `guardedAction` (below) takes the action, calls
- *   `requireAdminSession()`, and calls the action with the session it got, so
- *   an action built from it has no opportunity to forget — and every shape
- *   that reaches a commit without it is enumerated, with its measurement, by
- *   `SHAPES_THAT_GET_THROUGH` in `adminGuardRegistration.test.ts`.
- *   `eslint-rules/guarded-server-actions.js` admits no other shape: over the
+ *   1 · THE GATE REFUSES AN UNGUARDED SERVER ACTION. Said in the indicative,
+ *   because every stronger form of this sentence has been false. It said one
+ *   CANNOT BE WRITTEN, and the fifth whole-branch review wrote one and
+ *   committed it. Round 8 replaced that with "not a shape this repository's
+ *   gate admits" and added "every shape that reaches a commit without it is
+ *   enumerated", and the sixth review falsified both: it committed
+ *   `const attached = Object.assign(module.exports, { deleteJourney })`
+ *   (`523bd51`, since reset), and showed that deleting a row from the
+ *   enumeration was something nothing noticed. An absolute about a control is
+ *   a claim no mechanism keeps, so what is written here is what the mechanism
+ *   DOES and what its test NAMES.
+ *
+ *   `guardedAction` (below) takes the action, calls `requireAdminSession()`,
+ *   and calls the action with the session it got, so an action built from it
+ *   has no opportunity to forget — and `guard.integration.test.ts`'s "the
+ *   factory every Server Action is built from" executes that, rather than
+ *   matching two substrings over this file's text, which is all that stood
+ *   over it until round 9. `eslint-rules/guarded-server-actions.js` reports
+ *   every value export of a `'use server'` module that is not such a call,
+ *   every re-export from one, every top-level statement in one that evaluates
+ *   anything at load bar a literal, a function expression or that same call,
+ *   and every `'use server'` directive inside a function body — over the
  *   parsed AST, on every file `npm run lint` visits, with no `files` list of
- *   its own. Its REACH is proved rather than assumed —
- *   `adminGuardRegistration.test.ts` walks git's listing of the repository for
- *   the literal `'use server'` and asks ESLint's own API whether each file it
- *   finds is one ESLint lints with that rule at `error`.
+ *   its own. What it does NOT report is enumerated, with the measurement and
+ *   committability of each, by `SHAPES_THAT_GET_THROUGH` in
+ *   `adminGuardRegistration.test.ts` — an array that says at itself what it
+ *   cannot do: a row's absence proves nothing. Its REACH is proved rather than
+ *   assumed — `adminGuardRegistration.test.ts` walks git's listing of the
+ *   repository for the literal `'use server'` and asks ESLint's own API
+ *   whether each file it finds is one ESLint lints with that rule at `error`,
+ *   and whether any config block gives one a `processor` that could strip the
+ *   directive before the rule is handed the file.
  *
  *   2 · A ROUTE FILE IS CHECKED, because a page is not built from a factory.
  *   `adminGuardRegistration.test.ts` walks the whole `app/` tree, computes each
@@ -77,13 +97,25 @@
  * four are closed in round 8, together with a fifth found while attacking that
  * fix.
  *
- * THE SHAPES THAT GET THROUGH ARE ENUMERATED WHERE THE COUNT CAN BE ASSERTED,
- * and no number is written here: `SHAPES_THAT_GET_THROUGH` in
+ * THE SIXTH REVIEW WROTE EIGHT, ALL ITS OWN, AND FIVE GOT THROUGH — and the
+ * two that matter are why rule 4 was rewritten again. Round 8 had inverted it
+ * into an allowlist of statement KINDS, which admitted the very call it
+ * refused as a bare statement once the call was bound to a name; that reached
+ * a real commit. It also gutted `guardedAction`'s body while keeping the two
+ * substrings that were the only thing standing over it, and deleted a row
+ * from the enumeration below without anything noticing. Round 9 closed all
+ * three: rule 4 asks what a statement EVALUATES, `guard.integration.test.ts`
+ * executes the factory, and each enumerated row now carries what the suite
+ * lints to show it is still true. A `processor` block, the fifth, has a key of
+ * its own in `adminGuardRegistration.test.ts`.
+ *
+ * WHAT THE RULE DOES NOT REPORT IS ENUMERATED WHERE IT CAN BE ASSERTED, and no
+ * number is written here: `SHAPES_THAT_GET_THROUGH` in
  * `adminGuardRegistration.test.ts` holds each one with its measurement and
  * whether it can be committed, and a case there fails if this file stops
- * pointing at that array or starts restating it. Seven sites said "TWO shapes
- * get through" while the fifth review measured four, and that sentence had
- * been wrong in four earlier rounds too (ruling F76).
+ * pointing at that array or starts restating it. Seven sites restated a count
+ * of two while the fifth review measured four, and that sentence had been
+ * wrong in four earlier rounds too (ruling F76).
  *
  * THIS MODULE'S EXPORT SURFACE IS LOAD-BEARING, and that is what round 7's
  * defeat means for Phase 4. The rule now requires the imported name to be
@@ -266,7 +298,12 @@ export const requireAdminSession = async (): Promise<AuthenticatedSession> => {
  * Builds a Server Action that cannot run before the guard has admitted the
  * request.
  *
- * ═══ IT IS A FACTORY SO THAT THE UNGUARDED SHAPE CANNOT BE WRITTEN ═══
+ * ═══ IT IS A FACTORY SO THAT AN ACTION HAS NOTHING TO REMEMBER ═══
+ *
+ * This heading said the unguarded shape CANNOT BE WRITTEN. It can — six
+ * whole-branch reviews have written one, and two of them committed one. What a
+ * factory buys is narrower and real: an action built from it cannot forget the
+ * guard, because the guard is not something the action does.
  *
  * A Server Action is a `POST` endpoint of its own, mounted by Next.js under an
  * opaque action id and reachable by anybody who has that id. The middleware
@@ -281,10 +318,12 @@ export const requireAdminSession = async (): Promise<AuthenticatedSession> => {
  * call the guard, and every one of them was defeated — by a comment, an import
  * line, a neighbouring module, a second route group, a file the walk never
  * opened, a directory outside its root list, and four export spellings. This is
- * the other move: the action never gets the chance to forget, because the only
- * shape the linter admits is one built from here.
- * `eslint-rules/guarded-server-actions.js` is what admits nothing else, reading
- * the parsed exports rather than the file's text.
+ * the other move: the action never gets the chance to forget, because a value
+ * export of a `'use server'` module that is not built from here is a lint
+ * error. `eslint-rules/guarded-server-actions.js` reports it, reading the
+ * parsed exports rather than the file's text — and what it does not report is
+ * enumerated by `SHAPES_THAT_GET_THROUGH` in
+ * `adminGuardRegistration.test.ts` rather than described in a sentence here.
  *
  * THE SESSION IS THE FIRST PARAMETER, not something the action reads for
  * itself. An action that took no session could be written to ignore the one

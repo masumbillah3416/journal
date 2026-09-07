@@ -18,9 +18,16 @@ export default tseslint.config(
   // catch an unguarded one by scanning source text and was defeated every time,
   // most recently by four export spellings and by a directory outside the
   // scan's root list. This rule reads the AST ESLint has already built, over
-  // every file `npm run lint` visits, and admits nothing but exports built from
-  // `guardedAction()` — see the rule's own header, and
-  // `apps/web/lib/auth/guard.ts` for the factory.
+  // every file `npm run lint` visits, and REPORTS every value export of a
+  // `'use server'` module that is not built from `guardedAction()`, every
+  // re-export from one, every top-level statement in one that evaluates
+  // anything at load bar a literal, a function expression or that same call,
+  // and every `'use server'` directive inside a function body. It said it
+  // "admits nothing but" those exports until round 9, which is an absolute the
+  // sixth whole-branch review falsified twice over; what it does NOT report is
+  // enumerated by `SHAPES_THAT_GET_THROUGH` in
+  // `apps/web/lib/auth/adminGuardRegistration.test.ts`. See the rule's own
+  // header, and `apps/web/lib/auth/guard.ts` for the factory.
   //
   // It sits FIRST and unscoped, before every `files`-scoped block below, so
   // there is no path in this repository it does not apply to.
@@ -53,12 +60,14 @@ export default tseslint.config(
   // an ignore.
   //
   // AN EXTENSION LIST CANNOT BE TRUSTED COMPLETE, which is the lesson of the
-  // nine text scans, so this is not the guarantee. The guarantee is
-  // `adminGuardRegistration.test.ts`'s coverage case: it walks the repository
-  // for the literal `'use server'` and asks ESLint, through its own API,
-  // whether each file it finds is one ESLint visits with this rule at `error`.
-  // Text finds candidates at extensions nobody listed; the AST decides
-  // whether they are guarded.
+  // nine text scans, so this block is not what proves the reach.
+  // `adminGuardRegistration.test.ts`'s coverage case is: it walks the
+  // repository for the literal `'use server'` and asks ESLint, through its own
+  // API, whether each file it finds is one ESLint visits with this rule at
+  // `error`. Text finds candidates at extensions nobody listed; the AST
+  // decides whether they are guarded. It fails on the commit that introduces
+  // the next extension gap and cannot fail before such a file exists, which
+  // is a real limit rather than a guarantee.
   {
     files: ['**/*.jsx'],
     languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },

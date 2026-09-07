@@ -30,7 +30,11 @@
  * than hidden — nothing typechecks this directory, the same treatment
  * `scripts/run-lighthouse.mjs` already has — and it is why the rule takes no
  * options and holds no state: everything it could get wrong is a shape, and
- * every shape is below.
+ * every shape SOMEBODY HAS WRITTEN is below. Not every shape there is — six
+ * whole-branch reviews each invented one nobody had, and five of those rounds
+ * found a defeat. A list of defeats is a record, never a proof of
+ * completeness, which is why the rule is built by refusing what it does not
+ * recognise rather than by matching what it does.
  *
  * Depends on: eslint (RuleTester), typescript-eslint (the parser), vitest.
  */

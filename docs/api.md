@@ -959,14 +959,23 @@ export const publishJourney = guardedAction(async (session, id: string) => {
 
 That is not a convention. `eslint-rules/guarded-server-actions.js` reports every **value**
 export of a `'use server'` module that is not such a call, any re-export from one, any
-top-level statement in one that is not an import or a declaration, and any `'use server'`
-directive inside a function body — over
+top-level statement in one that EVALUATES anything when Next.js loads the module — bar a
+literal, a function expression or that same call — and any `'use server'` directive inside a
+function body — over
 the parsed AST, on every file `npm run lint` visits, with no `files` list, so there is no
 directory it does not reach, and an export spelling it does not RECOGNISE is reported rather
 than skipped. The exception is an export the parser marks `exportKind: 'type'`, which emits
 no runtime binding. Until round 7 this paragraph said "no export spelling past it": `export
 = x` and `export as namespace X` both walked past, because the dispatch tested whether the
 parser's node-type NAME began with `Export`, and neither does.
+
+Round 9 rewrote the third of those. It read "any top-level statement in one that is not an
+import or a declaration", which is what the rule TESTED, and a declaration runs its
+initialiser at module load: `const attached = Object.assign(module.exports, { … })` was
+admitted where the same call as a bare statement was refused, and the sixth whole-branch
+review committed it. And `guardedAction` itself now has a test that EXECUTES it
+(`apps/web/lib/auth/guard.integration.test.ts`), because until round 9 the only thing over
+the factory every action on this page will be built from was two substring assertions.
 
 **An action that forgets fails `npm run verify` — and `verify` rather than `lint` is the
 accurate word.** Several of the ways an action can escape the rule itself are caught by
@@ -980,14 +989,19 @@ stopped this rule reporting. Round 6 ran thirty-three shapes against the gate; t
 whole-branch review ran fourteen more and three got through, two of which round 7 closed in
 the rule; round 7 ran eleven of its own and closed a fourth; the fifth review ran sixteen,
 eleven of them new, and defeated the rule four more ways — all four closed in round 8, two
-in the rule and two in the checks beside it.
+in the rule and two in the checks beside it. The sixth review ran eight of its own and five
+got through; round 9 closed three of those in the rule and one in a new key over
+flat-config `processor` blocks, and pinned the array below so a row claiming a shape a later
+round has closed fails on that commit.
 
 **The shapes that get through are enumerated, with the measurement and the committability
 of each, by `SHAPES_THAT_GET_THROUGH` in
 `apps/web/lib/auth/adminGuardRegistration.test.ts`** — and a case there fails if this
 document stops pointing at that array or starts restating it. No count is written here: a
 number retyped in prose has drifted from this code in every round of this phase, and seven
-sites said two while the fifth review measured four (ruling F76). `docs/adr/0018` records
+sites restated a count of two while the fifth review measured four (ruling F76). A row's
+ABSENCE still proves nothing — the array says so at itself — because enumerating what gets
+through means knowing what gets through. `docs/adr/0018` records
 the nine text scans that preceded this rule and says why enumeration was the wrong
 mechanism.
 

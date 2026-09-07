@@ -187,19 +187,27 @@ everything else under `/admin` is guarded, including screens nobody has written 
 
 **What stops Phase 4 forgetting the guard is two mechanisms, and only one is a check.**
 
-A Server Action cannot be written unguarded: `guardedAction()`
-(`apps/web/lib/auth/guard.ts`) calls the guard and then the action, and
-`eslint-rules/guarded-server-actions.js` — an ESLint rule over the AST, with no `files`
-list, so there is no directory it does not reach — reports every **value** export of a
-`'use server'` module that is not a call to it, any re-export from such a module, any
-top-level statement in one that is not an import or a declaration (`module.exports = …`
-attaches an export no `export` keyword spells, and `Object.assign(module.exports, …)` did
-the same past a check that knew one node shape), and any `'use server'` directive inside a
-function body. The one thing it passes
-over is an export the parser marks `exportKind: 'type'` — `export type`, `export interface`
-and the ambient `export declare` — which emit no runtime binding for Next.js to mount. Four
-documents said "any export" until round 7, and `export = x` and `export declare const` both
-falsified it.
+**The gate REPORTS an unguarded Server Action.** This paragraph said "a Server Action
+cannot be written unguarded" for five rounds, which is the verbatim sentence review 5
+blocked on at `guard.ts:41` and round 8 corrected there and left standing here — the sixth
+whole-branch review's blocker, and it was false against this repository's own artefact
+before any attack, because `SHAPES_THAT_GET_THROUGH` records a survivor whose `committable`
+field is `true`.
+
+What the gate does: `guardedAction()` (`apps/web/lib/auth/guard.ts`) calls the guard and
+then the action, and `guard.integration.test.ts` EXECUTES that — round 9's addition, and
+until it existed the only thing over the factory's body was two substring assertions, so
+gutting the body left 1,348 unit tests passing. `eslint-rules/guarded-server-actions.js` —
+an ESLint rule over the AST, with no `files` list, so there is no directory it does not
+reach — reports every **value** export of a `'use server'` module that is not a call to
+`guardedAction`, any re-export from such a module, any top-level statement in one that
+EVALUATES anything when Next.js loads the module bar a literal, a function expression or
+that same call, and any `'use server'` directive inside a function body. The one thing it
+passes over is an export the parser marks `exportKind: 'type'` — `export type`,
+`export interface` and the ambient `export declare` — which emit no runtime binding for
+Next.js to mount. Four documents said "any export" until round 7, and `export = x` and
+`export declare const` both falsified it. What the rule does NOT report is enumerated by
+`SHAPES_THAT_GET_THROUGH`, which says at itself that a row's absence proves nothing.
 
 **The rule's reach is proved rather than asserted, and the two earlier versions of this
 paragraph claimed more than the code did.** A lint rule can only judge a file ESLint hands
@@ -230,22 +238,42 @@ script assembling the directive at runtime. Round 7 closed the first two in the 
 wrote eleven shapes of its own, six of them new; one of those six — `module.exports = { … }`
 in a `'use server'` module — was a fourth defeat and is closed too.
 
-Round 8 closed four more of one species — `Object.assign(module.exports, …)`,
-`Object.defineProperty`, `void (module.exports = …)` and the same assignment inside an `if`
-block, all of which walked past a rule 4 that refused one parser node shape — by inverting
-it: the top level of a `'use server'` module may now only import and declare, and an
-unrecognised statement is refused the way an unrecognised export syntax already was.
+Round 8 closed four spellings of one species as BARE STATEMENTS —
+`Object.assign(module.exports, …)`, `Object.defineProperty`, `void (module.exports = …)`
+and the same assignment inside an `if` block, all of which walked past a rule 4 that
+refused one parser node shape — by inverting it into an allowlist of statement KINDS.
+
+**That allowlist was itself the fifth enumeration to fail here, and round 9 replaced it.**
+A `VariableDeclaration` was on it, on the reasoning that "a declaration declares a name";
+it also RUNS its initialiser at module load, so `const attached =
+Object.assign(module.exports, { deleteJourney })` was admitted where the identical call as
+a bare statement was refused — one token apart. The sixth whole-branch review measured that
+at `eslint .` exit 0, the guard suite green, `npm run verify` exit 0 and a successful
+commit. Rule 4 now asks what a statement EVALUATES: a declarator's initialiser must be a
+literal, a function expression or a `guardedAction(...)` call, and everything else is
+refused unread. A top-level class, enum or `require`-import left the admissible set with it,
+which closes a static field initialiser, a decorator, a computed key, an `extends` clause
+and a computed enum member without any of the five being listed.
 
 **What gets through is enumerated where it can be asserted, and this document no longer
-counts it.** The shapes that get through are enumerated, with the measurement and the
+counts it.** What the rule does not report is enumerated, with the measurement and the
 committability of each, by `SHAPES_THAT_GET_THROUGH` in
 `apps/web/lib/auth/adminGuardRegistration.test.ts` — and a case there fails if this
 document stops pointing at that array or starts restating it. No count is written here: a
 number retyped in prose has drifted from this code in every round of this phase, and seven
-sites said two while the fifth whole-branch review measured four (ruling F76).
+sites restated a count of two while the fifth whole-branch review measured four (ruling
+F76). **Round 9 pinned the array's CONTENTS as well as the pointer, and says what it still
+cannot do:** each row carries either the module the suite lints — requiring the rule to
+report nothing, so a row claiming a shape a later round closed fails on that commit — or an
+explicit statement of why nothing in the suite can run it. A row's ABSENCE still proves
+nothing, because enumerating what gets through means knowing what gets through; the array
+is "the shapes we know about", never "the shapes there are". The ledger's summary of ruling
+F76, "that is the count made structural", overstated what shipped, and the sixth
+whole-branch review was right to correct it: it deleted the committable row and the suite
+stayed green at 21 passing.
 
-A disable comment is the deliberate off switch — one reviewable line with a reason beside
-it — and the files allowed to carry one are enumerated by exact path in
+A disable comment is the off switch this repository ALLOWS — one reviewable line with a
+reason beside it — and the files allowed to carry one are enumerated by exact path in
 `adminGuardRegistration.test.ts`, read off git's listing rather than off a directory list;
 round 7 wrote a disable comment into `app/(payload)/cms/journeys/`, one directory inside the
 only exempt file's own, and the case failed on it. **What round 8 replaced is the CHECK
@@ -257,6 +285,18 @@ directive in any spelling in any module carrying `'use server'`; the rule's id, 
 across the whole repository, because that is what an inline `eslint <rule>: off` severity
 comment must spell; and ESLint's own `suppressedMessages`, which is the key no spelling
 evades.
+
+**A fourth key, over something that is not a comment at all, is round 9's.** A flat-config
+`processor` whose `preprocess` drops the directive line hands every rule a module with no
+`'use server'` prologue: the rule reports nothing, and all three keys above go blind at
+once — no directive in the bytes, no rule id anywhere, no suppressed message, because
+nothing fired. Re-measured on round 9's own tree before the key existed: `eslint .` exit 0
+and the guard suite at 24 passing, with an unguarded mountable module at
+`apps/web/lib/journeys/actions.ts`. `adminGuardRegistration.test.ts` now asks
+`calculateConfigForFile` for the resolved `processor` of every directive-carrying module and
+of every hypothetical action path, so a processor scoped to a Phase 4 directory fails on the
+commit that adds it. `docs/adr/0018` called a disable comment "the one thing that defeats
+the RULE"; it was one of five things, and that sentence is corrected there too.
 
 Route files are checked rather than constructed, because a page is not built from a
 factory: `apps/web/lib/auth/adminGuardRegistration.test.ts` walks the whole `app/` tree,

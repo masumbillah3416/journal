@@ -100,12 +100,18 @@ handler that needs the answer.
 
 **Two mechanisms, and only one of them is a check.**
 
-**1 · A Server Action that is not guarded is a lint error, because the only shape the
-linter admits calls the guard first.** `guardedAction()` (`apps/web/lib/auth/guard.ts`)
-takes the action, calls `requireAdminSession()`, and then calls the action with the session
-it got — so an action has no opportunity to forget.
-`eslint-rules/guarded-server-actions.js` is what admits nothing else. It reads the AST
-ESLint has already built, on every file `npm run lint` visits, and reports:
+**1 · A Server Action that is not guarded is a lint error.** `guardedAction()`
+(`apps/web/lib/auth/guard.ts`) takes the action, calls `requireAdminSession()`, and then
+calls the action with the session it got — so an action built from it has no opportunity to
+forget, and `guard.integration.test.ts` EXECUTES that rather than matching substrings over
+`guard.ts`'s text, which is all that stood over the factory until round 9.
+
+This heading said "because the only shape the linter admits calls the guard first" and the
+sentence below it said the rule "is what admits nothing else". Both are absolutes, and the
+sixth whole-branch review falsified them; what the rule does is written in the indicative
+instead, and what it does NOT report is enumerated by `SHAPES_THAT_GET_THROUGH` in
+`apps/web/lib/auth/adminGuardRegistration.test.ts`. It reads the AST ESLint has already
+built, on every file `npm run lint` visits, and reports:
 
 - every **value** export of a module whose directive prologue carries `'use server'` that is
   not a call to `guardedAction` — where satisfying it needs BOTH halves: the binding's
@@ -129,21 +135,32 @@ ESLint has already built, on every file `npm run lint` visits, and reports:
   `Export`, so it is the widening from `startsWith` to `includes` that catches them, and the
   keyword test is a belt with no current buckle — kept because `includes` is still a test on
   a name the parser chooses, and the keyword is a property of the language;
-- ANY TOP-LEVEL STATEMENT IN SUCH A MODULE THAT IS NOT AN IMPORT OR A DECLARATION, and any
-  assignment evaluated at module load wherever it is written. `module.exports = { … }`
-  attaches an export no `export` keyword spells: round 7 wrote that as `actions.cjs` at a
-  real admin address and it left `eslint .` at exit 0. Whether Next.js would mount it is a
-  question about a compiler transform, so the shape is refused rather than reasoned about —
-  but round 7 refused it by testing for ONE PARSER NODE SHAPE, an `ExpressionStatement`
-  holding an `AssignmentExpression`, and the fifth whole-branch review walked four wrappers
-  past that: `Object.assign(module.exports, …)`, `Object.defineProperty(module.exports, …)`,
+- ANY TOP-LEVEL STATEMENT IN SUCH A MODULE THAT EVALUATES ANYTHING WHEN NEXT.JS LOADS IT,
+  bar a literal, a function expression or a `guardedAction(...)` call; and any top-level
+  assignment, wherever in such a statement it is written. `module.exports = { … }` attaches
+  an export no `export` keyword spells: round 7 wrote that as `actions.cjs` at a real admin
+  address and it left `eslint .` at exit 0. Whether Next.js would mount it is a question
+  about a compiler transform, so the shape is refused rather than reasoned about — but round
+  7 refused it by testing for ONE PARSER NODE SHAPE, an `ExpressionStatement` holding an
+  `AssignmentExpression`, and the fifth whole-branch review walked four wrappers past that:
+  `Object.assign(module.exports, …)`, `Object.defineProperty(module.exports, …)`,
   `void (module.exports = …)`, and the same assignment inside an `if` block. Round 8
-  inverted it rather than lengthening it, because that was the third enumeration to fail
-  inside this rule: the top level of an action module may now hold only imports and
-  declarations, an unrecognised statement is refused unread, and the assignment check sits
-  on the assignment node itself so that `const attached = (module.exports = { … })` — hidden
-  inside a declaration that has to stay admissible — is refused too. An assignment inside an
-  action's own body is ordinary code and is untouched;
+  inverted it into an allowlist of statement KINDS — and **that was the fifth enumeration to
+  fail inside this rule.** `VariableDeclaration` was on the list, on the reasoning that a
+  declaration declares a name; it also runs its initialiser at load, so `const attached =
+Object.assign(module.exports, { deleteJourney })` was admitted where the identical call as
+  a bare statement was refused, and the sixth whole-branch review committed it. **Round 9
+  asks what a statement EVALUATES**: a declarator's initialiser must be a literal, a
+  function expression or a `guardedAction(...)` call, and everything else is refused unread —
+  a member read can run a getter, a tagged template calls its tag, `new` runs a constructor,
+  and an array literal can hold any of them. A top-level class, enum or `require`-import
+  left the admissible set with it, which closes a static field initialiser, a decorator, a
+  computed key, an `extends` clause and a computed enum member without listing any of the
+  five. The ADR said "any assignment evaluated at module load WHEREVER IT IS WRITTEN": that
+  was false and is corrected here, because an assignment written inside a function that is
+  CALLED at load is exempted (a function's body is ordinary code) — what the rule refuses in
+  that case is the CALL, in the statement that evaluates it. An assignment inside an action's
+  own body is untouched;
 - any `'use server'` directive inside a function body, anywhere in the repository, because
   such an action is dispatched as its own `POST` BEFORE the page around it renders, so that
   page's `requireAdminSession()` has not run — `SECURITY.md`'s "nothing inherits trust from
@@ -165,8 +182,16 @@ file written and never staged is still seen), finds every file whose BYTES carry
 they are guarded. It fails on the commit that introduces the next extension gap — it cannot
 fail before such a file exists.
 
-**The one thing that defeats the RULE is an ESLint disable comment**, which is deliberate:
-that is one line in a diff with a reason beside it. `adminGuardRegistration.test.ts` holds
+**A DISABLE COMMENT IS THE OFF SWITCH THIS REPOSITORY ALLOWS**, which is deliberate: that
+is one line in a diff with a reason beside it. It is **not** the one thing that defeats the
+rule, which is what this sentence said until round 9 and what the sixth whole-branch review
+refuted at four sites. The others, each named where it is keyed: an inline
+`eslint <rule>: off` severity comment, which spells no disable directive and suppresses
+nothing (round 8, keyed by the rule's id being enumerated repository-wide); a flat-config
+`processor` whose `preprocess` strips the directive prologue, which blinds all three disable
+keys at once because nothing fires (round 9, keyed by
+`calculateConfigForFile`'s resolved `processor`); and the shapes in
+`SHAPES_THAT_GET_THROUGH`, which need no comment of any kind. `adminGuardRegistration.test.ts` holds
 the files permitted to carry one, by exact path — reading the tree it compares against off
 the same git listing rather than off a directory list, and keying on the PRESENCE of a
 directive rather than on a spelling of one, which is round 8's correction and is set out
@@ -203,17 +228,21 @@ forced-into-the-index half of shape one below.
 
 **Then the fourth whole-branch review wrote fourteen more shapes and three got through, so
 "the one shape" was wrong for a round.** Round 7's own eleven — six of them new — closed a
-fourth. The four:
+fourth, and rounds 8 and 9 closed more. No count introduces the table: this line said "the
+four" while the table below it held seven rows, in the same document that records ruling
+F76's lesson about counts in prose. Read the rows.
 
-| Shape                                                                | What it was                                           | Now                                           |
-| -------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------- |
-| `export = publishJourney`                                            | `TSExportAssignment` skipped by the node-type prefix  | **closed** — reported `unverifiable`          |
-| `import { <any export of guard.ts> as guardedAction }`               | the file was compared, the imported name was not      | **closed** — reported `notTheFactory`         |
-| `module.exports = { deleteJourney }` in a `'use server'` module      | an export no `export` keyword spells                  | **closed** — reported `assignedExport`        |
-| a committed script assembling `'use server'` at build time           | no linted file, and no byte, carries the literal      | **open, and enumerated in the test**          |
-| `Object.assign(module.exports, …)` and three more wrappers           | rule 4 refused one parser node shape                  | **closed** — reported `unrecognisedStatement` |
-| a bare disable directive, or one with the rule's id on the next line | the allowlist case needed one LINE to carry both      | **closed** — three keys, below                |
-| an inline `eslint <rule>: off` severity comment                      | it spells no disable directive and suppresses nothing | **closed** — the rule's id is enumerated      |
+| Shape                                                                                      | What it was                                                     | Now                                                                |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `export = publishJourney`                                                                  | `TSExportAssignment` skipped by the node-type prefix            | **closed** — reported `unverifiable`                               |
+| `import { <any export of guard.ts> as guardedAction }`                                     | the file was compared, the imported name was not                | **closed** — reported `notTheFactory`                              |
+| `module.exports = { deleteJourney }` in a `'use server'` module                            | an export no `export` keyword spells                            | **closed** — reported `assignedExport`                             |
+| a committed script assembling `'use server'` at build time                                 | no linted file, and no byte, carries the literal                | **open, and enumerated in the test**                               |
+| `Object.assign(module.exports, …)` and three more wrappers                                 | rule 4 refused one parser node shape                            | **closed** — reported `unrecognisedStatement`                      |
+| `const attached = Object.assign(module.exports, …)`, and a call at load whose body assigns | round 8's allowlist admitted the statement KIND around the call | **closed in round 9** — reported `unrecognisedStatement`           |
+| a flat-config `processor` that strips the directive prologue                               | no key stood over a config block                                | **closed in round 9** — the resolved `processor` is asserted empty |
+| a bare disable directive, or one with the rule's id on the next line                       | the allowlist case needed one LINE to carry both                | **closed** — three keys, below                                     |
+| an inline `eslint <rule>: off` severity comment                                            | it spells no disable directive and suppresses nothing           | **closed** — the rule's id is enumerated                           |
 
 **WHAT GETS THROUGH IS ENUMERATED WHERE IT CAN BE ASSERTED, AND THIS DOCUMENT NO LONGER
 COUNTS IT.** The shapes that get through are enumerated, with the measurement and the committability of
@@ -291,11 +320,15 @@ is B3's species inside the fix for B3.
 
 The lesson recorded here is not that the tenth pattern will hold. It is that **"every export
 of every module" is not a sentence text matching can express**, so the check has to be
-written where the exports are already parsed — and better still, the unguarded shape has to
-stop being writable. Both moves are above. Every shape in this paragraph is an invalid case
-in `eslint-rules/guarded-server-actions.test.js`, alongside a valid case carrying every
-export spelling correctly guarded, because a rule nobody can satisfy is a rule Phase 4
-turns off.
+written where the exports are already parsed — and better still, an action should have
+nothing to remember. Both moves are above. "The unguarded shape has to stop being writable"
+is how this sentence read for five rounds, and it is the absolute the sixth whole-branch
+review blocked on: the shape is writable, and two reviews committed one. Every shape in
+this paragraph is an invalid case in `eslint-rules/guarded-server-actions.test.js`,
+alongside a valid case carrying every export spelling correctly guarded, because a rule
+nobody can satisfy is a rule Phase 4 turns off — and that file's own header now says what a
+list of defeats is and is not: a record of what somebody wrote, never a proof that nothing
+else exists.
 
 **The pre-auth identifier is minted in the middleware**, on a safe method, for a public
 admin address, only when the browser is carrying no session cookie at all — so a signed-in

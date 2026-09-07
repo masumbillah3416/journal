@@ -17,8 +17,11 @@
  * in the Edge runtime and cannot read a `sessions` row, and a shared layout
  * cannot cover `/admin/sign-in/done` without also covering the sign-in screens
  * beside it, which must answer to a reader who has no session. So the thing
- * that makes forgetting impossible is this test, and it fails on the commit
- * that forgets rather than on the day somebody notices.
+ * that stands in for that layer is this test, and it fails on the commit that
+ * forgets rather than on the day somebody notices. Not "makes forgetting
+ * impossible", which is what this said for six rounds: it is a check, checks
+ * have been defeated here nine times, and what it does is written in the
+ * indicative below with each defeat that shaped it named.
  *
  * ═══ IT HAS NOW CREDITED THE WRONG THING FIVE TIMES, SO IT IS BUILT
  *     DIFFERENTLY ═══
@@ -76,12 +79,18 @@
  *   The fix is not a tenth pattern. "Every export of every module" is not a
  *   sentence text matching can express, so it is written where the exports are
  *   already parsed: `eslint-rules/guarded-server-actions.js`, an ESLint rule
- *   over the AST, running on every file `npm run lint` visits. And the shape it
- *   admits is one that cannot be got wrong — `guardedAction()`
- *   (`apps/web/lib/auth/guard.ts`) calls the guard and then the action, so an
- *   action has no opportunity to forget. What THIS file keeps is the two
- *   questions about that arrangement which are not about a syntax tree: is the
- *   rule still switched on, and has anybody switched it off for a file.
+ *   over the AST, running on every file `npm run lint` visits. The shape it
+ *   admits leaves an action nothing to forget — `guardedAction()`
+ *   (`apps/web/lib/auth/guard.ts`) calls the guard and then the action, and
+ *   `guard.integration.test.ts` executes that rather than matching two
+ *   substrings over `guard.ts`'s text, which is all that stood over it until
+ *   round 9. "Cannot be got wrong" is what this sentence used to say, and it
+ *   is the species of claim six whole-branch reviews have each falsified: what
+ *   the rule does NOT report is enumerated by
+ *   {@link SHAPES_THAT_GET_THROUGH} below rather than denied here. What THIS
+ *   file keeps is the questions about that arrangement which are not about a
+ *   syntax tree: is the rule still switched on, has anybody switched it off
+ *   for a file, and is anything rewriting a file before the rule sees it.
  *
  * ═══ HOW IT DECIDES, FOR THE FILES IT DOES RECOGNISE ═══
  *
@@ -180,10 +189,19 @@ const NON_SERVABLE_FILES: readonly { readonly matches: (name: string) => boolean
  * Action rule, by exact path.
  *
  * DEFAULT-DENY, the same way `ADMIN_PUBLIC_PATHS` is, and for the same reason:
- * a disable comment is the one thing that defeats
- * `eslint-rules/guarded-server-actions.js`, and it should be a decision
- * somebody made rather than a line somebody added. A second entry here is a
- * diff a reviewer sees.
+ * a disable comment switches `eslint-rules/guarded-server-actions.js` off for
+ * a file, and that should be a decision somebody made rather than a line
+ * somebody added. A second entry here is a diff a reviewer sees.
+ *
+ * IT IS NOT THE ONLY THING THAT DEFEATS THE RULE, which is what this comment
+ * and `docs/adr/0018` both used to say. An inline `eslint <rule>: off`
+ * severity comment does (round 8, keyed by
+ * {@link FILES_PERMITTED_TO_NAME_THE_RULE}); a flat-config `processor` that
+ * strips the directive prologue does, with all three disable keys blind at
+ * once (round 9, keyed by "lets no processor strip the directive"); and two
+ * shapes do so with no comment of any kind
+ * ({@link SHAPES_THAT_GET_THROUGH}). What is true of a disable comment is
+ * that it is the off switch this repository ALLOWS, for the files below.
  *
  * The one entry is Payload's own Server Action dispatcher. `RootLayout`
  * requires it and its directive has to sit inside a function, because Payload's
@@ -291,7 +309,7 @@ const ACTIONS_RULE = ['travel-diary', 'guarded-server-actions'].join('/')
 const DISABLE_DIRECTIVE = ['eslint', 'disable'].join('-')
 
 /**
- * Every shape that still gets through both mechanisms, with the measurement.
+ * The shapes KNOWN to get through both mechanisms, with the measurement.
  *
  * ═══ WHY THE LIST IS HERE AND NOT IN THE DOCUMENTS (RULING F76) ═══
  *
@@ -493,7 +511,11 @@ const carriesTheDirective = (file: string): boolean => {
  *
  * DEFAULT-DENY, like {@link ACTIONS_RULE_EXEMPT_FILES}: the coverage case below
  * requires every file carrying `'use server'` to be one ESLint lints with the
- * rule at `error`, and these three are documentation quoting the mechanism.
+ * rule at `error`, and every entry below is documentation quoting the
+ * mechanism rather than a module. The count is not written: it said "these
+ * three" through the rounds in which the list grew to five, in the same commit
+ * that discharged ruling F76 by moving a count out of prose — which is the
+ * defect that ruling exists to end, committed inside its own discharge.
  * They are named individually rather than excused by a `docs/` prefix or a
  * `.md` suffix, because a prefix would also excuse a `.jsx` action somebody
  * dropped in a documentation directory, and the whole defect being closed here
@@ -1062,7 +1084,7 @@ describe('the admin addresses this repository mounts', () => {
   })
 })
 
-describe('the rule that makes an unguarded Server Action unwritable', () => {
+describe('the rule that reports an unguarded Server Action', () => {
   const eslintConfig = readFileSync(path.join(webRoot, '../../eslint.config.js'), 'utf8')
 
   it('registers the rule at error, so removing it fails the same gate the guard does', () => {

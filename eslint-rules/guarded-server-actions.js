@@ -703,8 +703,12 @@ export const guardedServerActions = {
             continue
           }
           if (isInertTopLevel(statement, isFactoryCall)) continue
-          // The listener below owns every assignment, wherever it is written,
-          // so reporting here as well would report one attachment twice.
+          // The listener below is the one that reports a BARE assignment
+          // statement, so reporting here as well would report one attachment
+          // twice. It does not answer for every assignment: one inside a
+          // function is exempt (that body is ordinary code), which is why the
+          // refusal of a CALL that evaluates such a function at load sits in
+          // `isInertTopLevel` rather than here.
           if (assignsSomething(statement)) continue
 
           refusedStatements.add(statement)

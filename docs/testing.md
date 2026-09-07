@@ -489,10 +489,21 @@ disable directive and one with the rule's id on the next line, both of which the
 case could not see because it required a single LINE to carry both strings and both of
 which COMMITTED; and four wrappers around `module.exports` that rule 4 walked past because
 it refused one parser node shape. Round 8 closed all four — two by inverting rule 4 into an
-allowlist of inert top-level statements, two by rebuilding the disable check on three keys
-(presence in any spelling, the rule's id enumerated repository-wide, and ESLint's own
+allowlist of inert top-level statement KINDS, two by rebuilding the disable check on three
+keys (presence in any spelling, the rule's id enumerated repository-wide, and ESLint's own
 `suppressedMessages`) — and closed a fifth found while attacking that fix, an inline
 `eslint <rule>: off` severity comment.
+
+**The sixth review ran eight, all its own, and five got through — and round 8's allowlist was
+one of the things it walked past.** A statement KIND is not inert: a `VariableDeclaration`
+runs its initialiser at module load, so `const attached = Object.assign(module.exports, { … })`
+was admitted where the identical call as a bare statement was refused, and that reached a
+real commit. Round 9 asks what a statement EVALUATES instead — a declarator's initialiser
+must be a literal, a function expression or a `guardedAction(...)` call — which closes that
+shape, the same attachment through a function called at load, a static field initialiser, a
+destructured initialiser, a computed enum member and a tagged template, none of them listed.
+It also wrote the test that executes `guardedAction` (above), and the key over `processor`
+blocks (below).
 
 **What still gets through is enumerated where it can be asserted, and this document no
 longer counts it.** The shapes that get through are enumerated, with the measurement and
@@ -1432,6 +1443,18 @@ true` — the only honest content while nothing writes or reads that setting and
   endpoint and no case — every rate-limit case in this suite builds its own counts inside a
   single run — and it makes the suite idempotent: two `test:e2e:container` runs back to
   back, the second starting seconds after the first, both pass.
+
+  **HOW TO RE-PROVE THAT IDEMPOTENCY, because the commit that claims it cites evidence this
+  repository does not contain.** `ff52484`'s body names a fix report under
+  `.superpowers/`, which is `.gitignore`d, so a future reader of the history cannot open the
+  proof — a branch-wide convention rather than a defect of that commit, but the claim is the
+  kind somebody will want to check. The check that settles it is not the exit code, which
+  would also be 0 on a lucky ordering: count the in-window rows before and after a second
+  run. `SELECT dimension, endpoint, subject, count(*) FROM sign_in_attempts GROUP BY 1, 2, 3`
+  held **34 rows before the second run's specs began and 34 after it finished** (11 ×
+  `ip`/`password`/`::1` both times) for the sixth whole-branch review, and round 9 re-ran the
+  pair and reports its own figures in the same shape. Without the setup, a second run leaves
+  roughly double.
 
   **What this paragraph said before is worth keeping as a lesson about rationales.** It
   framed the choice as "wait fifteen minutes for the window to age out, or accept the
