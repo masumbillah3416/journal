@@ -296,7 +296,7 @@ and the guard suite at 24 passing, with an unguarded mountable module at
 `apps/web/lib/journeys/actions.ts`. `adminGuardRegistration.test.ts` now asks
 `calculateConfigForFile` for the resolved `processor` of every directive-carrying module and
 of every hypothetical action path, so a processor scoped to a Phase 4 directory fails on the
-commit that adds it. A fifth off switch was found by the seventh review and is keyed the
+commit that adds it. A further off switch was found by the seventh review and is keyed the
 same way: an argument appended to the `lint` SCRIPT narrows what ESLint is handed while
 every config probe here still answers correctly, so the case pins the argv of `lint` and
 each link of the chain `ci.yml` → `verify:full` → `verify` → `lint`. `docs/adr/0018`

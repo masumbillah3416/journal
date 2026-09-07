@@ -433,7 +433,7 @@ against. The test file's header carried the same defect from the other direction
 
 **And the questions this suite CANNOT answer**, which is why
 `apps/web/lib/auth/adminGuardRegistration.test.ts` keeps a block of its own about the rule
-— one case per question in the table below, and no count written here.
+— which the table below sets out, question by question, and no count is written here.
 A `RuleTester` case proves what the rule decides about a syntax tree it is handed. It
 cannot say whether the rule is switched on, whether somebody has switched it off for a
 file, or **which files ESLint hands it at all** — and that last one is where round 5's

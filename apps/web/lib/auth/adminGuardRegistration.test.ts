@@ -1482,21 +1482,22 @@ describe('the rule that reports an unguarded Server Action', () => {
 
     // The sentinels first: a regex that matched nothing, or a flattener that
     // flattened nothing, would pass this case having read every file in the
-    // repository and found nothing in any of them. The last two are the
-    // review's own counter-example and its line-comment twin.
+    // repository and found nothing in any of them. The four wrapped ones are
+    // the review's own counter-example, its line-comment twin, a Markdown
+    // quote, and a wrapped sentence that must still NOT match.
+    //
     // A LINE BREAK IS SPELLED, NEVER WRITTEN, here as everywhere in this file:
     // an escape sequence a script writes into a source file is one
     // transcription error away from being a real control byte, and this one
     // would be invisible in a diff.
-    const wrap = LINE_BREAK
     expect(SURVIVOR_SENTENCE.test(unwrapped('TWO shapes get through today, not one'))).toBe(true)
     expect(SURVIVOR_SENTENCE.test(unwrapped('the shapes that get through are enumerated'))).toBe(false)
     expect(
-      SURVIVOR_SENTENCE.test(unwrapped(` * Only TWO shapes${wrap} * get through today, and both are harmless.`)),
+      SURVIVOR_SENTENCE.test(unwrapped(` * Only TWO shapes${LINE_BREAK} * get through today, and both are harmless.`)),
     ).toBe(true)
-    expect(SURVIVOR_SENTENCE.test(unwrapped(`// Only TWO shapes${wrap}// get through today`))).toBe(true)
-    expect(SURVIVOR_SENTENCE.test(unwrapped(`> TWO shapes${wrap}> get through`))).toBe(true)
-    expect(SURVIVOR_SENTENCE.test(unwrapped(`the shapes${wrap} * that get through are enumerated`))).toBe(false)
+    expect(SURVIVOR_SENTENCE.test(unwrapped(`// Only TWO shapes${LINE_BREAK}// get through today`))).toBe(true)
+    expect(SURVIVOR_SENTENCE.test(unwrapped(`> TWO shapes${LINE_BREAK}> get through`))).toBe(true)
+    expect(SURVIVOR_SENTENCE.test(unwrapped(`the shapes${LINE_BREAK} * that get through are enumerated`))).toBe(false)
 
     expect(SHAPES_THAT_GET_THROUGH.length).toBeGreaterThan(0)
     for (const survivor of SHAPES_THAT_GET_THROUGH) {

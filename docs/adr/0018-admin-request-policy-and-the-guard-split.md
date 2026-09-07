@@ -197,8 +197,9 @@ at exit 0 with an unguarded mountable module at that path (round 10, keyed by th
 that pins the argv of `lint` and each link of the chain `ci.yml` → `verify:full` →
 `verify` → `lint`); and the shapes in
 `SHAPES_THAT_GET_THROUGH`, which need no comment of any kind. That list is what is known
-today and is not a closed set: each of the four was found by a whole-branch review
-attacking the round that closed the one before it. `adminGuardRegistration.test.ts` holds
+today and is not a closed set: every entry on it was found by attacking the round that
+closed the entry before it, and nothing here says the next attack finds nothing.
+`adminGuardRegistration.test.ts` holds
 the files permitted to carry one, by exact path — reading the tree it compares against off
 the same git listing rather than off a directory list, and keying on the PRESENCE of a
 directive rather than on a spelling of one, which is round 8's correction and is set out
