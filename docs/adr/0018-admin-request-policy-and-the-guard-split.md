@@ -261,9 +261,13 @@ a number retyped in prose has drifted from this code in every round of this phas
 seven sites said two while the fifth whole-branch review measured four (ruling F76). The case reads EVERY file git lists, not a
 named handful, and it flattens comment and quote continuations before matching, because
 the seventh whole-branch review defeated the earlier version by splitting the sentence
-across two lines of a block comment in `guard.ts` and left the suite green. What it
-refuses is that one sentence, in any wrapping and in any file; what it does not refuse is
-a paraphrase, which the case says in its own comment rather than claiming otherwise.
+across two lines of a block comment in `guard.ts` and left the suite green. It also strips
+`*`, `_` and backticks first, because the eighth review then defeated it with the same
+sentence set in bold — 24 green, in the house style of this very document. **What it
+refuses is that one sentence in any file the repository holds, flattened across a line
+break and stripped of those three markers. What it does not refuse is a paraphrase, an
+HTML wrapping (`<b>…</b>`, `&nbsp;`) or a Markdown link** — the case asserts each of those
+non-refusals in its own sentinels rather than describing them.
 
 **THE DISABLE DIRECTIVE IS THE DELIBERATE OFF SWITCH, AND ROUND 8 REPLACED THE CHECK OVER
 IT.** One reviewable line with a reason beside it is a decision somebody made, so it is

@@ -313,6 +313,30 @@ const WRAPPED_LINE = /\r?\n[ \t]*(?:\*(?!\/)|\/\/+|>+|#+)?[ \t]*/gu
 const unwrapped = (text: string): string => text.replace(WRAPPED_LINE, ' ')
 
 /**
+ * The inline markers that render as emphasis or a code span rather than as text.
+ *
+ * WHY THEY ARE REMOVED. The eighth whole-branch review measured the F76 case
+ * against the sentence in this repository's own house style and it walked
+ * past: `Only **TWO shapes** get through today.` appended to
+ * `docs/architecture.md` left the suite at 24 passing, and so did the `_…_`,
+ * `*…*` and backticked forms. None of them is a paraphrase — they rename no
+ * noun and insert no word — and both documents the sentence lives in are
+ * written in exactly that style, so it is the form a future author is MOST
+ * likely to reach for.
+ */
+const INLINE_MARKUP = /[*_`]+/gu
+
+/**
+ * One text as a reader reads it, rather than as a line happens to hold it.
+ *
+ * @param text - The file's contents, or a sentinel string.
+ * @returns The same text with {@link WRAPPED_LINE} flattened to single spaces
+ *   and {@link INLINE_MARKUP} removed, so a sentence set in bold, in italics
+ *   or in a code span reads as the sentence it renders to.
+ */
+const asRead = (text: string): string => unwrapped(text).replace(INLINE_MARKUP, '')
+
+/**
  * The one file allowed to spell the sentence the F76 case refuses.
  *
  * This one: the case's sentinels have to contain the sentence in order to
@@ -1636,11 +1660,30 @@ describe('the rule that reports an unguarded Server Action', () => {
     //      clean. Comment and quote continuations are flattened before
     //      matching now, so a line break is not a hiding place.
     //
-    // WHAT IT DOES NOT REFUSE, said rather than implied: a PARAPHRASE. "two
-    // survivors get past", "both of them are live", anything that renames the
-    // noun or puts a word between "shapes" and "get" - all walk past it, and no
-    // regex over English closes that. What it refuses is the one sentence that
-    // has been wrong in five rounds, in every wrapping and in every file.
+    //   3. THE SAME SENTENCE EMPHASISED OR SET IN A CODE SPAN. The eighth
+    //      whole-branch review measured `Only **TWO shapes** get through
+    //      today.` appended to `docs/architecture.md` and this suite stayed at
+    //      24 passing, as did the `_..._`, `*...*` and backticked forms. That
+    //      is the house style of both documents the sentence lives in, so it
+    //      is the wrapping a future author is most likely to reach for, not
+    //      the least. `*`, `_` and backticks are removed before matching now.
+    //
+    // WHAT IT DOES NOT REFUSE, said rather than implied, AND THE LIST IS THE
+    // EXACT ONE. The regex wants `shapes`, whitespace, `get`, whitespace,
+    // `through`, after flattening and after the three inline markers above are
+    // removed. So ANYTHING ELSE that lands between those words walks past it:
+    //
+    //   - A PARAPHRASE. "two survivors get past", "both of them are live",
+    //     anything that renames the noun or puts a word between "shapes" and
+    //     "get". No regex over English closes that.
+    //   - HTML. `Only <b>TWO shapes</b> get through today.` and
+    //     `shapes&nbsp;get through` both walk past; measured at 24 passing.
+    //   - A MARKDOWN LINK. `Only [TWO shapes](#x) get through today.` walks
+    //     past; measured at 24 passing.
+    //
+    // The round-10 sentence here said it refuses that one sentence "in every
+    // wrapping and in every file". "In every file" is true. "Every wrapping"
+    // was not, and the three markers above are what it now means by it.
     const SURVIVOR_SENTENCE = /shapes?\s+gets?\s+through/iu
 
     // The sentinels first: a regex that matched nothing, or a flattener that
@@ -1653,14 +1696,26 @@ describe('the rule that reports an unguarded Server Action', () => {
     // an escape sequence a script writes into a source file is one
     // transcription error away from being a real control byte, and this one
     // would be invisible in a diff.
-    expect(SURVIVOR_SENTENCE.test(unwrapped('TWO shapes get through today, not one'))).toBe(true)
-    expect(SURVIVOR_SENTENCE.test(unwrapped('the shapes that get through are enumerated'))).toBe(false)
+    expect(SURVIVOR_SENTENCE.test(asRead('TWO shapes get through today, not one'))).toBe(true)
+    expect(SURVIVOR_SENTENCE.test(asRead('the shapes that get through are enumerated'))).toBe(false)
     expect(
-      SURVIVOR_SENTENCE.test(unwrapped(` * Only TWO shapes${LINE_BREAK} * get through today, and both are harmless.`)),
+      SURVIVOR_SENTENCE.test(asRead(` * Only TWO shapes${LINE_BREAK} * get through today, and both are harmless.`)),
     ).toBe(true)
-    expect(SURVIVOR_SENTENCE.test(unwrapped(`// Only TWO shapes${LINE_BREAK}// get through today`))).toBe(true)
-    expect(SURVIVOR_SENTENCE.test(unwrapped(`> TWO shapes${LINE_BREAK}> get through`))).toBe(true)
-    expect(SURVIVOR_SENTENCE.test(unwrapped(`the shapes${LINE_BREAK} * that get through are enumerated`))).toBe(false)
+    expect(SURVIVOR_SENTENCE.test(asRead(`// Only TWO shapes${LINE_BREAK}// get through today`))).toBe(true)
+    expect(SURVIVOR_SENTENCE.test(asRead(`> TWO shapes${LINE_BREAK}> get through`))).toBe(true)
+    expect(SURVIVOR_SENTENCE.test(asRead(`the shapes${LINE_BREAK} * that get through are enumerated`))).toBe(false)
+
+    // The emphasised and code-span forms, each of them a sentence this case
+    // read as absent while a reader read it as present.
+    expect(SURVIVOR_SENTENCE.test(asRead('Only **TWO shapes** get through today.'))).toBe(true)
+    expect(SURVIVOR_SENTENCE.test(asRead('Only _TWO shapes_ get through today.'))).toBe(true)
+    expect(SURVIVOR_SENTENCE.test(asRead('Only *TWO shapes* get through today.'))).toBe(true)
+    expect(SURVIVOR_SENTENCE.test(asRead('Only `TWO shapes` get through today.'))).toBe(true)
+    expect(SURVIVOR_SENTENCE.test(asRead('Only TWO shapes **get through** today.'))).toBe(true)
+    // And the two that still walk past, asserted rather than described, so the
+    // paragraph above is a measurement instead of a recollection.
+    expect(SURVIVOR_SENTENCE.test(asRead('Only <b>TWO shapes</b> get through today.'))).toBe(false)
+    expect(SURVIVOR_SENTENCE.test(asRead('Only [TWO shapes](#x) get through today.'))).toBe(false)
 
     expect(SHAPES_THAT_GET_THROUGH.length).toBeGreaterThan(0)
     for (const survivor of SHAPES_THAT_GET_THROUGH) {
@@ -1686,14 +1741,14 @@ describe('the rule that reports an unguarded Server Action', () => {
     expect(scanned).toContain('docs/architecture.md')
     expect(scanned).not.toContain(FILE_PERMITTED_TO_SPELL_THE_SENTENCE)
 
-    const restating = scanned.filter((file) => SURVIVOR_SENTENCE.test(unwrapped(bytesOf(file).toString('utf8'))))
+    const restating = scanned.filter((file) => SURVIVOR_SENTENCE.test(asRead(bytesOf(file).toString('utf8'))))
     const notPointing = sitesThatUsedToCount.filter(
       (file) => !bytesOf(file).toString('utf8').includes('SHAPES_THAT_GET_THROUGH'),
     )
 
     expect(
       restating,
-      'these files restate a count of the shapes that get through instead of pointing at SHAPES_THAT_GET_THROUGH, and a wrapped line is not an exception: the count lives in the array, which the case below demonstrates row by row',
+      'these files restate a count of the shapes that get through instead of pointing at SHAPES_THAT_GET_THROUGH, and neither a wrapped line nor a bold, italic or code-span rendering of it is an exception: the count lives in the array, which the case below demonstrates row by row',
     ).toEqual([])
     expect(
       notPointing,
