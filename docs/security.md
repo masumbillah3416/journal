@@ -270,20 +270,40 @@ closed by it. They are written here because `docs/api.md` and the table above de
 access control as the thing that stops an unauthorized mutation, and both of these are
 conditions that control runs under.
 
-**1 · `overrideAccess` appears nowhere in production code, so every Local API call runs
-with collection and field access control OFF.** Payload's Local API defaults
-`overrideAccess` to `true`; the only occurrences of the option in this repository are in
-`apps/web/collections/sessions.access.integration.test.ts` and
-`apps/web/collections/collections.integration.test.ts`, where line 597's own comment says
-it plainly — "`overrideAccess: false` is what makes Payload run those rules at all". For
-Phase 2 that is correct and deliberate: every server-side read and write here is made by
-code that has already authenticated the request itself (`apps/web/lib/auth/guard.ts`), and
-a read of the reader's own account should not be refused by a rule written for an
-anonymous HTTP caller. **For Phase 4 it is a trap.** A server action that calls
-`payload.update()` on behalf of a request gets no access check from Payload unless it
-passes `overrideAccess: false` and a `user`, and `docs/api.md`'s "Planned server actions"
-section says Phase 4's mutations are server actions. Phase 4 must decide this once, for
-all ten screens, rather than per call site.
+**1 · Every Local API call here runs with collection and field access control OFF, and one
+production site says so explicitly.** Payload's Local API defaults `overrideAccess` to
+`true`, so a call that passes nothing runs with those rules skipped. The one production
+module that passes the option is **`apps/web/lib/auth/setNewPassword.ts:209`**, at the
+password-reset spend, and it is right there: a reader holding a reset link is by definition
+not signed in, so the token is the authorisation and Payload has no user to judge — the
+reasoning is at that file's lines 203-205. The option's other occurrences are the
+access-control tests, `apps/web/collections/sessions.access.integration.test.ts`,
+`apps/web/collections/collections.integration.test.ts`,
+`apps/web/lib/auth/sessions.integration.test.ts` and
+`apps/web/lib/auth/passwordReset.integration.test.ts`, where line 597 of the second says it
+plainly — "`overrideAccess: false` is what makes Payload run those rules at all". For
+Phase 2 the arrangement is correct and deliberate: every server-side read and write here is
+made by code that has already authenticated the request itself
+(`apps/web/lib/auth/guard.ts`), and a read of the reader's own account should not be refused
+by a rule written for an anonymous HTTP caller. **For Phase 4 it is a trap.** A server
+action that calls `payload.update()` on behalf of a request gets no access check from
+Payload unless it passes `overrideAccess: false` and a `user`, and `docs/api.md`'s "Planned
+server actions" section says Phase 4's mutations are server actions. Phase 4 must decide
+this once, for all ten screens, rather than per call site.
+
+**This paragraph said something else for a day, and the correction is why it is now
+executable.** It asserted that `overrideAccess` was absent from this repository's
+production code altogether, and named two test files as "the only occurrences of the option
+in this repository". Both halves were false, and the old sentence is described here rather
+than reproduced because the test below refuses those words wherever they appear: the
+production call above landed in `c9fec84` on 2026-09-06 and the sentence in
+`05da7fa` on 2026-09-07, a day after its own counter-example, after which a fix round
+copied it into `docs/api.md` — and it then reached a merge decision as fact, in the section
+written expressly to hand facts to Phase 4. `apps/web/lib/auth/overrideAccessSites.test.ts`
+now pins the production set to that one path, requires every production site to be named in
+this document and in `docs/api.md`, and refuses the old claim's own words in either
+document. An absolute claim about the codebase in a document is one `git grep` away from
+being a test; this one is that test.
 
 **2 · `journeys`, `pages` and `users` declare no `access` block at all.** They inherit
 Payload's "signed in, or refused" default. That is the same shape Ruling F37 called a

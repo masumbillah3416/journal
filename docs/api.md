@@ -973,16 +973,24 @@ accurate word.** Two of the ways an action can escape the rule itself are caught
 ESLint does not enumerate (`.jsx` was one for four rounds, and Next.js mounted it), and an
 `eslint-disable` comment in a file nobody listed. That test walks git's listing of the
 repository for the literal `'use server'` and asks ESLint's own API which of those files it
-actually lints. Thirty-three shapes have been run against the gate and thirty-two fail it;
-`docs/adr/0018` names the one that does not, records the nine text scans that preceded
-this rule, and says why enumeration was the wrong mechanism.
+actually lints. Round 6 ran thirty-three shapes against the gate and thirty-two fail it; the
+fourth whole-branch review then ran fourteen more and **three** got through, two of which
+round 7 closed in the rule; round 7 ran eleven of its own, six of them new, and closed a
+fourth. **Two shapes get through today, not one** — `docs/adr/0018` names both, records the
+nine text scans that preceded this rule, and says why enumeration was the wrong mechanism.
 
 **Authorization does not stop at the guard, and Phase 4 owes the other half.** The guard
 answers "is this somebody"; Payload's collection and field access control answers "may
 this somebody do this". `docs/security.md`'s "What Phase 2 hands to Phase 4" section names
-what is missing: `overrideAccess` appears nowhere in production code, so a Local API call
-runs with access control OFF unless it passes `overrideAccess: false` and a `user`; and
-`journeys`, `pages` and `users` declare no `access` block at all.
+what is missing: a Local API call runs with access control OFF unless it passes
+`overrideAccess: false` and a `user` — by Payload's own Local-API default, and explicitly at
+the one production site that passes the option, `apps/web/lib/auth/setNewPassword.ts:209`,
+where the token in a reset link is the authorisation and there is no signed-in user for
+Payload to judge; and `journeys`, `pages` and `users` declare no `access` block at all, so
+a Phase 4 server action calling `payload.update()` on any of the three gets no Payload-side
+check whatever it passes. Until round 7 this sentence asserted instead that `overrideAccess`
+was absent from production code altogether — false on the day a fix round copied it here,
+and `apps/web/lib/auth/overrideAccessSites.test.ts` now fails if those words come back.
 
 Phase 2 Task 5's module, which the routes above call:
 `apps/web/lib/auth/signIn.ts` — `signIn({ email, password, browserSession, keepSignedIn,
