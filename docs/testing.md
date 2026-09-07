@@ -2666,6 +2666,25 @@ database.
   implementation which adopts the identifier it was handed cannot pass; "a session exists
   afterwards" is not.
 
+  **It also EXECUTES `guardedAction`, which nothing did until round 9, and that was the
+  sixth whole-branch review's most valuable finding.** The factory an ESLint rule, an ADR
+  and four documents exist to funnel every Phase 4 mutation through had no caller anywhere;
+  the only thing over its body was two `toContain` substring assertions in
+  `adminGuardRegistration.test.ts`. The reviewer replaced the body with a
+  `process.env`-keyed path that skipped `requireAdminSession()`, kept both substrings, and
+  measured `eslint`/`tsc`/prettier clean with **1,348 unit tests passing** — and the
+  `c8 ignore` region over the factory said its "runtime behaviour is covered in the browser
+  by `e2e/signIn.spec.ts`", which no browser path could reach. Three cases now stand over
+  it: an unauthenticated call never reaches the action and redirects to the sign-in path; an
+  authenticated one reaches it with the session the guard produced, as its FIRST argument;
+  and a call made after that session is revoked is refused, so a factory caching the session
+  it first saw fails. Re-gutting the body the reviewer's way fails all three. `next/headers`
+  and `next/navigation` are stood in for — the framework's request boundary, which CLAUDE.md
+  §2.3 permits — and everything below them is a real row in a real Postgres, which is why
+  the cases live here rather than in a unit file. **`guard.ts` therefore carries no
+  `c8 ignore` region at all any more**, and its 100/100/100 in
+  `vitest.integration.config.ts` is measured over the factory rather than around it.
+
 - **`apps/web/lib/auth/signInEndpoints.integration.test.ts` and
   `resetRequestEndpoint.integration.test.ts`.** Real `Request`s, a real Payload, and the
   handlers calling `getPayload()` themselves — the same pairing

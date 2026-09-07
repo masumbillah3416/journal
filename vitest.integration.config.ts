@@ -259,10 +259,17 @@ export default defineConfig({
         // (Phase 2 Task 10 — the HTTP boundary): 100% on every axis, which is
         // the measured number rather than a rounded-up one, and nothing in any
         // of the four is excused beyond two arms that are marked and named.
-        // `guard.ts`'s `requireAdminSession` is inside a `c8 ignore` region
-        // because `next/headers`' `headers()` throws outside a request context
-        // and no integration test can supply one — everything it could get
-        // wrong is the line above it, which IS measured. `signInEndpoints.ts`
+        // `guard.ts` HAS NO `c8 ignore` REGION AS OF ROUND 9, and that is a
+        // change worth naming: it had one over `requireAdminSession` and
+        // `guardedAction`, on the ground that `headers()` throws outside a
+        // request context. It does — and `next/headers` and `next/navigation`
+        // are the framework boundary CLAUDE.md §2.3 permits standing in for,
+        // which is what `guard.integration.test.ts` now does. The sixth
+        // whole-branch review found the region's own claim that the factory's
+        // "runtime behaviour is covered in the browser" false, because nothing
+        // reached the factory at all; both functions are executed now, and the
+        // 100% below is measured over them rather than around them.
+        // `signInEndpoints.ts`
         // has one `c8 ignore next`: `startSession` refusing an account a
         // challenge row references, which is the fail-closed answer to that
         // account being deleted between two statements. Everything else in all

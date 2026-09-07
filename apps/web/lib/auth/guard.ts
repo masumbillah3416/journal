@@ -226,20 +226,19 @@ export const guarded =
     return handler(request, authenticated.value)
   }
 
-/* c8 ignore start -- TWO framework bindings with no decision of their own:
- * `requireAdminSession` reads the request's cookies through `next/headers`,
- * hands them to the function above and turns its refusal into
- * `next/navigation`'s redirect; `guardedAction` calls it and then calls the
- * action. Neither Vitest project can execute either — `headers()` throws
- * outside a request context, and no integration test can supply one — so a
- * per-file-region `c8 ignore` is CLAUDE.md §2.1's honest treatment: this
- * file's path contains no `[...]` segment, so the ignore hint is read (see
- * vitest.config.ts's own note on where it is not). Everything they could get
- * wrong is one line above this region and is measured; what is left is which
- * module supplies the cookies, which supplies the redirect, and the ORDER of
- * two statements — and that order is what `eslint-rules/guarded-server-actions.js`
- * makes the only writable shape, rather than something an action remembers.
- * Runtime behaviour is covered in the browser by e2e/signIn.spec.ts. */
+/* ROUND 9 DELETED A `c8 ignore` REGION FROM HERE, AND THAT IS THE POINT.
+ * It covered `requireAdminSession` and `guardedAction`, on the stated ground
+ * that "neither Vitest project can execute either" and that runtime behaviour
+ * was "covered in the browser by e2e/signIn.spec.ts". The second half could
+ * not be true of `guardedAction`: it had no caller anywhere, so no browser
+ * path reached it, and the only thing standing over its body was two
+ * `toContain` substring assertions in `adminGuardRegistration.test.ts`. The
+ * sixth whole-branch review replaced the body with a `process.env`-keyed path
+ * that skipped the guard, kept both substrings, and got 1,348 unit tests
+ * passing. Both functions are now EXECUTED, with `next/headers` and
+ * `next/navigation` stood in for, by `guard.integration.test.ts`'s "the
+ * factory every Server Action is built from" — which fails when the body is
+ * gutted that way. */
 /**
  * The account behind the current request, or a redirect to the sign-in
  * screen.
@@ -310,4 +309,3 @@ export const guardedAction =
     const session = await requireAdminSession()
     return action(session, ...args)
   }
-/* c8 ignore stop */
