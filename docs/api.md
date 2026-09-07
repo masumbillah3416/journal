@@ -84,13 +84,22 @@ read, above — and three `users` auth endpoints deliberately left reachable, no
 takes a credential or mints one:
 
 - `GET /api/users/me` reports whoever the request's own cookie names, so with every
-  credential endpoint sealed it answers `{ "user": null }`. Payload's admin shell asks for
-  it on load, and `e2e/smoke.spec.ts`'s zero-console-errors gate on `/cms` depends on it
-  answering.
-- `GET /api/users/init` answers a boolean: whether any account exists at all. It is what
-  stops the stock admin offering to create a first user, and it reveals nothing an
-  unauthenticated visitor cannot infer from the sign-in screen existing.
-- `POST /api/users/logout` destroys a session and can create none.
+  credential endpoint sealed the user it names is `null`. Measured against this
+  deployment's own config: `200`, body `{"user":null,"message":"Account"}`. Payload's
+  admin shell asks for it on load, and `e2e/smoke.spec.ts`'s zero-console-errors gate on
+  `/cms` depends on it answering.
+- `GET /api/users/init` carries a boolean saying whether any account exists at all —
+  measured `200`, body `{"initialized":true}`. It is what stops the stock admin offering
+  to create a first user, and it reveals nothing an unauthenticated visitor cannot infer
+  from the sign-in screen existing.
+- `POST /api/users/logout` destroys a session and can create none. Offered no session it
+  refuses from the endpoint itself rather than from the seal — measured `400`, body
+  `{"errors":[{"message":"No User"}]}`.
+
+The three bodies are Payload's wording, quoted here as measurements rather than pinned:
+what `sealedUserAuth.integration.test.ts` asserts is that none of the three is the sealed
+answer, since pinning Payload's phrasing would make a dependency upgrade fail a case about
+this repository's decision.
 
 They are `OPEN_USER_AUTH_ENDPOINTS` in `apps/web/collections/sealedUserAuth.ts` — the
 sealing itself is recorded as `docs/deviations.md` **§42**, which names the same three —
