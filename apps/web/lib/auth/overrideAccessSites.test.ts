@@ -70,10 +70,24 @@ import { describe, expect, it } from 'vitest'
 /** `apps/web/lib/auth/` -> the repository root. */
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..')
 
-/** This file's own repository-relative path, so the scan does not count itself. */
-const OWN_PATH = 'apps/web/lib/auth/overrideAccessSites.test.ts'
-
-/** The Payload option that turns collection and field access control off. */
+/**
+ * The Payload option that turns collection and field access control off.
+ *
+ * ═══ THE SCAN NO LONGER EXCLUDES THIS FILE, AND THAT IS ROUND 8'S FIX ═══
+ *
+ * It did, by exact path, through an `OWN_PATH` constant — because this file
+ * spells the option in its own header and was therefore its own first match.
+ * The fifth whole-branch review found what that cost: `docs/security.md`
+ * listed "the option's other occurrences" and the list omitted THIS FILE,
+ * because nothing here could see it. An "other occurrences" list missing a
+ * file, inside the sentence written to fix an "only occurrences" list missing
+ * a file.
+ *
+ * Nothing is excused now. This file is a `.test.ts`, so it is counted as one of
+ * the test occurrences the second case below permits, which is what it always
+ * was — and `docs/security.md` no longer types the list at all: it points at
+ * this test, so the set is derived rather than retyped.
+ */
 const OPTION = 'overrideAccess'
 
 /**
@@ -151,11 +165,11 @@ const repositoryFiles = (): readonly string[] => {
  * path nobody enumerated. Judging whether a mention is a call is what the exact
  * production list below is for.
  *
- * @returns The repository-relative paths, sorted, excluding this file.
+ * @returns The repository-relative paths, sorted. This file is not excluded —
+ *   see {@link OPTION} for why it no longer needs to be.
  */
 const filesCarryingTheOption = (): readonly string[] =>
   repositoryFiles()
-    .filter((file) => file !== OWN_PATH)
     .filter((file) => file.startsWith('apps/') || file.startsWith('packages/'))
     .filter((file) => file.endsWith('.ts') || file.endsWith('.tsx'))
     .filter((file) => readFileSync(path.join(repositoryRoot, file), 'utf8').includes(OPTION))

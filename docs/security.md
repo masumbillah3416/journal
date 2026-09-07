@@ -276,12 +276,17 @@ production site says so explicitly.** Payload's Local API defaults `overrideAcce
 module that passes the option is **`apps/web/lib/auth/setNewPassword.ts:209`**, at the
 password-reset spend, and it is right there: a reader holding a reset link is by definition
 not signed in, so the token is the authorisation and Payload has no user to judge — the
-reasoning is at that file's lines 203-205. The option's other occurrences are the
-access-control tests, `apps/web/collections/sessions.access.integration.test.ts`,
-`apps/web/collections/collections.integration.test.ts`,
-`apps/web/lib/auth/sessions.integration.test.ts` and
-`apps/web/lib/auth/passwordReset.integration.test.ts`, where line 597 of the second says it
-plainly — "`overrideAccess: false` is what makes Payload run those rules at all". For
+reasoning is at that file's lines 203-205. **Its other occurrences are not listed here, and that is round 8's correction to this
+sentence.** They were, and the list omitted a file — `apps/web/lib/auth/overrideAccessSites.test.ts`
+itself, which excluded itself from its own scan through an `OWN_PATH` constant, so nothing
+could catch the omission. That is an "other occurrences" list that omits a file, inside the
+sentence written to fix an "only occurrences" list that omitted a file. The pin no longer
+excludes itself — it assembles the option's name from its halves, so the scanner is not its
+own first match — and the set is whatever that test enumerates: every occurrence outside the
+one production module above must be a test file, and the case that says so fails on the
+commit that adds a production occurrence anywhere. `apps/web/collections/collections.integration.test.ts`
+is where the reason is written plainly — "`overrideAccess: false` is what makes Payload run
+those rules at all". For
 Phase 2 the arrangement is correct and deliberate: every server-side read and write here is
 made by code that has already authenticated the request itself
 (`apps/web/lib/auth/guard.ts`), and a read of the reader's own account should not be refused
