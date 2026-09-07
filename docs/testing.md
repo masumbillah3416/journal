@@ -248,6 +248,21 @@ would claim a measurement nothing performs.
   what CI runs (`.github/workflows/ci.yml`); it requires `DATABASE_URL` for a test
   Postgres.
 
+**Line endings are part of the gate, and for seventy-eight commits they defeated it on
+Windows.** `format:check` is `prettier --check .`, whose `endOfLine` default is `lf`.
+`.gitattributes` said `* text=auto`, which normalises what the REPOSITORY stores and says
+nothing about what a checkout WRITES, so a clone on a machine with `core.autocrlf=true`
+— git's default on Windows, which is this project's own platform — got a CRLF working
+tree and `prettier --check .` reported **"Code style issues found in 389 files", exit
+1**. The seventh whole-branch review measured it on a real clone. Nobody had, because
+every gate run in this phase happened on a working tree written by editors rather than by
+a checkout. The fix is `* text=auto eol=lf`, with the reason in `.gitattributes` itself.
+
+If a working tree predates that change and `format:check` fails on files you have not
+touched, `git add --renormalize .` and a forced re-checkout (`git checkout-index -a -f`)
+rewrite it; `git status` is the check that it worked, and an empty `git diff` is the
+check that nothing but line endings moved.
+
 ## The nine suites
 
 ### 1 · Unit
