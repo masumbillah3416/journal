@@ -229,8 +229,10 @@ swallowed there, and would need to say so rather than discover it.
 
 **Recorded as:** `apps/web/components/book/book.module.css`'s `HANDOFF-DEVIATION` at
 `.edgeLeft`/`.edgeRight`; `apps/web/components/book/Book.tsx`'s comment at the two
-`<EdgeStrip>` elements; `apps/web/components/book/EdgeStrip.tsx`'s header;
-`docs/testing.md` §4 (End-to-end).
+`<EdgeStrip>` elements; `apps/web/components/book/EdgeStrip.tsx`'s header, which named
+this entry only after final review 9 found it recording nothing of it — the file that a
+reader opens first before moving a strip was the one file that did not carry the
+reproduction; `docs/testing.md` §4 (End-to-end).
 
 ## 9 · Contents column count follows SCREENS.md's formula, not its "verified" example
 
@@ -1291,10 +1293,14 @@ is mounted where it points, which is exactly how this gap survived four tasks.
 theirs to write; or a later phase moving the reset screen, at which point `RESET_PATH`
 and this entry move with it.
 
-**Recorded as:** the comment on the `text` field and the `RESET_PATH` constant in
-`apps/web/lib/auth/passwordReset.ts`, and the case in
+**Recorded as:** the comment on the `text` field in `apps/web/lib/auth/passwordReset.ts`,
+which composes the message and imports the path rather than spelling it; the `RESET_PATH`
+constant itself in `apps/web/lib/auth/resetPath.ts`, which is where it is **declared** and
+the only place it is spelled; and the case in
 `apps/web/lib/auth/passwordReset.integration.test.ts` that follows the link's token
-through a completed reset.
+through a completed reset. Citing the importer as the declaration site is how a reader
+looks for the constant in `passwordReset.ts`, does not find it, and re-declares it
+locally — the exact duplication `resetPath.test.ts` refuses (final review 9, F9-11).
 
 ## 32 · The sign-in cloth's eyebrow alpha is `.78`, and its gradient follows §1.1 rather than the login prototype
 

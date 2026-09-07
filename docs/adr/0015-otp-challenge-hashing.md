@@ -114,9 +114,10 @@ already hashes one secret has no business keeping the other in the clear.
   released by the server on commit, rollback _or disconnection_ — release stops depending
   on a statement of ours succeeding. `SET LOCAL lock_timeout` then bounds the wait for a
   request queued behind a holder, because an unbounded wait is not one slow request: it
-  holds a connection out of a pool of ten (`apps/web/payload.config.ts`) for as long as
-  the holder lasts, and ten of them is the whole application stopped. Three seconds is
-  three orders of magnitude above what the critical section costs, so it never fires on
+  holds a connection out of `pg`'s default pool of ten — a default, not a setting:
+  `apps/web/payload.config.ts` names no `max`, as ADR 0016 and `rateLimit.ts` both say —
+  for as long as the holder lasts, and ten of them is the whole application stopped. Three
+  seconds is three orders of magnitude above what the critical section costs, so it never fires on
   honest contention. A timeout surfaces as a thrown Postgres error rather than a fifth
   `IssueFailure`: a reader can act on `'cooldown'`, and there is nothing they can do
   about database contention — inventing a refusal for it would put a message about our

@@ -1077,12 +1077,12 @@ discovered by whoever writes the route in front of them:
 - **`requestPasswordReset` takes no origin from the request.** The origin its link is
   built against is a dependency of the service, not a field of the request: a link built
   from a `Host` header is a link an attacker can point at their own machine. The reset
-  screen the link lands on (`/admin/reset/<token>`) is not built yet, and **Phase 2
-  Task 9 built it**: the `[token]` route at that path, the form, the
-  `payload.resetPassword` call, the invalid/expired state, and an e2e case following the
-  mailed link (controller ruling, Task 5 review round 1). It has its own rows above; the
-  sentence that used to end here said the link resolves to a 404, which stopped being true
-  in Task 9.
+  screen the link lands on (`/admin/reset/<token>`) **exists, as of Phase 2 Task 9**: the
+  `[token]` route at that path, the form, the `payload.resetPassword` call, the
+  invalid/expired state, and an e2e case following the mailed link (controller ruling,
+  Task 5 review round 1). It has its own rows above; the sentence that used to end here
+  said the link resolves to a 404, which stopped being true in Task 9, and the correction
+  was joined to the false clause by an "and" rather than replacing it (final review 9).
 
 Unlike the two above, the collection behind it is **not** closed to everybody:
 `sessions` carries a per-user ownership rule (`docs/deviations.md` §29), so the Account

@@ -339,11 +339,16 @@ weakened. A red gate that is understood is worth more than a green one that was 
   `.superpowers/sdd/2026-09-01-phase-1-public-diary/owner-decisions-report.md` for the
   re-run pasted after this decision was applied — **and that file cannot be opened: see
   the method section above, which is where the reproduction now lives.**
-- `resource-summary:script:size` is **141,632 bytes against the 184,320 gate** —
-  unchanged by the font work (fonts are not script) and passing with 42,688 bytes to
-  spare. Note what that gate now means: 137,986 of those bytes are the framework's,
-  so the "diary route JS ≤ 180KB" budget is being met almost entirely by not being
-  charged for the runtime that dominates it. This ADR does not touch that gate.
+- `resource-summary:script:size` **measured 141,632 bytes against the 184,320 gate when
+  this decision was taken**, unchanged by the font work (fonts are not script). Note what
+  that gate means: 137,986 of those bytes were the framework's, so the "diary route JS
+  ≤ 180KB" budget is being met almost entirely by not being charged for the runtime that
+  dominates it. This ADR does not touch that gate. **Do not budget a new dependency
+  against the headroom this line implies.** It is one measurement from one day; two
+  configurations measure `/p/1` at two viewports now (ADR 0014), both of them above this
+  figure and inside the gate, and the current pair is whatever the last
+  `npm run test:perf` wrote into `lhci-reports/`. Reading a stale figure as current
+  over-reported the headroom by about 8% for a phase (final review 9).
 - CLS is **0** on `/p/1` with all five faces preloaded, unchanged.
 - The probe route is deleted. It is reproduced verbatim above so the floor can be
   re-measured without re-deriving it.

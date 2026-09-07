@@ -9,7 +9,7 @@ establishes the workspace and the domain package, later phases fill in `apps/web
 
 ```
 apps/
-  web/                    Next 15 App Router + Payload 3 in-process
+  web/                    Next 16 App Router + Payload 3 in-process
     app/(diary)/          public book, galleries          → static + ISR
     app/(admin)/admin/    the bespoke panel: sign-in, then the ten screens
     app/(payload)/cms/    Payload's stock admin — dev only, disabled in production
@@ -18,10 +18,18 @@ apps/
 packages/
   domain/                 pure logic — no I/O, no framework. 100% coverage.
   tokens/                 handoff colour/type/geometry as CSS variables + typed TS
-  ui/                     shared primitives: pill, washi tape, postage stamp, hairline
+  ui/                     shared primitives: pill, washi tape, postage stamp, hairline  → DEFERRED (not created)
 docs/                     architecture, ADRs, data model, API, runbook, security, testing, QA sweeps
 handoff/                  the specification of record
 ```
+
+**`packages/ui` does not exist, and the DEFERRED marker above is the whole of its
+status.** `packages/` holds `domain` and `tokens`; nothing imports a `@travel-diary/ui`.
+The primitives that entry names were built where their only caller is —
+`apps/web/components/pages/WashiTape.tsx` and `PostageStamp.tsx` — because a package
+earns its place on the second real use (CLAUDE.md §3.3) and there has not been one. A
+Phase 3 contributor adding a shared primitive puts it beside those two, not in a package
+nobody has decided to create.
 
 **Sign-in lives under `(admin)`, not under a group of its own.** The tree above named
 an `app/(auth)/signin/` group until Phase 2 Task 7, which is where the screen was
@@ -591,9 +599,16 @@ only `inline` would deploy until video is turned back on.
   own tests can be about the browser (a swallowed click, a real transition) instead of
   re-testing geometry.
 - **`pageStack.loadsImages`** — the same argument, applied to bytes rather than
-  geometry. All thirty-three leaves are in the document, stacked at `inset: 0`, so the
+  geometry. Every leaf the served document carries is stacked at `inset: 0`, so the
   browser treats every one of them as in the viewport and `loading="lazy"` defers
-  nothing. Deciding "is this leaf near enough to fetch" beside the geometry that already
+  nothing. That document held all thirty-three leaves when this was decided; since
+  `docs/adr/0009-server-rendered-page-window.md` it holds the addressed page and
+  `CONTENT_WINDOW_RADIUS` leaves either side, and the book asks the server for the rest
+  on the first turn — which changes how many leaves `lazy` fails to defer, not that it
+  fails to defer them. ADR 0006 opens by retracting the wider premise; asserting it here
+  is how a reader sizes a change to `loadsImages`, or writes an end-to-end locator,
+  against a document they believe holds thirty-three faces on first paint (final review
+  9, F9-13). Deciding "is this leaf near enough to fetch" beside the geometry that already
   answers "is this leaf visible" is what keeps the two from disagreeing — `visible` is a
   subset of `loadsImages` by construction, so a leaf can never swing into view carrying
   an empty frame. See `docs/adr/0006-diary-image-window.md`.

@@ -130,11 +130,15 @@ visible from the code that was added:
 
 ## The local media store grows without bound, and it fails a test rather than the disk
 
-`apps/web/media` is where the local `StoragePort` adapter writes uploads and their five
-derivative tiers. It is gitignored, so it never appears in `git status`, and **nothing
-deletes a file from it**: `payload.delete` removes the row, and the bytes stay. Every
-`npm run db:seed`, and every run of `apps/web/scripts/seed.integration.test.ts`, writes a
-fresh set.
+`apps/web/media` is where Payload writes uploads and their five derivative tiers:
+`apps/web/collections/media.ts` sets `staticDir: MEDIA_DIR` and declares the five
+`imageSizes`, and Payload's own upload handling does the writing. Nothing of ours does —
+`apps/web/lib/adapters/local-storage.ts`'s `StoragePort` is a **read** path here, its
+only non-test construction being `apps/web/lib/readGalleryDownload.ts`'s `mediaStore`,
+which streams one file back for a gallery download. The directory is gitignored, so it
+never appears in `git status`, and **nothing deletes a file from it**: `payload.delete`
+removes the row, and the bytes stay. Every `npm run db:seed`, and every run of
+`apps/web/scripts/seed.integration.test.ts`, writes a fresh set.
 
 **The first symptom is not a full disk. It is a test that has always passed timing out,
 with no commit in between** — the same confusing shape as the wall-clock guard suite
@@ -186,20 +190,27 @@ what the integration suite reads, and they share one directory. Do **not** simpl
 the directory — the browser suites would then render a book of missing images and the
 visual baselines would fail for a reason that has nothing to do with any change.
 
-**The real fix is Phase 3's**, and it is named rather than implied: a `StoragePort` that
-deletes on `payload.delete`, which is also what the R2 adapter will need in order not to
-bill for orphans forever. Until then this is housekeeping, and the table above is what
+**The real fix is Phase 3's**, and it is named rather than implied: deletion has to be
+attached where the writing happens, which today is the `media` collection — an
+`afterDelete` hook that unlinks the file and its five tiers under `staticDir`. When
+storage moves to R2 the same deletion moves into the adapter, which is what R2 will need
+in order not to bill for orphans forever. Until then this is housekeeping, and the table above is what
 tells you when it is due.
 
 ## Rotate secrets
 
 1. Generate the new credential at the provider (Neon connection string, R2 access key,
    Resend API key, Backblaze application key).
-2. Set it in the platform's secret store (Vercel project settings for app-facing secrets;
-   Fly `fly secrets set` for the worker).
-3. Redeploy the app and the worker so the new value is picked up — neither reads secrets
-   at request time from anywhere but process environment.
-4. Revoke the old credential at the provider once the redeploy is confirmed healthy.
+2. Set it in the platform's secret store — Vercel project settings, which is the only
+   secret store this application has. The transcoder worker is **deferred and not
+   provisioned** (see **Deploy** above), so there is no `fly secrets set` to run and no
+   second store to keep in step; when Phase 3 provisions it, it joins this step and the
+   next.
+3. Redeploy the app so the new value is picked up — it reads secrets from the process
+   environment at start, never at request time.
+4. Revoke the old credential at the provider once that redeploy is confirmed healthy.
+   Nothing else has to be redeployed first, so this step is not blocked on a target that
+   does not exist.
 5. For the media bucket specifically: use a credential scoped to that bucket alone and,
    where the provider supports it, write-only from the upload path — a compromised
    upload credential should not be able to read or delete existing media
@@ -231,9 +242,11 @@ backup mechanism itself):
 1. Provision a scratch Postgres instance and a scratch bucket — never restore over the
    production database or bucket during a drill.
 2. Restore the most recent Postgres dump into the scratch instance. Confirm: the
-   `journeys`, `pages`, `media`, `users`, `otpChallenges`, `signInAttempts` and
-   `sessions` tables are present, row counts are plausible against the last known-good count, and a spot-check
-   query against a specific journey returns the expected pages and ordering.
+   `journeys`, `pages`, `media`, `users`, `otp_challenges`, `sign_in_attempts` and
+   `sessions` tables are present — Payload snake-cases a collection slug into its table
+   name, so the two multi-word collections are not spelled the way their slugs are — row
+   counts are plausible against the last known-good count, and a spot-check query against
+   a specific journey returns the expected pages and ordering.
 3. Restore the most recent bucket backup into the scratch bucket. Confirm: file count
    and total size are plausible against the last known-good figures, and a spot-check of
    a handful of derivative tiers (`thumb`, `hero2x`) for the same journey checked above

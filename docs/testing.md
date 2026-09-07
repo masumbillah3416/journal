@@ -79,9 +79,12 @@ score.
 Phase 1 closes both before either holds any of the phase's own code**, rather than
 waiting for the task that lands the first server action or component to remember to add
 its own directory — the controller ruling that reordered this ahead of the pages it
-guards (see this task's own report). `apps/web/app/**` today holds only Payload's own six
-route/layout re-exports under `(payload)/` — no logic of ours, and nothing any current
-test can execute without a Next.js request context:
+guards (see this task's own report). **When that was written**, `apps/web/app/**` held
+only Payload's own six route/layout re-exports under `(payload)/` — no logic of ours, and
+nothing any test could execute without a Next.js request context. It holds the diary's
+routes and the whole `(admin)` panel now; the paragraphs below are the record of those
+six, and the exclusions they describe still name those files by their exact paths and
+nothing else:
 
 - Three of the six (`layout.tsx`, `api/graphql/route.ts`, `api/graphql-playground/route.ts`)
   carry a `c8 ignore start`/`stop` around their whole body — imports included, since an
@@ -270,13 +273,32 @@ check that nothing but line endings moved.
 - **Tool:** Vitest.
 - **Scope:** pure functions, state machines, mappers, validators. No I/O.
 - **Status:** implemented, as TWO Vitest projects (`vitest.config.ts`):
-  - `unit` — `packages/*/src/**/*.test.ts`, `apps/web/lib/**/*.test.ts`,
-    `apps/web/scripts/**/*.test.ts`, `apps/web/*.test.ts` and `e2e/**/*.test.ts`,
-    excluding `*.integration.test.ts`. Node environment; these files are pure. The last
-    glob collects exactly one file, `e2e/ciRegistration.test.ts` — the guard that says
-    every browser spec is named by CI and by an npm script, which is a file read rather
-    than a browser test and belongs in the pre-commit gate it protects (ruling F57, and
-    the browser-suite section below).
+  - `unit` — every glob it declares, in the order the config declares them:
+    `packages/*/src/**/*.test.ts`, `apps/web/lib/**/*.test.ts`,
+    `apps/web/scripts/**/*.test.ts`, `apps/web/collections/**/*.test.ts`,
+    `eslint-rules/**/*.test.js`, `apps/web/*.test.ts` and `e2e/**/*.test.ts`, all of them
+    excluding `*.integration.test.ts`. Node environment; these files are pure. **This
+    list is the whole of it and is meant to be diffable against the config** — CLAUDE.md
+    §2.1 names the config comment and this document as the two homes an include fact has
+    to live in, and an enumeration here that is missing a glob is how a reader audits
+    "no file is in neither config's include" against a set smaller than the real one
+    (final review 9, F9-8). Each glob beyond the `packages`, `lib` and
+    `scripts` ones exists for a reason those do not cover, and carries that reason at the
+    glob in `vitest.config.ts`:
+    - `apps/web/collections/**/*.test.ts` — the collection tests that need **no** Docker.
+      A collection config is a plain object, so a check over the numbers another module
+      is written against (`users.lockout.test.ts`, the lockout window against
+      `rateWindow.ts`'s) belongs in the pre-commit gate. `*.integration.test.ts` under the
+      same directory stays with the integration project; the two patterns are disjoint.
+    - `eslint-rules/**/*.test.js` — the rule that makes an unguarded Server Action a lint
+      error, and its `RuleTester` cases. Plain JavaScript because ESLint loads a config
+      and its plugins through Node rather than a bundler (§1a).
+    - `apps/web/*.test.ts` — `middleware.test.ts`. Next.js requires the middleware at the
+      app's own root, which no `lib/**` or `app/**` glob reaches.
+    - `e2e/**/*.test.ts` — the file reads that live beside what they guard rather than in
+      the browser job: `ciRegistration.test.ts`, the guard that says every browser spec is
+      named by CI and by an npm script (ruling F57, and the browser-suite section below).
+      Only `*.test.ts`; `playwright.config.ts` owns `e2e/*.spec.ts`.
   - `unit-dom` — `packages/*/src/**/*.test.tsx` and `apps/web/**/*.test.tsx`, in a
     **jsdom** environment, with esbuild's automatic JSX runtime so a component test
     needs no `import React`. A separate project rather than a wider glob on `unit`
@@ -1177,9 +1199,10 @@ data-leaf=2> subtree intercepts pointer events` — a leaf's stacking order is
   crop demonstrably moves.
 
   Every selector in that file is scoped to one leaf via `Leaf.tsx`'s `data-leaf` index.
-  `Book.tsx` renders all thirty-three leaves at once, so `[data-page="notes"]` alone
-  matches ten sections and an unscoped locator is a strict-mode violation rather than a
-  wait.
+  `Book.tsx` renders every leaf of the served content window at once — the addressed
+  page and `CONTENT_WINDOW_RADIUS` either side of it, widening to all thirty-three as
+  the reader turns (ADR 0009) — so `[data-page="notes"]` alone matches several sections
+  and an unscoped locator is a strict-mode violation rather than a wait.
 
   One assertion in it records a browser fact rather than the authored one, with its
   reason at the assertion: the left column's fit is measured from its last child's
@@ -1189,10 +1212,11 @@ data-leaf=2> subtree intercepts pointer events` — a leaf's stacking order is
   report exactly 3px of "overflow" on a column whose content fits perfectly.
 
   **`e2e/imageWindow.spec.ts` (Phase 1, the LCP fix)** covers the one thing the unit
-  suites cannot: whether the bytes actually stop arriving. `Book.tsx` renders all
-  thirty-three leaves and every leaf is absolutely positioned at `inset: 0`, so the
-  browser counts all of them as in the viewport and `loading="lazy"` defers NOTHING —
-  measured, not assumed: `/p/1` fetched all twenty of the seeded book's photographs,
+  suites cannot: whether the bytes actually stop arriving. Every leaf `Book.tsx`
+  renders is absolutely positioned at `inset: 0`, so the browser counts all of them as
+  in the viewport and `loading="lazy"` defers NOTHING — measured, not assumed, against
+  the document of the day, which carried all thirty-three (ADR 0009 narrowed it to the
+  content window afterwards): `/p/1` fetched all twenty of the seeded book's photographs,
   1,820,504 bytes, with the reader on the Cover, and the LCP gate went red at 3,247ms.
   An attribute-level assertion would have passed the whole time that was happening,
   because the `lazy` attribute was present throughout, so the first case counts real
@@ -1356,13 +1380,13 @@ true` — the only honest content while nothing writes or reads that setting and
   checking immediately on navigation would have produced a false negative on exactly the
   class of defect this suite exists to catch.
 
-  Its third case asserts that `/favicon.ico` responds `200`. Every browser asks for that
-  address without being told to, and nothing declared it — the sweep recorded the 404 as
+  Its `/favicon.ico` case asserts that the address responds `200`. Every browser asks
+  for that address without being told to, and nothing declared it — the sweep recorded the 404 as
   a console `error` on every cold load of every route, and Lighthouse recorded it on a
   production build (`docs/qa/2026-09-01-diary-sweep.md`, DIARY-006). It is asserted with
   `request.get` rather than by watching a page load because whether a browser fetches
-  the address at all depends on the browser and on whether it is headed: the two cases
-  above are headless and stayed green through the whole defect.
+  the address at all depends on the browser and on whether it is headed: the page-load
+  cases above it are headless and stayed green through the whole defect.
 
   **A CI gap this file had not recorded.** `.github/workflows/ci.yml`'s `browser` job
   named only `smoke`, `a11y` and `visual` in its single `npx playwright test`
@@ -1634,9 +1658,10 @@ true` — the only honest content while nothing writes or reads that setting and
 
   Each Task 11 baseline was captured in the same pinned-container run that regenerated
   the six older ones, and the older six MOVED for a structural reason rather than a
-  cosmetic one: `/p/1` renders all thirty-three leaves at once, so replacing thirty
-  heading-only fallback faces with thirty designed pages changes what is drawn behind
-  the current leaf in every screenshot in this suite.
+  cosmetic one: `/p/1` served all thirty-three leaves at once then (ADR 0009 narrowed it
+  to the content window afterwards), so replacing thirty heading-only fallback faces with
+  thirty designed pages changed what is drawn behind the current leaf in every screenshot
+  in this suite.
 
   The diary cases snapshot the FULL PAGE, not the scaled design box. The box is drawn
   with `transform: scale(k)`, so a box-only snapshot would be byte-identical at all
@@ -1679,12 +1704,16 @@ true` — the only honest content while nothing writes or reads that setting and
   against a wrong baseline is worth nothing.
 
 - **Status:** the mechanism is implemented and proven, and now runs in CI (Task 1 of
-  Phase 1 closed the gap below). `e2e/visual.spec.ts` snapshots every screen that exists
-  today — `/cms` — at all three breakpoints, alongside the diary's Cover, Contents and
-  Notes pages, using the exact `toHaveScreenshot`/baseline-diff machinery every further page
-  will use. Baselines are committed at
-  `e2e/visual.spec.ts-snapshots/*.png`; a snapshot suite with no baseline to compare
-  against protects nothing.
+  Phase 1 closed the gap below). `e2e/visual.spec.ts` snapshots every page type and every
+  admin screen that exists, at the three breakpoints `mobile`, `mid` and `desktop`: the
+  diary's Cover, Contents, Notes, Frames I and II, About, gallery, lightbox and
+  not-found; its mobile drawer, which is a `mobile` baseline alone because the drawer
+  exists at no other width; Payload's own `/cms`; and the bespoke panel — sign-in, its
+  code step, the signed-in state, the panel itself, and the reset screen in its sent,
+  live and expired states. **The directory is the authority, not this sentence**: the
+  baselines are committed at `e2e/visual.spec.ts-snapshots/*.png`, one file per screen
+  per breakpoint, and this list drifted a whole phase behind them once (final review 9,
+  F9-10). A snapshot suite with no baseline to compare against protects nothing.
 - **The former gap, closed:** Playwright's screenshot baselines are keyed by OS and font
   rendering, so the Windows-generated baselines Task 12 committed (suffixed `-win32.png`)
   never honestly compared against CI's Ubuntu `browser` job, regardless of whether a page
@@ -1696,8 +1725,9 @@ true` — the only honest content while nothing writes or reads that setting and
   `browser` job header names the current tag; bump both together). The committed baselines
   are now `-linux.png`, generated inside that exact image — by hand at first, and since
   Phase 2 Task 7 by `npm run test:visual:container:update`, which is the invocation the
-  Run bullet below documents in full (and which passes `--update-snapshots=all`, not the
-  `changed` default this line used to name). The old `-win32.png` files were deleted, not
+  Run bullet below documents in full (and which passes `--update-snapshots=changed`; `all`
+  is the separate `npm run test:visual:container:update:all`, for the reason the Run
+  bullet gives). The old `-win32.png` files were deleted, not
   kept alongside. `browser` no longer skips `test:visual`; it runs in the same
   `npx playwright test` invocation as the smoke and accessibility specs.
 - **Run — and this is now the ONLY way to run it off Linux.** `e2e/visual.spec.ts`
@@ -2229,7 +2259,8 @@ was reported red and unraised for several rounds before it moved.
 
 #### 7.1 · The record
 
-- **Tool:** Lighthouse CI (`@lhci/cli`, `lighthouserc.json` and `lighthouserc.book.json`)
+- **Tool:** Lighthouse CI (`@lhci/cli`, `lighthouserc.json`, `lighthouserc.book.json`
+  and — since Phase 2 Task 11 — `lighthouserc.admin.json`)
   - custom probes (the custom probes — 60fps flip measurement, N+1 query detection — are
     still not yet implemented; they need the flip and data-fetching code these budgets
     describe).
@@ -2464,16 +2495,20 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   **stable** now: three consecutive `npm run test:perf` invocations, each with its own
   build, gave book medians of **2,930.5 / 2,931.1 / 2,927.8ms**, fifteen runs spanning
   2,926.0-2,937.8ms.
-- **`npm run test:perf` runs TWO lhci configurations, and both are gates.** Collect
+- **`npm run test:perf` ran TWO lhci configurations when this was written, and both were
+  gates.** The admin's is a third since Phase 2 Task 11; §7.0 above is the current state,
+  and this bullet is the record of why the split exists. Collect
   settings in lhci are per-run, not per-URL, so the diary's desktop viewport cannot share
   a run with the gallery's: at 1350x940 `/gallery/<slug>` picks larger derivatives and
   fetches 1,229,466 bytes of image against its 600,000 budget (ADR 0013), which would
   re-base a budget this change has no business touching. So `lighthouserc.json` collects
   `/p/1`, `/gallery/patagonia` and `/cms` on Lighthouse's phone emulation with no pinned
   cookie, and `lighthouserc.book.json` collects `/p/1` alone on the desktop viewport with
-  the cookie. Both keep `numberOfRuns: 5` and `aggregationMethod: "median"`. If you add a
-  route, add it to the first file unless it needs a viewport the first file cannot give
-  it.
+  the cookie. Every one of them keeps `numberOfRuns: 5` and
+  `aggregationMethod: "median"`. If you add a route, add it to the first file unless it
+  needs a viewport the first file cannot give it — and add the file itself to
+  `npm run test:perf`, which `e2e/ciRegistration.test.ts` requires by reading the
+  `lighthouserc*.json` files off disk.
 - **The mobile reading surface is gated too, since ADR 0014.** Dropping
   `collect.settings.extraHeaders` from `lighthouserc.json` means its `/p/1` entry now
   measures what a phone is actually served: 144,835 script bytes against the 184,320
