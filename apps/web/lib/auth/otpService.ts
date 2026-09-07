@@ -640,9 +640,22 @@ export const createOtpService = ({ payload, mailer, now }: OtpServiceDependencie
           // COUNTED by the hourly ceiling for RESEND_WINDOW_MS (one hour), so
           // `DELETE WHERE expires_at < now()` would delete rows the mailbomb
           // cap is still counting and hand a reader an unlimited supply of
-          // codes fifty-five minutes early. Nothing reads a row older than the
-          // window: not `challengeState`, not `verifyChallenge`, not
-          // `pendingChallenge`, not this count.
+          // codes fifty-five minutes early.
+          //
+          // NO DECISION DEPENDS ON A ROW OLDER THAN THE WINDOW, which is a
+          // narrower sentence than the one that stood here — it enumerated
+          // `verifyChallenge` among the readers that cannot see such a row,
+          // and `verifyChallenge` has no age bound on its refusal re-read
+          // (nor do `pendingChallenge` and `resendChallenge`, both by design
+          // and both stated where they are written). All three take the
+          // newest row for a session; the claim above bounds the CLAIM's own
+          // `WHERE` and this count, which are what authorise and what meter.
+          // So the sweep is not quite behaviour-neutral: once a row is swept,
+          // `verifyChallenge` answers `'invalid'` where it answered
+          // `'expired'`. Both are refusals, both are already the answer an
+          // unusable challenge gets, and no security property moves — which
+          // is why the sweep keys on the window rather than on `expires_at`
+          // even so.
           await client.query(
             `WITH aged AS (
                SELECT id FROM otp_challenges

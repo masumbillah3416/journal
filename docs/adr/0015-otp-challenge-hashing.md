@@ -131,7 +131,11 @@ already hashes one secret has no business keeping the other in the clear.
   source of `codeMatches` that `timingSafeEqual` is the comparison used, with the
   measurement and the reasoning recorded beside it. That is a real limitation, stated
   rather than papered over with a threshold loose enough never to fail.
-- **`expiresAt` is written and read by nothing.** It is `createdAt + EXPIRY_MS` because
+- **`expiresAt` is read by nothing.** It IS written — `otpService.ts`'s insert binds
+  `expires_at` like any other column, which the next sentence says and this bullet used to
+  contradict in its own first four words (the eighth whole-branch review's finding 6; the
+  correctly-worded twins are `otpService.ts`'s own invariant and `docs/security.md`'s
+  discharge row). It is `createdAt + EXPIRY_MS` because
   `DATA_MODEL.md`'s field list declares the column; authorization derives expiry from
   `createdAt` and `EXPIRY_MS` instead, because two sources of truth for one fact
   (CLAUDE.md §7) would make the constant decorative and let a bad write extend a
