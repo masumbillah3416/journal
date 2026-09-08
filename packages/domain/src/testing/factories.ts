@@ -9,6 +9,18 @@
  * field it cares about. Depends on: Journey and BookChrome, from ../bookBundle;
  * GalleryBundle and GalleryFrame, from ../gallery; ChallengeRecord, from
  * ../auth/otpChallenge.
+ *
+ * THE FOUR BYTE-LEVEL FIXTURES AT THE END OF THIS FILE ARE A DIFFERENT KIND
+ * OF FIXTURE, and they are here rather than beside `media/sniff.test.ts`
+ * because two test files use them (`sniff.test.ts` and, through the decision
+ * it feeds, the upload probes that come after it). They build the FIRST BYTES
+ * OF A FILE rather than a domain object, so each one carries a paragraph
+ * saying how those bytes are known to be what a real file holds - measured on
+ * this machine where a local encoder could produce one, and named as a
+ * specification layout where none could. That paragraph is the point of them:
+ * a fixture that encodes an assumption about the bytes would make every case
+ * built on it agree with the implementation rather than with a real upload,
+ * and this repository has already shipped two blockers of exactly that shape.
  */
 import type { ChallengeRecord } from '../auth/otpChallenge'
 import type { AboutContent, BookChrome, Journey, Slot } from '../bookBundle'
@@ -178,3 +190,84 @@ export const aChallenge = (overrides: Partial<ChallengeRecord> = {}): ChallengeR
   consumedAt: null,
   ...overrides,
 })
+
+/**
+ * A JPEG's start-of-image marker followed by a JFIF APP0 segment header.
+ *
+ * HOW THESE BYTES ARE KNOWN TO BE A REAL FILE'S. `ff d8` is JPEG's SOI marker
+ * and `ff e0` opens the JFIF APP0 segment a camera or an encoder writes next,
+ * with `4a 46 49 46 00` spelling `JFIF\0` as its identifier. Measured against
+ * this machine's own encoder for the part that matters: `sharp` 0.35.4 here
+ * writes `ff d8 ff db` - SOI, then a quantisation table, NOT an APP0 segment.
+ * Both are JPEGs, which is exactly why `sniffMediaType` keys on the three
+ * bytes the two share (`ff d8 ff`) rather than on this fixture's fourth one;
+ * a four-byte match would refuse every derivative this pipeline itself writes.
+ * `sniff.test.ts` holds that second header as its own case.
+ * @returns Eleven bytes: SOI, then a JFIF APP0 segment header.
+ */
+export const aJpegHeader = (): Uint8Array =>
+  new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00])
+
+/**
+ * The eight-byte PNG signature.
+ *
+ * HOW THESE BYTES ARE KNOWN TO BE A REAL FILE'S. Read off two real PNGs on
+ * this machine rather than transcribed from the specification: the seeded
+ * `apps/web/media/bergen-b4-28.png` opens `89 50 4e 47 0d 0a 1a 0a`, and so
+ * does a PNG `sharp` encodes here. The trailing `0d 0a 1a 0a` is the part
+ * that earns the length - it is what a transfer that mangles line endings
+ * destroys, which is the whole reason PNG's signature is eight bytes and not
+ * four.
+ * @returns The eight signature bytes, with no IHDR chunk after them.
+ */
+export const aPngHeader = (): Uint8Array => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+/**
+ * An ISO base media file's `ftyp` box, whose brand is what separates HEIC
+ * from MP4 from QuickTime - all three share these first eight bytes.
+ *
+ * HOW THIS LAYOUT IS KNOWN TO BE A REAL FILE'S. Measured, not assumed: an
+ * AVIF written by this machine's `sharp` opens
+ * `00 00 00 1c 66 74 79 70 61 76 69 66 00 00 00 00 mif1avifmiaf` - a
+ * four-byte big-endian box length, then `ftyp` at offset 4, then the major
+ * brand (`avif`) at offset 8, then a four-byte minor version, then the
+ * compatible brands. That is the offset this fixture writes its brand at and
+ * the offset `sniffMediaType` reads one from. The four bytes at offset 12 are
+ * the minor version, which nothing reads; the real file's are zeroes and this
+ * fixture's are the ASCII `'0000'`, deliberately different so a reader cannot
+ * mistake them for a brand.
+ * @param overrides - `brand` defaults to `'isom'`, MP4's own.
+ * @returns Sixteen bytes: a complete `ftyp` box header carrying that brand.
+ */
+export const anIsoBmffHeader = (overrides: { readonly brand?: string } = {}): Uint8Array => {
+  const brand = overrides.brand ?? 'isom'
+  const header = new Uint8Array(16)
+  header.set([0x00, 0x00, 0x00, 0x10], 0)
+  header.set(new TextEncoder().encode('ftyp'), 4)
+  header.set(new TextEncoder().encode(brand.padEnd(4, ' ').slice(0, 4)), 8)
+  header.set(new TextEncoder().encode('0000'), 12)
+  return header
+}
+
+/**
+ * An SVG that is also an HTML document, which is the whole objection to it
+ * (SECURITY.md: "One uploaded file becomes stored XSS with your own session
+ * attached"). The script tag is the payload a rejection has to stop.
+ *
+ * HOW THIS IS KNOWN TO BE WHAT A REAL FILE LOOKS LIKE. An SVG has no magic
+ * number at all - it is XML, so the only thing on disk that identifies one is
+ * its root element, which is why this fixture is text rather than a byte
+ * array. The `xmlns` attribute is what every real SVG carries and what makes
+ * a browser treat the document as SVG rather than as unknown markup, and the
+ * `<script>` element inside it is legal SVG content that browsers execute -
+ * so this fixture is not a caricature of a hostile file, it is the shortest
+ * complete one.
+ * @param overrides - `leadingWhitespace` defaults to `''`; a real uploader can
+ *   send a BOM or newlines before the root element.
+ * @returns The document's UTF-8 bytes.
+ */
+export const anSvgDocument = (overrides: { readonly leadingWhitespace?: string } = {}): Uint8Array =>
+  new TextEncoder().encode(
+    `${overrides.leadingWhitespace ?? ''}<svg xmlns="http://www.w3.org/2000/svg">` +
+      `<script>fetch("/admin/sign-out",{method:"POST"})</script></svg>`,
+  )

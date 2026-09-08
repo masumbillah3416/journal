@@ -2038,3 +2038,38 @@ whoever next touches the gallery or the seed.
 
 **Recorded as:** `vitest.integration.config.ts`'s `thresholds` comments (which name the
 departure at the point of exclusion), `docs/testing.md`'s coverage section, and this entry.
+
+## 47 · `image/heic` is refused at the port, with the schema left as `DATA_MODEL.md` writes it
+
+**What changed:** `DATA_MODEL.md` lists `image/heic` among the `media` collection's
+accepted `mimeTypes`, and `apps/web/collections/media.ts` transcribes that list verbatim.
+`packages/domain/src/media/ingestPolicy.ts` refuses a HEIC anyway, with the refusal
+`'heic-unsupported'`, in both pipeline modes.
+
+**Rationale, measured rather than assumed.** This repository's `sharp` is 0.35.4, and on
+this machine its `heif` input accepts only the suffix `.avif` while the bundled codec is
+aom (AV1) rather than HEVC. So a HEIC cannot be decoded here at all, which means
+accepting one would store an original that no derivative tier could ever be made from -
+a row in the store that looks ingested and can never be displayed. Refusing it at the
+port is the same shape ADR 0004 already applies to video: **the schema is untouched, the
+port enforces**, so the day a `sharp` build that decodes HEVC is available, turning HEIC
+on is deleting one guard clause rather than writing a migration.
+
+**Why the schema is not narrowed instead.** Two reasons. The schema is the handoff's, and
+narrowing it would make `apps/web/collections/media.ts` disagree with `DATA_MODEL.md`
+permanently for a reason that is a property of one dependency's build. And a schema
+change is a migration, which is exactly the cost ADR 0004 exists to avoid paying twice.
+
+**Where it is stated in code:** the `// HANDOFF-DEVIATION:` comment on the refusal in
+`packages/domain/src/media/ingestPolicy.ts`, which carries the measurement, and the case
+“refuses HEIC in both modes, because this sharp build cannot decode it”.
+
+**What would reverse this:** a `sharp` build here whose `heif` input reports a `.heic`
+suffix and an HEVC decoder. Re-measure before deleting the guard; the refusal is about
+this build, not about the format.
+
+**Recorded as:** this entry and the code comment above. Phase 3's plan also assigns an
+ADR to the decision (Task 13, ADR 0021); this entry is written now rather than then
+because CLAUDE.md §1.3 requires the record to ship in the same commit as the code, and a
+deviation whose register entry arrives eleven tasks later is a deviation nobody could
+have reviewed.

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   aBookChrome,
+  aJpegHeader,
+  anIsoBmffHeader,
+  anSvgDocument,
+  aPngHeader,
   aGalleryBundle,
   aGalleryFrame,
   anAboutContent,
@@ -141,5 +145,76 @@ describe('galleryFrames', () => {
     const ids = galleryFrames(61).map((frame) => frame.id)
 
     expect(new Set(ids).size).toBe(61)
+  })
+})
+
+describe('aJpegHeader', () => {
+  it('opens with the start-of-image marker a JPEG is identified by', () => {
+    const header = aJpegHeader()
+
+    expect([...header.subarray(0, 4)]).toEqual([0xff, 0xd8, 0xff, 0xe0])
+  })
+
+  it('spells JFIF in its APP0 segment, as a camera-written file does', () => {
+    // Not decoration: the segment is what makes these bytes a real file's
+    // rather than a two-byte marker with padding behind it.
+    const header = aJpegHeader()
+
+    expect(new TextDecoder().decode(header.subarray(6, 10))).toBe('JFIF')
+  })
+
+  it('gives every call its own array, never a shared buffer', () => {
+    expect(aJpegHeader()).not.toBe(aJpegHeader())
+  })
+})
+
+describe('aPngHeader', () => {
+  it('is the eight-byte signature a real PNG on this machine opens with', () => {
+    expect([...aPngHeader()]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  })
+})
+
+describe('anIsoBmffHeader', () => {
+  it('writes ftyp at offset four, where a real ISO base media file carries it', () => {
+    const header = anIsoBmffHeader()
+
+    expect(new TextDecoder().decode(header.subarray(4, 8))).toBe('ftyp')
+  })
+
+  it('defaults to the isom brand, which is MP4’s own', () => {
+    expect(new TextDecoder().decode(anIsoBmffHeader().subarray(8, 12))).toBe('isom')
+  })
+
+  it('writes the brand the call site named, at offset eight', () => {
+    expect(new TextDecoder().decode(anIsoBmffHeader({ brand: 'heic' }).subarray(8, 12))).toBe('heic')
+  })
+
+  it('pads a short brand to the four bytes the field is wide', () => {
+    // QuickTime's brand is two characters and the field is four, so a file
+    // that carries it carries `qt  `. A fixture that wrote `qt` alone would
+    // put the next field two bytes early and stop being a real header.
+    expect(new TextDecoder().decode(anIsoBmffHeader({ brand: 'qt' }).subarray(8, 12))).toBe('qt  ')
+  })
+
+  it('truncates a brand longer than the field rather than overflowing it', () => {
+    expect(new TextDecoder().decode(anIsoBmffHeader({ brand: 'quicktime' }).subarray(8, 12))).toBe('quic')
+  })
+})
+
+describe('anSvgDocument', () => {
+  it('opens with the root element, which is the only thing that identifies an SVG', () => {
+    expect(new TextDecoder().decode(anSvgDocument()).startsWith('<svg')).toBe(true)
+  })
+
+  it('carries the script tag that makes an uploaded SVG stored XSS', () => {
+    // The fixture has to hold the payload a rejection exists to stop; an SVG
+    // with no script in it would let a broken rejection look harmless.
+    expect(new TextDecoder().decode(anSvgDocument())).toContain('<script>')
+  })
+
+  it('puts the caller’s leading whitespace before the root element', () => {
+    const document = new TextDecoder().decode(anSvgDocument({ leadingWhitespace: '\n  ' }))
+
+    expect(document.startsWith('\n  <svg')).toBe(true)
   })
 })

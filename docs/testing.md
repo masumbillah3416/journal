@@ -2774,7 +2774,15 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   Nothing failed, because `subject` is text; the fixtures had simply stopped being what
   they claimed to be.
 
-  What is still outstanding is the upload worker's SVG and EXIF probes (Phase 3).
+  What is still outstanding is the upload worker's SVG and EXIF probes (Phase 3). The
+  PURE half of the SVG refusal landed in Phase 3 Task 2 and is not one of them:
+  `packages/domain/src/media/sniff.test.ts` and
+  `packages/domain/src/media/ingestPolicy.test.ts` decide the type from the bytes and
+  refuse it, at the domain's 100% bar, and the case that carries the requirement feeds
+  SVG bytes under the `Content-Type` a browser derives from a `.jpg` name rather than a
+  correctly-named `.svg`. What no unit test can do is drive a real multipart request
+  through a real boundary, which is what the outstanding probe is for - and there is no
+  upload boundary to drive yet.
 
 - **Run (once added):** included in `npm run test:integration` (these probes need a real
   database and, for the upload cases, the worker), so they run under `verify:full`.
