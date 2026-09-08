@@ -25,9 +25,20 @@ blob-report/
 .lighthouseci/
 lhci-reports/
 
-# Local media and database volumes
-media/
-uploads/
+# Local media and database volumes.
+#
+# SCOPED TO THE STORE'S REAL PATH, not a bare `media/`. A bare directory
+# pattern matches a directory of that name AT ANY DEPTH, so `media/` also
+# ignored `packages/domain/src/media/` - the magic-byte sniff and the ingest
+# policy, source files git then did not list at all, in a package whose
+# coverage gate is 100%. Nothing failed: `git status` was clean, `git add`
+# said nothing, and the files simply would not have been committed. The one
+# media store this repository writes is `MEDIA_DIR` in
+# `apps/web/collections/media.ts`, which resolves to `apps/web/media`.
+# `uploads/` is scoped for the same reason, before a module of that name
+# disappears the same way.
+apps/web/media/
+apps/web/uploads/
 .postgres-data/
 
 # Editor and OS
