@@ -240,10 +240,6 @@ const IDENTIFIERS_THAT_NAME_NOTHING_HERE: readonly { readonly citation: string; 
   },
   { citation: '_rsc', why: 'the query parameter Next appends to a prefetch, named by ADR 0014' },
   {
-    citation: 'MediaProcessor',
-    why: 'the media pipeline is deferred; ADR 0004 states in its own words that nothing in it is built, and four documents agree',
-  },
-  {
     citation: 'pgQueue',
     why: "the deferred queue adapter's name in architecture.md's diagram; no clips exist to enqueue",
   },

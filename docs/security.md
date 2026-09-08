@@ -423,7 +423,9 @@ via the `MediaProcessor` port's `inline` adapter, in-process on Vercel rather th
 separate Fly.io worker; the worker adapter is deferred until video is enabled
 (`docs/adr/0004-media-pipeline-mode.md`), and both adapters are specified to run the same
 steps for stills, so the discharge will hold regardless of which one is bound. **None of
-it is built.** The port, its adapters, its contract suite and the `MEDIA_PIPELINE`
-variable exist in ADR 0004 and nowhere in `apps/` or `packages/`; ADR 0004 says as much
-itself. This paragraph said _This runs_, present tense, which is why the two rows above
+the pipeline is built.** Phase 3 Task 1 added the validated `MEDIA_PIPELINE` flag
+(`'inline' | 'worker'`, default `'inline'`) to `apps/web/lib/env.ts` and `.env.example`,
+but nothing yet reads it. The port, its adapters and its contract suite still exist only
+in ADR 0004, nowhere in `apps/` or `packages/`; ADR 0004 says as much itself. This
+paragraph said _This runs_, present tense, which is why the two rows above
 now carry their own **NOT DISCHARGED** (Phase 2's final review, finding 30).

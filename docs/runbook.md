@@ -61,13 +61,14 @@ Per `docs/adr/0001-hosting-and-cost.md`:
   architecture; see the ADR).
 - **Transcoder worker:** Fly.io, auto-stopping between jobs — **deferred**, not
   provisioned. No video clips at launch (`docs/adr/0004-media-pipeline-mode.md`).
-  **There is no media pipeline to run in either mode yet, and `MEDIA_PIPELINE` is not a
-  variable this application reads** — it is declared in neither `apps/web/lib/env.ts` nor
-  `.env.example`, and setting it changes nothing. This bullet described the `inline` mode
-  as the thing running today, in a document whose own opening promises that nothing in it
-  is aspirational (Phase 2's final review, finding 30). Phase 3 builds the pipeline; until
-  then an uploaded still gets whatever Payload's own `sharp` handling gives it and no
-  derivative tier of ours.
+  **There is no media pipeline to run in either mode yet.** Phase 3 Task 1 added
+  `MEDIA_PIPELINE` (`'inline' | 'worker'`, Zod-validated, default `'inline'`) to
+  `apps/web/lib/env.ts` and `.env.example`, but no code reads it yet, so setting it still
+  changes nothing. This bullet described the `inline` mode as the thing running today, in
+  a document whose own opening promises that nothing in it is aspirational (Phase 2's
+  final review, finding 30). Later Phase 3 tasks build the pipeline; until then an
+  uploaded still gets whatever Payload's own `sharp` handling gives it and no derivative
+  tier of ours.
 - **Mail:** Resend, for OTP only.
 - **Offsite backup:** Backblaze B2 — a provider independent of both Neon and R2, so a
   single provider's outage or account compromise cannot take out the primary data and

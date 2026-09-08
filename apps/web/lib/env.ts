@@ -60,6 +60,13 @@ const envSchema = z.object({
    * production that is the media bucket's public origin, which serves no admin.
    */
   ADMIN_ORIGIN: z.string().min(1, 'ADMIN_ORIGIN is required'),
+  /**
+   * Which `MediaProcessor` adapter is bound, and with it: whether
+   * `video/mp4`/`video/quicktime` are accepted at ingest, and whether the
+   * admin shows clip affordances. One variable rather than three, so
+   * "enable video" cannot be half-done (docs/adr/0004-media-pipeline-mode.md).
+   */
+  MEDIA_PIPELINE: z.enum(['inline', 'worker']).default('inline'),
 })
 
 /** The application's validated environment shape. */

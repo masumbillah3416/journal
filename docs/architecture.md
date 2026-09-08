@@ -548,7 +548,7 @@ a `worker` adapter (the still pipeline plus `ffmpeg`, via `pgQueue` and the Fly.
 above) — both required to pass the same contract suite in CI, per ADR 0004, even though
 only `inline` would deploy until video is turned back on.
 
-**NOT BUILT.** Neither `MediaProcessor` adapter, the port itself, the contract suite or the `MEDIA_PIPELINE` variable exists in this repository: `grep -rn MediaProcessor apps packages` returns nothing, `apps/web/lib/ports/` holds only `mailer.ts`, `queue.ts` and `storage.ts`, `MEDIA_PIPELINE` is declared in neither `apps/web/lib/env.ts` nor `.env.example`, and setting it changes nothing. `docs/adr/0004-media-pipeline-mode.md` says so itself — _Nothing in this ADR is built now_ — and five documents described it in the present tense anyway (Phase 2's final review, finding 30). It is Phase 3's.
+**NOT BUILT, except the flag.** Phase 3 Task 1 added `MEDIA_PIPELINE` (`'inline' | 'worker'`, Zod-validated, default `'inline'`) to `apps/web/lib/env.ts` and `.env.example`; its TSDoc comment is the only reason `grep -rn MediaProcessor apps packages` now returns a match, and nothing yet reads the variable, so setting it still changes nothing. Neither `MediaProcessor` adapter, the port itself nor the contract suite exists: `apps/web/lib/ports/` holds only `mailer.ts`, `queue.ts` and `storage.ts`. `docs/adr/0004-media-pipeline-mode.md` says so itself — _Nothing in this ADR is built now_ — and five documents described it in the present tense anyway (Phase 2's final review, finding 30). The rest is later Phase 3 tasks'.
 
 ## 3 · Data flow
 

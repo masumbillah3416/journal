@@ -8,6 +8,23 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parseEnv } from './env'
 
+/**
+ * Builds a complete, passing raw environment record for `parseEnv`, so each
+ * test states only the field it cares about (CLAUDE.md §2.3: fixtures are
+ * factories with overrides, never shared mutable objects).
+ * @param overrides - Fields to replace on top of the valid defaults.
+ * @returns A raw environment record accepted by {@link parseEnv}.
+ */
+const aValidEnv = (
+  overrides: Partial<Record<string, string | undefined>> = {},
+): Record<string, string | undefined> => ({
+  DATABASE_URL: 'postgres://diary:diary@localhost:5432/diary',
+  PAYLOAD_SECRET: 'a'.repeat(32),
+  MEDIA_ORIGIN: 'http://localhost:3001',
+  ADMIN_ORIGIN: 'http://localhost:3000',
+  ...overrides,
+})
+
 describe('parseEnv', () => {
   it('accepts a complete environment', () => {
     const result = parseEnv({
@@ -52,6 +69,31 @@ describe('parseEnv', () => {
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types `expect.stringContaining` as `any`; `toEqual` still type-checks the surrounding assertion.
     expect(result).toEqual({ ok: false, error: expect.stringContaining('ADMIN_ORIGIN') })
+  })
+})
+
+describe('MEDIA_PIPELINE', () => {
+  it('defaults to inline when the variable is not set', () => {
+    const parsed = parseEnv({ ...aValidEnv(), MEDIA_PIPELINE: undefined })
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types `expect.objectContaining` as `any`; `toEqual` still type-checks the surrounding assertion.
+    expect(parsed).toEqual({ ok: true, value: expect.objectContaining({ MEDIA_PIPELINE: 'inline' }) })
+  })
+
+  it('accepts worker, which is the mode that turns clips on', () => {
+    const parsed = parseEnv({ ...aValidEnv(), MEDIA_PIPELINE: 'worker' })
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types `expect.objectContaining` as `any`; `toEqual` still type-checks the surrounding assertion.
+    expect(parsed).toEqual({ ok: true, value: expect.objectContaining({ MEDIA_PIPELINE: 'worker' }) })
+  })
+
+  it('refuses a mode nobody implements, naming the field', () => {
+    // A typo here would otherwise bind the inline adapter silently and defer
+    // video a second time without anybody deciding to.
+    const parsed = parseEnv({ ...aValidEnv(), MEDIA_PIPELINE: 'flyio' })
+
+    expect(parsed.ok).toBe(false)
+    expect(parsed.ok ? '' : parsed.error).toContain('MEDIA_PIPELINE')
   })
 })
 
