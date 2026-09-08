@@ -801,6 +801,10 @@ const DIRECTIVE_IN_PROSE: readonly { readonly path: string; readonly because: st
   { path: 'docs/api.md', because: 'the shape a Phase 4 action takes, in a fenced example' },
   { path: 'docs/architecture.md', because: 'the paragraph naming the rule and what defeats it' },
   { path: 'docs/security.md', because: 'the discharge table cell for authorization on every mutation' },
+  {
+    path: 'docs/superpowers/plans/2026-09-08-phase-3-media-pipeline.md',
+    because: 'the Phase 3 plan quotes the directive in the module header it tells an implementer to write',
+  },
   { path: 'docs/testing.md', because: 'the section explaining this suite, which §1.2 requires' },
 ]
 
