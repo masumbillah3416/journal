@@ -1,9 +1,18 @@
 /**
  * env.test.ts — unit tests for environment validation.
  *
- * Pure function under test, no I/O: verifies parseEnv accepts a well-formed
- * environment and rejects the two ways a mis-set environment could silently
- * degrade security (missing DATABASE_URL, an under-length PAYLOAD_SECRET).
+ * Pure function under test, no I/O. Three describe blocks, one per thing this
+ * module has to get right:
+ *   - `parseEnv`: a well-formed environment is accepted, and each way a
+ *     mis-set one could silently degrade security is rejected by name
+ *     (missing DATABASE_URL, an under-length PAYLOAD_SECRET, a missing
+ *     ADMIN_ORIGIN).
+ *   - `MEDIA_PIPELINE`: the flag defaults to `'inline'`, accepts `'worker'`,
+ *     and refuses any other spelling — a typo has to fail at boot rather than
+ *     bind the inline adapter and defer video a second time silently
+ *     (docs/adr/0004-media-pipeline-mode.md).
+ *   - the module-level `env` export: an invalid environment throws at import
+ *     time, so no request is ever served against one.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parseEnv } from './env'
