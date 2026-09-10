@@ -51,6 +51,17 @@ import {
 const CONTENT_HASH_SHAPE = /^[0-9a-f]{16}$/
 
 /**
+ * The most of its input a stored still may weigh.
+ *
+ * Four fifths, and the measurements it sits between are in the case that
+ * reads it. It is a CEILING on a re-encode rather than a derivative-tier
+ * budget: CLAUDE.md §6's image budget belongs with the tiers (Phase 3 Task
+ * 8), and this is the bound that keeps `mozjpeg` and `JPEG_QUALITY` from
+ * being dropped without a test noticing.
+ */
+const SIZE_CEILING_OF_INPUT = 0.8
+
+/**
  * Registers the shared MediaProcessor contract as a `describe` block.
  * @param name - Which adapter is under test, in the suite's title.
  * @param makeAdapter - Builds a fresh processor for one test.
@@ -198,26 +209,42 @@ export const mediaProcessorContract = (
       expect(processed.ok ? processed.value.filename : null).toBe('bergen.jpg')
     })
 
-    it('re-encodes at a fidelity a reader would accept, not a thumbnail-grade one', async () => {
-      // THE MUTATION THIS EXISTS TO CATCH is the re-encode quality being
-      // dropped - 88 to 10 left every other case in this suite green, because
-      // a 9x8 perceptual hash is indifferent to quantisation and nothing else
-      // looks at the bytes' size. That is the whole file's visual fidelity,
-      // silently.
+    it('re-encodes inside BOTH size bounds, so neither the quality nor mozjpeg can be dropped unnoticed', async () => {
+      // A FLOOR WITH NO CEILING IS HALF A BOUND, and this case was the fifth
+      // instance of that shape in this repository (after `MAX_ATTEMPTS - 1`,
+      // `HOURLY_RESEND_CAP - 1`, and Task 4's `!==` weakened to `<`, whose
+      // author's diagnosis was "every size case I had written was on the
+      // short side"). Every number below is measured on this machine against
+      // the 1200x900 fixture, which arrives at 513,582 bytes:
       //
-      // THE BOUND IS RELATIVE AND DELIBERATELY LOOSE. Measured on this
-      // machine, a 1200x900 fixture arrives at 513,582 bytes and leaves at
-      // 339,603 - 66% of it. A third is a floor with more than 2x of headroom
-      // for an encoder upgrade, while quality 10 lands nowhere near it. What
-      // this cannot police is whether 88 is the RIGHT number: that is a
-      // judgement about how a photograph looks, and a visual-regression run
-      // over a rendered gallery tile is what would settle it.
+      //   quality 88, mozjpeg on - what the pipeline does    339,603   66.1%
+      //   quality 88, mozjpeg OFF                            450,300   87.7%
+      //   quality 100, mozjpeg on                            839,387  163.4%
+      //   quality 10, mozjpeg on                              23,535    4.6%
+      //
+      // THE FLOOR catches a thumbnail-grade re-encode: 88 dropped to 10 left
+      // every other case in this suite green, because a 9x8 perceptual hash
+      // is indifferent to quantisation and nothing else looked at the size.
+      // THE CEILING catches the two mutations that survived the floor -
+      // `JPEG_QUALITY = 100`, and `mozjpeg: false`, which is a pure size
+      // lever: CLAUDE.md §6 budgets images, and a suite with no ceiling
+      // cannot see every stored still getting a third larger for no visible
+      // gain. Four fifths of the input sits above what the pipeline produces,
+      // with 14 points of headroom for an encoder upgrade, and below both
+      // mutants.
+      //
+      // What neither bound can police is whether 88 is the RIGHT number:
+      // that is a judgement about how a photograph looks, and a
+      // visual-regression run over a rendered gallery tile is what would
+      // settle it.
       const processor = await makeAdapter()
       const input = await aPhotograph()
 
       const processed = await processor.process({ bytes: input, declaredType: 'image/jpeg', filename: 'a.jpg' })
 
-      expect(processed.ok ? processed.value.bytes.length : 0).toBeGreaterThan(input.length / 3)
+      const stored = processed.ok ? processed.value.bytes.length : 0
+      expect(stored).toBeGreaterThan(input.length / 3)
+      expect(stored).toBeLessThan(input.length * SIZE_CEILING_OF_INPUT)
     })
 
     it('hashes to the sixteen lowercase hex characters the contentHash column stores', async () => {
