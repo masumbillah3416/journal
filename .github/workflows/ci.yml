@@ -32,8 +32,22 @@ jobs:
       PAYLOAD_SECRET: ci-only-secret-value-never-used-outside-actions-32
       MEDIA_ORIGIN: http://localhost:3000
       ADMIN_ORIGIN: http://localhost:3000
+      # Turns a missing ffmpeg into a FAILED BUILD rather than a quieter test
+      # run. Without it, `apps/web/lib/media/clipToolchain.ts` falls back to a
+      # recorded stand-in and prints an UNRESOLVED notice - which is the right
+      # behaviour on a developer's machine and the wrong one here, because a
+      # deferred code path with no test rots invisibly (ADR 0004's
+      # non-negotiable). Read only by that module, never by application code,
+      # which is why it is not in `apps/web/lib/env.ts`'s schema.
+      MEDIA_REQUIRE_CLIP_TOOLCHAIN: '1'
     steps:
       - uses: actions/checkout@v4
+      # ffmpeg/ffprobe for the worker MediaProcessor's clip cases (ADR 0004:
+      # both adapters are tested from day one). Installed explicitly rather
+      # than relied on from the runner image, and MEDIA_REQUIRE_CLIP_TOOLCHAIN
+      # above turns a missing binary into a failure instead of a quieter test
+      # run.
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci

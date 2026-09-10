@@ -61,14 +61,23 @@ Per `docs/adr/0001-hosting-and-cost.md`:
   architecture; see the ADR).
 - **Transcoder worker:** Fly.io, auto-stopping between jobs — **deferred**, not
   provisioned. No video clips at launch (`docs/adr/0004-media-pipeline-mode.md`).
-  **There is no media pipeline to run in either mode yet.** Phase 3 Task 1 added
-  `MEDIA_PIPELINE` (`'inline' | 'worker'`, Zod-validated, default `'inline'`) to
-  `apps/web/lib/env.ts` and `.env.example`, but no code reads it yet, so setting it still
-  changes nothing. This bullet described the `inline` mode as the thing running today, in
-  a document whose own opening promises that nothing in it is aspirational (Phase 2's
-  final review, finding 30). Later Phase 3 tasks build the pipeline; until then an
-  uploaded still gets whatever Payload's own `sharp` handling gives it and no derivative
-  tier of ours.
+  **The pipeline exists but nothing calls it yet.** Phase 3 Task 6 built the
+  `MediaProcessor` port, both adapters, the shared still pipeline and the one contract
+  suite they both pass (`apps/web/lib/ports/mediaProcessor.ts`,
+  `apps/web/lib/adapters/inline-media-processor.ts`,
+  `apps/web/lib/adapters/worker-media-processor.ts`,
+  `apps/web/lib/media/stillPipeline.ts`), and `apps/web/lib/media/services.ts` is the one
+  place `MEDIA_PIPELINE` chooses between them. **No route and no Payload hook calls
+  `mediaProcessor()`**, so setting the flag today changes which adapter a caller WOULD be
+  handed and nothing more: an uploaded still gets whatever Payload's own `sharp` handling
+  gives it and no derivative tier of ours. The receiver is Phase 3 Tasks 7-9.
+  **When `MEDIA_PIPELINE=worker` is eventually switched on, the worker's container must
+  have `ffmpeg` and `ffprobe` on its `PATH`** - `apps/web/lib/media/services.ts` passes
+  those two names to `createFfmpegToolchain`, and a container without them turns every
+  clip upload into an `'unreadable'` refusal rather than an error naming the cause.
+  This bullet described the `inline` mode as the thing running today, in a document whose
+  own opening promises that nothing in it is aspirational (Phase 2's final review,
+  finding 30).
 - **Mail:** Resend, for OTP only.
 - **Offsite backup:** Backblaze B2 — a provider independent of both Neon and R2, so a
   single provider's outage or account compromise cannot take out the primary data and

@@ -465,6 +465,23 @@ export default defineConfig({
         // a claim about an `otpChallenges` row. Gated by
         // vitest.integration.config.ts instead.
         'apps/web/lib/auth/readCodeScreen.ts',
+        // Phase 3 Task 6's MediaProcessor pipeline. Every one of these imports
+        // `sharp` - a native module doing real I/O-shaped work - so every test
+        // that exercises them is an `*.integration.test.ts`, which this
+        // Docker-free pass never runs. Excluded by exact path and gated
+        // instead by vitest.integration.config.ts, with per-file thresholds at
+        // the numbers each actually achieves; same reasoning as
+        // readBookBundle.ts above. `apps/web/lib/ports/mediaProcessor.ts` is
+        // NOT in this list: it is type-only, so it stays measured here and
+        // prints 0% while contributing no counted lines, exactly like
+        // `apps/web/lib/ports/queue.ts`.
+        'apps/web/lib/media/stillPipeline.ts',
+        'apps/web/lib/media/clipToolchain.ts',
+        'apps/web/lib/media/services.ts',
+        'apps/web/lib/adapters/inline-media-processor.ts',
+        'apps/web/lib/adapters/worker-media-processor.ts',
+        'apps/web/lib/adapters/contract/media-processor-contract.ts',
+        'apps/web/lib/adapters/contract/media-fixtures.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by

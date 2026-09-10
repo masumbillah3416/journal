@@ -187,6 +187,12 @@ const QUOTED_PROSE: readonly string[] = [
   'will never use eval() in production mode',
   'a logged-in user',
   'EXIF verifiably absent',
+  // Phase 3 Task 6: two SECURITY.md sentences the upload rows now quote back
+  // at themselves, because the discharge IS the sentence. Neither is a case
+  // name, and both are asserted below to still appear in the document - so
+  // rewording the row removes the exemption with it.
+  're-encode stills rather than passing originals through',
+  'shoot anything at home and you have published your home address',
 ]
 
 /**

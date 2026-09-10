@@ -175,6 +175,18 @@ export default tseslint.config(
     files: ['scripts/run-lighthouse.mjs'],
     rules: { 'no-console': 'off' },
   },
+  {
+    // The clip toolchain's ONE `console.warn`: the UNRESOLVED notice that says
+    // the worker MediaProcessor's clip arm is running against a recorded
+    // stand-in because `ffmpeg` is not installed. CLAUDE.md §7.1 requires an
+    // unresolvable check to be REPORTED rather than routed through an online
+    // equivalent, and a notice nobody sees is not a report - a silent
+    // stand-in is exactly the rot ADR 0004's non-negotiable exists to
+    // prevent. Named by exact path, like the two above, so `console` anywhere
+    // else in application code is still an error.
+    files: ['apps/web/lib/media/clipToolchain.ts'],
+    rules: { 'no-console': 'off' },
+  },
   // Generated output, never authored here. The last four are the browser and
   // performance harnesses' own artefacts, and they are listed for the same
   // reason `coverage/` already was: they are `.gitignore`d, so they are

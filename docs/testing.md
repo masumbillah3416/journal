@@ -844,8 +844,46 @@ while three documents counted the costs as three.
     the clause from the adapter left it passing.
 
 - **Run:** unit-reachable contracts (`storage`, `mailer`) run under `npm run verify` like
-  any other unit test; the `queue` contract, being integration-only, runs under
-  `npm run verify:full` / `npm run test:integration`.
+  any other unit test; the `queue` and `MediaProcessor` contracts, being
+  integration-only, run under `npm run verify:full` / `npm run test:integration`.
+- **The `MediaProcessor` contract (Phase 3 Task 6) is the one ADR 0004 calls
+  non-negotiable**, so it is worth saying exactly what it does and does not prove.
+  `apps/web/lib/adapters/contract/media-processor-contract.ts` is registered twice, by
+  one line each in `inline-media-processor.integration.test.ts` and
+  `worker-media-processor.integration.test.ts`, with an `expectation.mode` that says
+  which side of the video switch the adapter under test is on — so the mode case
+  asserts BOTH sides of the flag (`inline` refuses `video/mp4` as `'video-deferred'`;
+  `worker` returns a clip with a poster) rather than two suites drifting apart.
+  - **A suite can only prove the two BEHAVE the same. What makes them the same is that
+    there is one pipeline:** `apps/web/lib/media/stillPipeline.ts` holds steps 1 to 6
+    and both adapters compose it. `worker` adds step 7 and nothing else. That is the
+    answer to “are the two still pipelines the same?” — checkable in one file rather
+    than by diffing two that will drift.
+  - **Every absence assertion carries its positive control IN THE SAME TEST.** “The
+    stored bytes carry no EXIF marker” is trivially true of zero bytes and of a file
+    that failed to encode, so the metadata case asserts the INPUT carries `exif` and
+    the ASCII canary, and that the OUTPUT is a real non-empty artefact, before it
+    asserts the absence. `media-fixtures.integration.test.ts` does the same for the
+    fixtures themselves, one layer down.
+  - **`ffmpeg`/`ffprobe` are UNRESOLVED on the authoring machine, and that is reported
+    rather than worked around (CLAUDE.md §7.1).** They are not installed here, so the
+    clip toolchain's subprocess SUCCESS arms have never run locally, and no bytes were
+    sent to an online transcoder to obtain a green tick. `clipToolchainForTests()`
+    resolves one of three cases and never silently: the real toolchain where both
+    binaries answer `-version`; a THROW naming the binary where they do not and
+    `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1` is set (which CI sets, alongside an explicit
+    `apt-get install -y ffmpeg` step — so a runner without them fails the build rather
+    than testing less); and otherwise a recorded stand-in, which PRINTS a notice saying
+    it is being used and that the real path is unresolved. **The still cases need none
+    of it** — they are `stillPipeline`, which both adapters compose — so the exit
+    criterion is unaffected. `clipToolchain.integration.test.ts` covers every FAILURE
+    arm with no `ffmpeg` at all, by pointing the toolchain at a binary that does not
+    exist, which is the same code path a real `ffmpeg` failure in production takes.
+  - **One mutation is knowingly unkilled locally, and the assertion that kills it
+    exists:** returning the recorded stand-in unconditionally cannot be distinguished
+    on a machine that would get the stand-in anyway. “is the real one wherever the
+    binaries exist, and the stand-in only where they do not” is the case that catches
+    it, and it can only discriminate where the binaries are installed — CI.
 - **Coverage for integration-only code:** `npm run verify`'s coverage pass runs without
   a database, so `postgres-queue.ts`, `queue-contract.ts`, `queue-fixtures.ts`,
   `seed.ts`, `seed-data.ts`, `testPayload.ts`, `migrate.ts` and — from Phase 2 Task 3 —
@@ -896,6 +934,43 @@ while three documents counted the costs as three.
   the same reason: the probes are what make the OTP security assertions non-vacuous, so
   each of their own refusals — an empty outbox, a message with no six-digit run, an
   account with no challenge — is exercised rather than assumed.
+  **Phase 3 Task 6's seven MediaProcessor files join the same treatment**, for the same
+  reason as the rest: each imports `sharp`, a native module doing real I/O-shaped work,
+  so every test that exercises them is an `*.integration.test.ts` the Docker-free pass
+  never runs. They are excluded from `vitest.config.ts`'s coverage `include` by exact
+  path and gated in `vitest.integration.config.ts` at the numbers they actually achieve.
+  `apps/web/lib/ports/mediaProcessor.ts` is NOT among them: it is type-only, so it stays
+  in the unit pass's measured set and prints 0% while contributing no counted lines,
+  exactly like `apps/web/lib/ports/queue.ts`.
+  - **`stillPipeline.ts`, both adapters and `media/services.ts` are 100% lines, branches
+    and functions**, which is where they belong: they are the code a bad edit publishes
+    a home address through. `stillPipeline.ts` carries exactly one `c8 ignore`, on
+    `dHash`'s refusal arm — it refuses only a grid that is not 72 samples, and
+    `stillPipeline.integration.test.ts` pins `sharp`'s greyscale 9x8 resize at exactly
+    72, so reaching it needs `sharp` to return a different shape, which cannot be
+    arranged without mocking `sharp` (CLAUDE.md §2.3). `media/services.ts` reaches 100%
+    because the mode is an ARGUMENT (`mediaProcessorFor`) rather than a read of `env`
+    inside the branch — `env` is parsed once at import, so the other branch would
+    otherwise only be reachable by stubbing our own module.
+  - **`clipToolchain.ts` is 90% lines, 75% branches, 100% functions**, and the gap is the
+    UNRESOLVED above: `createFfmpegToolchain`'s three subprocess SUCCESS arms cannot run
+    where `ffmpeg` is not installed. Every failure arm is covered. CI, which installs
+    both binaries, scores HIGHER than this and passes; the threshold is the LOCAL number
+    because a gate has to be one a developer can always pass honestly.
+  - **`contract/media-fixtures.ts` is 73% lines, 95% branches, 91% functions**, and the
+    gap is `aGeneratedClip()`, which shells out to `ffmpeg` to produce a real MP4 and is
+    skipped for the `ftyp`-header option where the binary is absent. Same asymmetry: CI
+    executes it.
+  - **`contract/media-processor-contract.ts` is 100% lines, 56% branches, 100%
+    functions.** Every line runs TWICE, once per adapter, which is the exit criterion
+    demonstrating itself. The branch number is low because the suite is written
+    defensively — `processed.ok ? processed.value.kind : null` has a null arm only a
+    FAILING pipeline takes, so a passing suite by definition never takes it. Rewriting
+    those into non-null assertions would raise the number and violate CLAUDE.md §3.1,
+    which is the wrong trade.
+  - **Revisit every one of these when `@vitest/coverage-v8` or `sharp` changes version**,
+    and re-measure rather than re-asserting: three of the numbers are what an absent
+    `ffmpeg` costs, and installing it locally should RAISE them.
 - **Add one:** write `apps/web/lib/ports/<name>.ts` (the interface, plus any guard every
   adapter must share - see `validateStorageKey` above), then
   `apps/web/lib/adapters/contract/<name>-contract.ts` (the shared suite) before any
