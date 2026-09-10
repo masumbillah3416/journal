@@ -975,8 +975,8 @@ while three documents counted the costs as three.
     because the mode is an ARGUMENT (`mediaProcessorFor`) rather than a read of `env`
     inside the branch — `env` is parsed once at import, so the other branch would
     otherwise only be reachable by stubbing our own module.
-  - **`clipToolchain.ts` is gated at 80% lines, 75% branches, 77% functions, and that is
-    the FLOOR OF TWO ENVIRONMENTS rather than either one's own number.** It has two sets
+  - **`clipToolchain.ts` is gated at 75% lines, 72% branches, 75% functions, and that is a
+    FLOOR FOR TWO ENVIRONMENTS rather than either one's own number.** It has two sets
     of unreachable code, one per machine, so a threshold set from one of them is a
     threshold that cannot hold on the other. Without the binaries (here, and any
     developer's machine): `createFfmpegToolchain`'s three subprocess SUCCESS arms and
@@ -987,15 +987,23 @@ while three documents counted the costs as three.
     threshold only a machine WITHOUT `ffmpeg` could pass**, committed with a comment
     claiming CI "scores HIGHER than this". Measured here: 93.42 lines, 78.79 branches,
     100 functions. Derived for CI from the same coverage map: 80.92 lines, 81.82
-    branches, 77.78 functions. The gate takes the lower of each pair, rounded down, and
-    the CI side stays a derivation until a CI run measures it.
-  - **`contract/media-fixtures.ts` is gated at 73% lines, 91% branches, 91% functions**,
+    branches, 77.78 functions. The gate's first version took the lower of each pair rounded
+    down (80/75/77) and CI failed on it: run 34535670203's `verify` job failed at
+    `npm run verify:full` with **no test-failure annotation at all**, and Vitest pushes the
+    `github-actions` reporter whenever `GITHUB_ACTIONS` is set — a failing test would have
+    annotated — which leaves the threshold check. 80% of 152 statements is 121.6 against a
+    derivation of 123, so that axis had no slack. The numbers are floors with margin now.
+    **UNRESOLVED, tool named:** reading CI's real numbers needs `gh` or a GitHub token
+    (`/actions/jobs/<id>/logs` answers 403 without one), or `ffmpeg` installed locally.
+    Tighten when one of those exists; do not tighten by deriving again.
+  - **`contract/media-fixtures.ts` is gated at 73% lines, 87% branches, 90% functions**,
     the same two-environment shape one axis over. `aGeneratedClip()` shells out to
     `ffmpeg`, so lines and functions are low here and near-total in CI (74.48 → 99.31
     lines, 91.67 → 100 functions). Branches go the OTHER way — with the binaries present
     nobody takes the `ftyp`-header fallback or the `generated === undefined` arm, so 24
     slots lose two instead of one: 91.67% there against 95.83% here, which is why 95 was
-    the wrong number to commit.
+    the wrong number to commit — and why 91, that derivation rounded down, is one branch
+    slot of slack and not enough either.
   - **`contract/media-processor-contract.ts` is 100% lines, 56% branches, 100%
     functions.** Every line runs TWICE, once per adapter, which is the exit criterion
     demonstrating itself. The branch number is low because the suite is written
