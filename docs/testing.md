@@ -678,6 +678,21 @@ while three documents counted the costs as three.
   finding 2). `diary_test` is not torn down between runs — persisting is the same
   trade-off `diary` itself already makes; isolation, not a fresh database every time, is
   the fix.
+
+  **THAT CONNECTION STRING IS DERIVED FROM THE ENVIRONMENT'S OWN `DATABASE_URL`, AND USED
+  NOT TO BE.** Both configs held `postgres://diary:diary@localhost:5433/diary_test` as a
+  literal, and 5433 is one developer's Docker port mapping (`docs/deviations.md` §45).
+  CI's Postgres service listens on 5432, and its two jobs do not agree on the host
+  either — the `verify` job reaches it at `localhost:5432`, the containerized `browser`
+  job at `postgres:5432` over a Docker network addressed by service name. So on the first
+  CI run this repository ever had, nothing was listening where the config pointed, Payload
+  never initialised, and every integration test file failed beneath it.
+  `apps/web/lib/testDatabaseUrl.ts` replaces only the database NAME and keeps whatever
+  else the environment said; `5433` survives there as the fallback for a developer with
+  nothing set, since neither Vitest config loads `.env` before it is read. A list of known
+  hosts and ports was rejected as the same defect with more branches — the fourth
+  environment fails exactly as CI did.
+
 - **Run:** `npm run test:integration` (requires `DATABASE_URL`), or `npm run verify:full`
   to run it alongside everything else.
 - **Add one:** name the file `<name>.integration.test.ts` so Vitest's project split picks

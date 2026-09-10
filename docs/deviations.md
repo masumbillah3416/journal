@@ -1961,9 +1961,17 @@ and the three `admin-panel-*` baselines in `e2e/visual.spec.ts-snapshots/`.
 ## 45 · Postgres is published on host port 5433, not 5432
 
 **What changed:** `docker-compose.yml` maps the container's standard `5432` to host port
-**`5433`**, and every connection string in the repository (`.env.example`, `docker/`,
-`vitest.integration.config.ts`'s `diary_test` URL) is written against it. The brief's own
-example maps `5432:5432`.
+**`5433`**, and the connection strings in `.env.example` and `docker/` are written against
+it. The brief's own example maps `5432:5432`.
+
+**The two Vitest configs no longer are, and that correction is part of this entry.** Both
+held `postgres://diary:diary@localhost:5433/diary_test` as a literal until Phase 3, which
+made this machine's port mapping the port the INTEGRATION GATE required — so the gate's
+integration half failed every file on this repository's first CI run, where Postgres
+listens on `5432`. They now derive the string from the environment's own `DATABASE_URL`
+through `apps/web/lib/testDatabaseUrl.ts`, replacing only the database name. `5433`
+survives there as the fallback for a developer with nothing set, which is what a local run
+has always used, and it is the only place in the two configs that names a port at all.
 
 **Rationale:** a pre-existing native Postgres service already listens on this machine's
 `5432`. Connections to `localhost:5432` were silently served by THAT service rather than by

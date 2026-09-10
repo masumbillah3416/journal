@@ -111,9 +111,10 @@
  * `pointer-events: none` above all) are asserted in a real browser by
  * `e2e/book.spec.ts` - so the strategy is purely about components rendering
  * readable class names under test.
- * Depends on: vitest/config.
+ * Depends on: vitest/config, ./apps/web/lib/testDatabaseUrl.
  */
 import { defineConfig } from 'vitest/config'
+import { testDatabaseUrl } from './apps/web/lib/testDatabaseUrl'
 
 export default defineConfig({
   test: {
@@ -232,7 +233,18 @@ export default defineConfig({
             // finding 2). Every integration test file calls `getTestPayload()`
             // from that module, not `getPayload()` directly, so this value is
             // what they actually connect to.
-            DATABASE_URL: 'postgres://diary:diary@localhost:5433/diary_test',
+            //
+            // DERIVED, not written out: this line held
+            // `postgres://diary:diary@localhost:5433/diary_test`, and 5433 is
+            // one developer's Docker port mapping. Its twin in
+            // `vitest.integration.config.ts` - the config `verify:full`
+            // actually gates on - is what failed every integration file on
+            // this repository's first CI run, against a Postgres service
+            // listening on 5432. Both are derived now, from the one module
+            // (`apps/web/lib/testDatabaseUrl.ts`), because a fix applied to
+            // one copy of a value and not the other is this repository's most
+            // repeated finding.
+            DATABASE_URL: testDatabaseUrl(process.env.DATABASE_URL),
           },
         },
       },
@@ -671,6 +683,20 @@ export default defineConfig({
         // `NextRequest` (apps/web/middleware.test.ts). 100% is the number that
         // is actually achieved there, not a rounded-up one.
         'apps/web/middleware.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        // testDatabaseUrl.ts: 100% on every axis, measured rather than rounded
+        // up - it is one pure function and two constants, and every branch in
+        // it (a derivation, an absent variable, an empty one, a value that is
+        // not a URL) has a case of its own. Named at 100 rather than left
+        // under `apps/web/lib/**`'s 95% because it decides WHICH DATABASE the
+        // integration gate runs against, and the gate's integration half
+        // silently gated nothing in CI for two phases while that decision was
+        // a literal. A branch here that nobody has driven is a gate nobody
+        // has driven.
+        'apps/web/lib/testDatabaseUrl.ts': {
           lines: 100,
           branches: 100,
           functions: 100,

@@ -84,9 +84,22 @@
  * `vitest.config.ts`'s `integration` project (see its header): every
  * integration test file calls `apps/web/lib/testPayload.ts`'s
  * `getTestPayload()`, not `getPayload()` directly.
- * Depends on: vitest/config.
+ *
+ * IT IS DERIVED FROM THE ENVIRONMENT'S OWN `DATABASE_URL` RATHER THAN
+ * WRITTEN OUT HERE, and that is what the first CI run this repository ever
+ * had was about. This line used to read
+ * `postgres://diary:diary@localhost:5433/diary_test`; 5433 is one developer's
+ * Docker port mapping, CI's Postgres service listens on 5432, and CI's two
+ * jobs do not even agree on the host (`localhost` for `verify`, the service
+ * name `postgres` for the containerized `browser` job). Nothing was listening
+ * where this pointed, so Payload never initialised and every integration test
+ * file failed downstream. `apps/web/lib/testDatabaseUrl.ts` replaces the
+ * database NAME and keeps whatever else the environment said - see its header
+ * for why a list of known hosts would be the same defect with more branches.
+ * Depends on: vitest/config, ./apps/web/lib/testDatabaseUrl.
  */
 import { defineConfig } from 'vitest/config'
+import { testDatabaseUrl } from './apps/web/lib/testDatabaseUrl'
 
 export default defineConfig({
   test: {
@@ -99,7 +112,7 @@ export default defineConfig({
     ],
     exclude: ['**/node_modules/**'],
     env: {
-      DATABASE_URL: 'postgres://diary:diary@localhost:5433/diary_test',
+      DATABASE_URL: testDatabaseUrl(process.env.DATABASE_URL),
     },
     // See vitest.config.ts's own header: these files share one live database,
     // and collections.integration.test.ts migrates the schema down and up as
