@@ -198,6 +198,78 @@ describe('sniffMediaType, on documents that are markup', () => {
     expect(sniffMediaType(anSvgDocument({ namespacePrefix: 's' }))).toBe('image/svg+xml')
   })
 
+  it('names an SVG whose namespace prefix is not ASCII, because XML names are not either', () => {
+    // The Task 2 fix re-review served this exact document from a loopback
+    // origin as `image/svg+xml` and Chromium reported
+    // `root=é:svg ns=http://www.w3.org/2000/svg svgRects=1 scriptRan=true` -
+    // a live stored-XSS attempt. It sniffed `'unknown'`, so it was refused as
+    // `'type-not-allowed'`: still refused, under a name that says
+    // "unrecognised file" for a document that renders and executes.
+    // `ingestPolicy.ts`'s own header is the argument for why the name is not
+    // interchangeable with the refusal.
+    expect(sniffMediaType(anSvgDocument({ namespacePrefix: 'é' }))).toBe('image/svg+xml')
+  })
+
+  it('names one whose prefix is Greek, since the class is a character range and not a list', () => {
+    expect(sniffMediaType(anSvgDocument({ namespacePrefix: 'ν' }))).toBe('image/svg+xml')
+  })
+
+  it('names one whose prefix is outside the basic multilingual plane', () => {
+    // XML NameStartChar reaches U+EFFFF, so a prefix can be a surrogate pair.
+    // A character class written without the `u` flag would match half of one.
+    expect(sniffMediaType(anSvgDocument({ namespacePrefix: '𝔞' }))).toBe('image/svg+xml')
+  })
+
+  it('names one whose prefix carries a name character that cannot start a name', () => {
+    // U+00B7 is an XML NameChar but not a NameStartChar, so a legal prefix can
+    // hold it anywhere but first. Chromium reported `root=a·b:svg
+    // ns=http://www.w3.org/2000/svg scriptRan=true` for this document, so the
+    // class has to admit the continuation characters and not only the start.
+    expect(sniffMediaType(anSvgDocument({ namespacePrefix: 'a·b' }))).toBe('image/svg+xml')
+  })
+
+  it('still names one whose prefix begins with a digit, which XML forbids and no parser accepts', () => {
+    // `<1:svg xmlns:1="…">` is not well-formed: served as `image/svg+xml`,
+    // Chromium answered a parse error at line 1 column 2 and ran nothing.
+    // The class admits it anyway - it is the ASCII class's own behaviour,
+    // kept rather than narrowed, because over-refusing a document no parser
+    // will run costs nothing and being stricter than the parser we protect
+    // buys nothing. This case is what makes that a decision instead of an
+    // accident.
+    expect(sniffMediaType(anSvgDocument({ namespacePrefix: '1' }))).toBe('image/svg+xml')
+  })
+
+  it('names a root element whose name merely begins with svg when the extra character is not ASCII', () => {
+    // MEASURED, and the reason the trailing lookahead is NOT widened to the
+    // XML name class: served as `image/svg+xml`, this document reported
+    // `root=svgλ ns=http://www.w3.org/2000/svg parseError=false
+    // scriptRan=true` in this repository's own Chromium. The ASCII lookahead
+    // does not know U+03BB is a NameChar, so it answers `'image/svg+xml'` -
+    // which is the accurate name for a document that executes. A tidier,
+    // wider lookahead would answer `'unknown'` and name it worse.
+    const lambda = new TextEncoder().encode('<svgλ xmlns="http://www.w3.org/2000/svg"><script>0</script></svgλ>')
+
+    expect(sniffMediaType(lambda)).toBe('image/svg+xml')
+  })
+
+  it('answers unknown for an svg-prefixed root in the SVG namespace, which is a naming limit and not a bypass', () => {
+    // THE COST OF THAT LOOKAHEAD, pinned rather than left implicit. Chromium
+    // reported `root=svgsprite ns=http://www.w3.org/2000/svg scriptRan=true`
+    // for this document in the same run: an SVG-namespace `<script>` executes
+    // even under an element that is not `svg`. `'unknown'` is refused as
+    // `'type-not-allowed'`, so nothing is stored either way - but the refusal
+    // says "unrecognised" for a live one. It cannot be closed here: this
+    // module reads element names and never the `xmlns` that decides whether
+    // they are in the SVG namespace, and dropping the lookahead would name
+    // the inert foreign-namespace sprite below an SVG instead. Closing it
+    // properly needs a namespace-aware parse, not a sniff.
+    const sprite = new TextEncoder().encode(
+      '<svgsprite xmlns="http://www.w3.org/2000/svg"><script>0</script></svgsprite>',
+    )
+
+    expect(sniffMediaType(sprite)).toBe('unknown')
+  })
+
   it('names an SVG whose processing instruction spoofs an ftyp box header, prefix and all', () => {
     // Fourteen bytes of prolog and no padding at all: `<?x ` is four bytes,
     // so `ftyp` sits at offset 4, and the prefixed root then defeated the

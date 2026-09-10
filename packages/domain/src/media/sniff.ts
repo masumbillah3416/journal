@@ -155,17 +155,73 @@ const LEADING_NOISE = /^[\ufeff\s]+/u
 const MARKUP_OPENER = '<'
 
 /**
+ * The characters an XML name may be spelled with, as a character class body.
+ *
+ * The union of XML 1.0's `NameStartChar` and `NameChar` productions, minus
+ * `:` (which separates a prefix from a local name) and minus the upper-case
+ * ranges, because {@link openingWindow} has already lower-cased the window.
+ * Three consecutive source ranges are merged into `\u00f8-\u037d`, which is
+ * exactly their union.
+ *
+ * IT WAS `[a-z0-9._-]`, AND THAT WAS ASCII-ONLY WHILE XML NAMES ARE NOT.
+ * The Task 2 fix re-review served `<é:svg xmlns:é="http://www.w3.org/2000/svg">`
+ * and a Greek-prefixed `<ν:svg …>` from a loopback origin as `image/svg+xml`
+ * and Chromium reported `root=é:svg ns=http://www.w3.org/2000/svg svgRects=1
+ * scriptRan=true` for both: live stored-XSS attempts, sniffed `'unknown'`.
+ * They were still refused — `'type-not-allowed'`, nothing was accepted — but
+ * under a name that says "unrecognised file" for a document that renders and
+ * executes, and `ingestPolicy.ts`'s header is the argument for why that name
+ * is not interchangeable with the refusal.
+ *
+ * This class is a strict SUPERSET of the ASCII one it replaced, so no
+ * document that was named `image/svg+xml` stopped being named it. Digits and
+ * `.`/`-`/`_` are still admitted in the FIRST position, where XML forbids
+ * them: `<1:svg …>` is not well-formed, and served as `image/svg+xml` this
+ * repository's own Chromium answered it with a parse error at line 1 column
+ * 2 and ran nothing (measured) — so naming it an SVG over-refuses in the
+ * direction that costs nothing, while narrowing would be this module
+ * choosing to be stricter than the parser it protects.
+ */
+const XML_NAME_CHARACTERS = String.raw`a-z0-9._\-\u00b7\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u037d\u037f-\u1fff\u200c-\u200d\u203f-\u2040\u2070-\u218f\u2c00-\u2fef\u3001-\ud7ff\uf900-\ufdcf\ufdf0-\ufffd\u{10000}-\u{effff}`
+
+/**
  * An `svg` element, with or without a namespace prefix.
  *
  * `<s:svg xmlns:s="http://www.w3.org/2000/svg">` is a legal SVG root — the
  * prefix is bound to the SVG namespace by the attribute, Chromium parses it
  * into that namespace and runs the `<s:script>` inside it (measured in the
  * Task 2 review) — so a test for the literal text `<svg` misses a live
- * document. The trailing lookahead is what keeps `<svgsprite …>` from
- * answering as an SVG: element names may carry letters, digits, `.`, `-` and
- * `_`, so a name that merely BEGINS with `svg` is a different element.
+ * document. The prefix is {@link XML_NAME_CHARACTERS} rather than ASCII for
+ * the reason that constant records.
+ *
+ * ═══ THE TRAILING LOOKAHEAD IS ASCII ON PURPOSE, AND THAT IS MEASURED ═══
+ *
+ * It is what keeps `<svgsprite …>` from answering as an SVG: a name that
+ * merely BEGINS with `svg` is a different element. Widening it to
+ * {@link XML_NAME_CHARACTERS} would be tidier, and was rejected because it
+ * would make one answer WORSE. Served as `image/svg+xml` in this
+ * repository's own Chromium, `<svgλ xmlns="http://www.w3.org/2000/svg">`
+ * wrapping an SVG-namespace `<script>` reported `root=svgλ
+ * ns=http://www.w3.org/2000/svg parseError=false scriptRan=true` — and so
+ * did `<svg̈ …>`, an `svg` with a combining diaeresis. The ASCII lookahead
+ * does not know U+03BB is a NameChar, so it names both `'image/svg+xml'`,
+ * which is the accurate name for a document that executes. A wider lookahead
+ * would answer `'unknown'` for them.
+ *
+ * WHAT THAT LEAVES, STATED EXACTLY RATHER THAN IMPLIED.
+ * `<svgsprite xmlns="http://www.w3.org/2000/svg">` around an SVG-namespace
+ * `<script>` ALSO executes (same run: `root=svgsprite scriptRan=true`) and is
+ * answered `'unknown'`. That is a naming limit and not a bypass —
+ * `'unknown'` is refused as `'type-not-allowed'`, so nothing is stored either
+ * way — and it cannot be closed by this regex, which reads element names and
+ * never the `xmlns` that decides whether they are in the SVG namespace:
+ * dropping the lookahead would name `<svgsprite
+ * xmlns="http://example.test/sprite"/>`, which executes nothing, an SVG
+ * instead. Both directions mis-name one document, and the one kept mis-names
+ * the inert one. Closing it properly needs a namespace-aware read of the
+ * root element, which is a parser and not a sniff.
  */
-const SVG_ROOT_ELEMENT = /<(?:[a-z0-9._-]+:)?svg(?![a-z0-9._-])/u
+const SVG_ROOT_ELEMENT = new RegExp(String.raw`<(?:[${XML_NAME_CHARACTERS}]+:)?svg(?![a-z0-9._-])`, 'u')
 
 /**
  * Whether these bytes open with this signature.
