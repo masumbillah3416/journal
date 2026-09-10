@@ -41,8 +41,15 @@
  *     video": every such file is handed to `ffprobe`, whose failure is a
  *     `'unreadable'` refusal, and that probe is the first thing that
  *     actually validates the container.
- *   - **A TOOLCHAIN FAILURE IS `'unreadable'`, NEVER A THROW.** The port's
- *     contract is that `process` never throws.
+ *   - **A TOOLCHAIN FAILURE IS `'unreadable'`, NEVER A THROW** - whether the
+ *     toolchain RETURNS the failure or RAISES it. The port's contract is that
+ *     `process` never throws, and the raising half of that is the half this
+ *     adapter got wrong: `probe`/`transcode`/`poster` answer with a typed
+ *     error for an `ffmpeg` that ran and failed, and with an exception for
+ *     everything around it (a temp file that cannot be written, an output
+ *     file that is not there after a zero exit, the named throw that
+ *     `MEDIA_REQUIRE_CLIP_TOOLCHAIN` raises where the binaries are absent).
+ *     Both are caught where the clip arm is entered.
  *
  * Depends on: the domain's ingest policy and sniff, `runStillPipeline` and
  * `ClipToolchain`/`createFfmpegToolchain` from ../media, and the
@@ -166,7 +173,31 @@ export const createWorkerMediaProcessor = (options: { readonly toolchain?: ClipT
       const decision = ingestDecision({ sniffed, declared: upload.declaredType, mode: MODE })
       if (!decision.ok) return err(decision.error)
 
-      return processClip(upload, toolchain)
+      // A TOOLCHAIN THAT THROWS IS STILL A REFUSAL, and this is where the
+      // port's "`process` never throws" invariant is discharged for the clip
+      // arm. `probe`/`transcode`/`poster` return typed errors for an `ffmpeg`
+      // that ran and failed, but they do not cover a failure BEFORE or AFTER
+      // the subprocess: `withClipOnDisk`'s `mkdtemp`/`writeFile` on a full or
+      // read-only disk, `readFile(output)` after an `ffmpeg` that exited zero
+      // and wrote nothing, and - in the test suite - the named throw
+      // `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1` raises on a runner with no binaries.
+      // Every one of those used to escape as a rejected promise, which is a
+      // 500 on an upload rather than a refusal an author can act on.
+      //
+      // The still arm above needs no equivalent: `runStillPipeline` catches
+      // its own decoder failures, which the contract's truncated-JPEG case
+      // pins for both adapters.
+      try {
+        return await processClip(upload, toolchain)
+      } catch {
+        // Not an empty catch (CLAUDE.md §3.1): a crash on
+        // attacker-controlled bytes is a typed refusal, exactly as a decoder
+        // failure is in the shared still pipeline. The toolchain's own words
+        // are not carried, for the reason `processClip` states about the
+        // poster frame - a refusal about OUR intermediate step is never a
+        // statement about what the client declared.
+        return err('unreadable')
+      }
     },
   }
 }

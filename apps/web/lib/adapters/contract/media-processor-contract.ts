@@ -35,7 +35,7 @@ import { describe, expect, it } from 'vitest'
 import { metadataMarkersIn, readExifFacts } from '@travel-diary/domain/media/exif'
 import type { PipelineMode } from '@travel-diary/domain/media/ingestPolicy'
 import { isPerceptualDuplicate } from '@travel-diary/domain/media/perceptualHash'
-import { anSvgDocument } from '@travel-diary/domain/testing/bytes'
+import { anIsoBmffHeader, anSvgDocument } from '@travel-diary/domain/testing/bytes'
 import type { MediaProcessor } from '../../ports/mediaProcessor'
 import {
   aClip,
@@ -324,6 +324,49 @@ export const mediaProcessorContract = (
 
       const both = one.ok && other.ok
       expect(both ? isPerceptualDuplicate(one.value.contentHash, other.value.contentHash) : true).toBe(false)
+    })
+
+    it('resolves rather than throwing, whatever the bytes are, which is the ports loudest invariant', async () => {
+      // THE PORT'S HEADLINE INVARIANT, AND UNTIL NOW THE ONE THING THIS
+      // SUITE DID NOT CHECK: "`process` NEVER THROWS. The bytes are
+      // attacker-controlled, so every way of failing is a value." A rejected
+      // promise here is a refusal path that crashes the request handler
+      // instead of answering it - which is a 500 on an upload rather than a
+      // message an author can act on.
+      //
+      // The four shapes below are the four ROUTES through an adapter: nothing
+      // to sniff at all, bytes that reach `sharp` and cannot be decoded, a
+      // container header that reaches the clip arm under `worker`, and one
+      // whose declared type the policy refuses first. `allSettled` rather than
+      // `await`, because a `rejects`-style assertion on one input stops at
+      // the first and this case is about all of them settling.
+      const processor = await makeAdapter()
+      const hostile = [
+        { named: 'no bytes at all', bytes: new Uint8Array(), declaredType: 'image/jpeg' },
+        {
+          named: 'a JPEG magic number and nothing else',
+          bytes: new Uint8Array([0xff, 0xd8, 0xff]),
+          declaredType: 'image/jpeg',
+        },
+        {
+          named: 'a container header with no container',
+          bytes: anIsoBmffHeader({ brand: 'isom' }),
+          declaredType: 'video/mp4',
+        },
+        {
+          named: 'a container header declared as a photograph',
+          bytes: anIsoBmffHeader({ brand: 'qt' }),
+          declaredType: 'image/jpeg',
+        },
+      ]
+
+      const settled = await Promise.allSettled(
+        hostile.map(({ bytes, declaredType }) => processor.process({ bytes, declaredType, filename: 'hostile.bin' })),
+      )
+
+      expect(settled.map((outcome, at) => `${hostile[at]?.named ?? 'unnamed'}: ${outcome.status}`)).toEqual(
+        hostile.map(({ named }) => `${named}: fulfilled`),
+      )
     })
 
     it('handles video the way its own mode says it should, which is the whole config switch', async () => {

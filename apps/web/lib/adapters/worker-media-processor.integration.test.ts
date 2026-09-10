@@ -12,25 +12,31 @@
  * The one block of assertions below that is NOT the shared contract carries
  * its own reason: the clip arm's three failure paths have no `inline`
  * equivalent, so there is nowhere in the contract for them to live.
- * Depends on: vitest, ./worker-media-processor,
- * ./contract/media-processor-contract, `clipToolchainForTests` and
- * `ClipToolchain` from ../media/clipToolchain, and the domain's Result and
- * byte-level fixtures.
+ * Depends on: vitest, sharp, ./worker-media-processor,
+ * ./contract/media-processor-contract and ./contract/media-fixtures,
+ * `clipToolchainForTests` and `ClipToolchain` from ../media/clipToolchain, and
+ * the domain's ingest policy, Result and byte-level fixtures.
  */
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
+import type { AcceptedType } from '@travel-diary/domain/media/ingestPolicy'
+import { acceptedIngestTypes } from '@travel-diary/domain/media/ingestPolicy'
 import { err, ok } from '@travel-diary/domain/result'
 import type { Result } from '@travel-diary/domain/result'
 import { anIsoBmffHeader } from '@travel-diary/domain/testing/bytes'
 import type { ClipToolchain } from '../media/clipToolchain'
 import { clipToolchainForTests } from '../media/clipToolchain'
+import { aPhotograph } from './contract/media-fixtures'
 import { mediaProcessorContract } from './contract/media-processor-contract'
 import { createWorkerMediaProcessor } from './worker-media-processor'
+
+/** The mode this file's adapter is, named once for the registration and the routing case. */
+const MODE_UNDER_TEST = 'worker' as const
 
 mediaProcessorContract(
   'worker',
   () => Promise.resolve(createWorkerMediaProcessor({ toolchain: clipToolchainForTests() })),
-  { mode: 'worker' },
+  { mode: MODE_UNDER_TEST },
 )
 
 /**
@@ -60,6 +66,42 @@ const aFailingToolchainAfter = (succeedingSteps: number): ClipToolchain => {
   }
 }
 
+/**
+ * A small decodable JPEG, for a step that has to SUCCEED on the way to the
+ * one that fails.
+ * @returns The frame's bytes.
+ */
+const aPosterFrame = (): Promise<Buffer> =>
+  sharp({ create: { width: 32, height: 24, channels: 3, background: { r: 8, g: 60, b: 100 } } })
+    .jpeg()
+    .toBuffer()
+
+/**
+ * A toolchain that THROWS at one step rather than returning a typed error.
+ *
+ * Each step throws in a DIFFERENT SHAPE, because a `try`/`catch` around an
+ * `await` has to cover all three and a factory that only ever rejected would
+ * prove one: `probe` throws synchronously, `transcode` returns a rejected
+ * promise, and `poster` throws from inside an `async` function.
+ * @param throwingStep - Which of the three fails.
+ * @returns A toolchain whose earlier steps succeed and whose named step
+ *   throws.
+ */
+const aToolchainThrowingAt = (throwingStep: 'probe' | 'transcode' | 'poster'): ClipToolchain => {
+  const crash = (): never => {
+    throw new Error(`the toolchain crashed at ${throwingStep} rather than answering`)
+  }
+
+  return {
+    probe: () => (throwingStep === 'probe' ? crash() : Promise.resolve(ok({ durationSec: 2 }))),
+    transcode: (bytes) =>
+      throwingStep === 'transcode'
+        ? Promise.reject(new Error('the toolchain rejected at transcode rather than answering'))
+        : Promise.resolve(ok(bytes)),
+    poster: async () => (throwingStep === 'poster' ? crash() : ok(new Uint8Array(await aPosterFrame()))),
+  }
+}
+
 describe('the worker adapter when the toolchain fails', () => {
   it.each([
     { failingStep: 'probe', succeedingSteps: 0 },
@@ -76,6 +118,34 @@ describe('the worker adapter when the toolchain fails', () => {
 
     expect(processed).toEqual({ ok: false, error: 'unreadable' })
   })
+
+  it.each([
+    { failingStep: 'probe', throwingStep: 'probe' as const },
+    { failingStep: 'transcode', throwingStep: 'transcode' as const },
+    { failingStep: 'poster extraction', throwingStep: 'poster' as const },
+  ])(
+    'answers unreadable rather than throwing when $failingStep throws instead of returning',
+    async ({ throwingStep }) => {
+      // A TOOLCHAIN THAT RETURNS AN ERROR IS NOT THE ONLY WAY ONE FAILS, and
+      // the port's headline invariant is about the other way: "`process` NEVER
+      // THROWS". In production the throwing paths are `withClipOnDisk`'s
+      // `mkdtemp`/`writeFile` on a full or read-only disk, and
+      // `createFfmpegToolchain`'s `readFile(output)` after an ffmpeg that
+      // exited zero and wrote nothing. In the test suite it is
+      // `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1` on a runner with no binaries, which
+      // is where this was first observed arriving as a rejected `process()`
+      // call rather than a refusal.
+      const processor = createWorkerMediaProcessor({ toolchain: aToolchainThrowingAt(throwingStep) })
+
+      const processed = await processor.process({
+        bytes: anIsoBmffHeader({ brand: 'isom' }),
+        declaredType: 'video/mp4',
+        filename: 'harbour.mp4',
+      })
+
+      expect(processed).toEqual({ ok: false, error: 'unreadable' })
+    },
+  )
 
   it('propagates the still pipelines own refusal when the poster frame will not decode', async () => {
     // Three successful steps, but the "poster" is four bytes of JPEG header
@@ -167,6 +237,64 @@ const aRecordingToolchain = (): {
     },
   }
 }
+
+/**
+ * One decodable file per type the `worker` mode accepts.
+ *
+ * TYPED AS A TOTAL `Record` OVER `AcceptedType` ON PURPOSE, and that is what
+ * makes the case below a gate rather than a snapshot of today: a type added to
+ * `acceptedIngestTypes` fails the TYPECHECK here until it is given bytes, so
+ * nobody can widen the policy and leave the routing question unasked.
+ */
+const BYTES_PER_ACCEPTED_TYPE: Record<AcceptedType, () => Promise<Uint8Array>> = {
+  'image/jpeg': aPhotograph,
+  'image/png': async () =>
+    new Uint8Array(
+      await sharp({ create: { width: 24, height: 18, channels: 3, background: { r: 90, g: 30, b: 40 } } })
+        .png()
+        .toBuffer(),
+    ),
+  'video/mp4': () => Promise.resolve(anIsoBmffHeader({ brand: 'isom' })),
+  'video/quicktime': () => Promise.resolve(anIsoBmffHeader({ brand: 'qt' })),
+}
+
+describe('the mode the worker adapter hands the shared still pipeline', () => {
+  it('cannot matter, because the toolchain takes exactly the types inline defers', async () => {
+    // THE HOLE THIS CLOSES: changing the still delegation from
+    // `runStillPipeline(upload, { mode: MODE })` to `{ mode: 'inline' }` left
+    // every media test green, so the mode this adapter hands the shared
+    // pipeline was unobserved. It cannot be observed DIRECTLY without
+    // standing in for `runStillPipeline`, which is ours and therefore not
+    // ours to mock (CLAUDE.md §2.3) - so what is asserted is the reason it
+    // cannot matter, which is a fact about routing rather than about a
+    // constant.
+    //
+    // The only mode-dependent behaviour in the shared pipeline is
+    // `'video-deferred'`, and it needs a sniffed CLIP type. This adapter
+    // routes every clip type to the toolchain before the pipeline sees one,
+    // so the two lists agreeing is what makes the mode inert - and a third
+    // video type added to the policy but not to this adapter's `CLIP_TYPES`
+    // would reach the still pipeline, where the mode would decide its
+    // refusal. That is the day this fails.
+    const askedTheToolchain: AcceptedType[] = []
+    for (const accepted of acceptedIngestTypes(MODE_UNDER_TEST)) {
+      const recording = aRecordingToolchain()
+
+      await createWorkerMediaProcessor({ toolchain: recording.toolchain }).process({
+        bytes: await BYTES_PER_ACCEPTED_TYPE[accepted](),
+        declaredType: accepted,
+        filename: `routing.${accepted.split('/')[1] ?? 'bin'}`,
+      })
+
+      if (recording.calls.length > 0) askedTheToolchain.push(accepted)
+    }
+
+    const deferredByInline = acceptedIngestTypes(MODE_UNDER_TEST).filter(
+      (accepted) => !acceptedIngestTypes('inline').some((still) => still === accepted),
+    )
+    expect(askedTheToolchain).toEqual(deferredByInline)
+  })
+})
 
 describe('what the worker adapter asks the toolchain, and when', () => {
   it('asks it nothing at all when the declared type disagrees with the bytes', async () => {

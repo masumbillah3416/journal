@@ -865,6 +865,29 @@ while three documents counted the costs as three.
     the ASCII canary, and that the OUTPUT is a real non-empty artefact, before it
     asserts the absence. `media-fixtures.integration.test.ts` does the same for the
     fixtures themselves, one layer down.
+  - **The port's loudest invariant is now one of the shared cases.** “`process` NEVER
+    THROWS” is stated at the top of `apps/web/lib/ports/mediaProcessor.ts`, and until
+    Task 6's review nothing asserted it: `inline` could not throw, `worker` could — its
+    clip arm had no `try`/`catch`, so a toolchain that RAISED rather than returning (a
+    temp file that cannot be written, an output file absent after a zero exit, the named
+    throw `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1` raises where the binaries are missing) escaped
+    as a rejected promise, which is a 500 on an upload rather than a refusal. “resolves
+    rather than throwing, whatever the bytes are” drives four hostile shapes — no bytes,
+    a JPEG magic number and nothing else, a container header with no container, and one
+    declared as a photograph — through `Promise.allSettled` and asserts every outcome
+    `fulfilled`, for BOTH adapters. It is not vacuous: removing `stillPipeline`'s
+    `catch` fails it in both suites, and the worker's own file drives a toolchain that
+    throws at each of the three steps, in three different shapes (a synchronous throw, a
+    rejected promise, a throw from inside an `async` function).
+  - **The mode the `worker` adapter hands the shared pipeline is inert, and the REASON is
+    what is asserted.** Changing that call to `{ mode: 'inline' }` left every media test
+    green, because the only mode-dependent behaviour in `runStillPipeline` is
+    `'video-deferred'` and that needs a sniffed clip type — which the worker routes to
+    the toolchain before the pipeline sees it. A direct assertion on the argument would
+    mean standing in for `runStillPipeline`, which is ours (CLAUDE.md §2.3), so “cannot
+    matter, because the toolchain takes exactly the types inline defers” asserts the
+    routing agreement instead, over a `Record` keyed by `AcceptedType` so that widening
+    the policy fails the typecheck until the new type is given bytes.
   - **`ffmpeg`/`ffprobe` are UNRESOLVED on the authoring machine, and that is reported
     rather than worked around (CLAUDE.md §7.1).** They are not installed here, so the
     clip toolchain's subprocess SUCCESS arms have never run locally, and no bytes were
