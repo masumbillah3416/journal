@@ -160,6 +160,27 @@ export const Media: CollectionConfig = {
         // other media in no journey" must never become "the other media".
         if (journey === null) return doc
 
+        // WHAT THIS DISCARDED RESULT CONTAINS, stated here because it is an
+        // assumption a future edit could break (CLAUDE.md §1.1). A
+        // `where`-scoped update in Payload 3.88.0 does NOT reject when a
+        // document fails: it catches each one and pushes `{ id, message }`
+        // onto the `errors` array of the `BulkOperationResult` it resolves
+        // with (`payload/dist/collections/operations/update.js`, and the type
+        // in `collections/config/types.d.ts`). Nor does it abort the
+        // surrounding transaction - `killTransaction` runs only under
+        // `bulkOperationsSingleTransaction`, which no `@payloadcms/*` package
+        // sets - so with the Postgres adapter a per-document failure here is
+        // genuinely silent.
+        //
+        // No guard is written for it, and that is deliberate rather than
+        // overlooked: nothing in today's `media` can make `{ isCover: false }`
+        // fail validation, so a guard's true arm would be unreachable and
+        // would have to be bought with a `c8 ignore` for a hypothetical.
+        // UNREACHABLE HERE MEANS "given today's field list", and that list is
+        // growing - Phase 3 Task 5 added two fields, Tasks 7-9 add more, and
+        // `DATA_MODEL.md`'s `beforeChange` validation pipeline is still ahead.
+        // The first field that can refuse a write makes this the one place in
+        // this collection where a refusal is swallowed; read `errors` then.
         await req.payload.update({
           collection: 'media',
           // Threaded through so this runs inside the transaction of the update
