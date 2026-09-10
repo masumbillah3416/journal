@@ -69,11 +69,26 @@ export const DHASH_HEIGHT = 8
  * The largest number of differing bits, out of sixty-four, at which two
  * stills are still treated as the same photograph.
  *
- * Five, and inclusive. A JPEG re-encoded at another quality, or resized and
- * resized back, moves a handful of the sixty-four comparisons without
- * changing what the photograph is; two different photographs of the same
- * scene do not come this close. Raising it starts merging distinct frames of
- * a burst, which is a worse failure than storing one file twice.
+ * Five, and inclusive.
+ *
+ * WHAT WAS MEASURED, through the real `inline` processor over generated
+ * fixtures (Phase 3 Task 6, reproduced in its review): every
+ * same-photograph pair sat at **0** - quality 92 to 55, a re-encode of the
+ * encoded file, a 92/40/20/10 chain, a downsize to 400x300 and back, a
+ * JPEG/WebP/JPEG round trip, the same pixels delivered as a PNG, and one
+ * copy carrying GPS and EXIF. Two DIFFERENT generated photographs sat at
+ * **30**. So the distance a real re-encode produces is nowhere near five,
+ * and the gap on the other side is six times it.
+ *
+ * WHAT WAS NOT MEASURED, and is therefore judgement rather than
+ * observation: the collision direction. Every pair above is synthetic, and
+ * no two genuinely similar photographs - the same scene a second apart, two
+ * frames of one burst - have been put through this. "Two different
+ * photographs of the same scene do not come this close" is what five rests
+ * on and it is untested; raising it would start merging distinct frames of
+ * a burst, which is a worse failure than storing one file twice, and that
+ * is the direction to measure first if a real library ever justifies moving
+ * the number.
  */
 export const DUPLICATE_MAX_DISTANCE = 5
 

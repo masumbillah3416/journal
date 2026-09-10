@@ -261,6 +261,21 @@ describe('the duplicate-detection fixtures', () => {
     )
   })
 
+  it('puts it at exactly zero today, so drift towards the threshold is noticed rather than absorbed', async () => {
+    // THE MARGIN, PINNED. The case above allows anything up to five, so an
+    // encoder change that pushed a duplicate from 0 to 4 would pass it in
+    // silence while eating four fifths of the headroom `DUPLICATE_MAX_DISTANCE`
+    // is chosen for. Zero is what a real encoder produces here for every
+    // same-photograph pair measured (quality changes, a re-encode chain, a
+    // downsize and back, a WebP round trip, a PNG delivery, one copy carrying
+    // EXIF), so it is a fact this suite can defend rather than a bound.
+    //
+    // IT IS MEANT TO BE EDITED WHEN IT FAILS, with the new number and its
+    // cause recorded - not relaxed back to the threshold, which is the case
+    // above.
+    expect(await distanceBetween(await aPhotograph(), await aReencodedPhotograph())).toBe(0)
+  })
+
   it('puts a different photograph strictly outside the threshold, so the negative case is not vacuous', async () => {
     expect(await distanceBetween(await aPhotograph(), await aDifferentPhotograph())).toBeGreaterThan(
       DUPLICATE_MAX_DISTANCE,
