@@ -114,6 +114,14 @@ export default defineConfig({
     env: {
       DATABASE_URL: testDatabaseUrl(process.env.DATABASE_URL),
     },
+    // Runs ONCE, before the first file is collected, and stops the whole run
+    // if the server named above does not answer - see that file's header, and
+    // `apps/web/lib/testDatabaseGuard.ts`. Without it an unreachable Postgres
+    // is reported as one `Cannot read properties of undefined` per
+    // integration file (`getTestPayload()` caches a rejected promise and
+    // Vitest runs the cases anyway), which is what CI printed and why the
+    // wrong port above went two phases unnoticed.
+    globalSetup: ['./vitest.integration.globalSetup.ts'],
     // See vitest.config.ts's own header: these files share one live database,
     // and collections.integration.test.ts migrates the schema down and up as
     // part of its own test - concurrent files would race real DDL against
@@ -129,6 +137,18 @@ export default defineConfig({
         'apps/web/scripts/seed.ts',
         'apps/web/scripts/seed-data.ts',
         'apps/web/lib/testPayload.ts',
+        // The reachability guard's `pg` binding. Included so that CLAUDE.md
+        // §2.1's "no file is in neither include" is satisfied by inclusion
+        // rather than by an argument - and then IGNORED inside the file
+        // itself, with the reason at the ignore: a `globalSetup` module runs
+        // in Vitest's main process, which the v8 provider does not
+        // instrument, so with this path included and no hint the run reported
+        // every line of a file that demonstrably executed as uncovered
+        // (`0 | 100 | 100 | 0 | 39-79`). See that file's header and
+        // docs/testing.md's Integration section; the decisions it could get
+        // wrong live in `apps/web/lib/testDatabaseGuard.ts`, gated at 100% by
+        // the Docker-free pass.
+        'vitest.integration.globalSetup.ts',
         'apps/web/lib/migrate.ts',
         'apps/web/lib/readBookBundle.ts',
         'apps/web/lib/readGalleryBundle.ts',

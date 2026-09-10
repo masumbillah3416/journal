@@ -246,6 +246,14 @@ export default defineConfig({
             // repeated finding.
             DATABASE_URL: testDatabaseUrl(process.env.DATABASE_URL),
           },
+          // The same one-shot reachability guard
+          // `vitest.integration.config.ts` runs, so `npm run test:integration`
+          // - the fast local run without the coverage pass - fails the same
+          // way rather than differently. It is on the PROJECT rather than at
+          // this file's root deliberately: at the root it would run for the
+          // two Docker-free projects too, and the pre-commit gate must stay
+          // one a developer can pass with Docker down (CLAUDE.md §11).
+          globalSetup: ['./vitest.integration.globalSetup.ts'],
         },
       },
     ],
@@ -697,6 +705,20 @@ export default defineConfig({
         // a literal. A branch here that nobody has driven is a gate nobody
         // has driven.
         'apps/web/lib/testDatabaseUrl.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        // testDatabaseGuard.ts: 100% on every axis, with the connection
+        // injected rather than mocked - `connect` is the network boundary
+        // CLAUDE.md §2.3 permits standing in for, and injecting it is what
+        // lets the message be asserted in the Docker-free gate instead of
+        // only in the gate it guards. Named at 100 for the same reason
+        // testDatabaseUrl.ts is: it is the only thing that turns an
+        // unreachable database from N silent `undefined`s into one failure,
+        // and every arm of its message (which database it probes, the mask, a
+        // rejection with no message of its own) is a case.
+        'apps/web/lib/testDatabaseGuard.ts': {
           lines: 100,
           branches: 100,
           functions: 100,

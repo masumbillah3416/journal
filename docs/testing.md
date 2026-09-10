@@ -693,6 +693,44 @@ while three documents counted the costs as three.
   hosts and ports was rejected as the same defect with more branches — the fourth
   environment fails exactly as CI did.
 
+  **AN UNREACHABLE SERVER IS NOW ONE LOUD FAILURE, WHICH IS THE HALF THAT ACTUALLY
+  MATTERED.** The wrong port was a typo; a whole suite being absent without anybody
+  reading it as absent is the defect. `getTestPayload()` caches `ready` as a PROMISE, so
+  an unreachable server rejects once and every case in the file then runs with `payload`
+  still `undefined` — which is why CI surfaced a `TypeError` per file, one
+  `Cannot read properties of undefined` for each, and named the real cause nowhere.
+  `vitest.integration.globalSetup.ts` now runs once, before the first file is collected,
+  and stops the run with a single message naming the connection it tried (password
+  masked, `CLAUDE.md` §7) and what Postgres said about it. Both integration runs register
+  it — `vitest.integration.config.ts` at its root, and `vitest.config.ts`'s `integration`
+  project on the PROJECT rather than at that file's root, so the two Docker-free projects
+  never probe a database and the pre-commit gate stays one a developer can pass with
+  Docker down. `apps/web/lib/testDatabaseGuard.ts` holds the message and every decision
+  in it, gated at 100% in the Docker-free pass with the connection injected (the network
+  boundary `CLAUDE.md` §2.3 permits standing in for); its second describe block reads
+  both configs off disk and fails if either stops naming the setup file, for the same
+  reason `e2e/ciRegistration.test.ts` reads the workflow. Vitest prints its own
+  `No test files found, exiting with code 1` line above the message when a global setup
+  throws, and the run exits **1** even under `--passWithNoTests` — verified, because that
+  flag swallowing this failure would have restored the silence exactly.
+
+  **`vitest.integration.globalSetup.ts` is in that config's coverage `include` and its
+  body carries a whole-file `c8 ignore`, and the reason is measured.** A `globalSetup`
+  module runs in Vitest's own main process, not in a test worker, and
+  `@vitest/coverage-v8` instruments the workers — so with the path included and no ignore
+  hint, a run in which the setup demonstrably executed reported
+  `...lobalSetup.ts | 0 | 100 | 100 | 0 | 39-79`: every line of a file that ran, counted
+  as uncovered. A false 0% is as misleading as an unmeasured file, so this is `CLAUDE.md`
+  §2.1's second honest treatment — an ignore that carries its reason where no pass can
+  see the code — rather than the carve-out, which this file would not qualify for. What
+  it costs is bounded by design: the file holds a `pg` client and a timeout, and every
+  decision it could get wrong lives in `testDatabaseGuard.ts`. One cosmetic consequence,
+  said rather than left to alarm somebody: the ignored file leaves a directory row for the
+  repository root itself, reading `0 | 0 | 0 | 0` with no file beneath it, in that pass's
+  report. That is a
+  0-of-0 group, not a measured zero — the pass has no repository-wide threshold and no
+  entry for that path, so it gates nothing and the run exits 0.
+
 - **Run:** `npm run test:integration` (requires `DATABASE_URL`), or `npm run verify:full`
   to run it alongside everything else.
 - **Add one:** name the file `<name>.integration.test.ts` so Vitest's project split picks
