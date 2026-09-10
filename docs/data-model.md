@@ -35,10 +35,23 @@ A `beforeChange` hook will run, in order: sniff the real mime type from magic by
 the extension); reject SVG outright; read EXIF into `capturedAt` then strip all EXIF;
 re-encode stills via `sharp`; compute `contentHash` and flag a duplicate within the same
 journey; for clips, probe with `ffprobe`, transcode to H.264 MP4, extract a poster into
-`posterImage`. An `afterChange` hook will clear `isCover` on the journey's other media when
-one item's `isCover` is set. This order is deliberate — later steps depend on earlier ones
-having run (design spec §9.2). **Schema only lands in Phase 0** (this task); the hooks
-depend on the storage port (Task 7) and transcode queue (Task 9) and land with them.
+`posterImage`. That order is deliberate — later steps depend on earlier ones having run
+(design spec §9.2) — and the pipeline itself still depends on the storage port and the
+transcode queue, so it lands with them.
+
+The `afterChange` hook from the same section **is** built (Phase 3 Task 5): setting
+`isCover` clears it on the journey's OTHER media, in one query, and the query is keyed by
+`journey`. That clause is CLAUDE.md §7's first rule rather than an optimisation — a cover
+belongs to one journey, and a hook that cleared every `isCover` in the collection would be
+the sixth defect of the family the handoff already records five of. Two more clauses matter
+for reasons of their own: `id not_equals` spares the row that was just set, and
+`isCover equals true` keeps the write to the rows that need changing rather than every row
+in the journey. The hook returns immediately unless the changed row's own `isCover` is
+`true`, so editing a caption never clears a cover, and a row that belongs to no journey
+clears nothing at all: "the other media in no journey" must not become "the other media".
+The journey it reads is narrowed rather than cast, because Payload populates a relationship
+to the depth of the operation that fired the hook — an update at `depth: 0` hands the hook
+an id, and one above 0 hands it the whole journey.
 
 ### `journeys`
 

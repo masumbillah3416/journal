@@ -638,6 +638,22 @@ while three documents counted the costs as three.
   **no** operation is permitted — to a signed-in caller as well as a signed-out one, and
   against **real rows**.
 
+  That file also covers the `isCover` `afterChange` hook (Phase 3 Task 5), and it covers
+  it with **more than one journey**, because a cover is per journey and a suite with one
+  journey cannot tell "the journey's other media" from "all the media" — with one
+  journey they are the same rows. Each guard in the hook is pinned by a case that fails
+  when that guard alone is removed, measured rather than assumed: dropping the `journey`
+  clause fails _"leaves another journeys cover alone"_; dropping the
+  `isCover equals true` clause fails _"rewrites only the media that was actually the
+  cover"_ (which reads `updatedAt`, because a needless write is invisible in the field it
+  writes); dropping the guard on the changed row's own `isCover` fails _"leaves the
+  journeys cover alone when a sibling is edited"_; dropping the no-journey guard fails
+  _"leaves another journeyless rows cover flag alone"_; and narrowing `doc.journey` to
+  only one of its two shapes fails whichever case exercises the other — the populated
+  journey at the default depth, or the bare id at `depth: 0`. That last pair exists
+  because the first cases written here exercised one side only, which is the one-sided
+  boundary this repository has now met four times.
+
   Both of those qualifiers were added after a review found what their absence hid. The
   first version of these cases asserted read, create and update for a signed-out caller
   only, and one of them was named "so nobody can clear or forge their own window" while

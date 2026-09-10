@@ -56,6 +56,7 @@
  * database, never the developer's own dev database (Task 10/11 review
  * finding 2) - see that module's header.
  */
+import { randomUUID } from 'node:crypto'
 import type { MigrateUpArgs } from '@payloadcms/db-postgres'
 import { Client } from 'pg'
 import { type PayloadRequest, readMigrationFiles } from 'payload'
@@ -66,7 +67,20 @@ import { appliedMigrationCount, runMigrateDownToZero, runMigrateUp } from '../li
 import { getPayload } from '../lib/payload'
 import { getTestPayload } from '../lib/testPayload'
 
-const FIXTURE_SLUGS = ['test-tokyo', 'test-bergen', 'test-lisbon', 'test-reversibility']
+/**
+ * The slug prefix every cover-hook journey is minted under, and the entry in
+ * `FIXTURE_SLUGS` that removes all of them. Prefixed `test-` like every other
+ * fixture slug, so no seeded journey can match it.
+ */
+const FIXTURE_COVER_SLUG_PREFIX = 'test-cover-'
+
+/**
+ * What `afterAll` sweeps the `journeys` collection by. Entries are matched as
+ * PREFIXES, not whole slugs, which is what lets the last one stand for every
+ * journey the cover-hook cases mint: `journeys.slug` is unique and those cases
+ * need several journeys at once, so their slugs cannot be literals.
+ */
+const FIXTURE_SLUGS = ['test-tokyo', 'test-bergen', 'test-lisbon', 'test-reversibility', FIXTURE_COVER_SLUG_PREFIX]
 
 /** The `alt` values the two media access fixtures are created with, so `afterAll` can find and delete them. */
 const FIXTURE_MEDIA_ALTS = ['test-access-visible', 'test-access-hidden', 'test-access-hidden-editor']
@@ -133,6 +147,26 @@ const aReversibilityJourney = (): {
     { key: 'DAYLIGHT HOURS', value: 'uncounted' },
     { key: 'PUFFINS', value: 'none, wrong season' },
   ],
+})
+
+/**
+ * A journey for the cover-hook cases: the shape `aReversibilityJourney()`
+ * returns, with a slug of its own.
+ *
+ * The slug is minted per call rather than fixed because these cases need two
+ * journeys at once and `journeys.slug` is unique - two of them sharing a
+ * literal would fail inside the fixture rather than in the assertion it was
+ * written for, and a slug left behind by an interrupted run would fail the
+ * next one. `afterAll` removes them all by the shared prefix.
+ * @param overrides - Fields to replace; `slug` is the only one a case pins.
+ * @returns The journey's create data.
+ */
+const aCoverFixtureJourney = (
+  overrides: Partial<{ readonly slug: string }> = {},
+): ReturnType<typeof aReversibilityJourney> => ({
+  ...aReversibilityJourney(),
+  slug: `${FIXTURE_COVER_SLUG_PREFIX}${randomUUID()}`,
+  ...overrides,
 })
 
 /**
@@ -485,6 +519,26 @@ describe('collections', () => {
     }
   }
 
+  /**
+   * Creates one media row for the cover-hook cases.
+   *
+   * The filename is minted per call because Payload derives the stored file's
+   * name from it, and two fixtures uploading `cover.png` would collide in the
+   * media directory rather than in an assertion. `alt` is the shared fixture
+   * value, so `afterAll`'s one media loop removes these too.
+   * @param input - The journey the row belongs to (`null` for none, which is a
+   *   case of its own) and whether it is that journey's cover.
+   * @returns The created media row.
+   */
+  const createFixtureMedia = async (input: { readonly journey: number | null; readonly isCover: boolean }) => {
+    const png = await aTinyPng()
+    return payload.create({
+      collection: 'media',
+      data: { journey: input.journey, isCover: input.isCover, alt: FIXTURE_MEDIA_STATE_ALT },
+      file: { data: png, mimetype: 'image/png', name: `test-cover-${randomUUID()}.png`, size: png.length },
+    })
+  }
+
   beforeAll(async () => {
     payload = await getTestPayload()
     // Repairs the ONE inconsistent state this file's own reversibility case
@@ -529,8 +583,12 @@ describe('collections', () => {
     await removeGuardFixtures()
     // "test-marrakech" is deliberately absent: that test's create() is
     // expected to reject (the highlights-cap case), so no row ever exists.
+    // Matched with `like` - Payload's case-insensitive contains - rather than
+    // `equals`, so the one `test-cover-` entry sweeps every journey the
+    // cover-hook cases minted a unique slug for. Every entry starts `test-`,
+    // so the ten real seeded journeys cannot match.
     for (const slug of FIXTURE_SLUGS) {
-      const found = await payload.find({ collection: 'journeys', where: { slug: { equals: slug } } })
+      const found = await payload.find({ collection: 'journeys', where: { slug: { like: slug } } })
       for (const doc of found.docs) {
         await payload.delete({ collection: 'journeys', id: doc.id })
       }
@@ -781,6 +839,182 @@ describe('collections', () => {
     })
 
     expect(asEditor.docs).toHaveLength(1)
+  })
+
+  it('clears isCover on the journeys other media when a new cover is set', async () => {
+    const journey = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    const first = await createFixtureMedia({ journey: journey.id, isCover: true })
+    const second = await createFixtureMedia({ journey: journey.id, isCover: false })
+    // The fixture really did set a cover: without this, a `createFixtureMedia`
+    // that silently dropped `isCover` would leave the assertion below passing
+    // on a row that was never the cover in the first place.
+    expect(first.isCover).toBe(true)
+
+    await payload.update({ collection: 'media', id: second.id, data: { isCover: true } })
+
+    const reread = await payload.findByID({
+      collection: 'media',
+      id: first.id,
+      depth: 0,
+      select: { isCover: true },
+    })
+
+    expect(reread.isCover).toBe(false)
+  })
+
+  it('leaves another journeys cover alone, because a cover belongs to one journey', async () => {
+    // CLAUDE.md §7: key everything by journey id. A hook that cleared every
+    // isCover in the collection would be the sixth defect of the family the
+    // handoff already records five of, and the case above cannot see the
+    // difference - with one journey, its media are also all the media.
+    const mine = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    const theirs = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    const theirCover = await createFixtureMedia({ journey: theirs.id, isCover: true })
+    const myNewCover = await createFixtureMedia({ journey: mine.id, isCover: false })
+    expect(theirCover.isCover).toBe(true)
+
+    await payload.update({ collection: 'media', id: myNewCover.id, data: { isCover: true } })
+
+    const reread = await payload.findByID({
+      collection: 'media',
+      id: theirCover.id,
+      depth: 0,
+      select: { isCover: true },
+    })
+
+    expect(reread.isCover).toBe(true)
+  })
+
+  it('clears the previous cover when the update is made at depth 0, where a journey is an id', async () => {
+    // The mirror of the first case rather than a duplicate of it: at depth 0
+    // Payload hands the hook `doc.journey` as an id, and above 0 as a
+    // populated journey. A hook that read only the object shape would clear
+    // nothing here, and one that read only the id shape would clear nothing
+    // there - both sides are pinned, because the cases written first
+    // exercised only one of them.
+    const journey = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    const outgoing = await createFixtureMedia({ journey: journey.id, isCover: true })
+    const incoming = await createFixtureMedia({ journey: journey.id, isCover: false })
+    expect(outgoing.isCover).toBe(true)
+
+    await payload.update({ collection: 'media', id: incoming.id, depth: 0, data: { isCover: true } })
+
+    const reread = await payload.findByID({
+      collection: 'media',
+      id: outgoing.id,
+      depth: 0,
+      select: { isCover: true },
+    })
+
+    expect(reread.isCover).toBe(false)
+  })
+
+  it('leaves every cover alone when the new cover belongs to no journey at all', async () => {
+    // `journey` is optional on `media`, so `isCover` can be set on a row that
+    // belongs to nothing. "Clear the other media in no journey" must not
+    // become "clear the other media", which is the one way this hook could
+    // reach a journey nobody named.
+    const journey = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    const cover = await createFixtureMedia({ journey: journey.id, isCover: true })
+    const orphan = await createFixtureMedia({ journey: null, isCover: false })
+    expect(cover.isCover).toBe(true)
+
+    await payload.update({ collection: 'media', id: orphan.id, data: { isCover: true } })
+
+    const reread = await payload.findByID({
+      collection: 'media',
+      id: cover.id,
+      depth: 0,
+      select: { isCover: true },
+    })
+
+    expect(reread.isCover).toBe(true)
+  })
+
+  it('leaves the journeys cover alone when a sibling is edited without touching isCover', async () => {
+    // The hook fires on EVERY change to a media row, not only on a cover
+    // being set. Without the isCover guard, editing a caption anywhere in a
+    // journey would quietly clear that journey's cover - and none of the
+    // cases above can see that, because each of them sets isCover to true.
+    const journey = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    const cover = await createFixtureMedia({ journey: journey.id, isCover: true })
+    const sibling = await createFixtureMedia({ journey: journey.id, isCover: false })
+    expect(cover.isCover).toBe(true)
+
+    await payload.update({ collection: 'media', id: sibling.id, data: { caption: 'nineteen tarts, no regrets' } })
+
+    const reread = await payload.findByID({
+      collection: 'media',
+      id: cover.id,
+      depth: 0,
+      select: { isCover: true },
+    })
+
+    expect(reread.isCover).toBe(true)
+  })
+
+  it('rewrites only the media that was actually the cover, never the rest of the journey', async () => {
+    // What the isCover-equals-true clause in the `where` is FOR. Measured by
+    // mutation: dropping that clause leaves every other case in this file
+    // green, because the guard on the changed doc is what bounds the
+    // recursion - the clause is what keeps the write narrow (CLAUDE.md §6, no
+    // needless writes and no N+1), and `updatedAt` is how a needless write
+    // shows. Without it, setting a cover rewrites every row in the journey.
+    const journey = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    const outgoing = await createFixtureMedia({ journey: journey.id, isCover: true })
+    const bystander = await createFixtureMedia({ journey: journey.id, isCover: false })
+    const incoming = await createFixtureMedia({ journey: journey.id, isCover: false })
+
+    await payload.update({ collection: 'media', id: incoming.id, data: { isCover: true } })
+
+    // The hook DID run - the old cover is cleared - so an untouched bystander
+    // below means the write was narrow, not that nothing happened at all.
+    const cleared = await payload.findByID({
+      collection: 'media',
+      id: outgoing.id,
+      depth: 0,
+      select: { isCover: true },
+    })
+    expect(cleared.isCover).toBe(false)
+    const reread = await payload.findByID({
+      collection: 'media',
+      id: bystander.id,
+      depth: 0,
+      select: { updatedAt: true },
+    })
+
+    expect(reread.updatedAt).toBe(bystander.updatedAt)
+  })
+
+  it('leaves another journeyless rows cover flag alone, because no journey is not a journey', async () => {
+    // The other half of the no-journey guard. Without it the hook would run a
+    // `journey IS NULL` query and reach across every row that belongs to
+    // nothing - rows with no gallery to be the cover of, and no journey id to
+    // be keyed by (CLAUDE.md §7). "No journey" is not a group.
+    const firstOrphan = await createFixtureMedia({ journey: null, isCover: true })
+    const secondOrphan = await createFixtureMedia({ journey: null, isCover: false })
+    expect(firstOrphan.isCover).toBe(true)
+
+    await payload.update({ collection: 'media', id: secondOrphan.id, data: { isCover: true } })
+
+    const reread = await payload.findByID({
+      collection: 'media',
+      id: firstOrphan.id,
+      depth: 0,
+      select: { isCover: true },
+    })
+
+    expect(reread.isCover).toBe(true)
+  })
+
+  it('settles rather than recursing when the hook clears a sibling', async () => {
+    // An afterChange that updates siblings fires afterChange for each sibling,
+    // so the hook has to reach a fixed point rather than a stack overflow.
+    const journey = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    await createFixtureMedia({ journey: journey.id, isCover: true })
+    const next = await createFixtureMedia({ journey: journey.id, isCover: false })
+
+    await expect(payload.update({ collection: 'media', id: next.id, data: { isCover: true } })).resolves.toBeDefined()
   })
 
   it('refuses every operation on otpChallenges, signed in or out, so a code hash is neither enumerable nor resettable', async () => {

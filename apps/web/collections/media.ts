@@ -1,15 +1,22 @@
 /**
  * media — the upload collection. Everything else references it.
  *
- * Transcribed verbatim from DATA_MODEL.md's `media` section. The `beforeChange`/
- * `afterChange` pipeline it documents (magic-byte sniffing, SVG rejection, EXIF
- * strip, re-encode, duplicate detection, clip transcode) is design spec Phase 3
- * ("Media pipeline") work, not this task's — its exit criteria are "a still and
- * a clip both survive a full round trip; EXIF verifiably absent; SVG verifiably
- * rejected." This task is schema only, per its own interface ("collections
- * registered ... migrated"). Two of those Phase 3 steps — EXIF stripping and
- * SVG rejection — are security requirements (SECURITY.md), not just pipeline
- * steps, so this pointer is load-bearing, not decorative.
+ * Transcribed verbatim from DATA_MODEL.md's `media` section, plus the `state`
+ * and `failureReason` fields the pipeline records its progress in
+ * (docs/deviations.md §48). The `beforeChange` pipeline DATA_MODEL.md
+ * documents (magic-byte sniffing, SVG rejection, EXIF strip, re-encode,
+ * duplicate detection, clip transcode) is still ahead of this file - design
+ * spec Phase 3, whose exit criteria are "a still and a clip both survive a
+ * full round trip; EXIF verifiably absent; SVG verifiably rejected". Two of
+ * those steps — EXIF stripping and SVG rejection — are security requirements
+ * (SECURITY.md), not just pipeline steps, so this pointer is load-bearing,
+ * not decorative.
+ *
+ * The `afterChange` rule from the same section IS built here, and it is the
+ * only hook this collection has: setting `isCover` clears it on the journey's
+ * OTHER media. No §3.3 pattern is implemented - a collection is a
+ * configuration object Payload reads, and the one function below is a
+ * narrowing of a value Payload hands it, not a seam of ours.
  *
  * ACCESS AND STORAGE were both added in Phase 1 Task 10, the first task whose
  * page actually displays a photograph, and both were found by that page
@@ -25,7 +32,8 @@
  */
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, PayloadRequest } from 'payload'
+import type { Media as PayloadMedia } from '../payload-types'
 
 /**
  * Where uploaded originals and their derivatives live on disk, as an ABSOLUTE
@@ -45,6 +53,27 @@ import type { CollectionConfig } from 'payload'
  * store is, is the defect this constant was written to fix.
  */
 export const MEDIA_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../media')
+
+/**
+ * The id of the journey a media row belongs to, or `null` when it belongs to
+ * none.
+ *
+ * INVARIANT, relied on by the `afterChange` hook below: `doc.journey` arrives
+ * in one of TWO shapes and the hook does not get to choose which. Payload
+ * populates a relationship to the depth of the operation that fired the hook,
+ * so an update at `depth: 0` hands it a bare id and an update above 0 hands it
+ * the whole journey. Both are narrowed rather than cast, because a cast that
+ * guessed wrong would not fail loudly - it would clear the wrong journey's
+ * cover, which is exactly the class of defect CLAUDE.md §7 exists to prevent.
+ * @param journey - The relationship value, as the hook received it.
+ * @returns The journey's id, or `null` when the row belongs to no journey.
+ * @example
+ * journeyIdOf(4) // 4
+ * journeyIdOf({ id: 4, name: 'Reykjavik', ... }) // 4
+ * journeyIdOf(null) // null
+ */
+const journeyIdOf = (journey: PayloadMedia['journey']): number | null =>
+  typeof journey === 'object' && journey !== null ? journey.id : (journey ?? null)
 
 /** The upload collection backing every still and clip in the diary. */
 export const Media: CollectionConfig = {
@@ -116,4 +145,47 @@ export const Media: CollectionConfig = {
     { name: 'order', type: 'number' },
     { name: 'contentHash', type: 'text', index: true }, // duplicate detection
   ],
+  hooks: {
+    // DATA_MODEL.md, `media`: "if `isCover` was set, clear it on the journey's
+    // other media." A cover is per journey, so the clearing is per journey -
+    // CLAUDE.md §7's first rule, and the reason the `journey` clause below is
+    // correctness rather than an optimisation. The handoff records five
+    // defects caused by per-journey state kept in one global value; a hook
+    // that cleared every `isCover` in the collection would be the sixth.
+    afterChange: [
+      async ({ doc, req }: { doc: PayloadMedia; req: PayloadRequest }) => {
+        if (doc.isCover !== true) return doc
+        const journey = journeyIdOf(doc.journey)
+        // A cover on a row that belongs to no journey clears nothing. "The
+        // other media in no journey" must never become "the other media".
+        if (journey === null) return doc
+
+        await req.payload.update({
+          collection: 'media',
+          // Threaded through so this runs inside the transaction of the update
+          // that fired the hook: the new cover and the cleared one commit
+          // together, or neither does.
+          req,
+          depth: 0, // nothing here reads a populated relationship
+          where: {
+            and: [
+              { journey: { equals: journey } },
+              { id: { not_equals: doc.id } },
+              // Keeps the write to the rows that need changing: without this
+              // clause, setting a cover rewrites EVERY row in the journey
+              // (CLAUDE.md §6 - no needless writes, no N+1). What bounds the
+              // recursion is the guard above, not this clause, and that was
+              // measured rather than assumed: removing this clause leaves
+              // every case green except the one that reads `updatedAt` on a
+              // bystander, which is how a needless write shows.
+              { isCover: { equals: true } },
+            ],
+          },
+          data: { isCover: false },
+        })
+
+        return doc
+      },
+    ],
+  },
 }
