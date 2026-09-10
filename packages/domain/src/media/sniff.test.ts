@@ -29,7 +29,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { sniffMediaType } from './sniff'
-import { aJpegHeader, anIsoBmffHeader, anSvgDocument, aPngHeader } from '../testing/factories'
+import { aJpegHeader, anAvifHeader, anIsoBmffHeader, anSvgDocument, aPngHeader } from '../testing/factories'
 
 describe('sniffMediaType', () => {
   it('names a JPEG from its start-of-image marker', () => {
@@ -130,20 +130,14 @@ describe('sniffMediaType', () => {
   })
 
   it('names a real AVIF an mp4, because avif is not a brand this table separates', () => {
-    // MEASURED HERE, not synthesised: these are the first twenty-eight bytes
-    // of an AVIF this machine's `sharp` 0.35.4 wrote - box length, `ftyp`,
-    // the major brand `avif`, a zero minor version, then the compatible
-    // brands `mif1 avif miaf`. The brief's table names every unrecognised
+    // MEASURED, not synthesised: `anAvifHeader` is a transcription of an
+    // AVIF this machine's `sharp` 0.35.4 wrote, and its docstring holds the
+    // bytes. The brief's table names every unrecognised
     // brand `'video/mp4'` and `SniffedType` has no AVIF member, so this is
     // the answer, and it is the invariant Phase 3 Task 6 has to honour: a
     // `'video/mp4'` from here means "an ISO base media file whose brand this
     // table does not know", NEVER "this decodes as video".
-    const avif = new Uint8Array([
-      0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66, 0x00, 0x00, 0x00, 0x00, 0x6d, 0x69, 0x66,
-      0x31, 0x61, 0x76, 0x69, 0x66, 0x6d, 0x69, 0x61, 0x66,
-    ])
-
-    expect(sniffMediaType(avif)).toBe('video/mp4')
+    expect(sniffMediaType(anAvifHeader())).toBe('video/mp4')
   })
 
   it('reports unknown for an ftyp box cut off before its brand', () => {
@@ -165,26 +159,21 @@ describe('sniffMediaType, on documents that are markup', () => {
     // into the SVG namespace, renders, and EXECUTES its script. `'video/mp4'`
     // is a type `worker` mode accepts, so that answer was a live bypass.
     // `'unknown'` is the refusal; a container type is the defect.
-    const spoof = new TextEncoder().encode(
-      `<!--ftypisom${'.'.repeat(1100)}--><svg xmlns="http://www.w3.org/2000/svg"><script>0</script></svg>`,
-    )
+    const spoof = anSvgDocument({ prologue: `<!--ftypisom${'.'.repeat(1100)}-->` })
 
     expect(sniffMediaType(spoof)).toBe('unknown')
   })
 
   it('refuses to read a QuickTime brand out of one either, since the brand is a second signature', () => {
-    const spoof = new TextEncoder().encode(
-      `<!--ftypqt  ${'.'.repeat(1100)}--><svg xmlns="http://www.w3.org/2000/svg"><script>0</script></svg>`,
-    )
+    const spoof = anSvgDocument({ prologue: `<!--ftypqt  ${'.'.repeat(1100)}-->` })
 
     expect(sniffMediaType(spoof)).toBe('unknown')
   })
 
   it('refuses to read one out of a padded comment followed by a stylesheet instruction', () => {
-    const spoof = new TextEncoder().encode(
-      `<!--ftypmp42${'.'.repeat(1100)}--><?xml-stylesheet href="s.css" type="text/css"?>` +
-        `<svg xmlns="http://www.w3.org/2000/svg"/>`,
-    )
+    const spoof = anSvgDocument({
+      prologue: `<!--ftypmp42${'.'.repeat(1100)}--><?xml-stylesheet href="s.css" type="text/css"?>`,
+    })
 
     expect(sniffMediaType(spoof)).toBe('unknown')
   })
@@ -195,7 +184,7 @@ describe('sniffMediaType, on documents that are markup', () => {
     // opening `<br>ftypisom` lands the tag and the brand on the same offsets.
     // A fix that enumerated `<!--` and `<?` would pass every other case in
     // this block and fail this one.
-    const spoof = new TextEncoder().encode(`<br>ftypisom${'.'.repeat(1100)}<svg xmlns="http://www.w3.org/2000/svg"/>`)
+    const spoof = anSvgDocument({ prologue: `<br>ftypisom${'.'.repeat(1100)}` })
 
     expect(sniffMediaType(spoof)).toBe('unknown')
   })
@@ -206,11 +195,7 @@ describe('sniffMediaType, on documents that are markup', () => {
     // Task 2 review served this document from a loopback origin and Chromium
     // reported `{"rootName":"s:svg","ns":"http://www.w3.org/2000/svg"}` with
     // the script executed. A test for the literal text `<svg` never sees it.
-    const prefixed = new TextEncoder().encode(
-      '<s:svg xmlns:s="http://www.w3.org/2000/svg"><s:script>0</s:script></s:svg>',
-    )
-
-    expect(sniffMediaType(prefixed)).toBe('image/svg+xml')
+    expect(sniffMediaType(anSvgDocument({ namespacePrefix: 's' }))).toBe('image/svg+xml')
   })
 
   it('names an SVG whose processing instruction spoofs an ftyp box header, prefix and all', () => {
@@ -218,9 +203,7 @@ describe('sniffMediaType, on documents that are markup', () => {
     // so `ftyp` sits at offset 4, and the prefixed root then defeated the
     // literal scan. Both halves of the old answer were wrong at once, which
     // is why this shape needed neither a long comment nor a big file.
-    const spoof = new TextEncoder().encode(
-      '<?x ftypisom?><s:svg xmlns:s="http://www.w3.org/2000/svg"><s:script>0</s:script></s:svg>',
-    )
+    const spoof = anSvgDocument({ prologue: '<?x ftypisom?>', namespacePrefix: 's' })
 
     expect(sniffMediaType(spoof)).toBe('image/svg+xml')
   })
@@ -241,7 +224,7 @@ describe('sniffMediaType, on documents that are markup', () => {
     // naming it `'unknown'` refuses it as `'type-not-allowed'`. What must
     // never happen is the fall-through to a byte signature, which is the case
     // above with `ftypisom` in the same comment.
-    const padded = new TextEncoder().encode(`<!--${'.'.repeat(1200)}--><svg xmlns="http://www.w3.org/2000/svg"/>`)
+    const padded = anSvgDocument({ prologue: `<!--${'.'.repeat(1200)}-->` })
 
     expect(sniffMediaType(padded)).toBe('unknown')
   })
@@ -250,7 +233,7 @@ describe('sniffMediaType, on documents that are markup', () => {
     // Nothing is left to read once the noise is stripped, and no signature
     // can be hiding behind it: offsets 0 and 4 are whitespace bytes, and no
     // signature this table holds is whitespace.
-    const padded = new TextEncoder().encode(`${' '.repeat(1100)}<svg xmlns="http://www.w3.org/2000/svg"/>`)
+    const padded = anSvgDocument({ leadingWhitespace: ' '.repeat(1100) })
 
     expect(sniffMediaType(padded)).toBe('unknown')
   })

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   aBookChrome,
   aJpegHeader,
+  anAvifHeader,
   anIsoBmffHeader,
   anSvgDocument,
   aPngHeader,
@@ -201,6 +202,27 @@ describe('anIsoBmffHeader', () => {
   })
 })
 
+describe('anAvifHeader', () => {
+  it('is the twenty-eight bytes this machine’s sharp wrote, in that order', () => {
+    // A literal, because the fixture is a transcription: an expectation
+    // derived from the fixture would agree with a typo in it.
+    expect([...anAvifHeader()]).toEqual([
+      0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66, 0x00, 0x00, 0x00, 0x00, 0x6d, 0x69, 0x66,
+      0x31, 0x61, 0x76, 0x69, 0x66, 0x6d, 0x69, 0x61, 0x66,
+    ])
+  })
+
+  it('carries ftyp at offset four and the avif brand at offset eight', () => {
+    const header = anAvifHeader()
+
+    expect(new TextDecoder().decode(header.subarray(4, 12))).toBe('ftypavif')
+  })
+
+  it('gives every call its own array, never a shared buffer', () => {
+    expect(anAvifHeader()).not.toBe(anAvifHeader())
+  })
+})
+
 describe('anSvgDocument', () => {
   it('opens with the root element, which is the only thing that identifies an SVG', () => {
     expect(new TextDecoder().decode(anSvgDocument()).startsWith('<svg')).toBe(true)
@@ -210,6 +232,24 @@ describe('anSvgDocument', () => {
     // The fixture has to hold the payload a rejection exists to stop; an SVG
     // with no script in it would let a broken rejection look harmless.
     expect(new TextDecoder().decode(anSvgDocument())).toContain('<script>')
+  })
+
+  it('puts the caller’s prologue between that whitespace and the root element', () => {
+    const document = new TextDecoder().decode(anSvgDocument({ leadingWhitespace: '\n', prologue: '<!--p-->' }))
+
+    expect(document.startsWith('\n<!--p--><svg')).toBe(true)
+  })
+
+  it('qualifies the root element and the script with the namespace prefix the caller named', () => {
+    // Both elements, not just the root: a document whose root is `<s:svg>`
+    // and whose script is `<script>` is not the document a browser runs,
+    // because the unprefixed element is in no namespace there.
+    const document = new TextDecoder().decode(anSvgDocument({ namespacePrefix: 's' }))
+
+    expect(document).toBe(
+      '<s:svg xmlns:s="http://www.w3.org/2000/svg">' +
+        '<s:script>fetch("/admin/sign-out",{method:"POST"})</s:script></s:svg>',
+    )
   })
 
   it('puts the caller’s leading whitespace before the root element', () => {

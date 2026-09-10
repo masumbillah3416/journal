@@ -29,20 +29,7 @@
 import { describe, expect, it } from 'vitest'
 import { acceptedIngestTypes, ingestDecision } from './ingestPolicy'
 import { sniffMediaType } from './sniff'
-import { aJpegHeader, anSvgDocument } from '../testing/factories'
-
-/**
- * The first twenty-eight bytes of an AVIF this machine's `sharp` 0.35.4
- * wrote: box length, `ftyp`, the major brand `avif`, a zero minor version,
- * then the compatible brands `mif1 avif miaf`. Real bytes rather than a
- * synthesised header, because the point of the two cases below is what a file
- * this repository's own encoder produces is answered.
- */
-const aRealAvif = (): Uint8Array =>
-  new Uint8Array([
-    0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66, 0x00, 0x00, 0x00, 0x00, 0x6d, 0x69, 0x66,
-    0x31, 0x61, 0x76, 0x69, 0x66, 0x6d, 0x69, 0x61, 0x66,
-  ])
+import { aJpegHeader, anAvifHeader, anSvgDocument } from '../testing/factories'
 
 describe('acceptedIngestTypes', () => {
   it('offers stills only under inline, because video is deferred', () => {
@@ -168,10 +155,7 @@ describe('the sniff and the policy together, on a file that lies about itself', 
     // type is a guard here - the sniff is. Before the fork was structural
     // this returned `{ ok: true, value: 'video/mp4' }` for a document served
     // as `image/svg+xml` that Chromium renders and whose script it executes.
-    const bytes = new TextEncoder().encode(
-      `<!--ftypisom${'.'.repeat(1100)}--><svg xmlns="http://www.w3.org/2000/svg">` +
-        `<script>fetch("/admin/sign-out",{method:"POST"})</script></svg>`,
-    )
+    const bytes = anSvgDocument({ prologue: `<!--ftypisom${'.'.repeat(1100)}-->` })
 
     const decision = ingestDecision({ sniffed: sniffMediaType(bytes), declared: 'video/mp4', mode: 'worker' })
 
@@ -183,10 +167,7 @@ describe('the sniff and the policy together, on a file that lies about itself', 
     // scan for `<svg` never sees - and this one is refused under the name of
     // the danger rather than as an unrecognised file, because the prefixed
     // root is recognised.
-    const bytes = new TextEncoder().encode(
-      '<?x ftypisom?><s:svg xmlns:s="http://www.w3.org/2000/svg">' +
-        '<s:script>fetch("/admin/sign-out",{method:"POST"})</s:script></s:svg>',
-    )
+    const bytes = anSvgDocument({ prologue: '<?x ftypisom?>', namespacePrefix: 's' })
 
     const decision = ingestDecision({ sniffed: sniffMediaType(bytes), declared: 'video/mp4', mode: 'worker' })
 
@@ -198,7 +179,7 @@ describe('the sniff and the policy together, on a file that lies about itself', 
     // sniff `'video/mp4'` because `avif` is not a brand this table names. The
     // disagreement is what refuses it, which is why the mismatch check earns
     // its place even though the bytes are never trusted to the client's word.
-    const decision = ingestDecision({ sniffed: sniffMediaType(aRealAvif()), declared: 'image/avif', mode: 'worker' })
+    const decision = ingestDecision({ sniffed: sniffMediaType(anAvifHeader()), declared: 'image/avif', mode: 'worker' })
 
     expect(decision).toEqual({ ok: false, error: 'declared-mismatch' })
   })
@@ -211,7 +192,7 @@ describe('the sniff and the policy together, on a file that lies about itself', 
     // build - and this case is what makes the invariant in `sniff.ts`'s
     // header ("never read 'video/mp4' as 'this decodes as video'") fail
     // loudly if Task 6 assumes otherwise.
-    const decision = ingestDecision({ sniffed: sniffMediaType(aRealAvif()), declared: 'video/mp4', mode: 'worker' })
+    const decision = ingestDecision({ sniffed: sniffMediaType(anAvifHeader()), declared: 'video/mp4', mode: 'worker' })
 
     expect(decision).toEqual({ ok: true, value: 'video/mp4' })
   })

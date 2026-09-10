@@ -250,6 +250,26 @@ export const anIsoBmffHeader = (overrides: { readonly brand?: string } = {}): Ui
 }
 
 /**
+ * The opening bytes of a real AVIF, copied verbatim from a file rather than
+ * assembled from fields.
+ *
+ * HOW THESE BYTES ARE KNOWN TO BE A REAL FILE'S: they ARE one's. `sharp`
+ * 0.35.4 on this machine was asked for an AVIF and wrote
+ * `00 00 00 1c 66 74 79 70 61 76 69 66 00 00 00 00 6d 69 66 31 61 76 69 66
+ * 6d 69 61 66` - a 0x1c-byte box, `ftyp`, the major brand `avif`, a zero
+ * minor version, then the compatible brands `mif1 avif miaf`. It is a
+ * separate fixture from {@link anIsoBmffHeader} on purpose: that one is a
+ * layout with a brand poured into it, and the two cases this one carries are
+ * about what happens to a file this repository's own encoder produces.
+ * @returns The twenty-eight bytes above, fresh per call.
+ */
+export const anAvifHeader = (): Uint8Array =>
+  new Uint8Array([
+    0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66, 0x00, 0x00, 0x00, 0x00, 0x6d, 0x69, 0x66,
+    0x31, 0x61, 0x76, 0x69, 0x66, 0x6d, 0x69, 0x61, 0x66,
+  ])
+
+/**
  * An SVG that is also an HTML document, which is the whole objection to it
  * (SECURITY.md: "One uploaded file becomes stored XSS with your own session
  * attached"). The script tag is the payload a rejection has to stop.
@@ -262,12 +282,41 @@ export const anIsoBmffHeader = (overrides: { readonly brand?: string } = {}): Ui
  * `<script>` element inside it is legal SVG content that browsers execute -
  * so this fixture is not a caricature of a hostile file, it is the shortest
  * complete one.
+ * WHY IT TAKES A PROLOGUE AND A PREFIX. Both are what the Task 2 review used
+ * to defeat the first version of the sniff, and both were measured to render
+ * and execute in this repository's own Chromium rather than reasoned about: a
+ * `prologue` of `<!--ftypisom` + padding puts an ISO base media file's box
+ * tag at its own offset and pushes the root element out of a bounded window,
+ * and a `namespacePrefix` of `s` spells that root `<s:svg xmlns:s="…">`,
+ * which is legal XML in the SVG namespace and carries no literal `<svg`.
+ * They live here rather than in the two test files that need them so the
+ * evidence for them is written once.
  * @param overrides - `leadingWhitespace` defaults to `''`; a real uploader can
- *   send a BOM or newlines before the root element.
+ *   send a BOM or newlines before the root element. `prologue` defaults to
+ *   `''` and goes between that whitespace and the root element - a comment,
+ *   an XML declaration or a processing instruction. `namespacePrefix`
+ *   defaults to `''`, meaning the default namespace; anything else qualifies
+ *   the `svg` and `script` elements with it and binds it with `xmlns:<it>`.
  * @returns The document's UTF-8 bytes.
+ * @example
+ * anSvgDocument({ prologue: `<!--ftypisom${'.'.repeat(1100)}-->` })
+ * anSvgDocument({ namespacePrefix: 's' }) // <s:svg xmlns:s="…"><s:script>…
  */
-export const anSvgDocument = (overrides: { readonly leadingWhitespace?: string } = {}): Uint8Array =>
-  new TextEncoder().encode(
-    `${overrides.leadingWhitespace ?? ''}<svg xmlns="http://www.w3.org/2000/svg">` +
-      `<script>fetch("/admin/sign-out",{method:"POST"})</script></svg>`,
+export const anSvgDocument = (
+  overrides: {
+    readonly leadingWhitespace?: string
+    readonly prologue?: string
+    readonly namespacePrefix?: string
+  } = {},
+): Uint8Array => {
+  const prefix = overrides.namespacePrefix ?? ''
+  const qualified = (element: string): string => (prefix === '' ? element : `${prefix}:${element}`)
+  const namespaceAttribute = prefix === '' ? 'xmlns' : `xmlns:${prefix}`
+
+  return new TextEncoder().encode(
+    `${overrides.leadingWhitespace ?? ''}${overrides.prologue ?? ''}` +
+      `<${qualified('svg')} ${namespaceAttribute}="http://www.w3.org/2000/svg">` +
+      `<${qualified('script')}>fetch("/admin/sign-out",{method:"POST"})</${qualified('script')}>` +
+      `</${qualified('svg')}>`,
   )
+}
