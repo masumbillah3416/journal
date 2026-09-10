@@ -19,7 +19,11 @@
  *     pass forever with `ffmpeg` broken, which is the same defect shape as a
  *     concurrency test that kept passing after `SKIP LOCKED` was deleted.
  *   - So which one {@link clipToolchainForTests} uses is never a silent
- *     decision. Three cases, in this order:
+ *     decision, and it is {@link clipEncoderCase} - not a second copy of the
+ *     same probe - that every caller asks, INCLUDING the fixture side
+ *     (`media-fixtures.ts`'s `aClip`). Two copies of the question is how the
+ *     fixture came to hand back sixteen synthetic bytes under the very
+ *     configuration that forbids a stand-in. Three cases, in this order:
  *       1. `ffmpeg` and `ffprobe` both present: the real toolchain, spawning
  *          the real binaries.
  *       2. Absent, with `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1` set: THROWS,
@@ -45,6 +49,18 @@
  * production boot validate a value no production code path reads. It is
  * compared against one exact string here instead, which is its own
  * validation - anything but `'1'` is "not set".
+ *
+ * ═══ WHAT A SIXTEEN-BYTE `ftyp` HEADER IS, AND IS NOT ═══
+ *
+ * The stand-in is MORE PERMISSIVE THAN `ffprobe`, deliberately and
+ * unavoidably: it reports a duration for whatever bytes it is handed. So no
+ * assertion may treat "the stand-in called this a clip" as the contract -
+ * `anIsoBmffHeader()` is sixteen bytes with `ftyp` at offset 4 and nothing
+ * behind it, which is a routing fixture and not a video. A real `ffprobe`
+ * refuses it, and `clipToolchain.integration.test.ts`'s toolchain-choice case
+ * is what pins that difference. The contract suite's clip cases therefore ask
+ * `../adapters/contract/media-fixtures.ts`'s `aClip` for a GENERATED
+ * container wherever one can be generated.
  *
  * PATTERN (CLAUDE.md §3.3): Ports & Adapters for the interface; Result type
  * for every fallible call, so a failed transcode is a value the worker
@@ -287,26 +303,48 @@ const recordedStandIn = (): ClipToolchain => ({
 })
 
 /**
- * Which of the three cases in this module's header applies, resolved once the
- * first clip call is actually made.
- * @returns The toolchain to use.
+ * Which of the three cases in this module's header applies on this machine.
+ *
+ * The ONE place the question is asked, by the toolchain below and by the clip
+ * FIXTURE alike: a second copy of the probe is how `aClip()` came to ignore
+ * `MEDIA_REQUIRE_CLIP_TOOLCHAIN` and hand back a synthetic header under the
+ * configuration that forbids one.
+ * @returns `'real'` when both binaries answered `-version`, `'stand-in'` when
+ *   they did not and their absence is tolerated. A two-valued union rather
+ *   than a boolean, so a call site reads as which toolchain it got rather
+ *   than as which way round a flag is (CLAUDE.md §3.2).
  * @throws {Error} When the binaries are missing and
  *   `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1` is set. THROWN RATHER THAN RETURNED AS A
  *   REFUSAL, and that is the diagnosability of a CI failure rather than a
  *   style choice: a refusal becomes `'unreadable'` inside the worker adapter,
  *   and the clip case then fails with `expected null to be 'clip'` - a red
  *   build whose log never mentions `ffmpeg`. Thrown, the message naming the
- *   binary is the failure a maintainer reads.
+ *   binary is the failure a maintainer reads. It reaches that maintainer
+ *   through the FIXTURE and through `clipToolchain.integration.test.ts`, both
+ *   outside the worker adapter - which catches everything, because the port's
+ *   contract is that `process` never throws.
+ * @example
+ * await clipEncoderCase() // 'stand-in' on the authoring machine
  */
-const chooseToolchain = async (): Promise<ClipToolchain> => {
-  if (await clipToolchainAvailable()) {
-    return createFfmpegToolchain({ ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe' })
-  }
+export const clipEncoderCase = async (): Promise<'real' | 'stand-in'> => {
+  if (await clipToolchainAvailable()) return 'real'
 
   if (process.env[REQUIRE_TOOLCHAIN_VARIABLE] === REQUIRE_TOOLCHAIN_VALUE) {
     throw new Error(
       `${REQUIRE_TOOLCHAIN_VARIABLE}=${REQUIRE_TOOLCHAIN_VALUE} is set, but neither ffmpeg nor ffprobe answered -version on this machine. The worker MediaProcessor's clip arm cannot be exercised without them. Install both (CI does: see .github/workflows/ci.yml), or unset ${REQUIRE_TOOLCHAIN_VARIABLE} to run against the recorded stand-in and accept that the real path is UNRESOLVED.`,
     )
+  }
+
+  return 'stand-in'
+}
+
+/**
+ * The toolchain for whichever case applies, with the stand-in's notice.
+ * @returns The toolchain to use.
+ */
+const chooseToolchain = async (): Promise<ClipToolchain> => {
+  if ((await clipEncoderCase()) === 'real') {
+    return createFfmpegToolchain({ ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe' })
   }
 
   console.warn(
@@ -323,11 +361,25 @@ const chooseToolchain = async (): Promise<ClipToolchain> => {
  * Lazy on purpose: the availability probe spawns two processes, and the still
  * cases - which are the ones the phase's exit criterion names - must not pay
  * for it. Nothing is spawned until a clip call is made.
+ *
+ * RESOLVED ONCE PER TOOLCHAIN, not once per call. The three methods used to
+ * re-ask, so one clip case spawned the two-process probe three times and
+ * printed the ~500-character notice three times with it - measured at seven
+ * notices and fourteen processes per media run. The memo is per returned
+ * object rather than module-level state: a module-level cache would be the
+ * mutable singleton CLAUDE.md §3.3 rejects, and would outlive a test that
+ * changes `MEDIA_REQUIRE_CLIP_TOOLCHAIN`. A rejection is cached with it
+ * deliberately, so case 2 reports the same named failure on every call.
  * @returns A toolchain that decides which of the three cases applies on first
  *   use.
  */
-export const clipToolchainForTests = (): ClipToolchain => ({
-  probe: async (bytes) => (await chooseToolchain()).probe(bytes),
-  transcode: async (bytes) => (await chooseToolchain()).transcode(bytes),
-  poster: async (bytes, atSeconds) => (await chooseToolchain()).poster(bytes, atSeconds),
-})
+export const clipToolchainForTests = (): ClipToolchain => {
+  let resolved: Promise<ClipToolchain> | undefined
+  const chosen = (): Promise<ClipToolchain> => (resolved ??= chooseToolchain())
+
+  return {
+    probe: async (bytes) => (await chosen()).probe(bytes),
+    transcode: async (bytes) => (await chosen()).transcode(bytes),
+    poster: async (bytes, atSeconds) => (await chosen()).poster(bytes, atSeconds),
+  }
+}

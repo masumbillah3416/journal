@@ -49,6 +49,7 @@ import {
   hammingDistance,
 } from '@travel-diary/domain/media/perceptualHash'
 import { sniffMediaType } from '@travel-diary/domain/media/sniff'
+import { clipToolchainAvailable } from '../../media/clipToolchain'
 import {
   aClip,
   aDifferentPhotograph,
@@ -271,5 +272,44 @@ describe('the duplicate-detection fixtures', () => {
 describe('the clip fixture', () => {
   it('sniffs as a clip type, whichever of its two options this machine produced', async () => {
     expect(sniffMediaType(await aClip())).toBe('video/mp4')
+  })
+
+  it('sniffs as quicktime when a quicktime container is asked for, which is what the contracts quicktime case rests on', async () => {
+    // THE FAILURE THIS EXISTS TO NAME is a generated `.mov` whose major brand
+    // is not QuickTime's. The contract's quicktime case declares
+    // `video/quicktime`, so a container that sniffed as `video/mp4` would earn
+    // `'declared-mismatch'` and fail that case with a refusal that says
+    // nothing about the fixture. Asserted here, on the fixture, so the failure
+    // names the fixture instead. UNRESOLVED on the authoring machine, where
+    // `ffmpeg` is absent and option 2's `qt  ` header is what this reads; the
+    // tool that settles the generated side is `ffmpeg` itself, and CI runs it.
+    expect(sniffMediaType(await aClip({ container: 'quicktime' }))).toBe('video/quicktime')
+  })
+
+  it('refuses to fall back to a header where MEDIA_REQUIRE_CLIP_TOOLCHAIN forbids a stand-in, and generates a container where it can', async () => {
+    // The variable's whole purpose is that a runner without the binaries fails
+    // the build rather than testing less. The fixture side used to resolve its
+    // own option through the bare availability probe, so it ignored the
+    // variable and handed back sixteen synthetic bytes under the very
+    // configuration that forbids a stand-in.
+    //
+    // Both arms are asserted and one is taken per machine, the same shape as
+    // `clipToolchain.integration.test.ts`'s toolchain-choice case: pinning
+    // either alone would pass here and fail in CI for no defect.
+    const previous = process.env['MEDIA_REQUIRE_CLIP_TOOLCHAIN']
+    process.env['MEDIA_REQUIRE_CLIP_TOOLCHAIN'] = '1'
+    try {
+      const asked = aClip()
+
+      if (await clipToolchainAvailable()) {
+        expect(sniffMediaType(await asked)).toBe('video/mp4')
+        return
+      }
+
+      await expect(asked).rejects.toThrow(/ffmpeg/u)
+    } finally {
+      if (previous === undefined) delete process.env['MEDIA_REQUIRE_CLIP_TOOLCHAIN']
+      else process.env['MEDIA_REQUIRE_CLIP_TOOLCHAIN'] = previous
+    }
   })
 })

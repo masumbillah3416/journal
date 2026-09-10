@@ -35,7 +35,7 @@ import { describe, expect, it } from 'vitest'
 import { metadataMarkersIn, readExifFacts } from '@travel-diary/domain/media/exif'
 import type { PipelineMode } from '@travel-diary/domain/media/ingestPolicy'
 import { isPerceptualDuplicate } from '@travel-diary/domain/media/perceptualHash'
-import { anIsoBmffHeader, anSvgDocument } from '@travel-diary/domain/testing/bytes'
+import { anSvgDocument } from '@travel-diary/domain/testing/bytes'
 import type { MediaProcessor } from '../../ports/mediaProcessor'
 import {
   aClip,
@@ -330,7 +330,7 @@ export const mediaProcessorContract = (
       const processor = await makeAdapter()
 
       const processed = await processor.process({
-        bytes: await aClip(),
+        bytes: await aClip({ container: 'mp4' }),
         declaredType: 'video/mp4',
         filename: 'harbour.mp4',
       })
@@ -348,25 +348,35 @@ export const mediaProcessorContract = (
       expect(clip === null ? null : clip.poster.kind).toBe('still')
     })
 
-    it('refuses a quicktime clip the same way it refuses an mp4, so the mode is about video and not one container', async () => {
+    it('handles a quicktime clip the way it handles an mp4, so the mode is about video and not one container', async () => {
+      // THE FIXTURE IS `aClip`, NOT A RAW `ftyp` HEADER, and that is the whole
+      // correctness of this case. It used to feed the worker adapter sixteen
+      // synthetic bytes and assert `kind === 'clip'` - which only the RECORDED
+      // STAND-IN can answer, because the stand-in reports a duration for
+      // whatever it is handed while a real `ffprobe` refuses a header with no
+      // container behind it. `clipToolchain.integration.test.ts`'s
+      // toolchain-choice case asserts exactly that refusal for the same
+      // fixture shape, so the two assertions could not both hold once
+      // `ffmpeg` was installed: this one was asserting the stand-in's
+      // permissiveness as though it were the contract. `aClip` generates a
+      // real `.mov` wherever the binaries exist, so the accepted side is now
+      // about a container in both configurations.
       const processor = await makeAdapter()
-      const quicktime = anIsoBmffHeader({ brand: 'qt' })
 
       const processed = await processor.process({
-        bytes: quicktime,
+        bytes: await aClip({ container: 'quicktime' }),
         declaredType: 'video/quicktime',
         filename: 'harbour.mov',
       })
 
-      // Under `worker` the stand-in toolchain answers this the same way it
-      // answers an mp4, so only the refusal side is asserted here; the
-      // accepted side is the case above.
       if (expectation.mode === 'inline') {
         expect(processed).toEqual({ ok: false, error: 'video-deferred' })
         return
       }
 
       expect(processed.ok ? processed.value.kind : null).toBe('clip')
+      const clip = processed.ok && processed.value.kind === 'clip' ? processed.value : null
+      expect(clip === null ? 0 : clip.durationSec).toBeGreaterThan(0)
     })
   })
 }

@@ -51,11 +51,16 @@
  * options and reports which it used:
  *
  *   1. `ffmpeg` present: the clip is GENERATED at test time from `lavfi`'s
- *      `testsrc`. Generated, never committed, so no binary blob enters the
- *      repository. This is what CI gets.
- *   2. `ffmpeg` absent: `anIsoBmffHeader({ brand: 'isom' })` - enough for the
- *      sniff, and therefore enough for the INLINE side of the mode case,
- *      which is the side the phase's exit criterion names.
+ *      `testsrc`, in the container asked for - `.mp4` or `.mov`. Generated,
+ *      never committed, so no binary blob enters the repository. This is what
+ *      CI gets, and it is the only option a REAL `ffprobe` accepts.
+ *   2. `ffmpeg` absent: `anIsoBmffHeader()` with that container's brand -
+ *      enough for the sniff, and therefore enough for the INLINE side of the
+ *      clip cases, which is the side the phase's exit criterion names. It is
+ *      NOT a video: `ffprobe` refuses it, and only the recorded stand-in -
+ *      more permissive than `ffprobe` by construction - calls it a clip. So
+ *      no case may assert that these bytes ARE a clip anywhere the real
+ *      toolchain could be the one answering.
  *
  * **`ffmpeg` is not installed on the authoring machine, so option 2 is what
  * this machine got, and the UNRESOLVED notice comes from
@@ -80,7 +85,7 @@ import sharp from 'sharp'
 // drift to two different strings - which they would, silently, since every
 // absence assertion would still pass against whichever one it was given.
 import { anIsoBmffHeader, EXIF_CANARY } from '@travel-diary/domain/testing/bytes'
-import { clipToolchainAvailable } from '../../media/clipToolchain'
+import { clipEncoderCase } from '../../media/clipToolchain'
 
 export { EXIF_CANARY }
 
@@ -351,12 +356,32 @@ export const aDifferentPhotograph = async (): Promise<Uint8Array> =>
 const GENERATED_CLIP = { seconds: 1, size: '320x240', rate: 15 } as const
 
 /**
- * Generates a real MP4 with `ffmpeg`'s own test source.
+ * Which container a clip fixture is asked for: the file extension that makes
+ * `ffmpeg` write it, and the major brand option 2's header carries.
+ *
+ * The EXTENSION is what selects the muxer - `.mov` makes `ffmpeg` write a
+ * QuickTime file whose major brand is `qt  `, which is what `sniffMediaType`
+ * reads to answer `'video/quicktime'`. Pinned by
+ * `media-fixtures.integration.test.ts`, so a build whose brand differs fails
+ * there, by name, rather than inside the contract suite as a
+ * `'declared-mismatch'` that says nothing about the fixture.
+ */
+const CLIP_CONTAINERS = {
+  mp4: { extension: 'mp4', brand: 'isom' },
+  quicktime: { extension: 'mov', brand: 'qt' },
+} as const
+
+/** Which container {@link aClip} produces. */
+export type ClipContainer = keyof typeof CLIP_CONTAINERS
+
+/**
+ * Generates a real clip with `ffmpeg`'s own test source.
+ * @param container - Which container to write.
  * @returns The file's bytes, or `undefined` when `ffmpeg` produced nothing.
  */
-const aGeneratedClip = async (): Promise<Uint8Array | undefined> => {
+const aGeneratedClip = async (container: ClipContainer): Promise<Uint8Array | undefined> => {
   const directory = await mkdtemp(join(tmpdir(), 'diary-clip-fixture-'))
-  const output = join(directory, 'fixture.mp4')
+  const output = join(directory, `fixture.${CLIP_CONTAINERS[container].extension}`)
   try {
     const exitCode = await new Promise<number | null>((resolve) => {
       const child = spawn(
@@ -392,16 +417,30 @@ const aGeneratedClip = async (): Promise<Uint8Array | undefined> => {
 }
 
 /**
- * A clip for the mode case: a real MP4 where `ffmpeg` exists, an `ftyp`
- * header otherwise. See this module's header for which this machine produced,
- * and why neither option fetches or uploads anything.
+ * A clip for the contract's two clip cases: a real container where `ffmpeg`
+ * exists, an `ftyp` header otherwise. See this module's header for which this
+ * machine produced, and why neither option fetches or uploads anything.
+ *
+ * THE OPTION IS RESOLVED THROUGH `clipEncoderCase()`, never through a second
+ * copy of the availability probe. That is what makes the fixture honour
+ * `MEDIA_REQUIRE_CLIP_TOOLCHAIN`: under that variable, with no binaries, this
+ * THROWS the message naming both of them rather than quietly handing back
+ * sixteen synthetic bytes no real `ffprobe` would accept.
+ * @param options - `container` picks the container the `ffmpeg` option writes,
+ *   and therefore the type the bytes sniff as. An options object rather than a
+ *   bare string so the call site says what the value means (CLAUDE.md §3.2).
  * @returns The clip's bytes, fresh per call.
+ * @throws {Error} Case 2 of `clipToolchain.ts`'s three: the binaries are
+ *   absent and `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1` forbids a stand-in.
+ * @example
+ * await aClip({ container: 'quicktime' }) // a real .mov wherever ffmpeg is
  */
-export const aClip = async (): Promise<Uint8Array> => {
-  if (await clipToolchainAvailable()) {
-    const generated = await aGeneratedClip()
+export const aClip = async (options: { readonly container?: ClipContainer } = {}): Promise<Uint8Array> => {
+  const container = options.container ?? 'mp4'
+  if ((await clipEncoderCase()) === 'real') {
+    const generated = await aGeneratedClip(container)
     if (generated !== undefined) return generated
   }
 
-  return anIsoBmffHeader({ brand: 'isom' })
+  return anIsoBmffHeader({ brand: CLIP_CONTAINERS[container].brand })
 }
