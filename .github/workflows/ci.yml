@@ -202,19 +202,39 @@ jobs:
       # CLAUDE.md §6 scopes the diary LCP budget (3000ms, ADR 0008) to the
       # diary route specifically, and holding Payload's heavy admin bundle
       # to it was the original reason this whole step was informational.
-      # The budget both lighthouserc files assert is 3000ms, not the 2500ms
-      # this comment used to name: ADR 0008 set it from the measured
+      # The LCP budget every lighthouserc file asserts is 3000ms, not the
+      # 2500ms this comment used to name: ADR 0008 set it from the measured
       # framework floor, ADR 0014 fixed the two viewports it is measured at,
       # and docs/testing.md §7.0 is the current-state table.
-      # `npm run test:perf` runs TWO lhci configurations and both are gates:
-      # `lighthouserc.json` (phone emulation - the mobile reading surface,
-      # the gallery and `/cms`) and `lighthouserc.book.json` (a 1350x940
-      # viewport with `Cookie: td-reading-surface=book` - the book surface).
-      # They are separate because lhci collect settings are per-run, not
-      # per-URL, and a desktop viewport makes the gallery fetch larger
-      # derivatives than its own image budget allows. Do not merge them, and
-      # do not drop the second command from this step: without it the book
-      # surface - the heavier one, and the one every LCP ADR measured - is
-      # not gated at all. See docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md.
+      #
+      # `npm run test:perf` runs every `lighthouserc*.json` at the repository
+      # root, and all of them are gates:
+      #   - `lighthouserc.json` - phone emulation: the mobile reading
+      #     surface, the gallery and `/cms`
+      #   - `lighthouserc.book.json` - a 1350x940 viewport with
+      #     `Cookie: td-reading-surface=book`: the book surface
+      #   - `lighthouserc.admin.json` - a 1440x900 desktop viewport: the
+      #     three public admin screens (Phase 2 Task 11, the admin's first
+      #     performance gate)
+      # THIS COMMENT NAMED TWO OF THE THREE AND SAID "TWO", and went on
+      # saying it for seventy-three commits after the same sentence was
+      # corrected in docs/testing.md (finding F9-9, commit cd7fc0c). That is
+      # the species the correction was supposed to end - a fix applied to one
+      # copy of a sentence and not the other - so the count is gone rather
+      # than updated (caseCounts.test.ts's doctrine, one population over: a
+      # count in prose is a floor, or it is deleted), and
+      # apps/web/lib/docs/configCitations.test.ts now reads THIS FILE as well
+      # as docs/testing.md and fails if a `lighthouserc*.json` on disk is
+      # named in neither.
+      #
+      # They are separate configs because lhci collect settings are per-run,
+      # not per-URL: a desktop viewport makes the gallery fetch larger
+      # derivatives than its own image budget allows, and the admin is an
+      # authoring surface measured at a desktop viewport rather than under
+      # phone emulation. Do not merge them, and do not drop one from the
+      # `test:perf` script: without the book config the heaviest surface -
+      # the one every LCP ADR measured - is not gated at all, and
+      # e2e/ciRegistration.test.ts fails if the script stops naming one.
+      # See docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md.
       - name: Lighthouse CI budgets
         run: npm run test:perf

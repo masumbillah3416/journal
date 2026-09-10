@@ -3379,7 +3379,22 @@ It covers the diary, book and admin script budgets, the gallery image budget, th
 gates, `numberOfRuns`, all three measured viewports and the mobile device pixel ratio, the
 published Postgres port, and the pure-domain coverage threshold. It also requires every
 `unit` include glob in `vitest.config.ts` to be quoted in this document, and every
-`lighthouserc*.json` at the root to be named by it.
+`lighthouserc*.json` at the root to be named by **each document that describes the
+performance gate** — this one and `.github/workflows/ci.yml`.
+
+**That list of documents has two entries because F9-9 recurred, in the second file, while
+the first stayed corrected.** The workflow comment above the Lighthouse step said
+`npm run test:perf` ran two lhci configurations and named two of the three, and went on
+saying it for seventy-three commits after this document's copy of the same sentence was
+fixed. A workflow comment is documentation — it is what a reader meets while looking at
+the step it sits above — so it is read here too. The count itself is not guarded but
+DELETED: the comment now names the three configurations and says all of them are gates,
+which is `caseCounts.test.ts`'s doctrine applied one population over. A count check was
+written first and rejected, because matching a `<count word> lhci configurations` shape fires on
+two sentences of this document that are both correct — §7.1's past-tense record of what
+was measured when it was measured, and §10.3's quotation of the defective sentence,
+reproduced to explain it. That is this check's own documented limit, and rewriting a
+historical record to satisfy a regex is the wrong direction.
 
 Three of the ninth review's findings were this one defect in three shapes: an enumeration
 here that omitted two of the `unit` project's include globs, so an auditor checking
