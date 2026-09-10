@@ -3037,11 +3037,15 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   the canary and the capture time both survive it. That is the point of the shape - a byte
   search over `metadata().exif` proves only that libvips found the segment, because that
   buffer comes back at full length even when the block's byte-order mark and TIFF magic
-  are corrupted. ORIENTATION certifies in both directions; the CAPTURE TIME certifies in
-  one only, and the other direction is impossible rather than untried: `sharp`'s
-  `withExif` writes a tag into the numbered TIFF directory it is given and cannot reach
-  the Exif sub-IFD where `DateTimeOriginal` belongs, so `readExifFacts` on a
-  `sharp`-written file has no `capturedAt` and the test pins that `undefined`. The tool that
+  are corrupted. ORIENTATION and the CAPTURE TIME both
+  certify in both directions, and this paragraph said otherwise for two commits after
+  the measurement that closed it. `sharp`'s `withExif` writes a tag into the numbered
+  TIFF directory it is given, and the number for the Exif sub-IFD where
+  `DateTimeOriginal` belongs is **`IFD2`** — libvips' own `ExifIfd` ordinal — so the
+  round trip succeeds and `media-fixtures.integration.test.ts` reads the capture time
+  back off a `sharp`-written file. Naming `IFD0` is what leaves `readExifFacts` with no
+  `capturedAt`, and `exifFixtureCertification.test.ts` pins that `undefined` for the
+  wrong directory rather than for the encoder. The tool that
   would settle the layout against a third party, `exiftool`, is not installed on this
   machine, so that check remains UNRESOLVED rather than routed through anything online.
 

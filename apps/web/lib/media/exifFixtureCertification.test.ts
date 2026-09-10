@@ -46,23 +46,29 @@
  * orientation out of a JPEG libvips wrote — whose TIFF block is little-endian
  * (`II`), the opposite of the fixture's default, so a real file exercises both.
  *
- * **`DateTimeOriginal` certifies in one direction only, and the other is
- * impossible rather than untried.** The EXIF specification puts
+ * **`DateTimeOriginal` certifies in BOTH directions, and an earlier version of
+ * this header said it could not.** The EXIF specification puts
  * `DateTimeOriginal` (tag `0x9003`) in the Exif sub-IFD, which IFD0 reaches
  * through tag `0x8769`, and that is where `readExifFacts` looks. `sharp`'s
  * public `withExif` takes a map keyed by numbered TIFF directory and writes
- * each tag into the directory named — so
- * `withExif({ IFD0: { DateTimeOriginal } })` puts `0x9003` in IFD0, where the
- * specification does not put it and our reader does not look, and a key named
- * `Exif` is accepted and silently written nowhere. Hand-decoding the block
- * libvips produced shows it: IFD0's seven entries end `69 87 04 00` (the
- * sub-IFD pointer) and `03 90 02 00` (`DateTimeOriginal`, in IFD0), and the
- * sub-IFD it points at holds six tags — `0x9000`, `0x9101` and
- * `0xa000`–`0xa003` — none of them `0x9003`. So there is no way to ask `sharp`
- * to write the tag where the tag belongs, and `readExifFacts` on a
- * `sharp`-written JPEG returns `{ orientation: 1 }` with no `capturedAt`. The
- * last case below pins exactly that, so the next reader to try the round trip
- * finds the answer here instead of concluding the reader is broken.
+ * each tag into the directory named — and the directory to name is **`IFD2`**,
+ * libvips' own `ExifIfd` ordinal for the Exif sub-IFD. Naming `IFD0` is what
+ * puts `0x9003` where the specification does not put it and our reader does
+ * not look (a key named `Exif` is accepted and silently written nowhere).
+ * Hand-decoding the block libvips produced from `IFD0` shows exactly that:
+ * IFD0's seven entries end `69 87 04 00` (the sub-IFD pointer) and
+ * `03 90 02 00` (`DateTimeOriginal`, in IFD0), and the sub-IFD it points at
+ * holds six tags — `0x9000`, `0x9101` and `0xa000`–`0xa003` — none of them
+ * `0x9003`.
+ *
+ * The other direction is therefore a MEASURED FIXTURE rather than a limit:
+ * `apps/web/lib/adapters/contract/media-fixtures.ts`'s `aPhotographWithExif`
+ * writes the capture time through `IFD2`, and
+ * `media-fixtures.integration.test.ts`'s “is read correctly by the domains own
+ * exif reader” reads it back at `2025-03-14T09:26:53`. The last case below
+ * keeps the `IFD0` half honest: it pins what naming the WRONG directory
+ * yields, so the next reader who tries it finds the directory number here
+ * rather than concluding the reader is broken.
  *
  * ═══ PATTERN (CLAUDE.md §3.3) ═══
  *
@@ -194,13 +200,15 @@ describe('a JPEG libvips wrote, read by our reader', () => {
     expect(readExifFacts(new Uint8Array(written)).orientation).toBe(6)
   })
 
-  it('yields no capture time, because withExif cannot write the Exif sub-IFD', async () => {
-    // Not a defect in the reader, and not an untried direction: see this
-    // file's header. `sharp` writes `DateTimeOriginal` into whichever numbered
-    // directory the caller names, never into the sub-IFD the specification
-    // puts it in, so this round trip cannot be made to succeed from here. If
-    // it ever does, `sharp` has gained sub-IFD support and three documents
-    // that say it cannot need revisiting.
+  it('yields no capture time when the tag is written into IFD0 rather than the Exif sub-IFD', async () => {
+    // NOT A LIMIT OF `sharp`, WHICH IS WHAT AN EARLIER NAME FOR THIS CASE
+    // CLAIMED. `withExif` writes each tag into the numbered directory the
+    // caller names, and the one to name for `0x9003` is `IFD2` - libvips'
+    // `ExifIfd` ordinal for the Exif sub-IFD, which
+    // `media-fixtures.integration.test.ts` reads back through
+    // `readExifFacts`. What this case pins is the cost of naming `IFD0`
+    // instead: the tag lands in the main image directory, where the
+    // specification does not put it and our reader does not look.
     const written = await sharp({
       create: { width: 8, height: 8, channels: 3, background: { r: 10, g: 20, b: 30 } },
     })

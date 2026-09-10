@@ -249,21 +249,25 @@ const ENTRY_VALUE_FIELD_AT = 8
  *     corrupted, so it certifies that libvips found the segment, not that it
  *     parsed a directory.
  *
- * THE CAPTURE TIME CANNOT BE CERTIFIED THE OTHER WAY ROUND, AND THAT IS NOT
- * A GAP. `DateTimeOriginal` (0x9003) belongs in the Exif sub-IFD that IFD0
- * reaches through 0x8769, which is where `media/exif.ts` looks. `sharp`'s
- * public `withExif` takes a map keyed by numbered TIFF directory and writes
- * each tag into the directory NAMED, so naming IFD0 puts 0x9003 in IFD0 -
+ * THE CAPTURE TIME IS CERTIFIED THE OTHER WAY ROUND TOO, AND IT TOOK THE
+ * RIGHT DIRECTORY NUMBER RATHER THAN A DIFFERENT ENCODER. `DateTimeOriginal`
+ * (0x9003) belongs in the Exif sub-IFD that IFD0 reaches through 0x8769,
+ * which is where `media/exif.ts` looks. `sharp`'s public `withExif` takes a
+ * map keyed by numbered TIFF directory and writes each tag into the
+ * directory NAMED, and the one to name is IFD2 - libvips' own `ExifIfd`
+ * ordinal for that sub-IFD. Naming IFD0 puts 0x9003 in IFD0 instead:
  * hand-decoding the block it emits shows IFD0's seven entries ending
  * `69 87 04 00` (the sub-IFD pointer) and `03 90 02 00` (the tag itself),
  * and the sub-IFD they point at holding 0x9000, 0x9101 and 0xa000-0xa003 -
- * and a key named `Exif` is accepted and written nowhere. So
- * `readExifFacts` on a `sharp`-written file answers `{ orientation: 1 }`
- * with NO `capturedAt`, and that is `sharp`'s limit, not a broken reader.
- * An earlier version of this paragraph claimed the round trip succeeded; it
- * does not, and the certification test pins the `undefined` so the next
- * reader to try it finds the reason instead of a mystery. `exiftool` would
- * settle the layout against a third-party tool and is not installed here.
+ * and a key named `Exif` is accepted and written nowhere. TWO earlier
+ * versions of this paragraph were wrong in opposite directions: the first
+ * claimed the round trip succeeded when the fixture named IFD0, and the
+ * second called the failure `sharp`'s limit. It is neither - the round trip
+ * succeeds through IFD2, measured by
+ * `apps/web/lib/adapters/contract/media-fixtures.integration.test.ts`, and
+ * `apps/web/lib/media/exifFixtureCertification.test.ts` pins what naming
+ * IFD0 costs. `exiftool` would settle the layout against a third-party tool
+ * and is not installed here.
  *
  * THE LAYOUT, offset by offset. Absolute offsets in the returned array first:
  * `ff d8` SOI, `ff e1` APP1, a two-byte big-endian segment length that counts
