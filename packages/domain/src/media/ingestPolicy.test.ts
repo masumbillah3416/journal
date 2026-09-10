@@ -56,12 +56,39 @@ describe('ingestDecision', () => {
     })
   })
 
+  it('accepts on the sniffed type when the client declares application/octet-stream', () => {
+    // THE SHAPE A BROWSER ACTUALLY SENDS when it has nothing to say. Measured
+    // in the Task 2 review, driving this repository's own Chromium through a
+    // real multipart post: a file called `holiday` with no extension, and a
+    // `photo.heic` on this Windows machine, both arrive as
+    // `Content-Type: application/octet-stream`. It is the absence of a
+    // declaration spelled as a type, so it cannot disagree with the bytes -
+    // and treating it as a disagreement refused a real JPEG dropped in
+    // without an extension, under a name that called the client a liar.
+    expect(ingestDecision({ sniffed: 'image/jpeg', declared: 'application/octet-stream', mode: 'inline' })).toEqual({
+      ok: true,
+      value: 'image/jpeg',
+    })
+  })
+
   it('accepts on the sniffed type when the declared type is missing entirely', () => {
-    // The bytes decide. A client that declares nothing has declared nothing
-    // wrong.
+    // Not a browser's shape - a browser always sends a part `Content-Type` -
+    // but a hand-rolled multipart body can omit the header altogether, and
+    // then there is no string to compare. The bytes decide: a client that
+    // declares nothing has declared nothing wrong.
     expect(ingestDecision({ sniffed: 'image/png', declared: '', mode: 'inline' })).toEqual({
       ok: true,
       value: 'image/png',
+    })
+  })
+
+  it('still refuses a HEIC sent as application/octet-stream as unsupported, not as a mismatch', () => {
+    // `photo.heic` is the measured octet-stream case, so this is the real
+    // path rather than a hypothetical one, and the refusal has to name the
+    // decoder's limit rather than the header.
+    expect(ingestDecision({ sniffed: 'image/heic', declared: 'application/octet-stream', mode: 'inline' })).toEqual({
+      ok: false,
+      error: 'heic-unsupported',
     })
   })
 
@@ -146,6 +173,20 @@ describe('the sniff and the policy together, on a file that lies about itself', 
     const decision = ingestDecision({ sniffed: sniffMediaType(bytes), declared: 'image/jpeg', mode: 'inline' })
 
     expect(decision).toEqual({ ok: false, error: 'svg-rejected' })
+  })
+
+  it('accepts real JPEG bytes dropped in with no extension at all', () => {
+    // The two halves of finding 4 together: the bytes are a real JPEG's, and
+    // `application/octet-stream` is what the browser sends for a file whose
+    // extension the OS does not map. Before this was handled the pair was
+    // refused `'declared-mismatch'` - a false refusal on good bytes.
+    const decision = ingestDecision({
+      sniffed: sniffMediaType(aJpegHeader()),
+      declared: 'application/octet-stream',
+      mode: 'inline',
+    })
+
+    expect(decision).toEqual({ ok: true, value: 'image/jpeg' })
   })
 
   it('refuses an SVG whose padded comment spoofs an mp4 header, under worker and a lying client', () => {

@@ -44,16 +44,39 @@
  *   - `'declared-mismatch'`: the bytes are acceptable and the client called
  *     them something else. That disagreement is itself a signal — it is what
  *     a renamed file looks like — so it is refused rather than shrugged off,
- *     but only after the dangerous types have been named as themselves.
+ *     but only after the dangerous types have been named as themselves. A
+ *     client that said `'application/octet-stream'` disagreed with nothing,
+ *     and is not refused here (see the invariants).
  *
  * ═══ INVARIANTS A FUTURE EDIT COULD BREAK ═══
  *
- *   - An empty `declared` is NOT a mismatch. A client that declares nothing
- *     has declared nothing wrong, and the bytes decide either way.
- *   - The comparison of `declared` is exact: no trimming, no case folding, no
- *     stripping of `; charset=…`. A declared type that needs normalising did
- *     not come from a browser upload, and normalising it would be guessing at
- *     the intent of a request we did not expect.
+ *   - **A client that declared NOTHING is not a client that declared wrong**,
+ *     and there are two spellings of nothing. `'application/octet-stream'` is
+ *     the one a browser sends; `''` is the one only a hand-rolled multipart
+ *     body produces, by omitting the part header altogether. Both are in
+ *     {@link NOTHING_DECLARED} and neither is a mismatch — the bytes decide.
+ *
+ *     WHAT A BROWSER ACTUALLY SENDS, since the first version of this module
+ *     guessed and was wrong. Measured in the Task 2 review by driving this
+ *     repository's own Chromium through a real multipart post and reading the
+ *     part headers off the wire: `holiday.jpg` → `image/jpeg`,
+ *     `holiday.JPG` → `image/jpeg`, `pic.png` → `image/png`,
+ *     `pic.avif` → `image/avif`, `clip.mp4` → `video/mp4`,
+ *     `clip.mov` → `video/quicktime`, `doc.svgz` → `image/svg+xml`,
+ *     `archive.zip` → `application/x-zip-compressed`, and — the cases this
+ *     invariant exists for — `holiday` with no extension and `photo.heic` on
+ *     this Windows machine BOTH → `application/octet-stream`. The type comes
+ *     from the NAME, never from the bytes, which is exactly why it can only
+ *     ever cost a file its acceptance. An empty string is a shape no browser
+ *     produces, so treating it as the only spelling of "nothing declared"
+ *     refused a real JPEG dropped in without an extension.
+ *   - The comparison of `declared` is otherwise exact: no trimming, no case
+ *     folding, no stripping of `; charset=…`. Reading
+ *     `'application/octet-stream'` as "nothing declared" is a decision about
+ *     one measured value, not a licence to normalise: a type that needs
+ *     trimming or case-folding did not come from a browser upload, and
+ *     normalising it would be guessing at the intent of a request we did not
+ *     expect.
  *   - {@link acceptedIngestTypes} returns a FRESH array per call. The list is
  *     an allowlist; handing callers one shared mutable array would be the
  *     mutable singleton CLAUDE.md §3.3 rejects, holding the one piece of
@@ -95,6 +118,19 @@ const CLIP_TYPES = ['video/mp4', 'video/quicktime'] as const
 export const acceptedIngestTypes = (mode: PipelineMode): readonly AcceptedType[] =>
   mode === 'worker' ? [...STILL_TYPES, ...CLIP_TYPES] : [...STILL_TYPES]
 
+/**
+ * Every spelling of "the client declared nothing".
+ *
+ * `'application/octet-stream'` is what a browser sends for a file whose
+ * extension the operating system does not map — measured, see the module
+ * header — and `''` is what a multipart body that omits the part header
+ * leaves behind. Both say the same thing about the bytes: nothing.
+ */
+const NOTHING_DECLARED = ['', 'application/octet-stream'] as const
+
+/** Whether the client's `Content-Type` says nothing at all about the bytes. */
+const declaresNothing = (declared: string): boolean => NOTHING_DECLARED.some((nothing) => nothing === declared)
+
 /** Whether a sniffed type is one of the two clip formats. */
 const isClip = (sniffed: SniffedType): boolean => CLIP_TYPES.some((clip) => clip === sniffed)
 
@@ -106,8 +142,10 @@ const isClip = (sniffed: SniffedType): boolean => CLIP_TYPES.some((clip) => clip
  * they have the same shape and opposite authority, and getting them the wrong
  * way round would make the client's word decide (CLAUDE.md §3.1).
  * @param candidate - `sniffed`, from {@link sniffMediaType} over the file's
- * own bytes; `declared`, the client's `Content-Type` (`''` when it sent
- * none); `mode`, the configured `MEDIA_PIPELINE`.
+ * own bytes; `declared`, the client's `Content-Type` (a browser sends
+ * `'application/octet-stream'` when it has nothing to say, and `''` means
+ * the part carried no header at all — see {@link NOTHING_DECLARED}); `mode`,
+ * the configured `MEDIA_PIPELINE`.
  * @returns `ok` with the type to process, or `err` naming why the file was
  * refused. Never throws: every input, including nonsense, has a refusal.
  * @example
@@ -136,7 +174,7 @@ export const ingestDecision = (candidate: {
   const accepted = acceptedIngestTypes(mode).find((allowed) => allowed === sniffed)
   if (accepted === undefined) return err(isClip(sniffed) ? 'video-deferred' : 'type-not-allowed')
 
-  if (declared !== '' && declared !== accepted) return err('declared-mismatch')
+  if (!declaresNothing(declared) && declared !== accepted) return err('declared-mismatch')
 
   return ok(accepted)
 }
