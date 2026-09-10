@@ -2219,6 +2219,51 @@ of the thirty is 2,941ms and the fastest 2,924ms — which is the framework floo
 measured (2,023.2ms for one styled heading with no application code) plus three panes that
 fetch nothing.
 
+#### 7.0.1 · Every number above was measured on ONE machine, CI is a second one, and CI's result is UNRESOLVED
+
+**Read this before treating any margin in the tables above as headroom.** Every median in
+§7.0 was collected on this developer's Windows host, against a production `next build` +
+`next start`. The `browser` job in `.github/workflows/ci.yml` runs the same
+`npm run test:perf` on a shared GitHub-hosted runner inside
+`mcr.microsoft.com/playwright:v1.62.1-noble` — a different CPU, a different disk, a
+different amount of contention, and no measurement of its own recorded anywhere. The
+budgets are hard gates on both machines while having been characterised on one.
+
+**The margins are the reason this matters rather than a footnote.** The LCP gate is
+3000ms (ADR 0008), and the medians above clear it by roughly 65–75ms: 2,934.53ms on the
+book surface, 2,925.59ms on the mobile surface, 2,926.9–2,928.4ms on the three admin
+screens. ADR 0008 measured the framework floor at 2,023.2ms for one styled heading with
+no application code, so most of that number is Next.js and Lighthouse's own simulated
+throttling rather than this repository's work — and under three per cent of it is the
+whole distance to the ceiling. A slower, noisier runner can therefore fail the step with the
+application unchanged, and can equally fail it because something is genuinely wrong.
+Neither can be assumed.
+
+**The status: the first CI run's `Lighthouse CI budgets` step failed, and its numbers have
+not been read.** They cannot be read from this machine: the GitHub CLI is not installed
+here, the Actions logs endpoint answers 403 without credentials, and `CLAUDE.md` §7.1
+forbids routing anything through a third-party service to work around that. No repository
+content was sent anywhere to try. So this is recorded as **UNRESOLVED**, which is the
+honest state, rather than as a budget that needs loosening.
+
+**What would settle it, in order.** (1) An authenticated read of that step's log — the
+GitHub CLI's run-log view, or the Actions web UI — which prints, per URL, which assertion
+failed, its expected ceiling and the value observed. (2) Deciding from that which of three
+things it is: a failing `http-status-code` assertion, which is a route not serving on the
+runner at all and a real defect rather than a timing question; an LCP over the ceiling by
+noise, which is a question about how the gate is MEASURED; or an LCP over the ceiling
+consistently, which is a question about the application. (3) For the middle case only, a
+decision taken as an ADR with the runner's own five-run medians in it — the way ADR 0014
+settled which viewports the gate is measured at — never by moving a ceiling to make a red
+run green.
+
+**No budget in §7.0 was changed by this entry, and none should be.** The paragraph
+immediately below is this document's fullest record of why: `/p/1` went red in Phase 2,
+the bimodal spread was reached for as the explanation, and the real cause was a stylesheet
+crossing the route-group seam so that the diary served four render-blocking sheets where
+`main` served two. **The budget was never moved**, there or anywhere in §7.1. A budget
+moved to make a red run green is the one outcome this section exists to prevent.
+
 ### `/p/1` went red in Phase 2, and the wrong explanation was reached for first
 
 **This is the most instructive thing in this section, so it is written down in full.**
