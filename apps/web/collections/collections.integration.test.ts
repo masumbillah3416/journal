@@ -9,11 +9,13 @@
  * Named `*.integration.test.ts` so it runs only under the `integration` Vitest
  * project (see vitest.config.ts), never in `npm run verify` (pre-commit).
  *
- * The last TWO cases are the Migration suite of CLAUDE.md §2, one per shape
- * of migration this repository has: the journey case covers a migration that
- * creates tables, and the `otpChallenges` case covers one that adds a column
- * and an index to a table that already exists. They are separate because they
- * fail differently - see the comment on the second.
+ * The FIVE reversibility cases are the Migration suite of CLAUDE.md §2, one
+ * per migration on disk after the initial one: the journey case covers the
+ * migration that creates tables (and rolls every migration to zero to reach
+ * it), and the `otpChallenges`, `signInAttempts`, `sessions` and `media`
+ * cases each roll back ONE migration and assert on exactly the artefacts that
+ * migration is responsible for. They are separate because they fail
+ * differently - see the comment on each.
  *
  * The first of them replaced one named
  * "runs down and up again without loss" that seeded nothing and compared
@@ -68,6 +70,14 @@ const FIXTURE_SLUGS = ['test-tokyo', 'test-bergen', 'test-lisbon', 'test-reversi
 
 /** The `alt` values the two media access fixtures are created with, so `afterAll` can find and delete them. */
 const FIXTURE_MEDIA_ALTS = ['test-access-visible', 'test-access-hidden', 'test-access-hidden-editor']
+
+/**
+ * The `alt` value every media row the Phase 3 fixtures upload carries. One
+ * value rather than one per case so `afterAll`'s existing loop over
+ * `FIXTURE_MEDIA_ALTS` removes them all, and no second cleanup path exists to
+ * forget.
+ */
+const FIXTURE_MEDIA_STATE_ALT = 'test-media-state'
 
 /** The editor fixture's email, so `afterAll` can remove the account the access tests sign in as. */
 const FIXTURE_USER_EMAIL = 'test-access-editor@example.com'
@@ -342,6 +352,47 @@ const signInAttemptsSchema = async (): Promise<string[]> => {
 /** Every artefact `signInAttemptsSchema` looks for, when the migration is applied. */
 const SIGN_IN_ATTEMPTS_SCHEMA = ['dimension-type', 'endpoint-type', 'index', 'locked-documents-column', 'table']
 
+/** The migration that gives a media row a processing state (Phase 3 Task 5). */
+const MEDIA_STATE_MIGRATION = '20260910_171154_add_media_state'
+
+/**
+ * Which of the artefacts `MEDIA_STATE_MIGRATION` is responsible for exist.
+ *
+ * The enum type as well as the columns: a `down()` that dropped the columns
+ * and left `enum_media_state` behind would satisfy a column-only assertion
+ * and then fail its own re-apply with "type already exists" - the failure the
+ * hand-fixed statement order in `add_jobs` exists to prevent. And the `media`
+ * table itself, because this migration adds to a table it did not create.
+ * @returns The artefacts that exist, sorted, so an assertion reads as a set.
+ */
+const mediaStateSchema = async (): Promise<string[]> => {
+  const client = new Client({ connectionString: env.DATABASE_URL })
+  await client.connect()
+  try {
+    const found = await client.query<{ artefact: string }>(
+      `SELECT 'state-column' AS artefact FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'media' AND column_name = 'state'
+       UNION ALL
+       SELECT 'reason-column' FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'media' AND column_name = 'failure_reason'
+       UNION ALL
+       SELECT 'state-type' FROM pg_type WHERE typname = 'enum_media_state'
+       UNION ALL
+       SELECT 'media-table' FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'media'`,
+    )
+    return found.rows.map((row) => row.artefact).sort()
+  } finally {
+    await client.end()
+  }
+}
+
+/** Every artefact `mediaStateSchema` looks for, when the migration is applied. */
+const MEDIA_STATE_SCHEMA = ['media-table', 'reason-column', 'state-column', 'state-type']
+
+/** What `mediaStateSchema` returns when this migration's `down()` has run: the table alone. */
+const MEDIA_STATE_SCHEMA_ROLLED_BACK = ['media-table']
+
 /**
  * Runs one migration's own `up()` or `down()`, outside Payload's batch
  * bookkeeping.
@@ -457,6 +508,14 @@ describe('collections', () => {
     if ((await sessionExpirySchema()).length === 0) {
       await runMigrationDirection(SESSION_EXPIRY_MIGRATION, 'up', payload)
     }
+    // And once more for the media state case: its two columns and its enum
+    // type dropped while `payload_migrations` still records the migration as
+    // applied. Compared against the rolled-back set rather than emptiness,
+    // because `media` is a table this migration did not create, so it is
+    // still there when this migration's own artefacts are not.
+    if (JSON.stringify(await mediaStateSchema()) === JSON.stringify(MEDIA_STATE_SCHEMA_ROLLED_BACK)) {
+      await runMigrationDirection(MEDIA_STATE_MIGRATION, 'up', payload)
+    }
 
     // Cleaned at BOTH ends, and the editor minted ONCE: `users.email` is
     // unique, so a row left behind by an interrupted run - or a second case
@@ -480,7 +539,7 @@ describe('collections', () => {
     // removed: `seed.integration.test.ts` counts rows in the shared
     // collections, and a fixture left behind here inflates whichever file
     // runs second.
-    for (const alt of FIXTURE_MEDIA_ALTS) {
+    for (const alt of [...FIXTURE_MEDIA_ALTS, FIXTURE_MEDIA_STATE_ALT]) {
       const found = await payload.find({ collection: 'media', where: { alt: { equals: alt } } })
       for (const doc of found.docs) {
         await payload.delete({ collection: 'media', id: doc.id })
@@ -1020,5 +1079,50 @@ describe('collections', () => {
     })
 
     expect(session.expiresAt).toBe(expiresAt)
+  })
+
+  // The media row's processing state and its failure reason (Phase 3 Task 5)
+  // get the same per-migration treatment as the three cases above, and for
+  // the same reason: a roll to zero would drop `media` as a side effect of
+  // the INITIAL migration, so it would say nothing about whether THIS
+  // migration's `down()` did anything. Verified by mutation: replacing
+  // `down()` with a comment fails it (see the task report).
+  it('rolls the media state column and its enum type down and back up, with the table and its rows intact', async () => {
+    const png = await aTinyPng()
+    const existing = await payload.create({
+      collection: 'media',
+      data: { alt: FIXTURE_MEDIA_STATE_ALT },
+      file: { data: png, mimetype: 'image/png', name: 'state-reversibility.png', size: png.length },
+    })
+
+    expect(await mediaStateSchema()).toEqual(MEDIA_STATE_SCHEMA)
+
+    await runMigrationDirection(MEDIA_STATE_MIGRATION, 'down', payload)
+    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS - see the two
+    // cases above. Between the `down` and the `up`, `diary_test` is in a
+    // state `payload_migrations` does not describe, and the next run's
+    // `runMigrateUp()` would be a no-op against a database with no way to
+    // repair itself.
+    try {
+      // The columns and the type are gone; the table and the row are not. A
+      // down() that took `media` with it would be a much worse kind of
+      // reversible - every photograph in the diary.
+      expect(await mediaStateSchema()).toEqual(MEDIA_STATE_SCHEMA_ROLLED_BACK)
+    } finally {
+      await runMigrationDirection(MEDIA_STATE_MIGRATION, 'up', payload)
+    }
+
+    expect(await mediaStateSchema()).toEqual(MEDIA_STATE_SCHEMA)
+    // And the row that predates the rollback still reads back through the
+    // rebuilt schema: this migration adds columns rather than tables, so
+    // nothing here is allowed to cost a photograph.
+    const survived = await payload.findByID({
+      collection: 'media',
+      id: existing.id,
+      depth: 0,
+      select: { alt: true },
+    })
+
+    expect(survived.alt).toBe(FIXTURE_MEDIA_STATE_ALT)
   })
 })

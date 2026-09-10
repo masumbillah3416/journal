@@ -3,6 +3,7 @@ import * as migration_20260831_161951_add_jobs from './20260831_161951_add_jobs'
 import * as migration_20260905_202028_add_otp_session_hash from './20260905_202028_add_otp_session_hash'
 import * as migration_20260905_230601_add_sign_in_attempts from './20260905_230601_add_sign_in_attempts'
 import * as migration_20260906_004937_add_session_expiry from './20260906_004937_add_session_expiry'
+import * as migration_20260910_171154_add_media_state from './20260910_171154_add_media_state'
 
 export const migrations = [
   {
@@ -29,5 +30,10 @@ export const migrations = [
     up: migration_20260906_004937_add_session_expiry.up,
     down: migration_20260906_004937_add_session_expiry.down,
     name: '20260906_004937_add_session_expiry',
+  },
+  {
+    up: migration_20260910_171154_add_media_state.up,
+    down: migration_20260910_171154_add_media_state.down,
+    name: '20260910_171154_add_media_state',
   },
 ]

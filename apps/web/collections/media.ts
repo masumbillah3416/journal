@@ -85,6 +85,24 @@ export const Media: CollectionConfig = {
     { name: 'journey', type: 'relationship', relationTo: 'journeys' },
     // Set by the processing pipeline, not the author.
     { name: 'kind', type: 'select', options: ['still', 'clip'], admin: { readOnly: true } },
+    // Set by the MediaProcessor pipeline, never by the author. `processing` is
+    // a first-class UI state, not a missing image (spec §9.2): the Media
+    // screen shows progress against it, and the Galleries poster filmstrip
+    // needs a processed clip.
+    // HANDOFF-DEVIATION: DATA_MODEL.md's `media` field list has no state of
+    // any kind, yet its own `beforeChange` pipeline has six steps that can
+    // each fail on a row that already exists. Without a state, a half-ingested
+    // row is indistinguishable from a finished one. docs/deviations.md §48.
+    {
+      name: 'state',
+      type: 'select',
+      options: ['processing', 'ready', 'failed'],
+      defaultValue: 'processing',
+      admin: { readOnly: true },
+    },
+    // Why a `failed` row failed, in words the Media screen shows. Never a
+    // stack trace and never a storage key.
+    { name: 'failureReason', type: 'text', admin: { readOnly: true } },
     { name: 'caption', type: 'text' }, // shown under the photo
     { name: 'alt', type: 'text' }, // screen readers
     { name: 'capturedAt', type: 'date' }, // from EXIF, before stripping

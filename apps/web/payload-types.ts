@@ -145,6 +145,8 @@ export interface Media {
   id: number;
   journey?: (number | null) | Journey;
   kind?: ('still' | 'clip') | null;
+  state?: ('processing' | 'ready' | 'failed') | null;
+  failureReason?: string | null;
   caption?: string | null;
   alt?: string | null;
   capturedAt?: string | null;
@@ -474,6 +476,8 @@ export interface PayloadMigration {
 export interface MediaSelect<T extends boolean = true> {
   journey?: T;
   kind?: T;
+  state?: T;
+  failureReason?: T;
   caption?: T;
   alt?: T;
   capturedAt?: T;

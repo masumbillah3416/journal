@@ -2081,3 +2081,44 @@ ADR to the decision (Task 13, ADR 0021); this entry is written now rather than t
 because CLAUDE.md §1.3 requires the record to ship in the same commit as the code, and a
 deviation whose register entry arrives eleven tasks later is a deviation nobody could
 have reviewed.
+
+## 48 · `media` carries a `state` and a `failureReason` the handoff's field list does not
+
+**What changed:** `DATA_MODEL.md`'s `media` collection lists fourteen fields and none of
+them records how far the upload pipeline got. `apps/web/collections/media.ts` adds two
+more: `state` (`select`, `processing` | `ready` | `failed`, read-only, defaulting to
+`processing`) and `failureReason` (read-only text). `20260910_171154_add_media_state`
+migrates them in.
+
+**Rationale.** The same handoff section specifies a `beforeChange` pipeline of six steps —
+magic-byte sniff, SVG rejection, EXIF read and strip, re-encode, `contentHash` and
+duplicate check, and for clips `ffprobe`/transcode/poster extraction — every one of which
+can fail on a row that already exists. With no state on the row, a half-ingested upload is
+indistinguishable from a finished one: the Media screen cannot tell a photograph still
+being processed from a photograph whose derivatives will never arrive, and step 8 of design
+spec §9.2 ("Mark `ready`, or `failed` with a reason the Media screen surfaces") has nowhere
+to write. Design spec §9.2 also makes `processing` a first-class UI state — "not a missing
+image: the Media screen shows progress and the Galleries poster filmstrip needs a processed
+clip" — which is a screen the handoff's own `README.md` describes ("upload progress,
+duplicate-skipped notice") without giving it a column to read.
+
+**Why two fields rather than one.** A `failed` state a reader cannot act on is a shrug.
+`failureReason` holds the words the Media screen shows, and it holds them in prose:
+never a stack trace and never a storage key, because both are internal detail and the
+second is the bucket path `SECURITY.md` keeps out of the client.
+
+**What is deliberately absent: a backfill.** The migration leaves rows that predate the
+column reading `state` NULL. `processing` would claim a pipeline run that is not
+happening — and since §9.2 makes `processing` a state the screen draws progress for, that
+would be a visible lie — while `ready` would claim five derivative tiers the migration
+has not looked at. NULL says "ingested before there was a state to record", which is the
+only true thing available. Only the seed writes `media` rows today, and re-running it
+writes them through the field's default.
+
+**Where it is stated in code:** the `// HANDOFF-DEVIATION:` comment on the `state` field
+in `apps/web/collections/media.ts`.
+
+**Recorded as:** this entry, `docs/data-model.md`'s `media` section and migration history,
+and the reversibility case
+_"rolls the media state column and its enum type down and back up, with the table and its
+rows intact"_ in `apps/web/collections/collections.integration.test.ts`.

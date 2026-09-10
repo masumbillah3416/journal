@@ -3217,16 +3217,17 @@ the sentence one prose exemption covers, deleted                 -> stale exempt
 
 - **Tool:** Vitest.
 - **Scope:** every migration runs up, down, and up again against a seeded database.
-- **Status:** implemented. `apps/web/migrations/` holds five migrations:
+- **Status:** implemented. `apps/web/migrations/` holds six migrations:
   `20260831_154311_initial` (every collection and global's schema),
   `20260831_161951_add_jobs` (the `jobs` table backing the `queue` port, Task 9),
   `20260905_202028_add_otp_session_hash` (the OTP challenge's session binding, Phase 2
   Task 3 — `docs/deviations.md` §25), `20260905_230601_add_sign_in_attempts` (the
   sliding window's own table, Phase 2 Task 4 — `docs/deviations.md` §27) and
   `20260906_004937_add_session_expiry` (the session row's lifetime and the index an
-  authentication reads by, Phase 2 Task 6 — `docs/deviations.md` §30). Each of the four
-  later ones has its **own** case in `collections.integration.test.ts` rather than
-  sharing one.
+  authentication reads by, Phase 2 Task 6 — `docs/deviations.md` §30) and
+  `20260910_171154_add_media_state` (the media row's processing state and failure reason,
+  Phase 3 Task 5 — `docs/deviations.md` §48). Each of the five later ones has its **own**
+  case in `collections.integration.test.ts` rather than sharing one.
 
   The `session_expiry` case asserts on the column **and** the index, and on the
   `sessions` table surviving — this migration adds to a table it did not create, so a
@@ -3248,14 +3249,34 @@ the sentence one prose exemption covers, deleted                 -> stale exempt
   of bug the hand-fixed statement order in that file's `down()` exists to prevent.
   Verified by making `down()` a no-op and watching it fail.
 
-  **All four reversibility cases re-apply in a `finally`,** including the roll-to-zero
+  The `media_state` case asserts on **four** artefacts — the `state` column, the
+  `failure_reason` column, the `enum_media_state` type its `select` field creates, and
+  the `media` table still being there — and on the row written before the rollback still
+  reading back afterwards. The table and the row are in the assertion because this
+  migration adds columns to a table it did not create: a `down()` that took `media` with
+  it would be a much worse kind of reversible, and it would cost every photograph in the
+  diary. Verified by replacing `down()` with a comment and watching it fail.
+
+  **What a deliberate `down()` mutation actually reports here, and why.** With `down()` a
+  no-op, the mid-test assertion fails first — the probe still finds all four artefacts —
+  but the `finally`'s re-apply then throws `type "enum_media_state" already exists`, and a
+  `finally` that throws replaces the error from the `try`. So the pasted failure names the
+  collision rather than the assertion diff. That is intrinsic rather than a weakness of
+  the assertion: every artefact this migration is responsible for is created by its own
+  `up()`, so ANY incomplete `down()` makes the re-apply collide. The hand repair
+  afterwards is the one the `sign_in_attempts` recipe describes, with this migration's
+  artefacts: `DROP TYPE "public"."enum_media_state"` (plus the two columns, if the
+  mutation left them), then let the next run apply `up()` again — measured, that is all it
+  took.
+
+  **All five reversibility cases re-apply in a `finally`,** including the roll-to-zero
   one, which did not until a review pointed out that documenting its blast radius was not
   the same as closing it. Between `runMigrateDownToZero()` and `runMigrateUp()` the
   database has no schema at all, and an assertion failing in that gap used to leave it
   that way: measured, one failing assertion there turned into four failed cases and a
   `diary_test` with no `payload_migrations` table, so every later file in the project ran
-  against nothing. With the `finally`, the same failing assertion leaves all four
-  migrations applied and the schema intact — measured too. What a `finally` cannot cover
+  against nothing. With the `finally`, the same failing assertion leaves every
+  migration applied and the schema intact — measured too. What a `finally` cannot cover
   is a `down()` that leaves artefacts behind, because the re-apply then legitimately fails
   on the collision; **that** case still needs hand repair (drop `sign_in_attempts`, both
   `enum_sign_in_attempts_*` types and the `payload_locked_documents_rels` column, then let

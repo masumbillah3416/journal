@@ -43,6 +43,7 @@ import * as addJobs from '../migrations/20260831_161951_add_jobs'
 import * as addOtpSessionHash from '../migrations/20260905_202028_add_otp_session_hash'
 import * as addSignInAttempts from '../migrations/20260905_230601_add_sign_in_attempts'
 import * as addSessionExpiry from '../migrations/20260906_004937_add_session_expiry'
+import * as addMediaState from '../migrations/20260910_171154_add_media_state'
 
 describe('migrations barrel', () => {
   it('lists every migration, in order, wired to the right module', () => {
@@ -63,6 +64,11 @@ describe('migrations barrel', () => {
         up: addSessionExpiry.up,
         down: addSessionExpiry.down,
         name: '20260906_004937_add_session_expiry',
+      },
+      {
+        up: addMediaState.up,
+        down: addMediaState.down,
+        name: '20260910_171154_add_media_state',
       },
     ])
   })
