@@ -275,7 +275,15 @@ describe('isPerceptualDuplicate', () => {
     expect(isPerceptualDuplicate(ALTERNATING, TWO_BAND)).toBe(false)
   })
 
-  it('is false rather than throwing when either hash is malformed', () => {
+  it('is false rather than throwing when the left hash is malformed', () => {
     expect(isPerceptualDuplicate('nope', ALL_ZEROES)).toBe(false)
+  })
+
+  it('is false rather than throwing when the RIGHT hash is malformed, which is the mirror of the case above', () => {
+    // BOTH SIDES, because a predicate that guarded one and not the other
+    // would pass the case above and throw in production on the argument that
+    // came from the database rather than from the pipeline. The older name
+    // said "either hash" over an assertion that malformed only the left.
+    expect(isPerceptualDuplicate(ALL_ZEROES, 'nope')).toBe(false)
   })
 })

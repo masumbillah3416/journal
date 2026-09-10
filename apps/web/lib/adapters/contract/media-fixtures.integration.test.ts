@@ -60,6 +60,15 @@ import {
   FIXTURE_CAPTURED_AT_ISO,
 } from './media-fixtures'
 
+/**
+ * How many of the eight row bytes must differ from one another.
+ *
+ * Six, measured against seven: see the case that reads it for why a floor
+ * with one byte of headroom is the right shape, and what the loose version
+ * let through.
+ */
+const DISTINCT_ROW_BYTES_FLOOR = 6
+
 /** The GPS latitude-reference tag, which the fixture writes as `'N'`. */
 const TAG_GPS_LATITUDE_REF = 0x0001
 
@@ -134,7 +143,7 @@ describe('the photograph fixtures', () => {
     expect(hashed.ok ? hashed.value : '').not.toBe('0000000000000000')
   })
 
-  it('hashes to eight different row bytes rather than one repeated, which all-zeroes alone would not catch', async () => {
+  it('hashes to at least six distinct row bytes rather than one repeated, which all-zeroes alone would not catch', async () => {
     // THIS CASE EXISTS BECAUSE THE FIRST VERSION OF THE FIXTURE FAILED IT.
     // A linear ramp is not flat, so it passed the case above - and it hashed
     // to `5555555555555555`, one byte repeated eight times, because a
@@ -143,11 +152,19 @@ describe('the photograph fixtures', () => {
     // q40/q20/q10 chain and its second seed at distance 64: a threshold of 5
     // "surviving" a gap no photograph produces. A repeating row byte is the
     // signature of that degeneracy, and this is the assertion that names it.
+    //
+    // THE BAR IS SIX OF EIGHT, MEASURED. This fixture hashes to
+    // `69922ddaa54bb469` - seven distinct row bytes, `69` twice - so six is a
+    // floor with one byte of headroom rather than a restatement of today's
+    // number. The older assertion was `size > 1`: two distinct row bytes out
+    // of eight satisfied a name that said eight, and this is the ONLY
+    // assertion in the suite that catches the ramp degeneracy, which makes it
+    // the wrong one to leave loose.
     const hashed = dHash(await gridOf(await aPhotograph()))
     const rowBytes = (hashed.ok ? hashed.value : '').match(/../gu) ?? []
 
     expect(rowBytes).toHaveLength(DHASH_HEIGHT)
-    expect(new Set(rowBytes).size).toBeGreaterThan(1)
+    expect(new Set(rowBytes).size).toBeGreaterThanOrEqual(DISTINCT_ROW_BYTES_FLOOR)
   })
 
   it('yields exactly the sample count dHash requires, which is the seam dHash never had a caller for', async () => {

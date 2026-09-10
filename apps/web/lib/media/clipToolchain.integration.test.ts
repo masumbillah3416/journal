@@ -113,7 +113,7 @@ describe('which toolchain the contract suite is handed', () => {
 })
 
 describe('the availability probe', () => {
-  it('answers whether both binaries are here, without throwing where neither is', async () => {
+  it('answers with a boolean rather than throwing, on a machine with neither binary', async () => {
     // Deliberately not asserted as `false`: it is `false` on the authoring
     // machine and `true` in CI, and pinning either would make this file pass
     // in one place and fail in the other for no defect. What is asserted is

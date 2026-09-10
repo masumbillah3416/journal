@@ -147,11 +147,17 @@ describe('the worker adapter when the toolchain fails', () => {
     },
   )
 
-  it('propagates the still pipelines own refusal when the poster frame will not decode', async () => {
-    // Three successful steps, but the "poster" is four bytes of JPEG header
-    // with no image behind it - so the SHARED still pipeline refuses it, and
-    // that refusal is what the clip must carry rather than a clip with a
-    // poster nothing can render.
+  it('answers unreadable when the poster frame will not decode, rather than a clip with no poster', async () => {
+    // THE NAME USED TO SAY "propagates the still pipeline's own refusal",
+    // which is behaviour M13 deliberately REMOVED: the adapter flattens every
+    // poster refusal to `'unreadable'` because the poster frame is our own
+    // artefact (see `processClip`). The assertion could not tell propagation
+    // from flattening - the flattened value happens to equal the pipeline's -
+    // so the name claimed a distinction nothing here can observe.
+    //
+    // What it does assert: three successful toolchain steps, a "poster" that
+    // is four bytes of JPEG header with no image behind it, and a refusal
+    // rather than a clip whose poster nothing can render.
     const processor = createWorkerMediaProcessor({ toolchain: aFailingToolchainAfter(3) })
 
     const processed = await processor.process({
@@ -163,18 +169,23 @@ describe('the worker adapter when the toolchain fails', () => {
     expect(processed).toEqual({ ok: false, error: 'unreadable' })
   })
 
-  it('builds its own real ffmpeg toolchain when no stand-in is supplied, which is what production gets', () => {
-    // The composition root always passes one, so this is the documented
-    // default's only exercise. It asserts construction rather than a
-    // transcode: the binaries are absent on the authoring machine, and a
-    // transcode assertion here would pass in CI and fail locally for no
-    // defect.
-    expect(createWorkerMediaProcessor().acceptedTypes).toEqual([
-      'image/jpeg',
-      'image/png',
-      'video/mp4',
-      'video/quicktime',
-    ])
+  it('builds its own real ffmpeg toolchain when no stand-in is supplied, so a synthetic header is refused', async () => {
+    // THE NAME CLAIMED A TOOLCHAIN AND THE BODY ASSERTED `acceptedTypes`,
+    // which is identical whether or not one was built and is already asserted
+    // by the contract's first case. This asserts something only the REAL
+    // toolchain answers, and it answers the same on both kinds of machine:
+    // sixteen bytes of `ftyp` header reach a spawn that fails where no binary
+    // exists, and a real `ffprobe` that refuses them where one does. Either
+    // way `'unreadable'`. A default that quietly became the recorded stand-in
+    // would return a clip instead, because the stand-in reports a duration
+    // for whatever it is handed.
+    const processed = await createWorkerMediaProcessor().process({
+      bytes: anIsoBmffHeader({ brand: 'isom' }),
+      declaredType: 'video/mp4',
+      filename: 'harbour.mp4',
+    })
+
+    expect(processed).toEqual({ ok: false, error: 'unreadable' })
   })
 
   it('refuses a clip whose declared type disagrees with its bytes before the toolchain runs', async () => {
