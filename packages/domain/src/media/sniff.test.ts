@@ -140,6 +140,42 @@ describe('sniffMediaType', () => {
     expect(sniffMediaType(anAvifHeader())).toBe('video/mp4')
   })
 
+  it('answers video/mp4 behind any four bytes that do not decode to a leading angle bracket', () => {
+    // M15's MECHANISM, in the tree rather than only in a gitignored review
+    // file - which is where it was, and a disclosure a fresh clone does not
+    // carry is one Phase 3 Task 6 will not read. A `'video/mp4'` from this
+    // table means ONLY that bytes 4-7 spell `ftyp`: the box length at offset
+    // 0 is never read, and nothing past offset 11 is looked at.
+    //
+    // THE CLASS IS ANY FOUR SUCH BYTES, NOT "FOUR SPACES". Each prefix below
+    // was measured through the shipped build (Task 2 fix re-review §B): four
+    // spaces; U+00A0 twice, which `LEADING_NOISE` strips because JavaScript's
+    // `\s` matches it although XML forbids it before a prolog; U+3000 plus
+    // one filler byte, three noise BYTES to one string character while the
+    // table reads raw offsets; VT and FF, which XML 1.0 forbids outright;
+    // invalid UTF-8, four replacement characters; and a UTF-32LE byte-order
+    // mark, which needs no noise-stripping at all. The UTF-16LE member of the
+    // same class has its own case in the markup block below.
+    //
+    // None of them is markup and none renders as anything, so this is a
+    // recorded meaning rather than a hole - but `worker` mode ACCEPTS
+    // `'video/mp4'`, so Task 6 must not read this answer as "this decodes as
+    // video". The expectation is six literals rather than a map over the
+    // prefixes: an expectation derived from the array it iterates passes
+    // vacuously if the array is ever emptied.
+    const behind = (prefix: readonly number[]): Uint8Array =>
+      new Uint8Array([...prefix, ...new TextEncoder().encode('ftypisom0000')])
+
+    expect([
+      sniffMediaType(behind([0x20, 0x20, 0x20, 0x20])),
+      sniffMediaType(behind([0xc2, 0xa0, 0xc2, 0xa0])),
+      sniffMediaType(behind([0xe3, 0x80, 0x80, 0x71])),
+      sniffMediaType(behind([0x0b, 0x0c, 0x0b, 0x0c])),
+      sniffMediaType(behind([0xc2, 0xc2, 0xc2, 0xc2])),
+      sniffMediaType(behind([0xff, 0xfe, 0x00, 0x00])),
+    ]).toEqual(['video/mp4', 'video/mp4', 'video/mp4', 'video/mp4', 'video/mp4', 'video/mp4'])
+  })
+
   it('reports unknown for an ftyp box cut off before its brand', () => {
     // A truncated upload must not fall through to the `'video/mp4'` default:
     // the brand is what the answer rests on, and eight bytes carry none.

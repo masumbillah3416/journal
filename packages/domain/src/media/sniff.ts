@@ -112,6 +112,34 @@
  *     refused for every real upload — a client declaring `image/avif` gets
  *     `'declared-mismatch'`, and inline mode defers video outright — but a
  *     caller must not read `'video/mp4'` as "this decodes as video".
+ *   - **`'video/mp4'` MEANS ONLY THAT BYTES 4-7 SPELL `ftyp`, BEHIND ANY FOUR
+ *     BYTES THAT DO NOT DECODE TO A LEADING `<`.** This is the invariant
+ *     Phase 3 Task 6 has to honour, and it is wider than the brand invariant
+ *     above: the box LENGTH at offset 0 is never read, the brand's
+ *     plausibility is never checked beyond the two names this table
+ *     separates, and nothing at all is validated past offset 11. Whatever
+ *     occupies the first four bytes is opaque to the answer.
+ *
+ *     THE CLASS IS ANY SUCH FOUR BYTES, NOT "FOUR SPACES", and the members
+ *     below were each measured through the shipped build rather than reasoned
+ *     about (Task 2 fix re-review, §B and new finding 3). `20 20 20 20`;
+ *     `c2 a0 c2 a0` (U+00A0 twice — stripped by `LEADING_NOISE` because
+ *     JavaScript's `\s` matches it, though XML forbids it before a prolog);
+ *     `e3 80 80 71` (U+3000 plus one filler byte — three noise BYTES to one
+ *     string character, while the table reads raw offsets); `0b 0c 0b 0c`
+ *     (VT and FF, characters XML 1.0 forbids outright); `c2 c2 c2 c2`
+ *     (invalid UTF-8, four replacement characters); and a UTF-16LE or
+ *     UTF-32LE byte-order mark, which needs no noise-stripping at all. Each
+ *     of them, followed by `ftypisom`, is answered `'video/mp4'` — a type
+ *     `worker` mode ACCEPTS.
+ *
+ *     None of them is markup and none renders as anything, so this is not a
+ *     bypass and nothing is accepted today (no caller exists yet). It is
+ *     recorded here, in the tree, because it was recorded only in a
+ *     gitignored review file — and a disclosure a fresh clone does not carry
+ *     is a disclosure Task 6 will not read. The case is `sniff.test.ts`'s
+ *     "answers video/mp4 behind any four bytes that do not decode to a
+ *     leading angle bracket".
  *
  * Depends on: nothing.
  */
