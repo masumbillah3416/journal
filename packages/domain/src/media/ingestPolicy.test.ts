@@ -24,12 +24,12 @@
  * A case in `sniff.test.ts` alone would pin the type; only a composed case
  * pins the ACCEPTANCE, which is the thing that was wrong.
  *
- * Depends on: vitest, ./ingestPolicy, ./sniff, ../testing/factories.
+ * Depends on: vitest, ./ingestPolicy, ./sniff, ../testing/bytes.
  */
 import { describe, expect, it } from 'vitest'
 import { acceptedIngestTypes, ingestDecision } from './ingestPolicy'
 import { sniffMediaType } from './sniff'
-import { aJpegHeader, anAvifHeader, anSvgDocument } from '../testing/factories'
+import { aJpegHeader, anAvifHeader, anSvgDocument } from '../testing/bytes'
 
 describe('acceptedIngestTypes', () => {
   it('offers stills only under inline, because video is deferred', () => {

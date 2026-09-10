@@ -10,7 +10,7 @@
  * BYTES and expects `'image/svg+xml'` back regardless of what anything is
  * called, which `ingestPolicy.test.ts` then refuses.
  *
- * WHY THE FIXTURES LIVE IN `../testing/factories`. Each of the four carries a
+ * WHY THE FIXTURES LIVE IN `../testing/bytes`. Each of the four carries a
  * paragraph recording how its bytes are known to be a real file's - two of
  * them measured against files this machine produced. A fixture that guessed
  * at the bytes would make every case below agree with the implementation
@@ -25,11 +25,11 @@
  * own block because they are one class rather than one case, and the Task 2
  * review defeated a fix that closed a single shape of it (findings 1 and 2).
  *
- * Depends on: vitest, ./sniff, ../testing/factories.
+ * Depends on: vitest, ./sniff, ../testing/bytes.
  */
 import { describe, expect, it } from 'vitest'
 import { sniffMediaType } from './sniff'
-import { aJpegHeader, anAvifHeader, anIsoBmffHeader, anSvgDocument, aPngHeader } from '../testing/factories'
+import { aJpegHeader, anAvifHeader, anIsoBmffHeader, anSvgDocument, aPngHeader } from '../testing/bytes'
 
 describe('sniffMediaType', () => {
   it('names a JPEG from its start-of-image marker', () => {

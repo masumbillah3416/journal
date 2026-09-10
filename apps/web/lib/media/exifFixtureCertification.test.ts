@@ -75,7 +75,7 @@
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 import { readExifFacts } from '@travel-diary/domain/media/exif'
-import { anExifJpeg, EXIF_CANARY } from '@travel-diary/domain/testing/factories'
+import { anExifJpeg, EXIF_CANARY } from '@travel-diary/domain/testing/bytes'
 
 /**
  * The EXIF block libvips extracts from the default fixture: the six

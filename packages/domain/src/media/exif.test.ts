@@ -6,7 +6,7 @@
  *
  *   - `readExifFacts` on a file that has EXIF: the two values SECURITY.md
  *     says to capture before stripping, read out of a hand-assembled segment
- *     whose layout is evidenced in `../testing/factories.ts`.
+ *     whose layout is evidenced in `../testing/bytes.ts`.
  *   - `readExifFacts` on files that do not, or no longer parse: a PNG, a
  *     JPEG with no APP1, an APP1 that is not EXIF, and a corrupt TIFF
  *     header. Every one asserts BOTH fields, because a reader that answered
@@ -23,11 +23,11 @@
  *     broken scanner is the failure the exit criterion guards against, so
  *     the positive cases outnumber the negative ones.
  *
- * Depends on: vitest, ./exif, ../testing/factories.
+ * Depends on: vitest, ./exif, ../testing/bytes.
  */
 import { describe, expect, it } from 'vitest'
 import { METADATA_MARKERS, metadataMarkersIn, readExifFacts } from './exif'
-import { aJpegHeader, anExifJpeg, aPngHeader, EXIF_CANARY } from '../testing/factories'
+import { aJpegHeader, anExifJpeg, aPngHeader, EXIF_CANARY } from '../testing/bytes'
 
 /** No facts at all — what every unreadable file must read as, on both fields. */
 const NOTHING_READ = { capturedAt: undefined, orientation: undefined }
