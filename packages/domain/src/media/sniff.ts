@@ -86,12 +86,27 @@
  *     work an attacker picks for us; the size cap alone does not close that,
  *     because a file can be under the cap and still large. Per the invariant
  *     above, running out of window costs a NAME and never a refusal.
- *   - **A UTF-16 document is not detected as markup**, and cannot be smuggled
- *     as a container either: decoded as UTF-8 its BOM is two replacement
- *     characters rather than `<`, so it falls to the signature table, where
- *     `ftyp` at offset 4 would need the document's first two characters to be
- *     U+7466 and U+7079 (little-endian) or U+6674 and U+7970 (big-endian).
- *     No SVG prolog contains those, so the answer is `'unknown'`.
+ *   - **A UTF-16 document is not detected as markup, and a UTF-16 SVG cannot
+ *     be smuggled as a container.** Those are two claims and only the second
+ *     one is about SVG, which is the distinction this invariant used to lose.
+ *     Decoded as UTF-8 a UTF-16 document's BOM is two replacement characters
+ *     rather than `<`, so it never takes the markup branch and falls to the
+ *     signature table. For it to come back a CONTAINER type, `ftyp` has to
+ *     land at offset 4 — which for a UTF-16 document means its first two
+ *     characters are U+7466 and U+7079 (little-endian) or U+6674 and U+7970
+ *     (big-endian). No SVG prolog contains those, so no UTF-16 SVG reaches a
+ *     container answer.
+ *
+ *     WHAT THIS DOES NOT SAY, because the earlier wording did say it and it
+ *     was false: a UTF-16 document in general absolutely can reach one. The
+ *     signature table reads RAW BYTE OFFSETS and knows nothing of encodings,
+ *     so `ff fe 3c 00 66 74 79 70 69 00 73 00` — a twelve-byte UTF-16LE
+ *     document with a BOM, whose text is `<瑦灹is` — is answered
+ *     `'video/mp4'`, and `worker` mode ACCEPTS that type (measured; Task 2
+ *     fix re-review, new finding 2). It is not an SVG and no browser renders
+ *     it as one, so this is a consequence of what a `'video/mp4'` answer
+ *     MEANS rather than a hole: the answer rests on four bytes at offset 4
+ *     spelling `ftyp`, and on nothing else about the file.
  *   - **A major brand this table does not name answers `'video/mp4'`.** So an
  *     AVIF (major brand `avif`) is named `video/mp4` here. It is still
  *     refused for every real upload — a client declaring `image/avif` gets

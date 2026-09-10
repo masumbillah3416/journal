@@ -311,11 +311,14 @@ describe('sniffMediaType, on documents that are markup', () => {
   })
 
   it('answers unknown for a UTF-16 SVG, whose bytes carry no signature this table reads', () => {
-    // Not detected, and not smuggleable either: `ftyp` at offset 4 would need
-    // the document's first two characters to be U+7466 and U+7079 in UTF-16LE
-    // (or U+6674 and U+7970 big-endian), which no SVG prolog contains. A
-    // BOM's `ff fe` is neither `ff d8 ff` nor PNG's `89`, so the answer is a
-    // refusal rather than a container type.
+    // Not detected as markup, and not smuggleable as a container EITHER -
+    // but only because it is an SVG, which is the part the earlier wording
+    // here lost. For `ftyp` to land at offset 4 this document's first two
+    // characters would have to be U+7466 and U+7079 in UTF-16LE (or U+6674
+    // and U+7970 big-endian), which no SVG prolog contains. A BOM's `ff fe`
+    // is neither `ff d8 ff` nor PNG's `89`, so the answer is a refusal. The
+    // case below is the same encoding WITHOUT the SVG, and it does reach a
+    // container type.
     const codeUnits = Array.from('<svg xmlns="http://www.w3.org/2000/svg"/>').flatMap((character) => [
       character.charCodeAt(0),
       0x00,
@@ -323,6 +326,27 @@ describe('sniffMediaType, on documents that are markup', () => {
     const utf16 = new Uint8Array([0xff, 0xfe, ...codeUnits])
 
     expect(sniffMediaType(utf16)).toBe('unknown')
+  })
+
+  it('answers video/mp4 for a UTF-16 document whose bytes put ftyp at offset four', () => {
+    // THE FALSIFICATION of an invariant this module used to state: "a UTF-16
+    // document is not detected as markup, and cannot be smuggled as a
+    // container either". The proof it offered was SVG-scoped and correct; the
+    // sentence was about any UTF-16 document and was not. These twelve bytes
+    // are a UTF-16LE document with a BOM whose text is `<瑦灹is`, and the
+    // signature table reads RAW OFFSETS with no idea of encodings, so `ftyp`
+    // at offset 4 is `ftyp` at offset 4. `'video/mp4'` is a type `worker`
+    // mode ACCEPTS.
+    //
+    // This is not a hole and the case is not a complaint: the document is not
+    // an SVG, no browser renders it as one, and the answer means exactly what
+    // this module says a `'video/mp4'` means - four bytes at offset 4 spell
+    // `ftyp`. It is here so that the sentence in the header stays true, and
+    // so that a future edit which narrowed the signature table by encoding
+    // would have to change a case rather than a comment.
+    const utf16Container = new Uint8Array([0xff, 0xfe, 0x3c, 0x00, 0x66, 0x74, 0x79, 0x70, 0x69, 0x00, 0x73, 0x00])
+
+    expect(sniffMediaType(utf16Container)).toBe('video/mp4')
   })
 
   it('does not read an svg root out of an element whose name merely begins with svg', () => {
