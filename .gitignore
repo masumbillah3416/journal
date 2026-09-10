@@ -3,11 +3,30 @@ node_modules/
 .pnp/
 .pnp.js
 
-# Build output
-.next/
-out/
-dist/
-build/
+# Build output.
+#
+# EVERY DIRECTORY PATTERN HERE SAYS ITS DEPTH ON PURPOSE. A bare `dist/`
+# matches a directory of that name AT ANY DEPTH, and that shape is how a bare
+# `media/` came to hide `packages/domain/src/media/` - two source files, in a
+# package gated at 100% coverage, that git did not list at all (see the store
+# block below). `**/` is written where the depth match is what we want, so a
+# reader sees it instead of inheriting it by accident.
+#
+# THE RESIDUAL RISK, because a pattern cannot know intent: these four would
+# still swallow a SOURCE directory of the same name anywhere in the tree.
+# There is none today - the only matches on disk are `apps/web/.next` (with
+# its own `build` inside it), `packages/domain/dist` and
+# `packages/tokens/dist`. If a source directory ever needs one of these
+# names, anchor the pattern to the path that actually produces artefacts
+# (`packages/*/dist`, `apps/web/.next`) rather than adding a negation.
+#
+# The two file patterns are deliberately depth-free: `*.tsbuildinfo` is
+# written next to whichever tsconfig produced it, and `next-env.d.ts` next to
+# whichever Next app generated it.
+**/.next/
+**/out/
+**/dist/
+**/build/
 *.tsbuildinfo
 next-env.d.ts
 
@@ -16,14 +35,21 @@ next-env.d.ts
 .env.*
 !.env.example
 
-# Test artefacts
-coverage/
-playwright-report/
-test-results/
-blob-report/
+# Test artefacts.
+#
+# ANCHORED, because every one of these has exactly one home: `coverage/` is
+# where both Vitest configs write, `test-results/` and `playwright-report/`
+# are `playwright.config.ts`'s `outputDir` and html reporter, `blob-report/`
+# is the blob reporter's, and `lhci-reports/` is `lighthouserc.json`'s
+# `outputDir` - all of them resolved from the repository root. A directory of
+# any of these names deeper in the tree is source, and git should list it.
+/coverage/
+/playwright-report/
+/test-results/
+/blob-report/
 *.lcov
-.lighthouseci/
-lhci-reports/
+/.lighthouseci/
+/lhci-reports/
 
 # Local media and database volumes.
 #
