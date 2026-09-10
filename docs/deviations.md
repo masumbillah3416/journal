@@ -2122,3 +2122,25 @@ in `apps/web/collections/media.ts`.
 and the reversibility case
 _"rolls the media state column and its enum type down and back up, with the table and its
 rows intact"_ in `apps/web/collections/collections.integration.test.ts`.
+
+## 49 · The `worker` MediaProcessor adapter transcodes in-process, where ADR 0004 says it enqueues
+
+**What changed:** `docs/adr/0004-media-pipeline-mode.md`'s Decision defines the `worker`
+adapter as one that "enqueues onto the Postgres `jobs` table (the existing `QueuePort`)
+for a Fly.io process". `apps/web/lib/adapters/worker-media-processor.ts` (Phase 3 Task 6)
+never touches `pgQueue`: it probes, transcodes and extracts the poster frame synchronously,
+in the process it is called in, through `apps/web/lib/media/clipToolchain.ts`.
+
+**Rationale.** `MediaProcessor.process` answers with the processed bytes
+(`Promise<Result<Processed, ProcessingRefusal>>`), and an adapter that enqueued would have
+nothing to answer with — it would need a job id and somewhere to deliver the result, which
+is a second port rather than a second adapter. The ADR's sentence conflated the adapter
+with its deployment: the Fly.io process is WHERE this adapter runs, and the queue hop is
+how an upload request reaches that process. That hop belongs between the upload receiver
+and the worker, and the receiver is Tasks 7–9.
+
+**Cost.** ADR 0004 carries an Amendment section saying the same thing, rather than a
+rewritten Decision — a decision record edited to match the code stops being a record. The
+queue is not cancelled: `QueuePort` and `pgQueue` are built and contract-tested, nothing
+calls either MediaProcessor adapter from a route or a hook yet, and Tasks 7–9 own the
+question of which process the bytes are handed to.

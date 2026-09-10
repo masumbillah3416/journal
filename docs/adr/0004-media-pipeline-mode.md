@@ -61,6 +61,8 @@ and what's wired to it_, not the data model.
   - `worker` — enqueues onto the Postgres `jobs` table (the existing `QueuePort`,
     already built and contract-tested in Phase 0) for a Fly.io process running the same
     still pipeline plus `ffmpeg`/`ffprobe` transcoding and poster extraction for clips.
+    **Amended by what was built — see the Amendment below: the adapter does the second
+    half of that sentence and none of the first.**
 - **The flag switches three things together**, deliberately, because that's what makes
   it _one_ configuration change rather than a checklist a future deploy can partially
   do:
@@ -123,3 +125,34 @@ and what's wired to it_, not the data model.
   is being departed from — the handoff never mandated a worker on day one, only that
   video transcoding doesn't fit serverless _when it exists_) in `docs/deviations.md` and
   in the design spec §4/§9/§13.
+
+## Amendment — Phase 3 Task 6, what the `worker` adapter actually is
+
+This section is added rather than editing the Decision above, because a decision record
+that is quietly rewritten to match the code stops being a record. The Decision says the
+`worker` adapter "enqueues onto the Postgres `jobs` table (the existing `QueuePort`) for a
+Fly.io process". `apps/web/lib/adapters/worker-media-processor.ts` never touches `pgQueue`:
+it runs `probe`, `transcode` and `poster` **synchronously, in the process it is called in**,
+through `apps/web/lib/media/clipToolchain.ts`.
+
+**Why the built shape is the right one, and why the Decision's sentence conflated two
+things.** `MediaProcessor.process` is `(upload) => Promise<Result<Processed, ...>>` — it
+answers with the processed bytes. An adapter that enqueued would have nothing to answer
+with: the port would need a second shape (a job id, and somewhere to deliver the result),
+which is a different port, not a different adapter. What the Decision was describing is
+the DEPLOYMENT: the Fly.io process is where the `worker` adapter runs, and a queue hop is
+how an upload request reaches that process. That hop lives between the upload receiver and
+the worker, not inside the port — and the receiver is Phase 3 Tasks 7–9, which is where
+`QueuePort` comes back into it. Nothing about the flag changes: `MEDIA_PIPELINE=worker`
+still switches which adapter is bound, which types are accepted, and which affordances the
+admin shows.
+
+**What is unchanged from the Decision:** the flag, the three things it switches together,
+the untouched schema, and the non-negotiable that both adapters run the same contract
+suite in CI from day one.
+
+**What a future reader must not conclude from this amendment:** that the Fly.io worker and
+`pgQueue` are cancelled. They are not — no upload path reaches either adapter yet
+(`apps/web/lib/media/services.ts` is not called from a route or a hook), and the queue hop
+is still the plan for getting a clip to a process with `ffmpeg` on it. Recorded in
+`docs/deviations.md` §49 and in `docs/architecture.md` §2.

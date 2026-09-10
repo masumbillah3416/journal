@@ -546,11 +546,19 @@ so the two implementations are provably interchangeable.
 
 **The Fly.io worker is deferred** (`docs/adr/0004-media-pipeline-mode.md`): no video
 clips for now, so nothing claims jobs from `pgQueue` in production yet. A fourth port,
-`MediaProcessor`, is to get the same treatment when Phase 3 builds it: an `inline`
-adapter (the still-image pipeline, in-process on Vercel, bypassing the queue entirely) and
-a `worker` adapter (the still pipeline plus `ffmpeg`, via `pgQueue` and the Fly.io worker
-above) — both required to pass the same contract suite in CI, per ADR 0004, even though
-only `inline` would deploy until video is turned back on.
+`MediaProcessor`, got the same treatment when Phase 3 Task 6 built it: an `inline` adapter
+(the still-image pipeline, in-process on Vercel) and a `worker` adapter (the same still
+pipeline plus `ffmpeg`) — both required to pass the same contract suite in CI, per ADR
+0004, even though only `inline` deploys until video is turned back on.
+
+**The `worker` adapter does NOT enqueue, and ADR 0004's Decision says it does.** It probes,
+transcodes and extracts the poster frame synchronously, in the process it is called in;
+`pgQueue` is not on its path at all. The port's own shape is why — `process` answers with
+the processed bytes, so an adapter that enqueued would have nothing to answer with. The
+Fly.io process is WHERE that adapter runs and the queue hop is how an upload request
+reaches it, which is a seam between the upload receiver and the worker rather than one
+inside the port. Recorded as ADR 0004's Amendment section and `docs/deviations.md` §49,
+and still open work: Tasks 7–9 own the receiver.
 
 **BUILT, AND WHAT IS AND IS NOT WIRED IS NAMED (Phase 3 Task 6).** `apps/web/lib/ports/mediaProcessor.ts` is the port; `apps/web/lib/adapters/inline-media-processor.ts` and `worker-media-processor.ts` are its two adapters; `apps/web/lib/adapters/contract/media-processor-contract.ts` is the ONE suite both run, wired by one line per adapter, which is ADR 0004's non-negotiable. **The structural decision that makes that honest:** `apps/web/lib/media/stillPipeline.ts` holds steps 1 to 6 once and both adapters compose it, so “the two still pipelines are the same” is true by construction rather than by two implementations happening to agree — the `worker` adapter adds step 7 (`apps/web/lib/media/clipToolchain.ts`, the `ffmpeg` boundary) and nothing else. `apps/web/lib/media/services.ts` is the single place `MEDIA_PIPELINE` chooses one. **NOT WIRED TO A CALLER:** nothing calls `mediaProcessor()` from a route or a Payload hook, so setting the flag changes which adapter a caller WOULD get and no upload path reaches either yet — the receiver, the derivative tiers and the download handler are Phase 3 Tasks 7–9. **UNRESOLVED on the authoring machine:** `ffmpeg`/`ffprobe` are not installed here, so the clip toolchain's subprocess success arms have never run locally; CI installs both and sets `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1`, which turns a missing binary into a failed build rather than a quieter test run.
 
