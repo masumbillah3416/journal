@@ -170,13 +170,22 @@ describe('aJpegHeader', () => {
 })
 
 describe('aPngHeader', () => {
-  it('is the eight-byte signature a real PNG on this machine opens with', () => {
+  it('is exactly the eight bytes this factory is documented to hold', () => {
+    // NAMED AS THE SELF-CONSISTENCY CHECK IT IS. That these bytes are a real
+    // PNG's was measured twice and the evidence lives in the factory's
+    // docstring; this assertion compares the fixture with literals and
+    // cannot confirm it. Nor can a test read a real file: the only PNG in
+    // the tree is the seeded `apps/web/media/bergen-b4-28.png`, which
+    // `.gitignore` keeps out of git, so a fresh clone has none.
     expect([...aPngHeader()]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
   })
 })
 
 describe('anIsoBmffHeader', () => {
-  it('writes ftyp at offset four, where a real ISO base media file carries it', () => {
+  it('writes ftyp at offset four, the offset the sniff reads the tag from', () => {
+    // Self-consistency again, and the same division of labour: that offset 4
+    // is where a real file carries the tag is measured by `anAvifHeader`,
+    // whose bytes ARE a real file's, and `sniff.ts` reads it there.
     const header = anIsoBmffHeader()
 
     expect(new TextDecoder().decode(header.subarray(4, 8))).toBe('ftyp')
