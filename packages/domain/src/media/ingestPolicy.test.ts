@@ -17,12 +17,32 @@
  * stored-XSS attempt. So every case here asserts the whole Result, not
  * `.ok === false`.
  *
+ * THE THIRD BLOCK IS ALSO WHERE THE BYPASSES ARE PROVED CLOSED. The Task 2
+ * review defeated the first fix for the `ftyp`-in-markup class five ways and
+ * measured what `ingestDecision` then answered: `{ ok: true, value:
+ * 'video/mp4' }` for a document Chromium renders and whose script it runs.
+ * A case in `sniff.test.ts` alone would pin the type; only a composed case
+ * pins the ACCEPTANCE, which is the thing that was wrong.
+ *
  * Depends on: vitest, ./ingestPolicy, ./sniff, ../testing/factories.
  */
 import { describe, expect, it } from 'vitest'
 import { acceptedIngestTypes, ingestDecision } from './ingestPolicy'
 import { sniffMediaType } from './sniff'
 import { aJpegHeader, anSvgDocument } from '../testing/factories'
+
+/**
+ * The first twenty-eight bytes of an AVIF this machine's `sharp` 0.35.4
+ * wrote: box length, `ftyp`, the major brand `avif`, a zero minor version,
+ * then the compatible brands `mif1 avif miaf`. Real bytes rather than a
+ * synthesised header, because the point of the two cases below is what a file
+ * this repository's own encoder produces is answered.
+ */
+const aRealAvif = (): Uint8Array =>
+  new Uint8Array([
+    0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66, 0x00, 0x00, 0x00, 0x00, 0x6d, 0x69, 0x66,
+    0x31, 0x61, 0x76, 0x69, 0x66, 0x6d, 0x69, 0x61, 0x66,
+  ])
 
 describe('acceptedIngestTypes', () => {
   it('offers stills only under inline, because video is deferred', () => {
@@ -139,6 +159,61 @@ describe('the sniff and the policy together, on a file that lies about itself', 
     const decision = ingestDecision({ sniffed: sniffMediaType(bytes), declared: 'image/jpeg', mode: 'inline' })
 
     expect(decision).toEqual({ ok: false, error: 'svg-rejected' })
+  })
+
+  it('refuses an SVG whose padded comment spoofs an mp4 header, under worker and a lying client', () => {
+    // THE REVIEW'S BYPASS, end to end and in the mode that accepted it.
+    // `worker` is one environment variable away (ADR 0004) and the client
+    // writes its own `Content-Type`, so neither inline mode nor the declared
+    // type is a guard here - the sniff is. Before the fork was structural
+    // this returned `{ ok: true, value: 'video/mp4' }` for a document served
+    // as `image/svg+xml` that Chromium renders and whose script it executes.
+    const bytes = new TextEncoder().encode(
+      `<!--ftypisom${'.'.repeat(1100)}--><svg xmlns="http://www.w3.org/2000/svg">` +
+        `<script>fetch("/admin/sign-out",{method:"POST"})</script></svg>`,
+    )
+
+    const decision = ingestDecision({ sniffed: sniffMediaType(bytes), declared: 'video/mp4', mode: 'worker' })
+
+    expect(decision).toEqual({ ok: false, error: 'type-not-allowed' })
+  })
+
+  it('refuses one whose root element carries a namespace prefix by name, as an SVG', () => {
+    // Fourteen bytes of prolog, no padding, and a root element a literal
+    // scan for `<svg` never sees - and this one is refused under the name of
+    // the danger rather than as an unrecognised file, because the prefixed
+    // root is recognised.
+    const bytes = new TextEncoder().encode(
+      '<?x ftypisom?><s:svg xmlns:s="http://www.w3.org/2000/svg">' +
+        '<s:script>fetch("/admin/sign-out",{method:"POST"})</s:script></s:svg>',
+    )
+
+    const decision = ingestDecision({ sniffed: sniffMediaType(bytes), declared: 'video/mp4', mode: 'worker' })
+
+    expect(decision).toEqual({ ok: false, error: 'svg-rejected' })
+  })
+
+  it('refuses a real AVIF the way a browser uploads one, as a declared mismatch', () => {
+    // Measured: Chromium sends `image/avif` for `pic.avif`, and the bytes
+    // sniff `'video/mp4'` because `avif` is not a brand this table names. The
+    // disagreement is what refuses it, which is why the mismatch check earns
+    // its place even though the bytes are never trusted to the client's word.
+    const decision = ingestDecision({ sniffed: sniffMediaType(aRealAvif()), declared: 'image/avif', mode: 'worker' })
+
+    expect(decision).toEqual({ ok: false, error: 'declared-mismatch' })
+  })
+
+  it('accepts a real AVIF from a client that declares it an mp4, which Phase 3 Task 6 owns', () => {
+    // NOT ratified as good: recorded, with real bytes, because it is latent
+    // otherwise. A client is not a browser and writes its own header, so
+    // under `worker` an AVIF reaches the clip pipeline named `'video/mp4'`.
+    // The refusal that catches it is the DECODER's, which is Task 6's to
+    // build - and this case is what makes the invariant in `sniff.ts`'s
+    // header ("never read 'video/mp4' as 'this decodes as video'") fail
+    // loudly if Task 6 assumes otherwise.
+    const decision = ingestDecision({ sniffed: sniffMediaType(aRealAvif()), declared: 'video/mp4', mode: 'worker' })
+
+    expect(decision).toEqual({ ok: true, value: 'video/mp4' })
   })
 
   it('accepts real JPEG bytes on the same path, so the refusal above is not a blanket one', () => {

@@ -2780,7 +2780,12 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   `packages/domain/src/media/ingestPolicy.test.ts` decide the type from the bytes and
   refuse it, at the domain's 100% bar, and the case that carries the requirement feeds
   SVG bytes under the `Content-Type` a browser derives from a `.jpg` name rather than a
-  correctly-named `.svg`. What no unit test can do is drive a real multipart request
+  correctly-named `.svg`. `sniff.test.ts`'s second block, `on documents that are markup`,
+  holds a class rather than a case: legal markup that carries a container signature's bytes
+  at a container signature's offset (`<!--ftypisom…`, `<?x ftypisom?>`, `<br>ftypisom…`,
+  a namespace-prefixed root). The Task 2 review defeated a fix that closed one shape of it
+  five ways, so the shapes are cases and the fix is structural. What no unit test can do is
+  drive a real multipart request
   through a real boundary, which is what the outstanding probe is for - and there is no
   upload boundary to drive yet.
 
