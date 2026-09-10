@@ -3,6 +3,8 @@ import {
   aBookChrome,
   aJpegHeader,
   anAvifHeader,
+  anExifJpeg,
+  EXIF_CANARY,
   anIsoBmffHeader,
   anSvgDocument,
   aPngHeader,
@@ -265,5 +267,81 @@ describe('anSvgDocument', () => {
     const document = new TextDecoder().decode(anSvgDocument({ leadingWhitespace: '\n  ' }))
 
     expect(document.startsWith('\n  <svg')).toBe(true)
+  })
+})
+
+describe('anExifJpeg', () => {
+  /** The fixture's bytes as latin1 text, which is how an ASCII value inside a binary file is searched for. */
+  const asText = (bytes: Uint8Array): string => new TextDecoder('latin1').decode(bytes)
+  const uint16At = (bytes: Uint8Array, at: number): number =>
+    new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint16(at)
+
+  it('is a complete JPEG, from the start-of-image marker to the end-of-image one', () => {
+    const jpeg = anExifJpeg()
+
+    expect([...jpeg.subarray(0, 2), ...jpeg.subarray(jpeg.length - 2)]).toEqual([0xff, 0xd8, 0xff, 0xd9])
+  })
+
+  it('is exactly as long as its documented layout says, in both the file and the segment', () => {
+    // NOT a tautology, deliberately: both numbers are the layout table in
+    // the docstring, added up by hand. A segment length taken from the
+    // fixture itself would agree with a fixture that padded or truncated
+    // its own segment, and an overstated length is how a real file ends up
+    // with a parser reading past the end of its directory. The TIFF block
+    // is 113 bytes - 50 of header and IFD0, a 25-byte canary, 18 of
+    // sub-IFD, a 20-byte capture time - and the segment adds its own
+    // two-byte length field and the six identifier bytes.
+    const jpeg = anExifJpeg()
+
+    expect([uint16At(jpeg, 4), jpeg.length]).toEqual([2 + 6 + 113, 2 + 2 + (2 + 6 + 113) + 2])
+  })
+  it('introduces the segment with the six bytes that make an APP1 an EXIF one', () => {
+    expect(asText(anExifJpeg().subarray(6, 12))).toBe('Exif\u0000\u0000')
+  })
+
+  it('really contains the canary, which is what every absence assertion downstream rests on', () => {
+    // THE POSITIVE CONTROL. `expect(stored).not.toContain(canary)` is
+    // trivially true of a fixture that never carried it, so the presence is
+    // asserted here, once, in the file that builds it.
+    expect(asText(anExifJpeg())).toContain(EXIF_CANARY)
+  })
+
+  it('really contains the capture time as ASCII, for the same reason', () => {
+    expect(asText(anExifJpeg({ capturedAt: '2019:07:01 06:00:00' }))).toContain('2019:07:01 06:00:00')
+  })
+
+  it('writes a big-endian TIFF block by default and a little-endian one on request', () => {
+    expect([
+      asText(anExifJpeg().subarray(12, 14)),
+      asText(anExifJpeg({ byteOrder: 'little-endian' }).subarray(12, 14)),
+    ]).toEqual(['MM', 'II'])
+  })
+
+  it('declares three entries in IFD0, in the ascending tag order TIFF requires', () => {
+    // SELF-CONSISTENCY, NAMED AS SUCH: this reads the layout back at the
+    // offsets the factory wrote it at, so it cannot confirm that the layout
+    // is a real file's. What confirms that is in the factory's docstring -
+    // `sharp` was handed this segment and read the orientation and the
+    // canary out of it - and a test cannot do it here, because the domain
+    // package has no encoder to compare against.
+    const jpeg = anExifJpeg()
+
+    expect([uint16At(jpeg, 20), uint16At(jpeg, 22), uint16At(jpeg, 34), uint16At(jpeg, 46)]).toEqual([
+      3, 0x0112, 0x8298, 0x8769,
+    ])
+  })
+
+  it('writes the orientation the caller asked for into the entry’s own value field', () => {
+    expect(uint16At(anExifJpeg({ orientation: 7 }), 30)).toBe(7)
+  })
+
+  it('writes an orientation of zero rather than substituting the default for it', () => {
+    // `?? 1` and `|| 1` differ here, and the case that tells them apart is
+    // the corrupt-tag case `exif.test.ts` needs.
+    expect(uint16At(anExifJpeg({ orientation: 0 }), 30)).toBe(0)
+  })
+
+  it('gives every call its own array, never a shared buffer', () => {
+    expect(anExifJpeg()).not.toBe(anExifJpeg())
   })
 })

@@ -2887,6 +2887,27 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   through a real boundary, which is what the outstanding probe is for - and there is no
   upload boundary to drive yet.
 
+  The PURE half of the EXIF probe landed in Phase 3 Task 3, and it is the half that
+  decides whether the phase criterion "EXIF verifiably absent" means anything.
+  `packages/domain/src/media/exif.test.ts` holds two things that must not be confused:
+  `readExifFacts`, which reads `capturedAt` and orientation out of a photograph, and
+  `metadataMarkersIn`, which is the INSTRUMENT the absence is measured with. The probe
+  searches the whole buffer for three ASCII signatures and shares no code and no
+  structural assumption with the reader, so an absence assertion is a statement about
+  the stored bytes rather than about what `sharp` reports having done. Its cases are
+  therefore mostly POSITIVE - a scanner that can only ever answer "no" would pass every
+  absence assertion ever written against it - including one marker sitting 4,000 bytes
+  into a file, which is what fails when the search is bounded to the head. The fixture
+  it all rests on, `anExifJpeg`, asserts its OWN content first, in a case named
+  `really contains the canary, which is what every absence assertion downstream rests on`,
+  because "contains no EXIF marker" is trivially true of zero bytes and of a file that
+  failed to encode. What no unit test here can do is prove the fixture agrees with a
+  real encoder: that comparison needs `sharp`, which `packages/domain` must not depend
+  on, and it lands as a committed test in Task 6 Step 4. The measurement that stands in
+  for it meanwhile is recorded in the factory's own docstring, and `exiftool` - which
+  would settle it independently - is not installed on this machine, so that check is
+  UNRESOLVED rather than routed through anything online.
+
 - **Run (once added):** included in `npm run test:integration` (these probes need a real
   database and, for the upload cases, the worker), so they run under `verify:full`.
 - **Add one (once added):** each row of `docs/security.md` that names a behaviour (not

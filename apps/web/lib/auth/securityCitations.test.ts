@@ -163,7 +163,8 @@ const A_CASE_NAME_THAT_MUST_BE_FOUND = 'draws the code from the CSPRNG, not from
 
 /**
  * The quoted runs in that table which are NOT citations: fragments of the
- * handoff, of the UI's own copy, or of a dependency's message, quoted as prose.
+ * handoff, of the UI's own copy, of a dependency's message, or of a phase's own
+ * exit criterion, quoted as prose.
  *
  * THIS LIST IS THE PROPERTY THAT SEPARATES PROSE FROM CITATIONS, and it is
  * deliberately not "the quote character somebody typed" — that was the previous
@@ -185,6 +186,7 @@ const QUOTED_PROSE: readonly string[] = [
   'keep me signed in',
   'will never use eval() in production mode',
   'a logged-in user',
+  'EXIF verifiably absent',
 ]
 
 /**
