@@ -3387,31 +3387,41 @@ the sentence one prose exemption covers, deleted                 -> stale exempt
   it would be a much worse kind of reversible, and it would cost every photograph in the
   diary. Verified by replacing `down()` with a comment and watching it fail.
 
-  **What a deliberate `down()` mutation actually reports here, and why.** With `down()` a
-  no-op, the mid-test assertion fails first — the probe still finds all four artefacts —
-  but the `finally`'s re-apply then throws `type "enum_media_state" already exists`, and a
-  `finally` that throws replaces the error from the `try`. So the pasted failure names the
-  collision rather than the assertion diff. That is intrinsic rather than a weakness of
-  the assertion: every artefact this migration is responsible for is created by its own
-  `up()`, so ANY incomplete `down()` makes the re-apply collide. The hand repair
-  afterwards is the one the `sign_in_attempts` recipe describes, with this migration's
-  artefacts: `DROP TYPE "public"."enum_media_state"` (plus the two columns, if the
-  mutation left them), then let the next run apply `up()` again — measured, that is all it
-  took.
+  **What a deliberate `down()` mutation reports here, and the claim that had to be
+  withdrawn.** With `down()` a no-op the case fails either way, which is what matters —
+  but WHAT it said was wrong, and Task 5's report recorded the reason as intrinsic. The
+  older shape asserted inside a `try` whose `finally` re-applied the migration; an
+  incomplete `down()` makes that re-apply collide (`type "enum_media_state" already
+exists`), a `finally` that throws replaces the error from the `try`, and so the pasted
+  failure named the collision instead of the schema. The review reproduced a five-line
+  reordering that falsifies "intrinsic": capture the probe, re-apply TOLERANTLY, assert
+  afterwards. The same mutation now reports `expected [ Array(4) ] to deeply equal
+[ 'media-table' ]`.
 
-  **All five reversibility cases re-apply in a `finally`,** including the roll-to-zero
-  one, which did not until a review pointed out that documenting its blast radius was not
-  the same as closing it. Between `runMigrateDownToZero()` and `runMigrateUp()` the
+  `acrossItsOwnRollback` in `collections.integration.test.ts` is that shape, and every case that
+  reverses one migration alone goes through it. Its tolerance is narrow rather than a swallow
+  (CLAUDE.md §3.1): the re-apply's failure is accepted only when the schema is back in its
+  applied state anyway — which is the one thing a collision means — and re-thrown
+  otherwise, because a repair that did not repair must not be quiet. The hand repair after
+  a deliberate mutation is unchanged and is the `sign_in_attempts` recipe with this
+  migration's artefacts: `DROP TYPE "public"."enum_media_state"` (plus the two columns, if
+  the mutation left them), then let the next run apply `up()` again — measured again in
+  the Tasks 4–6 fix round, and that is still all it takes.
+
+  **All five reversibility cases put the migration back before the test can end** — the
+  four per-migration ones through `acrossItsOwnRollback`, and the roll-to-zero one in a
+  `finally`, which it did not until a review pointed out that documenting its blast radius
+  was not the same as closing it. Between `runMigrateDownToZero()` and `runMigrateUp()` the
   database has no schema at all, and an assertion failing in that gap used to leave it
   that way: measured, one failing assertion there turned into four failed cases and a
   `diary_test` with no `payload_migrations` table, so every later file in the project ran
-  against nothing. With the `finally`, the same failing assertion leaves every
-  migration applied and the schema intact — measured too. What a `finally` cannot cover
-  is a `down()` that leaves artefacts behind, because the re-apply then legitimately fails
-  on the collision; **that** case still needs hand repair (drop `sign_in_attempts`, both
-  `enum_sign_in_attempts_*` types and the `payload_locked_documents_rels` column, then let
-  the next run apply `up()` again), and it is the one to expect when mutating a `down()`
-  on purpose.
+  against nothing. With the re-apply, the same failing assertion leaves every
+  migration applied and the schema intact — measured too. What a re-apply cannot fully
+  cover is a `down()` that leaves artefacts behind, because it then legitimately fails on
+  the collision; the tolerant form keeps the ASSERTION's diff readable, but **that** case
+  still needs hand repair (drop `sign_in_attempts`, both `enum_sign_in_attempts_*` types
+  and the `payload_locked_documents_rels` column, then let the next run apply `up()`
+  again), and it is the one to expect when mutating a `down()` on purpose.
 
   The `session_hash` case is also the one worth reading before writing another migration
   test, because its first version was worthless and looked fine. It rolled every

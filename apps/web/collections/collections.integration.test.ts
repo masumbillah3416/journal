@@ -469,6 +469,55 @@ const runMigrationDirection = async (
   })
 }
 
+/**
+ * Rolls one migration down, reads the schema it left behind, and puts it back.
+ *
+ * ═══ WHY THE PROBE IS CAPTURED RATHER THAN ASSERTED IN PLACE ═══
+ *
+ * The four cases below used to assert INSIDE a `try` whose `finally`
+ * re-applied the migration. Between the `down` and the `up`, `diary_test` is
+ * in a state `payload_migrations` does not describe, so the re-apply is not
+ * tidiness: without it, one failing assertion leaves a database the next
+ * run's `runMigrateUp()` cannot repair, because it has nothing pending to
+ * apply. That part was right and is unchanged.
+ *
+ * What was wrong is what the failure then SAYS. A `down()` that leaves
+ * artefacts behind - the exact mutation these cases exist to catch - makes
+ * the re-apply collide (`type "enum_media_state" already exists`), and a
+ * `finally` that throws REPLACES the error from the `try`. So the mutation's
+ * report named the collision rather than the assertion diff, and Task 5's
+ * report recorded that masking as intrinsic. It is not: capture the probe,
+ * re-apply tolerantly, assert afterwards, and the same mutation reports
+ * `expected [ Array(4) ] to deeply equal [ 'media-table' ]`.
+ *
+ * The tolerance is NARROW rather than a swallow (CLAUDE.md §3.1): the
+ * re-apply's failure is accepted only when the schema is back in its applied
+ * state anyway, which is the one situation a collision means. Anything else
+ * is re-thrown, because a repair that did not repair must not be quiet.
+ * @param migration - The migration's name, as `payload_migrations` records it.
+ * @param payload - The test Payload instance.
+ * @param probe - `read` gathers whatever the caller wants to assert about the
+ *   rolled-back schema; `whenApplied` is what `read` answers once the
+ *   migration is back, and the only answer a collision is tolerated for.
+ * @returns What `read` answered while the migration was rolled back.
+ */
+const acrossItsOwnRollback = async <T>(
+  migration: string,
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  probe: { readonly read: () => Promise<T>; readonly whenApplied: T },
+): Promise<T> => {
+  await runMigrationDirection(migration, 'down', payload)
+  try {
+    return await probe.read()
+  } finally {
+    try {
+      await runMigrationDirection(migration, 'up', payload)
+    } catch (reapplyFailure) {
+      if (JSON.stringify(await probe.read()) !== JSON.stringify(probe.whenApplied)) throw reapplyFailure
+    }
+  }
+}
+
 /** The three tables a journey's own fields, highlights and tally live in. */
 const JOURNEY_TABLES = ['journeys', 'journeys_highlights', 'journeys_tally'] as const
 
@@ -1140,29 +1189,21 @@ describe('collections', () => {
   it('drops and restores only the otpChallenges session binding when its own migration is reversed', async () => {
     expect(await sessionHashSchema()).toEqual(['column', 'index'])
 
-    await runMigrationDirection(SESSION_HASH_MIGRATION, 'down', payload)
-    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS. Between the
-    // `down` above and the `up` below, `diary_test` is in a state
-    // `payload_migrations` does not describe: the column is gone while the
-    // bookkeeping still records the migration as applied, so the next run's
-    // `runMigrateUp()` is a no-op and EVERY subsequent integration run fails
-    // against a database with no way to repair itself. Without this, one
-    // failing assertion in here stops being a red test and becomes a session
-    // in which nothing at all can be verified - and the damage presents as a
-    // broken fixture, several files away from the test that caused it. The
-    // version this replaced rolled every migration to zero, which was
-    // worthless as a test (see below) but was at least self-healing; the
-    // narrower test must not buy its precision with that blast radius.
-    try {
-      expect(await sessionHashSchema()).toEqual([])
-      // The table itself must survive: this migration adds a column to a table
-      // it did not create, so a `down()` that took the table with it would be a
-      // different and much worse kind of reversible.
-      expect(await existingTablesAmong(['otp_challenges'])).toEqual(['otp_challenges'])
-    } finally {
-      await runMigrationDirection(SESSION_HASH_MIGRATION, 'up', payload)
-    }
+    // The re-apply is not tidiness and the probe is not asserted in place:
+    // see `acrossItsOwnRollback`. Between the `down` and the `up`,
+    // `diary_test` is in a state `payload_migrations` does not describe, so a
+    // failing assertion in here would otherwise stop being a red test and
+    // become a session in which nothing at all can be verified - with the
+    // damage presenting as a broken fixture several files away.
+    const rolledBack = await acrossItsOwnRollback(SESSION_HASH_MIGRATION, payload, {
+      read: async () => ({ binding: await sessionHashSchema(), tables: await existingTablesAmong(['otp_challenges']) }),
+      whenApplied: { binding: ['column', 'index'], tables: ['otp_challenges'] },
+    })
 
+    // The column and the index are gone; the TABLE is not. This migration adds
+    // a column to a table it did not create, so a `down()` that took the table
+    // with it would be a different and much worse kind of reversible.
+    expect(rolledBack).toEqual({ binding: [], tables: ['otp_challenges'] })
     expect(await sessionHashSchema()).toEqual(['column', 'index'])
     // And the rebuilt column still holds what it is for. A migration that
     // restored a column of the wrong type or nullability would satisfy every
@@ -1240,18 +1281,15 @@ describe('collections', () => {
   it('drops and restores the whole sign-in attempt window, enum types included, when its own migration is reversed', async () => {
     expect(await signInAttemptsSchema()).toEqual(SIGN_IN_ATTEMPTS_SCHEMA)
 
-    await runMigrationDirection(SIGN_IN_ATTEMPTS_MIGRATION, 'down', payload)
-    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS - see the
-    // otpChallenges case above. Between the `down` and the `up`, `diary_test`
-    // is in a state `payload_migrations` does not describe, and the next
-    // run's `runMigrateUp()` would be a no-op against a database with no way
-    // to repair itself.
-    try {
-      expect(await signInAttemptsSchema()).toEqual([])
-    } finally {
-      await runMigrationDirection(SIGN_IN_ATTEMPTS_MIGRATION, 'up', payload)
-    }
+    // Probe captured, re-apply tolerant, assertion afterwards - see
+    // `acrossItsOwnRollback` for why the older shape reported the re-apply's
+    // collision instead of the diff.
+    const rolledBack = await acrossItsOwnRollback(SIGN_IN_ATTEMPTS_MIGRATION, payload, {
+      read: signInAttemptsSchema,
+      whenApplied: SIGN_IN_ATTEMPTS_SCHEMA,
+    })
 
+    expect(rolledBack).toEqual([])
     expect(await signInAttemptsSchema()).toEqual(SIGN_IN_ATTEMPTS_SCHEMA)
     // And the rebuilt table still holds what it is for. A migration that
     // restored a column of the wrong type, or an enum missing a value, would
@@ -1282,22 +1320,17 @@ describe('collections', () => {
   it('drops and restores the session lifetime column and its lookup index when its own migration is reversed', async () => {
     expect(await sessionExpirySchema()).toEqual(['column', 'index'])
 
-    await runMigrationDirection(SESSION_EXPIRY_MIGRATION, 'down', payload)
-    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS - see the
-    // otpChallenges case above. Between the `down` and the `up`, `diary_test`
-    // is in a state `payload_migrations` does not describe, and the next
-    // run's `runMigrateUp()` would be a no-op against a database with no way
-    // to repair itself.
-    try {
-      expect(await sessionExpirySchema()).toEqual([])
-      // The table itself must survive: this migration adds a column and an
-      // index to a table it did not create, so a `down()` that took the table
-      // with it would be a different and much worse kind of reversible.
-      expect(await existingTablesAmong(['sessions'])).toEqual(['sessions'])
-    } finally {
-      await runMigrationDirection(SESSION_EXPIRY_MIGRATION, 'up', payload)
-    }
+    // Probe captured, re-apply tolerant, assertion afterwards - see
+    // `acrossItsOwnRollback`.
+    const rolledBack = await acrossItsOwnRollback(SESSION_EXPIRY_MIGRATION, payload, {
+      read: async () => ({ lifetime: await sessionExpirySchema(), tables: await existingTablesAmong(['sessions']) }),
+      whenApplied: { lifetime: ['column', 'index'], tables: ['sessions'] },
+    })
 
+    // The table itself must survive: this migration adds a column and an index
+    // to a table it did not create, so a `down()` that took the table with it
+    // would be a different and much worse kind of reversible.
+    expect(rolledBack).toEqual({ lifetime: [], tables: ['sessions'] })
     expect(await sessionExpirySchema()).toEqual(['column', 'index'])
     // And the rebuilt column still holds what it is for. A migration that
     // restored it nullable, or of the wrong type, would satisfy every
@@ -1331,21 +1364,23 @@ describe('collections', () => {
 
     expect(await mediaStateSchema()).toEqual(MEDIA_STATE_SCHEMA)
 
-    await runMigrationDirection(MEDIA_STATE_MIGRATION, 'down', payload)
-    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS - see the two
-    // cases above. Between the `down` and the `up`, `diary_test` is in a
-    // state `payload_migrations` does not describe, and the next run's
-    // `runMigrateUp()` would be a no-op against a database with no way to
-    // repair itself.
-    try {
-      // The columns and the type are gone; the table and the row are not. A
-      // down() that took `media` with it would be a much worse kind of
-      // reversible - every photograph in the diary.
-      expect(await mediaStateSchema()).toEqual(MEDIA_STATE_SCHEMA_ROLLED_BACK)
-    } finally {
-      await runMigrationDirection(MEDIA_STATE_MIGRATION, 'up', payload)
-    }
+    // THIS IS THE CASE THAT SHOWED THE OLDER SHAPE MASKING ITS OWN DIFF. With
+    // `down()` replaced by a comment, the assertion failed - and then the
+    // `finally`'s re-apply threw `type "enum_media_state" already exists`,
+    // which replaced it, so the mutation's report named the collision rather
+    // than the schema. Captured probe, tolerant re-apply, assertion
+    // afterwards: the same mutation now reports
+    // `expected [ Array(4) ] to deeply equal [ 'media-table' ]`. See
+    // `acrossItsOwnRollback`.
+    const rolledBack = await acrossItsOwnRollback(MEDIA_STATE_MIGRATION, payload, {
+      read: mediaStateSchema,
+      whenApplied: MEDIA_STATE_SCHEMA,
+    })
 
+    // The columns and the type are gone; the table and the row are not. A
+    // `down()` that took `media` with it would be a much worse kind of
+    // reversible - every photograph in the diary.
+    expect(rolledBack).toEqual(MEDIA_STATE_SCHEMA_ROLLED_BACK)
     expect(await mediaStateSchema()).toEqual(MEDIA_STATE_SCHEMA)
     // And the row that predates the rollback still reads back through the
     // rebuilt schema: this migration adds columns rather than tables, so
