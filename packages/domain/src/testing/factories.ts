@@ -18,9 +18,9 @@
  * than a header, because the metadata a reader has to find lives in a segment
  * and not in a signature. They build BYTES rather than a domain object, so
  * each one carries a paragraph saying how those bytes are known to be what a
- * real file holds - measured on this machine where a local encoder or an
- * independent parser could settle it, and named as a specification layout
- * where neither could. That paragraph is the point of them: a fixture that
+ * real file holds - certified by a committed test where an independent parser
+ * installed on this machine could settle it, and named as a specification
+ * layout where none could. That paragraph is the point of them: a fixture that
  * encodes an assumption about the bytes would make every case built on it
  * agree with the implementation rather than with a real upload,
  * and this repository has already shipped two blockers of exactly that shape.
@@ -374,27 +374,48 @@ const ENTRY_VALUE_FIELD_AT = 8
  * A JPEG carrying exactly the EXIF this repository reads and strips.
  *
  * NOT A PHOTOGRAPH: it has no pixel data, because nothing that consumes this
- * fixture decodes the image. `apps/web/lib/adapters/contract/media-fixtures.ts`
- * has the real, `sharp`-encoded one, and Task 6 Step 4 is what proves this
- * hand-built layout agrees with a real encoder rather than with its own reader.
+ * fixture decodes the image. Task 6 lands the real, `sharp`-encoded fixtures,
+ * in `apps/web/lib/adapters/contract/media-fixtures.ts`, for the pipeline
+ * that re-encodes; this one exists so the READER can be tested without one.
  *
  * HOW THIS LAYOUT IS KNOWN TO CARRY REAL EXIF, and not merely to satisfy
- * this repository's own reader. Measured on this machine, with the one
- * independent EXIF parser installed here: the APP1 segment below was spliced
- * in behind the SOI of an 8x8 JPEG that `sharp` 0.35.4 had just encoded, and
- * `sharp(spliced).metadata()` came back `format: 'jpeg'`, `orientation: 6`
- * for a fixture built with `{ orientation: 6 }`, and an `exif` block of 119
- * bytes - the six identifier bytes plus this block's 113 - containing both
- * the canary and the literal `2025:03:14 09:26:53`. So libvips/exiv2, which
- * shares no code with `media/exif.ts`, reads these bytes as EXIF. The
- * converse was measured too: `readExifFacts` was run against JPEGs `sharp`
- * itself wrote, whose TIFF blocks are LITTLE-endian (`II`), and agreed with
- * `sharp` on the orientation of all three - 1 where `withExif`'s 6 is
- * overridden by libvips, 6 and 8 where `withMetadata` sets them - and read
- * `withExif`'s `DateTimeOriginal` back as `2025-03-14T09:26:53`. Neither
- * measurement is a committed test, because this package must not depend on
- * an encoder; Task 6 Step 4 is where the same comparison lands as one, in
- * the workspace that already has `sharp`.
+ * this repository's own reader. It is a committed test, not a measurement:
+ * `apps/web/lib/media/exifFixtureCertification.test.ts`, which lives over
+ * there because the independent parser is `sharp` 0.35.4 / libvips / exiv2
+ * and this package must depend on no encoder. It splices the APP1 segment
+ * below in behind the SOI of an 8x8 JPEG `sharp` just encoded, and then:
+ *
+ *   - **ORIENTATION IS CERTIFIED IN BOTH DIRECTIONS.** libvips reports
+ *     `orientation: 6` for a fixture built `{ orientation: 6 }` and 8 for a
+ *     LITTLE-endian one built `{ orientation: 8 }`; and `readExifFacts` reads
+ *     6 back out of a JPEG `sharp` itself wrote, whose TIFF block is
+ *     little-endian (`II`) - the opposite of this fixture's default.
+ *   - **THE CANARY AND THE CAPTURE TIME ARE CERTIFIED IN ONE DIRECTION**, by
+ *     re-serialisation rather than by a byte search. `keepExif()` makes exiv2
+ *     re-emit every tag it managed to PARSE, in a layout of its own choosing
+ *     - different entry counts, different value offsets - and both values are
+ *     still there afterwards, the capture time read back by `readExifFacts`
+ *     at an offset it did not write. A byte search over `metadata().exif`
+ *     would have been weaker than it looks: that buffer comes back at its
+ *     full length even when this block's byte-order mark and magic number are
+ *     corrupted, so it certifies that libvips found the segment, not that it
+ *     parsed a directory.
+ *
+ * THE CAPTURE TIME CANNOT BE CERTIFIED THE OTHER WAY ROUND, AND THAT IS NOT
+ * A GAP. `DateTimeOriginal` (0x9003) belongs in the Exif sub-IFD that IFD0
+ * reaches through 0x8769, which is where `media/exif.ts` looks. `sharp`'s
+ * public `withExif` takes a map keyed by numbered TIFF directory and writes
+ * each tag into the directory NAMED, so naming IFD0 puts 0x9003 in IFD0 -
+ * hand-decoding the block it emits shows IFD0's seven entries ending
+ * `69 87 04 00` (the sub-IFD pointer) and `03 90 02 00` (the tag itself),
+ * and the sub-IFD they point at holding 0x9000, 0x9101 and 0xa000-0xa003 -
+ * and a key named `Exif` is accepted and written nowhere. So
+ * `readExifFacts` on a `sharp`-written file answers `{ orientation: 1 }`
+ * with NO `capturedAt`, and that is `sharp`'s limit, not a broken reader.
+ * An earlier version of this paragraph claimed the round trip succeeded; it
+ * does not, and the certification test pins the `undefined` so the next
+ * reader to try it finds the reason instead of a mystery. `exiftool` would
+ * settle the layout against a third-party tool and is not installed here.
  *
  * THE LAYOUT, offset by offset. Absolute offsets in the returned array first:
  * `ff d8` SOI, `ff e1` APP1, a two-byte big-endian segment length that counts

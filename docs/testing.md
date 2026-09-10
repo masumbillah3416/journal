@@ -2901,12 +2901,23 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   it all rests on, `anExifJpeg`, asserts its OWN content first, in a case named
   `really contains the canary, which is what every absence assertion downstream rests on`,
   because "contains no EXIF marker" is trivially true of zero bytes and of a file that
-  failed to encode. What no unit test here can do is prove the fixture agrees with a
-  real encoder: that comparison needs `sharp`, which `packages/domain` must not depend
-  on, and it lands as a committed test in Task 6 Step 4. The measurement that stands in
-  for it meanwhile is recorded in the factory's own docstring, and `exiftool` - which
-  would settle it independently - is not installed on this machine, so that check is
-  UNRESOLVED rather than routed through anything online.
+  failed to encode. What no unit test in `packages/domain` can do is prove the
+  fixture agrees with a real encoder: that comparison needs `sharp`, which this package
+  must not depend on. It lives in `apps/web` instead, as
+  `apps/web/lib/media/exifFixtureCertification.test.ts` (Phase 3 Task 4) - a Docker-free
+  unit test, so it runs in the pre-commit gate. It splices the hand-built APP1 segment
+  into a JPEG libvips just encoded and then puts the result THROUGH libvips: `keepExif()`
+  makes exiv2 re-emit every tag it managed to PARSE, in a layout of its own choosing, and
+  the canary and the capture time both survive it. That is the point of the shape - a byte
+  search over `metadata().exif` proves only that libvips found the segment, because that
+  buffer comes back at full length even when the block's byte-order mark and TIFF magic
+  are corrupted. ORIENTATION certifies in both directions; the CAPTURE TIME certifies in
+  one only, and the other direction is impossible rather than untried: `sharp`'s
+  `withExif` writes a tag into the numbered TIFF directory it is given and cannot reach
+  the Exif sub-IFD where `DateTimeOriginal` belongs, so `readExifFacts` on a
+  `sharp`-written file has no `capturedAt` and the test pins that `undefined`. The tool that
+  would settle the layout against a third party, `exiftool`, is not installed on this
+  machine, so that check remains UNRESOLVED rather than routed through anything online.
 
 - **Run (once added):** included in `npm run test:integration` (these probes need a real
   database and, for the upload cases, the worker), so they run under `verify:full`.
