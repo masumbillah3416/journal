@@ -472,26 +472,51 @@ export default defineConfig({
         'apps/web/lib/adapters/inline-media-processor.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/adapters/worker-media-processor.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/media/services.ts': { lines: 100, branches: 100, functions: 100 },
-        // clipToolchain.ts: the SUCCESS arms of `createFfmpegToolchain` - a
-        // duration parsed out of `ffprobe`'s stdout, a transcoded MP4, an
-        // extracted poster frame - cannot run where `ffmpeg` is not
-        // installed, and it is not installed on the authoring machine. That
-        // is UNRESOLVED and named as such in the module's own header; the
-        // tool that settles it is `ffmpeg` itself, and nothing was routed
-        // through an online transcoder to buy a green tick (CLAUDE.md §7.1).
-        // Every FAILURE arm IS covered, by
-        // `clipToolchain.integration.test.ts` pointing the toolchain at a
-        // binary that does not exist - which is the same code path a real
-        // `ffmpeg` failure in production takes. CI installs both binaries and
-        // sets MEDIA_REQUIRE_CLIP_TOOLCHAIN=1, so it scores HIGHER than this
-        // and passes; the threshold is the local number because a gate has to
-        // be one a developer can pass honestly.
-        'apps/web/lib/media/clipToolchain.ts': { lines: 90, branches: 75, functions: 100 },
-        // media-fixtures.ts: `aGeneratedClip()` shells out to `ffmpeg` to
-        // produce a real MP4 and is skipped for the `ftyp`-header option
-        // where the binary is absent - the same UNRESOLVED as above, and the
-        // same asymmetry (CI executes it and scores higher).
-        'apps/web/lib/adapters/contract/media-fixtures.ts': { lines: 73, branches: 95, functions: 91 },
+        // clipToolchain.ts: THIS FILE HAS TWO SETS OF UNREACHABLE CODE, ONE
+        // PER ENVIRONMENT, so every threshold below is the FLOOR of the two
+        // rather than either machine's own number. An earlier version gated
+        // it at the local numbers with a comment claiming "CI scores HIGHER
+        // than this", which is false in one axis and was never measured:
+        //
+        //   - Unreachable WITHOUT the binaries (this machine, and any
+        //     developer's): the SUCCESS arms of `createFfmpegToolchain` - a
+        //     duration parsed out of `ffprobe`'s stdout, a transcoded MP4, an
+        //     extracted poster frame - plus `run`'s two stream handlers,
+        //     which need a process that actually writes something. That is
+        //     UNRESOLVED and named as such in the module's own header; the
+        //     tool that settles it is `ffmpeg` itself, and nothing was routed
+        //     through an online transcoder to buy a green tick (CLAUDE.md
+        //     §7.1). Every FAILURE arm IS covered, by
+        //     `clipToolchain.integration.test.ts` pointing the toolchain at a
+        //     binary that does not exist - the same code path a real `ffmpeg`
+        //     failure in production takes.
+        //   - Unreachable WITH them (CI, which installs both and sets
+        //     MEDIA_REQUIRE_CLIP_TOOLCHAIN=1): FOUR FUNCTIONS - `recordedStandIn`
+        //     and its `probe`, `transcode` and `poster` closures - reachable
+        //     only from `chooseToolchain`'s stand-in branch, which cannot be
+        //     taken where the binaries answer `-version`. With them, and with
+        //     `clipEncoderCase`'s throw and `chooseToolchain`'s notice,
+        //     `functions` is 14 of 18 = 77.78% there against 100% here, so
+        //     `functions: 100` could only ever have passed on a machine
+        //     WITHOUT ffmpeg.
+        //
+        // Measured here: 93.42 lines, 78.79 branches, 100 functions.
+        // Derived for CI from the same coverage map, by counting the
+        // absent-only lines as uncovered and the present-only ones as
+        // covered: 80.92 lines, 81.82 branches, 77.78 functions. The
+        // thresholds are the floor of each pair, rounded down - and the CI
+        // side is a DERIVATION until a CI run replaces it with a
+        // measurement, which is why lines sits at 80 rather than at 80.92.
+        'apps/web/lib/media/clipToolchain.ts': { lines: 80, branches: 75, functions: 77 },
+        // media-fixtures.ts: the same two-environment shape, one axis over.
+        // `aGeneratedClip()` shells out to `ffmpeg` and cannot run here, so
+        // lines and functions are low here and near-total in CI (74.48 ->
+        // 99.31 lines, 91.67 -> 100 functions). BRANCHES GO THE OTHER WAY,
+        // which is why 95 was the wrong number to commit: with the binaries
+        // present, the `ftyp`-header fallback and the `generated ===
+        // undefined` arm are the two nobody takes, so 24 slots lose two
+        // rather than one - 91.67% against 95.83% here. 91 is the floor.
+        'apps/web/lib/adapters/contract/media-fixtures.ts': { lines: 73, branches: 91, functions: 91 },
         // media-processor-contract.ts: every LINE runs, twice - once per
         // adapter, which is the exit criterion demonstrating itself. The
         // branch number is low because the suite is written defensively:

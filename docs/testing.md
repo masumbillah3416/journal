@@ -952,15 +952,27 @@ while three documents counted the costs as three.
     because the mode is an ARGUMENT (`mediaProcessorFor`) rather than a read of `env`
     inside the branch — `env` is parsed once at import, so the other branch would
     otherwise only be reachable by stubbing our own module.
-  - **`clipToolchain.ts` is 90% lines, 75% branches, 100% functions**, and the gap is the
-    UNRESOLVED above: `createFfmpegToolchain`'s three subprocess SUCCESS arms cannot run
-    where `ffmpeg` is not installed. Every failure arm is covered. CI, which installs
-    both binaries, scores HIGHER than this and passes; the threshold is the LOCAL number
-    because a gate has to be one a developer can always pass honestly.
-  - **`contract/media-fixtures.ts` is 73% lines, 95% branches, 91% functions**, and the
-    gap is `aGeneratedClip()`, which shells out to `ffmpeg` to produce a real MP4 and is
-    skipped for the `ftyp`-header option where the binary is absent. Same asymmetry: CI
-    executes it.
+  - **`clipToolchain.ts` is gated at 80% lines, 75% branches, 77% functions, and that is
+    the FLOOR OF TWO ENVIRONMENTS rather than either one's own number.** It has two sets
+    of unreachable code, one per machine, so a threshold set from one of them is a
+    threshold that cannot hold on the other. Without the binaries (here, and any
+    developer's machine): `createFfmpegToolchain`'s three subprocess SUCCESS arms and
+    `run`'s two stream handlers — the UNRESOLVED above; every failure arm is covered.
+    With them (CI, which installs both): `recordedStandIn` and its three method closures
+    are unreachable, because `chooseToolchain` cannot take the stand-in branch where
+    `ffmpeg` answers `-version` — four of eighteen functions, so **`functions: 100` was a
+    threshold only a machine WITHOUT `ffmpeg` could pass**, committed with a comment
+    claiming CI "scores HIGHER than this". Measured here: 93.42 lines, 78.79 branches,
+    100 functions. Derived for CI from the same coverage map: 80.92 lines, 81.82
+    branches, 77.78 functions. The gate takes the lower of each pair, rounded down, and
+    the CI side stays a derivation until a CI run measures it.
+  - **`contract/media-fixtures.ts` is gated at 73% lines, 91% branches, 91% functions**,
+    the same two-environment shape one axis over. `aGeneratedClip()` shells out to
+    `ffmpeg`, so lines and functions are low here and near-total in CI (74.48 → 99.31
+    lines, 91.67 → 100 functions). Branches go the OTHER way — with the binaries present
+    nobody takes the `ftyp`-header fallback or the `generated === undefined` arm, so 24
+    slots lose two instead of one: 91.67% there against 95.83% here, which is why 95 was
+    the wrong number to commit.
   - **`contract/media-processor-contract.ts` is 100% lines, 56% branches, 100%
     functions.** Every line runs TWICE, once per adapter, which is the exit criterion
     demonstrating itself. The branch number is low because the suite is written
