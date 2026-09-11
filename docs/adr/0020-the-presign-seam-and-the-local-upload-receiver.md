@@ -84,8 +84,7 @@ this repository serves.**
 The caps are enforced **twice**, deliberately. `planUploadSlots` refuses a request the
 client describes as over either cap, and the receiver refuses the bytes that actually
 arrive. The plan is only what the client was _told_; a client is not what enforces a
-cap. The Server Action that calls `planUploadSlots` for a real request lands in the
-commit after this one; the plan, the port method and the receiver are this one.
+cap.
 
 ## Consequences
 

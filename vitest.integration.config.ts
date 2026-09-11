@@ -187,14 +187,17 @@ export default defineConfig({
         // Phase 3 Task 7's presigned-upload surface. Each is reachable only
         // from an `*.integration.test.ts` file - `receiveLocalUpload.ts` and
         // `localUploadEndpoint.ts` write real bytes through a real
-        // `StoragePort`, and `testing/uploadProbes.ts` builds those temporary
-        // stores and the request fixtures - so they are excluded from
+        // `StoragePort`, `uploadSlots.ts` binds a real `MediaProcessor` (and
+        // both adapters import `sharp`), and `testing/uploadProbes.ts` builds
+        // those temporary stores and rows in the test Payload - so they are
+        // excluded from
         // `vitest.config.ts`'s coverage include by exact path and gated here
         // instead, same reasoning as readBookBundle.ts above.
         // `apps/web/lib/media/uploadToken.ts` and `uploadContract.ts` are NOT
         // here: both are pure and stay in the Docker-free pass's measured set.
         'apps/web/lib/media/receiveLocalUpload.ts',
         'apps/web/lib/media/localUploadEndpoint.ts',
+        'apps/web/lib/media/uploadSlots.ts',
         'apps/web/lib/media/testing/uploadProbes.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
@@ -486,14 +489,18 @@ export default defineConfig({
         'apps/web/lib/media/services.ts': { lines: 100, branches: 100, functions: 100 },
         // Phase 3 Task 7's presigned-upload surface, at the numbers each
         // actually achieves - measured, not rounded up, and not negotiated
-        // down either. All three reach 100 across, and 100 is the honest number
+        // down either. All four reach 100 across, and 100 is the honest number
         // here rather than an optimistic one: none of these files has a branch
         // whose outcome depends on the machine (no binary lookup, no clock
         // beyond an injected one, no environment fork), which is what made
-        // `clipToolchain.ts`'s numbers below need slack and these not. Every
-        // branch in all three is exercised; none carries a coverage ignore.
+        // `clipToolchain.ts`'s numbers below need slack and these not.
+        // The one uncoverable branch in the set - the branded-id refusal in
+        // `uploadProbes.ts`, which Payload's primary key can never trigger -
+        // carries a `c8 ignore next` with its reason at the line, rather than a
+        // threshold lowered to hide it.
         'apps/web/lib/media/receiveLocalUpload.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/media/localUploadEndpoint.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/media/uploadSlots.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/media/testing/uploadProbes.ts': { lines: 100, branches: 100, functions: 100 },
         // clipToolchain.ts: THIS FILE HAS TWO SETS OF UNREACHABLE CODE, ONE
         // PER ENVIRONMENT, so every threshold below is the FLOOR of the two

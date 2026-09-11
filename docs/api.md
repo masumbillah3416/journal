@@ -30,7 +30,7 @@ Task 7 and completed in Task 13; and `/gallery/<slug>` with its download handler
 `/admin/sign-in` and `/admin/sign-in/code`, added in Phase 2 Tasks 7 and 8. Phase 2 Task
 10 added the six `POST` endpoints those screens post to and the request policy every
 `/admin` address is now put through; Phase 3 Task 7 added
-`PUT /admin/media/upload`, the receiver a presigned upload's bytes are PUT to — see "The admin's request policy" below, which applies
+`PUT /admin/media/upload` and the `requestUploadSlots` action that hands out its URLs — see "The admin's request policy" below, which applies
 to every row in the "Admin routes" section and is stated once rather than in each. `/p/<n>` was completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
 metadata and a canonical link, and settled in
 `docs/adr/0010-static-generation-and-the-content-window.md` why it stays dynamic. Both sets are documented in full below. Everything still unbuilt is
@@ -982,6 +982,29 @@ follow: false }`.
   the residual: **it must be deleted or gated in the same change that adds the R2
   adapter.**
 
+## Server actions (live today)
+
+### `requestUploadSlots(request: UploadSlotRequest): Promise<UploadSlotResponse>`
+
+- **Path:** `apps/web/app/(admin)/admin/media/actions.ts`; the decisions are
+  `apps/web/lib/media/uploadSlots.ts`'s `offerUploadSlots`.
+- **Input:** the journey to stage under, and one `{ filename, declaredType, byteLength }`
+  per file the picker selected. Every field is the client's claim; nothing has been
+  weighed.
+- **Output:** one slot per file — `{ stagingKey, declaredType, filename, uploadUrl }` — in
+  the order asked for, each URL carrying its own token over its own key.
+- **Errors:** `'empty-request'`, `'too-many-files'` (over `MAX_FILES_PER_REQUEST`, 20),
+  `'too-large'` (zero bytes, or over `MAX_UPLOAD_BYTES`, 52,428,800), `'type-not-offered'`
+  (a type the bound `MediaProcessor` does not accept — under `MEDIA_PIPELINE=inline` that
+  is every video type), `'unnamed-file'`, `'invalid-journey'`, `'no-upload-url'`. **The
+  whole request is refused when one file fails**, so a caller is never handed three slots
+  for four files.
+- **Auth requirement:** **signed in.** Built from `guardedAction`, which is what
+  `eslint-rules/guarded-server-actions.js` requires of every value export of a
+  `'use server'` module.
+- **Notes:** the caps are enforced again at the receiver above. The plan is only what the
+  client was told, and a client is not what enforces a cap.
+
 ## Planned routes (Phase 1)
 
 None. Task 14 built the last of them (`/gallery/<slug>` and its download handler, both
@@ -999,10 +1022,11 @@ that has not been written yet", while the routes that call them today sat docume
 thirty rows higher (Phase 2's final review, finding 10). Those three paragraphs are
 deleted rather than annotated: a plan that has happened is not a plan.
 
-**What is still planned, and it is Phase 3's and Phase 4's**: the action that hands out
-the presigned URLs `PUT /admin/media/upload` above accepts, and a create-media-row action
-(Phase 3 Task 8, which turns staged bytes into a `media` row); and the full set of admin
-mutations across all ten screens (Phase 4). They are named here only so the shape of what is coming is visible;
+**The presigned-upload action is no longer planned — it is built**, by Phase 3 Task 7,
+and it has its own full row above (`requestUploadSlots`), as does the receiver its URLs
+point at. What is still planned: a create-media-row action (Phase 3 Task 8, which turns
+staged bytes into a `media` row), and the full set of admin mutations across all ten
+screens (Phase 4). They are named here only so the shape of what is coming is visible;
 each gets a full row in the commit that adds it.
 
 The reason the upload does not pass through an action at all still stands and is worth

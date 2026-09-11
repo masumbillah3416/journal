@@ -7,26 +7,32 @@
  * patterns beyond Factory; naming another for four helpers would be cargo
  * cult.
  *
- * IT IS A MODULE RATHER THAN LOCALS IN ONE TEST FILE because the upload suites
- * that follow need the same helpers, and a helper that has to be "moved later"
- * is a helper that gets duplicated.
+ * IT IS A MODULE RATHER THAN LOCALS IN ONE TEST FILE because Tasks 8 and 9
+ * need the same four, and a helper that has to be "moved later" is a helper
+ * that gets duplicated — which is how this repository ended up with two
+ * spellings of the same journey fixture once already.
  *
- * ═══ IT IS DELIBERATELY FREE OF PAYLOAD AND OF `sharp` ═══
+ * ═══ WHY THE TEST PAYLOAD IS IMPORTED INSIDE THE FUNCTION ═══
  *
  * `uploadToken.test.ts` is a UNIT test — HMAC over `node:crypto` is pure
  * computation — and it imports {@link SECRET} from here so the unit and
- * integration suites sign with one value rather than two. So this module's
- * import graph must stay to `node:` builtins and our own light modules: a
- * `getTestPayload` imported at the top of it would pull `payload.config.ts`,
- * `pg` and `sharp` into the Docker-free pre-commit gate, which is the one
- * thing `vitest.config.ts`'s split exists to prevent.
+ * integration suites sign with one value rather than two. A top-level
+ * `import { getTestPayload } from '../../testPayload'` would therefore pull
+ * `payload.config.ts`, `pg` and `sharp` into the Docker-free pre-commit gate,
+ * which is the one thing `vitest.config.ts`'s split exists to prevent. The
+ * dynamic import inside {@link aPublishedFixtureJourney} keeps the module's
+ * import graph to `node:` builtins and two of our own type-only modules.
  *
- * Depends on: node:fs/promises, node:os, node:path; the StoragePort and its
- * local adapter; `EXPECTED_UPLOAD_REQUEST` (../uploadContract).
+ * Depends on: node:crypto, node:fs/promises, node:os, node:path; the
+ * StoragePort and its local adapter; `EXPECTED_UPLOAD_REQUEST`
+ * (../uploadContract); `journeyId` (@travel-diary/domain/ids).
  */
+import { randomUUID } from 'node:crypto'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import type { JourneyId } from '@travel-diary/domain/ids'
+import { journeyId } from '@travel-diary/domain/ids'
 import { createLocalStorage } from '../../adapters/local-storage'
 import type { StoragePort } from '../../ports/storage'
 import { EXPECTED_UPLOAD_REQUEST } from '../uploadContract'
@@ -98,3 +104,59 @@ export const aPutRequest = (input: { readonly token: string; readonly body: Uint
     // Nothing here states a `Content-Length` - see this module's header.
     body: new Uint8Array(input.body),
   })
+
+/** The slug prefix every fixture journey this module creates carries. */
+const FIXTURE_SLUG_PREFIX = 'upload-fixture-'
+
+/**
+ * Creates a published journey in the test database and returns its branded id.
+ *
+ * Published rather than draft because a slot request is made against a journey
+ * the admin is working in, and a draft journey is a state Task 9's round trip
+ * has to be able to tell apart from a missing one.
+ *
+ * The distinguishing label is a fresh UUID per call rather than a parameter
+ * with a default: no caller has ever wanted to choose one, and a default is a
+ * branch — one nothing exercises, which is the vacuous half of a coverage
+ * number this repository has been caught by before.
+ * @returns The created row's id, branded.
+ * @throws When the branded constructor refuses the id Payload assigned, which
+ *   would mean an empty primary key and is not a condition a test can proceed
+ *   past.
+ * @example
+ * const journey = await aPublishedFixtureJourney()
+ */
+export const aPublishedFixtureJourney = async (): Promise<JourneyId> => {
+  const label = randomUUID()
+  const { getTestPayload } = await import('../../testPayload')
+  const payload = await getTestPayload()
+  const created = await payload.create({
+    collection: 'journeys',
+    data: {
+      name: `Upload fixture ${label}`,
+      place: 'Nowhere',
+      slug: `${FIXTURE_SLUG_PREFIX}${label}`,
+      dates: '1 - 2 Jan 2020',
+      _status: 'published',
+    },
+  })
+
+  const branded = journeyId(String(created.id))
+  /* c8 ignore next -- no organic trigger: Payload's primary key is never the empty string, which is the branded constructor's only refusal (see @throws). The throw stays because a helper that branded an empty id would hand every caller a key with a hole in it. */
+  if (!branded.ok) throw new Error(branded.error)
+  return branded.value
+}
+
+/**
+ * Removes every journey {@link aPublishedFixtureJourney} created.
+ *
+ * Keyed on the slug prefix rather than on a list of ids held in a module
+ * variable, which would be the shared mutable state §2.3 forbids.
+ * @example
+ * afterAll(removeUploadFixtureJourneys)
+ */
+export const removeUploadFixtureJourneys = async (): Promise<void> => {
+  const { getTestPayload } = await import('../../testPayload')
+  const payload = await getTestPayload()
+  await payload.delete({ collection: 'journeys', where: { slug: { like: FIXTURE_SLUG_PREFIX } } })
+}

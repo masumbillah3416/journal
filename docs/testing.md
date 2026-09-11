@@ -1014,13 +1014,14 @@ while three documents counted the costs as three.
   - **Revisit every one of these when `@vitest/coverage-v8` or `sharp` changes version**,
     and re-measure rather than re-asserting: three of the numbers are what an absent
     `ffmpeg` costs, and installing it locally should RAISE them.
-    **Phase 3 Task 7's presigned-upload surface gets the same treatment**, three files
-    so far, each for a stated reason rather than by directory:
+    **Phase 3 Task 7's presigned-upload surface gets the same treatment**, four files,
+    each for a stated reason rather than by directory:
     `apps/web/lib/media/receiveLocalUpload.ts` and
     `apps/web/lib/media/localUploadEndpoint.ts` write real bytes through a real
     `StoragePort` (a filesystem, which the Docker-free `unit` project is pure of by
-    design); `apps/web/lib/media/testing/uploadProbes.ts` builds those temporary stores
-    and the request fixtures they are driven with. All three are excluded from `vitest.config.ts`'s coverage `include`
+    design); `apps/web/lib/media/uploadSlots.ts` binds a real `MediaProcessor`, and both
+    adapters import `sharp`; `apps/web/lib/media/testing/uploadProbes.ts` builds those
+    temporary stores and rows in the test Payload. All four are excluded from `vitest.config.ts`'s coverage `include`
     by exact path and gated in `vitest.integration.config.ts` at **100% lines, branches
     and functions** — measured, not rounded up. 100 is the honest number rather than an
     optimistic one because none of them has a branch whose outcome depends on the machine:
@@ -1035,15 +1036,18 @@ while three documents counted the costs as three.
   - **`uploadProbes.ts` is imported by that unit test**, for `SECRET`, so the unit and
     integration suites sign with one value rather than two. Only that constant of it
     executes there, which is the partial measurement §2.1 calls worse than none — hence
-    the exclusion, and why that module's import graph is kept to `node:` builtins: a
-    `getTestPayload` imported at the top of it would pull `payload.config.ts`, `pg` and
-    `sharp` into the pre-commit gate.
-  - Every branch in all three is exercised; none carries a coverage ignore.
-  - **`apps/web/app/(admin)/admin/media/upload/route.ts` needs no config entry at all.**
-    It is a `c8 ignore start`/`stop`-wrapped framework passthrough with no authored
-    logic, and its path contains no `[...]` segment — the upload token is a QUERY
-    parameter rather than a path segment, deliberately — so the ignore hint is read and
-    the bracketed-directory defect above does not apply.
+    the exclusion, and hence the dynamic `import('../../testPayload')` inside
+    `aPublishedFixtureJourney` rather than at the top of the file, which would pull
+    `payload.config.ts`, `pg` and `sharp` into the pre-commit gate.
+  - The one uncoverable branch in the set is `uploadProbes.ts`'s branded-id refusal,
+    which Payload's primary key can never trigger. It carries a `c8 ignore next` with
+    its reason at the line, rather than a threshold lowered to hide it.
+  - **`apps/web/app/(admin)/admin/media/upload/route.ts` and
+    `apps/web/app/(admin)/admin/media/actions.ts` need no config entry at all.** Both are
+    `c8 ignore start`/`stop`-wrapped framework passthroughs with no authored logic, and
+    neither path contains a `[...]` segment — the upload token is a QUERY parameter
+    rather than a path segment, deliberately — so the ignore hint is read and the
+    bracketed-directory defect above does not apply.
 - **Add one:** write `apps/web/lib/ports/<name>.ts` (the interface, plus any guard every
   adapter must share - see `validateStorageKey` above), then
   `apps/web/lib/adapters/contract/<name>-contract.ts` (the shared suite) before any

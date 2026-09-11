@@ -163,10 +163,6 @@ const PATHS_THAT_NAME_NO_FILE: readonly { readonly citation: string; readonly wh
     why: 'the same unwritten file, named by docs/security.md at full path',
   },
   {
-    citation: 'apps/web/lib/journeys/actions.ts',
-    why: 'a probe written to disk to attack the Server Action guard and deleted again; both citations frame it as one',
-  },
-  {
     citation: 'apps/web/scripts/emit-actions.ts',
     why: 'a probe written to disk and deleted, framed as one where it is cited',
   },
@@ -181,10 +177,6 @@ const PATHS_THAT_NAME_NO_FILE: readonly { readonly citation: string; readonly wh
   {
     citation: 'proxy.ts',
     why: 'a Next.js file-convention name used generically in ADR 0018 — the convention Next renames `middleware.ts` to, not a file in this tree',
-  },
-  {
-    citation: 'actions.ts',
-    why: 'a file-convention name used generically in ADR 0018 for "a module a Server Action might live in"',
   },
   {
     citation: 'actions.cjs',
