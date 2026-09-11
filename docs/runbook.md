@@ -143,9 +143,14 @@ visible from the code that was added:
 `apps/web/media` is where Payload writes uploads and their five derivative tiers:
 `apps/web/collections/media.ts` sets `staticDir: MEDIA_DIR` and declares the five
 `imageSizes`, and Payload's own upload handling does the writing. Nothing of ours does —
-`apps/web/lib/adapters/local-storage.ts`'s `StoragePort` is a **read** path here, its
-only non-test construction being `apps/web/lib/readGalleryDownload.ts`'s `mediaStore`,
-which streams one file back for a gallery download. The directory is gitignored, so it
+`apps/web/lib/adapters/local-storage.ts`'s `StoragePort` was a **read** path here until
+Phase 3 Task 7, its only non-test construction being
+`apps/web/lib/readGalleryDownload.ts`'s `mediaStore`, which streams one file back for a
+gallery download. It now also WRITES: `PUT /admin/media/upload` stages an upload's bytes
+under `apps/web/media/staging/<journey>/…` through the same port (see
+`docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`), so the growth
+described below has a second source, and staged bytes that are never finalised are not
+cleaned up by anything yet. The directory is gitignored, so it
 never appears in `git status`, and **nothing deletes a file from it**: `payload.delete`
 removes the row, and the bytes stay. Every `npm run db:seed`, and every run of
 `apps/web/scripts/seed.integration.test.ts`, writes a fresh set.
@@ -225,6 +230,13 @@ tells you when it is due.
    where the provider supports it, write-only from the upload path — a compromised
    upload credential should not be able to read or delete existing media
    (`SECURITY.md`, "Dependencies and secrets").
+6. **Rotating `PAYLOAD_SECRET` also invalidates every outstanding upload URL**, because
+   that secret is what `apps/web/lib/media/uploadToken.ts` signs an upload capability
+   with (Phase 3 Task 7). That is correct rather than a problem — a capability minted
+   under a retired secret should stop working — and it costs at most
+   `UPLOAD_URL_TTL_SECONDS`, fifteen minutes, of in-flight uploads. An author who was
+   mid-upload sees a `403` and re-selects the files; nothing is half-written, because the
+   receiver writes only after the token verifies.
 
 ## Restore drill
 

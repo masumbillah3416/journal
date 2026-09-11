@@ -560,7 +560,7 @@ reaches it, which is a seam between the upload receiver and the worker rather th
 inside the port. Recorded as ADR 0004's Amendment section and `docs/deviations.md` §49,
 and still open work: Tasks 7–9 own the receiver.
 
-**BUILT, AND WHAT IS AND IS NOT WIRED IS NAMED (Phase 3 Task 6).** `apps/web/lib/ports/mediaProcessor.ts` is the port; `apps/web/lib/adapters/inline-media-processor.ts` and `worker-media-processor.ts` are its two adapters; `apps/web/lib/adapters/contract/media-processor-contract.ts` is the ONE suite both run, wired by one line per adapter, which is ADR 0004's non-negotiable. **The structural decision that makes that honest:** `apps/web/lib/media/stillPipeline.ts` holds steps 1 to 6 once and both adapters compose it, so “the two still pipelines are the same” is true by construction rather than by two implementations happening to agree — the `worker` adapter adds step 7 (`apps/web/lib/media/clipToolchain.ts`, the `ffmpeg` boundary) and nothing else. `apps/web/lib/media/services.ts` is the single place `MEDIA_PIPELINE` chooses one. **NOT WIRED TO A CALLER:** nothing calls `mediaProcessor()` from a route or a Payload hook, so setting the flag changes which adapter a caller WOULD get and no upload path reaches either yet — the receiver, the derivative tiers and the download handler are Phase 3 Tasks 7–9. **UNRESOLVED on the authoring machine:** `ffmpeg`/`ffprobe` are not installed here, so the clip toolchain's subprocess success arms have never run locally; CI installs both and sets `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1`, which turns a missing binary into a failed build rather than a quieter test run.
+**BUILT, AND WHAT IS AND IS NOT WIRED IS NAMED (Phase 3 Task 6).** `apps/web/lib/ports/mediaProcessor.ts` is the port; `apps/web/lib/adapters/inline-media-processor.ts` and `worker-media-processor.ts` are its two adapters; `apps/web/lib/adapters/contract/media-processor-contract.ts` is the ONE suite both run, wired by one line per adapter, which is ADR 0004's non-negotiable. **The structural decision that makes that honest:** `apps/web/lib/media/stillPipeline.ts` holds steps 1 to 6 once and both adapters compose it, so “the two still pipelines are the same” is true by construction rather than by two implementations happening to agree — the `worker` adapter adds step 7 (`apps/web/lib/media/clipToolchain.ts`, the `ffmpeg` boundary) and nothing else. `apps/web/lib/media/services.ts` is the single place `MEDIA_PIPELINE` chooses one. **NOT WIRED TO A CALLER:** nothing calls `mediaProcessor()` from a route or a Payload hook, so setting the flag changes which adapter a caller WOULD get and no upload path reaches either yet — the slot action, the ingest, the derivative tiers and the download handler are Phase 3 Tasks 7–11. **UNRESOLVED on the authoring machine:** `ffmpeg`/`ffprobe` are not installed here, so the clip toolchain's subprocess success arms have never run locally; CI installs both and sets `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1`, which turns a missing binary into a failed build rather than a quieter test run.
 
 ## 3 · Data flow
 
@@ -588,13 +588,28 @@ and still open work: Tasks 7–9 own the receiver.
    application route that reads a derivative's bytes back out of the store through the
    `StoragePort` and serves them as an attachment. Never a bucket URL — see
    `docs/security.md`.
-5. **(Phase 3, not built — see the note under §2's ports.)** Uploads will go straight from
-   the browser to R2 via a presigned URL (never through Vercel, which caps request bodies
-   at ~4.5MB); a server action will create the `media` row and run the `MediaProcessor`
-   port's `inline` adapter in-process (the `sharp` still pipeline — no queue, no worker,
-   since video is deferred per ADR 0004), marking the row `ready` or `failed`. Once video is re-enabled, a `worker`-mode upload instead
-   writes a job row to the Postgres queue table for the Fly.io worker to claim and run
-   the `sharp`/`ffmpeg` pipeline against.
+5. **The upload's first half is built (Phase 3 Task 7); its second is not (Task 8).**
+   An upload never passes through the app — Vercel caps a request body at ~4.5MB and a
+   photograph is larger (design spec §9.1) — so the shape is: the admin asks for
+   somewhere to put each file; the
+   pure `planUploadSlots` caps the count and the size and keys one staging key per file
+   BY JOURNEY; `StoragePort.uploadUrl` mints one capability URL per key; the browser
+   PUTs the bytes straight to it. The action that hands the slots out lands in the
+   commit after this one; what is built here is the plan, the port method and the
+   receiver. **The port is the seam, and the adapter behind it is
+   still the local one:** there is no R2 adapter and no credentials for one, so
+   `createLocalStorage.uploadUrl` points at a receiver this repository serves,
+   `PUT /admin/media/upload?token=…`, behind the admin guard —
+   `docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md` records why, and
+   records that the receiver must be deleted or gated in the same change that adds the
+   R2 adapter. The caps are enforced twice: once in the plan (what the client was told)
+   and once at the receiver (the bytes that arrived).
+   5a. **NOT BUILT (Task 8):** nothing creates a `media` row from staged bytes yet, and
+   nothing calls `mediaProcessor()`. That action will run the `MediaProcessor` port's
+   `inline` adapter in-process (the `sharp` still pipeline — no queue, no worker, since
+   video is deferred per ADR 0004), marking the row `ready` or `failed`. Once video is
+   re-enabled, a `worker`-mode upload instead writes a job row to the Postgres queue
+   table for the Fly.io worker to claim and run the `sharp`/`ffmpeg` pipeline against.
 
 ## 4 · Why each seam exists
 

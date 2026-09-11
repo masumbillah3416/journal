@@ -22,13 +22,15 @@ updating its row in the same commit that changes the code (`CLAUDE.md` §1.3).
 
 ## Status
 
-Eight routes exist today: Payload's own four, mounted under the `(payload)` route
+Every route below the "live today" headings exists; a count is not written here, because
+one written in prose has been stale by the next task every time it was. Payload's own four are mounted under the `(payload)` route
 group; three of the diary's own — `/p/<n>`, added with the book itself in Phase 1
 Task 7 and completed in Task 13; and `/gallery/<slug>` with its download handler
 `/gallery/<slug>/download/<id>`, added in Task 14 — and the bespoke admin's first,
 `/admin/sign-in` and `/admin/sign-in/code`, added in Phase 2 Tasks 7 and 8. Phase 2 Task
-10 added the four `POST` endpoints those screens post to and the request policy every
-`/admin` address is now put through — see "The admin's request policy" below, which applies
+10 added the six `POST` endpoints those screens post to and the request policy every
+`/admin` address is now put through; Phase 3 Task 7 added
+`PUT /admin/media/upload`, the receiver a presigned upload's bytes are PUT to — see "The admin's request policy" below, which applies
 to every row in the "Admin routes" section and is stated once rather than in each. `/p/<n>` was completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
 metadata and a canonical link, and settled in
 `docs/adr/0010-static-generation-and-the-content-window.md` why it stays dynamic. Both sets are documented in full below. Everything still unbuilt is
@@ -952,6 +954,34 @@ follow: false }`.
   at all. `signInEndpoints.integration.test.ts` asserts the revoked identifier is refused
   afterwards, not merely that a cookie was cleared.
 
+### `PUT /admin/media/upload?token=<capability>`
+
+- **Path:** `apps/web/app/(admin)/admin/media/upload/route.ts`; the handler is
+  `apps/web/lib/media/localUploadEndpoint.ts`'s `handleLocalUpload`, and the decisions are
+  `apps/web/lib/media/receiveLocalUpload.ts`'s.
+- **Method:** `PUT`, which is what a browser's own `fetch(url, { method: 'PUT', body: file })`
+  sends — measured against this repository's Chromium, along with the `Content-Type` (the
+  `File`'s own type) and the `Content-Length` (set by the browser from the body, and not
+  settable by the page). See `apps/web/lib/media/uploadContract.ts`'s header for the run.
+- **Input:** the capability token in the query string, and the file's bytes as the body.
+  **The storage key comes from inside the token, never from the URL** — otherwise this
+  address would be a write-anywhere primitive.
+- **Output:** `204` with no body.
+- **Errors:** `413` when the body is over the cap the token carries — checked against the
+  declared `Content-Length` before a byte is read, and against the bytes that actually
+  arrived afterwards, because a `Content-Length` is a claim. `403` for a malformed,
+  expired or wrongly-signed token, **all three identically**, so the endpoint cannot
+  become an oracle telling a forger which part was wrong. `500` when the store refused or
+  could not take the bytes. No refusal carries a body.
+- **Auth requirement:** **signed in.** The guard is applied in the route file
+  (`guarded(handleLocalUpload)`). A token is a capability over one key, not
+  authentication, so a leaked URL is not a way in.
+- **Notes:** this route exists because there is no R2 bucket on a developer machine and
+  the local disk adapter's `signedUrl` returns a `file://` URL no browser can PUT to — see
+  `docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`, which also records
+  the residual: **it must be deleted or gated in the same change that adds the R2
+  adapter.**
+
 ## Planned routes (Phase 1)
 
 None. Task 14 built the last of them (`/gallery/<slug>` and its download handler, both
@@ -969,12 +999,16 @@ that has not been written yet", while the routes that call them today sat docume
 thirty rows higher (Phase 2's final review, finding 10). Those three paragraphs are
 deleted rather than annotated: a plan that has happened is not a plan.
 
-**What is still planned, and it is Phase 3's and Phase 4's**: a presigned-upload action
-and a create-media-row action (Phase 3, gated by declared type/size/per-request-file-count
-validation — Vercel's serverless functions cap request bodies at ~4.5MB, which is why
-upload goes straight to R2 rather than through an action, per design spec §9.1); and the
-full set of admin mutations across all ten screens (Phase 4). They are named here only so
-the shape of what is coming is visible; each gets a full row in the commit that adds it.
+**What is still planned, and it is Phase 3's and Phase 4's**: the action that hands out
+the presigned URLs `PUT /admin/media/upload` above accepts, and a create-media-row action
+(Phase 3 Task 8, which turns staged bytes into a `media` row); and the full set of admin
+mutations across all ten screens (Phase 4). They are named here only so the shape of what is coming is visible;
+each gets a full row in the commit that adds it.
+
+The reason the upload does not pass through an action at all still stands and is worth
+repeating where a reader meets it: Vercel's serverless functions cap request bodies at
+~4.5MB (design spec §9.1), so a 25MB photograph cannot go through one. The action hands
+out a URL; the bytes go somewhere else.
 
 **HOW A PHASE 4 ACTION WILL BE WRITTEN, because that is now decided rather than open.**
 Every one of them is built from `guardedAction()` (`apps/web/lib/auth/guard.ts`), which

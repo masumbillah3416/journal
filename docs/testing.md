@@ -1014,6 +1014,36 @@ while three documents counted the costs as three.
   - **Revisit every one of these when `@vitest/coverage-v8` or `sharp` changes version**,
     and re-measure rather than re-asserting: three of the numbers are what an absent
     `ffmpeg` costs, and installing it locally should RAISE them.
+    **Phase 3 Task 7's presigned-upload surface gets the same treatment**, three files
+    so far, each for a stated reason rather than by directory:
+    `apps/web/lib/media/receiveLocalUpload.ts` and
+    `apps/web/lib/media/localUploadEndpoint.ts` write real bytes through a real
+    `StoragePort` (a filesystem, which the Docker-free `unit` project is pure of by
+    design); `apps/web/lib/media/testing/uploadProbes.ts` builds those temporary stores
+    and the request fixtures they are driven with. All three are excluded from `vitest.config.ts`'s coverage `include`
+    by exact path and gated in `vitest.integration.config.ts` at **100% lines, branches
+    and functions** — measured, not rounded up. 100 is the honest number rather than an
+    optimistic one because none of them has a branch whose outcome depends on the machine:
+    no binary lookup, no clock beyond an injected one, no environment fork. That is what
+    separates them from `clipToolchain.ts` above, whose numbers needed slack for exactly
+    that reason.
+  - **`apps/web/lib/media/uploadToken.ts` and `apps/web/lib/media/uploadContract.ts` are
+    NOT in that list**, and the distinction is the point: HMAC over `node:crypto` is
+    pure computation, and the contract is one constant and some types, so both stay in
+    the Docker-free pass — `uploadToken.test.ts` runs in the pre-commit gate, which is
+    where the cases about forging a capability belong.
+  - **`uploadProbes.ts` is imported by that unit test**, for `SECRET`, so the unit and
+    integration suites sign with one value rather than two. Only that constant of it
+    executes there, which is the partial measurement §2.1 calls worse than none — hence
+    the exclusion, and why that module's import graph is kept to `node:` builtins: a
+    `getTestPayload` imported at the top of it would pull `payload.config.ts`, `pg` and
+    `sharp` into the pre-commit gate.
+  - Every branch in all three is exercised; none carries a coverage ignore.
+  - **`apps/web/app/(admin)/admin/media/upload/route.ts` needs no config entry at all.**
+    It is a `c8 ignore start`/`stop`-wrapped framework passthrough with no authored
+    logic, and its path contains no `[...]` segment — the upload token is a QUERY
+    parameter rather than a path segment, deliberately — so the ignore hint is read and
+    the bracketed-directory defect above does not apply.
 - **Add one:** write `apps/web/lib/ports/<name>.ts` (the interface, plus any guard every
   adapter must share - see `validateStorageKey` above), then
   `apps/web/lib/adapters/contract/<name>-contract.ts` (the shared suite) before any

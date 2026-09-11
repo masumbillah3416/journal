@@ -184,6 +184,18 @@ export default defineConfig({
         'apps/web/lib/adapters/worker-media-processor.ts',
         'apps/web/lib/adapters/contract/media-processor-contract.ts',
         'apps/web/lib/adapters/contract/media-fixtures.ts',
+        // Phase 3 Task 7's presigned-upload surface. Each is reachable only
+        // from an `*.integration.test.ts` file - `receiveLocalUpload.ts` and
+        // `localUploadEndpoint.ts` write real bytes through a real
+        // `StoragePort`, and `testing/uploadProbes.ts` builds those temporary
+        // stores and the request fixtures - so they are excluded from
+        // `vitest.config.ts`'s coverage include by exact path and gated here
+        // instead, same reasoning as readBookBundle.ts above.
+        // `apps/web/lib/media/uploadToken.ts` and `uploadContract.ts` are NOT
+        // here: both are pure and stay in the Docker-free pass's measured set.
+        'apps/web/lib/media/receiveLocalUpload.ts',
+        'apps/web/lib/media/localUploadEndpoint.ts',
+        'apps/web/lib/media/testing/uploadProbes.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
         'apps/web/payload.config.ts',
@@ -472,6 +484,17 @@ export default defineConfig({
         'apps/web/lib/adapters/inline-media-processor.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/adapters/worker-media-processor.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/media/services.ts': { lines: 100, branches: 100, functions: 100 },
+        // Phase 3 Task 7's presigned-upload surface, at the numbers each
+        // actually achieves - measured, not rounded up, and not negotiated
+        // down either. All three reach 100 across, and 100 is the honest number
+        // here rather than an optimistic one: none of these files has a branch
+        // whose outcome depends on the machine (no binary lookup, no clock
+        // beyond an injected one, no environment fork), which is what made
+        // `clipToolchain.ts`'s numbers below need slack and these not. Every
+        // branch in all three is exercised; none carries a coverage ignore.
+        'apps/web/lib/media/receiveLocalUpload.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/media/localUploadEndpoint.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/media/testing/uploadProbes.ts': { lines: 100, branches: 100, functions: 100 },
         // clipToolchain.ts: THIS FILE HAS TWO SETS OF UNREACHABLE CODE, ONE
         // PER ENVIRONMENT, so every threshold below is the FLOOR of the two
         // rather than either machine's own number. An earlier version gated

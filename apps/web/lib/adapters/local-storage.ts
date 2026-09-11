@@ -1,19 +1,44 @@
 /**
  * local-storage — filesystem-backed StoragePort adapter (Ports & Adapters).
  *
- * Development stand-in for the Cloudflare R2 adapter that arrives in Phase 3.
- * Stores each object as a file under a configured root directory. Every
- * method resolves its key through the port's own `validateStorageKey` before
- * touching disk, so a traversal attempt is rejected the same way it will be
- * once the R2 adapter (which has no filesystem to protect) is in place.
- * Depends on: node:fs/promises, node:path, the StoragePort contract.
+ * Development stand-in for a Cloudflare R2 adapter that does not exist yet and
+ * is not Phase 3's to build (see `../ports/storage.ts`'s header). Stores each
+ * object as a file under a configured root directory. Every method resolves
+ * its key through the port's own `validateStorageKey` before touching disk, so
+ * a traversal attempt is rejected the same way it will be once an adapter with
+ * no filesystem to protect is in place.
+ *
+ * ═══ WHY `uploadUrl` POINTS AT A RECEIVER OF OURS ═══
+ *
+ * R2 would answer this with a genuine presigned bucket URL. A filesystem has
+ * no HTTP surface at all, and {@link StoragePort.signedUrl} above returns a
+ * `file://` URL for that reason — which NO BROWSER CAN PUT TO. So without
+ * somewhere real to send the bytes, "direct to bucket" would be unexercisable
+ * locally: no test, no browser sweep and no developer could drive the upload
+ * path at all until the day credentials appeared, which is precisely the
+ * untested deferred path ADR 0004 forbids. `uploadUrl` therefore names
+ * `PUT /admin/media/upload?token=…`, a receiver this repository serves and
+ * `apps/web/lib/media/receiveLocalUpload.ts` implements.
+ *
+ * THE ORIGIN IS `ADMIN_ORIGIN`, NEVER A REQUEST'S `Host`, for the reason
+ * `apps/web/lib/auth/passwordReset.ts` gives at length: a URL built from a
+ * header is a URL an attacker points at their own machine. This adapter is
+ * handed no request and must not be.
+ * Depends on: node:fs/promises, node:path, the StoragePort contract, `env`
+ * (../env) for the admin origin and the signing secret, and `mintUploadToken`
+ * (../media/uploadToken).
  */
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { Result } from '@travel-diary/domain/result'
 import { ok } from '@travel-diary/domain/result'
+import { env } from '../env'
+import { mintUploadToken } from '../media/uploadToken'
 import type { StoragePort } from '../ports/storage'
 import { validateStorageKey } from '../ports/storage'
+
+/** Where this adapter's `uploadUrl` sends a browser. See the module header. */
+export const LOCAL_UPLOAD_PATH = '/admin/media/upload'
 
 /**
  * Creates a StoragePort backed by the local filesystem.
@@ -86,6 +111,27 @@ export const createLocalStorage = (root: string): StoragePort => {
       // the same shape they will get from the R2 adapter's real signed URL.
       const expiresAt = Date.now() + expiresInSeconds * 1000
       return Promise.resolve(ok(`file://${resolved.value}?expiresAt=${String(expiresAt)}`))
+    },
+
+    uploadUrl(key, options) {
+      // Validated through the port BEFORE anything is signed: a token minted
+      // over a traversal key would be a signed capability to escape the
+      // namespace, and a refusal after minting is a refusal that has already
+      // handed out the thing it refused.
+      const validated = validateStorageKey(key)
+      if (!validated.ok) return Promise.resolve(validated)
+
+      const token = mintUploadToken({
+        key: validated.value,
+        expiresAt: Date.now() + options.expiresInSeconds * 1000,
+        maxBytes: options.maxBytes,
+        secret: env.PAYLOAD_SECRET,
+      })
+      // The declared content type is not carried in the URL. The receiver
+      // never believes it (see `../ports/storage.ts`'s `UploadUrlOptions`),
+      // and a value in a URL that nothing enforces reads as a promise this
+      // adapter does not keep.
+      return Promise.resolve(ok(`${env.ADMIN_ORIGIN}${LOCAL_UPLOAD_PATH}?token=${encodeURIComponent(token)}`))
     },
   }
 }

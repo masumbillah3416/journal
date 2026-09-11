@@ -482,6 +482,27 @@ export default defineConfig({
         'apps/web/lib/adapters/worker-media-processor.ts',
         'apps/web/lib/adapters/contract/media-processor-contract.ts',
         'apps/web/lib/adapters/contract/media-fixtures.ts',
+        // Phase 3 Task 7's presigned-upload surface. Each of these three is
+        // reachable only from an `*.integration.test.ts` file, which this
+        // Docker-free pass never runs, and for a reason per file:
+        // `receiveLocalUpload.ts` and `localUploadEndpoint.ts` write real
+        // bytes through a real `StoragePort` (a filesystem, which the `unit`
+        // project is pure of by design); `testing/uploadProbes.ts` builds those
+        // temporary stores and the request fixtures they are driven with. Excluded
+        // by exact path and gated instead by vitest.integration.config.ts,
+        // with per-file thresholds at the numbers each actually achieves -
+        // same reasoning as readBookBundle.ts above.
+        // `apps/web/lib/media/uploadToken.ts` and
+        // `apps/web/lib/media/uploadContract.ts` are NOT in this list: HMAC
+        // over `node:crypto` is pure computation and the contract is a
+        // constant and some types, so both stay measured here.
+        // `uploadProbes.ts` IS imported by the unit suite - `uploadToken.test.ts`
+        // takes `SECRET` from it, so the unit and integration suites sign with
+        // one value - but only that one constant of it executes there, which
+        // is exactly the partial measurement §2.1 calls worse than none.
+        'apps/web/lib/media/receiveLocalUpload.ts',
+        'apps/web/lib/media/localUploadEndpoint.ts',
+        'apps/web/lib/media/testing/uploadProbes.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by
