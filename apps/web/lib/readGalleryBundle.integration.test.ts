@@ -128,7 +128,8 @@ describe('readGalleryBundle', () => {
     // source, and preserves aspect ratio, so a tier's real width is a property
     // of the file. A descriptor that lied would make the browser's choice worse
     // than no choice. The seeded gallery placeholders are 900px squares, so
-    // Payload generates `thumb` (400) and `tile` (800) and nothing above them.
+    // Payload generates `thumb` (400), ADR 0013's `grid` (700) and `tile`
+    // (800), and nothing above them.
     const bundle = await readGalleryBundle(VERIFIED_GALLERY.slug)
     const frames = bundle?.frames ?? []
 
@@ -136,9 +137,19 @@ describe('readGalleryBundle', () => {
     // Every frame, not just the first: a `w` descriptor missing from one row is
     // a wrong choice on one tile, which is exactly the kind of gap a
     // spot-check misses.
-    expect(frames.filter((frame) => !/^\S+ 400w, \S+ 800w$/.test(frame.tileSrcSet))).toEqual([])
+    expect(frames.filter((frame) => !/^\S+ 400w, \S+ 700w, \S+ 800w$/.test(frame.tileSrcSet))).toEqual([])
     // The `src` stays the smallest, for a browser that reads no `srcset`.
     expect(frames.filter((frame) => !frame.tileSrcSet.startsWith(`${frame.tileSrc} 400w`))).toEqual([])
+  })
+
+  it('offers the grid tier as a srcset candidate, with its own width descriptor', async () => {
+    // A tier the row carries but the srcset never names is a tier the browser
+    // cannot choose - which is the whole of ADR 0013 Option 3 undone by an
+    // omission in one array.
+    const bundle = await readGalleryBundle(VERIFIED_GALLERY.slug)
+    const frame = bundle?.frames[0]
+
+    expect(frame?.tileSrcSet).toContain('700w')
   })
 
   it('points every download at a handler of ours rather than at the store', async () => {
@@ -233,6 +244,12 @@ describe('readGalleryBundle', () => {
       // un-stripped original - that is what `MEDIA_PIPELINE=worker` records,
       // and what a crashed `inline` upload leaves behind.
       await upload('test-processing', 900, { order: 4, state: 'processing' })
+      // Wide enough for `thumb` (400) and too narrow for ADR 0013's `grid`
+      // (700), so Payload derives exactly ONE tier for it. That is the only
+      // way to reach the refused side of `tileSrcSet`'s two-candidate
+      // threshold, and before the `grid` rung existed there was no width
+      // between 400 and 800 that could express it.
+      await upload('test-one-derivative', 500, { order: 5 })
     }, SETUP_TIMEOUT_MS)
 
     afterAll(async () => {
@@ -246,14 +263,28 @@ describe('readGalleryBundle', () => {
       expect(bundle?.frames.map((frame) => frame.alt)).not.toContain('test-hidden')
     })
 
-    it('offers no srcset for a row carrying a single derivative, since one candidate is not a choice', async () => {
-      // `test-visible` is a 900px upload, so it has two tiers; a row with only
-      // `thumb` would have one. The 400px-and-under case is covered by
-      // `test-no-derivative`, which has none at all and is omitted entirely.
+    it('offers one candidate per derivative for a row carrying several', async () => {
+      // `test-visible` is a 900px upload, so Payload derives `thumb`, `grid`
+      // and `tile` for it - the accepted side of `tileSrcSet`'s two-candidate
+      // threshold, and a count that moves when the ladder does.
       const bundle = await readGalleryBundle('test-gallery')
       const visible = bundle?.frames.find((frame) => frame.alt === 'test-visible')
 
-      expect(visible?.tileSrcSet.split(', ')).toHaveLength(2)
+      expect(visible?.tileSrcSet.split(', ')).toHaveLength(3)
+    })
+
+    it('offers no srcset for a row carrying a single derivative, since one candidate is not a choice', async () => {
+      // THE REFUSED SIDE OF THE SAME THRESHOLD, which nothing pinned until the
+      // `grid` rung made a one-tier row expressible: `test-one-derivative` is
+      // 500px, so it clears `thumb` and nothing else. The row is still listed -
+      // it has a derivative - it simply has no choice to offer, and the grid
+      // omits the attribute rather than printing a single-entry list on every
+      // one of sixty tiles. `test-no-derivative` is the case below this one:
+      // no tier at all, and omitted from the gallery entirely.
+      const bundle = await readGalleryBundle('test-gallery')
+      const narrow = bundle?.frames.find((frame) => frame.alt === 'test-one-derivative')
+
+      expect(narrow?.tileSrcSet).toBe('')
     })
 
     it('omits a frame with no derivative rather than failing the whole gallery', async () => {

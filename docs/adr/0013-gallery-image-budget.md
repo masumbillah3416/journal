@@ -122,3 +122,64 @@ are untouched — this ADR is scoped to the one gate PH1-003's fix moved.
 - The 400,000 figure this ADR replaces is not restored by any means available in Phase
   1: doing so would require either the deferred derivative tier (Option 3) or degrading
   the gallery grid (Option 2), and neither is this phase's decision to make alone.
+
+### Option 3 was taken in Phase 3 Task 10, and the gate did not move
+
+**The Decision above is left exactly as written.** It recorded a decision that was correct
+at the time and on the evidence available then; what follows is what happened when the
+deferred option was built, not a revision of it.
+
+`apps/web/collections/media.ts` gained the `grid` rung (700², between `thumb` and `tile`)
+in `20260913_201520_add_media_grid_tier`; `npm run media:rederive`
+(`apps/web/scripts/rederive-media.ts`) gave every stored row the new derivative in place;
+and `readGalleryBundle.ts`'s `TILE_TIERS` offers it as a `srcset` candidate, so the browser
+can choose it. All three were needed: a tier nothing serves is storage, not a saving.
+
+**The measurement, and it is the opposite of the one this ADR predicted.** Same command,
+same five runs, same median, same `/gallery/patagonia`:
+
+|                                                       | requests | image transfer |
+| ----------------------------------------------------- | -------- | -------------- |
+| before (`thumb` 400 / `tile` 800, this ADR's Context) | 9        | 477,329        |
+| after (`grid` 700 offered, corpus re-derived)         | 9        | **642,138**    |
+| lazy-loading disabled, re-measured on the new corpus  | 60       | 4,009,810      |
+
+The browser's choice is correct — it takes the 700w candidate for its 658-device-pixel
+need instead of overfetching 800w, which is exactly what Option 3 asked for. The bytes went
+up anyway, and **the cause is the fixtures, measured rather than guessed.** Resizing one
+seeded placeholder — Patagonia's first hero slot, a rasterisation of
+`apps/web/scripts/placeholder.ts`'s striped SVG — with the same `sharp` call Payload makes:
+
+| source                         | at 400  | at 700    | at 800    | 700 ÷ 800 |
+| ------------------------------ | ------- | --------- | --------- | --------- |
+| seeded stripe placeholder, PNG | 16,722  | 71,724    | 44,237    | **1.62×** |
+| photographic JPEG              | 7,974   | 43,841    | 63,462    | **0.69×** |
+| the same photograph as PNG     | 294,648 | 1,008,825 | 1,345,787 | **0.75×** |
+
+A hard-edged periodic pattern resampled to 700 aliases into many more distinct values per
+row than the same pattern resampled to 800 does, and PNG's row filters — which compress
+the 800px version almost to nothing — have nothing left to exploit. A photograph has no
+such period, and there the rung saves 31% exactly as designed. So `grid` does what Option 3
+said it would for the content this gallery will actually hold, and the reverse for the
+synthetic placeholders it currently holds. This ADR's own reason 1 said the fixtures
+understate a real photograph; it turns out they also MISREPRESENT one, in both directions.
+
+**`resource-summary:image:size` for `/gallery/<slug>` is therefore UNCHANGED at 600,000**,
+and `npm run test:perf` is red on that one assertion at 642,138. Raising it to fit a number
+produced by a stripe pattern would be the mistake this ADR was written to stop — a budget
+recalibrated to whatever the current artefact costs — and lowering it is not available
+either. The three things that would resolve it are each somebody's decision rather than a
+config change: replace the seeded placeholders with real photographs (a content decision,
+and the one this ADR already anticipated); change what `apps/web/scripts/placeholder.ts`
+rasterises, which moves every visual-regression baseline; or accept the number for the
+fixture corpus explicitly, in a decision of its own.
+
+**The gate is still a detector, re-measured rather than assumed.** `Tile.tsx`'s
+`loading="lazy"` was changed to `"eager"` on a throwaway local build — nothing committed —
+and the same route measured once under the same settings: 60 requests and 4,009,810 bytes,
+**6.68×** the 600,000 limit. Nine tiles versus sixty, so lazy-loading is intact and the
+budget still catches what it exists to catch. It is not the 4,600,585 this ADR measured,
+and no cause is offered for the difference here: the corpus was re-derived between the two
+measurements and the gallery's sixty placeholders are not all the same size, so anything
+said about WHY would be an explanation nobody ran. What was measured is the request count —
+60 against 9 — and that is what the assertion is about.

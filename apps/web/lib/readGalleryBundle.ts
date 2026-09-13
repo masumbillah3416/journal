@@ -111,8 +111,18 @@ type DerivativeTier = keyof NonNullable<SelectedMediaDoc['sizes']>
  * `hero2x` is still not offered. The widest tile the grid can draw is under
  * `2 * GALLERY_THUMB_SIZE.max + 16` = 616 CSS px, so `hero`'s 2000px already
  * covers it past DPR 3; a 4000px file is never the right answer for a tile.
+ *
+ * `grid` JOINED IT IN PHASE 3, AND IS THE REASON THE GAP ABOVE WAS EXPENSIVE.
+ * ADR 0013 measured what a `srcset` of 400 and 800 costs a phone: at
+ * Lighthouse's 412 CSS px emulated viewport the grid is one column, so a tile
+ * is 376 CSS px, and at DPR 1.75 that needs 658 device pixels - so the browser
+ * correctly takes the 800w candidate and nine images cost 477,329 bytes. The
+ * 700px rung serves that 658px need almost exactly. Offering it here is the
+ * half of ADR 0013 Option 3 that a reader can see: a tier the row carries but
+ * this list never names is a tier the browser cannot choose, generated and
+ * stored and paid for and never served.
  */
-const TILE_TIERS: readonly DerivativeTier[] = ['thumb', 'tile', 'frame', 'hero']
+const TILE_TIERS: readonly DerivativeTier[] = ['thumb', 'grid', 'tile', 'frame', 'hero']
 
 /**
  * The tiers the LIGHTBOX prefers, largest first - it draws one photograph
