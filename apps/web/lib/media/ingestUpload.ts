@@ -47,15 +47,24 @@
  *
  * ═══ WHAT `worker` MODE DOES NOT DO YET, SAID HERE RATHER THAN DISCOVERED ═══
  *
- * Under `worker` nothing sniffs the staged bytes at ingest, because the
- * pipeline runs on the worker. **There is no worker process in this
- * repository** — `MEDIA_PIPELINE` defaults to `inline` and ADR 0004's
- * "enable video" is *provision a Fly.io app, deploy the worker container, set
- * the flag*, in that order. Setting the flag without the container therefore
- * stores an unsniffed original at `state: 'processing'` and never advances it.
- * That is a deployment precondition, recorded here, in `docs/security.md` and
- * in `docs/runbook.md`, rather than a check written into a path no test can
- * reach.
+ * Under `worker` nothing sniffs and nothing strips the staged bytes at
+ * ingest, because the pipeline runs on the worker. **There is no worker
+ * process in this repository**, so that mode would store an un-stripped
+ * original — GPS EXIF intact — at `state: 'processing'` and never advance it.
+ * **`MEDIA_PIPELINE=worker` therefore does not boot** (`../env.ts`), and a row
+ * that is not `ready` is withheld from a signed-out reader by
+ * `apps/web/collections/media.ts`'s `read` access. Two controls, deliberately
+ * independent: the second holds if somebody deletes the first. This paragraph
+ * called it "a deployment precondition, recorded here" and recorded it in four
+ * documents; documentation was not the control, which is Task 8 review
+ * finding 1.
+ *
+ * The `worker` BRANCH below stays exactly as it is. The mode is real — both
+ * adapters run one contract suite, `mediaProcessorFor` and
+ * `acceptedIngestTypes` take it as an argument, and this file's own cases
+ * drive it — and ADR 0004 requires enabling clips to be a configuration
+ * change rather than new code. What is refused is configuring the PROCESS into
+ * it before a worker exists to finish what it starts.
  *
  * ═══ INVARIANTS A FUTURE EDIT COULD BREAK ═══
  *

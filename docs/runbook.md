@@ -73,13 +73,22 @@ Per `docs/adr/0001-hosting-and-cost.md`:
   staged bytes and creates the `media` row from the re-encode. This bullet said "no route
   and no Payload hook calls `mediaProcessor()`" for two tasks; that is no longer true
   under the configured default.
-  **`MEDIA_PIPELINE=worker` MUST NOT BE SET BEFORE A WORKER EXISTS, and the order is the
-  precaution.** Under `worker`, ingest does not run the pipeline - ADR 0004's amendment
-  puts the queue hop between the receiver and the worker - so it records the STAGED
-  original at `state: 'processing'` and enqueues a `transcode` job. With no worker
-  claiming that job the row never advances, and the bytes sitting behind it are unsniffed
-  and un-stripped. ADR 0004's "enabling video later is" already states the order:
-  provision the Fly.io app, deploy the worker container, THEN set the flag.
+  **`MEDIA_PIPELINE=worker` DOES NOT BOOT, and that is a guard rather than a limitation.**
+  Under `worker`, ingest does not run the pipeline - ADR 0004's amendment puts the queue
+  hop between the receiver and the worker - so it records the STAGED original at
+  `state: 'processing'` and enqueues a `transcode` job for a process that would sniff,
+  strip and re-encode it. No such process exists here, so the bytes behind that row are
+  unsniffed and un-stripped, and Payload would serve them. **This bullet was a warning
+  and nothing else until the Task 8 review; there are now two controls, deliberately
+  independent.** (1) `apps/web/lib/env.ts` refuses the value at `parseEnv`, so the
+  process fails to start rather than failing a request with bytes already written, and
+  the message names its own removal condition. (2)
+  `apps/web/collections/media.ts`'s `read` access withholds any row that is not `ready`
+  (NULL included, as "written before the column existed") from a signed-out reader, so
+  the disclosure does not reopen if somebody deletes the first guard. Both sides of each
+  are pinned by a case. ADR 0004's "enabling video later is" states the order the removal
+  follows: provision the Fly.io app, deploy the worker container, THEN delete the refusal
+  and set the flag - a code change, in the commit that deploys the worker.
   **That container must have `ffmpeg` and `ffprobe` on its `PATH`** -
   `apps/web/lib/media/services.ts` passes those two names to `createFfmpegToolchain`, and
   a container without them turns every clip upload into an `'unreadable'` refusal rather

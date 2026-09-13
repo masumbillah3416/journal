@@ -82,8 +82,16 @@ const FIXTURE_COVER_SLUG_PREFIX = 'test-cover-'
  */
 const FIXTURE_SLUGS = ['test-tokyo', 'test-bergen', 'test-lisbon', 'test-reversibility', FIXTURE_COVER_SLUG_PREFIX]
 
-/** The `alt` values the two media access fixtures are created with, so `afterAll` can find and delete them. */
-const FIXTURE_MEDIA_ALTS = ['test-access-visible', 'test-access-hidden', 'test-access-hidden-editor']
+/** The `alt` values the media access fixtures are created with, so `afterAll` can find and delete them. */
+const FIXTURE_MEDIA_ALTS = [
+  'test-access-visible',
+  'test-access-stateless',
+  'test-access-processing',
+  'test-access-processing-editor',
+  'test-access-failed',
+  'test-access-hidden',
+  'test-access-hidden-editor',
+]
 
 /**
  * The `alt` value every media row the Phase 3 fixtures upload carries. One
@@ -95,6 +103,9 @@ const FIXTURE_MEDIA_STATE_ALT = 'test-media-state'
 
 /** The editor fixture's email, so `afterAll` can remove the account the access tests sign in as. */
 const FIXTURE_USER_EMAIL = 'test-access-editor@example.com'
+
+/** The second editor, for the case that reads a `processing` row as one. Swept by the same loop. */
+const FIXTURE_STATE_USER_EMAIL = 'test-access-state-editor@example.com'
 
 /**
  * A real, uploadable PNG for the media access fixtures - built with the same
@@ -652,9 +663,11 @@ describe('collections', () => {
         await payload.delete({ collection: 'media', id: doc.id })
       }
     }
-    const editors = await payload.find({ collection: 'users', where: { email: { equals: FIXTURE_USER_EMAIL } } })
-    for (const doc of editors.docs) {
-      await payload.delete({ collection: 'users', id: doc.id })
+    for (const email of [FIXTURE_USER_EMAIL, FIXTURE_STATE_USER_EMAIL]) {
+      const editors = await payload.find({ collection: 'users', where: { email: { equals: email } } })
+      for (const doc of editors.docs) {
+        await payload.delete({ collection: 'users', id: doc.id })
+      }
     }
     // The OTP reversibility case creates one account either side of the
     // rollback, and the rollback destroys the first - so the address is
@@ -835,7 +848,7 @@ describe('collections', () => {
   it('serves a media item to an unauthenticated reader, so the public diary can show a photograph', async () => {
     const visible = await payload.create({
       collection: 'media',
-      data: { kind: 'still', alt: 'test-access-visible', order: 0 },
+      data: { kind: 'still', alt: 'test-access-visible', order: 0, state: 'ready' },
       file: { data: await aTinyPng(), mimetype: 'image/png', name: 'test-access-visible.png', size: 1 },
     })
 
@@ -846,6 +859,90 @@ describe('collections', () => {
     })
 
     expect(read.docs).toHaveLength(1)
+  })
+
+  it('serves a media item with no state at all, which is what every row written before the column means', async () => {
+    // `20260910_171154_add_media_state` deliberately did not backfill
+    // (docs/deviations.md §48), so NULL means "ingested before there was a
+    // state to record". Withholding those would take the public diary dark to
+    // close a hole they cannot be in, so the clause below has to admit them -
+    // and this is the case that says so, since nothing else in this file
+    // writes a NULL state on purpose.
+    const legacy = await payload.create({
+      collection: 'media',
+      data: { kind: 'still', alt: 'test-access-stateless', order: 0, state: null },
+      file: { data: await aTinyPng(), mimetype: 'image/png', name: 'test-access-stateless.png', size: 1 },
+    })
+
+    const read = await payload.find({
+      collection: 'media',
+      overrideAccess: false,
+      where: { id: { equals: legacy.id } },
+    })
+
+    expect({ state: legacy.state, visible: read.docs.length }).toEqual({ state: null, visible: 1 })
+  })
+
+  it('withholds a still-processing media item from an unauthenticated reader, so an unstripped original is never served', async () => {
+    // THE SECOND OF THE TWO CONTROLS ON `MEDIA_PIPELINE=worker`, and the one
+    // that holds if somebody deletes the first. A `processing` row may be
+    // carrying bytes nothing has stripped - the staged original a worker was
+    // meant to collect, or a crashed inline upload - and Payload serves a
+    // readable row's file at `/api/media/file/<name>` to anybody.
+    const unfinished = await payload.create({
+      collection: 'media',
+      data: { kind: 'still', alt: 'test-access-processing', order: 0, state: 'processing' },
+      file: { data: await aTinyPng(), mimetype: 'image/png', name: 'test-access-processing.png', size: 1 },
+    })
+
+    const asReader = await payload.find({
+      collection: 'media',
+      overrideAccess: false,
+      where: { id: { equals: unfinished.id } },
+    })
+    const asServer = await payload.find({ collection: 'media', where: { id: { equals: unfinished.id } } })
+
+    expect({ reader: asReader.docs.length, server: asServer.docs.length }).toEqual({ reader: 0, server: 1 })
+  })
+
+  it('withholds a failed media item from an unauthenticated reader, since its bytes were never finished either', async () => {
+    const broken = await payload.create({
+      collection: 'media',
+      data: { kind: 'still', alt: 'test-access-failed', order: 0, state: 'failed', failureReason: 'a reason' },
+      file: { data: await aTinyPng(), mimetype: 'image/png', name: 'test-access-failed.png', size: 1 },
+    })
+
+    const asReader = await payload.find({
+      collection: 'media',
+      overrideAccess: false,
+      where: { id: { equals: broken.id } },
+    })
+
+    expect(asReader.docs).toHaveLength(0)
+  })
+
+  it('shows a still-processing media item to a signed-in editor, so the Media screen can show progress', async () => {
+    // Spec section 9.2 makes `processing` a first-class UI state rather than a
+    // missing image. The clause above must withhold it from a READER without
+    // hiding it from the author whose upload it is.
+    const unfinished = await payload.create({
+      collection: 'media',
+      data: { kind: 'still', alt: 'test-access-processing-editor', order: 0, state: 'processing' },
+      file: { data: await aTinyPng(), mimetype: 'image/png', name: 'test-access-processing-editor.png', size: 1 },
+    })
+    const editor = await payload.create({
+      collection: 'users',
+      data: { email: 'test-access-state-editor@example.com', password: 'not-a-real-password' },
+    })
+
+    const asEditor = await payload.find({
+      collection: 'media',
+      overrideAccess: false,
+      user: editor,
+      where: { id: { equals: unfinished.id } },
+    })
+
+    expect(asEditor.docs).toHaveLength(1)
   })
 
   it('withholds a hidden media item from an unauthenticated reader, so hiding one is not merely cosmetic', async () => {

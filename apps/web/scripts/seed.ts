@@ -231,10 +231,18 @@ const upsertSlotMedia = async (
   // three pages rather than restarting at zero on each - without this update
   // a re-seeded store keeps the old, colliding numbers and its gallery is in
   // a different order from a freshly-seeded one's, which would make a visual
-  // baseline generated locally disagree with CI's. The FILE is not
-  // re-uploaded; only these two columns are written.
+  // baseline generated locally disagree with CI's. `state` joined them for
+  // the same reason and a sharper one: `apps/web/collections/media.ts` now
+  // withholds a row that is not `ready` from a signed-out reader, and every
+  // row an earlier seed wrote took the field's `processing` default - so
+  // without this a developer's existing store goes dark until they wipe it.
+  // The FILE is not re-uploaded; only these columns are written.
   if (found) {
-    const updated = await payload.update({ collection: 'media', id: found.id, data: { order, caption } })
+    const updated = await payload.update({
+      collection: 'media',
+      id: found.id,
+      data: { order, caption, state: 'ready' },
+    })
     return updated.id
   }
 
@@ -242,7 +250,7 @@ const upsertSlotMedia = async (
   const filename = `${label.toLowerCase().replace(/\s+/g, '-')}.png`
   const created = await payload.create({
     collection: 'media',
-    data: { journey: journeyNumericId, kind: 'still', caption, alt: label, order },
+    data: { journey: journeyNumericId, kind: 'still', caption, alt: label, order, state: 'ready' },
     file: { data: png, mimetype: 'image/png', name: filename, size: png.length },
   })
   return created.id
@@ -424,14 +432,14 @@ const upsertPortraitMedia = async (payload: Payload): Promise<Media['id']> => {
   // else to be written from, so an early return would leave a developer's
   // existing store centred for good.
   if (found) {
-    const updated = await payload.update({ collection: 'media', id: found.id, data: focal })
+    const updated = await payload.update({ collection: 'media', id: found.id, data: { ...focal, state: 'ready' } })
     return updated.id
   }
 
   const png = await renderPlaceholderPng(label, '#7d715c', { width: 700, height: 900 })
   const created = await payload.create({
     collection: 'media',
-    data: { kind: 'still', caption: aboutGlobalSeed.portraitCaption, alt: label, order: 0, ...focal },
+    data: { kind: 'still', caption: aboutGlobalSeed.portraitCaption, alt: label, order: 0, state: 'ready', ...focal },
     file: { data: png, mimetype: 'image/png', name: 'portrait.png', size: png.length },
   })
   return created.id

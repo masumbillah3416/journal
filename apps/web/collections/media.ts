@@ -94,7 +94,37 @@ export const Media: CollectionConfig = {
           // the file route as well as from a listing. Payload applies this
           // constraint to `/api/media/file/<name>` too, which is the URL the
           // diary's own <img> tags resolve to.
-          { hidden: { not_equals: true } },
+          {
+            and: [
+              { hidden: { not_equals: true } },
+              // ═══ `state` IS A SECURITY CONSTRAINT HERE, NOT A UI ONE ═══
+              //
+              // A row that is not `ready` may be holding bytes NOTHING HAS
+              // STRIPPED. Under `MEDIA_PIPELINE=worker`,
+              // `apps/web/lib/media/ingestUpload.ts` records the staged
+              // ORIGINAL - GPS EXIF intact - at `processing` and leaves the
+              // strip to a worker; a crashed `inline` upload leaves the same
+              // state for a different reason. Without this clause Payload
+              // serves either at `/api/media/file/<name>`, which is
+              // SECURITY.md's "shoot anything at home and you have published
+              // your home address" reached by a signed-out stranger.
+              //
+              // It is the SECOND of two controls and is deliberately not the
+              // only one: `apps/web/lib/env.ts` refuses `worker` at boot. That
+              // guard is a line somebody can delete; this one holds if they
+              // do, which is the whole argument for having both (Task 8 review
+              // finding 1).
+              //
+              // **NULL IS ALLOWED, and that is not an oversight.**
+              // `20260910_171154_add_media_state` deliberately did not backfill
+              // (docs/deviations.md §48): a NULL means "ingested before there
+              // was a state to record", which is every row the seed wrote
+              // before this change and no row any pipeline has touched.
+              // Withholding those would take the public diary dark to fix a
+              // hole they cannot be in.
+              { or: [{ state: { equals: 'ready' } }, { state: { exists: false } }] },
+            ],
+          },
   },
   upload: {
     staticDir: MEDIA_DIR,

@@ -35,6 +35,18 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 // process (e.g. by Vitest's `test.env`, or the shell).
 loadEnvConfig(repoRoot)
 
+/**
+ * Why `MEDIA_PIPELINE=worker` is refused, and what removing this costs.
+ *
+ * Exported so `env.test.ts` asserts against this value rather than against a
+ * substring of it, and so the message a refused boot prints is the message a
+ * case has read. It names its own removal condition because a guard whose
+ * removal condition lives only in a review is a guard somebody deletes for the
+ * wrong reason.
+ */
+export const WORKER_NOT_DEPLOYED =
+  'MEDIA_PIPELINE=worker stores un-stripped originals: no worker process exists in this repository to sniff, strip and re-encode them. Delete this refusal in the commit that deploys one - docs/adr/0004-media-pipeline-mode.md orders it provision, deploy, then set the flag.'
+
 const envSchema = z.object({
   /** Postgres connection string. Required — there is no meaningful default. */
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
@@ -65,8 +77,37 @@ const envSchema = z.object({
    * `video/mp4`/`video/quicktime` are accepted at ingest, and whether the
    * admin shows clip affordances. One variable rather than three, so
    * "enable video" cannot be half-done (docs/adr/0004-media-pipeline-mode.md).
+   *
+   * ═══ `'worker'` PARSES AND IS THEN REFUSED, AND THAT IS THE POINT ═══
+   *
+   * Under `worker`, `apps/web/lib/media/ingestUpload.ts` does not run the
+   * pipeline: ADR 0004's amendment puts the queue hop between the receiver and
+   * the worker, so ingest records the STAGED ORIGINAL at `state: 'processing'`
+   * and enqueues a `transcode` job for a process that would sniff, strip and
+   * re-encode it. **No such process exists in this repository.** So setting
+   * this to `worker` today writes the author's un-stripped JPEG - GPS EXIF
+   * intact - into the media store, and `apps/web/collections/media.ts`'s
+   * `read` access now withholds it from a signed-out reader on `state`, which
+   * is the second of the two controls. This is the first, and it is a BOOT
+   * failure rather than a request failure, so it cannot be reached with bytes
+   * already stored.
+   *
+   * The value stays in the enum rather than being removed from it because the
+   * mode itself is real: `mediaProcessorFor('worker')` and
+   * `acceptedIngestTypes('worker')` both take the mode as an argument and are
+   * exercised under it, and {@link Env}'s type is what the rest of the tree
+   * passes around. What is refused is CONFIGURING the process into it.
+   *
+   * Deleting this refusal is a one-line change in the commit that deploys a
+   * worker, which is ADR 0004's own order: provision the app, deploy the
+   * container, then set the flag.
    */
-  MEDIA_PIPELINE: z.enum(['inline', 'worker']).default('inline'),
+  MEDIA_PIPELINE: z
+    .enum(['inline', 'worker'])
+    .default('inline')
+    .refine((mode) => mode !== 'worker', {
+      message: WORKER_NOT_DEPLOYED,
+    }),
 })
 
 /** The application's validated environment shape. */
