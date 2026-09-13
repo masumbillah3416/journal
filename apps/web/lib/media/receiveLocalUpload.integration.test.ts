@@ -129,7 +129,7 @@ describe('receiveLocalUpload', () => {
     const token = aToken()
     const request = new Request(
       `http://localhost/admin/media/upload?key=staging/j/elsewhere.jpg&token=${encodeURIComponent(token)}`,
-      { method: 'PUT', body: new Uint8Array([9]) },
+      { method: EXPECTED_UPLOAD_REQUEST.method, body: new Uint8Array([9]) },
     )
 
     const received = await receiveLocalUpload(request, deps(storage))
@@ -260,7 +260,7 @@ describe('receiveLocalUpload', () => {
     const { storage } = await aTempStore()
 
     const received = await receiveLocalUpload(
-      new Request('http://localhost/admin/media/upload', { method: 'PUT' }),
+      new Request('http://localhost/admin/media/upload', { method: EXPECTED_UPLOAD_REQUEST.method }),
       deps(storage),
     )
 

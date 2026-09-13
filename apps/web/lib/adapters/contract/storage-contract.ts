@@ -157,21 +157,27 @@ export const storageContract = (
       expect((await storage.uploadUrl('../escape.jpg', anUploadOffer())).ok).toBe(false)
     })
 
-    it('produces an upload URL for a valid key', async () => {
-      const storage = await makeAdapter()
-
-      const url = await storage.uploadUrl('staging/j/1-a.jpg', anUploadOffer())
-
-      expect(url.ok).toBe(true)
-    })
-
     it('produces an upload URL for a key nothing has been written to yet', async () => {
       // The whole point of a presigned upload: the object does not exist, and
       // the URL is what brings it into being. An adapter that answered only
       // for a stored key would be a signed-download URL wearing this name.
+      // NOTHING IS WRITTEN HERE, and that is what the case name claims - the
+      // pair below is what makes the claim a distinction rather than a word.
       const storage = await makeAdapter()
 
       const url = await storage.uploadUrl('staging/j/never-written.jpg', anUploadOffer())
+
+      expect(url.ok).toBe(true)
+    })
+
+    it('produces an upload URL for a key that already holds an object, so a replacement can be offered', async () => {
+      // The other side of the pair: this key IS written first. An adapter that
+      // refused to overwrite would fail here and pass above, which is the only
+      // way the two cases can mean different things.
+      const storage = await makeAdapter()
+      await storage.put('staging/j/1-a.jpg', new Uint8Array([1]), 'image/jpeg')
+
+      const url = await storage.uploadUrl('staging/j/1-a.jpg', anUploadOffer())
 
       expect(url.ok).toBe(true)
     })
@@ -182,7 +188,14 @@ export const storageContract = (
       const first = await storage.uploadUrl('staging/j/1-a.jpg', anUploadOffer())
       const second = await storage.uploadUrl('staging/j/1-b.jpg', anUploadOffer())
 
-      expect(first.ok && second.ok && first.value).not.toBe(second.ok && second.value)
+      // BOTH OFFERS MUST SUCCEED BEFORE THE URLS MEAN ANYTHING. This was
+      // `first.ok && second.ok && first.value` compared with
+      // `second.ok && second.value`, which passes vacuously when exactly one
+      // is a refusal: `false` is not equal to a URL string, so the two
+      // differing was all the refusal proved.
+      expect(first.ok).toBe(true)
+      expect(second.ok).toBe(true)
+      expect(offeredUrl(first)).not.toBe(offeredUrl(second))
     })
 
     it('refuses an upload URL for a key that escapes the namespace', async () => {

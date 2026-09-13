@@ -13,6 +13,14 @@
  * one-refusal-for-three-causes rule lives. Each of the three token refusals is
  * asserted to answer identically; a `403` that differed by cause would be the
  * enumeration oracle `readGalleryDownload` refuses to be.
+ *
+ * EVERY "AND NOTHING WAS STORED" HERE IS READ OFF `MEDIA_DIR`, never off a
+ * temporary store. The 413 case used to build an `aTempStore()` as well and
+ * assert the key was absent from it — an assertion no mutation could make
+ * fail, since `handleLocalUpload` holds no reference to that store and the
+ * directory is a fresh `mkdtemp`. It was deleted rather than reworded: a
+ * vacuous assertion beside real ones is worse than none, because it makes the
+ * case look better covered than it is.
  * Depends on: vitest, node:fs/promises, node:path; `MEDIA_DIR`
  * (../../collections/media); the local adapter; the probes; the module under
  * test.
@@ -27,7 +35,7 @@ import type { AuthenticatedSession } from '../auth/sessions'
 import { handleLocalUpload, localUploadResponse } from './localUploadEndpoint'
 import { EXPECTED_UPLOAD_REQUEST } from './uploadContract'
 import { mintUploadToken } from './uploadToken'
-import { SECRET, aPutRequest, aTempStore } from './testing/uploadProbes'
+import { SECRET, aPutRequest } from './testing/uploadProbes'
 
 /** The live store the endpoint writes through, as the endpoint builds it. */
 const liveStore = () => createLocalStorage(MEDIA_DIR)
@@ -140,7 +148,6 @@ describe('handleLocalUpload', () => {
   })
 
   it('answers 413 for a body over the cap the token carries, without storing it', async () => {
-    const { storage } = await aTempStore()
     const key = `staging/upload-endpoint-probe/${String(Date.now())}-big.jpg`
     const minted = await liveStore().uploadUrl(key, {
       expiresInSeconds: 900,
@@ -156,8 +163,5 @@ describe('handleLocalUpload', () => {
 
     expect(answered.status).toBe(413)
     expect(await liveStore().exists(key)).toBe(false)
-    // The temp store is untouched, which is the point: the endpoint writes
-    // through `MEDIA_DIR` and nothing else.
-    expect(await storage.exists(key)).toBe(false)
   })
 })
