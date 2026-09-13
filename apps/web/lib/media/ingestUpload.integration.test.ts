@@ -31,6 +31,19 @@
  * which is the notification the brief was buying, and widening the constant
  * then re-arms the first.
  *
+ * **AND THAT CONSTANT BEING A LITERAL IS NOW ENFORCED RATHER THAN ARGUED**
+ * (Task 9 review, F2). Deleting the "duplication" between {@link CONFIGURED_TIERS}
+ * and `configuredImageSizes()` is a tidy-up that looks like an improvement,
+ * passes `verify:full`, and removes the only thing that fires when a tier is
+ * added — leaving this paragraph as the whole defence. `./tierRegistration.test.ts`
+ * reads this file as SOURCE and fails when the constant stops being a literal
+ * array, and fails again when it stops matching the collection. It runs in the
+ * Docker-free pre-commit pass, so it fires at the commit rather than at CI.
+ *
+ * WHAT NEITHER MECHANISM BUYS: a notification that `grid` NEVER ARRIVES.
+ * Nothing can notice work that was not done; after Task 9 that is a planning
+ * obligation carried in Task 10's brief, not a test one.
+ *
  * Depends on: vitest; the probes (./testing/ingestProbes); `getTestPayload`
  * (../testPayload); `DUPLICATE_MAX_DISTANCE` and `hammingDistance`, so the
  * duplicate boundary here moves when the domain's constant does rather than
