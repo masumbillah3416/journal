@@ -95,6 +95,22 @@ export const FIXTURE_CAPTURED_AT_EXIF = '2025:03:14 09:26:53'
 /** The same instant, as `readExifFacts` returns it. */
 export const FIXTURE_CAPTURED_AT_ISO = '2025-03-14T09:26:53'
 
+/**
+ * The latitude {@link aPhotographWithExif} writes, in EXIF's own rational
+ * spelling — degrees, minutes and seconds, each a numerator over a
+ * denominator.
+ *
+ * EXPORTED RATHER THAN SPELLED AT THE `withExif` CALL because an absence
+ * assertion has to be able to look for the COORDINATE and not only for a
+ * marker: a stripper that removed the APP1 header while leaving its payload
+ * where it sat would satisfy `metadataMarkersIn` and a Copyright search both.
+ * `../../media/testing/ingestProbes.ts`'s `asExifRationals` turns this string
+ * into the bytes a reader would find, and the case using it asserts they are
+ * in the upload before asserting they are not in the store. One spelling, so
+ * the needle cannot drift from what the fixture wrote.
+ */
+export const FIXTURE_GPS_LATITUDE = '51/1 30/1 26/1'
+
 /** The default size both photograph fixtures encode at. */
 const FIXTURE_SIZE = { width: 1200, height: 900 } as const
 
@@ -301,7 +317,7 @@ export const aPhotographWithExif = async (
       IFD2: { DateTimeOriginal: FIXTURE_CAPTURED_AT_EXIF },
       IFD3: {
         GPSLatitudeRef: 'N',
-        GPSLatitude: '51/1 30/1 26/1',
+        GPSLatitude: FIXTURE_GPS_LATITUDE,
         GPSLongitudeRef: 'W',
         GPSLongitude: '0/1 7/1 39/1',
       },

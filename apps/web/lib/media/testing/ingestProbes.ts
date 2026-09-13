@@ -19,11 +19,13 @@
  * A fixture that spelled `staging/<journey>/<nonce>-<name>` itself would be a
  * fixture agreeing with itself: the shape ingest is handed in production is
  * whatever the PLANNER minted, and a hand-written key would keep passing if
- * the planner's changed. So {@link aStagedPhotograph} and {@link aStagedSvg}
- * both ask `planUploadSlots` — the same function `offerUploadSlots` calls —
- * for the key, then write the bytes to it through a real `StoragePort`. That
- * is the Phase 2 fixture-drift lesson applied here (`../uploadContract.ts`'s
- * header records the two blockers it came from).
+ * the planner's changed. So every staging helper here goes through
+ * `plannedInput`, which asks `planUploadSlots` — the same function
+ * `offerUploadSlots` calls — for the key, and then the bytes are written to
+ * it: through a real `StoragePort` for the `aStaged*` factories, and through
+ * the real RECEIVER for {@link ingestPhotograph}. That is the Phase 2
+ * fixture-drift lesson applied here (`../uploadContract.ts`'s header records
+ * the two blockers it came from).
  *
  * ═══ WHY THE TEST PAYLOAD IS IMPORTED INSIDE EACH FUNCTION ═══
  *
@@ -35,10 +37,13 @@
  * makes that true tomorrow as well.
  *
  * Depends on: node:crypto, node:path; sharp (for {@link aTinyPng}); the domain's ingest
- * policy, upload-slot planner and branded ids; the MediaProcessor and Storage
+ * policy, upload-slot planner, upload cap and branded ids; the MediaProcessor and Storage
  * ports; `mediaProcessorFor` and `createPostgresQueue` for the two dependency
- * sets; the contract suite's photograph factories and the domain's SVG
- * fixture; `aTempStore` (../testing/uploadProbes).
+ * sets; `createLocalStorage`, for reading the real store back;
+ * `receiveLocalUpload`, `mintUploadToken` and `ingestUpload`, which
+ * {@link ingestPhotograph} drives in order; the contract suite's photograph
+ * factories and the domain's SVG fixture; `aTempStore`, `aPutRequest` and
+ * `SECRET` (./uploadProbes).
  */
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
@@ -46,9 +51,10 @@ import sharp from 'sharp'
 import type { JourneyId, MediaId } from '@travel-diary/domain/ids'
 import { journeyId } from '@travel-diary/domain/ids'
 import { acceptedIngestTypes } from '@travel-diary/domain/media/ingestPolicy'
-import { planUploadSlots } from '@travel-diary/domain/media/uploadSlot'
+import { MAX_UPLOAD_BYTES, planUploadSlots } from '@travel-diary/domain/media/uploadSlot'
 import type { Result } from '@travel-diary/domain/result'
 import { anSvgDocument } from '@travel-diary/domain/testing/bytes'
+import { createLocalStorage } from '../../adapters/local-storage'
 import { createPostgresQueue } from '../../adapters/postgres-queue'
 import {
   aDifferentPhotograph,
@@ -58,8 +64,11 @@ import {
 } from '../../adapters/contract/media-fixtures'
 import type { StoragePort } from '../../ports/storage'
 import type { IngestDeps, IngestInput, IngestOutcome, IngestRefusalReason } from '../ingestUpload'
+import { ingestUpload } from '../ingestUpload'
+import { receiveLocalUpload } from '../receiveLocalUpload'
 import { mediaProcessorFor } from '../services'
-import { aTempStore } from './uploadProbes'
+import { mintUploadToken } from '../uploadToken'
+import { SECRET, aPutRequest, aTempStore } from './uploadProbes'
 
 export { aTempStore }
 
@@ -137,9 +146,8 @@ export interface StagedUpload {
  * @param options - The bytes to stage, what the client calls them, and the
  *   journey to stage under.
  * @returns The staged upload: ingest's input, the store, and the bytes.
- * @throws When `planUploadSlots` refuses the file, which would mean this
- *   module built a fixture the real planner would never have offered a slot
- *   for — a broken fixture, not a test failure to report.
+ * @throws When the temporary store refuses the bytes. The planner's own
+ *   refusals are {@link plannedInput}'s.
  */
 const stage = async (options: {
   readonly bytes: Uint8Array
@@ -148,6 +156,34 @@ const stage = async (options: {
   readonly journey: JourneyId
 }): Promise<StagedUpload> => {
   const { storage } = await aTempStore()
+  const input = plannedInput(options)
+
+  const written = await storage.put(input.stagingKey, options.bytes, options.declaredType)
+  /* c8 ignore next -- no organic trigger: the store is a fresh mkdtemp directory and the key is the planner's own. */
+  if (!written.ok) throw new Error(`the fixture store refused the staged bytes: ${written.error}`)
+
+  return { input, storage, bytes: options.bytes }
+}
+
+/**
+ * Asks the real planner for one slot and returns ingest's input for it.
+ *
+ * SPLIT OUT OF {@link stage} so {@link ingestPhotograph} can put the bytes
+ * through the RECEIVER instead of writing them itself, without a second
+ * spelling of the key. Both callers therefore carry whatever key
+ * `planUploadSlots` mints today.
+ * @param options - What the client calls the bytes, how many of them there
+ *   are, and the journey to stage under.
+ * @returns The input `ingestUpload` takes.
+ * @throws When `planUploadSlots` refuses the file — a broken fixture, not a
+ *   test failure to report.
+ */
+const plannedInput = (options: {
+  readonly bytes: Uint8Array
+  readonly filename: string
+  readonly declaredType: string
+  readonly journey: JourneyId
+}): IngestInput => {
   const planned = planUploadSlots({
     files: [{ filename: options.filename, declaredType: options.declaredType, byteLength: options.bytes.length }],
     acceptedTypes: acceptedIngestTypes('inline'),
@@ -160,19 +196,11 @@ const stage = async (options: {
   /* c8 ignore next -- no organic trigger: one file in, one slot out. */
   if (slot === undefined) throw new Error('the planner offered no slot for a single file')
 
-  const written = await storage.put(slot.stagingKey, options.bytes, options.declaredType)
-  /* c8 ignore next -- no organic trigger: the store is a fresh mkdtemp directory and the key is the planner's own. */
-  if (!written.ok) throw new Error(`the fixture store refused the staged bytes: ${written.error}`)
-
   return {
-    input: {
-      stagingKey: slot.stagingKey,
-      declaredType: slot.declaredType,
-      filename: slot.filename,
-      journey: options.journey,
-    },
-    storage,
-    bytes: options.bytes,
+    stagingKey: slot.stagingKey,
+    declaredType: slot.declaredType,
+    filename: slot.filename,
+    journey: options.journey,
   }
 }
 
@@ -267,6 +295,36 @@ export const aStagedSvg = async (options: { readonly journey?: JourneyId } = {})
   stage({
     bytes: anSvgDocument(),
     filename: `holiday-${randomUUID()}.jpg`,
+    declaredType: 'image/jpeg',
+    journey: options.journey ?? (await aFixtureJourney()),
+  })
+
+/**
+ * Stages a clip under a `.jpg` name and a declared `image/jpeg` — the only
+ * form a clip can reach an `inline` ingest in.
+ *
+ * ═══ WHY THE DISGUISE IS NOT AN EMBELLISHMENT ═══
+ *
+ * `planUploadSlots` is handed `acceptedIngestTypes('inline')`, which is the
+ * two still types, so a client that declares `video/mp4` is never offered a
+ * slot at all — there is no key for honest clip bytes to be staged at. A clip
+ * therefore arrives exactly the way an SVG does: in a slot offered for a
+ * photograph. The refusal is decided on the SNIFFED type either way
+ * (`@travel-diary/domain/media/ingestPolicy`), so the declaration changes
+ * nothing about which answer comes back.
+ * @param options - `bytes` are the clip's, so a caller picks the container;
+ *   `journey` defaults to a fresh fixture journey.
+ * @returns The staged upload.
+ * @example
+ * const staged = await aStagedClip({ bytes: await aClip() })
+ */
+export const aStagedClip = async (options: {
+  readonly bytes: Uint8Array
+  readonly journey?: JourneyId
+}): Promise<StagedUpload> =>
+  stage({
+    bytes: options.bytes,
+    filename: `harbour-${randomUUID()}.jpg`,
     declaredType: 'image/jpeg',
     journey: options.journey ?? (await aFixtureJourney()),
   })
@@ -490,4 +548,203 @@ export const countMediaRows = async (): Promise<number> => {
   const payload = await getTestPayload()
   const counted = await payload.count({ collection: 'media' })
   return counted.totalDocs
+}
+
+/**
+ * The slug a journey was created under, read back from the row.
+ *
+ * `readGalleryDownload` addresses a journey by SLUG, so the round-trip case
+ * has to ask the database what the fixture's is rather than rebuilding
+ * `FIXTURE_SLUG_PREFIX` and a label here — a second spelling of a key this
+ * module already mints once.
+ * @param journey - The branded id {@link aFixtureJourney} returned.
+ * @returns The row's slug.
+ * @example
+ * await readGalleryDownload(await slugOf(journey), media)
+ */
+export const slugOf = async (journey: JourneyId): Promise<string> => {
+  const { getTestPayload } = await import('../../testPayload')
+  const payload = await getTestPayload()
+  const row = await payload.findByID({ collection: 'journeys', id: journey, depth: 0, select: { slug: true } })
+  return row.slug
+}
+
+/** The epoch millisecond {@link ingestPhotograph}'s minted token expires at. */
+const TOKEN_EXPIRES_AT = 2_000
+
+/** The epoch millisecond {@link ingestPhotograph}'s receiver reads the clock at. */
+const RECEIVED_AT = 1_000
+
+/**
+ * Plans a slot, PUTs the bytes through the receiver, and ingests them.
+ *
+ * THE RECEIVER IS IN THE PATH, not a bare `storage.put`: what this helper
+ * hands back is a row whose bytes travelled the same three seams a browser's
+ * upload does, so a case asserting about the STORED file is asserting about
+ * the pipeline rather than about `sharp` alone. The clock is injected on both
+ * sides — {@link TOKEN_EXPIRES_AT} against a `now` of {@link RECEIVED_AT} —
+ * so the token's lifetime is a fact of the call and not of the machine.
+ * @param options - `bytes` are the upload's; `journey` defaults to a fresh
+ *   fixture journey, so two cases cannot collide.
+ * @returns The id of the row the ingest created.
+ * @throws When the receiver refuses the PUT, or when the ingest named no new
+ *   row — both of which mean the fixture, not the assertion, is wrong.
+ * @example
+ * const media = await ingestPhotograph({ bytes: await aPhotographWithExif() })
+ */
+export const ingestPhotograph = async (options: {
+  readonly bytes: Uint8Array
+  readonly journey?: JourneyId
+}): Promise<MediaId> => {
+  const { storage } = await aTempStore()
+  const input = plannedInput({
+    bytes: options.bytes,
+    filename: `tokyo-${randomUUID()}.jpg`,
+    declaredType: 'image/jpeg',
+    journey: options.journey ?? (await aFixtureJourney()),
+  })
+
+  const token = mintUploadToken({
+    key: input.stagingKey,
+    expiresAt: TOKEN_EXPIRES_AT,
+    maxBytes: MAX_UPLOAD_BYTES,
+    secret: SECRET,
+  })
+  const received = await receiveLocalUpload(aPutRequest({ token, body: options.bytes }), {
+    storage,
+    now: () => RECEIVED_AT,
+    secret: SECRET,
+  })
+  /* c8 ignore next -- no organic trigger: the token is minted here, over this key, unexpired and wide enough for every fixture. The throw stays so a receiver change fails by name rather than as an empty store. */
+  if (!received.ok) throw new Error(`the receiver refused a fixture upload: ${received.error}`)
+
+  return idOf(await ingestUpload(input, await inlineDeps(storage)))
+}
+
+/** One file Payload actually wrote for a row, and which tier it is. */
+export interface StoredFile {
+  /** The derivative tier's name, or `original` for the row's own file. */
+  readonly tier: string
+  /** The bytes as the store hands them back. */
+  readonly bytes: Uint8Array
+}
+
+/**
+ * Every file a row owns, read back OUT of the store through the port.
+ *
+ * ═══ THROUGH `createLocalStorage(MEDIA_DIR)`, NEVER THROUGH `fs` ═══
+ *
+ * The phase's EXIF criterion is settled by reading the stored bytes, and the
+ * store is the thing that holds them. Going through the port is also what
+ * makes this the same read `readGalleryDownload` performs, so a key this
+ * probe can fetch is a key a download can.
+ *
+ * A tier whose `filename` is null is one Payload did not derive — it is left
+ * out rather than returned empty, so the caller's count is of files that
+ * exist.
+ * @param media - The row to read, as {@link ingestPhotograph} returned it.
+ * @returns One entry per stored file, the row's own first.
+ * @throws When the store cannot hand back a file the row names, which would
+ *   mean a row pointing at bytes that are not there.
+ * @example
+ * for (const file of await storedFilesFor(media)) expect(metadataMarkersIn(file.bytes)).toEqual([])
+ */
+export const storedFilesFor = async (media: MediaId): Promise<readonly StoredFile[]> => {
+  const { getTestPayload } = await import('../../testPayload')
+  const { MEDIA_DIR } = await import('../../../collections/media')
+  const payload = await getTestPayload()
+  const row = await payload.findByID({
+    collection: 'media',
+    id: media,
+    depth: 0,
+    select: { filename: true, sizes: true },
+  })
+
+  const derivatives: Readonly<Record<string, { readonly filename?: string | null } | undefined>> =
+    /* c8 ignore next -- no organic trigger: Payload writes a `sizes` object onto every row of an upload collection. The fallback stays so a row without one reads as "no derivatives" rather than throwing. */
+    row.sizes ?? {}
+  const named = [
+    { tier: 'original', filename: row.filename },
+    ...Object.entries(derivatives).map(([tier, size]) => ({
+      tier,
+      /* c8 ignore next -- no organic trigger: that object carries one entry per configured image size, so the optional chain's undefined arm is unreachable. It stays so a sparse `sizes` reads as "not derived" rather than throwing. */
+      filename: size?.filename,
+    })),
+  ].filter((file): file is { tier: string; filename: string } => typeof file.filename === 'string')
+
+  const storage = createLocalStorage(MEDIA_DIR)
+  const files: StoredFile[] = []
+  for (const file of named) {
+    const fetched = await storage.get(file.filename)
+    /* c8 ignore next -- no organic trigger: every name here came off the row Payload had just written the file for. The throw stays so a row pointing at absent bytes fails by name instead of as a short loop. */
+    if (!fetched.ok) throw new Error(`the store has no file for ${file.tier}: ${fetched.error}`)
+    files.push({ tier: file.tier, bytes: fetched.value })
+  }
+  return files
+}
+
+/**
+ * The derivative tiers `apps/web/collections/media.ts` configures, sorted.
+ *
+ * READ OFF THE COLLECTION rather than listed here, so that a case counting
+ * stored files counts what the schema asks for on the day it runs. Task 10's
+ * `grid` widens this by itself; `../ingestUpload.integration.test.ts` holds
+ * the separate, deliberately hard-coded list that FAILS when that tier is
+ * added, which is the notification. The two are not duplicates: one asks what
+ * is configured, the other asserts what should be.
+ * @returns The configured tier names.
+ * @throws When the collection configures no image sizes at all.
+ * @example
+ * expect(stored.map((file) => file.tier).sort()).toEqual(['original', ...(await configuredTierNames())].sort())
+ */
+export const configuredTierNames = async (): Promise<readonly string[]> => {
+  const { Media } = await import('../../../collections/media')
+  const upload = Media.upload
+  /* c8 ignore next -- no organic trigger: the collection is an upload collection that configures image sizes, and a change that removed them would fail every derivative case before this one. The throw stays so the absence is named rather than read as an empty tier list. */
+  if (typeof upload !== 'object' || upload.imageSizes === undefined) throw new Error('no image sizes are configured')
+  return upload.imageSizes.map((size) => size.name).sort()
+}
+
+/** EXIF's `LONG` type is four bytes wide, and a rational is two of them. */
+const BYTES_PER_EXIF_LONG = 4
+
+/**
+ * The bytes an EXIF rational triple occupies in a file, big-endian.
+ *
+ * ═══ WHY THE COORDINATE ITSELF, AND WHY BIG-ENDIAN ═══
+ *
+ * `metadataMarkersIn` finds SEGMENT HEADERS, and `EXIF_CANARY` is ASCII the
+ * fixture hides in Copyright. Neither would notice a stripper that removed
+ * the header and left the payload where it was, which is why the absence
+ * assertion needs the coordinate's own bytes as a third, independent needle.
+ *
+ * MEASURED, NOT ASSUMED. `aPhotographWithExif()`'s output was searched on
+ * this machine: the twenty-four big-endian bytes of `FIXTURE_GPS_LATITUDE`
+ * appear at offset 325, and a plain `aPhotograph()` contains them nowhere —
+ * so the needle distinguishes the two fixtures rather than matching image
+ * data by chance. Big-endian because `sharp` writes an `MM` TIFF header.
+ *
+ * WHAT THE MEASUREMENT DOES **NOT** SAY, because the first version of this
+ * paragraph claimed it did: a LITTLE-endian spelling of the same six numbers
+ * also matches, and was watched passing. It matches because the longitude
+ * rational follows immediately and opens `00 00 00 00`, which supplies the
+ * padding a reversed reading needs. So this needle is not evidence about
+ * byte order — it is evidence about the COORDINATE. What guards it is the
+ * pair of controls the case itself carries: present in the EXIF fixture,
+ * absent from a photograph that never carried one. The positive one was
+ * watched failing under a needle shifted one off the real value; the negative
+ * one cannot fail that way, and does not claim to.
+ * @param rational - A rational triple as EXIF spells it, numerators over
+ *   denominators separated by spaces.
+ * @returns Four bytes per number, in the order they are written.
+ * @example
+ * asExifRationals('51/1 30/1 26/1').byteLength // 24
+ */
+export const asExifRationals = (rational: string): Uint8Array => {
+  const numbers = rational.split(/[\s/]+/).map(Number)
+  const written = new DataView(new ArrayBuffer(numbers.length * BYTES_PER_EXIF_LONG))
+  numbers.forEach((value, index) => {
+    written.setUint32(index * BYTES_PER_EXIF_LONG, value)
+  })
+  return new Uint8Array(written.buffer)
 }
