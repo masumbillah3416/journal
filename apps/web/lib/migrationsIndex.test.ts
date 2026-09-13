@@ -44,6 +44,7 @@ import * as addOtpSessionHash from '../migrations/20260905_202028_add_otp_sessio
 import * as addSignInAttempts from '../migrations/20260905_230601_add_sign_in_attempts'
 import * as addSessionExpiry from '../migrations/20260906_004937_add_session_expiry'
 import * as addMediaState from '../migrations/20260910_171154_add_media_state'
+import * as addMediaGridTier from '../migrations/20260913_201520_add_media_grid_tier'
 
 describe('migrations barrel', () => {
   it('lists every migration, in order, wired to the right module', () => {
@@ -69,6 +70,11 @@ describe('migrations barrel', () => {
         up: addMediaState.up,
         down: addMediaState.down,
         name: '20260910_171154_add_media_state',
+      },
+      {
+        up: addMediaGridTier.up,
+        down: addMediaGridTier.down,
+        name: '20260913_201520_add_media_grid_tier',
       },
     ])
   })

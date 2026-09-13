@@ -28,9 +28,11 @@ DATA_MODEL.md and SECURITY.md, the more specific and more binding of the three s
 ## 2 · `sharp` in the worker instead of an image transform vendor
 
 **What changed:** `README.md` suggests Cloudflare Images or imgproxy as a transform
-layer for derivative image sizes. This project generates all five derivative tiers
-(`thumb`, `tile`, `frame`, `hero`, `hero2x`) with `sharp`, inside the same Fly.io worker
-container that already runs `ffmpeg` for video transcoding.
+layer for derivative image sizes. This project generates every derivative tier
+`apps/web/collections/media.ts`'s `imageSizes` declares with `sharp`, inside the same
+Fly.io worker container that already runs `ffmpeg` for video transcoding. The ladder is
+not enumerated here: it grew a rung in Phase 3 Task 10 (`docs/adr/0013-gallery-image-budget.md`
+Option 3) and a list in prose would have gone stale silently.
 
 **Rationale:** The worker already exists for video processing; adding `sharp` to it is
 additive infrastructure rather than a new service, and removes a vendor (no account,

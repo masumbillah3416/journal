@@ -9,12 +9,13 @@
  * Named `*.integration.test.ts` so it runs only under the `integration` Vitest
  * project (see vitest.config.ts), never in `npm run verify` (pre-commit).
  *
- * The FIVE reversibility cases are the Migration suite of CLAUDE.md §2, one
- * per migration on disk after the initial one: the journey case covers the
- * migration that creates tables (and rolls every migration to zero to reach
- * it), and the `otpChallenges`, `signInAttempts`, `sessions` and `media`
- * cases each roll back ONE migration and assert on exactly the artefacts that
- * migration is responsible for. They are separate because they fail
+ * The reversibility cases are the Migration suite of CLAUDE.md §2, one per
+ * migration on disk: the journey case covers the migration that creates
+ * tables (and rolls every migration to zero to reach it), and each of the
+ * others rolls back ONE migration and asserts on exactly the artefacts that
+ * migration is responsible for. No count is written here on purpose - the
+ * list grows with every migration, and a number in prose goes stale silently
+ * while the cases below cannot. They are separate because they fail
  * differently - see the comment on each.
  *
  * The first of them replaced one named
@@ -438,6 +439,58 @@ const MEDIA_STATE_SCHEMA = ['media-table', 'reason-column', 'state-column', 'sta
 /** What `mediaStateSchema` returns when this migration's `down()` has run: the table alone. */
 const MEDIA_STATE_SCHEMA_ROLLED_BACK = ['media-table']
 
+/** The migration that adds ADR 0013's deferred intermediate tier (Phase 3 Task 10). */
+const MEDIA_GRID_TIER_MIGRATION = '20260913_201520_add_media_grid_tier'
+
+/**
+ * Which of the artefacts one `imageSize` adds currently exist, plus the table.
+ *
+ * All six columns rather than one: Payload derives a column per size FIELD,
+ * and a `down()` that dropped `sizes_grid_url` alone would leave five orphans
+ * that its own `up()` could not re-add. The filename INDEX is here too - the
+ * generator emits one per size and the brief's six-column list predates
+ * seeing it, so asserting on the columns alone would leave one artefact of
+ * this migration's unwatched. And the `media` table itself, because this
+ * migration adds columns to a table it did not create.
+ * @returns The artefacts that exist, sorted, so an assertion reads as a set.
+ */
+const mediaGridTierSchema = async (): Promise<string[]> => {
+  const client = new Client({ connectionString: env.DATABASE_URL })
+  await client.connect()
+  try {
+    const found = await client.query<{ artefact: string }>(
+      `SELECT column_name AS artefact FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'media'
+          AND column_name IN ('sizes_grid_url', 'sizes_grid_width', 'sizes_grid_height',
+                              'sizes_grid_mime_type', 'sizes_grid_filesize', 'sizes_grid_filename')
+       UNION ALL
+       SELECT 'grid-filename-index' FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = 'media_sizes_grid_sizes_grid_filename_idx'
+       UNION ALL
+       SELECT 'media-table' FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'media'`,
+    )
+    return found.rows.map((row) => row.artefact).sort()
+  } finally {
+    await client.end()
+  }
+}
+
+/** Every artefact `mediaGridTierSchema` looks for, when the migration is applied. */
+const MEDIA_GRID_TIER_SCHEMA = [
+  'grid-filename-index',
+  'media-table',
+  'sizes_grid_filename',
+  'sizes_grid_filesize',
+  'sizes_grid_height',
+  'sizes_grid_mime_type',
+  'sizes_grid_url',
+  'sizes_grid_width',
+]
+
+/** What `mediaGridTierSchema` returns when this migration's `down()` has run: the table alone. */
+const MEDIA_GRID_TIER_SCHEMA_ROLLED_BACK = ['media-table']
+
 /**
  * Runs one migration's own `up()` or `down()`, outside Payload's batch
  * bookkeeping.
@@ -629,6 +682,13 @@ describe('collections', () => {
     // still there when this migration's own artefacts are not.
     if (JSON.stringify(await mediaStateSchema()) === JSON.stringify(MEDIA_STATE_SCHEMA_ROLLED_BACK)) {
       await runMigrationDirection(MEDIA_STATE_MIGRATION, 'up', payload)
+    }
+    // And once more for the grid tier case, for the same narrow hazard: its
+    // six size columns dropped while `payload_migrations` still records the
+    // migration as applied. Compared against the rolled-back set for the same
+    // reason - `media` outlives this migration's own artefacts.
+    if (JSON.stringify(await mediaGridTierSchema()) === JSON.stringify(MEDIA_GRID_TIER_SCHEMA_ROLLED_BACK)) {
+      await runMigrationDirection(MEDIA_GRID_TIER_MIGRATION, 'up', payload)
     }
 
     // Cleaned at BOTH ends, and the editor minted ONCE: `users.email` is
@@ -1482,6 +1542,45 @@ describe('collections', () => {
     // And the row that predates the rollback still reads back through the
     // rebuilt schema: this migration adds columns rather than tables, so
     // nothing here is allowed to cost a photograph.
+    const survived = await payload.findByID({
+      collection: 'media',
+      id: existing.id,
+      depth: 0,
+      select: { alt: true },
+    })
+
+    expect(survived.alt).toBe(FIXTURE_MEDIA_STATE_ALT)
+  })
+
+  // ADR 0013's deferred ~700px rung (Phase 3 Task 10) gets the same
+  // per-migration treatment as the four cases above. What is different is
+  // WHAT it adds: one `imageSize` is six columns, not one, because Payload
+  // derives a column per size field - so a `down()` that dropped
+  // `sizes_grid_url` alone would satisfy a single-column assertion and then
+  // fail its own re-apply with "column already exists" for the other five.
+  // The filename index the generator emits alongside them is asserted too.
+  // Verified by mutation: see the task report.
+  it('rolls the grid tier’s six size columns and its index down and back up, with the table and its rows intact', async () => {
+    const png = await aTinyPng()
+    const existing = await payload.create({
+      collection: 'media',
+      data: { alt: FIXTURE_MEDIA_STATE_ALT },
+      file: { data: png, mimetype: 'image/png', name: 'grid-reversibility.png', size: png.length },
+    })
+
+    expect(await mediaGridTierSchema()).toEqual(MEDIA_GRID_TIER_SCHEMA)
+
+    // Probe captured, re-apply tolerant, assertion afterwards - see
+    // `acrossItsOwnRollback`, and the media-state case above for what that
+    // shape was written to stop masking.
+    const rolledBack = await acrossItsOwnRollback(MEDIA_GRID_TIER_MIGRATION, payload, {
+      read: mediaGridTierSchema,
+      whenApplied: MEDIA_GRID_TIER_SCHEMA,
+    })
+
+    // The six columns and the index are gone; the table and the row are not.
+    expect(rolledBack).toEqual(MEDIA_GRID_TIER_SCHEMA_ROLLED_BACK)
+    expect(await mediaGridTierSchema()).toEqual(MEDIA_GRID_TIER_SCHEMA)
     const survived = await payload.findByID({
       collection: 'media',
       id: existing.id,

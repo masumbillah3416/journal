@@ -4,6 +4,7 @@ import * as migration_20260905_202028_add_otp_session_hash from './20260905_2020
 import * as migration_20260905_230601_add_sign_in_attempts from './20260905_230601_add_sign_in_attempts'
 import * as migration_20260906_004937_add_session_expiry from './20260906_004937_add_session_expiry'
 import * as migration_20260910_171154_add_media_state from './20260910_171154_add_media_state'
+import * as migration_20260913_201520_add_media_grid_tier from './20260913_201520_add_media_grid_tier'
 
 export const migrations = [
   {
@@ -35,5 +36,10 @@ export const migrations = [
     up: migration_20260910_171154_add_media_state.up,
     down: migration_20260910_171154_add_media_state.down,
     name: '20260910_171154_add_media_state',
+  },
+  {
+    up: migration_20260913_201520_add_media_grid_tier.up,
+    down: migration_20260913_201520_add_media_grid_tier.down,
+    name: '20260913_201520_add_media_grid_tier',
   },
 ]

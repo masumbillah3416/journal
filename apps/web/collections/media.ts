@@ -134,6 +134,16 @@ export const Media: CollectionConfig = {
     mimeTypes: ['image/jpeg', 'image/png', 'image/heic', 'video/mp4', 'video/quicktime'],
     imageSizes: [
       { name: 'thumb', width: 400, height: 400, position: 'centre' },
+      {
+        name: 'grid',
+        width: 700,
+        height: 700,
+        // ADR 0013 Option 3, deferred to this phase by that ADR and taken
+        // here. A one-column gallery tile at 412 CSS px and DPR 1.75 needs
+        // 658 device pixels; without a rung here the browser correctly takes
+        // the 800px `tile` and the gallery pays 477,329 bytes for nine
+        // images. Square, like `thumb` and `tile`, because a gallery tile is.
+      },
       { name: 'tile', width: 800, height: 800 },
       { name: 'frame', width: 1400 },
       { name: 'hero', width: 2000 },

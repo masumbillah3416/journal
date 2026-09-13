@@ -78,6 +78,14 @@ finding 30).
   video path would still add a Fly.io container. The underlying trade this ADR made —
   one processing surface instead of two (a worker/pipeline plus a transform vendor) —
   is unaffected; only which infrastructure hosts that one surface changed.
+- **The ladder named above is the ladder as of this decision, not as of today.** Phase 3
+  Task 10 added a sixth rung, `grid` (700²), between `thumb` and `tile`: that is
+  `docs/adr/0013-gallery-image-budget.md`'s Option 3, which 0013 deferred to this phase
+  precisely because Phase 3 owns the pipeline. The Context and Decision above are left as
+  they were written — they recorded the handoff's own list correctly at the time — so a
+  reader who needs the current ladder should read `apps/web/collections/media.ts`'s
+  `imageSizes`, which is the only place it is declared. The storage line above scales with
+  it: one more derivative per still.
 - Logged as deviation 2 in `docs/deviations.md` and in the design spec §2.2/§15. The
   in-process-on-Vercel update is logged as the pipeline-mode deviation in the same
   file and in `docs/adr/0004-media-pipeline-mode.md`.

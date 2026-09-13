@@ -179,6 +179,14 @@ export interface Media {
       filesize?: number | null;
       filename?: string | null;
     };
+    grid?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
     tile?: {
       url?: string | null;
       width?: number | null;
@@ -505,6 +513,16 @@ export interface MediaSelect<T extends boolean = true> {
     | T
     | {
         thumb?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+        grid?:
           | T
           | {
               url?: T;

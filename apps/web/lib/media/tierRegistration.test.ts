@@ -32,23 +32,24 @@
  * fails when `CONFIGURED_TIERS` stops being a literal at all, which is the
  * refactor it exists for.
  *
- * ═══ WHAT THIS DOES NOT BUY, SAID HERE RATHER THAN ASSUMED ═══
+ * ═══ WHAT THE COMPARISON DOES NOT BUY, AND WHAT THE THIRD CASE DOES ═══
  *
- * It fires when a tier IS ADDED and the constant is not widened. It cannot fire
- * when `grid` NEVER ARRIVES — nothing in a repository can notice work that was
- * never done. The brief's permanently-red `7` was buying that second
- * notification, and after Task 9 nothing in this repository buys it.
+ * The comparison fires when a tier IS ADDED and the constant is not widened. It
+ * cannot fire when a tier NEVER ARRIVES: both sides would simply agree on a
+ * shorter list. For one tier that mattered — ADR 0013's intermediate rung,
+ * owed to this repository since Phase 1 and unnotified through Task 9 — the
+ * third case below closes that hole from the other side. It asserts a PROPERTY
+ * of the ladder rather than a name: that some rung covers the 658 device pixels
+ * ADR 0013 measured a one-column gallery tile to need, below the `tile` width
+ * it is a rung underneath. Deleting `grid` from the collection turns it red
+ * whether or not `CONFIGURED_TIERS` is narrowed to match, which is the
+ * notification Task 9 recorded as owed and Task 10 discharged.
  *
- * SO IT IS AN OBLIGATION THAT IS OWED, NOT ONE THAT IS DISCHARGED, and this
- * paragraph said otherwise for one commit: it claimed the obligation was
- * "carried in Task 10's brief", which was a promise about a document that did
- * not exist. What is true is that it is recorded — in the phase ledger,
- * `.superpowers/sdd/2026-09-08-phase-3-media-pipeline/progress.md`, and in
- * that phase's Task 9 report — and that whoever writes Task 10 owes either the
- * tier or something that fails without it. A reader who needs `grid` to exist
- * should check that it does rather than trust this file.
+ * It buys that for ONE rung, the one an ADR measured. It still cannot notice a
+ * tier nobody has decided on, and nothing can.
  *
- * PATTERN (CLAUDE.md §3.3): none — two file reads and a comparison.
+ * PATTERN (CLAUDE.md §3.3): none — two file reads, a comparison, and one
+ * property assertion over the ladder.
  * Depends on: vitest, node:fs, node:path, node:url.
  */
 import { readFileSync } from 'node:fs'
@@ -132,4 +133,52 @@ test('fails the moment a derivative tier is added to the collection and not to t
     hardCodedTiers(),
     `${COLLECTION_PATH} and ${SUITE_PATH}'s CONFIGURED_TIERS disagree. Widen the constant deliberately — it is what goes red when a tier is added, and the only thing that does.`,
   ).toEqual(collectionTiers())
+})
+
+/**
+ * The device pixels ADR 0013 measured a gallery tile to need: one column at
+ * Lighthouse's 412 CSS px emulated viewport is a 376px tile, and at DPR 1.75
+ * that is 658. Written here as the NUMBER THE DECISION RESTS ON rather than as
+ * the 700 the collection answers it with, so the case below asks whether the
+ * ladder still covers the need and not whether one literal still equals
+ * another.
+ */
+const ADR_0013_DEVICE_PIXELS = 658
+
+/** The width declared immediately after a configured size's name. */
+const SIZE_NAME_AND_WIDTH = /name: '([^']+)',\s*width: (\d+)/g
+
+/**
+ * Every configured tier's name with the width the collection gives it.
+ * @returns A name-to-width map, as the collection spells both.
+ * @throws When the collection configures no `imageSizes` block.
+ */
+const collectionTierWidths = (): ReadonlyMap<string, number> => {
+  const source = readFileSync(path.join(REPO_ROOT, COLLECTION_PATH), 'utf8')
+  const block = IMAGE_SIZES_BLOCK.exec(source)
+  if (block?.[1] === undefined) throw new Error(`${COLLECTION_PATH} has no imageSizes block to read`)
+  const declared: [string, number][] = [...block[1].matchAll(SIZE_NAME_AND_WIDTH)].map(([, name, width]) => [
+    name ?? '',
+    Number(width),
+  ])
+  return new Map(declared)
+}
+
+test('keeps a derivative rung covering the gallery tile ADR 0013 measured, so the phone does not pay for the tile', () => {
+  const widths = collectionTierWidths()
+  const tile = widths.get('tile')
+
+  // THE SENTINEL, and it is load-bearing rather than decorative: without a
+  // `tile` width there is no ceiling, the filter below would admit `hero` and
+  // `hero2x`, and this case would pass against a ladder with no rung at all.
+  expect(tile, `${COLLECTION_PATH} configures no 'tile' tier to measure a rung against`).toBeGreaterThan(
+    ADR_0013_DEVICE_PIXELS,
+  )
+
+  const rungs = [...widths].filter(([, width]) => width >= ADR_0013_DEVICE_PIXELS && width < (tile ?? 0))
+
+  expect(
+    rungs,
+    `${COLLECTION_PATH} has no derivative tier between ${String(ADR_0013_DEVICE_PIXELS)} and ${String(tile)} pixels. ADR 0013 Option 3: a one-column gallery tile at 412 CSS px and DPR 1.75 needs ${String(ADR_0013_DEVICE_PIXELS)} device pixels, and without a rung here the browser correctly takes the ${String(tile)}px tile and the gallery pays for it. Removing that rung is a decision, not a tidy-up.`,
+  ).not.toEqual([])
 })

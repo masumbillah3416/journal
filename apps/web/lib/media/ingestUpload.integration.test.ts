@@ -88,7 +88,7 @@ import {
  * sorted. See this module's header for why the list is pinned here rather
  * than read off the collection by both cases.
  */
-const CONFIGURED_TIERS = ['frame', 'hero', 'hero2x', 'thumb', 'tile'] as const
+const CONFIGURED_TIERS = ['frame', 'grid', 'hero', 'hero2x', 'thumb', 'tile'] as const
 
 /**
  * The tiers Payload actually wrote a FILE for.
