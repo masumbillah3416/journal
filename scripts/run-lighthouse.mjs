@@ -7,12 +7,15 @@
  * gated at 100/100/100.
  *
  * IT SITS ABOVE THE MODULE HEADER, WHICH IS NOT A STYLE CHOICE. Placed after
- * the header block comment - where `app/(admin)/admin/media/upload/route.ts`
- * carries the identical wrapping and is ignored correctly - this file reported
- * 67 uncovered lines instead of nothing, and the `scripts/**` threshold failed
- * at 60.81%. Moved to the first line, the same file reports 0 of 0 and the
- * directory is 100/100/100. Measured both ways in consecutive runs; revisit
- * when `@vitest/coverage-v8` changes version. It wraps the imports too: an
+ * the header block comment, this file reported 67 uncovered lines instead of
+ * nothing and the `scripts/**` threshold failed at 60.81%. Moved to the first
+ * line, the same file reports 0 of 0 and the directory is 100/100/100. Both
+ * measured, in consecutive runs; revisit when `@vitest/coverage-v8` changes
+ * version. `app/(admin)/admin/media/upload/route.ts` carries the identical
+ * wrapping after ITS header and is unmeasured either way, so it settles
+ * nothing about the position - saying it "is ignored correctly" would be the
+ * claim this round was told to stop making, since nothing distinguishes a
+ * consumed hint from a file no test imports. It wraps the imports too: an
  * unimported file's imports are themselves uncovered lines. */
 /**
  * run-lighthouse.mjs — runs every Lighthouse CI configuration it is given, and

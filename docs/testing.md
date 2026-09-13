@@ -2578,8 +2578,8 @@ and one whose contents will not parse say so in two DIFFERENT lines, because the
 different events and only one of them means the gate ran; and an assertion's `auditProperty`
 is part of its name, which is the
 defect running it against a real `.lighthouseci/` found — every `resource-summary:*:size`
-budget had been printing under one indistinguishable name. Four mutations were watched
-failing, one per behaviour.
+budget had been printing under one indistinguishable name. Every behaviour has a mutation
+that was watched failing.
 
 `scripts/**/*.mjs` joined `vitest.config.ts`'s coverage `include` in the same commit, gated
 at **100% lines, branches and functions** — the number the directory actually achieves.
@@ -2588,13 +2588,18 @@ reason: nothing can execute it, so it gets the "nothing can measure this" treatm
 names rather than an exclusion promising a pass that does not exist.
 
 **That hint has to be the file's FIRST line, which is a second ignore-hint quirk worth
-recording beside the bracketed-directory one above.** Written after the module header — the
-position `apps/web/app/(admin)/admin/media/upload/route.ts` uses, with identical wrapping,
-and is ignored correctly at — `run-lighthouse.mjs` reported **67 uncovered lines** and the
-`scripts/**` threshold failed at 60.81%. Moved to line 1, the same file reports 0 of 0 and
-the directory reports 100/100/100. Both measured, in consecutive runs. Revisit when
-`@vitest/coverage-v8` changes version; until then, a whole-file ignore in this directory
-goes first, above the header. Its test glob,
+recording beside the bracketed-directory one above.** Written after the module header,
+`run-lighthouse.mjs` reported **67 uncovered lines** and the `scripts/**` threshold failed at
+60.81%. Moved to line 1, the same file reports 0 of 0 and the directory reports 100/100/100.
+Both measured, in consecutive runs. Revisit when `@vitest/coverage-v8` changes version; until
+then, a whole-file ignore in this directory goes first, above the header.
+`apps/web/app/(admin)/admin/media/upload/route.ts` carries the identical wrapping after its
+own header and is **unmeasured either way**, so it settles nothing about the position — the
+sentence that used to appear here said it "is ignored correctly at" that position, which is
+the claim finding 13 removed from three files three paragraphs above and which nothing can
+show: a consumed hint and a file no test imports both report `0 | 0 | 0 | 0`. What is
+measured is the pair of `scripts/**` runs, and that pair is about `.mjs` in this directory
+and nothing else. Its test glob,
 `scripts/**/*.test.js`, is on the `unit` project beside `eslint-rules/**/*.test.js`; both are
 plain JavaScript because `node` runs these files with no loader in front of them.
 
