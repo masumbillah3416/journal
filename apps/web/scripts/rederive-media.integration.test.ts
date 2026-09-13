@@ -16,6 +16,18 @@
  * every existing row in - the columns are added with no default and no
  * backfill, since a derivative has to exist before there is a filename to
  * record. The shape is the migration's, not this file's.
+ *
+ * ONE NOTE FOR WHOEVER MUTATES THE MODULE UNDER TEST, because it cost a run
+ * here. Swapping `payload.update` for `payload.create` - the mutation that
+ * proves the update-in-place rule - writes `media` rows with no `alt`, which
+ * this file's `afterAll` sweep cannot see, and they take `state`'s
+ * `processing` default. `apps/web/scripts/seed.integration.test.ts` counts the
+ * state of EVERY row in the shared test database, so it fails on the next full
+ * run and names a state nothing in this file wrote. Restore the mutation and
+ * remove them (`DELETE FROM media WHERE alt IS NULL` against `diary_test`)
+ * before re-running. Not defended against by widening the sweep: an
+ * `alt IS NULL` delete in one file's `afterAll` would quietly remove another
+ * file's debris too, and debris is worth seeing.
  * Depends on: pg, sharp, vitest, ../lib/env, ../lib/testPayload,
  * ../lib/adapters/local-storage, ../collections/media, ./rederive-media.
  */
@@ -158,6 +170,30 @@ describe('rederiveMedia', () => {
       expect(summary.rederived).toBeGreaterThan(0)
       expect(after.sizes?.grid?.filename).toBeTypeOf('string')
       expect(after.caption).toBe(before.caption)
+    },
+    REDERIVE_BUDGET_MS,
+  )
+
+  it(
+    'leaves the row’s pipeline state alone, so a re-derivation does not take the diary dark',
+    async () => {
+      // `media.state` defaults to `processing`, and BOTH `collections/media.ts`'s
+      // reader rule and `lib/galleryFrames.ts` withhold a row that is not
+      // `ready` from a signed-out reader - the file route, the grid, the census
+      // and the download handler. A re-derivation that reset the field would
+      // turn every photograph in the diary dark, which is a worse outcome than
+      // the missing tier it was run to fix.
+      const before = await aRowWithoutTheGridTier('rederive-state')
+
+      await rederiveMedia({ payload, storage: aStore() })
+
+      const after = await payload.findByID({
+        collection: 'media',
+        id: before.id,
+        depth: 0,
+        select: { state: true },
+      })
+      expect({ before: before.state, after: after.state }).toEqual({ before: 'ready', after: 'ready' })
     },
     REDERIVE_BUDGET_MS,
   )
