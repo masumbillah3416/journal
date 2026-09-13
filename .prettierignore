@@ -14,9 +14,15 @@
 # designer's. Nothing in here is ours to touch.
 handoff/
 
-# Git-ignored scratch: the SDD workspace (plans' ledgers, briefs, reports,
-# review packages) and every generated artefact. Formatting untracked output
+# Scratch and generated artefacts: the SDD workspace (plans' ledgers, briefs,
+# reports, review packages) and every build output. Formatting untracked output
 # is churn nobody reads.
+#
+# This block said "Git-ignored scratch" from Phase 0 until Phase 3 Task 8, and
+# `.superpowers/` was not in `.gitignore` at all — the comment described a
+# state that had never existed. It is ignored now; the claim and the fact were
+# made to agree in the same commit rather than the sentence being quietly
+# softened.
 .superpowers/
 coverage/
 playwright-report/

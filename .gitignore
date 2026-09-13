@@ -111,6 +111,23 @@ apps/web/uploads/
 # one file rather than to `.claude/`, whose `skills/` subdirectory is source.
 /.claude/settings.local.json
 
+# The subagent-driven-development workspace: one directory per plan, holding
+# that plan's ledger, task briefs, implementer reports, reviews and review
+# packages. Scratch for running the work, never part of the delivered
+# repository.
+#
+# IT WAS NEVER ACTUALLY IGNORED, and `.prettierignore` has called it
+# "Git-ignored scratch" since Phase 0 — a comment asserting something untrue of
+# the repository it sits in, which is the exact defect species this project has
+# spent three phases catching in its own prose. Nothing was committed by
+# accident only because §8.1 forbids `git add -A` without reading the diff;
+# that is a convention standing in for a guarantee. Found by the Task 8
+# implementer while diagnosing an unrelated gate failure, not by a review.
+#
+# Anchored to the root: a `packages/*/\.superpowers` would be a different thing
+# and should not be swept up by this line.
+/.superpowers/
+
 # Editor and OS
 .vscode/
 .idea/
