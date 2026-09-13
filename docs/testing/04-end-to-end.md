@@ -599,7 +599,7 @@ true` — the only honest content while nothing writes or reads that setting and
   `redirect: 'manual'`, under which a browser reports the redirect itself as
   `{ status: 0, type: 'opaqueredirect' }`.
 
-  Both mechanisms were watched failing, and the first case now dies under three separate
+  Both mechanisms were watched failing, and the first case now dies under four separate
   mutations rather than one. Setting the constant's `contentType` to
   `application/octet-stream` fails it on the shape comparison, naming both values; having
   the page override the wire header fails it the same way, which is the mutation the

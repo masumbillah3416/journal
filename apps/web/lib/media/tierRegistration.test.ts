@@ -37,9 +37,16 @@
  * It fires when a tier IS ADDED and the constant is not widened. It cannot fire
  * when `grid` NEVER ARRIVES — nothing in a repository can notice work that was
  * never done. The brief's permanently-red `7` was buying that second
- * notification, and after Task 9 it is a PLANNING obligation carried in Task
- * 10's brief, not a test one. That is stated in `task-9-report.md` §2 as well,
- * so it is not discoverable only from here.
+ * notification, and after Task 9 nothing in this repository buys it.
+ *
+ * SO IT IS AN OBLIGATION THAT IS OWED, NOT ONE THAT IS DISCHARGED, and this
+ * paragraph said otherwise for one commit: it claimed the obligation was
+ * "carried in Task 10's brief", which was a promise about a document that did
+ * not exist. What is true is that it is recorded — in the phase ledger,
+ * `.superpowers/sdd/2026-09-08-phase-3-media-pipeline/progress.md`, and in
+ * that phase's Task 9 report — and that whoever writes Task 10 owes either the
+ * tier or something that fails without it. A reader who needs `grid` to exist
+ * should check that it does rather than trust this file.
  *
  * PATTERN (CLAUDE.md §3.3): none — two file reads and a comparison.
  * Depends on: vitest, node:fs, node:path, node:url.

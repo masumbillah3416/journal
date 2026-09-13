@@ -41,8 +41,12 @@
  * Docker-free pre-commit pass, so it fires at the commit rather than at CI.
  *
  * WHAT NEITHER MECHANISM BUYS: a notification that `grid` NEVER ARRIVES.
- * Nothing can notice work that was not done; after Task 9 that is a planning
- * obligation carried in Task 10's brief, not a test one.
+ * Nothing can notice work that was not done, so after Task 9 that is an
+ * obligation OWED rather than discharged — recorded in the phase ledger
+ * (`.superpowers/sdd/2026-09-08-phase-3-media-pipeline/progress.md`) and in
+ * that phase's Task 9 report, and owned by whoever writes the task that adds
+ * the tier. This sentence claimed it was already carried in a brief that did
+ * not exist; see `./tierRegistration.test.ts` for the longer version.
  *
  * Depends on: vitest; the probes (./testing/ingestProbes); `getTestPayload`
  * (../testPayload); `DUPLICATE_MAX_DISTANCE` and `hammingDistance`, so the

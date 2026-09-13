@@ -309,9 +309,16 @@ export const removeSignedInFixture = async (domainOrEmail: string): Promise<void
  * Two kilobytes, matching the body `apps/web/lib/media/uploadContract.ts`'s
  * measurement sent through a real Chromium — small enough that the PUT is
  * instant and large enough that a `Content-Length` of it is not a rounding
- * error. It is a CLAIM the page then has to live up to: the spec asserts the
- * `File` the browser built is this size, and then asserts the store holds
- * that many bytes, rather than trusting the number.
+ * error.
+ *
+ * IT IS A CLAIM THE WIRE THEN HAS TO BEAR OUT, and this sentence used to say
+ * something weaker. It said the spec asserts "the `File` the browser built is
+ * this size", which was true of the version that read `File.prototype.size`
+ * back out of the page — the same echo the review found in the content-type
+ * assertion beside it. `e2e/upload.spec.ts` now asserts this number against
+ * the request's own `content-length` header and against the bytes the store
+ * holds. Nothing the page reports about its own `File` is compared to
+ * anything.
  */
 const UPLOAD_FIXTURE_BYTES = 2_048
 
