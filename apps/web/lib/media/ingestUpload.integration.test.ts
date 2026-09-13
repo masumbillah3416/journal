@@ -34,17 +34,16 @@
  * Depends on: vitest; the probes (./testing/ingestProbes); `getTestPayload`
  * (../testPayload); `DUPLICATE_MAX_DISTANCE` and `hammingDistance`, so the
  * duplicate boundary here moves when the domain's constant does rather than
- * being re-pinned at a literal; the `Media` collection, for the tier names it configures
- * and for `MEDIA_DIR`, which one case drives the REAL store at; `createLocalStorage`;
+ * being re-pinned at a literal; `MEDIA_DIR`, which one case drives the REAL
+ * store at; `createLocalStorage`;
  * `FIXTURE_CAPTURED_AT_ISO` (../adapters/contract/media-fixtures); the module
  * under test.
  */
 import { afterAll, describe, expect, it } from 'vitest'
-import type { ImageSize, UploadConfig } from 'payload'
 import { journeyId } from '@travel-diary/domain/ids'
 import { metadataMarkersIn } from '@travel-diary/domain/media/exif'
 import { DUPLICATE_MAX_DISTANCE, hammingDistance } from '@travel-diary/domain/media/perceptualHash'
-import { MEDIA_DIR, Media } from '../../collections/media'
+import { MEDIA_DIR } from '../../collections/media'
 import { createLocalStorage } from '../adapters/local-storage'
 import { FIXTURE_CAPTURED_AT_ISO } from '../adapters/contract/media-fixtures'
 import { getTestPayload } from '../testPayload'
@@ -55,6 +54,7 @@ import {
   aStagedSvg,
   aTempStore,
   aTinyPng,
+  configuredImageSizes,
   countMediaRows,
   fillJourneyWithMedia,
   flipBits,
@@ -62,6 +62,7 @@ import {
   readMediaRow,
   readStoredBytes,
   removeIngestFixtures,
+  wideEnoughForEveryTier,
   workerDeps,
 } from './testing/ingestProbes'
 
@@ -71,46 +72,6 @@ import {
  * than read off the collection by both cases.
  */
 const CONFIGURED_TIERS = ['frame', 'hero', 'hero2x', 'thumb', 'tile'] as const
-
-/**
- * The image sizes the media collection configures.
- * @returns One entry per configured tier.
- * @throws When `Media.upload` is not an object carrying `imageSizes`, which
- *   would mean the collection had stopped deriving tiers at all.
- */
-const configuredImageSizes = (): readonly ImageSize[] => {
-  const upload: UploadConfig | boolean | undefined = Media.upload
-  if (typeof upload !== 'object' || upload.imageSizes === undefined) {
-    throw new Error('the media collection configures no image sizes')
-  }
-  return upload.imageSizes
-}
-
-/**
- * A photograph whose STORED form is wide enough for every configured tier.
- *
- * READ OFF THE COLLECTION, never written here: Payload omits a width-only
- * image size whose source is narrower than its target
- * (`payload/dist/uploads/image-resizing/getImageResizeAction.js`), so a
- * fixture narrower than the widest tier would make the case below assert that
- * Payload omitted one. Deriving it means Task 10's `grid` widens the fixture
- * by itself rather than quietly reducing what the case covers.
- *
- * ═══ THE SOURCE IS PORTRAIT, AND THE QUARTER TURN IS WHY ═══
- *
- * `aPhotographWithExif` writes orientation 6 — a photograph on its side — and
- * `runStillPipeline` calls sharp's `.rotate()`, so the bytes Payload derives
- * from are the SOURCE TRANSPOSED. A 4000x3000 source is stored 3000x4000, and
- * `hero2x`, a width-only 4000, is then never derived: measured here, the row
- * carried a `sizes.hero2x` key whose every field was null. So the width the
- * widest tier needs is asked of the source's HEIGHT.
- * @returns A portrait size whose stored, auto-oriented form is the widest
- *   configured width by a 4:3 height.
- */
-const wideEnoughForEveryTier = (): { readonly width: number; readonly height: number } => {
-  const storedWidth = Math.max(...configuredImageSizes().map((size) => size.width ?? 0))
-  return { width: Math.round((storedWidth * 3) / 4), height: storedWidth }
-}
 
 /**
  * The tiers Payload actually wrote a FILE for.
@@ -178,7 +139,7 @@ describe('ingestUpload', () => {
   it(
     'derives every derivative tier the media collection configures, from the sanitised bytes',
     async () => {
-      const staged = await aStagedPhotograph({ withExif: true, ...wideEnoughForEveryTier() })
+      const staged = await aStagedPhotograph({ withExif: true, ...(await wideEnoughForEveryTier()) })
 
       const ingested = await ingestUpload(staged.input, await inlineDeps(staged.storage))
 
@@ -191,12 +152,8 @@ describe('ingestUpload', () => {
     INGEST_BUDGET_MS,
   )
 
-  it('configures exactly the derivative tiers this suite knows about, so a new one is not added unnoticed', () => {
-    expect(
-      configuredImageSizes()
-        .map((size) => size.name)
-        .sort(),
-    ).toEqual([...CONFIGURED_TIERS])
+  it('configures exactly the derivative tiers this suite knows about, so a new one is not added unnoticed', async () => {
+    expect((await configuredImageSizes()).map((size) => size.name).sort()).toEqual([...CONFIGURED_TIERS])
   })
 
   it(

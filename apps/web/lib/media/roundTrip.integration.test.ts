@@ -54,8 +54,8 @@
  * fixtures it drives are Factories.
  * Depends on: vitest; the ingest probes (./testing/ingestProbes);
  * `metadataMarkersIn` and `EXIF_CANARY` from the
- * domain; `anIsoBmffHeader` for the QuickTime brand; the contract suite's
- * `aPhotographWithExif`, `aPhotograph`, `aClip` and `FIXTURE_GPS_LATITUDE`; `Media`, for the
+ * domain; the contract suite's `aPhotographWithExif`, `aPhotograph`,
+ * `aClip` (for both containers) and `FIXTURE_GPS_LATITUDE`; `Media`, for the
  * `mimeTypes` one case pins; `SECRET` and `aPutRequest` (./testing/uploadProbes),
  * so the PUT this file builds is the shape Task 7 measured; `readGalleryDownload`,
  * which is where a reader actually collects a derivative.
@@ -63,7 +63,7 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { MAX_UPLOAD_BYTES, planUploadSlots } from '@travel-diary/domain/media/uploadSlot'
 import { metadataMarkersIn } from '@travel-diary/domain/media/exif'
-import { EXIF_CANARY, anIsoBmffHeader } from '@travel-diary/domain/testing/bytes'
+import { EXIF_CANARY } from '@travel-diary/domain/testing/bytes'
 import { Media } from '../../collections/media'
 import { FIXTURE_GPS_LATITUDE, aClip, aPhotograph, aPhotographWithExif } from '../adapters/contract/media-fixtures'
 import { readGalleryDownload } from '../readGalleryDownload'
@@ -83,6 +83,7 @@ import {
   removeIngestFixtures,
   slugOf,
   storedFilesFor,
+  wideEnoughForEveryTier,
 } from './testing/ingestProbes'
 import { SECRET, aPutRequest } from './testing/uploadProbes'
 
@@ -98,25 +99,6 @@ import { SECRET, aPutRequest } from './testing/uploadProbes'
  * deletes as tidying.
  */
 const INGEST_BUDGET_MS = 30_000
-
-/**
- * A photograph whose STORED form is wide enough for every configured tier.
- *
- * READ OFF THE COLLECTION for the reason `./ingestUpload.integration.test.ts`
- * gives, and PORTRAIT for the reason its own helper gives: the fixture writes
- * orientation 6 and `runStillPipeline` auto-orients, so the bytes Payload
- * derives from are this size transposed, and a width-only tier at the widest
- * configured width is only derived when the SOURCE is that tall.
- * @returns A portrait size whose stored, auto-oriented form is the widest
- *   configured width by a 4:3 height.
- */
-const wideEnoughForEveryTier = (): { readonly width: number; readonly height: number } => {
-  const upload = Media.upload
-  /* c8 ignore next -- no organic trigger: the collection is an upload collection configuring five image sizes; `configuredTierNames` names the absence if that ever stops being true, and the tier assertion below would fail first. */
-  if (typeof upload !== 'object' || upload.imageSizes === undefined) throw new Error('no image sizes are configured')
-  const storedWidth = Math.max(...upload.imageSizes.map((size) => size.width ?? 0))
-  return { width: Math.round((storedWidth * 3) / 4), height: storedWidth }
-}
 
 describe('the phase exit criteria', () => {
   afterAll(removeIngestFixtures)
@@ -178,13 +160,15 @@ describe('the phase exit criteria', () => {
       // bytes fetched back OUT of the store through the StoragePort - the
       // original that Payload wrote, and every derivative - and the probes
       // share none of sharp's assumptions.
-      const uploaded = await aPhotographWithExif(wideEnoughForEveryTier())
+      const uploaded = await aPhotographWithExif(await wideEnoughForEveryTier())
+      const coordinate = Buffer.from(asExifRationals(FIXTURE_GPS_LATITUDE))
 
-      // POSITIVE CONTROL. Without these two lines the whole case would pass
-      // against a fixture that never had EXIF, which is one of the two shapes
-      // of fixture defect Phase 2 shipped.
+      // POSITIVE CONTROL, ALL THREE NEEDLES. Without these lines the whole case
+      // would pass against a fixture that never had EXIF, which is one of the
+      // two shapes of fixture defect Phase 2 shipped.
       expect(metadataMarkersIn(uploaded)).toContain('exif')
       expect(Buffer.from(uploaded).includes(EXIF_CANARY)).toBe(true)
+      expect(Buffer.from(uploaded).includes(coordinate)).toBe(true)
 
       const stored = await storedFilesFor(await ingestPhotograph({ bytes: uploaded }))
 
@@ -193,8 +177,15 @@ describe('the phase exit criteria', () => {
       // the collection - see this module's header.
       expect(stored.map((file) => file.tier).sort()).toEqual(['original', ...(await configuredTierNames())].sort())
       for (const file of stored) {
+        // ALL THREE NEEDLES OVER EVERY FILE. The coordinate used to be checked
+        // against the original alone, which left the loop using only the two
+        // needles the coordinate exists BECAUSE they can be fooled (review F3).
+        // The residual was thin - a derivative is made from the already-stripped
+        // original - but a loop that drops the strongest of three probes is an
+        // argument, and this is a line.
         expect(metadataMarkersIn(file.bytes)).toEqual([])
         expect(Buffer.from(file.bytes).includes(EXIF_CANARY)).toBe(false)
+        expect(Buffer.from(file.bytes).includes(coordinate)).toBe(false)
       }
     },
     INGEST_BUDGET_MS,
@@ -282,7 +273,14 @@ describe('the phase exit criteria', () => {
       // Both types, separately. `video/quicktime` is the one a list written
       // once and extended later forgets, and it is in the schema exactly as
       // DATA_MODEL.md wrote it.
-      const staged = await aStagedClip({ bytes: anIsoBmffHeader({ brand: 'qt' }) })
+      //
+      // THROUGH THE FACTORY, like the mp4 case beside it, rather than through
+      // a hand-written `ftyp` header (review F4). `aClip` returns a REAL `.mov`
+      // wherever `ffmpeg` exists - which CI is, and this machine is not - and
+      // falls back to the same synthetic header where it does not. A hand-built
+      // header would keep matching a QuickTime arm narrowed past what a real
+      // container satisfies, and CI is where that difference is available.
+      const staged = await aStagedClip({ bytes: await aClip({ container: 'quicktime' }) })
 
       const ingested = await ingestUpload(staged.input, await inlineDeps(staged.storage))
 

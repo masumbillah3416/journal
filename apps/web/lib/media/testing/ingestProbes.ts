@@ -48,6 +48,7 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import sharp from 'sharp'
+import type { ImageSize } from 'payload'
 import type { JourneyId, MediaId } from '@travel-diary/domain/ids'
 import { journeyId } from '@travel-diary/domain/ids'
 import { acceptedIngestTypes } from '@travel-diary/domain/media/ingestPolicy'
@@ -684,6 +685,51 @@ export const storedFilesFor = async (media: MediaId): Promise<readonly StoredFil
 }
 
 /**
+ * A photograph size whose STORED form is wide enough for every configured
+ * tier.
+ *
+ * ═══ THE SOURCE IS PORTRAIT, AND THE QUARTER TURN IS WHY ═══
+ *
+ * `aPhotographWithExif` writes EXIF orientation 6 — a photograph on its side —
+ * and `runStillPipeline` calls sharp's `.rotate()`, so the bytes Payload
+ * derives from are the SOURCE TRANSPOSED. A 4000x3000 source is stored
+ * 3000x4000, and `hero2x`, a width-only 4000, is then never derived: measured,
+ * the row carried a `sizes.hero2x` key whose every field was null. So the
+ * width the widest tier needs is asked of the source's HEIGHT.
+ *
+ * ONE SPELLING, HERE, BECAUSE IT WAS BRIEFLY TWO. Both
+ * `../ingestUpload.integration.test.ts` and `../roundTrip.integration.test.ts`
+ * need it, and each had derived it separately — two copies of one piece of
+ * reasoning, one of which would be updated when the auto-orientation argument
+ * changes and one of which would not (review F6).
+ * @returns A portrait size whose stored, auto-oriented form is the widest
+ *   configured width by a 4:3 height.
+ * @throws When the collection configures no image sizes, by way of
+ *   {@link configuredImageSizes}.
+ * @example
+ * await aStagedPhotograph({ withExif: true, ...(await wideEnoughForEveryTier()) })
+ */
+export const wideEnoughForEveryTier = async (): Promise<{ readonly width: number; readonly height: number }> => {
+  /* c8 ignore next -- no organic trigger: every size the collection configures states a width, so the `?? 0` arm is unreachable. It stays because Payload's `ImageSize` permits a height-only size, and one of those constrains no width — contributing 0 to the maximum is the right answer for it. */
+  const storedWidth = Math.max(...(await configuredImageSizes()).map((size) => size.width ?? 0))
+  return { width: Math.round((storedWidth * 3) / 4), height: storedWidth }
+}
+
+/**
+ * The image sizes `apps/web/collections/media.ts` configures.
+ * @returns One entry per configured tier.
+ * @throws When the collection configures no image sizes, which would mean it
+ *   had stopped deriving tiers at all.
+ */
+export const configuredImageSizes = async (): Promise<readonly ImageSize[]> => {
+  const { Media } = await import('../../../collections/media')
+  const upload = Media.upload
+  /* c8 ignore next -- no organic trigger: the collection is an upload collection that configures image sizes, and a change that removed them would fail every derivative case before this one. The throw stays so the absence is named rather than read as an empty tier list. */
+  if (typeof upload !== 'object' || upload.imageSizes === undefined) throw new Error('no image sizes are configured')
+  return upload.imageSizes
+}
+
+/**
  * The derivative tiers `apps/web/collections/media.ts` configures, sorted.
  *
  * READ OFF THE COLLECTION rather than listed here, so that a case counting
@@ -697,13 +743,8 @@ export const storedFilesFor = async (media: MediaId): Promise<readonly StoredFil
  * @example
  * expect(stored.map((file) => file.tier).sort()).toEqual(['original', ...(await configuredTierNames())].sort())
  */
-export const configuredTierNames = async (): Promise<readonly string[]> => {
-  const { Media } = await import('../../../collections/media')
-  const upload = Media.upload
-  /* c8 ignore next -- no organic trigger: the collection is an upload collection that configures image sizes, and a change that removed them would fail every derivative case before this one. The throw stays so the absence is named rather than read as an empty tier list. */
-  if (typeof upload !== 'object' || upload.imageSizes === undefined) throw new Error('no image sizes are configured')
-  return upload.imageSizes.map((size) => size.name).sort()
-}
+export const configuredTierNames = async (): Promise<readonly string[]> =>
+  (await configuredImageSizes()).map((size) => size.name).sort()
 
 /** EXIF's `LONG` type is four bytes wide, and a rational is two of them. */
 const BYTES_PER_EXIF_LONG = 4
