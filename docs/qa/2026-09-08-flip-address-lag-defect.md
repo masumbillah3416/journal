@@ -11,8 +11,10 @@ below 860px SCREENS.md §1.10 replaces the book.
 **Classification:** **test-side**, confirmed twice in Phase 2 review and confirmed a third
 time here by measurement. **No application file was changed.**
 
-**Result:** fixed. One case rewritten, one case added, one test-support export added. The
-reproduction is kept as a permanent case rather than thrown away.
+**Result:** fixed. One case became three — one behaviour each — plus one test-support
+export. The reproduction is kept as a permanent case rather than thrown away, and that case
+asserts something only the reproduction can produce, so it cannot decay into a duplicate of
+its neighbour.
 
 ---
 
@@ -132,24 +134,51 @@ bought to make a test stop complaining.
   supported export rather than a throwaway.
 - `e2e/flip.spec.ts` gains one local helper,
   `pollPublishedSeriesAfterContentsClick(page)`, which clicks the Contents tab and polls
-  **two ordered, adjacent-deduplicated series** instead of one tuple: `identities` (counter,
-  label, active tab) and `addresses` (`location.pathname`).
-- The original case asserts them separately:
+  **three ordered, adjacent-deduplicated series** instead of one tuple: `identities`
+  (counter, label, active tab), `addresses` (`location.pathname`), and `pairs`
+  (`identity @ address`, the two as they were actually observed together).
+- **One behaviour per case, three cases**, all reading the same helper so they cannot drift:
 
-  ```ts
-  expect(published.identities).toEqual([published.identities[0], '02 / 33 | Contents | 1'])
-  expect(published.addresses).toEqual(['/p/30', '/p/2'])
-  ```
+  | Case                                                                                      | Its one assertion                                                                                                    |
+  | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+  | `publishes no page but the one it left and the one it was asked for…` (PH1-001 itself)    | `expect(published.identities).toEqual([published.identities[0], '02 / 33 \| Contents \| 1'])`                        |
+  | `writes the address of the page it was asked for and of no other, during a bookmark jump` | `expect(published.addresses).toEqual(['/p/30', '/p/2'])`                                                             |
+  | `publishes no third page even when the address write is delayed well past a poll`         | `expect(published.pairs).toEqual([pairs[0], '02 / 33 \| Contents \| 1 @ /p/30', '02 / 33 \| Contents \| 1 @ /p/2'])` |
 
-  The address still may not visit a third place, and still must start where the reader was
-  and end where they went. What is no longer asserted is that it changes on the _same poll_
-  as the identity — which is the only thing `Book.tsx` does not promise.
+  The address was split into its own case because a failure in it was otherwise reported
+  under a test name about published pages, which sends whoever triages it to the wrong half
+  of the book — observed, not hypothesised, in §6 run 6.
 
-- A second case, `publishes no third page even when the address write is delayed well past a
-poll`, keeps `deferAddressWrites(page, { delayMs: 200 })` permanently. The reproduction
-  becomes the regression guard: it proves the identity series does not depend on when the
-  address is written. It deliberately does **not** assert the address series, because under
-  an injected 200ms delay that would be asserting on the injection.
+- **The third case keeps `deferAddressWrites(page, { delayMs: 200 })` permanently, and now
+  pins the instrument itself.** Asserting only the identities there would have made it a
+  verbatim duplicate of the first case the day the deferral stopped biting — and ADR 0009
+  records the address hold as held open pending a measurement nobody has taken, so how
+  `Book.tsx` writes the address is a thing this repository expects to revisit. The middle
+  pair, `02 / 33 | Contents | 1 @ /p/30`, cannot be produced unless the deferral is really
+  in force, so the case goes red instead of quietly guarding nothing. §6 runs 4 and 5 are
+  that claim, watched.
+
+**What is no longer asserted, precisely.** The old tuple forbade two things at once, and
+only one of them was ever the application's to promise:
+
+- `identity = destination, address = origin` — the address LAGGING the published page.
+  `Book.tsx`'s header declines to promise this does not happen, and it is what caused the
+  flake. **Released deliberately**, and the third case now asserts it explicitly under a
+  widened lag rather than merely tolerating it.
+- `identity = origin, address = destination` — the address RUNNING AHEAD of the published
+  page. That would be a real defect (a reload would take the reader somewhere the book has
+  not published), and nothing in the split can see it. **Released as a side effect, and the
+  release is intended**: it is structurally impossible today, because the effect is keyed on
+  `[state.index, complete]` and writes `pagePath(state.index)`, so the address cannot lead
+  the index. Re-coupling the two series to catch a state that cannot arise would be the
+  premature abstraction CLAUDE.md §4 rejects. If `Book.tsx` ever writes the address from
+  anything other than the committed index, this paragraph is the thing to revisit.
+
+**The window is 2,000ms, not the original 1,400ms, and the number came from a measurement.**
+Under the 200ms deferral the identity commits at t≈1,011–1,035ms and the address lands at
+t≈1,209–1,241ms (three runs each, §6 run 3). A 1,400ms window left ~160ms of margin on that
+last event — one long frame from dropping it, which is how the next flake would have been
+born. 2,000ms leaves ~760ms. The 40ms poll interval is unchanged.
 
 **Adjacent-deduplicated and ordered, not a `Set`.** The original used `new Set(readings)`,
 which discards order — a book that published the destination, went back to the origin and
@@ -158,67 +187,144 @@ these cases guard are about order.
 
 ## 6 · Verification
 
-All three runs from the worktree, `npm run dev` on port 3000, seeded local Postgres.
+All runs from the worktree, `npm run dev` on port 3000, seeded local Postgres. Runs 1–2
+are the volume runs; 3 is the measurement the 2,000ms window is sized from; 4–7 are the
+watched failures, one per mechanism.
 
-**1 · The fixed case, fifty repeats.**
-
-```
-npx playwright test e2e/flip.spec.ts -g "publishes no page but the one it left" --repeat-each=50
-
-  50 skipped
-  100 passed (11.8m)
-```
-
-**2 · The new lag case, ten repeats.**
+**1 · All three cases, fifty repeats each.**
 
 ```
-npx playwright test e2e/flip.spec.ts -g "publishes no third page even when the address write is delayed" --repeat-each=10
+npx playwright test e2e/flip.spec.ts -g "publishes no page but|writes the address of the page|publishes no third page" --repeat-each=50
 
-  10 skipped
-  20 passed (2.7m)
+  150 skipped
+  300 passed (30.6m)
 ```
 
-**3 · Mutation — the step that proves the cases still guard PH1-001.** `Book.tsx` was
-temporarily made to publish the page stack's **anchor** as the reader's page — the three
-published fields read `state.anchor` instead of `state.index`, which is exactly the defect
-PH1-001 recorded ("clicking Contents from `/p/29` read `03 / 33 · Tokyo — Notes` at `/p/3`,
-with Tokyo's tab lit, for 981ms"). **Both cases failed, on the identity series carrying a
-third entry:**
+**2 · The pre-fix pair, for the record.** Before the case was split, the first case ran
+100/100 and the lag case 20/20 (11.8m and 2.7m). Those numbers are superseded by run 1 and
+are kept only to say that the split did not buy its green by shrinking what runs.
+
+**3 · The measurement behind the 2,000ms window.** A throwaway probe recorded the elapsed
+time at which each pair changed, three runs with the deferral and three without:
 
 ```
-npx playwright test e2e/flip.spec.ts -g "publishes no" --project=desktop
+with deferAddressWrites(page, { delayMs: 200 }):
+  "t=0    30 / 33 | Seville — Notes | 29 @ /p/30"
+  "t=1035 02 / 33 | Contents | 1 @ /p/30"     "t=1011 …"   "t=1026 …"   "t=1020 …"
+  "t=1211 02 / 33 | Contents | 1 @ /p/2"      "t=1241 …"   "t=1214 …"   "t=1209 …"
 
-Running 2 tests using 1 worker
-
-  x  1 [desktop] › e2e\flip.spec.ts:244:1 › publishes no page but the one it left and the one it was asked for, for the whole of a bookmark jump (5.0s)
-  x  2 [desktop] › e2e\flip.spec.ts:283:1 › publishes no third page even when the address write is delayed well past a poll (4.5s)
-
-
-  1) [desktop] › e2e\flip.spec.ts:244:1 › publishes no page but the one it left and the one it was asked for, for the whole of a bookmark jump
-
-    Error: expect(received).toEqual(expected) // deep equality
-
-    - Expected  - 0
-    + Received  + 1
-
-      Array [
-        "30 / 33 | Seville — Notes | 29",
-    +   "03 / 33 | Tokyo — Notes | 2",
-        "02 / 33 | Contents | 1",
-      ]
-
-      272 |   // spans it. The origin is read out of the page rather than written down, so
-      273 |   // the case cannot drift from the seed.
-    > 274 |   expect(published.identities).toEqual([published.identities[0], '02 / 33 | Contents | 1'])
-          |                                ^
+with no deferral:
+  "t=0    30 / 33 | Seville — Notes | 29 @ /p/30"
+  "t=1028 02 / 33 | Contents | 1 @ /p/2"      "t=1033 …"   "t=1012 …"   "t=995 …"
 ```
 
-and the second case, run on its own so its own frame is legible:
+The lagged address lands at 1,209–1,241ms. In the original 1,400ms window that is 159–191ms
+of margin on the last event this case depends on; in a 2,000ms window it is ~760ms. The
+review's stronger claim — that under this deferral the final write lands _after_ the poll
+window — is **false**, measured here, and the comment that repeated it has been replaced by
+this number.
+
+**4 · Watched failure — the instrument pin bites when the instrument is taken away.**
+`deferAddressWrites` removed from the third case, changing nothing else:
 
 ```
 npx playwright test e2e/flip.spec.ts -g "publishes no third page" --project=desktop
 
-  1) [desktop] › e2e\flip.spec.ts:283:1 › publishes no third page even when the address write is delayed well past a poll
+  x  1 [desktop] › e2e\flip.spec.ts:336:1 › publishes no third page even when the address write is delayed well past a poll (5.6s)
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 0
+
+      Array [
+        "30 / 33 | Seville — Notes | 29 @ /p/30",
+    -   "02 / 33 | Contents | 1 @ /p/30",
+        "02 / 33 | Contents | 1 @ /p/2",
+      ]
+
+      358 |   const published = await pollPublishedSeriesAfterContentsClick(page)
+      359 |
+    > 360 |   expect(published.pairs).toEqual([
+          |                           ^
+```
+
+The missing middle pair IS the instrument: with no deferral the identity and the address
+move on the same poll, so no sample can show one without the other.
+
+**5 · Watched failure — the real decay scenario.** `Book.tsx` temporarily writing the
+address through `window.history.pushState` instead of `replaceState`, which is a method
+`deferAddressWrites` does not patch. The deferral silently becomes zero. This is the day
+the review predicted, and the case goes **red** rather than passing forever as a duplicate
+of the first:
+
+```
+npx playwright test e2e/flip.spec.ts -g "publishes no page but|writes the address of the page|publishes no third page" --project=desktop
+
+  ok 1 [desktop] › e2e\flip.spec.ts:284:1 › publishes no page but the one it left and the one it was asked for… (5.8s)
+  ok 2 [desktop] › e2e\flip.spec.ts:317:1 › writes the address of the page it was asked for and of no other… (5.7s)
+  x  3 [desktop] › e2e\flip.spec.ts:336:1 › publishes no third page even when the address write is delayed well past a poll (5.4s)
+
+    - Expected  - 1
+    + Received  + 0
+
+      Array [
+        "30 / 33 | Seville — Notes | 29 @ /p/30",
+    -   "02 / 33 | Contents | 1 @ /p/30",
+        "02 / 33 | Contents | 1 @ /p/2",
+      ]
+```
+
+The first two stay green, correctly: neither is about how the write is made. This is the
+run that answers "could this case ever fail again?" — and it is the run that would have
+been impossible to produce had the case asserted only its neighbour's assertion.
+
+**6 · Watched failure — the address half still bites, and now under its own name.**
+`Book.tsx`'s address effect temporarily writing `pagePath(state.index + 1)`, leaving the
+published identity correct:
+
+```
+  ok 1 [desktop] › e2e\flip.spec.ts:284:1 › publishes no page but the one it left and the one it was asked for… (5.7s)
+  x  2 [desktop] › e2e\flip.spec.ts:317:1 › writes the address of the page it was asked for and of no other, during a bookmark jump (5.4s)
+  x  3 [desktop] › e2e\flip.spec.ts:336:1 › publishes no third page even when the address write is delayed well past a poll (5.5s)
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "/p/30",
+    -   "/p/2",
+    +   "/p/31",
+    +   "/p/3",
+      ]
+
+      331 |   const published = await pollPublishedSeriesAfterContentsClick(page)
+      332 |
+    > 333 |   expect(published.addresses).toEqual(['/p/30', '/p/2'])
+          |                               ^
+```
+
+**This is the concrete value of the split.** Before it, this same mutation was reported
+under `publishes no page but the one it left and the one it was asked for…` — a name about
+published pages, for a failure about the address.
+
+**7 · Watched failure — the cases still guard PH1-001.** `Book.tsx` was
+temporarily made to publish the page stack's **anchor** as the reader's page — the three
+published fields read `state.anchor` instead of `state.index`, which is exactly the defect
+PH1-001 recorded ("clicking Contents from `/p/29` read `03 / 33 · Tokyo — Notes` at `/p/3`,
+with Tokyo's tab lit, for 981ms"). **Both cases that read the published page failed, on the
+identity series carrying a third entry — and the address case stayed green, correctly:**
+
+```
+npx playwright test e2e/flip.spec.ts -g "publishes no page but|writes the address of the page|publishes no third page" --project=desktop
+
+  x  1 [desktop] › e2e\flip.spec.ts:284:1 › publishes no page but the one it left and the one it was asked for, for the whole of a bookmark jump (6.1s)
+  ok 2 [desktop] › e2e\flip.spec.ts:317:1 › writes the address of the page it was asked for and of no other, during a bookmark jump (5.2s)
+  x  3 [desktop] › e2e\flip.spec.ts:336:1 › publishes no third page even when the address write is delayed well past a poll (5.2s)
+
+  1) [desktop] › e2e\flip.spec.ts:284:1 › publishes no page but the one it left and the one it was asked for, for the whole of a bookmark jump
 
     Error: expect(received).toEqual(expected) // deep equality
 
@@ -231,27 +337,22 @@ npx playwright test e2e/flip.spec.ts -g "publishes no third page" --project=desk
         "02 / 33 | Contents | 1",
       ]
 
-      301 |   const published = await pollPublishedSeriesAfterContentsClick(page)
-      302 |
-    > 303 |   expect(published.identities).toEqual([published.identities[0], '02 / 33 | Contents | 1'])
+      312 |   // spans it. The origin is read out of the page rather than written down, so
+      313 |   // the case cannot drift from the seed.
+    > 314 |   expect(published.identities).toEqual([published.identities[0], '02 / 33 | Contents | 1'])
           |                                ^
 ```
 
 `03 / 33 | Tokyo — Notes | 2` is PH1-001's own signature, to the character: the jump from
 page 30 to the Contents is anchored on leaf 2, and under the mutation the diary published
-that anchor as the reader's page for the length of the turn. Run across both projects that
-draw a book, the same mutation gives:
+that anchor as the reader's page for the length of the turn. The address case stays green,
+correctly — this mutation moves the published page, not the address.
 
-```
-npx playwright test e2e/flip.spec.ts -g "publishes no"
-
-  4 failed
-    [desktop] › e2e\flip.spec.ts:244:1 › publishes no page but the one it left and the one it was asked for, for the whole of a bookmark jump
-    [desktop] › e2e\flip.spec.ts:283:1 › publishes no third page even when the address write is delayed well past a poll
-    [mid] › e2e\flip.spec.ts:244:1 › publishes no page but the one it left and the one it was asked for, for the whole of a bookmark jump
-    [mid] › e2e\flip.spec.ts:283:1 › publishes no third page even when the address write is delayed well past a poll
-  2 skipped
-```
+**An equivalent mutant, worth knowing about.** Mutating the address effect to
+`pagePath(state.anchor)` is undetectable by any of the three cases, and that is not a gap:
+by the time that effect runs after a jump, `state.anchor` has already collapsed to
+`state.index`, so the two spellings are the same write. Recorded here so the next person
+mutation-testing that line does not spend an afternoon concluding their harness is broken.
 
 The mutation was reverted each time with `git checkout -- apps/web/components/book/Book.tsx`,
 and `git status` was read afterwards to confirm the only modified files were the two under
@@ -260,10 +361,12 @@ against exactly the spec text committed here, so the line numbers in the frames 
 committed file's own.
 
 **What this section would look like if nothing had been fixed.** Runs 1 and 2 would look
-identical — a 2% flake passes fifty times more often than not. The only line here that
-cannot be produced by a lucky afternoon is run 3, and the only line that cannot be produced
-by an assertion loosened into vacuity is §2's 10-of-10 failure. Those two are the evidence;
-the green runs are the background.
+identical — a 2% flake passes fifty times more often than not, so a green volume run is
+evidence about the afternoon and not about the fix. Everything that cannot be produced by a
+lucky afternoon is a watched failure: §2's 10-of-10 under the instrument, and runs 4, 5, 6
+and 7 here. Run 4 in particular is the one that would be missing if the third case had been
+left asserting only what its neighbour asserts — it would have been green then too, and
+green forever after.
 
 ## 7 · The defect class
 
@@ -287,15 +390,26 @@ grep -rn "location.pathname\|location.href" e2e/*.spec.ts
 The three specs that poll inside `page.evaluate` were read individually rather than trusted
 to the grep: `e2e/mobile.spec.ts` and `e2e/serverWindow.spec.ts` both use `setTimeout` only
 for a `test.setTimeout` budget and a deliberate route delay, and neither reads an address in
-a loop. **One instance, fixed; no neighbours.**
+a loop. **One instance, fixed; no neighbours in `e2e/`.**
+
+**The one sibling outside `e2e/`, checked and left alone.**
+`apps/web/components/book/Book.test.tsx:276`'s `publishedLocation` reads the same four
+values as one tuple, and polls them every 40ms across a jump (line 603) — the same shape.
+It is **not** an instance of this class, and the difference is the reason the class exists:
+that poll runs under `act()`, which flushes React's effects before it returns, so every
+sample is taken after both the render and the address effect have run. There is no point in
+time at which the pair can be observed half-written, which is why that case has never
+flaked. The browser has no `act()`, and that is the whole of the difference. Left unchanged
+deliberately: the tuple there is a fair reading of "where does the diary say the reader is",
+and splitting it would weaken it for no gain.
 
 ## 8 · Residue
 
-`docs/testing.md` line 1549 describes `e2e/flip.spec.ts:157` in passing as "the ~2% flake
-carried to Phase 3 by ruling", inside a paragraph recording a past round-9 measurement. The
-sentence remains a true record of that run, but the present-tense framing is now stale: the
-flake is fixed and the case is at a different line. **It was deliberately not edited here**
-— this task's file set was scoped to `e2e/flip.spec.ts` and `e2e/support/liveBook.ts` so it
-could run in parallel with other Phase 3 tasks, and `docs/testing.md` is a file those tasks
-also write to. It is carried as a follow-up rather than silently left: the line should be
-reworded to name this report.
+**None outstanding.** One item was carried out of the first round and has since been
+discharged: `docs/testing.md`'s flake ledger described `e2e/flip.spec.ts:157` as "the ~2%
+flake carried to Phase 3 by ruling". That was left alone at first because this task's file
+set was scoped for parallel work — which the review correctly rejected as insufficient under
+CLAUDE.md §1.3, and on a second ground the first round missed: the sentence was not merely
+stale but **misdirecting**, because line 157 now holds a different case entirely, so a reader
+following the pointer would have found a case with no address in it and no flake history.
+The ledger entry now says the flake is fixed, warns off line 157 by name, and points here.

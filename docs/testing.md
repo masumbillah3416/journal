@@ -1546,8 +1546,15 @@ true` — the only honest content while nothing writes or reads that setting and
   whole-branch review — and round 9 re-ran the pair and measured **34 before and 34 after,
   with the same 11 and 6 at the top**. Without the setup, a second run leaves roughly
   double. Both round-9 runs: exit 0, `447 passed`, `171 skipped`, **0 flaky** (the word
-  appears zero times in either log), and `e2e/flip.spec.ts:157` — the ~2% flake carried to
-  Phase 3 by ruling — passed first attempt in both.
+  appears zero times in either log), and the bookmark-jump publish case — then at
+  `e2e/flip.spec.ts:157`, and carrying a ~2% flake into Phase 3 by ruling — passed first
+  attempt in both. **That flake is fixed and the ledger is closed:** the case polled the
+  address as a fourth field of the book's published identity, which the application has
+  never promised moves in step with it, and it is now three cases polling two series
+  apart. Do not chase it at line 157 — that line is a different case now.
+  `docs/qa/2026-09-08-flip-address-lag-defect.md` carries the root cause, the deterministic
+  reproduction that is kept as a permanent case, and the mutations that prove all three
+  still catch PH1-001.
 
   **AND THE GENERAL RULE THAT PARAGRAPH IS AN INSTANCE OF (ruling F80).** Anything a
   reader must know in order to trust a mechanism — a residue, a fragility, the

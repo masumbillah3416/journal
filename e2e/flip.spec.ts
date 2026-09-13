@@ -37,17 +37,21 @@
  * `scale(1)`, which is the first thing any of the book's effects do.
  *
  * THE PAGE THE DIARY PUBLISHES AND THE ADDRESS IT WRITES ARE TWO SERIES, NOT
- * ONE TUPLE, and the pair of bookmark-jump cases below poll them as two
- * through `pollPublishedSeriesAfterContentsClick`. The counter, the label and
- * the rail's active tab are written in one React commit; the address is
- * written by a separate effect in `apps/web/components/book/Book.tsx`, whose
- * header records at length that it can lag a committed turn and that this is
- * a deliberate cost rather than an invariant (ADR 0009). Read as one tuple,
- * the jump case caught the new page at the old address ~2% of runs and called
- * it a third published page — see
- * docs/qa/2026-09-08-flip-address-lag-defect.md, and the second of the two
- * cases, which widens that window on purpose so the first cannot quietly stop
- * guarding anything.
+ * ONE TUPLE, and the three bookmark-jump cases below poll them as two through
+ * `pollPublishedSeriesAfterContentsClick`. The counter, the label and the
+ * rail's active tab are written in one React commit; the address is written by
+ * a separate effect in `apps/web/components/book/Book.tsx`, whose header
+ * records at length that it can lag a committed turn and that this is a
+ * deliberate cost rather than an invariant (ADR 0009). Read as one tuple, the
+ * jump case caught the new page at the old address ~2% of runs and called it a
+ * third published page — see docs/qa/2026-09-08-flip-address-lag-defect.md.
+ *
+ * The three are one behaviour each, in order: the pages the diary publishes,
+ * the addresses it writes, and — under a deliberately widened lag — the two as
+ * they were seen TOGETHER. The third is the one that keeps the other two
+ * honest: it is the reproduction of the flake, kept rather than thrown away,
+ * and it asserts a sample that cannot exist unless the widening is really in
+ * force, so it cannot quietly decay into a duplicate of the first.
  *
  * The seizure case is the one worth staying honest about. It does not assert
  * "twelve presses turn twelve pages" — the latch is SUPPOSED to swallow the
@@ -167,7 +171,7 @@ test('a bookmark jump departs from the page beside its target, not from across t
   expect(inFlight).toEqual(['2', '3'])
 })
 
-/** The two series a bookmark jump to the Contents publishes while it runs. */
+/** The three series a bookmark jump to the Contents publishes while it runs. */
 interface PublishedSeries {
   /**
    * Every distinct page identity published, in order: the counter, the label
@@ -177,11 +181,24 @@ interface PublishedSeries {
   readonly identities: readonly string[]
   /** Every distinct address the book wrote, in order. */
   readonly addresses: readonly string[]
+  /**
+   * Every distinct `identity @ address` sample, in order — the two series as
+   * they were actually observed together, rather than as two independent
+   * histories.
+   *
+   * It is NOT derivable from the two above: deduplicating each series on its
+   * own throws away which identity a given address was read beside, which is
+   * precisely the fact the lag case needs. It is the only observation that can
+   * tell "the deferral was in force" from "the deferral silently did nothing",
+   * and without it that case degrades into a copy of its neighbour the day
+   * `Book.tsx` stops writing the address through `window.history.replaceState`.
+   */
+  readonly pairs: readonly string[]
 }
 
 /**
  * Clicks the Contents bookmark tab and polls what the diary publishes every
- * 40ms until well past the 970ms turn, as TWO adjacent-deduplicated series.
+ * 40ms until well past the 970ms turn, as THREE adjacent-deduplicated series.
  *
  * TWO SERIES RATHER THAN ONE TUPLE, and that is the whole point of this
  * helper. The identity is written in one React commit; the address is written
@@ -189,19 +206,30 @@ interface PublishedSeries {
  * records that it can lag a committed turn and that this is a deliberate cost
  * rather than an invariant (ADR 0009). Folding the address into the identity
  * asserted a coupling the application never promised, and cost ~2% of runs
- * (docs/qa/2026-09-08-flip-address-lag-defect.md).
+ * (docs/qa/2026-09-08-flip-address-lag-defect.md). The third series, `pairs`,
+ * keeps the two as they were seen together, for the one case that is about
+ * their relative timing rather than about either of them.
  *
  * ADJACENT-DEDUPLICATED AND ORDERED, NOT A `Set`. A set discards order, so a
  * book that published the destination, went back to the origin and returned
  * would produce the same set as one that never wavered — and two of the three
  * things the cases below guard are about order.
  *
+ * THE 2,000ms WINDOW IS SIZED FROM A MEASUREMENT, not from the 970ms turn.
+ * With `deferAddressWrites` at 200ms the identity commits at t≈1,011-1,035ms
+ * and the address lands at t≈1,209-1,241ms (three runs, measured 2026-09-13
+ * and recorded in docs/qa/2026-09-08-flip-address-lag-defect.md §6). The
+ * original 1,400ms window left ~160ms of margin on that last event, which is
+ * one long frame away from dropping it — and a case that drops its last
+ * sample is the next flake. 2,000ms leaves ~760ms.
+ *
  * The click is dispatched from inside the page for the reason this file's
  * header gives: the driver round-trip is time the turn is already spending.
  *
  * @param page - A live book (`waitForLiveBook`) whose rail carries a Contents tab.
- * @returns The identities and the addresses, each in order, each without
- *   adjacent repeats. `identities[0]` is the page the reader left.
+ * @returns The identities, the addresses and the pairs, each in order, each
+ *   without adjacent repeats. Element `0` of each is what was read before the
+ *   click — the page the reader left.
  * @example
  * const published = await pollPublishedSeriesAfterContentsClick(page)
  * expect(published.identities).toEqual([published.identities[0], '02 / 33 | Contents | 1'])
@@ -220,25 +248,37 @@ const pollPublishedSeriesAfterContentsClick = async (page: Page): Promise<Publis
     // THE ADDRESS, as its own series, for the reason in this helper's TSDoc.
     const address = (): string => location.pathname
 
-    const identities = [identity()]
-    const addresses = [address()]
+    const identities: string[] = []
+    const addresses: string[] = []
+    const pairs: string[] = []
+
+    // ONE READ OF EACH PER SAMPLE, FED TO ALL THREE SERIES. Reading the DOM a
+    // second time to build the pair would let it describe a moment neither of
+    // the other two series saw — which is the very confusion between an
+    // identity and the address beside it that this helper exists to end.
     const record = (): void => {
       const nextIdentity = identity()
-      if (nextIdentity !== identities[identities.length - 1]) identities.push(nextIdentity)
       const nextAddress = address()
+      const nextPair = `${nextIdentity} @ ${nextAddress}`
+      if (nextIdentity !== identities[identities.length - 1]) identities.push(nextIdentity)
       if (nextAddress !== addresses[addresses.length - 1]) addresses.push(nextAddress)
+      if (nextPair !== pairs[pairs.length - 1]) pairs.push(nextPair)
     }
+
+    // The reader's page before the click, so every series starts where they were.
+    record()
 
     const tabs = [...document.querySelectorAll<HTMLButtonElement>('[data-bookmark]')]
     const contents = tabs.find((tab) => tab.textContent.includes('Contents'))
-    if (contents === undefined) return { identities: ['no Contents bookmark tab in the rail'], addresses: [] }
+    if (contents === undefined)
+      return { identities: ['no Contents bookmark tab in the rail'], addresses: [], pairs: [] }
 
     contents.click()
-    for (let waited = 0; waited < 1_400; waited += 40) {
+    for (let waited = 0; waited < 2_000; waited += 40) {
       await new Promise((resolve) => setTimeout(resolve, 40))
       record()
     }
-    return { identities, addresses }
+    return { identities, addresses, pairs }
   })
 
 test('publishes no page but the one it left and the one it was asked for, for the whole of a bookmark jump', async ({
@@ -255,7 +295,7 @@ test('publishes no page but the one it left and the one it was asked for, for th
   // The sweep read those four as one tuple, and this case did too until the
   // address turned out to be a SEPARATE series that settles on its own
   // schedule — see this file's header. They are polled together and asserted
-  // apart.
+  // apart: the address has the case below to itself.
   //
   // Polled rather than read once mid-flight, because the defect is a WINDOW
   // and a single sample could fall either side of it. The origin is read out
@@ -272,35 +312,57 @@ test('publishes no page but the one it left and the one it was asked for, for th
   // spans it. The origin is read out of the page rather than written down, so
   // the case cannot drift from the seed.
   expect(published.identities).toEqual([published.identities[0], '02 / 33 | Contents | 1'])
+})
 
-  // The address is asserted as its own settling series: it starts where the
-  // reader was and ends where they went, and never visits a third place.
-  // Whether it changes on the same poll as the identity is NOT asserted,
-  // because `Book.tsx` deliberately does not promise that.
+test('writes the address of the page it was asked for and of no other, during a bookmark jump', async ({ page }) => {
+  // THE ADDRESS AS ITS OWN SUBJECT, in its own case, because it is its own
+  // series: it starts where the reader was and ends where they went, and never
+  // visits a third place. WHEN it moves relative to the published page is not
+  // asserted, here or anywhere, because `Book.tsx` deliberately does not
+  // promise that (its header, and ADR 0009).
+  //
+  // Split out of the case above rather than left beside it: that case is named
+  // for the pages the diary PUBLISHES, and an address failure reported under
+  // that name sends whoever triages it to the wrong half of the book. Both
+  // read the same helper, so the two cannot drift apart.
+  await page.goto(wholeBookPath(30))
+  await waitForLiveBook(page)
+
+  const published = await pollPublishedSeriesAfterContentsClick(page)
+
   expect(published.addresses).toEqual(['/p/30', '/p/2'])
 })
 
 test('publishes no third page even when the address write is delayed well past a poll', async ({ page }) => {
   // THE REGRESSION GUARD FOR THE FIX IN
-  // docs/qa/2026-09-08-flip-address-lag-defect.md. Its subject is the identity
-  // series, and `deferAddressWrites` proves that series does not depend on
-  // when the address is written. Against the case as it stood - one tuple with
-  // the address folded into it - this delay failed it 10 of 10 (5 repeats on
-  // each of the two projects that draw a book): the old assertion could not
-  // tell "a third page was published" from "the address had not caught up
-  // yet", which is why it failed ~2% of runs without the delay and every run
-  // with it.
+  // docs/qa/2026-09-08-flip-address-lag-defect.md, and it asserts the PAIRS
+  // rather than either series on its own, because its subject is the one thing
+  // only the pairs can show: that the diary published the destination while
+  // the address still named the origin, and still published nothing else.
+  // Against the case as it stood - one tuple with the address folded into it -
+  // this delay failed it 10 of 10: that assertion could not tell "a third page
+  // was published" from "the address had not caught up yet".
   //
-  // The address series is NOT asserted here: under a 200ms delay the final
-  // write lands on the poll's own terms, and asserting on it would be
-  // asserting on the injected delay rather than on the book.
+  // ASSERTING THE PAIRS IS WHAT PINS THE INSTRUMENT, and that is not a detail.
+  // `deferAddressWrites` patches `window.history.replaceState`; ADR 0009
+  // records the address hold as held open pending a measurement nobody has
+  // taken, so how `Book.tsx` writes the address is a thing this repository
+  // expects to revisit. The day it writes it through anything else, the
+  // deferral silently becomes zero - and a case that only asserted the
+  // identities would keep passing, as a verbatim duplicate of the first case
+  // above, guarding nothing. The middle pair below cannot be produced without
+  // the deferral actually biting, so that day this case goes red instead.
   await deferAddressWrites(page, { delayMs: 200 })
   await page.goto(wholeBookPath(30))
   await waitForLiveBook(page)
 
   const published = await pollPublishedSeriesAfterContentsClick(page)
 
-  expect(published.identities).toEqual([published.identities[0], '02 / 33 | Contents | 1'])
+  expect(published.pairs).toEqual([
+    published.pairs[0],
+    '02 / 33 | Contents | 1 @ /p/30',
+    '02 / 33 | Contents | 1 @ /p/2',
+  ])
 })
 
 test('changes page instantly under prefers-reduced-motion', async ({ browser }) => {
