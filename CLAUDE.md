@@ -1,6 +1,6 @@
 # Travel Diary — Engineering Standards
 
-The working agreement, **not advisory**: if a task needs one broken, stop and say so.
+The working agreement. **Not advisory**: if a task needs one broken, say so.
 
 **Read this whole; read a section's `docs/standards/` detail only when your task touches it.** Section numbers are frozen: `CLAUDE.md §N` is cited everywhere.
 
@@ -12,7 +12,7 @@ Binding on every task; no detail file.
 
 1. TDD: the failing test exists first, and is watched failing for the expected reason.
 2. A test that has never failed is unproven. Domain logic is tested to 100%.
-3. Patterns are chosen deliberately and named in the module header.
+3. Every module has a header naming the pattern it implements. Public symbols are documented where the signature does not (§1.1).
 4. No claim of "done", "fixed" or "passing" without pasted command output.
 5. `npm run verify` before every commit, `npm run verify:full` before any completion claim. Never `--no-verify`.
 6. Never commit secrets, `.env`, or generated artefacts.
@@ -32,7 +32,7 @@ Module header, TSDoc, why-comments, invariants, `// HANDOFF-DEVIATION:`.
 
 ### 1.2 Repository-level
 
-Nine documents with fixed homes; three of them descriptive rather than load-bearing.
+Nine documents with fixed homes; three descriptive rather than load-bearing.
 
 ### 1.3 Rules
 
@@ -73,7 +73,7 @@ Names say what a thing _is_. One job per function, guard clauses, no dead code.
 
 ### 3.3 Design patterns — deliberate, named, documented
 
-Ports & Adapters, State machine, Repository, DTO, Factory, Value objects, Result type. A header names the one it implements, or says it implements none and why.
+Ports & Adapters, State machine, Repository, DTO, Factory, Value objects, Result type. A header names the one it implements, or says none and why.
 
 ## 4 · YAGNI
 
@@ -82,7 +82,7 @@ Build what the handoff specifies. No abstraction for a single caller.
 
 ## 5 · Definition of Done
 
-Tests first; suite green and pasted; gates met; docs in the same commit; budgets verified; handoff re-diffed; UI sweeps committed.
+Tests first; suite green and pasted; gates met; docs in the same commit; budgets and handoff re-checked; UI sweeps committed.
 **Detail:** `docs/standards/05-definition-of-done.md`
 
 ## 6 · Performance budgets — hard gates
@@ -97,11 +97,11 @@ Key by journey id. Derive what the data model calls derived. Soft delete from mi
 
 ### 7.1 Repository content never leaves this machine without explicit approval
 
-Nothing here goes to an external service without the owner's approval for that request. A missing local tool makes a check UNRESOLVED, never outsourced.
+Nothing here reaches an external service without the owner's approval for that request; a missing local tool makes a check UNRESOLVED, never outsourced.
 
 ## 8 · Git workflow
 
-Never commit to `main`. Branch; small commits, each green under `npm run verify`; read the staged diff before committing.
+Never commit to `main`. Branch; small commits, each green under `npm run verify`; read the staged diff.
 **Detail:** `docs/standards/08-git-workflow.md`
 
 ### 8.2 Commit messages — Conventional Commits, with a real body
@@ -115,10 +115,10 @@ Correctness (a hostile re-read), verification (run it, paste it), specification 
 
 ## 10 · Browser QA
 
-Mandatory: `sweeping-for-browser-defects` to find, `fixing-browser-defects` to fix. Never patch from a sweep without a failing test first.
+Mandatory: `sweeping-for-browser-defects` to find, `fixing-browser-defects` to fix. Never patch from a sweep without a failing test.
 **Detail:** `docs/standards/10-browser-qa.md`
 
 ## 11 · Commands
 
-`npm run verify` is the Husky pre-commit gate; `npm run verify:full` is the CI gate, and needs Postgres.
+`npm run verify` is the Husky pre-commit gate; `npm run verify:full` is the CI gate and needs Postgres.
 **Detail:** `docs/standards/11-commands.md`

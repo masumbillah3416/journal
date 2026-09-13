@@ -9,8 +9,12 @@ see the **Status** column.
 **Read this file; read a suite's `docs/testing/` detail only when your task touches that
 suite.** This was one 291KB document that every dispatched agent read in full whatever it
 was working on. The suite numbers are frozen the way `CLAUDE.md`'s sections are — this
-tree cites `docs/testing.md` §1, §3, §4, §6, §7, §7.0, §7.1, §9 and §10.3 — so every
-heading stayed where it was and only the bodies moved.
+tree cites `docs/testing.md` §1, §3, §4, §6, §7, §7.0, §7.1, §9 and §10.3 — so those
+headings stayed where they were and only the bodies moved. **§10's subsection numbers are
+the exception and are not frozen:** the documentation guards gained entries of their own in
+the same work, so the old §10.5 (how to run them) is §10.8 now, and §10.5 to §10.7 name
+three guards that did not exist before. Nothing cites a §10.x number except §10.3, which is
+unchanged.
 
 ## Coverage gates
 
@@ -723,10 +727,12 @@ journey, the diary served with no credentials attached, and separate credentials
 media bucket. None had a row in the table, while that document's first sentence said every
 requirement had a named home. All three have sections now.
 
-**What it does not catch, stated rather than implied:** the handoff states one requirement as
-a paragraph rather than a bullet (`users.otpRequired` decided server-side), and a paragraph
-has no shape a derivation can separate from the prose around it. That requirement has its own
-section, but this check is not what keeps it there. Nor does it judge whether a discharge is
+**What it does not catch, stated rather than implied:** the handoff states two requirements as
+paragraphs rather than as bullets — `users.otpRequired` decided server-side, and the gallery's
+download serving a derivative through our own handler rather than a bucket URL — and a
+paragraph has no shape a derivation can separate from the prose around it. Both have a section
+in `docs/security.md`, the second inside "Downloads through our handler", but this check is not
+what keeps either there. Nor does it judge whether a discharge is
 true — that is `securityCitations.test.ts`'s subject.
 
 ### 10.7 · `coverageThresholds.test.ts` — no measured file is gated by nothing

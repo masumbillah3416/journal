@@ -31,14 +31,17 @@
  *     see {@link withOneSpellingOfEmphasis}. Nothing else is - not case, not
  *     punctuation, not spacing between words.
  *
- * WHAT IT DOES NOT CATCH, stated rather than implied: the handoff states one
- * requirement as a paragraph ("Required: the code step is required or not based
- * on `users.otpRequired`…") rather than as a bullet, and a paragraph has no
- * shape a derivation can separate from the prose around it. That requirement
- * has a section of its own in `docs/security.md`, but this check is not what
- * keeps it there. Nor does it judge whether a discharge is TRUE — that is
- * `securityCitations.test.ts`'s subject, which requires every case name the
- * document quotes to be a real declaration.
+ * WHAT IT DOES NOT CATCH, stated rather than implied: the handoff states TWO
+ * requirements as paragraphs rather than as bullets, and a paragraph has no
+ * shape a derivation can separate from the prose around it. They are "Required:
+ * the code step is required or not based on `users.otpRequired`…" and "Also: the
+ * gallery's download action must serve a derivative through your own handler,
+ * not a bucket URL", which is a distinct obligation from the bullet above it
+ * (that one is about `Content-Disposition` and `Content-Type`). Both have a
+ * section in `docs/security.md` — the second inside "Downloads through our
+ * handler" — but this check is not what keeps either there. Nor does it judge
+ * whether a discharge is TRUE: that is `securityCitations.test.ts`'s subject,
+ * which requires every case name the document quotes to be a real declaration.
  *
  * Depends on: vitest, node:fs, node:path, ./markdownCorpus.
  */
