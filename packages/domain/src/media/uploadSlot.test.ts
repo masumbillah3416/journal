@@ -14,12 +14,29 @@ import { journeyId } from '../ids'
 import type { RequestedUpload } from './uploadSlot'
 import { MAX_FILES_PER_REQUEST, MAX_UPLOAD_BYTES, isStagingKeyFor, planUploadSlots } from './uploadSlot'
 
-/** A journey id for these tests. Throws rather than returning, so a case reads straight. */
-const aJourneyId = () => {
-  const built = journeyId('journey-7')
+/**
+ * Brands a journey id, throwing rather than returning, so a case reads
+ * straight.
+ * @param raw - The id to brand. The brand promises only a non-empty string,
+ *   which is why the cases below can hand it one no Payload row ever carries.
+ */
+const aJourneyIdOf = (raw: string) => {
+  const built = journeyId(raw)
   if (!built.ok) throw new Error(built.error)
   return built.value
 }
+
+/** The journey id every case in this file that does not care uses. */
+const aJourneyId = () => aJourneyIdOf('journey-7')
+
+/**
+ * A backslash, built from its code point rather than escaped in a literal.
+ *
+ * The case this exists for was committed as `'staging\journey-7\n…'` and
+ * held no backslash at all. Building it removes the whole class of that
+ * mistake from this file.
+ */
+const BACKSLASH = String.fromCharCode(92)
 
 /** One requested upload, with overridable defaults. */
 const aRequestedUpload = (overrides: Partial<RequestedUpload> = {}): RequestedUpload => ({
@@ -179,7 +196,35 @@ describe('isStagingKeyFor', () => {
   })
 
   it('refuses a backslash separator, which a Windows filesystem would resolve', () => {
-    expect(isStaged('staging\journey-7\n0-tokyo.jpg')).toBe(false)
+    // `String.raw` BECAUSE THE ORDINARY LITERAL DID NOT HOLD A BACKSLASH.
+    // `'staging\journey-7\n0-tokyo.jpg'` is `stagingjourney-7` then a NEWLINE
+    // then `0-tokyo.jpg`: `\j` is `j` and `\n` is a newline, so the case named
+    // for a separator passed a string with no separator in it and could never
+    // fail (Task 8 fix review, N2). The escape-free spelling is the fix, and
+    // `BACKSLASH` below is built from its code point so this file cannot make
+    // the same mistake twice.
+    expect(isStaged(String.raw`staging\journey-7\n0-tokyo.jpg`)).toBe(false)
+  })
+
+  it('refuses a traversal smuggled through the journey segment, which win32 resolves to the store root', () => {
+    // THE HOLE THE CASE ABOVE WAS SUPPOSED TO COVER AND DID NOT. The journey
+    // segment used to be `[^/]+`, which admits both `..` and a backslash - so
+    // a client sending the same traversal in BOTH fields, which is all this
+    // predicate compares, was answered `true`, and `path.win32.resolve` puts
+    // that key at the store's own root where Payload keeps every stored file.
+    // `validateStorageKey` at the port refused it, so there was never a live
+    // hole; the defence was simply not the one this predicate's header claimed.
+    const journey = `7${BACKSLASH}..${BACKSLASH}..`
+
+    expect(isStagingKeyFor({ key: `staging/${journey}/live.jpg`, journey: aJourneyIdOf(journey) })).toBe(false)
+  })
+
+  it('refuses a journey segment that is itself a traversal', () => {
+    expect(isStagingKeyFor({ key: 'staging/../live.jpg', journey: aJourneyIdOf('..') })).toBe(false)
+  })
+
+  it('refuses a journey segment carrying a separator of either kind', () => {
+    expect(isStagingKeyFor({ key: 'staging/7/8/live.jpg', journey: aJourneyIdOf('7/8') })).toBe(false)
   })
 
   it('refuses another namespace of the same store', () => {

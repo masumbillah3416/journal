@@ -119,15 +119,34 @@ export interface UploadSlotPlan {
 const STAGING_PREFIX = 'staging'
 
 /**
+ * What a single segment of a minted key may hold: {@link keyNameFor}'s own
+ * output, which is also the shape of every Payload row id a journey is keyed
+ * by. Leading character separate from the rest so a segment cannot be `.` or
+ * `..`, and neither slash is in the class, so a segment cannot be a separator
+ * smuggled through as text.
+ */
+const MINTED_SEGMENT = '[a-z0-9][a-z0-9.-]*'
+
+/**
  * The shape of a key {@link planUploadSlots} mints: the namespace, the journey
  * it is keyed by, and one sanitised tail.
  *
- * The tail's character class is {@link keyNameFor}'s own output prefixed by a
- * nonce, so it cannot be `..`, cannot hold a separator of either slash, and
- * cannot begin with a dot — which is what makes a key that passes this
- * incapable of naming anything outside its journey's staging directory.
+ * ═══ BOTH SEGMENTS ARE CONSTRAINED, AND THE JOURNEY ONE WAS NOT ═══
+ *
+ * The journey capture used to be `[^/]+`, which admits `..` and a backslash.
+ * A client sending the SAME traversal in both `stagingKey` and `journey` —
+ * which is all this predicate compares — was therefore answered `true` for
+ * `staging/7\..\../live.jpg`, and `path.win32.resolve` puts that at the
+ * store's own root, where Payload keeps every stored file. `validateStorageKey`
+ * at the port refused it, so there was never a live hole; the defence was just
+ * not the one this paragraph claimed (Task 8 fix review, N2). Both segments now
+ * use {@link MINTED_SEGMENT}, so the guarantee below is the regex's own.
+ *
+ * A key that matches this names one file inside one journey's staging
+ * directory: no segment is `.` or `..`, no segment holds a separator of either
+ * slash, and there are exactly three of them.
  */
-const STAGED_KEY = new RegExp(`^${STAGING_PREFIX}/([^/]+)/([a-z0-9][a-z0-9.-]*)$`)
+const STAGED_KEY = new RegExp(`^${STAGING_PREFIX}/(${MINTED_SEGMENT})/(${MINTED_SEGMENT})$`)
 
 /** Characters a storage key segment may hold. Everything else becomes a hyphen. */
 const UNSAFE_IN_KEY = /[^a-z0-9]+/g
@@ -239,6 +258,14 @@ export const planUploadSlots = (request: {
  * things to refuse: a checker that enumerated bad keys would pass the one
  * nobody listed (`eslint-rules/guarded-server-actions.js` is this
  * repository's worked example of the same inversion).
+ *
+ * **IT IS NOT THE ONLY LAYER, AND IT IS NOT THE TRAVERSAL ONE.**
+ * `validateStorageKey` in `apps/web/lib/ports/storage.ts` refuses traversal
+ * and absolute paths at the port, for every caller and every adapter. This
+ * answers the narrower question the port cannot: whether the key is one WE
+ * minted, for THIS journey. Both are needed and neither substitutes for the
+ * other — a stored photograph's own key passes the port's question, and the
+ * port's question is the one that holds for callers that never reach here.
  *
  * **THE JOURNEY IS PART OF THE ANSWER, not a separate check.** A key minted
  * for journey A is not a staging key for journey B, or the two fields of one

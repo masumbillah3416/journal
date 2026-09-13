@@ -277,8 +277,13 @@ export const ingestUpload = async (
   // writes every stored file and derivative into. Without this check, a
   // finalise naming a live photograph would destroy it and answer
   // `duplicate`, which is a success-shaped answer over a deletion.
-  // `validateStorageKey` inside the store cannot help: it asks whether a key
-  // is well formed, and a stored photograph's key is well formed.
+  //
+  // THE DIVISION OF LABOUR, stated correctly because this comment had it
+  // backwards (Task 8 fix review, N2). `validateStorageKey` inside the store
+  // refuses traversal and absolute paths, for every caller and every adapter -
+  // it is the layer that stops `staging/7\..\../live.jpg`. What it cannot ask
+  // is WHICH well-formed key this is, and a stored photograph's key is well
+  // formed. That is this check's question, and the journey is part of it.
   if (!isStagingKeyFor({ key: input.stagingKey, journey: input.journey })) return err('key-not-staged')
 
   const staged = await deps.storage.get(input.stagingKey)
