@@ -60,16 +60,23 @@
  * caller's, and pinning one here would make the round-trip fixture — which
  * sends a whole photograph — contradict the constant it is built from.
  *
- * **WHAT DOES NOT YET GUARD IT, stated rather than left to be discovered.**
- * Until `e2e/upload.spec.ts` lands, nothing in the suite fails if these two
- * values are wrong: changing `method` to `'POST'` and `contentType` to
- * `'application/octet-stream'` was run as a mutation, and both integration
- * files stayed green — the receiver reads neither, because the route mounts
- * only `PUT` and the declared type is a claim it never believes. A unit test
- * asserting this constant against a literal would be the constant agreeing
- * with itself, which is the vacuity this whole module exists to avoid. The
- * only honest check on a measurement is another measurement, and that is the
- * browser's.
+ * **WHAT GUARDS IT, AND WHAT STILL DOES NOT.** This paragraph claimed that
+ * nothing in the Vitest suites COULD kill a wrong value here, because any
+ * in-suite check would be the constant agreeing with itself. That was false,
+ * and a false impossibility claim is how a real check never gets written.
+ * `uploadContract.test.ts` holds both fields against artefacts derived from
+ * somewhere else: the method against the handler name
+ * `apps/web/app/(admin)/admin/media/upload/route.ts` actually exports, which
+ * is what Next.js mounts, and the content type against
+ * `acceptedIngestTypes('inline')`, which comes from the domain's own
+ * still-type list. Both mutations above were watched failing there.
+ *
+ * What no in-suite check can prove is that these values match what a BROWSER
+ * sends — the only honest check on a measurement is another measurement, and
+ * that is the browser's. `e2e/upload.spec.ts` (Task 9) asserts a real
+ * Chromium's own PUT against this constant. Until it lands, the two coherence
+ * checks hold the constant against the route and the pipeline; they do not
+ * stand in for the browser.
  *
  * PATTERN (CLAUDE.md §3.3): Data Transfer Object — one serialization boundary
  * between the admin's browser and the upload surface.
