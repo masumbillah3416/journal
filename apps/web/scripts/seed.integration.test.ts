@@ -215,9 +215,26 @@ describe('seed', () => {
       // the time it runs, every row exists, so `seed` takes the update path for
       // all of them and a create that had lost `state` would still be repaired
       // before the assertion looked. Watched - removing `state` from both
-      // creates leaves that case green and this one red. So one row is deleted
-      // and made again.
+      // creates leaves that case green and this one red.
+      //
+      // ═══ WHY IT BORROWS A SEEDED ROW RATHER THAN MAKING ITS OWN ═══
+      //
+      // The create path is `upsertSlotMedia`, which is not exported and is
+      // keyed by (journey, alt). A row this case invented would be a row `seed`
+      // never looks at, so `seed` would take no path at all over it. The only
+      // way to make `seed` CREATE is to remove something `seed` owns.
+      //
+      // SO IT PUTS IT BACK, AND THE RESTORATION IS ASSERTED RATHER THAN
+      // ASSUMED. The second `seed` call is both the act and the teardown: it
+      // remakes the row, renumbers nothing else, and rewrites the page slots
+      // that named the old id (`upsertJourneyPage` writes `slots` in full). The
+      // count assertion is what makes this case safe to MOVE - it was
+      // previously safe only because it sat second-to-last with a re-seed after
+      // it, which is a shared mutable fixture held together by ordering
+      // (CLAUDE.md §2.3, Task 8 round 3 item 3). It now leaves the store as it
+      // found it, and fails if it does not.
       await seed(payload)
+      const before = await payload.count({ collection: 'media' })
       const existing = await payload.find({
         collection: 'media',
         limit: 1,
@@ -225,10 +242,10 @@ describe('seed', () => {
         where: { journey: { exists: true } },
         select: { alt: true },
       })
-      const victim = existing.docs[0]
-      if (victim === undefined) throw new Error('the seed wrote no journey media to delete and remake')
-      const label = victim.alt ?? ''
-      await payload.delete({ collection: 'media', id: victim.id })
+      const borrowed = existing.docs[0]
+      if (borrowed === undefined) throw new Error('the seed wrote no journey media to remove and remake')
+      const label = borrowed.alt ?? ''
+      await payload.delete({ collection: 'media', id: borrowed.id })
 
       await seed(payload)
 
@@ -239,7 +256,12 @@ describe('seed', () => {
         where: { alt: { equals: label } },
         select: { state: true },
       })
-      expect({ found: remade.totalDocs, state: remade.docs[0]?.state }).toEqual({ found: 1, state: 'ready' })
+      const after = await payload.count({ collection: 'media' })
+      expect({
+        found: remade.totalDocs,
+        state: remade.docs[0]?.state,
+        storeRestored: after.totalDocs === before.totalDocs,
+      }).toEqual({ found: 1, state: 'ready', storeRestored: true })
     },
     SEED_TEST_TIMEOUT_MS,
   )
