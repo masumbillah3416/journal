@@ -270,9 +270,12 @@ const anEncodedGradient = async (options: {
  *
  * The GPS tags are the reason this fixture exists: SECURITY.md's objection is
  * that "Shoot anything at home and you have published your home address".
- * @param overrides - `width`/`height` default to 1200x900, large enough that
- *   Payload can derive `thumb`, `grid` and `tile` from it; `orientation`
- *   defaults to 6, which is a photograph on its side.
+ * @param overrides - `width`/`height` default to {@link FIXTURE_SIZE}, which
+ *   is large enough for Payload's `thumb` and `tile` tiers and no larger;
+ *   `frame`, `hero` and `hero2x` are width-only sizes that Payload omits for
+ *   a narrower source, so a case asserting that every configured tier was
+ *   derived passes its own width - 4000, the width `hero2x` is configured at.
+ *   `orientation` defaults to 6, which is a photograph on its side.
  * @returns The encoded file's bytes, fresh per call.
  * @example
  * await aPhotographWithExif({ orientation: 3 }) // upside down
@@ -334,21 +337,41 @@ export const aPhotograph = async (
  * artefacts and lands closer to the original than a second camera's file
  * would. Going back to the source pixels at q55 puts the full quantisation
  * difference between the two, which is what the threshold has to survive.
+ * @param overrides - as {@link aPhotograph}. The size is passable because the
+ *   pair only means anything when both sides are the same photograph at the
+ *   same size, and a caller staging a 4000px original - so that every
+ *   configured derivative tier has a source - needs both sides at that size.
  * @returns The encoded file's bytes, fresh per call.
  */
-export const aReencodedPhotograph = async (): Promise<Uint8Array> =>
-  anEncodedGradient({ seed: FIXTURE_SEED, width: FIXTURE_SIZE.width, height: FIXTURE_SIZE.height, quality: 55 })
+export const aReencodedPhotograph = async (
+  overrides: { readonly width?: number; readonly height?: number } = {},
+): Promise<Uint8Array> =>
+  anEncodedGradient({
+    seed: FIXTURE_SEED,
+    width: overrides.width ?? FIXTURE_SIZE.width,
+    height: overrides.height ?? FIXTURE_SIZE.height,
+    quality: 55,
+  })
 
 /**
  * A visibly different photograph, so the duplicate assertion has a negative
  * case.
+ *
+ * HOW DIFFERENT, MEASURED: 30 of the 64 hash bits, against
+ * {@link aPhotograph} put through the same pipeline, where the re-encode pair
+ * measures 0. Both numbers come from running the two through
+ * `createInlineMediaProcessor()` and `hammingDistance`; the pair at 0 is the
+ * fact `packages/domain/src/media/perceptualHash.ts`'s own header records.
+ * @param overrides - as {@link aPhotograph}.
  * @returns The encoded file's bytes, fresh per call.
  */
-export const aDifferentPhotograph = async (): Promise<Uint8Array> =>
+export const aDifferentPhotograph = async (
+  overrides: { readonly width?: number; readonly height?: number } = {},
+): Promise<Uint8Array> =>
   anEncodedGradient({
     seed: DIFFERENT_FIXTURE_SEED,
-    width: FIXTURE_SIZE.width,
-    height: FIXTURE_SIZE.height,
+    width: overrides.width ?? FIXTURE_SIZE.width,
+    height: overrides.height ?? FIXTURE_SIZE.height,
     quality: 92,
   })
 
