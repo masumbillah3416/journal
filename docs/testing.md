@@ -3503,9 +3503,9 @@ The sweep driver was a temporary spec, deleted once the report was written;
 
 #### `apps/web/lib/auth/securityCitations.test.ts` — the citation column checks itself
 
-`docs/security.md`'s table quotes a test case name for every requirement it discharges — a
-hundred and some, and the guard below asserts a FLOOR rather than the number, for the reason
-its own comment gives. Task 11 wrote them and claimed none
+`docs/security.md` quotes a test case name for every requirement it discharges — a hundred
+and some, and the guard below asserts a FLOOR rather than the number, for the reason its own
+comment gives. Task 11 wrote them and claimed none
 was paraphrased; its review found three that were, plus nine more carrying Markdown the
 source does not (backticks inside the quotation, restyled quotes), so twelve could not be
 found by a reader who searched for them. Every one pointed at a real, correct, covering case
@@ -3525,8 +3525,8 @@ checked at all — and not checked SILENTLY, which is the failure mode it exists
 its corpus was every source file's whole TEXT, so a quotation that appeared only inside a
 module header comment resolved, while the case was named "are all real". It now reads both
 quote characters and matches against declarations, and it separates citations from quoted
-PROSE — the ten fragments in that table which quote the handoff, the UI or a dependency's
-message rather than a test — by an explicit list rather than by which quote character
+PROSE — the fragments which quote the handoff, the UI or a dependency's message rather than
+a test — by an explicit list rather than by which quote character
 somebody typed. Every entry of that list must still appear in the document and must not be a
 declared case name, so an exemption cannot outlive the sentence it exempts or quietly excuse
 a real citation.
@@ -3538,6 +3538,12 @@ declarations, so the search is proved able to say no; a case name owned by anoth
 required to be PRESENT, so an extraction that returned nothing fails here; and the
 exemption-list checks above. It excludes its own source from the corpus, which is what keeps
 the sentinel meaningful.
+
+**It reads the whole document, not its table rows, as of the Phase 3 standards task.** The
+citations lived in one wide table until that task broke the table up; a line filter on `|`
+would have gone on passing over zero citations, and what caught the change was the floor.
+The document is whitespace-collapsed before matching, because a quotation in wrapped prose
+spans lines and a per-line regex would see two fragments rather than one name.
 
 Proved able to fail, four ways, each failing the case named for it:
 
@@ -3907,7 +3913,30 @@ resolver can answer "no" is assembled from two string pieces rather than written
 because written out it would be a live citation inside the corpus the check scans, and this
 file is deliberately NOT excluded from that corpus.
 
-### 10.6 · How to run them
+### 10.6 · `securityRequirements.test.ts` — no requirement is lost in a rewrite
+
+Derives the requirement list from `handoff/design_handoff_travel_diary/SECURITY.md` — every
+top-level bullet, read out of the specification of record, which is evidence and is never
+edited — and requires each one to be quoted verbatim by a discharge section of
+`docs/security.md`. Both directions: a marker quoting words the handoff does not state fails
+too, so a requirement cannot be paraphrased into agreement. It also refuses an index link
+that names no heading in the file, since the index is how a reader reaches a section now
+that the table is gone.
+
+It exists because `docs/security.md` was a 642KB table and a restructure of a document that
+size can silently drop a row — a dropped security requirement being the failure nobody
+notices until it matters. It found three on its first run: keeping location opt-in per
+journey, the diary served with no credentials attached, and separate credentials for the
+media bucket. None had a row in the table, while that document's first sentence said every
+requirement had a named home. All three have sections now.
+
+**What it does not catch, stated rather than implied:** the handoff states one requirement as
+a paragraph rather than a bullet (`users.otpRequired` decided server-side), and a paragraph
+has no shape a derivation can separate from the prose around it. That requirement has its own
+section, but this check is not what keeps it there. Nor does it judge whether a discharge is
+true — that is `securityCitations.test.ts`'s subject.
+
+### 10.7 · How to run them
 
 ```
 npx vitest run --project unit apps/web/lib/docs        # all of them
