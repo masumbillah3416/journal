@@ -7,7 +7,7 @@ inside Next.js, on Postgres.
 
 The source of truth for _what_ to build is `handoff/design_handoff_travel_diary/`
 (`README.md`, `SCREENS.md`, `DATA_MODEL.md`, `SECURITY.md`). The source of truth for
-_how_ to build it is `CLAUDE.md`.
+_how_ to build it is `CLAUDE.md`, whose sections point at their detail in `docs/standards/`.
 
 ## Prerequisites
 

@@ -49,8 +49,8 @@
  *
  * Measured against every Markdown file here rather than reasoned about. The
  * swallowed block scores {@link INLINE_MARKDOWN_LIMIT}+3 inline marks; the
- * highest-scoring legitimate untagged block in the repository — `CLAUDE.md`'s
- * command table — scores 2. A block with a language tag is skipped outright:
+ * highest-scoring legitimate untagged block in the repository — the command
+ * table in `docs/standards/11-commands.md` — scores 2. A block with a language tag is skipped outright:
  * `mermaid`, `ts` and `markdown` blocks are full of the same marks on purpose,
  * and tagging a block is an author saying what it is.
  *
@@ -81,7 +81,7 @@
  *   1. {@link SWALLOWED_PROSE_FIXTURE} — the F9-1 block, byte-for-byte — must
  *      be REPORTED. A heuristic that stopped matching would otherwise pass
  *      every file silently.
- *   2. {@link COMMAND_TABLE_FIXTURE} — a real untagged block from `CLAUDE.md` —
+ *   2. {@link COMMAND_TABLE_FIXTURE} — a real untagged block from that file —
  *      must NOT be reported, so the check is proved able to answer "no" and
  *      cannot be made to pass by matching everything.
  *   3. The number of code blocks actually lexed is asserted against a floor: a
@@ -137,7 +137,8 @@ mean the token crossing had been closed, which nothing has decided to do.
 `
 
 /**
- * A real untagged block from `CLAUDE.md` §11 — long, dense, and not prose.
+ * A real untagged block from `docs/standards/11-commands.md`, the detail for
+ * `CLAUDE.md` §11 — long, dense, and not prose.
  * Required NOT to be reported, so the check is proved able to answer "no".
  */
 const COMMAND_TABLE_FIXTURE = `npm run dev              # Next + Payload against local Postgres  (→ apps/web)

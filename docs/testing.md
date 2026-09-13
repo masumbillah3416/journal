@@ -3762,7 +3762,8 @@ two.
 
 ### 10.2 · `pathCitations.test.ts` — every backticked path and identifier resolves
 
-Over the LIVING documentation — `README.md`, `CLAUDE.md`, `docs/*.md` and `docs/adr/*.md`.
+Over the LIVING documentation — `README.md`, `CLAUDE.md` and everything under `docs/`
+except the two directories named below, so `docs/adr/*.md` and `docs/standards/*.md` are in.
 `docs/qa/**` and `docs/superpowers/**` are excluded deliberately: they are dated records of
 what was true when they were written, and requiring their citations to resolve would train
 their authors to edit the record. `handoff/**` is the specification and is not ours to
