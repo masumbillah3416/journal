@@ -144,42 +144,115 @@ same five runs, same median, same `/gallery/patagonia`:
 | after (`grid` 700 offered, corpus re-derived)         | 9        | **642,138**    |
 | lazy-loading disabled, re-measured on the new corpus  | 60       | 4,009,810      |
 
-The browser's choice is correct — it takes the 700w candidate for its 658-device-pixel
-need instead of overfetching 800w, which is exactly what Option 3 asked for. The bytes went
-up anyway, and **the cause is the fixtures, measured rather than guessed.** Resizing one
-seeded placeholder — Patagonia's first hero slot, a rasterisation of
-`apps/web/scripts/placeholder.ts`'s striped SVG — with the same `sharp` call Payload makes:
+The browser's choice is correct — it takes the 700w candidate for its 658-device-pixel need
+instead of overfetching 800w, which is exactly what Option 3 asked for. The bytes went up
+anyway.
 
-| source                         | at 400  | at 700    | at 800    | 700 ÷ 800 |
-| ------------------------------ | ------- | --------- | --------- | --------- |
-| seeded stripe placeholder, PNG | 16,722  | 71,724    | 44,237    | **1.62×** |
-| photographic JPEG              | 7,974   | 43,841    | 63,462    | **0.69×** |
-| the same photograph as PNG     | 294,648 | 1,008,825 | 1,345,787 | **0.75×** |
+#### The cause is fixture GEOMETRY, not fixture content
 
-A hard-edged periodic pattern resampled to 700 aliases into many more distinct values per
-row than the same pattern resampled to 800 does, and PNG's row filters — which compress
-the 800px version almost to nothing — have nothing left to exploit. A photograph has no
-such period, and there the rung saves 31% exactly as designed. So `grid` does what Option 3
-said it would for the content this gallery will actually hold, and the reverse for the
-synthetic placeholders it currently holds. This ADR's own reason 1 said the fixtures
-understate a real photograph; it turns out they also MISREPRESENT one, in both directions.
+**A first published account of this said the cause was that the placeholders are
+stripe-pattern PNGs. That was wrong, and the repository's own corpus falsifies it. The
+correction is kept here rather than quietly swapped, because the wrong version went out to a
+controller as a measurement.** Most of the gallery's placeholders are stripe-pattern PNGs
+and the rung makes them SMALLER.
 
-**`resource-summary:image:size` for `/gallery/<slug>` is therefore UNCHANGED at 600,000**,
-and `npm run test:perf` is red on that one assertion at 642,138. Raising it to fit a number
-produced by a stripe pattern would be the mistake this ADR was written to stop — a budget
-recalibrated to whatever the current artefact costs — and lowering it is not available
-either. The three things that would resolve it are each somebody's decision rather than a
-config change: replace the seeded placeholders with real photographs (a content decision,
-and the one this ADR already anticipated); change what `apps/web/scripts/placeholder.ts`
-rasterises, which moves every visual-regression baseline; or accept the number for the
-fixture corpus explicitly, in a decision of its own.
+Every number below is the size of a file physically on disk under `apps/web/media` after
+`npm run db:seed && npm run media:rederive`, reached through each `media` row's own
+`sizes_grid_filename` and `sizes_tile_filename`. Nothing is estimated.
+
+| what `/gallery/patagonia` is made of            | frames | source size, from `seed.ts` | 700 ÷ 800 |
+| ----------------------------------------------- | ------ | --------------------------- | --------- |
+| `SLOT_SIZE.hero` placeholder                    | 1      | 1200×900                    | 0.834     |
+| `SLOT_SIZE.ephemera` placeholder                | 1      | 1200×560                    | 0.678     |
+| **`SLOT_SIZE.frame` in-book slot placeholders** | **7**  | **1000×800**                | **1.621** |
+| `GALLERY_FRAME_SIZE` gallery-only placeholders  | 52     | 900×900                     | 0.816     |
+
+|                                   | at 700px  | at 800px  | ratio     |
+| --------------------------------- | --------- | --------- | --------- |
+| the nine tiles the gate measures  | 645,733   | 501,435   | **1.288** |
+| all 61 frames of the same gallery | 4,046,096 | 4,672,127 | **0.866** |
+
+**So the rung saves 13% across the gallery and costs 29% across the nine tiles the budget
+looks at.** The inversion is confined to the seven `SLOT_SIZE.frame` placeholders — and
+those seven sit inside the measured nine by construction, because `seed.ts` numbers the nine
+in-book slots before every gallery-only frame, so they are exactly the tiles a one-column
+viewport loads eagerly.
+
+**Why those seven and not the other 54, measured rather than reasoned.** `seed.ts`
+rasterises the in-book slot placeholder at 1000×800, and a Payload `imageSize` is a
+`sharp(...).resize(n, n, { fit: 'cover', position: 'centre' })`. `cover`'s scale factor is
+`max(n/width, n/height)`, so for a 1000×800 source it is **exactly 1.000 at n = 800** and
+0.875 at n = 700. Checked by comparing raw pixels: the 800×800 derivative of
+`patagonia-a1-*.png` is **byte-for-byte identical to a plain `extract()` centre crop of its
+source**, and the 700×700 derivative is not. The 800px file is therefore a near-lossless
+re-encode of untouched source pixels, which for a hard-edged periodic pattern costs almost
+nothing; the 700px file is the first resample, and resampling that pattern by 0.875 produces
+more distinct values per row than PNG's row filters can exploit. Every other family
+resamples at both rungs (`cover` scale 0.778 and 0.889 for a 900×900 or 1200×900 source),
+and there the larger output is the larger file, as it should be.
+
+**The rule a future reader needs, and the one the first account did not give.** A `cover`
+derivative whose scale factor reaches 1 on both axes is not resampled at all; the rung
+immediately below it is the first that is. **Any tier whose width lands just under a
+fixture's short edge inverts that fixture's cost, whatever the fixture is a picture of.**
+`grid` at 700 did it to a 1000×800 source because `tile` at 800 sits exactly on that
+source's short edge. That is checkable in advance for any proposed rung, against the sizes
+in `seed.ts`, without running Lighthouse at all.
+
+**Two rows were deleted from this section rather than corrected.** The first account also
+carried a "photographic JPEG" and a "photographic PNG" row, offered as the proof that the
+rung saves 31% for real content. They named no file, no dimensions and no command, so nobody
+could re-measure the rows the conclusion turned on — the defect species this phase has spent
+itself on. They are gone. The 0.816 and 0.866 above answer the same question better, because
+they are files in this repository.
+
+#### What the gate is doing, and what would actually move it
+
+**`resource-summary:image:size` for `/gallery/<slug>` is UNCHANGED at 600,000**, and
+`npm run test:perf` is red on that one assertion at 642,138. Raising it to fit a number
+produced by a fixture-geometry collision would be the mistake this ADR was written to stop —
+a budget recalibrated to whatever the current artefact costs — and lowering it is not
+available either. Three options act on the real lever; each is a decision rather than an
+edit:
+
+1. **Change `SLOT_SIZE.frame` so no ladder rung sits on the source's short edge.** One
+   constant in `apps/web/scripts/seed.ts`. Measured with the repository's own rasteriser and
+   Patagonia's own accent: that placeholder at 1000×800 gives 16,722 / 71,724 / 44,237 at
+   400 / 700 / 800 — ratio 1.621, reproducing the on-disk file to the byte — and at 1000×900
+   gives 21,104 / 65,188 / 76,278, **ratio 0.855, inversion gone**. The nine measured tiles
+   would fall from 645,733 to roughly 598,135 bytes on disk. **That is under 600,000 by
+   0.3%, which is not headroom**, and it is a prediction from file sizes rather than a
+   Lighthouse run, so it would need its own measurement. It also changes seeded pixels, so
+   every visual baseline showing an in-book slot photograph is regenerated.
+2. **Accept the number for this corpus and record it.** The only option that changes no
+   pixels. The gate would then be measuring nine tiles, seven of which are fixtures whose
+   geometry collides with the ladder, and that fact would have to be written where the gate
+   is and not only here.
+3. **Replace the seeded placeholders with real photographs.** Still available, and it was
+   this ADR's own anticipation. It removes the collision incidentally — a photograph's
+   dimensions are unlikely to land on a rung — rather than deliberately, and it is the most
+   expensive of the three.
 
 **The gate is still a detector, re-measured rather than assumed.** `Tile.tsx`'s
 `loading="lazy"` was changed to `"eager"` on a throwaway local build — nothing committed —
 and the same route measured once under the same settings: 60 requests and 4,009,810 bytes,
-**6.68×** the 600,000 limit. Nine tiles versus sixty, so lazy-loading is intact and the
-budget still catches what it exists to catch. It is not the 4,600,585 this ADR measured,
-and no cause is offered for the difference here: the corpus was re-derived between the two
-measurements and the gallery's sixty placeholders are not all the same size, so anything
-said about WHY would be an explanation nobody ran. What was measured is the request count —
-60 against 9 — and that is what the assertion is about.
+**6.68×** the 600,000 limit. Nine tiles against sixty, so lazy-loading is intact and the
+budget still catches what it exists to catch. It is not the 4,600,585 this ADR measured, and
+no cause is offered for the difference here: the corpus was re-derived between the two
+measurements, so anything said about why would be an explanation nobody ran. What was
+measured is the request count — 60 against 9 — and that is what the assertion is about. The
+same caution applies to the 477,329 in the table above: it was measured on the
+pre-re-derivation corpus, whose 800px derivatives sum to 501,435 on disk today, so it is this
+ADR's historical number and not a baseline to subtract from.
+
+#### The rung's saving is narrow-band, and centred on the measuring device
+
+A 700w candidate is only ever chosen when a tile's device-pixel need lands in **(400, 700]** —
+the ladder offers 400, 700 and 800, and a browser takes the smallest candidate that covers
+the need. Lighthouse's emulation, 412 CSS px at DPR 1.75, gives this ADR's 658, inside that
+band. It is not where most readers are: `e2e/gallery.spec.ts`'s own measurement records a
+one-column tile at **354 CSS px** on the 390px project, which needs 708 device pixels at
+DPR 2 and 1,062 at DPR 3 — both above 700, both still taking the 800w candidate exactly as
+before. So on the phones readers actually hold the rung is neutral rather than a saving. It
+is a saving at the viewport this budget is measured at, which is what Option 3 was written
+against and what it delivers.
