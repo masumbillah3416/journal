@@ -357,10 +357,13 @@ export const workerDeps = async (storage: StoragePort): Promise<IngestDeps> => {
  * flipBits('0000000000000000', 1) // '0100000000000000'
  */
 export const flipBits = (hash: string, bits: number): string =>
-  (hash.match(/../g) ?? [])
-    .map((pair, index) => (index < bits ? Number.parseInt(pair, 16) ^ 0x01 : Number.parseInt(pair, 16)) >>> 0)
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('')
+  // Indexed rather than `hash.match(/../g)`, which answers `null` for a hash
+  // this helper is never given and would buy a branch nothing can take.
+  Array.from({ length: Math.floor(hash.length / 2) }, (_unused, index) =>
+    (Number.parseInt(hash.slice(index * 2, index * 2 + 2), 16) ^ (index < bits ? 0x01 : 0x00))
+      .toString(16)
+      .padStart(2, '0'),
+  ).join('')
 
 /**
  * Fills a journey with rows that are not photographs anybody will match.
