@@ -59,9 +59,14 @@
  * process in this repository**, so that mode would store an un-stripped
  * original — GPS EXIF intact — at `state: 'processing'` and never advance it.
  * **`MEDIA_PIPELINE=worker` therefore does not boot** (`../env.ts`), and a row
- * that is not `ready` is withheld from a signed-out reader by
- * `apps/web/collections/media.ts`'s `read` access. Two controls, deliberately
- * independent: the second holds if somebody deletes the first. This paragraph
+ * that is not `ready` is withheld from an unauthenticated reader by
+ * `apps/web/collections/media.ts`'s `read` access — which gates
+ * `/api/media/file/<name>` and every derivative — and from the gallery's grid,
+ * census and download handler by `../galleryFrames.ts`'s `galleryFrameWhere`,
+ * which is what those three readers use instead, since they override access.
+ * Two controls, deliberately independent: the second holds if somebody deletes
+ * the first. This sentence named only the collection rule, which covers one of
+ * those doors (Task 8 fix review, N1). This paragraph
  * called it "a deployment precondition, recorded here" and recorded it in four
  * documents; documentation was not the control, which is Task 8 review
  * finding 1.

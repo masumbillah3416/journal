@@ -1018,7 +1018,9 @@ describe('readBookBundle', () => {
       ] as const) {
         await payload.create({
           collection: 'media',
-          data: { journey: created.id, kind, alt: `census ${kind}`, order: 0 },
+          // `state: 'ready'`: the census counts gallery frames, and
+          // `galleryFrames.ts` withholds a row the pipeline has not finished.
+          data: { journey: created.id, kind, alt: `census ${kind}`, order: 0, state: 'ready' },
           file: { data: png, mimetype: 'image/png', name, size: png.length },
         })
       }

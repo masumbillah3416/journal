@@ -215,7 +215,10 @@ describe('readGalleryBundle', () => {
           .toBuffer()
         await payload.create({
           collection: 'media',
-          data: { journey: journeyId, kind: 'still', alt: label, caption: label, ...extra },
+          // `state: 'ready'`: these are finished uploads, and the gallery's
+          // filter withholds a row that is not (`galleryFrames.ts`). The
+          // field's default is `processing`.
+          data: { journey: journeyId, kind: 'still', alt: label, caption: label, state: 'ready', ...extra },
           file: { data: png, mimetype: 'image/png', name: `${label}.png`, size: png.length },
         })
       }
@@ -226,6 +229,10 @@ describe('readGalleryBundle', () => {
       // Smaller than the smallest derivative tier (400px), so Payload
       // generates none at all - the unprocessed-upload case.
       await upload('test-no-derivative', 100, { order: 3 })
+      // A row the pipeline has not finished. Its stored bytes may be an
+      // un-stripped original - that is what `MEDIA_PIPELINE=worker` records,
+      // and what a crashed `inline` upload leaves behind.
+      await upload('test-processing', 900, { order: 4, state: 'processing' })
     }, SETUP_TIMEOUT_MS)
 
     afterAll(async () => {
@@ -254,6 +261,22 @@ describe('readGalleryBundle', () => {
 
       expect(bundle?.frames.map((frame) => frame.alt)).not.toContain('test-no-derivative')
       expect(bundle?.frames.map((frame) => frame.alt)).toContain('test-visible')
+    })
+
+    it('omits a frame the pipeline has not finished, since its bytes may be an unstripped original', async () => {
+      // THIS READER OVERRIDES ACCESS, so `Media.access.read`'s own `state`
+      // clause never runs for it; the filter in `galleryFrames.ts` is what
+      // closes this door, and it is the same one the download handler and the
+      // census share (Task 8 fix review, N1). The positive control is in the
+      // same assertion: a finished frame IS listed, so an empty grid cannot
+      // pass this.
+      const bundle = await readGalleryBundle('test-gallery')
+
+      const listed = bundle?.frames.map((frame) => frame.alt) ?? []
+      expect({ unfinished: listed.includes('test-processing'), finished: listed.includes('test-visible') }).toEqual({
+        unfinished: false,
+        finished: true,
+      })
     })
 
     it('shows a frame the editor has withheld a download for, without offering the download', async () => {

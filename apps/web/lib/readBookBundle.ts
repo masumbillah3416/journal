@@ -638,6 +638,24 @@ export const readBookBundle = cache(async (): Promise<BookBundle> => {
   // docs (verified against Postgres directly) - no special-casing an empty
   // `mediaIds` saves a query in a "book with no photos at all" case that
   // never occurs in practice, at the cost of an untestable branch.
+  //
+  // ═══ THIS QUERY FILTERS NEITHER `hidden` NOR `state`, DELIBERATELY ═══
+  //
+  // It resolves media BY ID, from slots an author placed on a page - not a
+  // listing of what a journey holds, which is `galleryFrames.ts`'s job and
+  // where both filters are applied. Dropping a row here does not hide a
+  // photograph; it makes `withSlots` throw for the whole book, because a slot
+  // that resolves to nothing is a page this module cannot build. One
+  // unfinished upload would take the entire diary down rather than leave one
+  // frame empty.
+  //
+  // The security question is closed elsewhere and this is where to look for
+  // it: `collections/media.ts` withholds a non-`ready` row from an
+  // unauthenticated reader, and Payload applies that to
+  // `/api/media/file/<name>` and every derivative - so the bytes of such a row
+  // are not served even while its `src` appears in this bundle. What a reader
+  // gets is an image that does not load, which is what `hidden` has always
+  // done here and for the same reason (Task 8 fix review, N1).
   const mediaResult = await payload.find({
     collection: 'media',
     depth: 0,

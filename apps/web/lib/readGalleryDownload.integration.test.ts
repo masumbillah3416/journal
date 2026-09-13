@@ -69,7 +69,11 @@ describe('readGalleryDownload', () => {
         .toBuffer()
       const created = await payload.create({
         collection: 'media',
-        data: { journey: owner, kind: 'still', alt: label, caption: label, ...extra },
+        // `state: 'ready'` because these fixtures ARE finished uploads: the
+        // gallery's own filter withholds a row the pipeline has not finished
+        // (`galleryFrames.ts`), and the field's default is `processing`, so a
+        // fixture that omitted it would be testing the wrong row.
+        data: { journey: owner, kind: 'still', alt: label, caption: label, state: 'ready', ...extra },
         file: { data: png, mimetype: 'image/png', name: `${label}.png`, size: png.length },
       })
       ids[label] = String(created.id)
@@ -80,6 +84,11 @@ describe('readGalleryDownload', () => {
     await upload('dl-hidden', journeyId, { order: 2, hidden: true })
     await upload('dl-withheld', journeyId, { order: 3, allowDownload: false })
     await upload('dl-elsewhere', otherJourneyId, { order: 0 })
+    // A row the pipeline has not finished. Under `MEDIA_PIPELINE=worker` its
+    // stored bytes are the un-stripped original; a crashed `inline` upload
+    // leaves the same state. This handler serves bytes, so it is one of the
+    // four public doors the state filter has to close.
+    await upload('dl-processing', journeyId, { order: 5, state: 'processing' })
     // PH1-002. `role` lives on the `pages` slot, not on the media row, so the
     // only thing that makes a media item the Notes page's decorative scrap is
     // a slot printing it as one. The row itself is an ordinary upload.
@@ -130,6 +139,17 @@ describe('readGalleryDownload', () => {
 
   it('refuses a frame an editor has hidden', async () => {
     const result = await readGalleryDownload('test-download', ids['dl-hidden'] ?? '')
+
+    expect(result.ok).toBe(false)
+  })
+
+  it('refuses a frame the pipeline has not finished, whose bytes may be an unstripped original', async () => {
+    // THE DOOR THE COLLECTION'S OWN `read` RULE DOES NOT COVER. This reader
+    // runs through the Local API with no user, so `Media.access.read` - and
+    // with it its `state` clause - never executes; what closes it is
+    // `galleryFrames.ts`'s own filter, which this handler shares with the grid
+    // and the census (Task 8 fix review, N1).
+    const result = await readGalleryDownload('test-download', ids['dl-processing'] ?? '')
 
     expect(result.ok).toBe(false)
   })

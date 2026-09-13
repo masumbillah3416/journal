@@ -16,8 +16,8 @@
  * census that kept it has the page print "9 photographs" over a grid of
  * eight. All three now ask this module.
  *
- * A GALLERY FRAME IS A PHOTOGRAPH OF THE JOURNEY, and two things that are
- * neither are excluded here:
+ * A GALLERY FRAME IS A PHOTOGRAPH OF THE JOURNEY, and three things that are
+ * not are excluded here:
  *
  *   1. `hidden`, WHICH IS A SECURITY REQUIREMENT RATHER THAN A PREFERENCE.
  *      `collections/media.ts` withholds a hidden row from an unauthenticated
@@ -29,7 +29,25 @@
  *      caller that had never applied it: nothing in the seed is hidden, so a
  *      count that included hidden rows was a defect no fixture could show.
  *
- *   2. THE NOTES PAGE'S EPHEMERA SCRAP. `docs/deviations.md` §13.4 already
+ *   2. A ROW THE PIPELINE HAS NOT FINISHED, WHICH IS THE SAME KIND OF
+ *      REQUIREMENT AS `hidden` AND WAS ADDED FOR THE SAME REASON IT WAS.
+ *      `collections/media.ts` withholds a row that is not `ready` from an
+ *      unauthenticated reader because its stored bytes may be an original
+ *      nothing has stripped - under `MEDIA_PIPELINE=worker` that is exactly
+ *      what they are, and a crashed `inline` upload leaves the same state.
+ *      That rule gates `/api/media/file/<name>` and nothing else: these three
+ *      callers override access, so without the clause here a `processing` row
+ *      is LISTED in the grid, COUNTED in the census, and its bytes are served
+ *      by `/gallery/<slug>/download/<id>` - our own handler, which SECURITY.md
+ *      requires precisely so that bytes go through our decisions. The
+ *      collection rule was called "the control that holds if somebody deletes
+ *      the env refusal" while covering one of the four public doors (Task 8
+ *      fix review, N1). `null` is admitted, exactly as the collection admits
+ *      it: `docs/deviations.md` §48's migration deliberately did not backfill,
+ *      so a null state means "written before the column existed" and every
+ *      such row predates any pipeline.
+ *
+ *   3. THE NOTES PAGE'S EPHEMERA SCRAP. `docs/deviations.md` §13.4 already
  *      settles what that slot holds - "a texture behind tape rather than a
  *      photograph with a subject", carried with an empty `alt` so it is out
  *      of the accessibility tree - and `SCREENS.md` §1.8's grid is the
@@ -132,8 +150,9 @@ export const ephemeraMediaIds = (pages: readonly PageSlotSource[]): readonly num
  * @param journeyNumericIds - The owning journeys' Payload ids - one for a
  *   gallery, every journey in the book for the census.
  * @param decorativeMediaIds - The ids {@link ephemeraMediaIds} found.
- * @returns A Payload `where` admitting those journeys' visible photographs and
- *   nothing else - see this module's header for what "nothing else" excludes.
+ * @returns A Payload `where` admitting those journeys' visible, finished
+ *   photographs and nothing else - see this module's header for what "nothing
+ *   else" excludes.
  * @example
  * galleryFrameWhere([7], [20])
  */
@@ -144,6 +163,9 @@ export const galleryFrameWhere = (
   and: [
     { journey: { in: [...journeyNumericIds] } },
     { hidden: { not_equals: true } },
+    // Spelled the same way `collections/media.ts`'s reader rule spells it, and
+    // for the same reason - see this module's header, exclusion 2.
+    { or: [{ state: { equals: 'ready' } }, { state: { exists: false } }] },
     // Omitted rather than passed as an empty `not_in`: a book with no scrap
     // anywhere should produce the same query it always did.
     ...(decorativeMediaIds.length > 0 ? [{ id: { not_in: [...decorativeMediaIds] } }] : []),

@@ -81,31 +81,50 @@ describe('ephemeraMediaIds', () => {
 })
 
 describe('galleryFrameWhere', () => {
+  /** The state clause, spelled once so each case below reads as one idea. */
+  const FINISHED = { or: [{ state: { equals: 'ready' } }, { state: { exists: false } }] }
+
   it('admits the journey’s own media and withholds anything hidden', () => {
     // The `hidden` half is a security requirement, not a preference: all three
     // callers run through the Local API with no user, where the collection's
     // own reader rule is overridden - see the module header and SECURITY.md.
     expect(galleryFrameWhere([7], [])).toEqual({
-      and: [{ journey: { in: [7] } }, { hidden: { not_equals: true } }],
+      and: [{ journey: { in: [7] } }, { hidden: { not_equals: true } }, FINISHED],
     })
+  })
+
+  it('withholds a row the pipeline has not finished, since its bytes may be an unstripped original', () => {
+    // THE SAME KIND OF REQUIREMENT AS `hidden`, and it arrived late for the
+    // same reason: `collections/media.ts` gates `state` for an
+    // access-controlled read, and all three of this module's callers override
+    // access - so without this clause a `processing` row is listed in the grid,
+    // counted in the census and downloadable through our own handler.
+    expect(galleryFrameWhere([7], []).and).toContainEqual(FINISHED)
+  })
+
+  it('admits a row with no state at all, which is what every row written before the column means', () => {
+    // `docs/deviations.md` §48's migration deliberately did not backfill.
+    // Withholding those would take the public diary dark to close a hole they
+    // cannot be in - the same bound the collection rule draws.
+    expect(FINISHED.or).toContainEqual({ state: { exists: false } })
   })
 
   it('excludes the decorative scrap by id, which is what takes it out of the grid, the census and the download', () => {
     expect(galleryFrameWhere([7], [20])).toEqual({
-      and: [{ journey: { in: [7] } }, { hidden: { not_equals: true } }, { id: { not_in: [20] } }],
+      and: [{ journey: { in: [7] } }, { hidden: { not_equals: true } }, FINISHED, { id: { not_in: [20] } }],
     })
   })
 
   it('takes every journey in the book at once, so the census is one query rather than ten', () => {
     expect(galleryFrameWhere([7, 8, 9], [20, 44])).toEqual({
-      and: [{ journey: { in: [7, 8, 9] } }, { hidden: { not_equals: true } }, { id: { not_in: [20, 44] } }],
+      and: [{ journey: { in: [7, 8, 9] } }, { hidden: { not_equals: true } }, FINISHED, { id: { not_in: [20, 44] } }],
     })
   })
 
   it('omits the exclusion entirely when there is no scrap, rather than passing an empty not_in', () => {
     // A journey with no ephemera should produce the query it always did, not a
     // clause whose behaviour on an empty list this module would have to know.
-    expect(Object.values(galleryFrameWhere([7], [])).flat()).toHaveLength(2)
+    expect(Object.values(galleryFrameWhere([7], [])).flat()).toHaveLength(3)
   })
 })
 
