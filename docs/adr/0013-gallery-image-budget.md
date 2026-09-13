@@ -217,13 +217,30 @@ edit:
 
 1. **Change `SLOT_SIZE.frame` so no ladder rung sits on the source's short edge.** One
    constant in `apps/web/scripts/seed.ts`. Measured with the repository's own rasteriser and
-   Patagonia's own accent: that placeholder at 1000×800 gives 16,722 / 71,724 / 44,237 at
+   Patagonia's own accent: the A1 placeholder at 1000×800 gives 16,722 / 71,724 / 44,237 at
    400 / 700 / 800 — ratio 1.621, reproducing the on-disk file to the byte — and at 1000×900
-   gives 21,104 / 65,188 / 76,278, **ratio 0.855, inversion gone**. The nine measured tiles
-   would fall from 645,733 to roughly 598,135 bytes on disk. **That is under 600,000 by
-   0.3%, which is not headroom**, and it is a prediction from file sizes rather than a
-   Lighthouse run, so it would need its own measurement. It also changes seeded pixels, so
-   every visual baseline showing an in-book slot photograph is regenerated.
+   gives 21,104 / 65,188 / 76,278, **ratio 0.855, inversion gone**.
+
+   **The seven in-book slots are seven different placeholders and have to be summed as
+   seven.** Each carries its own label, so its own bytes; A1's figure cannot stand for the
+   others, and an earlier version of this paragraph multiplied it by seven and understated
+   the margin sevenfold. Rendered per label:
+
+   |                                          | A1     | A2     | A3     | B1     | B2     | B3     | B4     | sum         |
+   | ---------------------------------------- | ------ | ------ | ------ | ------ | ------ | ------ | ------ | ----------- |
+   | at 700px, source 1000×800 (today)        | 71,724 | 71,977 | 72,263 | 71,745 | 72,016 | 72,235 | 71,954 | **503,914** |
+   | at 700px, source 1000×900 (the proposal) | 65,188 | 65,649 | 65,765 | 64,885 | 65,514 | 65,759 | 65,157 | **457,917** |
+
+   The top row reproduces all seven on-disk files to the byte, which is what makes the
+   bottom row worth anything: today's nine minus hero@700 minus ephemera@700 is
+   `645,733 − 67,133 − 74,686 = 503,914`, the top row's sum exactly. So the nine measured
+   tiles would fall from 645,733 to **599,736** bytes on disk — **264 bytes under the
+   600,000 gate, which is 0.04%.** That is not headroom in
+   any sense; it is within rounding of red, and it is a prediction from on-disk file sizes
+   while the gate asserts a five-run median of Lighthouse's _transfer_ size, so taking this
+   option means measuring it rather than trusting this row. It also changes seeded pixels,
+   so every visual baseline showing an in-book slot photograph is regenerated.
+
 2. **Accept the number for this corpus and record it.** The only option that changes no
    pixels. The gate would then be measuring nine tiles, seven of which are fixtures whose
    geometry collides with the ladder, and that fact would have to be written where the gate
