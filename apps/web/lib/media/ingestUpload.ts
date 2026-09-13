@@ -9,12 +9,13 @@
  *
  * HANDOFF-DEVIATION: `DATA_MODEL.md` specifies this pipeline as a
  * `beforeChange` hook on the `media` collection. Payload 3.88.0 calls
- * `generateFileData` — the step that hands the bytes to `sharp` — BEFORE any
- * `beforeChange` hook runs (`payload/dist/collections/operations/create.js`),
- * and this repository's `sharp` decodes SVG, so a rejection written there
- * would be a check on a file already rendered. The steps and their order are
- * exactly the handoff's; only their position relative to the write moves.
- * `docs/deviations.md` §50.
+ * `generateFileData` — the step that hands the bytes to `sharp` — BEFORE the
+ * collection's `beforeValidate` and `beforeChange` hooks
+ * (`payload/dist/collections/operations/create.js`), and this repository's
+ * `sharp` decodes SVG, so a rejection written there would be a check on a file
+ * already rendered. The steps and their order are exactly the handoff's; only
+ * their position relative to the write moves. `docs/deviations.md` §50, which
+ * also records the hook that DOES run earlier and why it is not the answer.
  *
  * ═══ HOW EACH STATE IS ACTUALLY REACHABLE, BECAUSE A DEAD STATE IS WORSE
  *     THAN NONE ═══
@@ -32,6 +33,12 @@
  *   - **`worker`:** the row is created from the STAGED bytes at
  *     `state: 'processing'` and a `transcode` job is enqueued. The worker
  *     sets `'ready'`, or `'failed'` with a reason the Media screen surfaces.
+ *     **NO DUPLICATE DETECTION HAPPENS IN THAT MODE EITHER**, and whoever
+ *     writes the worker owns it: the row is created with no `contentHash`,
+ *     `duplicateIn` is never called, and every upload is stored. The match
+ *     needs a hash, the hash comes out of the pipeline, and the pipeline runs
+ *     on the worker — so duplicate detection is one more thing the worker has
+ *     to do rather than one it inherits.
  *     `docs/adr/0004-media-pipeline-mode.md`'s amendment is what settles this:
  *     the queue hop lives BETWEEN the receiver and the worker, not inside the
  *     port, so ingest does not run the pipeline under `worker` — it records

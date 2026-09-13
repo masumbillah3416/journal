@@ -1039,11 +1039,16 @@ follow: false }`.
 - **Auth requirement:** **signed in.** Built from `guardedAction`, which is what
   `eslint-rules/guarded-server-actions.js` requires of every value export of a
   `'use server'` module.
-- **Notes:** duplicate detection is scoped to ONE journey (`CLAUDE.md` §7), in one query
-  with the journey in its `where`. Under `MEDIA_PIPELINE=worker` the pipeline does not run
-  here at all: the row is created from the staged bytes at `state: 'processing'` and a
-  `transcode` job is enqueued for a worker that does not exist yet — see
-  `docs/runbook.md` for the deployment precondition that carries.
+- **Notes:** **under `MEDIA_PIPELINE=inline`, which is the only mode that boots**,
+  duplicate detection is scoped to ONE journey (`CLAUDE.md` §7), in one query with the
+  journey in its `where`, and the match is perceptual rather than an equality — a re-crop
+  or a re-save of a photograph already in the journey is reported as a copy. **Under
+  `worker` there is no duplicate detection at all:** that mode does not run the pipeline,
+  so the row is created from the staged bytes at `state: 'processing'` with no
+  `contentHash` to match on, and a `transcode` job is enqueued for a worker that has to do
+  the matching as well as the processing. `worker` is refused at `parseEnv` until such a
+  worker exists — see `docs/runbook.md` and `docs/security.md` for the two controls and
+  the order that removes them.
 
 ## Planned routes (Phase 1)
 

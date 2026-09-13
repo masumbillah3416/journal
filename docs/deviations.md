@@ -2157,20 +2157,35 @@ the collection. `apps/web/lib/media/ingestUpload.ts` (Phase 3 Task 8) runs them 
 
 **Rationale, and it is a measurement rather than a preference.** Payload 3.88.0's create
 operation calls `generateFileData` — the step that hands the bytes to `sharp` to probe
-their dimensions and derive every configured image size — **before** it runs any
-collection hook at all, `beforeChange` included
-(`node_modules/payload/dist/collections/operations/create.js`: `generateFileData` at the
-top of the try block, every collection hook loop below it). So an SVG rejection written as a `beforeChange` hook would be a check on a file
-`sharp` had already decoded — and this repository's `sharp` build DECODES SVG
-(`packages/domain/src/media/sniff.ts`'s header carries that measurement). `SECURITY.md`'s
-order is the mechanism, not a convention: nothing may reach a decoder before the policy
-has accepted it. A hook cannot satisfy that order, whatever it contains.
+their dimensions and derive every configured image size — **before it runs the collection's
+`beforeValidate` or `beforeChange` hooks**
+(`node_modules/payload/dist/collections/operations/create.js`: `generateFileData` in the
+try block, the `beforeValidate` and `beforeChange` loops below it). So an SVG rejection
+written as a `beforeChange` hook — which is the hook `DATA_MODEL.md` names — would be a
+check on a file `sharp` had already decoded, and this repository's `sharp` build DECODES
+SVG (`packages/domain/src/media/sniff.ts`'s header carries that measurement).
+`SECURITY.md`'s order is the mechanism, not a convention: nothing may reach a decoder
+before the policy has accepted it.
 
-**The second reason, which would hold even if the ordering did not.** Payload's upload
-collections require a file at `create`, so a hook that wanted to refuse an upload has
-only an exception to refuse it with — a 500 out of a Server Action rather than a typed
-refusal a screen can read — and the row's file would already have been written. Deciding
-before `create` means a refusal creates no row and no file, which is what
+**THIS PARAGRAPH SAID "before it runs any collection hook at all" AND THAT IS FALSE
+(Task 8 review finding 4).** The same file runs the collection's beforeOperation hooks,
+through buildBeforeOperation, at the very top of the same try block — forty lines above
+`generateFileData` — and the Local API sets `req.file` before the operation begins
+(`node_modules/payload/dist/collections/operations/local/create.js`), so a beforeOperation
+hook genuinely can see the bytes first. The over-claim is corrected rather than deleted, because a wrong sentence
+about a security ordering is exactly the thing that gets copied into a fifth document.
+What the measurement does support is the narrower claim above, which is what
+`apps/web/lib/media/ingestUpload.ts`'s own header and `docs/data-model.md` already say.
+A beforeOperation hook is still not the answer here, for the second reason below and for
+one of its own: it is handed the whole operation's arguments rather than a document, so a refusal
+in it is the same exception, at the same point, with the row's file about to be written
+anyway.
+
+**The second reason, which holds independently of the ordering and is the load-bearing
+one.** Payload's upload collections require a file at `create`, so a hook that wanted to
+refuse an upload has only an exception to refuse it with — a 500 out of a Server Action
+rather than a typed refusal a screen can read — and the row's file would already have been
+written. Deciding before `create` means a refusal creates no row and no file, which is what
 _"creates no row at all when the bytes are refused"_ asserts by counting the collection.
 
 **What is NOT changed by this:** every step, and their order, is exactly `DATA_MODEL.md`'s
