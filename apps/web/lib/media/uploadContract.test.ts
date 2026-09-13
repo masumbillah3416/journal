@@ -19,6 +19,17 @@
  *      route file's text in the `unit` project is established here —
  *      `apps/web/lib/auth/adminGuardRegistration.test.ts` walks the whole
  *      `app/` tree that way.
+ *
+ *      IT MATCHES EVERY SPELLING THAT IS EQUALLY CORRECT, AND NO MORE.
+ *      `export const PUT = …`, `export function PUT(…)` and
+ *      `export async function PUT(…)` are the three ways Next.js takes a
+ *      handler of this name, and a refactor between them breaks nothing — a
+ *      check that failed on one of them would be failing for the wrong reason,
+ *      and the temptation at that moment is to loosen it until it stops
+ *      biting. A FOURTH form arriving means adding it here, deliberately,
+ *      never widening the pattern to something that would also match a comment
+ *      or a re-export: what must keep failing is a handler that is absent,
+ *      renamed, or exported under a method this constant does not name.
  *   2. **The pipeline's own accepted-type list.** `acceptedIngestTypes`
  *      (`packages/domain/src/media/ingestPolicy.ts`) is derived from the
  *      domain's `STILL_TYPES`, which no part of this contract touches. A
@@ -46,9 +57,15 @@ describe('EXPECTED_UPLOAD_REQUEST', () => {
   it('names the HTTP method the upload route actually mounts', () => {
     const source = readFileSync(UPLOAD_ROUTE, 'utf8')
 
-    // Next.js mounts a method by the exported NAME, so this line is the app's
-    // own statement of what it answers - not a literal restating the constant.
-    expect(source).toContain(`export const ${EXPECTED_UPLOAD_REQUEST.method} = `)
+    // Next.js mounts a method by the exported NAME, so this is the app's own
+    // statement of what it answers - not a literal restating the constant. The
+    // three spellings are the ones Next.js treats identically; see the header
+    // for why a fourth gets added rather than the pattern loosened.
+    const exported = new RegExp(
+      String.raw`export (?:const ${EXPECTED_UPLOAD_REQUEST.method} =|(?:async )?function ${EXPECTED_UPLOAD_REQUEST.method}\()`,
+    )
+
+    expect(source).toMatch(exported)
   })
 
   it('names a content type the configured pipeline would actually accept', () => {
