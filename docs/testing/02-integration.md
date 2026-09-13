@@ -86,6 +86,17 @@ numbers are `docs/testing.md`'s and do not change.
   trade-off `diary` itself already makes; isolation, not a fresh database every time, is
   the fix.
 
+  **ONE DEVELOPER AT A TIME, AND NOTHING ENFORCES IT.** `vitest.integration.config.ts`'s
+  `fileParallelism: false` orders files _within_ a run; it guards nothing between two runs,
+  and `diary_test` has no lock. **Two integration runs at once corrupt each other's seed** —
+  both find no journeys, both create ten — so leaving `npm run verify:full` going and
+  starting `npm run test:integration` beside it is the one way to break this suite without
+  touching it. The symptom is a doubled count rather than an error
+  (`expected [ … ] to have a length of 33 but got 66`, and four more like it), and because
+  the database settles once both runs finish their cleanup, **the re-run passes** — which is
+  exactly how a suite that was never broken acquires a `test.skip`. Measured in Phase 3
+  Task 10/11; nothing was changed to make the serial re-run green.
+
   **THAT CONNECTION STRING IS DERIVED FROM THE ENVIRONMENT'S OWN `DATABASE_URL`, AND USED
   NOT TO BE.** Both configs held `postgres://diary:diary@localhost:5433/diary_test` as a
   literal, and 5433 is one developer's Docker port mapping (`docs/deviations.md` §45).

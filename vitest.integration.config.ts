@@ -126,6 +126,17 @@ export default defineConfig({
     // and collections.integration.test.ts migrates the schema down and up as
     // part of its own test - concurrent files would race real DDL against
     // real reads/writes.
+    //
+    // IT ORDERS FILES WITHIN ONE RUN, AND GUARDS NOTHING BETWEEN TWO RUNS.
+    // `diary_test` is shared and nothing locks it, so a second integration
+    // run started while one is in flight corrupts both: two seeds each find
+    // no journeys and each create ten. The symptom is a DOUBLED COUNT rather
+    // than an error - `expected [ ... ] to have a length of 33 but got 66` -
+    // and the database settles afterwards, so a re-run passes and the suite
+    // reads as flaky. Measured in Phase 3 Task 10/11, where a background
+    // `verify:full` and a foreground `test:integration` overlapped. Do not
+    // run two of these at once; docs/testing/02-integration.md's Isolation
+    // bullet says the same where a developer meets the question.
     fileParallelism: false,
     coverage: {
       provider: 'v8',
