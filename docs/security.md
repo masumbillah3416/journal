@@ -57,7 +57,7 @@ both Postgres and the media bucket hold content worth restoring.
 | Media served from a separate origin                                               | NOT DISCHARGED — deploy-time, not code                       | [read](#media-served-from-a-separate-origin)                                             |
 | A hidden media item stays hidden from a signed-out reader                         | Discharged in Phase 1 Task 10                                | [read](#a-hidden-media-item-stays-hidden-from-a-signed-out-reader)                       |
 | Downloads through our handler                                                     | Discharged in Phase 1 Task 14                                | [read](#downloads-through-our-handler)                                                   |
-| `passwordProtect` gates server-side                                               | NOT DISCHARGED                                               | [read](#passwordprotect-gates-server-side)                                               |
+| `passwordProtect` gates server-side                                               | NOT DISCHARGED — the gate; its first reader exists           | [read](#passwordprotect-gates-server-side)                                               |
 | `indexGalleries` respected                                                        | HALF DISCHARGED                                              | [read](#indexgalleries-respected)                                                        |
 | Secrets in the platform store                                                     | Phase 0 for repo hygiene; platform store at deploy           | [read](#secrets-in-the-platform-store)                                                   |
 | Offsite backups of Postgres **and** the bucket, restore tested                    | Phase 3                                                      | [read](#offsite-backups-of-postgres-and-the-bucket-restore-tested)                       |
@@ -790,7 +790,7 @@ invisible in a screenshot, since the page laid out perfectly with empty frames
 `packages/domain/src/galleryDownload.ts`. Never a bucket URL: the `href` the lightbox renders is
 `galleryDownloadPath`'s root-relative path — no scheme, no authority, both segments
 percent-encoded — so it cannot resolve to `MEDIA_ORIGIN` or to any other origin. The handler
-serves a **derivative** (`hero`, else `frame`, else `tile`, else `thumb`; never `hero2x`, and
+serves a **derivative** (`hero`, else `frame`, else `tile`, else `grid`, else `thumb`; never `hero2x`, and
 never the uploaded original) with `Content-Disposition: attachment`, a `Content-Type` from a
 three-value allowlist that refuses `image/svg+xml` by name rather than by hoping the upload
 pipeline did, `X-Content-Type-Options: nosniff` and `X-Robots-Tag: noindex`. It verifies four
@@ -813,17 +813,30 @@ allowlist, the derived filename, the root-relative path), and in the browser by
 
 **Discharged by.** a client-side check leaves the content fetchable
 
-**Discharged in.** **NOT DISCHARGED. This row named Phase 1 (diary routing) as the discharge and
-nothing in the tree reads the field** — the only non-comment occurrence of `passwordProtect`
-anywhere is its declaration at `apps/web/globals/site.ts`. No route, no bundle reader and no
-middleware consults it, and `apps/web/app/(diary)/gallery/[slug]/download/[id]/route.ts` says so
-in its own comment, which states that the first time a gate exists in front of a journey this
-header must become `private`. So a book with the setting on is served to anybody, exactly as
-`SECURITY.md` warns. It is Phase 4's, for the same reason its neighbour `indexGalleries` is: the
-Settings screen that would let an author turn it on is Phase 4's, and a gate over a setting
-nothing can set is a gate nobody can test. Phase 2's final whole-branch review found this row
-claiming a completed server-side content gate that does not exist (finding 25); it is the reason
-the neighbouring row's honest **HALF DISCHARGED** treatment is the standard for this column.
+**Discharged in.** **STILL NOT DISCHARGED: THERE IS NO GATE.** Nothing in this repository
+refuses a request because `site.passwordProtect` is on — no route, no bundle reader and no
+middleware — so a book with the setting on is served to anybody, exactly as `SECURITY.md` warns.
+That remains Phase 4's, for the same reason its neighbour `indexGalleries` is: the Settings
+screen that would let an author turn it on is Phase 4's, and a gate over a setting nothing can
+set is a gate nobody can test. Phase 2's final whole-branch review found this row claiming a
+completed server-side content gate that does not exist (finding 25); it is the reason the
+neighbouring row's honest **HALF DISCHARGED** treatment is the standard for this column, and why
+this one is not being relabelled now.
+
+**What changed in Phase 3 Task 11, and it is not the gate.** The flag now has exactly one
+reader: `apps/web/lib/readGalleryDownload.ts` selects it (`depth: 0`, that one field) and
+`downloadCacheControl` (`packages/domain/src/galleryDownload.ts`) turns it into the download's
+`Cache-Control` — `private, no-store` when it is on, `public, max-age=3600` when it is not. That
+closes a debt the download route had carried in a comment since Phase 1: it sent a hard-coded
+`public`, which is cacheable by any proxy between us and the reader and would therefore OUTLIVE
+a gate. So the header is the half that would otherwise silently undo the gate on the day it
+lands, and it is now written and tested — `marks every download uncacheable once the whole book
+is password protected` (`apps/web/lib/readGalleryDownload.integration.test.ts`, which sets the
+global), `forbids a shared cache from keeping a gated one at all`
+(`packages/domain/src/galleryDownload.test.ts`) and `sends the download's cache policy rather
+than a literal of its own` (`e2e/gallery.spec.ts`, which reads the header off a real response).
+**A reader of the flag is not a gate over it, and this paragraph is not a discharge.** Phase 4
+still owes the refusal itself, and the route's own comment no longer says otherwise.
 
 ### `indexGalleries` respected
 

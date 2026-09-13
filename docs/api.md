@@ -367,12 +367,16 @@ minmax({thumbSize}px, 1fr))` grid of one square tile per visible frame. Its cont
   parameters, both read as opaque strings and matched against the database rather than
   parsed; nothing from the request body or headers is read, so the response never varies
   by caller.
-- **Output:** the bytes of one derivative (`hero`, else `frame`, else `tile`, else
-  `thumb` — never `hero2x`, and never the uploaded original), with
+- **Output:** the bytes of one derivative (`hero`, else `frame`, else `tile`, else `grid`,
+  else `thumb` — never `hero2x`, and never the uploaded original), with
   `Content-Disposition: attachment; filename="<slug>-<nnn>.<ext>"`, a `Content-Type`
   from a three-value allowlist (`image/jpeg`, `image/png`, `image/webp`),
-  `X-Content-Type-Options: nosniff`, `X-Robots-Tag: noindex` and
-  `Cache-Control: public, max-age=3600`. The filename is derived from the journey's slug
+  `X-Content-Type-Options: nosniff`, `X-Robots-Tag: noindex` and a `Cache-Control` that
+  depends on one site setting: `private, no-store` when `site.passwordProtect` is on,
+  `public, max-age=3600` when it is not (`downloadCacheControl`,
+  `packages/domain/src/galleryDownload.ts`). `grid` is ADR 0013's 700px rung, added in
+  Phase 3 Task 10, so a row that could derive no further than it is still downloadable at
+  the best size it has. The filename is derived from the journey's slug
   and the frame's position in the gallery, never from the stored key.
 - **Errors:** `404`, with the body `Not found`, for every refusal: no such journey; the
   journey is unpublished, archived or soft-deleted; no such media row; the row belongs

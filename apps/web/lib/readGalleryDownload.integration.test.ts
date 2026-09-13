@@ -21,7 +21,10 @@
  * Depends on: sharp, vitest, ./testPayload, ./readGalleryDownload, ../scripts/seed.
  */
 import sharp from 'sharp'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { MEDIA_DIR } from '../collections/media'
+import { createLocalStorage } from './adapters/local-storage'
+import { getPayload } from './payload'
 import { readGalleryDownload } from './readGalleryDownload'
 import { getTestPayload } from './testPayload'
 import { seed } from '../scripts/seed'
@@ -37,6 +40,16 @@ describe('readGalleryDownload', () => {
   beforeAll(async () => {
     payload = await getTestPayload()
     await seed(payload)
+    // THE ONE INCONSISTENT STATE THIS FILE CAN LEAVE BEHIND, repaired
+    // narrowly and nowhere else - the same shape `collections.integration.test.ts`'s
+    // migration repairs take. `withPasswordProtect`'s `finally` covers every
+    // ordinary failure; what it cannot cover is the worker being killed
+    // outright between the set and the restore, and `site` is a global the
+    // seed does not write, so a `true` left behind would survive into every
+    // later run of every file. Measured rather than imagined: mutating that
+    // `finally` away left the flag on, and the next run's own `before`
+    // snapshot then restored it to `true` for ever.
+    await payload.updateGlobal({ slug: 'site', depth: 0, data: { passwordProtect: false } })
 
     const journey = await payload.create({
       collection: 'journeys',
@@ -109,6 +122,74 @@ describe('readGalleryDownload', () => {
     await payload.delete({ collection: 'media', where: { journey: { in: [journeyId, otherJourneyId] } } })
     await payload.delete({ collection: 'journeys', where: { slug: { in: ['test-download', 'test-elsewhere'] } } })
   })
+
+  /**
+   * The frame every case that is not about a refusal reads.
+   *
+   * A helper rather than `ids['dl-first']` at each call site so the cases
+   * below say WHICH frame they mean rather than which key they index.
+   * @returns The first visible frame's id, as the URL would carry it.
+   */
+  const aSeededFrameId = (): string => ids['dl-first'] ?? ''
+
+  /**
+   * Runs `body` with `site.passwordProtect` set, and puts it back afterwards.
+   *
+   * The restore is in a `finally` and is not optional: the global is shared by
+   * every case in this file and by every file in the run, so a case that left
+   * the site gated would silently change what the cases after it measure.
+   * @param gated - What to set the flag to for the duration.
+   * @param body - The assertion to run while it is set.
+   */
+  const withPasswordProtect = async (gated: boolean, body: () => Promise<void>): Promise<void> => {
+    const before = await payload.findGlobal({ slug: 'site', depth: 0, select: { passwordProtect: true } })
+    await payload.updateGlobal({ slug: 'site', depth: 0, data: { passwordProtect: gated } })
+    try {
+      await body()
+    } finally {
+      await payload.updateGlobal({
+        slug: 'site',
+        depth: 0,
+        data: { passwordProtect: before.passwordProtect ?? false },
+      })
+    }
+  }
+
+  /**
+   * A frame whose widest derivative is ADR 0013's `grid` rung.
+   *
+   * 750px square: wide enough for `thumb` (400) and `grid` (700), too narrow
+   * for `tile` (800) and everything above it. Payload skips a size whose
+   * target exceeds the source, so this is the only shape that puts `grid` at
+   * the head of `DOWNLOAD_TIERS`' preference order.
+   * @returns The frame's id and the bytes of both derivatives it carries.
+   */
+  const aRowWithOnlyTheSmallTiers = async (): Promise<{
+    readonly id: string
+    readonly gridBytes: Buffer
+    readonly thumbBytes: Buffer
+  }> => {
+    const png = await sharp({ create: { width: 750, height: 750, channels: 3, background: '#4a6b3c' } })
+      .png()
+      .toBuffer()
+    const created = await payload.create({
+      collection: 'media',
+      data: { journey: journeyId, kind: 'still', alt: 'dl-narrow', caption: 'dl-narrow', state: 'ready', order: 6 },
+      file: { data: png, mimetype: 'image/png', name: 'dl-narrow.png', size: png.length },
+    })
+    ids['dl-narrow'] = String(created.id)
+    const store = createLocalStorage(MEDIA_DIR)
+    const read = async (filename: string | null | undefined): Promise<Buffer> => {
+      const bytes = await store.get(filename ?? '')
+      if (!bytes.ok) throw new Error(`the fixture's own derivative is not in the store: ${bytes.error}`)
+      return Buffer.from(bytes.value)
+    }
+    return {
+      id: String(created.id),
+      gridBytes: await read(created.sizes?.grid?.filename),
+      thumbBytes: await read(created.sizes?.thumb?.filename),
+    }
+  }
 
   it('serves a derivative’s real bytes', async () => {
     const result = await readGalleryDownload('test-download', ids['dl-first'] ?? '')
@@ -194,6 +275,53 @@ describe('readGalleryDownload', () => {
     ])
 
     expect(new Set(refusals.map((refusal) => (refusal.ok ? 'ok' : refusal.error))).size).toBe(1)
+  })
+
+  it('marks every download uncacheable once the whole book is password protected', async () => {
+    // SECURITY.md: "The `password the whole book` setting must gate
+    // server-side." A gate the CDN never heard about is a client-side check
+    // wearing a server's clothes.
+    await withPasswordProtect(true, async () => {
+      const attachment = await readGalleryDownload('test-download', aSeededFrameId())
+
+      expect(attachment.ok ? attachment.value.cacheControl : null).toBe('private, no-store')
+    })
+  })
+
+  it('marks an ungated download cacheable by a shared cache', async () => {
+    // DELIBERATELY AFTER THE GATED CASE, which is what makes
+    // `withPasswordProtect`'s restore a mechanism rather than a hope: run it
+    // first and nothing in this file would notice a `finally` that stopped
+    // putting the flag back. Vitest runs `it`s in declaration order, so this
+    // case reads the global the case above was responsible for restoring.
+    const attachment = await readGalleryDownload('test-download', aSeededFrameId())
+
+    expect(attachment.ok ? attachment.value.cacheControl : null).toBe('public, max-age=3600')
+  })
+
+  it('reads the site global exactly once per download, so the header costs no extra round trip', async () => {
+    const spy = vi.spyOn(await getPayload(), 'findGlobal')
+
+    await readGalleryDownload('test-download', aSeededFrameId())
+
+    expect(spy.mock.calls).toHaveLength(1)
+    expect(spy.mock.calls[0]?.[0]).toMatchObject({ depth: 0, select: { passwordProtect: true } })
+    spy.mockRestore()
+  })
+
+  it('serves the grid derivative when it is the largest tier a row carries', async () => {
+    // ADR 0013's rung is a DOWNLOAD tier as well as a gallery one. Before it
+    // joined `DOWNLOAD_TIERS` the handler fell past it to the 400px `thumb`,
+    // which answers `ok` too - so `ok` alone would assert nothing here, and
+    // the bytes are compared instead.
+    const narrow = await aRowWithOnlyTheSmallTiers()
+
+    const attachment = await readGalleryDownload('test-download', narrow.id)
+
+    // The sentinel: two derivatives that happened to be byte-identical would
+    // make the assertion below pass whichever one was served.
+    expect(narrow.gridBytes.length).not.toBe(narrow.thumbBytes.length)
+    expect(attachment.ok ? Buffer.from(attachment.value.bytes) : null).toEqual(narrow.gridBytes)
   })
 
   it('refuses a download from a journey an editor unpublishes', async () => {

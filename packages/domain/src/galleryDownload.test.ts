@@ -20,6 +20,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   DOWNLOADABLE_CONTENT_TYPES,
+  downloadCacheControl,
   downloadContentType,
   downloadFilename,
   galleryDownloadPath,
@@ -112,5 +113,20 @@ describe('downloadFilename', () => {
 
   it('falls back to a neutral stem when a slug reduces to nothing at all', () => {
     expect(downloadFilename('../..', 0, 8, 'image/png')).toBe('frame-001.png')
+  })
+})
+
+describe('downloadCacheControl', () => {
+  it('lets a shared cache keep an ungated derivative for an hour', () => {
+    expect(downloadCacheControl({ gated: false })).toBe('public, max-age=3600')
+  })
+
+  it('forbids a shared cache from keeping a gated one at all', () => {
+    // A `public` response is cacheable by any proxy between us and the
+    // reader, and would outlive the gate - so turning passwordProtect on
+    // would leave the derivative served from a cache that never heard about
+    // it. `no-store` rather than `private, max-age=0` because the reader's own
+    // browser cache is a shared machine often enough.
+    expect(downloadCacheControl({ gated: true })).toBe('private, no-store')
   })
 })

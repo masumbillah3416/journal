@@ -18,7 +18,7 @@
  * `@travel-diary/domain/galleryDownload`'s, gated at 100%. This file awaits
  * the params, calls that, and turns a `Result` into a `Response`.
  *
- * THREE HEADERS MATTER AND EACH IS A REQUIREMENT RATHER THAN A HABIT:
+ * FOUR HEADERS MATTER AND EACH IS A REQUIREMENT RATHER THAN A HABIT:
  *   - `Content-Disposition: attachment` - SECURITY.md asks for it by name.
  *     It also means a type that somehow slipped the allowlist could not be
  *     rendered as a document in our own origin.
@@ -31,6 +31,14 @@
  *     result; indexing one would put the store's contents in a search index,
  *     which is the enumeration this route exists to prevent, arrived at from
  *     the other side.
+ *   - `Cache-Control` - `private, no-store` once `site.passwordProtect` is on,
+ *     `public, max-age=3600` otherwise. A `public` response is cacheable by
+ *     any proxy between us and the reader and would outlive a gate, so this
+ *     one is a value the route SPENDS rather than writes: `readGalleryDownload`
+ *     reads the flag and `downloadCacheControl` turns it into the string.
+ *
+ * IT TAKES NO DECISIONS, AND THE CACHE HEADER IS NOW THE FOURTH THING THAT
+ * SENTENCE COVERS rather than the one exception to it.
  *
  * EVERY REFUSAL IS THE SAME 404. `readGalleryDownload` returns one `err` for
  * "no such journey", "no such frame", "not this journey's frame", "hidden"
@@ -61,7 +69,8 @@ interface DownloadRouteContext {
  *
  * @param _request - The incoming request. Nothing is read from it: the whole
  *   input is the two path segments, and a download that varied by header
- *   could not be cached.
+ *   could not be cached. The gated/ungated split is not a variation by header
+ *   either - it is one site-wide setting, read from the database.
  * @param context - The route's own parameters.
  * @returns The derivative's bytes, or 404 for any refusal at all.
  */
@@ -80,26 +89,16 @@ export const GET = async (_request: Request, context: DownloadRouteContext): Pro
       'Content-Disposition': `attachment; filename="${attachment.value.filename}"`,
       'X-Content-Type-Options': 'nosniff',
       'X-Robots-Tag': 'noindex',
-      // A derivative is immutable for the life of the media row it belongs
-      // to: replacing a photograph creates new derivative filenames, and this
-      // route is keyed by the row's id, so a stale hour is the worst a reader
-      // can get and a re-upload is not one.
-      //
-      // `public` IS CORRECT TODAY AND BECOMES WRONG THE MOMENT A JOURNEY IS
-      // GATED. Every journey this handler will serve is published and
-      // unauthenticated, so there is no reader-specific response for a shared
-      // cache to hand to the wrong reader. `SECURITY.md`'s `passwordProtect`
-      // is Phase 1's diary routing and `site.passwordProtect` is written by
-      // the Phase 4 Settings screen; the first time a gate exists in front of
-      // a journey, this header must become `private` (or `no-store`) for a
-      // gated one, because a `public` response is cacheable by any proxy
-      // between us and the reader and would outlive the gate. It is not made
-      // conditional now because there is nothing to condition it on -
-      // `readGalleryDownload` has no notion of a gated journey to return, and
-      // inventing the flag here would be the same "inventing the policy"
-      // `docs/security.md`'s `indexGalleries` row refuses. Revisit with
-      // `passwordProtect`, in the same change that adds the gate.
-      'Cache-Control': 'public, max-age=3600',
+      // DECIDED, NOT WRITTEN HERE. `downloadCacheControl`
+      // (`@travel-diary/domain/galleryDownload`) turns `site.passwordProtect`
+      // into `public, max-age=3600` or `private, no-store`, and
+      // `readGalleryDownload` is the reader of that flag. This line carried a
+      // twenty-line note for two phases saying the `public` literal it sent
+      // "becomes wrong the moment a journey is gated" and that there was
+      // nothing yet to condition it on. There is now, and Phase 3 Task 11 did:
+      // the note is replaced rather than left standing beside code it no
+      // longer describes (CLAUDE.md §1.3).
+      'Cache-Control': attachment.value.cacheControl,
     },
   })
 }
