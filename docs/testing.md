@@ -794,6 +794,18 @@ while three documents counted the costs as three.
   against it unchanged. Writing the local redemption into the shared suite instead would
   have made those cases unrunnable against R2 — a shared suite in name only.
 
+  **The contract pins the adapter; the CALLER's own choice is pinned where the caller is
+  tested.** These cases say an adapter honours whatever lifetime and cap it is handed — they
+  cannot say which values `offerUploadSlots` chose. That is
+  `apps/web/lib/media/uploadSlots.integration.test.ts`'s, which redeems an offered URL
+  through `receiveLocalUpload` at `UPLOAD_URL_TTL_SECONDS` and one millisecond past it, and
+  with a declared `Content-Length` of exactly `MAX_UPLOAD_BYTES` and one byte over. Both
+  read the imported constant, never a literal — a literal would re-pin the number in a
+  second place and the two would drift. The declared-length route is what exercises both
+  sides of a fifty-megabyte cap without moving fifty megabytes. Four mutations at the call
+  site were watched failing (`86_400`, `60`, `1`, `MAX_UPLOAD_BYTES * 2`); before these
+  cases all four left the directory's 58 tests green.
+
   **The lifetime is BRACKETED rather than injected**, because the adapter mints its expiry
   from its own clock and no case can know the minting instant. `before = Date.now()` around
   the offer gives `before + ttl <= expiresAt <= after + ttl`, which makes two instants
