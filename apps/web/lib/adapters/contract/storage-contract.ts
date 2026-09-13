@@ -1,8 +1,12 @@
 /**
  * storage-contract — the StoragePort contract suite (Ports & Adapters pattern).
  *
- * Written once, run against every adapter: the local disk adapter today, the
- * Cloudflare R2 adapter in Phase 3, unchanged. An adapter-specific test suite
+ * Written once, run against every adapter: the local disk adapter today, and
+ * a Cloudflare R2 adapter unchanged on the day one exists. **PHASE 3 DID NOT
+ * BUILD THAT ADAPTER, and this header said it would for two phases.** There
+ * are no R2 credentials on this machine and CLAUDE.md §7.1 forbids finding
+ * out by sending, so an adapter written now could not be exercised at all.
+ * What Phase 3 built is the seam. An adapter-specific test suite
  * would defeat the point of the port — this is the seam the whole design
  * exists to protect. The path-traversal test in particular must pass for
  * every adapter, even one (R2) with no filesystem to protect, which is why

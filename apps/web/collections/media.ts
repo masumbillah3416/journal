@@ -3,14 +3,24 @@
  *
  * Transcribed verbatim from DATA_MODEL.md's `media` section, plus the `state`
  * and `failureReason` fields the pipeline records its progress in
- * (docs/deviations.md §48). The `beforeChange` pipeline DATA_MODEL.md
- * documents (magic-byte sniffing, SVG rejection, EXIF strip, re-encode,
- * duplicate detection, clip transcode) is still ahead of this file - design
- * spec Phase 3, whose exit criteria are "a still and a clip both survive a
- * full round trip; EXIF verifiably absent; SVG verifiably rejected". Two of
- * those steps — EXIF stripping and SVG rejection — are security requirements
- * (SECURITY.md), not just pipeline steps, so this pointer is load-bearing,
- * not decorative.
+ * (docs/deviations.md §48).
+ *
+ * THE PIPELINE IS BUILT, AND IT IS NOT A HOOK ON THIS COLLECTION. This header
+ * said it was "still ahead of this file" for a phase. DATA_MODEL.md's six
+ * steps — magic-byte sniffing, SVG rejection, EXIF read then strip,
+ * re-encode, `contentHash` and the duplicate check, and for clips
+ * probe/transcode/poster — live in `../lib/media/stillPipeline.ts` behind the
+ * `MediaProcessor` port, composed by both of its adapters
+ * (`../lib/adapters/inline-media-processor.ts` and `worker-media-processor.ts`).
+ * Their order is exactly the handoff's; where they run is not.
+ * `../lib/media/ingestUpload.ts` runs them BEFORE `payload.create`, so this
+ * collection has no `beforeChange` hook and never will: §9.1's upload goes
+ * direct to the bucket, so Payload never sees the unsanitised bytes and a
+ * hook here would not run for a real upload at all. Recorded as
+ * docs/deviations.md §50, whose `// HANDOFF-DEVIATION:` comment is at the top
+ * of `ingestUpload.ts`. Two of those steps — EXIF stripping and SVG rejection
+ * — are SECURITY.md requirements rather than pipeline conveniences, which is
+ * why this pointer is load-bearing and why it had to stop being wrong.
  *
  * The `afterChange` rule from the same section IS built here, and it is the
  * only hook this collection has: setting `isCover` clears it on the journey's
