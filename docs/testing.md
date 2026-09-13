@@ -679,6 +679,21 @@ subsection 8.4 that has never existed. Both meant the Husky pre-commit hook, whi
 `CLAUDE.md` §11's territory, and both are corrected; the point is that `verify` was green
 beside them for three phases.
 
+**A pointer that resolves is not a rule that exists, so two cases go behind it.** Every
+subsection `CLAUDE.md` declares must be a heading in the reference file its section points
+at, and that heading must carry a body — deleting `### 2.3 Test quality`'s twelve lines of
+rules from `docs/standards/02-testing.md` left 109 files and 1,638 cases green when the
+guard checked structure alone, which is the split's whole exposure. The stub floor is
+measured rather than picked: the smallest real section in `docs/standards/` is §8.3 at 142
+body characters. **A third case gates `CLAUDE.md`'s word budget**, because size is the one
+property the structure cannot imply: every section can keep its reference file, its pointer
+and its citations while the file walks back to the 3,680 words the split removed.
+
+A subsection cited as `§8.1` resolves against the reference file too, not only the core.
+§8.1 and §8.3 are real, correctly numbered sections that live in
+`docs/standards/08-git-workflow.md`; reading the core alone would have failed a correct
+citation of either, and a guard that refuses valid input is a guard people route around.
+
 It guards the second split of the same task too: every `docs/testing/<suite>.md` this
 document points at exists, and every file in that directory is pointed at. There is no
 citation case for this one, because `docs/testing.md` kept every heading it had — its

@@ -27,6 +27,12 @@
  *     doctrine); a list of accepted values passes the case nobody listed.
  *   - §0 is the ONE section with no reference file, and that is asserted as an
  *     equality rather than skipped, so a second reference-less section fails.
+ *   - A subsection resolves against the REFERENCE FILE, not against the core's
+ *     stub heading, and the reference file's section has to carry a body. The
+ *     structural cases alone are satisfied by a file that exists, is pointed at
+ *     and has lost its subject.
+ *   - The word budget is a case, not a convention: it is the only property the
+ *     structure cannot imply, and it is the one the whole split exists for.
  *   - {@link A_SECTION_CLAUDE_MD_DOES_NOT_DECLARE} is assembled from two
  *     pieces rather than written out. Written out it would be a citation in
  *     the corpus this file scans, and the citation case would fail on its own
@@ -59,6 +65,9 @@ const CITATION = /CLAUDE\.md`?(?:'s)?[ \t]*§+[ \t]*(\d+(?:\.\d+)*)/gu
 /** A numbered heading: `## 7 · Data handling`, `### 7.1 Repository content…`. */
 const NUMBERED_HEADING = /^(#{2,4})[ \t]+(\d+(?:\.\d+)*)(?:[ \t]+·)?[ \t]+\S/u
 
+/** The same, at any heading level, since a reference file opens at `# 8 · Git workflow`. */
+const ANY_NUMBERED_HEADING = /^#{1,6}[ \t]+(\d+(?:\.\d+)*)(?:[ \t]+·)?[ \t]+\S/u
+
 /** A numbered item of §0's list, which is what `§0.N` cites. */
 const NUMBERED_ITEM = /^(\d+)\.[ \t]+\S/u
 
@@ -84,6 +93,30 @@ const AT_LEAST_THIS_MANY_SECTIONS = 12
 const AT_LEAST_THIS_MANY_CITATIONS = 600
 
 /**
+ * The most words `CLAUDE.md` may hold.
+ *
+ * THE NUMBER THE SPLIT EXISTS TO PRODUCE. The file was 3,680 words, and every
+ * dispatched agent read all of them whatever its task touched; the structure
+ * below is what made 697 possible. Nothing about that structure notices size —
+ * a section that grows by four lines every task still has a reference file,
+ * still is pointed at, and still resolves every citation, while the file walks
+ * back to where it started. A line in the core is where an author's eye lands,
+ * so the budget has to be the thing that refuses, not a convention.
+ */
+const CLAUDE_MD_WORD_BUDGET = 700
+
+/**
+ * The least a section may carry in its reference file before it is a stub.
+ *
+ * Measured rather than picked: the smallest real section in `docs/standards/`
+ * is §8.3 (branch naming) at 142 body characters, and it is genuinely that
+ * short. 100 sits under it with room and far above an emptied section, which is
+ * the shape being refused — a heading kept so a pointer still resolves, with
+ * the rule it names deleted from under it.
+ */
+const A_SECTION_IS_A_STUB_BELOW = 100
+
+/**
  * A section number `CLAUDE.md` does not declare, so the resolver is proved able
  * to answer "no".
  *
@@ -95,6 +128,9 @@ const A_SECTION_CLAUDE_MD_DOES_NOT_DECLARE = ['8', '4'].join('.')
 
 /** A section number `CLAUDE.md` does declare, asserted present so an empty extraction fails loudly. */
 const A_SECTION_CLAUDE_MD_DOES_DECLARE = '3.3'
+
+/** A real section the CORE does not declare, since §8's detail holds §8.1 and §8.3. */
+const A_SECTION_ONLY_A_REFERENCE_FILE_DECLARES = '8.1'
 
 /** One top-level section: its number, and every reference file its body names. */
 interface Section {
@@ -127,8 +163,32 @@ const sections = (): readonly Section[] => {
 }
 
 /**
- * Every section number `CLAUDE.md` declares — its numbered headings, plus §0's
- * numbered rules, which is what a `§0.N` citation names.
+ * Every section number a document declares as a numbered heading, at any level.
+ *
+ * A reference file opens at `# 8 · Git workflow` and carries `### 8.1 …`, while
+ * the core uses `##` and `###`, so the level is not the thing being matched —
+ * the number is.
+ * @param document - The document's whole text.
+ * @returns One entry per numbered heading, in document order.
+ */
+const numberedHeadings = (document: string): readonly string[] =>
+  document.split('\n').flatMap((line) => {
+    const heading = ANY_NUMBERED_HEADING.exec(line)
+    return heading ? [heading[1] ?? ''] : []
+  })
+
+/**
+ * Every section number a `CLAUDE.md §N` citation may resolve to — the core's
+ * numbered headings, §0's numbered rules (which is what a `§0.N` citation
+ * names), and **the reference files' own headings**.
+ *
+ * THE REFERENCE FILES ARE IN THIS SET DELIBERATELY. §8.1 and §8.3 are real,
+ * correctly numbered sections that live in `docs/standards/08-git-workflow.md`
+ * because that is where §8's detail went; the core carries §8.2's heading and
+ * not theirs. Reading only the core would refuse
+ * `// CLAUDE.md §8.1 forbids git add -A` — true, resolvable by any reader who
+ * follows §8's pointer, and failed by the gate with advice that is wrong in
+ * that case. A guard that refuses valid input is a guard people route around.
  * @returns The set of numbers a citation may resolve to.
  */
 const declaredSections = (): ReadonlySet<string> => {
@@ -146,7 +206,44 @@ const declaredSections = (): ReadonlySet<string> => {
     const item = NUMBERED_ITEM.exec(line)
     if (item) declared.add(`${SECTION_WITH_NO_REFERENCE}.${item[1] ?? ''}`)
   }
+  for (const file of referenceFiles()) {
+    for (const number of numberedHeadings(readFileSync(path.join(REPOSITORY_ROOT, file), 'utf8'))) {
+      declared.add(number)
+    }
+  }
   return declared
+}
+
+/**
+ * What each numbered section of a document carries beneath its own heading:
+ * every non-heading character up to the next heading, whitespace not counted.
+ *
+ * A stub is the failure this measures. The split moved every rule out of the
+ * core and into a reference file, so "§2.3 resolves" now means "a one-line
+ * summary exists in the core" unless something reads the file behind it —
+ * deleting `### 2.3 Test quality`'s twelve lines of rules from
+ * `docs/standards/02-testing.md` left 109 files and 1,638 cases green.
+ * @param document - The document's whole text.
+ * @returns The number of body characters under each numbered heading.
+ */
+const sectionBodies = (document: string): ReadonlyMap<string, number> => {
+  const bodies = new Map<string, number>()
+  let current: string | undefined
+  for (const line of document.split('\n')) {
+    const heading = ANY_NUMBERED_HEADING.exec(line)
+    if (heading) {
+      current = heading[1] ?? ''
+      bodies.set(current, 0)
+      continue
+    }
+    if (line.startsWith('#')) {
+      current = undefined
+      continue
+    }
+    if (current === undefined) continue
+    bodies.set(current, (bodies.get(current) ?? 0) + line.replace(/\s/gu, '').length)
+  }
+  return bodies
 }
 
 /**
@@ -246,6 +343,59 @@ describe('the sections of CLAUDE.md and the reference files behind them', () => 
     ).toEqual([])
   })
 
+  it('each have their rule in the reference file, not only a stub heading in the core', () => {
+    // WHAT THE SPLIT ACTUALLY RISKS. Before it, §2.3 was twelve lines of rules
+    // in CLAUDE.md; after it, §2.3 in the core is one line and the rules are in
+    // docs/standards/02-testing.md. The structural cases above are satisfied by
+    // a file that exists, is pointed at, and has lost its subject: deleting
+    // §2.3's detail left every one of its citations "resolving", to nothing.
+    // So the reference file, not the pointer, is what a subsection resolves
+    // against here.
+    const detailFor = new Map(sections().flatMap(({ number, references }) => references.map((r) => [number, r])))
+
+    const subsections = numberedHeadings(claudeMd()).filter((number) => number.includes('.'))
+    expect(
+      subsections.length,
+      'no subsections were parsed out of CLAUDE.md, so a green result here would mean nothing',
+    ).toBeGreaterThan(0)
+
+    const missing: string[] = []
+    const stubs: string[] = []
+    for (const number of subsections) {
+      const [top] = number.split('.')
+      const reference = detailFor.get(top ?? '')
+      if (reference === undefined) continue // §0 carries its rules in full and points nowhere.
+      const bodies = sectionBodies(readFileSync(path.join(REPOSITORY_ROOT, reference), 'utf8'))
+      const body = bodies.get(number)
+      if (body === undefined) missing.push(`§${number} (not a heading in ${reference})`)
+      else if (body < A_SECTION_IS_A_STUB_BELOW) stubs.push(`§${number} (${String(body)} characters in ${reference})`)
+    }
+
+    expect(
+      missing,
+      'CLAUDE.md carries these subsections and the reference file behind them does not, so a citation resolves to a summary with nothing under it',
+    ).toEqual([])
+    expect(
+      stubs,
+      'these sections have a heading in their reference file and almost nothing beneath it, which is a pointer that resolves and a rule that is gone',
+    ).toEqual([])
+  })
+
+  it('leave CLAUDE.md inside the word budget the split exists to produce', () => {
+    // The one property every other case here is in service of, and the only one
+    // the structure cannot imply: shape stays perfect while size walks back.
+    const words = claudeMd().trim().split(/\s+/u)
+
+    expect(
+      words.length,
+      'CLAUDE.md read as no words at all, so a green result here would mean nothing',
+    ).toBeGreaterThan(100)
+    expect(
+      words.length,
+      'CLAUDE.md is over budget: a rule that needs more room than this belongs in its docs/standards/ reference file, which is what every section here points at',
+    ).toBeLessThanOrEqual(CLAUDE_MD_WORD_BUDGET)
+  })
+
   it('are resolved by a search that can actually answer no', () => {
     // Without this, a parser that returned every number - or a resolver that
     // matched anything - would report every citation resolvable and prove
@@ -255,6 +405,10 @@ describe('the sections of CLAUDE.md and the reference files behind them', () => 
     expect(declared.has(A_SECTION_CLAUDE_MD_DOES_NOT_DECLARE)).toBe(false)
     expect(declared.has(A_SECTION_CLAUDE_MD_DOES_DECLARE)).toBe(true)
     expect(declared.has(`${SECTION_WITH_NO_REFERENCE}.4`)).toBe(true)
+    // §8.1 and §8.3 exist only in docs/standards/08-git-workflow.md. Pinned
+    // here so that reading the core alone - which would refuse a correct
+    // citation of either - fails this case rather than a future author's commit.
+    expect(declared.has(A_SECTION_ONLY_A_REFERENCE_FILE_DECLARES)).toBe(true)
   })
 })
 
