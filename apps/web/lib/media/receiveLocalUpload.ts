@@ -21,13 +21,33 @@
  *   1. Read the token off the URL. No token, no conversation.
  *   2. Verify it — signature first, then expiry (see `./uploadToken.ts`).
  *   3. Refuse a DECLARED `Content-Length` over the token's cap, before a byte
- *      of body is read. A browser always sends one (measured; see
- *      `./uploadContract.ts`), so this is the check that stops a 50MB body
- *      being buffered before it is refused.
- *   4. Read the body, and weigh it. A `Content-Length` is a claim, and a
- *      client is not what enforces a cap — so the bytes that actually arrived
- *      are measured too. Deleting either check leaves a cap a client sets.
+ *      of body is read. This is an OPTIMISATION FOR HONEST CLIENTS, not the
+ *      cap. A browser always sends a `Content-Length` (measured; see
+ *      `./uploadContract.ts`), so for the only client this app ships, a 50MB
+ *      body is refused without being buffered.
+ *   4. Read the body, and weigh it. **THIS IS THE CAP.** A `Content-Length` is
+ *      a claim, and a client is not what enforces a cap — so the bytes that
+ *      actually arrived are measured, and that is the check no request can
+ *      walk past.
  *   5. Write through the port, which is where traversal is refused.
+ *
+ * ═══ WHAT A CHUNKED CLIENT GETS, SAID PLAINLY ═══
+ *
+ * Step 3 said it was "the check that stops a 50MB body being buffered before
+ * it is refused", full stop. That is true only of a client that declares a
+ * length. A hand-rolled client using chunked transfer encoding declares none,
+ * `Number(null)` is `0`, step 3 passes, and `await request.arrayBuffer()`
+ * buffers the whole body before step 4 refuses it. The cap HOLDS — the case
+ * `refuses an oversized body from a chunked client…` pins that — but the
+ * memory is spent first.
+ *
+ * Streaming is not built here, deliberately, and the two reasons are the ones
+ * that make it work thrown away. This route is behind the admin guard
+ * (`app/(admin)/admin/media/upload/route.ts`), so the blast radius is one
+ * authenticated author; and it is deleted or gated the day the R2 adapter
+ * lands, which is the residual
+ * `docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md` records. Production uploads
+ * go to a bucket that does its own admission.
  *
  * ═══ INVARIANTS A FUTURE EDIT COULD BREAK ═══
  *

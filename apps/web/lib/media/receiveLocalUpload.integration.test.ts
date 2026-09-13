@@ -20,6 +20,13 @@
  * silently diverges from a browser's is what let two Phase 2 blockers through
  * sixteen hundred passing tests.
  *
+ * THREE CLIENT SHAPES, THEN, AND EACH IS A DIFFERENT REQUEST BUILDER:
+ * `aPutRequest` is the browser's (a body, no declared length in Node);
+ * `aPutRequestDeclaring` is a hand-rolled client that states a length, honest
+ * or otherwise; and `aChunkedPutRequest` is a hand-rolled client that streams
+ * and states nothing — the shape the receiver's header used to claim a
+ * protection against that it does not have.
+ *
  * Both sides of both limits are pinned: the largest body accepted and the
  * smallest refused, the last instant a token works and the first it does not.
  * Depends on: vitest; the probes (./testing/uploadProbes); `mintUploadToken`
@@ -63,6 +70,46 @@ const aPutRequestDeclaring = (input: { readonly token: string; readonly length: 
     },
     body: new Uint8Array(input.body),
   })
+
+/**
+ * `RequestInit` plus the field the Fetch standard requires for a streaming
+ * body. Node refuses a `ReadableStream` body without it ("duplex option is
+ * required when sending a body"), and the DOM library this repository compiles
+ * against does not declare it.
+ */
+interface StreamingRequestInit extends RequestInit {
+  /** The only value the standard defines, and the only one Node accepts. */
+  readonly duplex: 'half'
+}
+
+/**
+ * A PUT whose body is a STREAM, which is what a chunked client is.
+ *
+ * No browser sends one for an upload — a page's `fetch` is handed a `File` and
+ * the browser sets `Content-Length` from it — so this models a hand-rolled
+ * client deliberately. It is the one shape the pre-read `Content-Length` check
+ * cannot see at all: there is no length to declare, `Number(null)` is `0`, and
+ * the post-read weighing is the only cap the request ever meets. `duplex` is
+ * required by the Fetch standard for a streaming body and is not optional.
+ */
+const aChunkedPutRequest = (input: { readonly token: string; readonly body: Uint8Array }): Request => {
+  // Declared rather than cast (§3.1): the DOM `RequestInit` TypeScript ships
+  // here predates the field, and an interface that ADDS it is checkable where
+  // an `as` would only be asserted. Passing it as a variable rather than as a
+  // literal is what keeps excess-property checking from rejecting it.
+  const init: StreamingRequestInit = {
+    method: EXPECTED_UPLOAD_REQUEST.method,
+    headers: { 'Content-Type': EXPECTED_UPLOAD_REQUEST.contentType },
+    body: new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(input.body))
+        controller.close()
+      },
+    }),
+    duplex: 'half',
+  }
+  return new Request(`http://localhost/admin/media/upload?token=${encodeURIComponent(input.token)}`, init)
+}
 
 describe('receiveLocalUpload', () => {
   it('writes the bytes to the key the token names', async () => {
@@ -155,6 +202,26 @@ describe('receiveLocalUpload', () => {
       aPutRequestDeclaring({ token, length: 1, body: new Uint8Array([1, 2, 3]) }),
       deps(storage),
     )
+
+    expect(received).toEqual({ ok: false, error: 'too-large' })
+    expect(await storage.exists(KEY)).toBe(false)
+  })
+
+  it('refuses an oversized body from a chunked client, which declares no length for the pre-read check to read', async () => {
+    // THE CLAIM THIS CASE CORRECTS: the header check was described as "the
+    // check that stops a 50MB body being buffered before it is refused". A
+    // chunked client sends no `Content-Length` at all, so it walks past that
+    // check and the whole body is buffered before the cap applies. The cap
+    // still holds - which is what is asserted here - but it is the post-read
+    // weighing that holds it, alone. See this module's header.
+    const { storage } = await aTempStore()
+    const token = aToken({ maxBytes: 2 })
+    const request = aChunkedPutRequest({ token, body: new Uint8Array([1, 2, 3]) })
+
+    // Stated rather than assumed: without this the case would be about a
+    // request whose shape nothing pins.
+    expect(request.headers.get('content-length')).toBeNull()
+    const received = await receiveLocalUpload(request, deps(storage))
 
     expect(received).toEqual({ ok: false, error: 'too-large' })
     expect(await storage.exists(KEY)).toBe(false)

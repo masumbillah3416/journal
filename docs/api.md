@@ -967,9 +967,12 @@ follow: false }`.
   **The storage key comes from inside the token, never from the URL** — otherwise this
   address would be a write-anywhere primitive.
 - **Output:** `204` with no body.
-- **Errors:** `413` when the body is over the cap the token carries — checked against the
-  declared `Content-Length` before a byte is read, and against the bytes that actually
-  arrived afterwards, because a `Content-Length` is a claim. `403` for a malformed,
+- **Errors:** `413` when the body is over the cap the token carries. The cap is **the
+  weighing of the bytes that actually arrived**; the `Content-Length` check that runs
+  first is an optimisation for clients that declare one — every browser does — and a
+  chunked client that declares nothing walks past it and is refused after the body has
+  been buffered. Accepted rather than fixed by streaming: the route is behind the admin
+  guard, and it is deleted or gated the day R2 lands (see Notes). `403` for a malformed,
   expired or wrongly-signed token, **all three identically**, so the endpoint cannot
   become an oracle telling a forger which part was wrong. `500` when the store refused or
   could not take the bytes. No refusal carries a body.
