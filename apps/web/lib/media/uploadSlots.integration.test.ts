@@ -93,10 +93,22 @@ const planSlotsFor = async (input: {
  * receiver accepts an upload on them. A fresh throwaway store per call, because
  * what is under test is the ACCEPTANCE and not where the bytes landed.
  * @param input - The offered URL, the instant to present it at, and the length
- *   to declare. The body is three bytes whatever the declared length says: a
- *   client whose header disagrees with its body is exactly what the receiver's
- *   pre-read check exists for, and it is what lets a fifty-megabyte cap be
- *   exercised without fifty megabytes.
+ *   to declare. A client whose header disagrees with its body is exactly what
+ *   the receiver's pre-read check exists for, and it is what lets a
+ *   fifty-megabyte cap be exercised without fifty megabytes.
+ *
+ *   THE BODY IS ONE BYTE, AND THAT IS WHAT KEEPS THE CASES INDEPENDENT. At
+ *   three bytes, substituting a cap of `1` at the call site failed the two
+ *   LIFETIME cases as well as the cap one — their bodies were over the mutated
+ *   cap, so a reader chasing a failure named entirely about lifetime would have
+ *   inspected `UPLOAD_URL_TTL_SECONDS`, `verifyUploadToken` and the bracketing
+ *   arithmetic, all of them correct. The fix round's report argued that
+ *   coupling was intrinsic to redeeming a signed capability. It is not: it
+ *   followed from one fixture choice. `receiveLocalUpload` refuses only on
+ *   `declaredLength > maxBytes` and `body.byteLength > maxBytes`, so one byte
+ *   declaring one byte is accepted under a cap of one, and the lifetime cases
+ *   answer about lifetime alone. Measured by the fix-round review and
+ *   re-measured here; all four call-site mutations still kill their named case.
  */
 const redeem = async (input: {
   readonly url: string
@@ -111,7 +123,7 @@ const redeem = async (input: {
         'Content-Type': EXPECTED_UPLOAD_REQUEST.contentType,
         'Content-Length': String(input.declaredLength),
       },
-      body: new Uint8Array([1, 2, 3]),
+      body: new Uint8Array([1]),
     }),
     { storage, now: () => input.at, secret: env.PAYLOAD_SECRET },
   )
@@ -264,7 +276,7 @@ describe('offerUploadSlots', () => {
 
     expect(offered.ok).toBe(true)
     expect(
-      await redeem({ url: theOfferedUrl(offered), at: before + UPLOAD_URL_TTL_SECONDS * 1000, declaredLength: 3 }),
+      await redeem({ url: theOfferedUrl(offered), at: before + UPLOAD_URL_TTL_SECONDS * 1000, declaredLength: 1 }),
     ).toBe(true)
   })
 
@@ -276,7 +288,7 @@ describe('offerUploadSlots', () => {
 
     expect(offered.ok).toBe(true)
     expect(
-      await redeem({ url: theOfferedUrl(offered), at: after + UPLOAD_URL_TTL_SECONDS * 1000 + 1, declaredLength: 3 }),
+      await redeem({ url: theOfferedUrl(offered), at: after + UPLOAD_URL_TTL_SECONDS * 1000 + 1, declaredLength: 1 }),
     ).toBe(false)
   })
 

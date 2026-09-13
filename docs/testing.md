@@ -803,8 +803,11 @@ while three documents counted the costs as three.
   read the imported constant, never a literal — a literal would re-pin the number in a
   second place and the two would drift. The declared-length route is what exercises both
   sides of a fifty-megabyte cap without moving fifty megabytes. Four mutations at the call
-  site were watched failing (`86_400`, `60`, `1`, `MAX_UPLOAD_BYTES * 2`); before these
-  cases all four left the directory's 58 tests green.
+  site were watched failing (`86_400`, `60`, `1`, `MAX_UPLOAD_BYTES * 2`), **each failing
+  exactly one case**; before these cases all four left the directory's 58 tests green. The
+  redemption body is ONE byte deliberately: at three it was over a mutated cap of `1`, so
+  that mutation also failed the two cases named about lifetime, and a reader chasing the
+  lifetime failure would have inspected arithmetic that was correct.
 
   **The lifetime is BRACKETED rather than injected**, because the adapter mints its expiry
   from its own clock and no case can know the minting instant. `before = Date.now()` around
