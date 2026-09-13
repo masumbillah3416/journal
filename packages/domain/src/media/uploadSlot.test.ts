@@ -195,7 +195,24 @@ describe('isStagingKeyFor', () => {
     expect(isStaged('staging/journey-7/../../secrets.jpg')).toBe(false)
   })
 
-  it('refuses a backslash separator, which a Windows filesystem would resolve', () => {
+  it('refuses a key whose separators are all backslashes, because the namespace prefix is spelled with a slash', () => {
+    // ═══ THIS NAME IS THE SECOND CORRECTION TO THIS ONE CASE ═══
+    //
+    // It was committed as "refuses a backslash separator, which a Windows
+    // filesystem would resolve", and it could not fail: the literal held no
+    // backslash (see below). Re-spelling it with `String.raw` fixed the string
+    // and NOT the name — a key whose only separators are backslashes is refused
+    // by the literal `staging/` in the pattern, before the segment classes are
+    // reached at all, so the case still established nothing about a backslash
+    // being refused AS A SEPARATOR. A name that claims more than its body can
+    // support is the defect this repository has found seventeen times, and
+    // disclosing it is not the same as fixing it (Task 8 round 3, item 2).
+    //
+    // What it establishes is what it now says, and that CAN fail: widening the
+    // pattern's own separators to `[/\\]` makes this key match and this case
+    // go red — watched. The cases that carry the traversal coverage are the
+    // three below it.
+    //
     // `String.raw` BECAUSE THE ORDINARY LITERAL DID NOT HOLD A BACKSLASH.
     // `'staging\journey-7\n0-tokyo.jpg'` is `stagingjourney-7` then a NEWLINE
     // then `0-tokyo.jpg`: `\j` is `j` and `\n` is a newline, so the case named
