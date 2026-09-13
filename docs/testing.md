@@ -45,8 +45,12 @@ Enforced by TWO configs, because no single Vitest run can execute everything:
   spans three comment lines, so "next" names the comment's own second line rather than the
   guard beneath it, and the branch is counted; `run-seed.ts` is wholly ignored behind its
   own start/stop pair and 100 states that the suppression must stay total. A third file
-  landing in `apps/web/scripts/` is gated by neither entry — see `vitest.config.ts`'s
-  comment for why that is not a regression and what closes it.
+  landing in `apps/web/scripts/` would be gated by neither entry, and
+  `apps/web/lib/docs/coverageThresholds.test.ts` refuses it: that check re-runs the
+  enumeration above on every commit, against the config's own lists, so the next
+  fall-through fails the commit that adds it rather than the review that eventually
+  notices. Gating each file individually rather than its glob is still
+  `coverage.thresholds.perFile`'s job, and is its own decision.
 
   `packages/tokens/**`'s row arrived with Phase 1's final review, which found it gated by
   nothing but the then-repository-wide 90% floor. It is the same kind of code as
@@ -710,7 +714,25 @@ has no shape a derivation can separate from the prose around it. That requiremen
 section, but this check is not what keeps it there. Nor does it judge whether a discharge is
 true — that is `securityCitations.test.ts`'s subject.
 
-### 10.7 · How to run them
+### 10.7 · `coverageThresholds.test.ts` — no measured file is gated by nothing
+
+`vitest.config.ts` has no repository-wide coverage floor: it was removed because the layers
+that carry real behaviour already have stricter per-glob gates, and the only files a
+repo-wide number could bind are the ones no glob names. Removing it made the fall-through
+set — every file inside the `include` that matches no threshold key — the thing that has to
+stay empty, and it was enumerated by hand when the floor came out. This is that enumeration
+as a check, so the next file to fall through fails its own commit.
+
+It reads the `include`, `exclude` and threshold keys out of `vitest.config.ts` rather than
+restating them — a copy would be the drift it guards against — and matches with `picomatch`,
+which is what Vitest's own `resolveThresholds` uses, so it agrees with the gate instead of
+approximating it. The file list is git's, so a file written and not yet staged is judged
+too.
+
+Written by the Phase 3 standards review. The task that removed the floor stated this gap in
+its report as an open concern; a stated hole is reviewable, and it is still a hole.
+
+### 10.8 · How to run them
 
 ```
 npx vitest run --project unit apps/web/lib/docs        # all of them

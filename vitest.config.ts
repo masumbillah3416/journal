@@ -851,16 +851,18 @@ export default defineConfig({
         // suppression is total and must stay so. Adding a measurable line to it
         // fails here, which is the direction that matters.
         //
-        // A THIRD FILE LANDING IN apps/web/scripts/ IS NOT GATED BY EITHER
-        // ENTRY, and that is said here rather than left to be discovered. It is
-        // not a regression: the floor these replace was an aggregate over every
-        // measured file in the repository (99.93% today), so a small untested
-        // file never moved it either - docs/testing.md records the measurement,
-        // an entirely untested `apps/web/scripts/emit-actions.ts` written to
-        // disk with `npm run verify` still exit 0. The instrument that closes
-        // it is `coverage.thresholds.perFile`, whose blast radius is why it is
-        // its own decision; until then §2.1's rule is that the new file arrives
-        // with its own named threshold in the commit that adds it.
+        // A THIRD FILE LANDING IN apps/web/scripts/ WOULD BE GATED BY NEITHER
+        // ENTRY, AND `apps/web/lib/docs/coverageThresholds.test.ts` REFUSES IT.
+        // That check reads this block's own `include`, `exclude` and threshold
+        // keys - never a copy of them - and fails the commit that adds a
+        // measured file no glob here matches, which is what §2.1's rule
+        // ("a real threshold, in the same commit") asks for and what the
+        // removed repository-wide floor never did: that floor was an aggregate
+        // over every measured file (99.93% today), so a small untested file
+        // never moved it either, which docs/testing.md records as a
+        // measurement. Gating each file individually is still
+        // `coverage.thresholds.perFile`'s job, and its blast radius is why it
+        // is its own decision.
         'apps/web/scripts/placeholder.ts': {
           lines: 100,
           branches: 87.5,
