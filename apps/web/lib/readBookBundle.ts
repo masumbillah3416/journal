@@ -656,6 +656,12 @@ export const readBookBundle = cache(async (): Promise<BookBundle> => {
   // are not served even while its `src` appears in this bundle. What a reader
   // gets is an image that does not load, which is what `hidden` has always
   // done here and for the same reason (Task 8 fix review, N1).
+  //
+  // **IF THAT IS EVER WORTH CLOSING, THE FIX IS A FALLBACK IN `withSlots`, NOT
+  // A FILTER HERE** - a slot whose media is unreadable should draw an empty
+  // frame rather than resolve to nothing, and then this query could drop the
+  // row safely. Written down so the next reader does not re-derive the filter,
+  // try it, and take the whole book down with one unfinished upload.
   const mediaResult = await payload.find({
     collection: 'media',
     depth: 0,

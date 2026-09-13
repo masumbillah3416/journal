@@ -14,9 +14,18 @@
  * (`docs/qa/2026-09-03-phase-1-closing-sweep.md`): a Notes page whose slots
  * are a hero and an ephemera scrap, which is exactly what the seed writes for
  * every one of the ten journeys.
- * Depends on: vitest, ./galleryFrames.
+ * ONE CASE HERE READS `collections/media.ts` as well, and it is the only
+ * reason this file is not pure of everything but its subject: the collection's
+ * reader rule and `galleryFrameWhere` spell the same unfinished-row filter
+ * twice, and nothing but that case makes them agree. The collection module
+ * itself runs nothing at import beyond resolving one absolute path, so it does
+ * not drag Payload into the Docker-free pass.
+ * Depends on: vitest, ./galleryFrames, ../collections/media (one case), and
+ * `Where` from payload, type-only.
  */
 import { describe, expect, it } from 'vitest'
+import type { Where } from 'payload'
+import { Media } from '../collections/media'
 import { GALLERY_FRAME_SORT, ephemeraMediaIds, galleryFrameWhere, journeyPagesQuery } from './galleryFrames'
 import type { PageSlotSource } from './galleryFrames'
 
@@ -77,6 +86,72 @@ describe('ephemeraMediaIds', () => {
     // `readBookBundle`'s `slotsFor` defaults a null role to 'frame'; a
     // roleless slot is a photograph here too, not a scrap.
     expect(ephemeraMediaIds([{ slots: [{ media: 15 }, { role: null, media: 16 }] }])).toEqual([])
+  })
+})
+
+/**
+ * The `where` `Media.access.read` answers an unauthenticated reader with.
+ *
+ * @returns The constraint Payload applies to `/api/media/file/<name>` and to
+ *   every access-controlled listing.
+ * @throws When the collection defines no `read` rule, or answers a signed-out
+ *   reader with something that is not a `Where` — either of which would mean
+ *   the parity case below was comparing against nothing.
+ */
+const signedOutReadWhere = (): Where => {
+  const read = Media.access?.read
+  if (read === undefined) throw new Error('the media collection defines no read access rule')
+  // The rule reads `req.user` and nothing else - that is the whole of its body -
+  // so a real `PayloadRequest` is neither available in a pure test nor needed.
+  // Cast to the parameter type of the function actually being called, so a
+  // signature change breaks this line rather than widening past it silently
+  // (CLAUDE.md §3.1: a cast carries its justification).
+  const answered = read({ req: { user: null } } as unknown as Parameters<typeof read>[0])
+  if (typeof answered === 'boolean' || answered instanceof Promise) {
+    throw new Error('the media collection answered a signed-out reader with something that is not a Where')
+  }
+  return answered
+}
+
+/**
+ * The clauses of `where` that mention `state`.
+ *
+ * Selected by what they SAY rather than by position, so a clause moving within
+ * the `and` does not make the parity case below fail for the wrong reason.
+ * @param where - Either filter's output.
+ * @returns Every clause naming the column, in order.
+ */
+const stateClausesOf = (where: Where): readonly unknown[] =>
+  (where.and ?? []).filter((clause) => JSON.stringify(clause).includes('"state"'))
+
+describe('the two places the unfinished-row filter is spelled', () => {
+  it('spell it identically, since nothing but this case makes them agree', () => {
+    // ═══ A COMMENT IS NOT A GUARD ═══
+    //
+    // `collections/media.ts`'s reader rule gates the access-controlled read -
+    // `/api/media/file/<name>` and every derivative. `galleryFrameWhere` gates
+    // the three readers that override access - the grid, the census and the
+    // download handler. Between them they are the public doors, and they only
+    // close the same door if they say the same thing. The two spellings each
+    // name the other in a comment, which is what they had until this case.
+    //
+    // The constant is NOT shared, and the reason is a dependency direction
+    // rather than a type: `apps/web/lib/*` imports `collections/media.ts` (for
+    // `MEDIA_DIR`), and `payload.config.ts` loads every collection at boot, so
+    // pointing a collection at `lib/` would pull this module into the config's
+    // own graph. Two spellings pinned by a case is the trade `.prettierignore`
+    // and `eslint.config.js` already make in this repository.
+    //
+    // `notEmpty` is the positive control: without it, a future edit that
+    // removed the clause from BOTH would leave two empty lists, and this case
+    // would pass while the filter it exists for had gone.
+    const fromCollection = stateClausesOf(signedOutReadWhere())
+    const fromGallery = stateClausesOf(galleryFrameWhere([7], []))
+
+    expect({ clauses: fromGallery, notEmpty: fromGallery.length > 0 }).toEqual({
+      clauses: fromCollection,
+      notEmpty: true,
+    })
   })
 })
 
