@@ -784,6 +784,25 @@ while three documents counted the costs as three.
   `<name>Contract(name, makeAdapter, ...)` function that registers one parameterised
   `describe` block — written once, run unchanged against every adapter.
 
+  **An adapter-specific harness arrives as a PARAMETER, never as an import.**
+  `storage-contract.ts` states that an offered upload URL stops working when its lifetime
+  runs out — a behaviour no case can check by reading the URL, since every adapter encodes
+  its expiry differently. So the suite takes an `UploadUrlRedeemer`: "attempt the upload
+  this URL offers, as if it were now `at`". The local adapter's redeemer lives in
+  `apps/web/lib/adapters/local-storage.test.ts` and drives `receiveLocalUpload`, which is
+  local-only; an R2 redeemer will PUT to the bucket, and the three lifetime cases run
+  against it unchanged. Writing the local redemption into the shared suite instead would
+  have made those cases unrunnable against R2 — a shared suite in name only.
+
+  **The lifetime is BRACKETED rather than injected**, because the adapter mints its expiry
+  from its own clock and no case can know the minting instant. `before = Date.now()` around
+  the offer gives `before + ttl <= expiresAt <= after + ttl`, which makes two instants
+  exact: `before + ttl` is inside the window and `after + ttl + 1` is outside it, whatever
+  the minting cost. Which side is inclusive is read off `verifyUploadToken` (it refuses only
+  `now > expiresAt`) and said at the assertion. Three mutations were watched failing:
+  a ten-year constant, a zero lifetime, and a hard-coded `900 * 1000` that ignores the
+  option — the last is why a second pair of instants is asserted at `expiresInSeconds: 60`.
+
   **A contract suite imports its port's type and nothing else.** That is the property
   that makes it reusable, and it is easy to lose: `queue-contract.ts` briefly imported a
   `jobRow()` helper that called `getPayload()`, so the "reusable" queue suite could only
@@ -1053,7 +1072,9 @@ while three documents counted the costs as three.
   `apps/web/lib/adapters/contract/<name>-contract.ts` (the shared suite) before any
   adapter exists, per TDD. Name the adapter's own test file
   `<adapter>.test.ts` (or `.integration.test.ts` if it needs real infrastructure) and call
-  `<name>Contract('<adapter>', makeAdapter)` from it.
+  `<name>Contract('<adapter>', makeAdapter, ...)` from it, supplying any capability the
+  suite needs an adapter-specific harness for — see the `storage` port's
+  `UploadUrlRedeemer` below.
 
 ### 4 · End-to-end
 

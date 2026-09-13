@@ -12,6 +12,17 @@
  * day it exists, which is what makes it a one-file addition behind an
  * already-contract-tested method rather than the untested deferred path
  * ADR 0004 forbids. See docs/adr/0020.
+ *
+ * ═══ WHY REDEMPTION ARRIVES AS AN ADAPTER-SUPPLIED CAPABILITY ═══
+ *
+ * An offered URL's LIFETIME cannot be checked by looking at the URL: every
+ * adapter encodes the expiry differently, and the only honest question is
+ * whether the upload the URL offers is still accepted at a given instant. So
+ * the behaviour is stated here, once, and each adapter hands in the harness
+ * that exercises it — {@link UploadUrlRedeemer}. The local adapter's redeemer
+ * drives `receiveLocalUpload`, which is local-only; an R2 redeemer will PUT to
+ * the bucket. Writing the local redemption INTO this file would have made the
+ * TTL cases unrunnable against R2, which is a shared suite in name only.
  * Depends on: vitest, the StoragePort contract from ../../ports/storage.
  */
 import { describe, expect, it } from 'vitest'
@@ -30,12 +41,41 @@ const anUploadOffer = (overrides: Partial<UploadUrlOptions> = {}): UploadUrlOpti
   ...overrides,
 })
 
+/** How one adapter's caller redeems an offered upload URL, for the TTL cases. */
+export interface UploadUrlRedeemer {
+  /** Attempts the upload the URL offers, as if at `at`. Resolves to whether it was accepted. */
+  redeem(url: string, at: Date): Promise<boolean>
+}
+
+/**
+ * The URL an offer produced.
+ *
+ * Named rather than inlined as `offered.ok ? offered.value : ''`, which would
+ * hand a refusal to the redeemer as an empty string and let a TTL case pass
+ * for the wrong reason — the shape this whole review round exists to remove.
+ * @param offered - What {@link StoragePort.uploadUrl} answered.
+ * @returns The offered URL.
+ * @throws When the adapter refused a key the cases above have already proved
+ *   it accepts, which is a broken adapter rather than a TTL result.
+ */
+const offeredUrl = (offered: Awaited<ReturnType<StoragePort['uploadUrl']>>): string => {
+  /* c8 ignore next -- no organic trigger: every caller passes a key the `produces an upload URL` cases already prove is accepted, so this arm fires only for an adapter that is already failing those. It stays because returning a placeholder here would make a TTL case answer about a string no adapter offered. */
+  if (!offered.ok) throw new Error(`the adapter refused to offer an upload URL: ${offered.error}`)
+  return offered.value
+}
+
 /**
  * Registers the shared StoragePort contract as a `describe` block.
  * @param name - Identifies which adapter is under test, in the suite's title.
  * @param makeAdapter - Builds a fresh, empty StoragePort for one test.
+ * @param redeemer - How this adapter's caller attempts the upload an offered
+ *   URL describes, at an instant the case chooses. See this module's header.
  */
-export const storageContract = (name: string, makeAdapter: () => Promise<StoragePort>): void => {
+export const storageContract = (
+  name: string,
+  makeAdapter: () => Promise<StoragePort>,
+  redeemer: UploadUrlRedeemer,
+): void => {
   describe(`StoragePort contract: ${name}`, () => {
     it('returns what was stored', async () => {
       const storage = await makeAdapter()
@@ -161,6 +201,56 @@ export const storageContract = (name: string, makeAdapter: () => Promise<Storage
       const url = await storage.uploadUrl('', anUploadOffer())
 
       expect(url.ok).toBe(false)
+    })
+
+    // ═══ THE THREE LIFETIME CASES ═══
+    //
+    // An adapter mints its expiry from ITS OWN clock, so no case can know the
+    // minting instant exactly. It is BRACKETED instead: `before <= mintedAt <=
+    // after`, so `before + ttl <= expiresAt <= after + ttl`. That makes two
+    // instants exact rather than approximate, with no clock to inject:
+    // `before + ttl` is inside the window for every possible `mintedAt`, and
+    // `after + ttl + 1` is outside it for every possible `mintedAt`.
+    //
+    // WHICH SIDE IS INCLUSIVE: the expiry instant itself is INSIDE the window.
+    // `apps/web/lib/media/uploadToken.ts`'s `verifyUploadToken` refuses only
+    // `now > expiresAt`, so a URL is live THROUGH its last millisecond and
+    // dead one millisecond later. Read, not assumed.
+
+    it('offers a URL still live at the last instant its lifetime covers', async () => {
+      const storage = await makeAdapter()
+
+      // Only the LOWER bracket is needed here: `expiresAt >= before + 900s`,
+      // and the expiry instant is inclusive, so `before + 900s` is inside the
+      // window however long the minting took.
+      const before = Date.now()
+      const url = await storage.uploadUrl('staging/j/ttl-live.jpg', anUploadOffer({ expiresInSeconds: 900 }))
+      expect(await redeemer.redeem(offeredUrl(url), new Date(before + 900 * 1000))).toBe(true)
+    })
+
+    it('offers a URL that is dead one millisecond past its lifetime', async () => {
+      const storage = await makeAdapter()
+
+      // Only the UPPER bracket is needed here: `expiresAt <= after + 900s`,
+      // so one millisecond past that is outside the window however long the
+      // minting took.
+      const url = await storage.uploadUrl('staging/j/ttl-dead.jpg', anUploadOffer({ expiresInSeconds: 900 }))
+      const after = Date.now()
+      expect(await redeemer.redeem(offeredUrl(url), new Date(after + 900 * 1000 + 1))).toBe(false)
+    })
+
+    it('moves the boundary with the lifetime it was offered, rather than expiring on a fixed schedule', async () => {
+      // The case that kills a hard-coded 900: at sixty seconds the SAME pair
+      // of instants must answer the same way, which an adapter ignoring
+      // `expiresInSeconds` cannot do.
+      const storage = await makeAdapter()
+
+      const before = Date.now()
+      const url = await storage.uploadUrl('staging/j/ttl-short.jpg', anUploadOffer({ expiresInSeconds: 60 }))
+      const after = Date.now()
+
+      expect(await redeemer.redeem(offeredUrl(url), new Date(before + 60 * 1000))).toBe(true)
+      expect(await redeemer.redeem(offeredUrl(url), new Date(after + 60 * 1000 + 1))).toBe(false)
     })
   })
 }

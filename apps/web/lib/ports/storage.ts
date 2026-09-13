@@ -81,21 +81,43 @@ export interface StoragePort {
   uploadUrl(key: string, options: UploadUrlOptions): Promise<Result<string, string>>
 }
 
-/** The terms an upload URL is offered on. Every one of them is enforced. */
+/**
+ * The terms an upload URL is offered on.
+ *
+ * TWO OF THE THREE ARE ENFORCED, AND THE THIRD IS A DECLARATION. Written out
+ * per field rather than as one sentence, because "every one of them is
+ * enforced" is what this said until a review read the adapter: a doc comment
+ * that reads stronger than the code is the defect, not the shortfall it hides.
+ */
 export interface UploadUrlOptions {
   /**
    * How long the URL stays usable. The caller passes
    * `UPLOAD_URL_TTL_SECONDS` from `@travel-diary/domain/media/uploadSlot`.
+   *
+   * ENFORCED, and pinned on both sides by the shared contract suite's three
+   * lifetime cases (`../adapters/contract/storage-contract.ts`): the URL is
+   * live through its last millisecond, dead one millisecond later, and the
+   * boundary moves when this number does.
    */
   readonly expiresInSeconds: number
   /**
-   * The type the client says it will send. A claim, never a fact — what the
-   * bytes actually are is decided by `sniffMediaType` at ingest.
+   * The type the client says it will send.
+   *
+   * A DECLARATION THE RECEIVER NEVER BELIEVES, and on the local adapter not
+   * even carried: `../adapters/local-storage.ts` leaves it out of the minted
+   * URL entirely, so any content type is accepted under a valid token. What
+   * the bytes actually are is decided by `sniffMediaType` over the bytes
+   * themselves at ingest (`@travel-diary/domain/media/sniff`). The field
+   * stays because an R2 presign genuinely binds it, and dropping it now would
+   * mean changing this signature in the commit that adds R2.
    */
   readonly contentType: string
   /**
-   * The most bytes the URL will take. Enforced by whoever receives them, not
-   * by the client that was told the number.
+   * The most bytes the URL will take.
+   *
+   * ENFORCED by whoever receives them, not by the client that was told the
+   * number — `../media/receiveLocalUpload.ts` weighs the bytes that actually
+   * arrived, and both sides of the cap are pinned there.
    */
   readonly maxBytes: number
 }
