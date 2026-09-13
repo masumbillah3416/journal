@@ -108,23 +108,19 @@ if (configs.length === 0) {
  * Prints one configuration's measured numbers as GitHub workflow commands.
  *
  * Called immediately after that configuration's `autorun`, because the next one
- * overwrites the file. A missing or unparseable file is passed through as
- * `undefined` rather than thrown: a run that failed for some other reason must
- * still report the configurations around it.
+ * overwrites the file. THIS FUNCTION DECIDES NOTHING, which is the whole reason
+ * it is three lines: it hands `annotationLines` the read itself, and a read that
+ * throws — no file, no permission, a run that died before writing one — is that
+ * module's to name, where a test can drive it. It used to catch the throw here
+ * and map it to `undefined`, under the whole-file `c8 ignore` at line 1, which
+ * is a meaning no test could ever check.
  * @param {string} config - The `lighthouserc*.json` that was just run.
  */
 const annotate = (config) => {
   if (!process.env.GITHUB_ACTIONS) return
 
-  let parsed
-  try {
-    parsed = JSON.parse(readFileSync(ASSERTION_RESULTS, 'utf8'))
-  } catch {
-    // The reason is deliberately not echoed: it is a filesystem path, and what
-    // a reader needs is that no number arrived, which the line below says.
-    parsed = undefined
-  }
-  for (const line of annotationLines({ config, results: parsed })) console.log(line)
+  const lines = annotationLines({ config, readResults: () => readFileSync(ASSERTION_RESULTS, 'utf8') })
+  for (const line of lines) console.log(line)
 }
 
 /** What each configuration exited with, in the order they were run. */

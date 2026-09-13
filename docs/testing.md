@@ -2560,13 +2560,20 @@ on the default file would have printed nothing forever. The option is therefore 
 only under `GITHUB_ACTIONS` — turning it on in the three `lighthouserc*.json` files would
 also change what a local run prints, since lhci then lists every passing assertion itself.
 
-**What decides what each line says is a pure function, not the script.** No Vitest project
-can execute `run-lighthouse.mjs` — it spawns `npx lhci`, which needs a build, a browser and
-minutes — so anything decided inside it would be decided untested. The parsing and formatting
-live in `scripts/lighthouseAnnotations.mjs` and are driven by
+**What decides what each line says is a pure function, not the script — including what an
+unreadable results file means.** No Vitest project can execute `run-lighthouse.mjs` — it
+spawns `npx lhci`, which needs a build, a browser and minutes — so anything decided inside it
+is decided untested. The first version still kept one decision there: a `try`/`catch` around
+the read that mapped any failure to `undefined`, under the whole-file `c8 ignore`. Changing
+that `undefined` to `[]` left every gate green while CI would have annotated a dead run as an
+empty gate. The shell now passes `readResults`, a function returning the file's text, and the
+module owns both the failed read and the unparseable one. The parsing and formatting live in
+`scripts/lighthouseAnnotations.mjs` and are driven by
 `scripts/lighthouseAnnotations.test.js`: a failure becomes one error line with every run
-value; a passing set becomes one notice and no errors; a missing or malformed file says so
-rather than throwing; and an assertion's `auditProperty` is part of its name, which is the
+value; a passing set becomes one notice and no errors; a results file that was never written
+and one whose contents will not parse say so in two DIFFERENT lines, because they are two
+different events and only one of them means the gate ran; and an assertion's `auditProperty`
+is part of its name, which is the
 defect running it against a real `.lighthouseci/` found — every `resource-summary:*:size`
 budget had been printing under one indistinguishable name. Four mutations were watched
 failing, one per behaviour.
