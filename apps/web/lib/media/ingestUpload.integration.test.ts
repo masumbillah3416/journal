@@ -24,9 +24,9 @@
  * its own tests, and a red test on the branch would make `git bisect`
  * useless. So the same guarantee is bought with two green cases instead of
  * one red one. {@link CONFIGURED_TIERS} is the list as of today;
- * “derives every derivative tier the media collection configures” asserts the
- * ROW carries exactly those, and “configures exactly the derivative tiers this
- * suite knows about” asserts the COLLECTION does. Task 10's `grid` fails the
+ * “derives every derivative tier the media collection configures” asserts a
+ * stored FILE exists for exactly those, and “configures exactly the derivative
+ * tiers this suite knows about” asserts the COLLECTION does. Task 10's `grid` fails the
  * second case the moment it is added to `apps/web/collections/media.ts`,
  * which is the notification the brief was buying, and widening the constant
  * then re-arms the first.
@@ -87,7 +87,7 @@ const configuredImageSizes = (): readonly ImageSize[] => {
 }
 
 /**
- * A photograph wide enough for every configured tier to have a source.
+ * A photograph whose STORED form is wide enough for every configured tier.
  *
  * READ OFF THE COLLECTION, never written here: Payload omits a width-only
  * image size whose source is narrower than its target
@@ -95,21 +95,50 @@ const configuredImageSizes = (): readonly ImageSize[] => {
  * fixture narrower than the widest tier would make the case below assert that
  * Payload omitted one. Deriving it means Task 10's `grid` widens the fixture
  * by itself rather than quietly reducing what the case covers.
- * @returns The width and a 4:3 height for it.
+ *
+ * ═══ THE SOURCE IS PORTRAIT, AND THE QUARTER TURN IS WHY ═══
+ *
+ * `aPhotographWithExif` writes orientation 6 — a photograph on its side — and
+ * `runStillPipeline` calls sharp's `.rotate()`, so the bytes Payload derives
+ * from are the SOURCE TRANSPOSED. A 4000x3000 source is stored 3000x4000, and
+ * `hero2x`, a width-only 4000, is then never derived: measured here, the row
+ * carried a `sizes.hero2x` key whose every field was null. So the width the
+ * widest tier needs is asked of the source's HEIGHT.
+ * @returns A portrait size whose stored, auto-oriented form is the widest
+ *   configured width by a 4:3 height.
  */
 const wideEnoughForEveryTier = (): { readonly width: number; readonly height: number } => {
-  const width = Math.max(...configuredImageSizes().map((size) => size.width ?? 0))
-  return { width, height: Math.round((width * 3) / 4) }
+  const storedWidth = Math.max(...configuredImageSizes().map((size) => size.width ?? 0))
+  return { width: Math.round((storedWidth * 3) / 4), height: storedWidth }
 }
+
+/**
+ * The tiers Payload actually wrote a FILE for.
+ *
+ * NOT `Object.keys(sizes)`, which is what this case used to assert and is why
+ * it passed while `hero2x` was never derived: Payload emits a key for every
+ * configured size and fills an omitted one with nulls, so the key list is the
+ * CONFIGURATION read back rather than the work done.
+ * @param sizes - The row's `sizes`, as {@link readMediaRow} reports it.
+ * @returns One tier name per derivative that has a stored filename, sorted.
+ */
+const derivedTiers = (sizes: Readonly<Record<string, unknown>> | undefined): readonly string[] =>
+  Object.entries(sizes ?? {})
+    .flatMap(([tier, size]) =>
+      typeof size === 'object' && size !== null && 'filename' in size && typeof size.filename === 'string'
+        ? [tier]
+        : [],
+    )
+    .sort()
 
 /**
  * How long a case that runs a real ingest is given.
  *
  * AN EXPLICIT BUDGET WITH THE ARITHMETIC AT THE LINE, the shape ruling F2
- * settled on: the widest case encodes a 4000x3000 JPEG, re-encodes it through
- * `mozjpeg` and has Payload derive five tiers from it - measured at 6.9s here,
+ * settled on: the widest case encodes a 3000x4000 JPEG, re-encodes it through
+ * `mozjpeg` and has Payload derive five tiers from it - measured at 8.3s here,
  * against a harness default of 5,000ms it was never going to fit. Thirty
- * seconds is a little over four times the measurement, and a case that
+ * seconds is a little over three times the measurement, and a case that
  * discovers its own budget in a merge gate is a flake somebody deletes as
  * tidying.
  */
@@ -157,7 +186,7 @@ describe('ingestUpload', () => {
       const row = await readMediaRow(ingested)
       expect(row.state).toBe('ready')
       expect(row.kind).toBe('still')
-      expect(Object.keys(row.sizes ?? {}).sort()).toEqual([...CONFIGURED_TIERS])
+      expect(derivedTiers(row.sizes)).toEqual([...CONFIGURED_TIERS])
     },
     INGEST_BUDGET_MS,
   )

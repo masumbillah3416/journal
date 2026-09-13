@@ -273,8 +273,12 @@ const anEncodedGradient = async (options: {
  * @param overrides - `width`/`height` default to {@link FIXTURE_SIZE}, which
  *   is large enough for Payload's `thumb` and `tile` tiers and no larger;
  *   `frame`, `hero` and `hero2x` are width-only sizes that Payload omits for
- *   a narrower source, so a case asserting that every configured tier was
- *   derived passes its own width - 4000, the width `hero2x` is configured at.
+ *   a narrower source. A case asserting that every configured tier was
+ *   derived therefore passes its own size, and passes it PORTRAIT: this
+ *   fixture writes `orientation` 6 and `runStillPipeline` auto-orients, so
+ *   the bytes Payload derives from are this size TRANSPOSED. An earlier
+ *   version of this sentence said to pass width 4000 and was wrong - measured,
+ *   a 4000x3000 source stores at 3000x4000 and `hero2x` is never derived.
  *   `orientation` defaults to 6, which is a photograph on its side.
  * @returns The encoded file's bytes, fresh per call.
  * @example
