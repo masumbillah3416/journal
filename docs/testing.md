@@ -22,10 +22,28 @@ Enforced by TWO configs, because no single Vitest run can execute everything:
   | `apps/web/lib/**`, server actions | 95%   | 95%      | 95%       |
   | `apps/web/app/**`                 | 95%   | 95%      | 95%       |
   | `apps/web/components/**`          | 90%   | 90%      | 90%       |
-  | Repository-wide                   | 90%   | 90%      | 90%       |
+  | `apps/web/scripts/placeholder.ts` | 100%  | 87.5%    | 100%      |
+  | `apps/web/scripts/run-seed.ts`    | 100%  | 100%     | 100%      |
+
+  **There is no repository-wide row any more, and its absence is the decision, not an
+  omission.** `CLAUDE.md` §2.1 dropped the 90% floor as a requirement in Phase 3: the
+  layers that carry real behaviour already have stricter gates above, so the only files a
+  repo-wide number could bind are the ones no glob names, and a floor across those buys
+  tests that assert Next.js and Payload behave as documented. Removing it from
+  `vitest.config.ts` was not a deletion, because every file inside an `include` matching no
+  per-glob key would fall through to no gate at all. That set was enumerated against this
+  pass's own `coverage/lcov.info` with the same `picomatch` call Vitest's
+  `resolveThresholds` makes, and it held exactly two files — the two now named in the rows
+  above, each at the number it measures rather than one rounded up to meet it.
+  `placeholder.ts` sits at 87.5 branches because one `/* c8 ignore next -- … */` hint in it
+  spans three comment lines, so "next" names the comment's own second line rather than the
+  guard beneath it, and the branch is counted; `run-seed.ts` is wholly ignored behind its
+  own start/stop pair and 100 states that the suppression must stay total. A third file
+  landing in `apps/web/scripts/` is gated by neither entry — see `vitest.config.ts`'s
+  comment for why that is not a regression and what closes it.
 
   `packages/tokens/**`'s row arrived with Phase 1's final review, which found it gated by
-  nothing but the repository-wide 90% floor. It is the same kind of code as
+  nothing but the then-repository-wide 90% floor. It is the same kind of code as
   `packages/domain/**` — three pure modules (`colour.ts`, `geometry.ts`, `type.ts`), no
   I/O, no framework, no React — and it measures 100% on all three metrics today, so the
   threshold is set at what it actually achieves rather than at a number rounded up to
@@ -35,7 +53,8 @@ Enforced by TWO configs, because no single Vitest run can execute everything:
   `apps/web/components/**`'s own row arrived with Phase 1 Task 7, the task that put the
   first real files there (the book's frame, page stack and the two hooks that drive
   them). Until then it deliberately had none: a threshold against an empty directory is a
-  vacuous pass, not a gate. It is set at the repository floor rather than `lib`'s and
+  vacuous pass, not a gate. It is set at 90 — what was then the repository floor, kept as
+  this directory's own number when that floor was removed — rather than `lib`'s and
   `app`'s 95% because these are React bindings, whose last few percent are framework
   glue; as of that task every file under it measures **100% on all four metrics**, so the
   bar is a floor, not a ceiling that was negotiated down to fit.
@@ -1108,8 +1127,8 @@ while three documents counted the costs as three.
     rather than a path segment, deliberately. **What that buys is stated as what was
     observed, not as a mechanism.** Both files report `0 | 0 | 0 | 0` in the unit
     coverage table; so does every other file under `apps/web/app/`, wrapped or not,
-    including the ones that predate this task. No gate moves (`All files` 99.93% against
-    a repository floor of 90%), and neither file needed an entry in the exclusion list
+    including the ones that predate this task. No gate moves (`All files` 99.93%, measured when a
+    repository floor of 90% still existed), and neither file needed an entry in the exclusion list
     the bracketed-directory files require. Whether `@vitest/coverage-v8` actually
     consumed the hint is indistinguishable from all of that, so this document does not
     say that it did — the earlier wording, "the ignore hint is read", asserted a

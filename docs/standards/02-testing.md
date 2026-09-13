@@ -38,16 +38,16 @@ What replaces it is the rule that was doing the work all along: **no file is in
 neither config's `include`** (below). A file nothing measures is the real
 danger, and that is a question of registration, not of a percentage.
 
-> **State of this change, stated rather than assumed.** The requirement is
-> removed here as of Phase 3 Task 8. `vitest.config.ts` still carries the
-> global `90` block, and `docs/testing.md`'s table still prints the row; both
-> come out in **Task 9**, not in this edit, for two reasons. Task 8 is in
-> flight in this working tree and owns those files. And removing a _global_
+> **State of this change, stated rather than assumed.** The requirement was
+> removed as of Phase 3 Task 8, and the enforcement followed in the standards
+> task: `vitest.config.ts` no longer carries the global `90` block, and
+> `docs/testing.md`'s table no longer prints the row. Removing a _global_
 > threshold is not a deletion — every file inside an `include` that matches no
-> per-glob threshold would fall through to no gate at all, so the removal has
-> to be accompanied by a check that nothing becomes unmeasured. That check is
-> the point of the rule that replaces it, and it gets done properly rather
-> than assumed.
+> per-glob threshold falls through to no gate at all — so the set that was
+> falling through was enumerated first, against `coverage/lcov.info` with the
+> same `picomatch` call Vitest makes. It held two files,
+> `apps/web/scripts/placeholder.ts` and `apps/web/scripts/run-seed.ts`, and
+> both are named in `vitest.config.ts` at the numbers they measure.
 
 100% is required where it is meaningful — pure domain logic, where every branch is a real behaviour. It is _not_ demanded of framework glue, where chasing the last percent produces tests that assert the framework rather than our code. Uncovered lines outside the domain layer require an `/* c8 ignore next -- <reason> */` with a real reason.
 

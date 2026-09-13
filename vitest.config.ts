@@ -96,11 +96,11 @@
  * it deliberately carried no per-glob threshold - a threshold against zero
  * files is a vacuous pass, not a gate. Task 7 landed the book's frame, page
  * stack and the two hooks that drive them there, so the directory now
- * carries an explicit 90%/90%/90% threshold below: the repository-wide floor
- * this file's earlier revision always said these files would fall under once
- * they existed, now named rather than inherited, per CLAUDE.md §2.1's "adding
- * code in a new directory means adding that directory to an include, with a
- * real threshold, in the same commit".
+ * carries an explicit 90%/90%/90% threshold below, per CLAUDE.md §2.1's
+ * "adding code in a new directory means adding that directory to an include,
+ * with a real threshold, in the same commit". It was the repository-wide floor
+ * when it was written; that floor is gone (see the `thresholds` block), and 90
+ * is now this directory's own named number rather than an inherited one.
  *
  * The `unit-dom` project gains two settings with Task 7's first real
  * components: a `setupFiles` entry (see `vitest.dom-setup.ts`) and
@@ -649,10 +649,31 @@ export default defineConfig({
         'apps/web/app/(payload)/cms/\\[\\[...segments\\]\\]/not-found.tsx',
       ],
       thresholds: {
-        // Repository-wide floor.
-        lines: 90,
-        branches: 90,
-        functions: 90,
+        // THERE IS NO REPOSITORY-WIDE FLOOR, and its absence is a decision
+        // (CLAUDE.md §2.1, as amended for Phase 3). There was a 90% one here.
+        // It gated the wrong thing: the layers carrying real behaviour already
+        // have stricter per-glob gates below, so the only files a repo-wide
+        // number could ever bind are the ones no glob names - and a floor
+        // across those buys tests that assert Next.js and Payload behave as
+        // documented. It produced at least one commit (`4c1b267`) whose whole
+        // purpose was widening floors CI had failed on, which added no test and
+        // found no defect.
+        //
+        // REMOVING A GLOBAL THRESHOLD IS NOT A DELETION: every file inside an
+        // `include` that matches no per-glob key below would fall through to no
+        // gate at all, which is the unmeasured-file danger §2.1 exists to
+        // prevent. So the set was enumerated against this pass's own lcov
+        // output rather than reasoned about, with the same `picomatch` call
+        // Vitest's `resolveThresholds` makes. It held exactly two files -
+        // `apps/web/scripts/placeholder.ts` and `apps/web/scripts/run-seed.ts` -
+        // and both are named below at the numbers they actually achieve. The
+        // enumeration is reproducible: read `coverage/lcov.info`'s `SF:` lines
+        // and ask which match none of this block's glob keys.
+        //
+        // What replaces the floor is the rule that was doing the work all
+        // along: no file is in neither config's `include`. A file nothing
+        // measures is the real danger, and that is a question of registration,
+        // not of a percentage.
         // Pure logic: every branch is a real behaviour, so every branch is covered.
         'packages/domain/src/**/*.ts': {
           lines: 100,
@@ -683,8 +704,8 @@ export default defineConfig({
         // the number it achieves - 100/100/100, measured, because
         // `lighthouseAnnotations.mjs` is a mapping whose every branch is a real
         // behaviour and `run-lighthouse.mjs` reports nothing either way behind
-        // its `c8 ignore`. Named rather than left to the repository-wide floor
-        // so a second script landing at 91% fails on its own commit.
+        // its `c8 ignore`. Named rather than inherited, so a second script
+        // landing at 91% fails on its own commit.
         'scripts/**/*.mjs': {
           lines: 100,
           branches: 100,
@@ -697,10 +718,10 @@ export default defineConfig({
         // wrapped or config-excluded (see this file's own header), so this
         // threshold has nothing to bind against yet; it starts applying the
         // moment real code lands.
-        // No equivalent entry for apps/web/components/**: that directory
-        // holds no files yet (`.gitkeep` only), and a threshold against zero
-        // files is the vacuous pass this task was told not to add - it
-        // falls under the repo-wide floor above once populated instead.
+        // apps/web/components/** carried no entry while it held no files
+        // (`.gitkeep` only), because a threshold against zero files is a
+        // vacuous pass rather than a gate. Task 7 of Phase 1 populated it and
+        // gave it the entry it has below.
         'apps/web/app/**/*.ts': {
           lines: 95,
           branches: 95,
@@ -716,9 +737,10 @@ export default defineConfig({
         // drive them), so the directory now gets the explicit threshold
         // CLAUDE.md §2.1 asks for - "adding code in a new directory means
         // adding that directory to an include, with a real threshold, in the
-        // same commit". It is set at the repository-wide 90% floor, which is
-        // the bar this config's own header always said these files would
-        // fall under once they existed; the higher 95% bar is reserved for
+        // same commit". It is set at 90 - what was then the repository-wide
+        // floor, kept as this directory's own number when that floor was
+        // removed, since every file under it measures 100 today and 90 is the
+        // bar this config always said they sit at; the higher 95% bar is reserved for
         // `lib/**` and `app/**`, whose files are server-side logic rather
         // than a React binding whose last few percent are framework glue.
         'apps/web/components/**/*.tsx': {
@@ -801,6 +823,50 @@ export default defineConfig({
         // and every arm of its message (which database it probes, the mask, a
         // rejection with no message of its own) is a case.
         'apps/web/lib/testDatabaseGuard.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        // THE TWO FILES THE REMOVED GLOBAL FLOOR WAS ACTUALLY GATING, named
+        // here rather than left to fall through to nothing. Both are matched by
+        // this pass's `apps/web/scripts/**/*.ts` include and by no glob above;
+        // their two siblings in that directory (`seed.ts`, `seed-data.ts`) are
+        // excluded here and re-gated by vitest.integration.config.ts.
+        //
+        // `placeholder.ts` is gated at the numbers it measures - 100 lines, 100
+        // functions, 87.5 branches - rather than a number rounded up to meet it.
+        // The missing branch is `parseHex`'s `if (!isSixDigitHex)` guard, whose
+        // `/* c8 ignore next -- … */` hint spans three comment lines, so "next"
+        // names the comment's own second line and not the statement beneath it.
+        // The hint therefore suppresses nothing and the branch is counted. That
+        // is a defect in the hint, not in the file, and it is left standing here
+        // rather than repaired inside a standards commit: repairing it raises
+        // this entry to 100/100/100 and is its own change with its own test.
+        //
+        // `run-seed.ts` carries a whole-file `c8 ignore start`/`stop` with its
+        // reason (a CLI entry point whose body is top-level `await` ending in
+        // `process.exit(0)`, so no test can import it). It therefore reports no
+        // measurable lines at all, and 100 is the honest gate for a file with
+        // nothing left uncovered - not an achievement, a statement that the
+        // suppression is total and must stay so. Adding a measurable line to it
+        // fails here, which is the direction that matters.
+        //
+        // A THIRD FILE LANDING IN apps/web/scripts/ IS NOT GATED BY EITHER
+        // ENTRY, and that is said here rather than left to be discovered. It is
+        // not a regression: the floor these replace was an aggregate over every
+        // measured file in the repository (99.93% today), so a small untested
+        // file never moved it either - docs/testing.md records the measurement,
+        // an entirely untested `apps/web/scripts/emit-actions.ts` written to
+        // disk with `npm run verify` still exit 0. The instrument that closes
+        // it is `coverage.thresholds.perFile`, whose blast radius is why it is
+        // its own decision; until then §2.1's rule is that the new file arrives
+        // with its own named threshold in the commit that adds it.
+        'apps/web/scripts/placeholder.ts': {
+          lines: 100,
+          branches: 87.5,
+          functions: 100,
+        },
+        'apps/web/scripts/run-seed.ts': {
           lines: 100,
           branches: 100,
           functions: 100,
