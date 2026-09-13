@@ -89,6 +89,15 @@ Per `docs/adr/0001-hosting-and-cost.md`:
   are pinned by a case. ADR 0004's "enabling video later is" states the order the removal
   follows: provision the Fly.io app, deploy the worker container, THEN delete the refusal
   and set the flag - a code change, in the commit that deploys the worker.
+  **That commit owes an end-to-end pass through `finaliseUpload` under the real flag**,
+  and this sentence is here because nothing else would ask for it: every `worker`-mode
+  case in the suite binds the mode directly, so the one composition no test has ever
+  executed is `apps/web/app/(admin)/admin/media/actions.ts` building `mediaProcessor()`
+  and `env.MEDIA_PIPELINE` side by side under `worker` - a Server Action has no
+  test-process request context, and `env` is fixed per run. Upload a still and a clip
+  through the admin, confirm the row reaches `ready` rather than sitting at `processing`,
+  and confirm the stored file carries no metadata marker. That path will be running in
+  production having never run anywhere.
   **That container must have `ffmpeg` and `ffprobe` on its `PATH`** -
   `apps/web/lib/media/services.ts` passes those two names to `createFfmpegToolchain`, and
   a container without them turns every clip upload into an `'unreadable'` refusal rather

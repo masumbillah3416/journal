@@ -43,9 +43,16 @@ loadEnvConfig(repoRoot)
  * case has read. It names its own removal condition because a guard whose
  * removal condition lives only in a review is a guard somebody deletes for the
  * wrong reason.
+ *
+ * IT OPENS "accepted, and deliberately refused here" because `parseEnv`
+ * prefixes it with `MEDIA_PIPELINE: ` and the whole line arrives as
+ * `Invalid environment: …`. `'worker'` is not invalid — the enum takes it on
+ * purpose, and the mode is real — so without that lead-in the operator's first
+ * reading is "my value is malformed" and their first move is to fix a typo
+ * that is not there.
  */
 export const WORKER_NOT_DEPLOYED =
-  'MEDIA_PIPELINE=worker stores un-stripped originals: no worker process exists in this repository to sniff, strip and re-encode them. Delete this refusal in the commit that deploys one - docs/adr/0004-media-pipeline-mode.md orders it provision, deploy, then set the flag.'
+  'accepted, and deliberately refused here: MEDIA_PIPELINE=worker stores un-stripped originals, and no worker process exists in this repository to sniff, strip and re-encode them. Delete this refusal in the commit that deploys one - docs/adr/0004-media-pipeline-mode.md orders it provision, deploy, then set the flag.'
 
 const envSchema = z.object({
   /** Postgres connection string. Required — there is no meaningful default. */
