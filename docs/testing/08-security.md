@@ -241,8 +241,13 @@ numbers are `docs/testing.md`'s and do not change.
   Nothing failed, because `subject` is text; the fixtures had simply stopped being what
   they claimed to be.
 
-  What is still outstanding is the upload worker's SVG and EXIF probes (Phase 3). The
-  PURE half of the SVG refusal landed in Phase 3 Task 2 and is not one of them:
+  **Both the SVG and the EXIF probe landed in Phase 3 Task 9**, as
+  `apps/web/lib/media/roundTrip.integration.test.ts` — against a real Postgres, a real
+  store and the real receiver. This passage read "what is still outstanding is the
+  upload worker's SVG and EXIF probes" until then, and the two paragraphs below record
+  the PURE halves that landed first and what they could not reach; the paragraph after
+  them records what the integration probe added. The
+  PURE half of the SVG refusal landed in Phase 3 Task 2:
   `packages/domain/src/media/sniff.test.ts` and
   `packages/domain/src/media/ingestPolicy.test.ts` decide the type from the bytes and
   refuse it, at the domain's 100% bar, and the case that carries the requirement feeds
@@ -292,9 +297,24 @@ numbers are `docs/testing.md`'s and do not change.
   would settle the layout against a third party, `exiftool`, is not installed on this
   machine, so that check remains UNRESOLVED rather than routed through anything online.
 
-- **Run (once added):** included in `npm run test:integration` (these probes need a real
-  database and, for the upload cases, the worker), so they run under `verify:full`.
-- **Add one (once added):** each row of `docs/security.md` that names a behaviour (not
+  **What Phase 3 Task 9 added on top of both pure halves** is the thing neither could
+  do: reading the bytes that are actually on disk. `roundTrip.integration.test.ts`
+  stages a photograph through `planUploadSlots`, PUTs it through `receiveLocalUpload`,
+  ingests it, and then reads back EVERY file the row owns — the original Payload wrote
+  and each derivative — through `createLocalStorage(MEDIA_DIR)`, the same port a
+  download reads through. Three needles, each asserted PRESENT in the upload before it
+  is asserted absent from the store: `metadataMarkersIn`, the Copyright canary, and the
+  GPS coordinate's own bytes, which is the one a stripper that removed the APP1 header
+  and left its payload would still fail. The SVG half is the same file's
+  `rejects an SVG at ingest and stores no file for it` — SVG bytes under a `.jpg` name
+  and a declared `image/jpeg`, which is the only form the attack arrives in, since the
+  planner offers no slot for an honestly-declared one. The count of files read back is
+  derived from the collection's configured image sizes rather than written down, so the
+  loop cannot silently go vacuous.
+
+- **Run:** included in `npm run test:integration` (these probes need a real
+  database), so they run under `verify:full`.
+- **Add one:** each row of `docs/security.md` that names a behaviour (not
   just a schema field) gets a negative-case test: e.g. a 4th OTP attempt is rejected, an
   SVG upload is rejected by magic bytes even with a `.jpg` extension, an EXIF-bearing
   upload has no EXIF after processing, enumeration timing is equal for a real and a fake

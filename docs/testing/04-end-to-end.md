@@ -556,6 +556,53 @@ true` — the only honest content while nothing writes or reads that setting and
   the address at all depends on the browser and on whether it is headed: the page-load
   cases above it are headless and stayed green through the whole defect.
 
+  **`e2e/upload.spec.ts` (Phase 3 Task 9)** is where a MEASUREMENT is checked against
+  another measurement, and it is the only place that can be done.
+  `EXPECTED_UPLOAD_REQUEST` in `apps/web/lib/media/uploadContract.ts` records what a
+  real Chromium sends when a page PUTs an upload — `PUT`, the `File`'s own `type` as
+  `Content-Type`, and a `Content-Length` a page cannot set. The integration fixture
+  `aPutRequest` in `apps/web/lib/media/testing/uploadProbes.ts` builds its method and
+  content type FROM that constant, which is what keeps one spelling of the shape — and
+  is also why no Vitest run can tell the constant drifting from the browser drifting:
+  the fixture and the assertion agree by construction, which is exactly how two Phase 2
+  blockers passed sixteen hundred tests. So the first case builds a `File` inside the
+  page, PUTs it with the page's own `fetch`, and compares what the browser did against
+  the constant.
+
+  The URL it PUTs to is a genuine one. `anUploadUrlFor` in `e2e/support/adminSession.ts`
+  calls `offerUploadSlots` — the same function the admin's Server Action calls — over
+  the live `createLocalStorage(MEDIA_DIR)` store and the bound `mediaProcessor()`, so
+  the token is signed with the real secret, capped at the real `MAX_UPLOAD_BYTES` and
+  pointed at the real `ADMIN_ORIGIN`. It creates no journey of its own: a published
+  fixture row would be a row `e2e/visual.spec.ts` photographs. The type the page puts on
+  its `File` comes off the bound pipeline's `acceptedTypes`, never off the constant
+  under test, so the two sides of the comparison have independent sources.
+
+  The second case is about authorisation rather than shape. The token is a capability
+  over one KEY and is not authentication, so the route file applies `guarded`; the same
+  genuine URL is PUT to from a browser with no session, and the case asserts that
+  **nothing landed at the key** — read back through the store — before it asserts what
+  the browser was told. `fetch` follows redirects by default, so a `303` to
+  `/admin/sign-in` would arrive at the page as that screen's `200`; the case uses
+  `redirect: 'manual'`, under which a browser reports the redirect itself as
+  `{ status: 0, type: 'opaqueredirect' }`.
+
+  Both mechanisms were watched failing. Setting the constant's `contentType` to
+  `application/octet-stream` failed the first case on the shape comparison, naming both
+  values. Unwrapping `guarded` in
+  `apps/web/app/(admin)/admin/media/upload/route.ts` failed the second case on the store
+  assertion — four bytes where there should have been none — and, separately,
+  `apps/web/lib/auth/adminGuardRegistration.test.ts`'s `leaves every guarded address
+applying the guard in its own file`. **`npm run lint` exited 0 under that mutation**,
+  measured: `eslint-rules/guarded-server-actions.js` governs modules whose directive
+  prologue declares a Server Action, and a route file is not one. Two shapes, two checks,
+  and neither covers the other's.
+
+  Neither case uploads a photograph. There is no admin picker to drive until Phase 4, so
+  the body is a filled `Uint8Array` inside a `File`; what happens to real photograph
+  bytes afterwards is `apps/web/lib/media/roundTrip.integration.test.ts`'s, against a
+  real Postgres and a real store.
+
   **A CI gap this file had not recorded.** `.github/workflows/ci.yml`'s `browser` job
   named only `smoke`, `a11y` and `visual` in its single `npx playwright test`
   invocation, so `e2e/book.spec.ts` and `e2e/flip.spec.ts` — named by
