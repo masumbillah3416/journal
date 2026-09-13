@@ -25,6 +25,14 @@
  * `waitForLiveBook` deliberately does NOT wait for the whole book: on a
  * document that is only ever a window until the reader turns a page, it would
  * wait for something that is not coming.
+ *
+ * `deferAddressWrites` is the odd one out here: it does not wait for the book,
+ * it SLOWS one of the book's effects down. It belongs beside the two waits
+ * because it is the same subject seen from the other side — the address is
+ * written by an effect that runs after the render naming the new page, and a
+ * case that cares whether it has landed yet either waits for it or widens the
+ * window in which it has not. See its own TSDoc for why widening it is what
+ * turned `e2e/flip.spec.ts`'s ~2% flake into a case that fails on purpose.
  * Depends on: @playwright/test.
  */
 import { WHOLE_BOOK_QUERY } from '@travel-diary/domain/contentWindow'
@@ -83,3 +91,36 @@ export const waitForWholeBook = async (page: Page): Promise<void> => {
  * await page.goto(wholeBookPath(30))
  */
 export const wholeBookPath = (pageNumber: number): string => `/p/${String(pageNumber)}?${WHOLE_BOOK_QUERY}`
+
+/**
+ * Delays every `history.replaceState` this page makes.
+ *
+ * `Book.tsx` writes the address from an effect that runs after the render
+ * naming the new page, so the address lags a committed turn by up to one
+ * frame - a cost that file's header records deliberately (ADR 0009), not a
+ * defect. A poll that reads the address AS PART OF the page's identity
+ * therefore has a window in which it sees a tuple that is neither end, which
+ * is `e2e/flip.spec.ts`'s ~2% flake. This makes that window WIDE, so a case
+ * about it fails or passes on purpose rather than 2% of the time.
+ *
+ * `addInitScript` rather than `evaluate`: it must be installed before the
+ * page's own scripts run, or the book has already captured `replaceState`.
+ *
+ * @param page - The page to install it on, before `goto`.
+ * @param options - `delayMs` must exceed the polling interval of whichever
+ *   case uses it, or the widened window is still narrower than one poll.
+ * @example
+ * await deferAddressWrites(page, { delayMs: 200 })
+ * await page.goto(wholeBookPath(30))
+ * await waitForLiveBook(page)
+ */
+export const deferAddressWrites = async (page: Page, options: { readonly delayMs: number }): Promise<void> => {
+  await page.addInitScript((delay: number) => {
+    const original = window.history.replaceState.bind(window.history)
+    window.history.replaceState = (...args: Parameters<History['replaceState']>): void => {
+      setTimeout(() => {
+        original(...args)
+      }, delay)
+    }
+  }, options.delayMs)
+}

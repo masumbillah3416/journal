@@ -36,6 +36,19 @@
  * `waitForLiveBook` watches is the measured scale replacing the server's
  * `scale(1)`, which is the first thing any of the book's effects do.
  *
+ * THE PAGE THE DIARY PUBLISHES AND THE ADDRESS IT WRITES ARE TWO SERIES, NOT
+ * ONE TUPLE, and the pair of bookmark-jump cases below poll them as two
+ * through `pollPublishedSeriesAfterContentsClick`. The counter, the label and
+ * the rail's active tab are written in one React commit; the address is
+ * written by a separate effect in `apps/web/components/book/Book.tsx`, whose
+ * header records at length that it can lag a committed turn and that this is
+ * a deliberate cost rather than an invariant (ADR 0009). Read as one tuple,
+ * the jump case caught the new page at the old address ~2% of runs and called
+ * it a third published page — see
+ * docs/qa/2026-09-08-flip-address-lag-defect.md, and the second of the two
+ * cases, which widens that window on purpose so the first cannot quietly stop
+ * guarding anything.
+ *
  * The seizure case is the one worth staying honest about. It does not assert
  * "twelve presses turn twelve pages" — the latch is SUPPOSED to swallow the
  * ones that arrive mid-flip, so counting them would encode the opposite of the
@@ -45,8 +58,8 @@
  * running app from playwright.config.ts's `webServer`, and the seeded diary
  * (`npm run db:seed`) whose first journey is Tokyo, starting on page 3 of 33.
  */
-import { expect, test } from '@playwright/test'
-import { waitForLiveBook, wholeBookPath } from './support/liveBook'
+import { expect, test, type Page } from '@playwright/test'
+import { deferAddressWrites, waitForLiveBook, wholeBookPath } from './support/liveBook'
 import { drawsMobileReadingMode } from './support/surface'
 
 // SCREENS.md §1.10 replaces the book below 860px - "No book, no flip, no
@@ -154,53 +167,140 @@ test('a bookmark jump departs from the page beside its target, not from across t
   expect(inFlight).toEqual(['2', '3'])
 })
 
+/** The two series a bookmark jump to the Contents publishes while it runs. */
+interface PublishedSeries {
+  /**
+   * Every distinct page identity published, in order: the counter, the label
+   * under it, and the tab the rail marks, joined. All three are written in ONE
+   * React commit, so any reading of them is self-consistent by construction.
+   */
+  readonly identities: readonly string[]
+  /** Every distinct address the book wrote, in order. */
+  readonly addresses: readonly string[]
+}
+
+/**
+ * Clicks the Contents bookmark tab and polls what the diary publishes every
+ * 40ms until well past the 970ms turn, as TWO adjacent-deduplicated series.
+ *
+ * TWO SERIES RATHER THAN ONE TUPLE, and that is the whole point of this
+ * helper. The identity is written in one React commit; the address is written
+ * by a separate effect in `apps/web/components/book/Book.tsx`, whose header
+ * records that it can lag a committed turn and that this is a deliberate cost
+ * rather than an invariant (ADR 0009). Folding the address into the identity
+ * asserted a coupling the application never promised, and cost ~2% of runs
+ * (docs/qa/2026-09-08-flip-address-lag-defect.md).
+ *
+ * ADJACENT-DEDUPLICATED AND ORDERED, NOT A `Set`. A set discards order, so a
+ * book that published the destination, went back to the origin and returned
+ * would produce the same set as one that never wavered — and two of the three
+ * things the cases below guard are about order.
+ *
+ * The click is dispatched from inside the page for the reason this file's
+ * header gives: the driver round-trip is time the turn is already spending.
+ *
+ * @param page - A live book (`waitForLiveBook`) whose rail carries a Contents tab.
+ * @returns The identities and the addresses, each in order, each without
+ *   adjacent repeats. `identities[0]` is the page the reader left.
+ * @example
+ * const published = await pollPublishedSeriesAfterContentsClick(page)
+ * expect(published.identities).toEqual([published.identities[0], '02 / 33 | Contents | 1'])
+ */
+const pollPublishedSeriesAfterContentsClick = async (page: Page): Promise<PublishedSeries> =>
+  page.evaluate(async (): Promise<PublishedSeries> => {
+    // THE PUBLISHED PAGE, which is what PH1-001 was about: the counter, the
+    // label under it, and the tab the rail marks.
+    const identity = (): string =>
+      [
+        document.querySelector('[data-counter]')?.textContent ?? 'no counter',
+        document.querySelector('[data-page-label]')?.textContent ?? 'no label',
+        document.querySelector('[data-bookmark][aria-current="page"]')?.getAttribute('data-bookmark') ?? 'no tab',
+      ].join(' | ')
+
+    // THE ADDRESS, as its own series, for the reason in this helper's TSDoc.
+    const address = (): string => location.pathname
+
+    const identities = [identity()]
+    const addresses = [address()]
+    const record = (): void => {
+      const nextIdentity = identity()
+      if (nextIdentity !== identities[identities.length - 1]) identities.push(nextIdentity)
+      const nextAddress = address()
+      if (nextAddress !== addresses[addresses.length - 1]) addresses.push(nextAddress)
+    }
+
+    const tabs = [...document.querySelectorAll<HTMLButtonElement>('[data-bookmark]')]
+    const contents = tabs.find((tab) => tab.textContent.includes('Contents'))
+    if (contents === undefined) return { identities: ['no Contents bookmark tab in the rail'], addresses: [] }
+
+    contents.click()
+    for (let waited = 0; waited < 1_400; waited += 40) {
+      await new Promise((resolve) => setTimeout(resolve, 40))
+      record()
+    }
+    return { identities, addresses }
+  })
+
 test('publishes no page but the one it left and the one it was asked for, for the whole of a bookmark jump', async ({
   page,
 }) => {
-  // PH1-001 (docs/qa/2026-09-03-phase-1-closing-sweep.md, S2), read the way
-  // the sweep read it: poll the four places the diary names the reader's own
-  // page — the counter, the page label under it, the tab the rail marks
-  // `aria-current`, and the ADDRESS — every 40ms from the click until well
-  // past the 970ms turn. A jump is anchored one leaf from its target so the
-  // animation plays as a single turn, and that anchor used to be committed as
-  // the reader's index: clicking Contents from `/p/29` read
-  // `03 / 33 · Tokyo — Notes` at `/p/3`, with Tokyo's tab lit, for 981ms.
+  // PH1-001 (docs/qa/2026-09-03-phase-1-closing-sweep.md, S2): poll the places
+  // the diary names the reader's own page — the counter, the page label under
+  // it, the tab the rail marks `aria-current`, and the address — every 40ms
+  // from the click until well past the 970ms turn. A jump is anchored one leaf
+  // from its target so the animation plays as a single turn, and that anchor
+  // used to be committed as the reader's index: clicking Contents from `/p/29`
+  // read `03 / 33 · Tokyo — Notes` at `/p/3`, with Tokyo's tab lit, for 981ms.
+  //
+  // The sweep read those four as one tuple, and this case did too until the
+  // address turned out to be a SEPARATE series that settles on its own
+  // schedule — see this file's header. They are polled together and asserted
+  // apart.
   //
   // Polled rather than read once mid-flight, because the defect is a WINDOW
-  // and a single sample could fall either side of it. The two ends are read
-  // out of the page rather than written down here, so the case cannot drift
-  // from the seed; what it asserts is that the set of everything published
-  // between them is empty.
+  // and a single sample could fall either side of it. The origin is read out
+  // of the page rather than written down here, so the case cannot drift from
+  // the seed; what it asserts is that everything published between the two
+  // ends is nothing at all.
   await page.goto(wholeBookPath(30))
   await waitForLiveBook(page)
 
-  const published = await page.evaluate(
-    async (): Promise<{ readonly origin: string; readonly seen: readonly string[] }> => {
-      const read = (): string =>
-        [
-          document.querySelector('[data-counter]')?.textContent ?? 'no counter',
-          document.querySelector('[data-page-label]')?.textContent ?? 'no label',
-          document.querySelector('[data-bookmark][aria-current="page"]')?.getAttribute('data-bookmark') ?? 'no tab',
-          location.pathname,
-        ].join(' | ')
+  const published = await pollPublishedSeriesAfterContentsClick(page)
 
-      const origin = read()
-      const tabs = [...document.querySelectorAll<HTMLButtonElement>('[data-bookmark]')]
-      const contents = tabs.find((tab) => tab.textContent.includes('Contents'))
-      if (contents === undefined) return { origin, seen: ['no Contents bookmark tab in the rail'] }
+  // What PH1-001 is actually about: between the two ends, no third page is
+  // ever published. The Contents is page 2 of the book, and tab 1 of the rail
+  // spans it. The origin is read out of the page rather than written down, so
+  // the case cannot drift from the seed.
+  expect(published.identities).toEqual([published.identities[0], '02 / 33 | Contents | 1'])
 
-      contents.click()
-      const readings = [read()]
-      for (let waited = 0; waited < 1_400; waited += 40) {
-        await new Promise((resolve) => setTimeout(resolve, 40))
-        readings.push(read())
-      }
-      return { origin, seen: [...new Set(readings)] }
-    },
-  )
+  // The address is asserted as its own settling series: it starts where the
+  // reader was and ends where they went, and never visits a third place.
+  // Whether it changes on the same poll as the identity is NOT asserted,
+  // because `Book.tsx` deliberately does not promise that.
+  expect(published.addresses).toEqual(['/p/30', '/p/2'])
+})
 
-  // The Contents is page 2 of the book, and tab 1 of the rail spans it.
-  expect(published.seen).toEqual([published.origin, '02 / 33 | Contents | 1 | /p/2'])
+test('publishes no third page even when the address write is delayed well past a poll', async ({ page }) => {
+  // THE REGRESSION GUARD FOR THE FIX IN
+  // docs/qa/2026-09-08-flip-address-lag-defect.md. Its subject is the identity
+  // series, and `deferAddressWrites` proves that series does not depend on
+  // when the address is written. Against the case as it stood - one tuple with
+  // the address folded into it - this delay failed it 10 of 10 (5 repeats on
+  // each of the two projects that draw a book): the old assertion could not
+  // tell "a third page was published" from "the address had not caught up
+  // yet", which is why it failed ~2% of runs without the delay and every run
+  // with it.
+  //
+  // The address series is NOT asserted here: under a 200ms delay the final
+  // write lands on the poll's own terms, and asserting on it would be
+  // asserting on the injected delay rather than on the book.
+  await deferAddressWrites(page, { delayMs: 200 })
+  await page.goto(wholeBookPath(30))
+  await waitForLiveBook(page)
+
+  const published = await pollPublishedSeriesAfterContentsClick(page)
+
+  expect(published.identities).toEqual([published.identities[0], '02 / 33 | Contents | 1'])
 })
 
 test('changes page instantly under prefers-reduced-motion', async ({ browser }) => {
