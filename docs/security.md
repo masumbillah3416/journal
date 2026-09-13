@@ -958,6 +958,15 @@ the staging object even when the bytes are refused” asserts the pre-strip copy
 (`apps/web/lib/media/ingestUpload.integration.test.ts`). The mutation proving the ORDER at this
 seam, as well as inside the pipeline, is recorded in the task report: creating the row before
 `process()` leaves the refused SVG with a row, and a row means a stored file.
+**AND IT IS ONE OF THE PHASE'S OWN EXIT CRITERIA, STATED AS A CASE (Phase 3 Task 9).**
+`apps/web/lib/media/roundTrip.integration.test.ts`'s “rejects an SVG at ingest and stores no
+file for it” asserts all three facts together — the refusal by name, the collection's row count
+unmoved, and the staged object gone — over an SVG the real planner minted a key for and a real
+store held. Beside it, “offers no slot for an SVG in the first place, so the refusal is two
+layers deep” pins the planner's own refusal, which is why the case above has to send its SVG
+under a `.jpg` name and an `image/jpeg` declaration: an honestly-declared one is never offered a
+key to be staged at. Deleting the `'svg-rejected'` arm from `ingestDecision` was watched failing
+the first case, which then reported `'type-not-allowed'`.
 **`MEDIA_PIPELINE=worker` IS NOT REACHABLE, AND THAT IS NOW ENFORCED RATHER THAN DOCUMENTED
 (Task 8 review finding 1).** Under `worker` ingest does not run the pipeline at all —
 `docs/adr/0004-media-pipeline-mode.md`'s amendment puts the queue hop BETWEEN the receiver and
@@ -1106,8 +1115,20 @@ so what Payload wrote carries none of the metadata the staged original did” re
 the capture time it read off the EXIF, before stripping it” asserts the row's `capturedAt` is
 the fixture's own instant, read back in UTC, so the case reports what ingest recorded rather
 than the tester's timezone; and “removes the staging object once the row exists, so a staged
-copy cannot outlive it” asserts the GPS-carrying original is gone from the store. **WHAT
-`worker` MODE WOULD DO, AND WHY IT CANNOT.** Under `MEDIA_PIPELINE=worker` the staged original
+copy cannot outlive it” asserts the GPS-carrying original is gone from the store.
+**EVERY STORED FILE, NOT ONLY THE ROW'S OWN (Phase 3 Task 9).** The three cases above read one
+file; the criterion names the stored bytes, plural and without exception, so
+`apps/web/lib/media/roundTrip.integration.test.ts` reads back the original AND every derivative
+Payload wrote, through `createLocalStorage(MEDIA_DIR)` — the same port a download reads through
+— and asserts all three needles over each. The tally of files it read is derived from the
+collection's configured image sizes rather than written down, so a probe that quietly returned
+fewer would fail rather than make the loop vacuous. **THE THIRD NEEDLE IS THE COORDINATE
+ITSELF**, and it is there because the first two would not notice a stripper that removed the
+APP1 header and left its payload where it sat: `asExifRationals(FIXTURE_GPS_LATITUDE)` is the
+latitude's own EXIF bytes, asserted PRESENT in the upload and ABSENT from a photograph that
+never carried one before it is asserted absent from the store. Adding `.keepExif()` to the
+pipeline was watched failing both cases — the marker search on one, the coordinate on the other.
+**WHAT `worker` MODE WOULD DO, AND WHY IT CANNOT.** Under `MEDIA_PIPELINE=worker` the staged original
 IS what the row is created from, at `state: 'processing'`, because the strip runs inside
 `process()` and that mode does not call it. Sniffing at ingest would not have helped: it would
 refuse an SVG and leave the GPS where it was. So the mode is refused at `parseEnv` and the row
