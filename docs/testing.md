@@ -3714,7 +3714,7 @@ because other objects depend on it` — the surviving `journeys` table still use
 
 ## The documentation guards
 
-**The four checks in `apps/web/lib/docs/` are not a tenth suite. They are the ninth
+**The checks in `apps/web/lib/docs/` are not a tenth suite. They are the ninth
 whole-branch review turned into a command**, and they exist because of what that review
 counted rather than what it found: **nineteen of its twenty-one findings were reached by a
 script, not by judgement.** Nine rounds had each read roughly twenty thousand lines of
@@ -3866,10 +3866,32 @@ the wrong file — where that was true here, the sentence was rewritten to name 
 counts. Counts of other things in prose — shapes, configurations, documents — are the same
 rule applied by a person; this is the population that recurred eleven times in one review.
 
-### 10.5 · How to run them
+### 10.5 · `standardsSections.test.ts` — every frozen section number still resolves
+
+`CLAUDE.md` is a short core plus one reference file per section under `docs/standards/`,
+and a split document rots three ways. This refuses all three: a `## N · …` section naming a
+`docs/standards/` file that is not in the tree; a file in `docs/standards/` that no section
+points at; and — the one that matters — a `CLAUDE.md §N` citation anywhere git lists that
+names a section `CLAUDE.md` does not declare. There are hundreds of those citations, in
+module headers and config comments as much as in prose, and the numbers are frozen because
+of them.
+
+It is what would have caught `adminGuardRegistration.test.ts`'s two citations of a
+subsection 8.4 that has never existed. Both meant the Husky pre-commit hook, which is
+`CLAUDE.md` §11's territory, and both are corrected; the point is that `verify` was green
+beside them for three phases.
+
+Declared sections come from `CLAUDE.md`'s own numbered headings plus §0's numbered rules
+(which is what a `§0.N` citation names), reference files from `readdirSync`, citations from
+`git ls-files` — nothing here lists a known-good value. The sentinel that proves the
+resolver can answer "no" is assembled from two string pieces rather than written out,
+because written out it would be a live citation inside the corpus the check scans, and this
+file is deliberately NOT excluded from that corpus.
+
+### 10.6 · How to run them
 
 ```
-npx vitest run --project unit apps/web/lib/docs        # all four
+npx vitest run --project unit apps/web/lib/docs        # all of them
 npx vitest run --project unit apps/web/lib/docs/fencedProse.test.ts
 npm run verify                                          # what Husky runs
 ```

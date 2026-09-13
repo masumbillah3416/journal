@@ -4,9 +4,9 @@
  *
  * ═══ WHY THIS MODULE EXISTS AT ALL ═══
  *
- * Four guards in this directory each need "every Markdown file this repository
- * holds" and "the repository root". Written four times, that is four
- * enumerations of the same thing, and this phase has now watched five separate
+ * The guards in this directory each need "every Markdown file this repository
+ * holds" and "the repository root". Written once per guard, that is one
+ * enumeration of the same thing per guard, and this phase has now watched five separate
  * enumerations drift away from what they enumerate. It is written once, here,
  * and the guards import it — the second real use, which is when CLAUDE.md §3.3
  * says an abstraction earns its place.

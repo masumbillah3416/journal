@@ -1393,7 +1393,7 @@ describe('the rule that reports an unguarded Server Action', () => {
     //
     // THE CHAIN IS ASSERTED LINK BY LINK BELOW, because a command nothing
     // runs is not a gate: `ci.yml` runs `verify:full`, which runs `verify`,
-    // which runs `lint`, and the Husky hook CLAUDE.md §8.4 relies on runs
+    // which runs `lint`, and the Husky hook CLAUDE.md §11 relies on runs
     // `verify` too. Each link is one string, and each of them was unread
     // until this case.
     //
@@ -1465,7 +1465,7 @@ describe('the rule that reports an unguarded Server Action', () => {
       shellCommandLines(bytesOf('.husky/pre-commit').toString('utf8')).filter((command) =>
         runsExactly(command, ['npm', 'run', 'verify']),
       ),
-      'the Husky pre-commit hook no longer runs exactly `npm run verify`, which is the gate CLAUDE.md §8.4 relies on',
+      'the Husky pre-commit hook no longer runs exactly `npm run verify`, which is the gate CLAUDE.md §11 relies on',
     ).not.toEqual([])
   })
 
