@@ -22,9 +22,12 @@
  *
  * So the shape is written down ONCE, here, as a value. The integration
  * fixture (`testing/uploadProbes.ts`'s `aPutRequest`) builds its method and
- * `Content-Type` from it, and `e2e/upload.spec.ts` (Task 9) asserts a real
- * Chromium's own PUT against it. If the two ever diverge, the browser test
- * fails rather than the suite quietly agreeing with itself.
+ * `Content-Type` from it, and `e2e/upload.spec.ts` (Task 9) holds it against
+ * the request a real Chromium made — `request.method()` and
+ * `allHeaders()['content-type']`, read off the wire through
+ * `page.waitForRequest`, never off a variable the page was handed. If the two
+ * ever diverge, the browser test fails rather than the suite quietly agreeing
+ * with itself.
  *
  * WHAT WAS MEASURED, AND HOW. This repository's own Chromium (Playwright
  * 1.62.1, HeadlessChrome 151) was driven at a local Node HTTP server on the
@@ -73,10 +76,13 @@
  *
  * What no in-suite check can prove is that these values match what a BROWSER
  * sends — the only honest check on a measurement is another measurement, and
- * that is the browser's. `e2e/upload.spec.ts` (Task 9) asserts a real
- * Chromium's own PUT against this constant. Until it lands, the two coherence
- * checks hold the constant against the route and the pipeline; they do not
- * stand in for the browser.
+ * that is the browser's. `e2e/upload.spec.ts` (Task 9) is that measurement,
+ * and WHAT IT READS IS THE POINT: its first version reported a method typed
+ * into the page and `File.prototype.type`, so it agreed with its own input and
+ * stayed green with `application/octet-stream` on the wire. It now reads the
+ * request itself. The two coherence checks here hold the constant against the
+ * route and the pipeline; they do not stand in for the browser, and a browser
+ * check that reads the page's own variables does not either.
  *
  * PATTERN (CLAUDE.md §3.3): Data Transfer Object — one serialization boundary
  * between the admin's browser and the upload surface.

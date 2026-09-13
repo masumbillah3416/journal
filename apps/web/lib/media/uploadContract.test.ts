@@ -38,9 +38,13 @@
  *
  * WHAT THESE CASES STILL DO NOT PROVE, because no in-suite check can: that the
  * constant matches what a BROWSER sends. Only a browser settles a measurement,
- * and `e2e/upload.spec.ts` (Task 9) is where that is asserted against a real
- * Chromium's own PUT. These two hold the constant against the route and the
- * pipeline; that one holds it against the world.
+ * and `e2e/upload.spec.ts` (Task 9) is where it is settled — against the
+ * method and headers of the request Chromium actually made, read through
+ * `page.waitForRequest`. That distinction is load-bearing rather than
+ * pedantic: the first version of that spec read the page's own `File` back and
+ * so asserted the same coherence these two do, with a browser in the middle
+ * acting as an identity function. These two hold the constant against the
+ * route and the pipeline; that one holds it against the wire.
  * Depends on: vitest, node:fs, node:url; `acceptedIngestTypes`
  * (@travel-diary/domain/media/ingestPolicy); the module under test.
  */

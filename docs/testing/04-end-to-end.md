@@ -566,8 +566,20 @@ true` — the only honest content while nothing writes or reads that setting and
   is also why no Vitest run can tell the constant drifting from the browser drifting:
   the fixture and the assertion agree by construction, which is exactly how two Phase 2
   blockers passed sixteen hundred tests. So the first case builds a `File` inside the
-  page, PUTs it with the page's own `fetch`, and compares what the browser did against
-  the constant.
+  page, PUTs it with the page's own `fetch`, and compares the constant against
+  **the request that went out** — `request.method()` and `allHeaders()['content-type']`,
+  taken through `page.waitForRequest`. It also asserts `content-length`, which discharges
+  point 2 of the constant's own measurement and was asserted nowhere before.
+
+  **Read off the wire, and the first version of this spec was not** — this is recorded
+  rather than quietly fixed, because it is the species the file exists to defeat landing
+  in the file written to defeat it. That version reported `method: 'PUT'` as a string
+  literal typed inside `page.evaluate` and `contentType: body.type`, the `File`'s own
+  property set from the value the helper had just passed in. No request header was read,
+  so the case reduced to a coherence `apps/web/lib/media/uploadContract.test.ts` already
+  asserts in Vitest, with a browser in the middle acting as an identity function. The
+  review proved it by overriding the wire header: the assertion stayed green with
+  `application/octet-stream` on the wire and `image/jpeg` in the comparison.
 
   The URL it PUTs to is a genuine one. `anUploadUrlFor` in `e2e/support/adminSession.ts`
   calls `offerUploadSlots` — the same function the admin's Server Action calls — over
@@ -587,9 +599,17 @@ true` — the only honest content while nothing writes or reads that setting and
   `redirect: 'manual'`, under which a browser reports the redirect itself as
   `{ status: 0, type: 'opaqueredirect' }`.
 
-  Both mechanisms were watched failing. Setting the constant's `contentType` to
-  `application/octet-stream` failed the first case on the shape comparison, naming both
-  values. Unwrapping `guarded` in
+  Both mechanisms were watched failing, and the first case now dies under three separate
+  mutations rather than one. Setting the constant's `contentType` to
+  `application/octet-stream` fails it on the shape comparison, naming both values; having
+  the page override the wire header fails it the same way, which is the mutation the
+  echoing version survived; and sending a TYPELESS `Blob` fails it with `undefined`,
+  because Chromium sends no `content-type` at all for one — independently re-confirming
+  the third bullet of the constant's own measurement. A page sending a body one byte
+  short fails the `content-length` line. A page trying to set `Content-Length` itself
+  does NOT fail anything, measured: the header is forbidden to a page, the browser
+  ignores it, and the wire still carried the body's real length — which is the claim
+  that line exists to keep. Unwrapping `guarded` in
   `apps/web/app/(admin)/admin/media/upload/route.ts` failed the second case on the store
   assertion — four bytes where there should have been none — and, separately,
   `apps/web/lib/auth/adminGuardRegistration.test.ts`'s `leaves every guarded address
