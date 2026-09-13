@@ -106,13 +106,36 @@ const AT_LEAST_THIS_MANY_CITATIONS = 600
 const CLAUDE_MD_WORD_BUDGET = 700
 
 /**
- * The least a section may carry in its reference file before it is a stub.
+ * The least a section may carry in its reference file before it is a stub,
+ * counted the way {@link sectionBodies} counts: **characters that are not
+ * whitespace**, between a numbered heading and the next heading.
  *
- * Measured rather than picked: the smallest real section in `docs/standards/`
- * is §8.3 (branch naming) at 142 body characters, and it is genuinely that
- * short. 100 sits under it with room and far above an emptied section, which is
- * the shape being refused — a heading kept so a pointer still resolves, with
- * the rule it names deleted from under it.
+ * MEASURED IN THE METRIC THE CHECK USES, which is worth saying because the
+ * first version of this comment did not. It cited §8.3 at "142 body
+ * characters", which is that section's length with intra-line spaces kept —
+ * the metric a line-by-line `trim()` produces, and not the one below.
+ * `sectionBodies` strips every whitespace character, and §8.3 is **134** by
+ * that count. The floor holds under either number, so nothing ever passed or
+ * failed differently; the sentence was simply a measurement the code does not
+ * take, inside the file whose subject is measurements the code does not take.
+ *
+ * The numbers, in this file's own metric: the smallest section the floor
+ * currently binds is §2.2 (the TDD cycle) at 276, and the smallest section in
+ * `docs/standards/` at all is §8.3 (branch naming) at 134 — not judged today,
+ * because the floor is applied to the subsections `CLAUDE.md`'s core declares
+ * and the core does not declare §8.3, but judged the moment it does. 100 sits
+ * under both and far above an emptied section.
+ *
+ * WHAT IT CATCHES IS DELETION, NOT EVISCERATION, and the distinction is the
+ * boundary rather than a caveat. Both sides were driven rather than reasoned
+ * about, by replacing §2.3's rules in `docs/standards/02-testing.md`: a
+ * content-free sentence of 104 non-whitespace characters PASSED, and the same
+ * sentence trimmed to 92 failed, reported as "§2.3 (92 characters in
+ * docs/standards/02-testing.md)". So a heading kept with the rule deleted from
+ * under it fails here, and a heading kept with a long enough sentence about
+ * nothing does not. A check that judged whether prose means something would not
+ * be a check; nothing above claims otherwise, and a reader who assumes more
+ * from a green result will be wrong in exactly the way that matters.
  */
 const A_SECTION_IS_A_STUB_BELOW = 100
 

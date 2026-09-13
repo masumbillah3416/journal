@@ -688,8 +688,12 @@ subsection `CLAUDE.md` declares must be a heading in the reference file its sect
 at, and that heading must carry a body — deleting `### 2.3 Test quality`'s twelve lines of
 rules from `docs/standards/02-testing.md` left 109 files and 1,638 cases green when the
 guard checked structure alone, which is the split's whole exposure. The stub floor is
-measured rather than picked: the smallest real section in `docs/standards/` is §8.3 at 142
-body characters. **A third case gates `CLAUDE.md`'s word budget**, because size is the one
+measured rather than picked, in the metric the check counts in — characters that are not
+whitespace: the smallest section it currently binds is §2.2 at 276, and the smallest section
+in `docs/standards/` at all is §8.3 at 134. **What it catches is deletion, not evisceration.**
+A heading kept with a content-free sentence of the same length in its place passes, and a
+check that judged whether prose means something would not be a check; the floor's own comment
+says so at the constant. **A third case gates `CLAUDE.md`'s word budget**, because size is the one
 property the structure cannot imply: every section can keep its reference file, its pointer
 and its citations while the file walks back to the 3,680 words the split removed.
 
