@@ -51,7 +51,21 @@ import type { Journey, Media, Page } from '../payload-types'
 import { stripedPlaceholder } from './placeholder'
 import { aboutGlobalSeed, bookGlobalSeed, journeySeeds, type JourneySeed, type SeedFocal } from './seed-data'
 
-/** Design-box dimensions for each slot role, lifted from the prototype (Task 11 brief). */
+/**
+ * Design-box dimensions for each slot role, lifted from the prototype (Task 11 brief).
+ *
+ * INVARIANT WORTH KNOWING BEFORE CHANGING ONE OF THESE, because it has already
+ * cost a red budget: a Payload `imageSize` is a
+ * `resize(n, n, { fit: 'cover' })`, whose scale factor is
+ * `max(n / width, n / height)`. When a rung's `n` equals a source's SHORT
+ * edge that derivative is an unresampled crop, and the rung below it is the
+ * first real resample - which for these hard-edged striped placeholders costs
+ * far more, not less. `frame`'s 800 sits exactly on `tile`'s 800, which is why
+ * adding a 700px rung made the seven in-book slot placeholders larger at 700
+ * than at 800 and turned the gallery's image budget red.
+ * `docs/adr/0013-gallery-image-budget.md` has the measurement and names this
+ * constant as the lever.
+ */
 const SLOT_SIZE = {
   hero: { width: 1200, height: 900 },
   ephemera: { width: 1200, height: 560 },
@@ -76,8 +90,12 @@ const IN_BOOK_SLOTS = 9
  * prototype's own 720x720 on purpose: `media.upload.imageSizes` skips a tier
  * whose target width exceeds the source, so a 720px square generates only
  * `thumb` and the lightbox would have nothing bigger than a 400px image to
- * open. At 900 it generates `thumb` AND `tile`, which is the pair the grid
- * and the lightbox actually use.
+ * open. **What 900 is chosen for is clearing `tile`'s 800px target**, so a
+ * gallery placeholder carries every rung up to and including the one the grid
+ * and the lightbox actually use. Which rungs that is today - `thumb` at 400,
+ * ADR 0013's `grid` at 700, `tile` at 800 - is `collections/media.ts`'s to
+ * say, and the list grows with the ladder; the 800 is the number this
+ * constant has to stay above.
  */
 const GALLERY_FRAME_SIZE = { width: 900, height: 900 } as const
 

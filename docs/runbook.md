@@ -287,7 +287,7 @@ visual baselines would fail for a reason that has nothing to do with any change.
 
 **The real fix is Phase 3's**, and it is named rather than implied: deletion has to be
 attached where the writing happens, which today is the `media` collection — an
-`afterDelete` hook that unlinks the file and its five tiers under `staticDir`. When
+`afterDelete` hook that unlinks the file and every derivative of it under `staticDir`. When
 storage moves to R2 the same deletion moves into the adapter, which is what R2 will need
 in order not to bill for orphans forever. Until then this is housekeeping, and the table above is what
 tells you when it is due.

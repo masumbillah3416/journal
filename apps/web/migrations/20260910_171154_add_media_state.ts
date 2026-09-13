@@ -26,8 +26,8 @@
  * NULL rather than being asserted into one of the three states: `processing`
  * would claim a pipeline run that is not happening - and spec §9.2 makes
  * `processing` a state the Media screen draws progress for, so it would be a
- * visible lie - while `ready` would claim five derivative tiers this migration
- * has not looked at. NULL says "ingested before there was a state to record",
+ * visible lie - while `ready` would claim a full ladder of derivative tiers this
+ * migration has not looked at. NULL says "ingested before there was a state to record",
  * which is the only true thing available. Only the seed writes `media` rows
  * today, and re-running it writes rows through the default.
  *

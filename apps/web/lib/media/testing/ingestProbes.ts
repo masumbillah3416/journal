@@ -119,7 +119,7 @@ export const aFixtureJourney = async (): Promise<JourneyId> => {
  * ids held in a module variable, which would be the shared mutable state §2.3
  * forbids. Deleting through Payload rather than the database is what removes
  * the derivative files from `apps/web/media/` as well as the rows: a suite
- * that left five tiers of a 4000px photograph on disk per case would grow the
+ * that left every tier of a 4000px photograph on disk per case would grow the
  * working tree every run.
  * @example
  * afterAll(removeIngestFixtures)

@@ -149,10 +149,10 @@ describe('readBookBundle', () => {
   it('resolves each slot to a derivative URL, never an original', async () => {
     // Payload's own URL convention for this app is `/api/media/file/<name>.<ext>`
     // for the ORIGINAL and `/api/media/file/<name>-<width>x<height>.<ext>` for
-    // every named derivative tier (thumb/tile/frame/hero/hero2x) - verified
-    // directly against a seeded media doc's `sizes` map. The tier's own NAME
-    // never appears in the URL, only its configured width/height, so the
-    // faithful version of "matches one of the five tiers" is comparing each
+    // every named derivative tier - verified directly against a seeded media
+    // doc's `sizes` map. The tier's own NAME never appears in the URL, only its
+    // configured width/height, so the faithful version of "matches one of the
+    // configured tiers" is comparing each
     // slot's `src` against the actual populated `sizes.<tier>.url` values for
     // its own media item, not pattern-matching a tier name that is not there.
     const media = await payload.find({ collection: 'media', pagination: false, limit: 5000, depth: 0 })
@@ -733,7 +733,7 @@ describe('readBookBundle', () => {
     })
 
     it('throws when a slot resolves to media with no derivative of any tier, rather than falling back to the original', async () => {
-      // Every one of Payload's five image sizes needs a source at least as
+      // Every one of Payload's image sizes needs a source at least as
       // large as its own target dimensions (thumb's 400x400 is the smallest);
       // a 100x100 upload is genuinely too small to generate ANY of them - not
       // a contrived mock, the same `sharp`-backed pipeline the seed itself uses.

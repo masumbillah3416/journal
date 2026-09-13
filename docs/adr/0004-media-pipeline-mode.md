@@ -56,7 +56,7 @@ and what's wired to it_, not the data model.
 - **A `MediaProcessor` port**, the same Ports & Adapters shape as `storage`/`mailer`/
   `queue` (design spec §6; `docs/architecture.md` §2), with two adapters:
   - `inline` — runs the still pipeline (magic-byte sniff, SVG rejection, EXIF strip,
-    `sharp` re-encode, all five derivative tiers, perceptual hash) in-process on Vercel,
+    `sharp` re-encode, every configured derivative tier, perceptual hash) in-process on Vercel,
     as part of handling the upload request. No worker, no queue hop, for stills.
   - `worker` — enqueues onto the Postgres `jobs` table (the existing `QueuePort`,
     already built and contract-tested in Phase 0) for a Fly.io process running the same

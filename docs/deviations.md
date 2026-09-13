@@ -37,8 +37,10 @@ Option 3) and a list in prose would have gone stale silently.
 **Rationale:** The worker already exists for video processing; adding `sharp` to it is
 additive infrastructure rather than a new service, and removes a vendor (no account,
 billing relationship, or API surface to integrate and keep available). The cost of the
-change is ~10GB of extra R2 storage, roughly $0.15/month, for storing five tiers instead
-of transforming on the fly.
+change is ~10GB of extra R2 storage, roughly $0.15/month, for storing a ladder of
+derivatives instead of transforming on the fly. That figure scales with the ladder, which
+grew a rung in Phase 3 Task 10 (`docs/adr/0013-gallery-image-budget.md`); the ladder itself
+is declared in one place, `apps/web/collections/media.ts`.
 
 **Recorded as:** `docs/adr/0003-derivative-generation.md`; design spec §2.2.
 
@@ -111,7 +113,7 @@ Task 11 of Phase 0, review round 1, finding 1.
 **What changed:** the design spec (§2, §9, §13) and `docs/adr/0001-hosting-and-cost.md`
 originally assumed a dedicated Fly.io worker running `sharp` + `ffmpeg` from the start.
 A user decision made after those documents were written defers it: no video clips for
-now. Stills still get all five derivative tiers via `sharp` (unchanged from
+now. Stills still get every configured derivative tier via `sharp` (unchanged from
 `docs/adr/0003-derivative-generation.md`), but in-process on Vercel rather than inside a
 separate worker container. A `MEDIA_PIPELINE` environment variable (`'inline' |
 'worker'`, Zod-validated, default `'inline'`) switches a new `MediaProcessor` port
@@ -2112,8 +2114,8 @@ second is the bucket path `SECURITY.md` keeps out of the client.
 **What is deliberately absent: a backfill.** The migration leaves rows that predate the
 column reading `state` NULL. `processing` would claim a pipeline run that is not
 happening — and since §9.2 makes `processing` a state the screen draws progress for, that
-would be a visible lie — while `ready` would claim five derivative tiers the migration
-has not looked at. NULL says "ingested before there was a state to record", which is the
+would be a visible lie — while `ready` would claim a full ladder of derivative tiers the
+migration has not looked at. NULL says "ingested before there was a state to record", which is the
 only true thing available. Only the seed writes `media` rows today, and re-running it
 writes them through the field's default.
 

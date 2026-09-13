@@ -114,7 +114,7 @@ const derivedTiers = (sizes: Readonly<Record<string, unknown>> | undefined): rea
  *
  * AN EXPLICIT BUDGET WITH THE ARITHMETIC AT THE LINE, the shape ruling F2
  * settled on: the widest case encodes a 3000x4000 JPEG, re-encodes it through
- * `mozjpeg` and has Payload derive five tiers from it - measured at 8.3s here,
+ * `mozjpeg` and has Payload derive every configured tier from it - measured at 8.3s here,
  * against a harness default of 5,000ms it was never going to fit. Thirty
  * seconds is a little over three times the measurement, and a case that
  * discovers its own budget in a merge gate is a flake somebody deletes as
