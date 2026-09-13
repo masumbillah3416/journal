@@ -34,6 +34,14 @@
  * old gate nor the new one describes. The row's id goes into `skipped` and the
  * run continues.
  *
+ * ONE NOTE BEFORE MUTATING THE `payload.update` BELOW, because it has already
+ * cost a `verify:full` run: swapping it for `payload.create` - the mutation
+ * that proves the update-in-place rule - writes rows with no `alt`, which
+ * `./rederive-media.integration.test.ts`'s cleanup cannot see, and they take
+ * `state`'s `processing` default. That file's header carries the exact
+ * `DELETE` that clears them; this pointer is here because this is the line
+ * somebody edits.
+ *
  * PATTERN (CLAUDE.md §3.3): Ports & Adapters on the read side - the bytes come
  * through a {@link StoragePort}, never through `fs`, so this script works
  * unchanged against the R2 adapter. Its dependencies are parameters rather

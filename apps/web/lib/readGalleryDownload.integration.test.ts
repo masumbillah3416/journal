@@ -300,13 +300,29 @@ describe('readGalleryDownload', () => {
   })
 
   it('reads the site global exactly once per download, so the header costs no extra round trip', async () => {
+    // RESTORED IN A `finally`, so the restore does not depend on the
+    // assertions below passing - `getPayload()` is memoised, so this spy is on
+    // the instance every later case in this file uses, and the whole point of
+    // the count assertion is that it can fire.
+    //
+    // WHAT A LEAK ACTUALLY COSTS TODAY, measured rather than assumed, because
+    // review reasoning said it would be a cluster of failures: it costs
+    // nothing. `vi.spyOn` with no implementation calls through, so a surviving
+    // wrapper changes no behaviour. Forcing the count assertion to fail with
+    // the `finally` removed reports one failure, not many. The `finally` is
+    // unconditional cleanup rather than a guard over an observed failure, and
+    // it is here so that stays true of the next spy on this instance - one
+    // with a `mockImplementation` would not call through, and then the leak
+    // would be exactly the cluster.
     const spy = vi.spyOn(await getPayload(), 'findGlobal')
+    try {
+      await readGalleryDownload('test-download', aSeededFrameId())
 
-    await readGalleryDownload('test-download', aSeededFrameId())
-
-    expect(spy.mock.calls).toHaveLength(1)
-    expect(spy.mock.calls[0]?.[0]).toMatchObject({ depth: 0, select: { passwordProtect: true } })
-    spy.mockRestore()
+      expect(spy.mock.calls).toHaveLength(1)
+      expect(spy.mock.calls[0]?.[0]).toMatchObject({ depth: 0, select: { passwordProtect: true } })
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('serves the grid derivative when it is the largest tier a row carries', async () => {
