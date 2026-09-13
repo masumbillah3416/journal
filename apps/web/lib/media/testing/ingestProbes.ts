@@ -330,6 +330,39 @@ export const workerDeps = async (storage: StoragePort): Promise<IngestDeps> => {
 }
 
 /**
+ * The same hash with `bits` of its bits flipped, and no others.
+ *
+ * ═══ WHY THE NEAR-DUPLICATE IS A HASH AND NOT A PHOTOGRAPH ═══
+ *
+ * `DUPLICATE_MAX_DISTANCE` is 5 because real clients produce photographs a
+ * few bits apart: a crop, a brightness tweak, a "save for web" resize, the
+ * second frame of a phone's HDR pair. Neither fixture in
+ * `../../adapters/contract/media-fixtures.ts` is in that band — measured, and
+ * recorded there: the q55 re-encode is 0 bits from its original and the
+ * different photograph is 30. So a case that has to sit between them either
+ * invents a photograph tuned to land there — brittle across `sharp` versions,
+ * and a fixture built to make a test pass — or moves the OTHER side of the
+ * comparison, which is what this does: the row already in the journey carries
+ * the ingest's own hash with bits flipped.
+ *
+ * One bit per byte, from the left, so the answer is exactly `bits` and the
+ * case that asserts a distance is asserting a fact rather than a hope —
+ * `ingestUpload.integration.test.ts` pins that with `hammingDistance` before
+ * it relies on it.
+ * @param hash - A hash as `contentHash` carries it: sixteen lowercase hex
+ *   characters, eight bytes.
+ * @param bits - How many bits to flip. At most eight, one per byte.
+ * @returns The altered hash, the same length and shape.
+ * @example
+ * flipBits('0000000000000000', 1) // '0100000000000000'
+ */
+export const flipBits = (hash: string, bits: number): string =>
+  (hash.match(/../g) ?? [])
+    .map((pair, index) => (index < bits ? Number.parseInt(pair, 16) ^ 0x01 : Number.parseInt(pair, 16)) >>> 0)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+
+/**
  * Fills a journey with rows that are not photographs anybody will match.
  *
  * FOR THE ONE CASE ABOUT PAGINATION. Payload's own default page is ten rows,

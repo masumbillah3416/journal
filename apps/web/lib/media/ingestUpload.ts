@@ -88,6 +88,15 @@
  *     one in Japan. Dropping the clause fails “does not report the same
  *     photograph in a different journey as a duplicate” while leaving the
  *     same-journey case green, which is why both cases exist.
+ *   - **THE MATCH IS PERCEPTUAL, NOT AN EQUALITY, and the difference is the
+ *     feature.** `isPerceptualDuplicate` admits a photograph within
+ *     `DUPLICATE_MAX_DISTANCE` bits — a crop, a brightness tweak, a "save for
+ *     web" resize. Replacing it with `===` is a plausible edit ("the hashes
+ *     are deterministic, why the helper") and every case that named a
+ *     duplicate stayed green under it until three cases read the constant and
+ *     moved the STORED row's hash to sit a measured distance away. See
+ *     `./testing/ingestProbes.ts`'s `flipBits` for why the near-duplicate is a
+ *     hash rather than a photograph.
  *   - **ONE QUERY, NOT ONE PER ROW.** The hashes come back in a single
  *     `find` with `pagination: false`, `depth: 0` and a narrow `select`
  *     (CLAUDE.md §6, no N+1; §7, select only what is needed). A per-row read

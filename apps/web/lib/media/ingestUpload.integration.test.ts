@@ -32,7 +32,9 @@
  * then re-arms the first.
  *
  * Depends on: vitest; the probes (./testing/ingestProbes); `getTestPayload`
- * (../testPayload); the `Media` collection, for the tier names it configures
+ * (../testPayload); `DUPLICATE_MAX_DISTANCE` and `hammingDistance`, so the
+ * duplicate boundary here moves when the domain's constant does rather than
+ * being re-pinned at a literal; the `Media` collection, for the tier names it configures
  * and for `MEDIA_DIR`, which one case drives the REAL store at; `createLocalStorage`;
  * `FIXTURE_CAPTURED_AT_ISO` (../adapters/contract/media-fixtures); the module
  * under test.
@@ -41,6 +43,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import type { ImageSize, UploadConfig } from 'payload'
 import { journeyId } from '@travel-diary/domain/ids'
 import { metadataMarkersIn } from '@travel-diary/domain/media/exif'
+import { DUPLICATE_MAX_DISTANCE, hammingDistance } from '@travel-diary/domain/media/perceptualHash'
 import { MEDIA_DIR, Media } from '../../collections/media'
 import { createLocalStorage } from '../adapters/local-storage'
 import { FIXTURE_CAPTURED_AT_ISO } from '../adapters/contract/media-fixtures'
@@ -54,6 +57,7 @@ import {
   aTinyPng,
   countMediaRows,
   fillJourneyWithMedia,
+  flipBits,
   inlineDeps,
   readMediaRow,
   readStoredBytes,
@@ -113,6 +117,34 @@ const INGEST_BUDGET_MS = 30_000
 
 describe('ingestUpload', () => {
   afterAll(removeIngestFixtures)
+
+  /**
+   * What ingest answers for a photograph whose journey already holds a row
+   * `distance` bits away from it.
+   *
+   * THE ROW'S HASH IS MOVED, NOT THE PHOTOGRAPH'S — see `flipBits`'s own
+   * header for why that is the honest way to reach the 1-to-5 band. The same
+   * photograph is staged twice, so the second ingest's hash is the first's and
+   * the distance is exactly what was written onto the row.
+   * @param distance - How many bits to put between the stored row and the
+   *   incoming photograph.
+   * @returns The outcome's kind, or `null` when ingest refused.
+   */
+  const outcomeAtHashDistance = async (distance: number): Promise<string | null> => {
+    const journey = await aFixtureJourney()
+    const first = await aStagedPhotograph({ journey })
+    const stored = await readMediaRow(await ingestUpload(first.input, await inlineDeps(first.storage)))
+    const payload = await getTestPayload()
+    await payload.update({
+      collection: 'media',
+      where: { journey: { equals: Number(journey) } },
+      data: { contentHash: flipBits(stored.contentHash ?? '', distance) },
+    })
+
+    const again = await aStagedPhotograph({ journey })
+    const ingested = await ingestUpload(again.input, await inlineDeps(again.storage))
+    return ingested.ok ? ingested.value.kind : null
+  }
 
   it(
     'derives every derivative tier the media collection configures, from the sanitised bytes',
@@ -244,6 +276,47 @@ describe('ingestUpload', () => {
       const ingested = await ingestUpload(again.input, await inlineDeps(again.storage))
 
       expect(ingested.ok ? ingested.value.kind : null).toBe('duplicate')
+    },
+    INGEST_BUDGET_MS,
+  )
+
+  it('flips exactly as many bits as it is asked to, so the distances below mean what they say', () => {
+    // THE POSITIVE CONTROL FOR THE INSTRUMENT the three cases under it are
+    // built on. Without it, a `flipBits` that flipped one bit whatever it
+    // was asked for would make them all read as distance 1 and the boundary
+    // would be pinned nowhere.
+    const hash = '0f1e2d3c4b5a6978'
+    const distances = [1, DUPLICATE_MAX_DISTANCE, DUPLICATE_MAX_DISTANCE + 1].map((bits) =>
+      hammingDistance(hash, flipBits(hash, bits)),
+    )
+
+    expect(distances.map((measured) => (measured.ok ? measured.value : measured.error))).toEqual([
+      1,
+      DUPLICATE_MAX_DISTANCE,
+      DUPLICATE_MAX_DISTANCE + 1,
+    ])
+  })
+
+  it(
+    'reports a photograph one bit from a row already in the journey as a duplicate',
+    async () => {
+      expect(await outcomeAtHashDistance(1)).toBe('duplicate')
+    },
+    INGEST_BUDGET_MS,
+  )
+
+  it(
+    'reports one exactly DUPLICATE_MAX_DISTANCE away as a duplicate, the last distance that is one',
+    async () => {
+      expect(await outcomeAtHashDistance(DUPLICATE_MAX_DISTANCE)).toBe('duplicate')
+    },
+    INGEST_BUDGET_MS,
+  )
+
+  it(
+    'reports one a single bit past DUPLICATE_MAX_DISTANCE as new, so the threshold is that one and not a wider one',
+    async () => {
+      expect(await outcomeAtHashDistance(DUPLICATE_MAX_DISTANCE + 1)).toBe('ready')
     },
     INGEST_BUDGET_MS,
   )
