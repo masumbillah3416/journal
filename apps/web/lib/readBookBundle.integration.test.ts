@@ -288,6 +288,45 @@ describe('readBookBundle', () => {
     }
   })
 
+  it('leaves a photograph the pipeline has not finished out of the census, as the grid and the handler do', async () => {
+    // THE CENSUS IS THE THIRD DOOR `galleryFrameWhere` CLOSES, and it was the
+    // one `ee6bd3f` left without a behavioural case: the grid and the download
+    // handler each got one, and this got the shared call and a unit case on the
+    // filter's shape. `hidden` has its twin directly above, written for exactly
+    // the same reason - the census was the one caller that had never applied
+    // it. A row that is not `ready` may be holding bytes nothing has stripped,
+    // so the number printed on the Notes page must not count it.
+    //
+    // Deliberately a copy of the `hidden` case with the field changed, so what
+    // it proves is comparable to what that one proves (Task 8 final review, N6).
+    const journeys = await payload.find({ collection: 'journeys', where: { slug: { equals: 'lisbon' } }, limit: 1 })
+    const journeyNumericId = journeys.docs[0]?.id
+    const before = await readBookBundle()
+    const censusOf = (source: Awaited<ReturnType<typeof readBookBundle>>): number => {
+      const notes = source.pages.find((page) => page.kind === 'notes' && page.slug === 'lisbon')
+      const gallery = notes?.kind === 'notes' ? notes.gallery : undefined
+      return (gallery?.photographs ?? 0) + (gallery?.clips ?? 0)
+    }
+    const frames = await payload.find({
+      collection: 'media',
+      depth: 0,
+      limit: 1,
+      sort: ['-order'],
+      where: { and: [{ journey: { equals: journeyNumericId } }, { hidden: { not_equals: true } }] },
+      select: { order: true },
+    })
+    const victim = frames.docs[0]?.id
+    expect(victim).toBeDefined()
+
+    try {
+      await payload.update({ collection: 'media', id: Number(victim), data: { state: 'processing' } })
+      const after = await readBookBundle()
+      expect(censusOf(after)).toBe(censusOf(before) - 1)
+    } finally {
+      await payload.update({ collection: 'media', id: Number(victim), data: { state: 'ready' } })
+    }
+  })
+
   it('sets depth explicitly rather than letting Payload walk the graph', async () => {
     // CLAUDE.md §7: select only the fields needed, set depth explicitly. A
     // default depth here pulls every relationship on every page load.

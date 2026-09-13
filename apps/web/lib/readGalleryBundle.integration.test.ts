@@ -279,6 +279,49 @@ describe('readGalleryBundle', () => {
       })
     })
 
+    it('still lists a frame whose state is null, which is what every pre-migration row reads as', async () => {
+      // ═══ THE OTHER DIRECTION OF THE SAME CLAUSE, AND THE HIGHER-CONSEQUENCE
+      //     ONE ═══
+      //
+      // `galleryFrameWhere` admits `{ state: { exists: false } }` because
+      // `20260910_171154_add_media_state` deliberately did not backfill
+      // (`docs/deviations.md` §48), so every row in a store written before that
+      // column reads NULL. The unit case asserts the clause's SHAPE. Nothing
+      // asserted that Payload's `exists: false` actually returns those rows
+      // through a real query - and if it did not, every photograph in an
+      // existing public diary would leave the grid at once (Task 8 final
+      // review, N6).
+      //
+      // The `state` is nulled and put back, rather than a fixture created
+      // NULL, so this reads the same row the case above reads as `ready`.
+      const nulled = await payload.update({
+        collection: 'media',
+        where: { alt: { equals: 'test-visible' } },
+        data: { state: null },
+      })
+
+      try {
+        const bundle = await readGalleryBundle('test-gallery')
+
+        // `includes` rather than `expect.arrayContaining`, which vitest types
+        // as `any` and which this repository's lint rules refuse. `updated` is
+        // in the same assertion as the positive control on the setup: if the
+        // update matched no row, the case would be asking about a photograph it
+        // never changed.
+        const listed = bundle?.frames.map((frame) => frame.alt) ?? []
+        expect({ listedWhileNull: listed.includes('test-visible'), rowsNulled: nulled.docs.length }).toEqual({
+          listedWhileNull: true,
+          rowsNulled: 1,
+        })
+      } finally {
+        await payload.update({
+          collection: 'media',
+          where: { alt: { equals: 'test-visible' } },
+          data: { state: 'ready' },
+        })
+      }
+    })
+
     it('shows a frame the editor has withheld a download for, without offering the download', async () => {
       const bundle = await readGalleryBundle('test-gallery')
       const withheld = bundle?.frames.find((frame) => frame.alt === 'test-withheld')
