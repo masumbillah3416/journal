@@ -136,6 +136,11 @@ export default defineConfig({
         'apps/web/lib/adapters/contract/queue-fixtures.ts',
         'apps/web/scripts/seed.ts',
         'apps/web/scripts/seed-data.ts',
+        // Phase 3 Task 10's re-derivation script, excluded from
+        // `vitest.config.ts`'s coverage include by exact path for the reason
+        // stated there - it needs a real Payload, a real Postgres and a real
+        // store - and gated here instead.
+        'apps/web/scripts/rederive-media.ts',
         'apps/web/lib/testPayload.ts',
         // The reachability guard's `pg` binding. Included so that CLAUDE.md
         // §2.1's "no file is in neither include" is satisfied by inclusion
@@ -435,6 +440,23 @@ export default defineConfig({
         // seed-data.ts is a pure data literal - 100% by construction, every
         // call reads every field.
         'apps/web/scripts/seed-data.ts': { lines: 100, branches: 100, functions: 100 },
+        // The re-derivation script (Phase 3 Task 10). Every DECISION is a case,
+        // both ways: the completeness predicate (a row that needs a tier and a
+        // row that needs none), the missing-original report, and the
+        // update-in-place. What 100% branches would additionally demand is the
+        // null arm of five nullish-coalescing defaults - `size.width ?? 0`,
+        // `sizes ?? {}`, `row.width ?? 0`, `row.filename ?? ''` and
+        // `row.mimeType ?? ''` - each of which exists because Payload's
+        // GENERATED type makes the field optional while the query that
+        // produced the row does not. None has an organic trigger: an upload
+        // collection's rows carry a filename, a mime type and a width, and the
+        // collection configures no height-only size. Reaching them would mean
+        // writing NULLs into `media` behind Payload's back to prove a type
+        // guard compiles, which is a fixture encoding a shape no client
+        // produces. 78 is therefore the measured number (78.26), not a rounded
+        // one, and `configuredTiers`'s throw carries its own `c8 ignore` with
+        // its reason at the line.
+        'apps/web/scripts/rederive-media.ts': { lines: 100, branches: 78, functions: 100 },
         // seed.ts: 100% lines/functions. 83.72% branches is the real,
         // measured number: seed.integration.test.ts's own `beforeAll`
         // deletes the ten journeys (and the About portrait) first, so the

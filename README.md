@@ -65,10 +65,11 @@ npm run test:perf        # Lighthouse CI budgets
 npm run db:migrate       # apply every pending migration  (→ apps/web)
 npm run db:migrate:down  # roll the most recent batch back  (→ apps/web)
 npm run db:seed          # seed the ten prototype journeys and their pages  (→ apps/web)
+npm run media:rederive   # give every stored media row the tiers imageSizes configures  (→ apps/web)
 npm run db:migrate:create -w apps/web -- <name>  # generate a migration from schema changes
 ```
 
-The four commands marked _(→ apps/web)_ are root passthroughs to the `apps/web`
+The commands marked _(→ apps/web)_ are root passthroughs to the `apps/web`
 workspace script of the same name — every command above runs from the repository root.
 `db:migrate:create` is the one exception: it takes a migration name as an argument, and
 npm's argument forwarding does not survive a passthrough, so it keeps its `-w apps/web`.

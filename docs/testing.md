@@ -25,15 +25,16 @@ Enforced by TWO configs, because no single Vitest run can execute everything:
   `apps/web/scripts/**`, `apps/web/app/**` and `apps/web/components/**`, `.ts` and
   `.tsx` alike.
 
-  | Layer                             | Lines | Branches | Functions |
-  | --------------------------------- | ----- | -------- | --------- |
-  | `packages/domain/**` (pure logic) | 100%  | 100%     | 100%      |
-  | `packages/tokens/**` (pure logic) | 100%  | 100%     | 100%      |
-  | `apps/web/lib/**`, server actions | 95%   | 95%      | 95%       |
-  | `apps/web/app/**`                 | 95%   | 95%      | 95%       |
-  | `apps/web/components/**`          | 90%   | 90%      | 90%       |
-  | `apps/web/scripts/placeholder.ts` | 100%  | 87.5%    | 100%      |
-  | `apps/web/scripts/run-seed.ts`    | 100%  | 100%     | 100%      |
+  | Layer                              | Lines | Branches | Functions |
+  | ---------------------------------- | ----- | -------- | --------- |
+  | `packages/domain/**` (pure logic)  | 100%  | 100%     | 100%      |
+  | `packages/tokens/**` (pure logic)  | 100%  | 100%     | 100%      |
+  | `apps/web/lib/**`, server actions  | 95%   | 95%      | 95%       |
+  | `apps/web/app/**`                  | 95%   | 95%      | 95%       |
+  | `apps/web/components/**`           | 90%   | 90%      | 90%       |
+  | `apps/web/scripts/placeholder.ts`  | 100%  | 87.5%    | 100%      |
+  | `apps/web/scripts/run-seed.ts`     | 100%  | 100%     | 100%      |
+  | `apps/web/scripts/run-rederive.ts` | 100%  | 100%     | 100%      |
 
   **There is no repository-wide row any more, and its absence is the decision, not an
   omission.** `CLAUDE.md` §2.1 dropped the 90% floor as a requirement in Phase 3: the
@@ -43,13 +44,13 @@ Enforced by TWO configs, because no single Vitest run can execute everything:
   `vitest.config.ts` was not a deletion, because every file inside an `include` matching no
   per-glob key would fall through to no gate at all. That set was enumerated against this
   pass's own `coverage/lcov.info` with the same `picomatch` call Vitest's
-  `resolveThresholds` makes, and it held exactly two files — the two now named in the rows
-  above, each at the number it measures rather than one rounded up to meet it.
+  `resolveThresholds` makes, and it held exactly the `apps/web/scripts/` files now named in
+  the rows above, each at the number it measures rather than one rounded up to meet it.
   `placeholder.ts` sits at 87.5 branches because one `/* c8 ignore next -- … */` hint in it
   spans three comment lines, so "next" names the comment's own second line rather than the
-  guard beneath it, and the branch is counted; `run-seed.ts` is wholly ignored behind its
-  own start/stop pair and 100 states that the suppression must stay total. A third file
-  landing in `apps/web/scripts/` would be gated by neither entry, and
+  guard beneath it, and the branch is counted; `run-seed.ts` and `run-rederive.ts` are wholly ignored
+  behind their own start/stop pairs, and 100 states that the suppression must stay total. A
+  further file landing in `apps/web/scripts/` would be gated by none of these entries, and
   `apps/web/lib/docs/coverageThresholds.test.ts` refuses it: that check re-runs the
   enumeration above on every commit, against the config's own lists, so the next
   fall-through fails the commit that adds it rather than the review that eventually
@@ -264,12 +265,14 @@ Where a
 whole file is unreachable from any test, the honest options are two, and which one
 applies depends on whether some _other_ pass can see it: exclude-and-regate (as
 `seed.ts`, `seed-data.ts`, `testPayload.ts` and `migrate.ts` each get — excluded from the
-unit pass, genuinely measured by the integration pass), or an explicit `c8 ignore` with
+unit pass, genuinely measured by the integration pass — as does
+`apps/web/scripts/rederive-media.ts` from Phase 3 Task 10), or an explicit `c8 ignore` with
 its reason at the point it applies. `apps/web/scripts/run-seed.ts` is the second kind and
 now says so in code rather than only in prose: its body is top-level `await` ending in
 `process.exit(0)`, so any test importing it would seed a real database and then kill its
 own worker — there is no pass that could measure it, and claiming an exclude-and-regate
-would claim a measurement nothing performs.
+would claim a measurement nothing performs. `apps/web/scripts/run-rederive.ts` is its twin
+and carries the identical treatment for the identical reason.
 
 ## The verify gates
 

@@ -190,13 +190,14 @@ numbers are `docs/testing.md`'s and do not change.
     it, and it can only discriminate where the binaries are installed — CI.
 - **Coverage for integration-only code:** `npm run verify`'s coverage pass runs without
   a database, so `postgres-queue.ts`, `queue-contract.ts`, `queue-fixtures.ts`,
-  `seed.ts`, `seed-data.ts`, `testPayload.ts`, `migrate.ts` and — from Phase 2 Task 3 —
-  `auth/otpService.ts` and `auth/testing/otpProbes.ts` — reachable exclusively
+  `seed.ts`, `seed-data.ts`, `testPayload.ts`, `migrate.ts`, — from Phase 2 Task 3 —
+  `auth/otpService.ts` and `auth/testing/otpProbes.ts`, and — from Phase 3 Task 10 —
+  `scripts/rederive-media.ts` — reachable exclusively
   from an `*.integration.test.ts` — are excluded from `vitest.config.ts`'s coverage
   `include` rather than counted as 0%-covered there. They are gated instead by a second,
   dedicated pass, `vitest.integration.config.ts`, run via
   `npm run test:integration:coverage` (chained into `npm run verify:full`) — it runs the
-  same integration test files with `--coverage` scoped to those nine, plus
+  same integration test files with `--coverage` scoped to those files, plus
   `apps/web/collections/**`, `apps/web/globals/**`, `apps/web/payload.config.ts` and
   `apps/web/migrations/**` (all four at 100%; see Coverage gates above).
   Thresholds are set per-file to what is genuinely achieved, not aspirational:
@@ -211,7 +212,13 @@ numbers are `docs/testing.md`'s and do not change.
   under test (CLAUDE.md §2.3: "no mocking what we own") or deliberately corrupting the
   test database; the latter's are `ensureDatabaseExists()`'s `CREATE DATABASE` branch,
   which only runs the very first time any integration test ever executes against a given
-  Postgres volume (every run after that finds `diary_test` already exists). `claim()`'s
+  Postgres volume (every run after that finds `diary_test` already exists).
+  `scripts/rederive-media.ts` is 100% lines and functions and 78% branches: every decision
+  it takes is a case on both sides, and what 100% branches would additionally demand is the
+  null arm of five nullish-coalescing defaults that exist only because Payload's generated
+  type makes a field optional where the query does not — reaching them would mean writing
+  NULLs into `media` behind Payload's back. `vitest.integration.config.ts` states the same
+  at the threshold. `claim()`'s
   safety-critical `SELECT ... FOR UPDATE SKIP LOCKED` line itself executes on every call
   regardless of outcome, so it is fully exercised by both the smoke test and the blocking
   regression test above. `seed.ts` is 100% lines/functions, 83% branches — the uncovered

@@ -362,6 +362,16 @@ export default defineConfig({
         // reasoning as the queue files above.
         'apps/web/scripts/seed.ts',
         'apps/web/scripts/seed-data.ts',
+        // rederive-media.ts (Phase 3 Task 10) is reachable only from
+        // rederive-media.integration.test.ts: it imports the `media`
+        // collection for the configured ladder and drives a real
+        // `payload.update` with a `file`, which is Payload's own derivative
+        // generation against a real Postgres and a real store. Same
+        // exclude-and-regate treatment as the two seed files above; gated by
+        // vitest.integration.config.ts. Its CLI entry point beside it,
+        // `run-rederive.ts`, is NOT here - it stays in this pass's measured
+        // set, fully `c8 ignore`d, exactly like `run-seed.ts`.
+        'apps/web/scripts/rederive-media.ts',
         // testPayload.ts (Task 10/11 review finding 2) is reachable only
         // from an `*.integration.test.ts` file - it needs a real Postgres
         // server to create diary_test against - so it is gated by
@@ -869,6 +879,16 @@ export default defineConfig({
           functions: 100,
         },
         'apps/web/scripts/run-seed.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        // `run-rederive.ts` is `run-seed.ts`'s twin and carries the identical
+        // whole-file `c8 ignore start`/`stop` with its own reason (a CLI entry
+        // point whose body is top-level `await` ending in `process.exit(0)`).
+        // 100 is the honest gate for a file with nothing left uncovered, and
+        // adding a measurable line to it fails here.
+        'apps/web/scripts/run-rederive.ts': {
           lines: 100,
           branches: 100,
           functions: 100,

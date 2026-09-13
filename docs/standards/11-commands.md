@@ -4,9 +4,10 @@ The detail for `CLAUDE.md` §11. `CLAUDE.md` states the rule in short and points
 full text — including every sentence this repository quotes as `CLAUDE.md` §11 — is below.
 The section numbers are `CLAUDE.md`'s and do not change.
 
-Every one of these runs from the repository root. The four marked _(→ apps/web)_ are
+Every one of these runs from the repository root. The commands marked _(→ apps/web)_ are
 root passthroughs to the `apps/web` workspace script of the same name, so a new
-contributor never has to know where the Payload CLI lives.
+contributor never has to know where the Payload CLI lives. No count is written here: the
+list grows, and a number in prose goes stale without anything going red.
 
 ```
 npm run dev              # Next + Payload against local Postgres  (→ apps/web)
@@ -27,6 +28,7 @@ npm run test:perf        # Lighthouse CI budgets
 npm run db:migrate       # apply every pending migration  (→ apps/web)
 npm run db:migrate:down  # roll the most recent batch back  (→ apps/web)
 npm run db:seed          # seed from the handoff prototype content  (→ apps/web)
+npm run media:rederive   # give every stored media row the tiers imageSizes configures  (→ apps/web)
 ```
 
 **There are two gates, deliberately, and they are not the same gate.**

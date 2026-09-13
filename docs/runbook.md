@@ -49,6 +49,38 @@ duplicates, and leaves anything else (new journeys, new pages) untouched. It wri
 whatever `DATABASE_URL` names — the real dev/production database, never the isolated
 `diary_test` database the integration test suite uses (see `docs/testing.md`).
 
+## Re-deriving derivatives after a tier is added
+
+`npm run media:rederive` gives every stored `media` row the derivative tiers
+`apps/web/collections/media.ts`'s `imageSizes` configures today. **It is an operational
+step, not a one-off**: a migration that adds a tier adds six columns describing a FILE,
+and a derivative has to be generated from the original before there is a filename to
+record — so `npm run db:migrate` alone leaves every existing row carrying the old ladder.
+Phase 3 Task 10 is the first run of it, for `docs/adr/0013-gallery-image-budget.md`'s
+700px `grid` rung; the next tier anyone adds needs the same step, in this order:
+
+```
+npm run db:migrate       # add the columns
+npm run media:rederive   # fill them
+```
+
+It reads each row's own original back through the Storage port and hands it to
+`payload.update`, so **rows keep their ids** — the diary addresses media by id
+(`CLAUDE.md` §7), and a script that created new rows would leave every
+`pages.slots[].media` reference in the book pointing at the old one. Captions, alt text,
+focal points and `order` are untouched.
+
+It is safe to run again: a row is re-derived only when the ladder asks for a tier it does
+not carry AND its own original is wide enough for Payload to have produced it, so a second
+run reports `Re-derived 0 media row(s)` and re-encodes nothing. A row whose original is no
+longer in the store is NAMED in that output and skipped, never thrown on — the run
+finishes rather than leaving the corpus half-converted. The gallery's image budget in
+`lighthouserc.json` is measured against a re-derived corpus, so this step comes before
+`npm run test:perf` means anything.
+
+Like the seed, it writes to whatever `DATABASE_URL` names, and it does not delete the
+derivatives it replaces — see the media-store section below.
+
 ## Deploy
 
 Per `docs/adr/0001-hosting-and-cost.md`:
@@ -167,9 +199,10 @@ visible from the code that was added:
 
 ## The local media store grows without bound, and it fails a test rather than the disk
 
-`apps/web/media` is where Payload writes uploads and their five derivative tiers:
-`apps/web/collections/media.ts` sets `staticDir: MEDIA_DIR` and declares the five
-`imageSizes`, and Payload's own upload handling does the writing. Nothing of ours does —
+`apps/web/media` is where Payload writes uploads and every one of their derivative tiers:
+`apps/web/collections/media.ts` sets `staticDir: MEDIA_DIR` and declares the `imageSizes`
+ladder — deliberately not enumerated here, since it grew a rung in Phase 3 Task 10 — and
+Payload's own upload handling does the writing. Nothing of ours does —
 `apps/web/lib/adapters/local-storage.ts`'s `StoragePort` was a **read** path here until
 Phase 3 Task 7, its only non-test construction being
 `apps/web/lib/readGalleryDownload.ts`'s `mediaStore`, which streams one file back for a
@@ -179,7 +212,10 @@ under `apps/web/media/staging/<journey>/…` through the same port (see
 described below has a second source. The directory is gitignored, so it
 never appears in `git status`, and **nothing deletes a file from it**: `payload.delete`
 removes the row, and the bytes stay. Every `npm run db:seed`, and every run of
-`apps/web/scripts/seed.integration.test.ts`, writes a fresh set.
+`apps/web/scripts/seed.integration.test.ts`, writes a fresh set. So does every
+`npm run media:rederive` that actually re-derives something: Payload writes the new
+derivative files and the superseded ones are left behind, which is the same growth from a
+third source rather than a new kind of problem.
 
 **Staged bytes that are never finalised are NOT part of this problem, and filing them
 here was the mistake this paragraph corrects.** A slot that is uploaded to and never
