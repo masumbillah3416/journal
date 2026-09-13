@@ -2519,6 +2519,63 @@ against a config file that exists and is run by nothing, and it does that by che
 the script names each one — a runner that globbed them would satisfy that guard by
 construction and stop guarding anything.
 
+### CI's Lighthouse numbers now reach the run page, because the logs do not
+
+Three CI runs of the `/p/1` gate read red, green, red on a budget with roughly 72ms of
+local margin, and every one of them was diagnosed by **elimination** rather than by reading
+a number: `/actions/jobs/<id>/logs` answers `403 Must have admin rights` without a token,
+and `gh` is not installed on the authoring machine. Widening the budget would have hidden
+the question. Instead `scripts/run-lighthouse.mjs` emits GitHub **workflow commands**, which
+become annotations on the run's own page and are readable without log access.
+
+- A failed assertion becomes one `::error::` line naming the audit, the configuration, the
+  URL, the limit, the median — and **every individual run value**, which is what tells a
+  slow runner apart from one slow run on a median gate.
+- A passing configuration emits one `::notice::` line with each gated audit's median against
+  its limit. A gate that fails intermittently is diagnosed as much by its margin when green
+  as by its number when red, and a notice costs nothing on a passing run.
+- Both are guarded by `GITHUB_ACTIONS`, so a local `npm run test:perf` prints exactly what it
+  always printed.
+
+**The assertion-results file lhci writes holds only FAILURES unless it is asked not to, and
+that was measured rather than assumed.** `@lhci/utils/src/assertions.js`'s `getAllAssertionResults`
+ends by filtering out everything that passed unless `includePassedAssertions` is set, so on a
+green run the file is `[]` — checked against this repository's own `.lighthouseci/`, and
+checked again by calling the engine directly over fifteen saved runs: **0 results without the
+option, 12 with it**, each carrying its limit, its median and its five values. A notice built
+on the default file would have printed nothing forever. The option is therefore passed as
+`--assert.includePassedAssertions`, which `lhci autorun` forwards to its `assert` child, and
+only under `GITHUB_ACTIONS` — turning it on in the three `lighthouserc*.json` files would
+also change what a local run prints, since lhci then lists every passing assertion itself.
+
+**What decides what each line says is a pure function, not the script.** No Vitest project
+can execute `run-lighthouse.mjs` — it spawns `npx lhci`, which needs a build, a browser and
+minutes — so anything decided inside it would be decided untested. The parsing and formatting
+live in `scripts/lighthouseAnnotations.mjs` and are driven by
+`scripts/lighthouseAnnotations.test.js`: a failure becomes one error line with every run
+value; a passing set becomes one notice and no errors; a missing or malformed file says so
+rather than throwing; and an assertion's `auditProperty` is part of its name, which is the
+defect running it against a real `.lighthouseci/` found — every `resource-summary:*:size`
+budget had been printing under one indistinguishable name. Four mutations were watched
+failing, one per behaviour.
+
+`scripts/**/*.mjs` joined `vitest.config.ts`'s coverage `include` in the same commit, gated
+at **100% lines, branches and functions** — the number the directory actually achieves.
+`run-lighthouse.mjs` sits in it behind a whole-file `c8 ignore start`/`stop` carrying its
+reason: nothing can execute it, so it gets the "nothing can measure this" treatment §2.1
+names rather than an exclusion promising a pass that does not exist.
+
+**That hint has to be the file's FIRST line, which is a second ignore-hint quirk worth
+recording beside the bracketed-directory one above.** Written after the module header — the
+position `apps/web/app/(admin)/admin/media/upload/route.ts` uses, with identical wrapping,
+and is ignored correctly at — `run-lighthouse.mjs` reported **67 uncovered lines** and the
+`scripts/**` threshold failed at 60.81%. Moved to line 1, the same file reports 0 of 0 and
+the directory reports 100/100/100. Both measured, in consecutive runs. Revisit when
+`@vitest/coverage-v8` changes version; until then, a whole-file ignore in this directory
+goes first, above the header. Its test glob,
+`scripts/**/*.test.js`, is on the `unit` project beside `eslint-rules/**/*.test.js`; both are
+plain JavaScript because `node` runs these files with no loader in front of them.
+
 **A second, independent measurement of the same budget**, because the two count differently
 and the difference is worth writing down rather than rediscovering. Lighthouse's
 `resource-summary:script:size` is the transfer size of the scripts the page actually fetched.

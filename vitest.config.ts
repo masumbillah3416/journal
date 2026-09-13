@@ -147,6 +147,14 @@ export default defineConfig({
             // Phase 4 rests on, so its behaviour belongs in the gate Husky runs
             // rather than only in CI. See docs/testing.md.
             'eslint-rules/**/*.test.js',
+            // `scripts/**/*.test.js` — the repository's own build/CI scripts.
+            // `scripts/lighthouseAnnotations.mjs` decides what CI is told when
+            // a performance gate goes red, and `run-lighthouse.mjs` cannot be
+            // executed by any Vitest project (it spawns `npx lhci`), so the
+            // deciding half was extracted into a module this glob collects the
+            // test for. Plain JavaScript, matching the script it serves, which
+            // `node` runs with no loader in front of it.
+            'scripts/**/*.test.js',
             // `apps/web/middleware.ts` sits at the app's own root, where
             // Next.js requires it - see its header. Without this glob its
             // test file would be collected by nobody, which is the exact
@@ -302,6 +310,16 @@ export default defineConfig({
         // unmeasured rule is one whose branches can rot into always-passing,
         // which is the exact failure the nine text scans before it had.
         'eslint-rules/**/*.js',
+        // `scripts/**/*.mjs` — repository tooling that `node` runs directly.
+        // Added with `scripts/lighthouseAnnotations.mjs` (CLAUDE.md §2.1: code
+        // in a new directory joins an `include`, with a real threshold, in the
+        // same commit). `run-lighthouse.mjs` is in the same directory and
+        // carries a whole-file `c8 ignore` with its reason: it spawns
+        // `npx lhci`, which no Vitest project can run, so it is the "nothing
+        // can measure it" treatment rather than the "some other pass sees it"
+        // one. That is exactly why everything it DECIDES now lives in the
+        // module beside it.
+        'scripts/**/*.mjs',
       ],
       exclude: [
         '**/*.test.ts',
@@ -648,6 +666,18 @@ export default defineConfig({
           lines: 95,
           branches: 95,
           functions: 95,
+        },
+        // `scripts/**` is the same kind of code as `eslint-rules/**`: pure
+        // repository tooling with no framework under it. The real threshold is
+        // the number it achieves - 100/100/100, measured, because
+        // `lighthouseAnnotations.mjs` is a mapping whose every branch is a real
+        // behaviour and `run-lighthouse.mjs` reports nothing either way behind
+        // its `c8 ignore`. Named rather than left to the repository-wide floor
+        // so a second script landing at 91% fails on its own commit.
+        'scripts/**/*.mjs': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
         },
         // Task 1 of Phase 1: matches apps/web/lib's bar, since Phase 1's
         // server actions, page components and BookBundle mappers are the
