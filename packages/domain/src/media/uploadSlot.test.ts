@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest'
 import { journeyId } from '../ids'
 import type { RequestedUpload } from './uploadSlot'
-import { MAX_FILES_PER_REQUEST, MAX_UPLOAD_BYTES, planUploadSlots } from './uploadSlot'
+import { MAX_FILES_PER_REQUEST, MAX_UPLOAD_BYTES, isStagingKeyFor, planUploadSlots } from './uploadSlot'
 
 /** A journey id for these tests. Throws rather than returning, so a case reads straight. */
 const aJourneyId = () => {
@@ -135,5 +135,70 @@ describe('planUploadSlots', () => {
     })
 
     expect(planned).toEqual({ ok: false, error: 'type-not-offered' })
+  })
+})
+
+describe('isStagingKeyFor', () => {
+  /** Asks the question ingest asks, for the journey every case here uses. */
+  const isStaged = (key: string): boolean => isStagingKeyFor({ key, journey: aJourneyId() })
+
+  it('accepts a key the planner itself minted, so the check and the minting cannot drift apart', () => {
+    // THE ONLY CASE HERE THAT TAKES ITS INPUT FROM THE PLANNER RATHER THAN
+    // FROM A LITERAL, and the reason this pair is in one file: a predicate
+    // spelling the key shape itself would keep passing keys the planner had
+    // stopped producing.
+    const planned = plan([aRequestedUpload()])
+
+    expect(isStaged(planned.ok ? (planned.value[0]?.stagingKey ?? '') : '')).toBe(true)
+  })
+
+  it('accepts every key the planner mints for a whole request, not merely the first', () => {
+    const planned = plan([aRequestedUpload(), aRequestedUpload({ filename: 'bergen.png' })])
+
+    expect((planned.ok ? planned.value : []).map((slot) => isStaged(slot.stagingKey))).toEqual([true, true])
+  })
+
+  it('refuses a stored media filename, which is what makes finalising one unable to delete it', () => {
+    expect(isStaged('tokyo-9.jpg')).toBe(false)
+  })
+
+  it('refuses a key staged under a different journey, so two fields of one request cannot disagree', () => {
+    expect(isStaged('staging/journey-8/n0-tokyo.jpg')).toBe(false)
+  })
+
+  it('refuses a key whose journey segment merely begins with this journey', () => {
+    expect(isStaged('staging/journey-77/n0-tokyo.jpg')).toBe(false)
+  })
+
+  it('refuses a traversal out of the journey directory, even spelled as the whole tail', () => {
+    expect(isStaged('staging/journey-7/..')).toBe(false)
+  })
+
+  it('refuses a traversal spelled as a fourth segment', () => {
+    expect(isStaged('staging/journey-7/../../secrets.jpg')).toBe(false)
+  })
+
+  it('refuses a backslash separator, which a Windows filesystem would resolve', () => {
+    expect(isStaged('staging\journey-7\n0-tokyo.jpg')).toBe(false)
+  })
+
+  it('refuses another namespace of the same store', () => {
+    expect(isStaged('uploads/journey-7/n0-tokyo.jpg')).toBe(false)
+  })
+
+  it('refuses a key with nothing after the journey', () => {
+    expect(isStaged('staging/journey-7/')).toBe(false)
+  })
+
+  it('refuses a deeper key under the journey, since the planner mints exactly three segments', () => {
+    expect(isStaged('staging/journey-7/nested/n0-tokyo.jpg')).toBe(false)
+  })
+
+  it('refuses a dotfile tail, which no sanitised name produces', () => {
+    expect(isStaged('staging/journey-7/.env')).toBe(false)
+  })
+
+  it('refuses an empty key', () => {
+    expect(isStaged('')).toBe(false)
   })
 })

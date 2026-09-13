@@ -1016,15 +1016,23 @@ follow: false }`.
 - **Input:** `{ stagingKey, declaredType, filename, journey }` — the same three claims the
   slot was offered for, plus the journey the row belongs to. Every field is the client's
   claim: the type is weighed by `sniffMediaType` over the bytes, the filename decides only
-  the stored name, and the key is put through `validateStorageKey` inside the store.
+  the stored name, and **the key must be one `planUploadSlots` would have minted for this
+  journey** (`isStagingKeyFor`), checked before the object is read. That is a narrower
+  question than the store's own `validateStorageKey`, which asks only whether a key is
+  well formed — and a stored photograph's key is well formed. This row said
+  `validateStorageKey` was the protection, which was an overstatement: ingest reads AND
+  deletes what it is handed, and the production store is rooted at `MEDIA_DIR`, where
+  Payload keeps every stored file.
 - **Output:** one of `{ kind: 'ready', media }`, `{ kind: 'duplicate', of }` or
   `{ kind: 'queued', media, job }`. **No storage key in any arm** — a response naming one
   would hand the caller the store's own naming, which is the enumeration
   `readGalleryDownload` refuses to enable. `'queued'` only under `MEDIA_PIPELINE=worker`.
 - **Errors:** `'svg-rejected'`, `'video-deferred'`, `'heic-unsupported'`,
   `'type-not-allowed'`, `'declared-mismatch'`, `'unreadable'` (the processor's own
-  refusals, every one of them decided from the BYTES); `'staged-bytes-missing'` (the key
-  names no object); `'invalid-journey'` (the id names no journey a row could be keyed by);
+  refusals, every one of them decided from the BYTES); `'key-not-staged'` (the key is not
+  one this journey's slots were minted under — refused before anything is read or
+  deleted); `'staged-bytes-missing'` (the key names no object);
+  `'invalid-journey'` (the id names no journey a row could be keyed by);
   `'not-queued'` (a `worker` ingest could not hand the upload on). **A refusal creates no
   row**, and the staged object is deleted on every one of these paths — it is the
   pre-strip original.

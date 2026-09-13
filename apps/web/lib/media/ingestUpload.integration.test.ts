@@ -32,7 +32,8 @@
  * then re-arms the first.
  *
  * Depends on: vitest; the probes (./testing/ingestProbes); `getTestPayload`
- * (../testPayload); the `Media` collection, for the tier names it configures;
+ * (../testPayload); the `Media` collection, for the tier names it configures
+ * and for `MEDIA_DIR`, which one case drives the REAL store at; `createLocalStorage`;
  * `FIXTURE_CAPTURED_AT_ISO` (../adapters/contract/media-fixtures); the module
  * under test.
  */
@@ -40,7 +41,8 @@ import { afterAll, describe, expect, it } from 'vitest'
 import type { ImageSize, UploadConfig } from 'payload'
 import { journeyId } from '@travel-diary/domain/ids'
 import { metadataMarkersIn } from '@travel-diary/domain/media/exif'
-import { Media } from '../../collections/media'
+import { MEDIA_DIR, Media } from '../../collections/media'
+import { createLocalStorage } from '../adapters/local-storage'
 import { FIXTURE_CAPTURED_AT_ISO } from '../adapters/contract/media-fixtures'
 import { getTestPayload } from '../testPayload'
 import { finaliseStagedUpload, ingestUpload } from './ingestUpload'
@@ -333,7 +335,15 @@ describe('ingestUpload', () => {
       const journey = await aFixtureJourney()
 
       const ingested = await ingestUpload(
-        { stagingKey: 'staging/j/never-written.jpg', declaredType: 'image/jpeg', filename: 'a.jpg', journey },
+        {
+          // A key the planner WOULD have minted for this journey, for an
+          // upload nobody ever PUT - which is the only way to reach this
+          // refusal now that a key from another namespace is refused earlier.
+          stagingKey: `staging/${String(journey)}/n0-never-written.jpg`,
+          declaredType: 'image/jpeg',
+          filename: 'a.jpg',
+          journey,
+        },
         await inlineDeps(storage),
       )
 
@@ -350,7 +360,15 @@ describe('ingestUpload', () => {
       const before = await countMediaRows()
 
       await ingestUpload(
-        { stagingKey: 'staging/j/never-written.jpg', declaredType: 'image/jpeg', filename: 'a.jpg', journey },
+        {
+          // A key the planner WOULD have minted for this journey, for an
+          // upload nobody ever PUT - which is the only way to reach this
+          // refusal now that a key from another namespace is refused earlier.
+          stagingKey: `staging/${String(journey)}/n0-never-written.jpg`,
+          declaredType: 'image/jpeg',
+          filename: 'a.jpg',
+          journey,
+        },
         await inlineDeps(storage),
       )
 
@@ -411,15 +429,67 @@ describe('ingestUpload', () => {
   )
 
   it(
-    'refuses a journey id that names no row, rather than letting NaN reach the driver',
+    'refuses a finalise naming a key outside the journey staging namespace, rather than deleting a live media file',
     async () => {
-      const staged = await aStagedPhotograph({})
-      const named = journeyId('not-a-row-id')
+      // THE PRODUCTION STORE IS ROOTED AT `MEDIA_DIR`, the directory Payload
+      // writes every stored file and derivative into - so this case drives the
+      // real one rather than a temporary directory, because the whole defect
+      // is that the two are the same place. Ingest reads the key it is handed
+      // and deletes it in a `finally`; naming a live photograph's own filename
+      // destroyed it and answered `duplicate`, a success-shaped answer over a
+      // deletion.
+      const journey = await aFixtureJourney()
+      const staged = await aStagedPhotograph({ journey })
+      const ingested = await ingestUpload(staged.input, await inlineDeps(staged.storage))
+      const storedName = (await readMediaRow(ingested)).filename ?? ''
+      const productionStore = createLocalStorage(MEDIA_DIR)
+      expect(await productionStore.exists(storedName)).toBe(true)
+
+      const finalised = await finaliseStagedUpload(
+        { stagingKey: storedName, declaredType: 'image/jpeg', filename: 'anything.jpg', journey: String(journey) },
+        await inlineDeps(productionStore),
+      )
+
+      expect({ survived: await productionStore.exists(storedName), refused: !finalised.ok }).toEqual({
+        survived: true,
+        refused: true,
+      })
+    },
+    INGEST_BUDGET_MS,
+  )
+
+  it(
+    'names the refusal for a key it did not stage, rather than reporting it as a missing object',
+    async () => {
+      const journey = await aFixtureJourney()
+      const { storage } = await aTempStore()
 
       const ingested = await ingestUpload(
-        { ...staged.input, journey: named.ok ? named.value : staged.input.journey },
-        await inlineDeps(staged.storage),
+        {
+          stagingKey: `staging/${String(journey)}-other/n0-tokyo.jpg`,
+          declaredType: 'image/jpeg',
+          filename: 'tokyo.jpg',
+          journey,
+        },
+        await inlineDeps(storage),
       )
+
+      expect(ingested).toEqual({ ok: false, error: 'key-not-staged' })
+    },
+    INGEST_BUDGET_MS,
+  )
+
+  it(
+    'refuses a journey id that names no row, rather than letting NaN reach the driver',
+    async () => {
+      // Staged UNDER the bogus journey, so the key check passes and the row-id
+      // guard is what answers. Handing it a key minted for a real journey
+      // would exercise the check above instead, and this case would stop being
+      // about the guard it is named for.
+      const named = journeyId('not-a-row-id')
+      const staged = await aStagedPhotograph(named.ok ? { journey: named.value } : {})
+
+      const ingested = await ingestUpload(staged.input, await inlineDeps(staged.storage))
 
       expect(ingested).toEqual({ ok: false, error: 'invalid-journey' })
     },
@@ -429,15 +499,30 @@ describe('ingestUpload', () => {
   it(
     'removes the staging object when the journey is refused, so a bad id leaves no original behind',
     async () => {
-      const staged = await aStagedPhotograph({})
       const named = journeyId('not-a-row-id')
+      const staged = await aStagedPhotograph(named.ok ? { journey: named.value } : {})
 
-      await ingestUpload(
-        { ...staged.input, journey: named.ok ? named.value : staged.input.journey },
-        await inlineDeps(staged.storage),
-      )
+      await ingestUpload(staged.input, await inlineDeps(staged.storage))
 
       expect(await staged.storage.exists(staged.input.stagingKey)).toBe(false)
+    },
+    INGEST_BUDGET_MS,
+  )
+
+  it(
+    'leaves an object it refused to recognise where it found it, since deleting one is the defect',
+    async () => {
+      const journey = await aFixtureJourney()
+      const { storage } = await aTempStore()
+      const bystander = 'somebody-elses.jpg'
+      await storage.put(bystander, new Uint8Array([1, 2, 3]), 'image/jpeg')
+
+      await ingestUpload(
+        { stagingKey: bystander, declaredType: 'image/jpeg', filename: 'tokyo.jpg', journey },
+        await inlineDeps(storage),
+      )
+
+      expect(await storage.exists(bystander)).toBe(true)
     },
     INGEST_BUDGET_MS,
   )

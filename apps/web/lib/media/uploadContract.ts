@@ -185,6 +185,13 @@ export type FinalisedMedia =
  */
 export type FinaliseFailure =
   | ProcessingRefusal
+  /**
+   * The key is not one this journey's slots were minted under. Refused before
+   * the object is read, because ingest both reads and deletes what it is
+   * handed and the production store is rooted where Payload keeps every
+   * stored file.
+   */
+  | 'key-not-staged'
   /** The staging key names no object — nothing was ever PUT to it. */
   | 'staged-bytes-missing'
   /** The journey id names no journey a row could be keyed by. */

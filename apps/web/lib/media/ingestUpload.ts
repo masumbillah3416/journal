@@ -59,6 +59,12 @@
  *
  * ═══ INVARIANTS A FUTURE EDIT COULD BREAK ═══
  *
+ *   - **ONLY A KEY THIS JOURNEY'S SLOTS WERE MINTED UNDER IS EVER READ OR
+ *     DELETED.** `isStagingKeyFor` is asked before the object is read and
+ *     before the `try` whose `finally` deletes it, so the two checks cannot be
+ *     separated by an edit. Dropping it fails “refuses a finalise naming a key
+ *     outside the journey's staging namespace, rather than deleting a live
+ *     media file”.
  *   - **THE STAGING OBJECT IS DELETED ON EVERY PATH**, in a `finally`,
  *     refusals included. It is the PRE-STRIP ORIGINAL — the copy that still
  *     carries the GPS coordinates `SECURITY.md` exists to remove — so leaving
@@ -87,6 +93,7 @@
  * `media` collection is reached only through the injected Payload and nothing
  * above this module learns what a CMS row looks like.
  * Depends on: `isPerceptualDuplicate` (@travel-diary/domain/media/perceptualHash);
+ * `isStagingKeyFor` (@travel-diary/domain/media/uploadSlot);
  * `mediaId` and the branded ids; `Result`, `err` and `ok`; the MediaProcessor,
  * Storage and Queue ports; `getPayload` (../payload), for the instance type
  * only.
@@ -94,6 +101,7 @@
 import type { JourneyId, MediaId } from '@travel-diary/domain/ids'
 import { journeyId, mediaId } from '@travel-diary/domain/ids'
 import type { PipelineMode } from '@travel-diary/domain/media/ingestPolicy'
+import { isStagingKeyFor } from '@travel-diary/domain/media/uploadSlot'
 import { isPerceptualDuplicate } from '@travel-diary/domain/media/perceptualHash'
 import type { Result } from '@travel-diary/domain/result'
 import { err, ok } from '@travel-diary/domain/result'
@@ -238,9 +246,19 @@ export const ingestUpload = async (
   input: IngestInput,
   deps: IngestDeps,
 ): Promise<Result<IngestOutcome, IngestRefusalReason>> => {
+  // BEFORE THE OBJECT IS READ, AND BEFORE THE `try` THAT DELETES IT. This
+  // function reads whatever key it is handed and then deletes it, and the
+  // production store is rooted at `MEDIA_DIR` - the same directory Payload
+  // writes every stored file and derivative into. Without this check, a
+  // finalise naming a live photograph would destroy it and answer
+  // `duplicate`, which is a success-shaped answer over a deletion.
+  // `validateStorageKey` inside the store cannot help: it asks whether a key
+  // is well formed, and a stored photograph's key is well formed.
+  if (!isStagingKeyFor({ key: input.stagingKey, journey: input.journey })) return err('key-not-staged')
+
   const staged = await deps.storage.get(input.stagingKey)
-  // Before the `try`, deliberately: a key that names no object has nothing to
-  // clean up, and there is no row to have half-created.
+  // Also before the `try`: a key that names no object has nothing to clean up,
+  // and there is no row to have half-created.
   if (!staged.ok) return err('staged-bytes-missing')
 
   try {

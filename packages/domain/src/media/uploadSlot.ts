@@ -108,6 +108,27 @@ export interface UploadSlotPlan {
   readonly filename: string
 }
 
+/**
+ * The first segment of every staging key this module mints.
+ *
+ * Named once and read by both the minting and the checking below, because
+ * those two drifting apart is the whole failure this constant exists to
+ * prevent: a checker that spelled the namespace itself would keep passing a
+ * key the planner had stopped producing.
+ */
+const STAGING_PREFIX = 'staging'
+
+/**
+ * The shape of a key {@link planUploadSlots} mints: the namespace, the journey
+ * it is keyed by, and one sanitised tail.
+ *
+ * The tail's character class is {@link keyNameFor}'s own output prefixed by a
+ * nonce, so it cannot be `..`, cannot hold a separator of either slash, and
+ * cannot begin with a dot — which is what makes a key that passes this
+ * incapable of naming anything outside its journey's staging directory.
+ */
+const STAGED_KEY = new RegExp(`^${STAGING_PREFIX}/([^/]+)/([a-z0-9][a-z0-9.-]*)$`)
+
 /** Characters a storage key segment may hold. Everything else becomes a hyphen. */
 const UNSAFE_IN_KEY = /[^a-z0-9]+/g
 
@@ -191,11 +212,47 @@ export const planUploadSlots = (request: {
     if (refusal !== undefined) return err(refusal)
 
     plans.push({
-      stagingKey: `staging/${request.journey}/${request.nonce(index)}-${keyNameFor(file.filename)}`,
+      stagingKey: `${STAGING_PREFIX}/${request.journey}/${request.nonce(index)}-${keyNameFor(file.filename)}`,
       declaredType: file.declaredType,
       filename: file.filename,
     })
   }
 
   return ok(plans)
+}
+
+/**
+ * Whether `key` is one this module would have minted for `journey`.
+ *
+ * ═══ WHY INGEST CANNOT MAKE DO WITH `validateStorageKey` ═══
+ *
+ * That function answers "is this a well-formed key?" — it refuses traversal
+ * and absolute paths and says nothing about WHICH key. Ingest reads the named
+ * object and then deletes it, and the production store is rooted at
+ * `MEDIA_DIR`, the same directory Payload writes every stored file and
+ * derivative into. So a well-formed key naming a live photograph is a
+ * well-formed key, and finalising it would destroy the photograph and answer
+ * `duplicate` — a success-shaped answer over a deletion. The question ingest
+ * has to ask is the narrower one this function answers.
+ *
+ * It is written as a match against the minted shape rather than a list of
+ * things to refuse: a checker that enumerated bad keys would pass the one
+ * nobody listed (`eslint-rules/guarded-server-actions.js` is this
+ * repository's worked example of the same inversion).
+ *
+ * **THE JOURNEY IS PART OF THE ANSWER, not a separate check.** A key minted
+ * for journey A is not a staging key for journey B, or the two fields of one
+ * finalise request could disagree and file A's bytes under B — the defect
+ * family `CLAUDE.md` §7 exists for.
+ * @param candidate - The key a client sent, and the journey it claims to
+ *   belong to.
+ * @returns True only for a key of the shape {@link planUploadSlots} mints,
+ *   under that journey.
+ * @example
+ * isStagingKeyFor({ key: 'staging/4/ab-tokyo.jpg', journey }) // true for journey '4'
+ * isStagingKeyFor({ key: 'tokyo-9.jpg', journey }) // false: a stored file, not a staged one
+ */
+export const isStagingKeyFor = (candidate: { readonly key: string; readonly journey: JourneyId }): boolean => {
+  const matched = STAGED_KEY.exec(candidate.key)
+  return matched !== null && matched[1] === candidate.journey
 }
