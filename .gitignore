@@ -67,6 +67,50 @@ apps/web/media/
 apps/web/uploads/
 .postgres-data/
 
+# Agent git worktrees.
+#
+# ANCHORED, and to the container rather than to one worktree: `.claude/`
+# itself is SOURCE - `.claude/skills/` holds the two browser-QA skills
+# CLAUDE.md §10 makes mandatory, and they are tracked - so only the one
+# subdirectory git puts worktrees in is ignored, at exactly one depth, from
+# the repository root. A pattern of `.claude/` would hide those skills the
+# way a bare `media/` hid `packages/domain/src/media/` (see the store block
+# above); a pattern of `**/worktrees/` would hide a source directory of that
+# name anywhere.
+#
+# WHAT IS BEING HIDDEN IS A DUPLICATE, NOT A SOURCE FILE. A git worktree is a
+# second checkout of THIS repository: every file under it is tracked in its
+# own checkout, on its own branch, and is committed and reviewed there. From
+# here it is the same repository twice, and the second copy has no business
+# in this one's `git status`, in `prettier --check .`, or in ESLint's walk.
+#
+# WITHOUT THIS, `npm run verify` CANNOT PASS while a worktree exists.
+# `prettier --check .` walks into it and flags its generated
+# `apps/web/payload-types.ts` (`.prettierignore`'s entry for that path carries
+# a slash, so it is anchored to the root and does not match the nested copy),
+# and `apps/web/lib/auth/adminGuardRegistration.test.ts` fails six cases:
+# `git ls-files --others` reports a nested repository as one DIRECTORY entry,
+# which that suite refuses to read rather than silently skip.
+#
+# NO SCAN LOSES ANYTHING BY THIS. That suite's coverage case reads git's own
+# listing, and a nested repository's files were never in it - only the
+# directory entry was. Ignoring the directory removes the entry; the files
+# under it were unlisted either way, and they are listed in their own
+# checkout, where that suite runs against them on their own commit.
+/.claude/worktrees/
+
+# The agent harness's own machine-local settings, which it REWRITES while a
+# session runs. It is ignored today only by this developer's global excludes
+# file (`~/.config/git/ignore`), which no other checkout has and which Prettier
+# does not read at all — Prettier 3 defaults its ignore path to `.gitignore`
+# and `.prettierignore` and nothing else. So `prettier --check .` flagged it
+# the moment the harness reformatted it mid-round, and `npm run verify` went
+# red on a file this repository does not track, cannot format and does not own.
+# That is the same shape as the generated-artefact block above: a gate whose
+# outcome depends on what a tool did since the last clean. Anchored, and to the
+# one file rather than to `.claude/`, whose `skills/` subdirectory is source.
+/.claude/settings.local.json
+
 # Editor and OS
 .vscode/
 .idea/
