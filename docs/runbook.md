@@ -149,11 +149,27 @@ Phase 3 Task 7, its only non-test construction being
 gallery download. It now also WRITES: `PUT /admin/media/upload` stages an upload's bytes
 under `apps/web/media/staging/<journey>/…` through the same port (see
 `docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`), so the growth
-described below has a second source, and staged bytes that are never finalised are not
-cleaned up by anything yet. The directory is gitignored, so it
+described below has a second source. The directory is gitignored, so it
 never appears in `git status`, and **nothing deletes a file from it**: `payload.delete`
 removes the row, and the bytes stay. Every `npm run db:seed`, and every run of
 `apps/web/scripts/seed.integration.test.ts`, writes a fresh set.
+
+**Staged bytes that are never finalised are NOT part of this problem, and filing them
+here was the mistake this paragraph corrects.** A slot that is uploaded to and never
+finalised — the author closes the tab, the request fails, the page is reloaded — leaves
+its object under `apps/web/media/staging/<journey>/` forever: Task 8 of the media phase
+deletes the staging copy on every _finalise_ path, and an upload that never reaches that
+finalise step is swept by nothing. What makes that a security residual rather than a
+capacity one is WHAT THOSE BYTES ARE: the pre-strip original, the copy that still carries
+the GPS coordinates, which is exactly the data `SECURITY.md`'s read-EXIF-then-strip
+requirement exists to remove. Freeing the disk is not the reason to sweep them. The owner
+is named in
+`docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`'s Consequences — the
+sweep is **Phase 4's**, which is where a scheduler exists to hang it on — and the
+requirement it is a residual against is `docs/security.md`'s EXIF row. **Until then, an
+operator clearing space should treat `apps/web/media/staging/` as the first thing to
+remove, not the last:** nothing published depends on it, and everything in it is either
+in flight or an un-stripped original.
 
 **The first symptom is not a full disk. It is a test that has always passed timing out,
 with no commit in between** — the same confusing shape as the wall-clock guard suite

@@ -27,6 +27,18 @@
  * receiver of ours, and every one of its cases lives in the shared contract
  * suite — so the R2 adapter is a one-file addition behind an already-tested
  * method. Recorded as `docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`.
+ *
+ * ═══ WHOEVER WRITES `r2-storage.ts` OWES ONE DELETION ═══
+ *
+ * {@link StoragePort.uploadUrl} has a second implementation today that a real
+ * bucket makes redundant: `PUT /admin/media/upload`, a write endpoint this
+ * repository serves so the local adapter has somewhere to point. It exists
+ * only because a filesystem has no HTTP surface. **The commit that adds the R2
+ * adapter must delete that route, or gate it behind the pipeline
+ * configuration, in the same change** — a second write path left standing
+ * beside the bucket is one nobody is thinking about any more. Stated here, at
+ * the port, because this file and `../adapters/local-storage.ts` are what the
+ * next adapter's author reads first.
  * Depends on: Result from `@travel-diary/domain/result`.
  */
 import type { Result } from '@travel-diary/domain/result'

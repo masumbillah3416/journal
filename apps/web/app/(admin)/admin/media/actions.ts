@@ -25,10 +25,14 @@
  * `offerUploadSlots`'s (executed by `uploadSlots.integration.test.ts`, gated
  * at 100% by vitest.integration.config.ts). Neither Vitest project can execute
  * it: a Server Action is dispatched by Next.js under an opaque action id and
- * needs a request context no test process has. This file's path contains no
- * `[...]` segment, so the ignore hint is read and no config exclusion is
- * needed. Wraps the imports too: an unimported file's imports are themselves
- * uncovered lines. */
+ * needs a request context no test process has. The `c8 ignore` is the
+ * treatment CLAUDE.md §2.1 asks for and the one every comparable file here
+ * already carries; what can be OBSERVED of it is that this file reports
+ * `0 | 0 | 0 | 0` like every other file under `apps/web/app/`, that no gate
+ * moves, and that no exclusion in `vitest.config.ts` was needed. That the hint
+ * was READ is not observable from any of those, so it is not claimed. Wraps
+ * the imports too: an unimported file's imports are themselves uncovered
+ * lines. */
 import { randomUUID } from 'node:crypto'
 import { MEDIA_DIR } from '../../../../collections/media'
 import { createLocalStorage } from '../../../../lib/adapters/local-storage'

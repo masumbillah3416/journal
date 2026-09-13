@@ -88,9 +88,13 @@ cap.
 
 ## Consequences
 
-- **The R2 adapter is a one-file addition.** It implements five methods, three of whose
-  `uploadUrl` cases are already written in the shared contract suite, and nothing above
-  the port changes.
+- **The R2 adapter is a one-file addition.** Every method it implements, `uploadUrl`
+  included, already has its cases in the shared contract suite, and nothing above the
+  port changes. It supplies one thing of its own: an `UploadUrlRedeemer`, which is how
+  the suite's three lifetime cases attempt an upload against an adapter whose expiry it
+  cannot read off the URL. (The counts this sentence used to carry — "five methods,
+  three cases" — were both wrong within one task. A count in prose is a floor or it is
+  deleted; `apps/web/lib/docs/caseCounts.test.ts` carries the doctrine.)
 - **The receiver route still exists in production**, and it is a real write endpoint
   behind the admin guard. **It must be deleted, or gated behind the pipeline
   configuration, in the same change that adds the R2 adapter.** Named here so it is a
@@ -102,6 +106,20 @@ cap.
 - The upload token is signed with `PAYLOAD_SECRET`. Rotating that secret invalidates
   every outstanding upload URL — which is correct, and is at most fifteen minutes of
   in-flight uploads.
+- **A slot that is uploaded to and never finalised leaves its staged bytes behind
+  forever, and nothing in Phase 3 sweeps them.** Task 8 deletes the staging object on
+  every _finalise_ path; an upload that never reaches that finalise step — the author
+  closes the tab, the request fails, the page is reloaded — is touched by nothing. This
+  is not a capacity note. **Those objects are the PRE-STRIP ORIGINALS**: the copy that
+  still carries the GPS coordinates, which is the exact data `SECURITY.md`'s
+  read-EXIF-then-strip requirement exists to remove. They sit under
+  `apps/web/media/staging/<journey>/` behind the admin guard, unreadable through Payload
+  (a staged object has no `media` row, so Payload's own file-access check refuses it), and on disk
+  indefinitely. **The sweep is owed by Phase 4**, not "eventually": it needs a scheduler,
+  which no task in the Phase 3 plan builds, and inventing one inside the upload path
+  would be the speculative extension CLAUDE.md §4 refuses. Recorded in
+  `docs/security.md`'s EXIF row and in `docs/runbook.md` as a residual against a security
+  requirement rather than as disk growth.
 - `SECURITY.md`'s "Serve media from a separate domain or bucket origin" and "Give the
   media origin its own restrictive CSP" are **not discharged by this ADR**. `MEDIA_ORIGIN`
   exists and is validated; the separate-origin serving and its CSP remain Phase 3's

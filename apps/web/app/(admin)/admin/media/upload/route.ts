@@ -30,10 +30,14 @@
  * `localUploadEndpoint.integration.test.ts` and `guard.integration.test.ts`
  * with real `Request`s, and both gated by `vitest.integration.config.ts`. It
  * cannot be measured by either Vitest config (a route handler is only reached
- * through Next's own routing), and this file's path contains no `[...]`
- * segment, so the ignore hint is read and no config exclusion is needed. Wraps
- * the imports too: an unimported file's imports are themselves uncovered
- * lines. */
+ * through Next's own routing). WHAT IS OBSERVABLE, said instead of a claim
+ * about the hint being read: this file reports `0 | 0 | 0 | 0` in the unit
+ * coverage table, which is what every file under `apps/web/app/` reports,
+ * wrapped or not; no coverage gate moves either way;
+ * and no entry in `vitest.config.ts`'s exclusion list was needed, unlike the
+ * bracketed-directory files CLAUDE.md §2.1 documents. Whether v8 consumed the
+ * hint cannot be told apart from that, so it is not asserted. Wraps the
+ * imports too: an unimported file's imports are themselves uncovered lines. */
 import { guarded } from '../../../../../lib/auth/guard'
 import { handleLocalUpload } from '../../../../../lib/media/localUploadEndpoint'
 

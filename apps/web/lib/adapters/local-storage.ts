@@ -20,6 +20,18 @@
  * `PUT /admin/media/upload?token=…`, a receiver this repository serves and
  * `apps/web/lib/media/receiveLocalUpload.ts` implements.
  *
+ * ═══ THIS ADAPTER IS WHAT KEEPS THAT ROUTE ALIVE ═══
+ *
+ * Nothing else points at `PUT /admin/media/upload`. The day `r2-storage.ts`
+ * exists and is configured, this adapter stops being the one in production and
+ * the receiver behind it has no caller — so **the change that adds R2 must
+ * delete `apps/web/app/(admin)/admin/media/upload/route.ts`, or gate it behind
+ * the pipeline configuration, in the same commit.** Leaving it is leaving an
+ * authenticated write endpoint nobody reaches through the port any more, which
+ * is precisely the kind of thing that survives three phases unnoticed. ADR 0020
+ * records it as a residual; it is repeated here because this is the file being
+ * edited when it becomes true.
+ *
  * THE ORIGIN IS `ADMIN_ORIGIN`, NEVER A REQUEST'S `Host`, for the reason
  * `apps/web/lib/auth/passwordReset.ts` gives at length: a URL built from a
  * header is a URL an attacker points at their own machine. This adapter is

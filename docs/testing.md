@@ -1065,8 +1065,15 @@ while three documents counted the costs as three.
     `apps/web/app/(admin)/admin/media/actions.ts` need no config entry at all.** Both are
     `c8 ignore start`/`stop`-wrapped framework passthroughs with no authored logic, and
     neither path contains a `[...]` segment — the upload token is a QUERY parameter
-    rather than a path segment, deliberately — so the ignore hint is read and the
-    bracketed-directory defect above does not apply.
+    rather than a path segment, deliberately. **What that buys is stated as what was
+    observed, not as a mechanism.** Both files report `0 | 0 | 0 | 0` in the unit
+    coverage table; so does every other file under `apps/web/app/`, wrapped or not,
+    including the ones that predate this task. No gate moves (`All files` 99.93% against
+    a repository floor of 90%), and neither file needed an entry in the exclusion list
+    the bracketed-directory files require. Whether `@vitest/coverage-v8` actually
+    consumed the hint is indistinguishable from all of that, so this document does not
+    say that it did — the earlier wording, "the ignore hint is read", asserted a
+    mechanism nothing here can show working.
 - **Add one:** write `apps/web/lib/ports/<name>.ts` (the interface, plus any guard every
   adapter must share - see `validateStorageKey` above), then
   `apps/web/lib/adapters/contract/<name>-contract.ts` (the shared suite) before any

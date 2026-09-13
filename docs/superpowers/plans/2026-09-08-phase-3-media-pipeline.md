@@ -2706,7 +2706,8 @@ Also in this step: add `e2e/upload.spec.ts` to the `test:e2e` script in `package
 1. Change `EXPECTED_UPLOAD_REQUEST.contentType` to `'application/octet-stream'`.
    **Must fail:** `a real browser PUT reaches the receiver and the bytes land`, on the shape comparison. That is the drift detector proving it detects drift — and it is the only mutation in this phase whose failure mode is a _test_ being wrong rather than the code.
 2. In `apps/web/app/(admin)/admin/media/upload/route.ts`, unwrap `guarded`.
-   **Must fail:** `the receiver refuses the same PUT with no session, so an upload URL is not a bypass`, **and** `npm run lint`. Paste both, because two mechanisms cover this and it should be clear that neither is carrying it alone.
+   **Must fail:** `the receiver refuses the same PUT with no session, so an upload URL is not a bypass`, **and** `apps/web/lib/auth/adminGuardRegistration.test.ts`'s `leaves every guarded address applying the guard in its own file`. Paste both, because two mechanisms cover this and it should be clear that neither is carrying it alone.
+   **NOT `npm run lint`, and this line said so until Task 7 disproved it.** `eslint-rules/guarded-server-actions.js` governs modules whose directive prologue carries `'use server'`; a route file is not one, so unwrapping `guarded` here lints clean (exit 0, no report) — measured in Task 7 and again in its review. The ESLint rule is the mechanism for the Server Action in `actions.ts`; the registration test is the mechanism for a route file. Two shapes, two checks, and neither covers the other's.
 
 Restore after each. **Paste all four runs.**
 
