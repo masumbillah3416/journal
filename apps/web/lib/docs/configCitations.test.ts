@@ -197,17 +197,21 @@ const CONFIG_CITATIONS: readonly ConfigCitation[] = [
   {
     what: 'the /p/1 LCP gate, from lighthouserc.book.json',
     value: () => grouped(budget(asJson('lighthouserc.book.json'), '.*/p/1$', 'largest-contentful-paint')),
-    document: 'docs/testing.md',
+    // The performance suite's detail file, not `docs/testing.md` itself: the
+    // Phase 3 standards task moved every suite's body to `docs/testing/<suite>.md`
+    // and left the gate table and the run commands in the core. The LCP figures
+    // are quoted in the round-by-round record, which went with the body.
+    document: 'docs/testing/07-performance.md',
   },
   {
     what: 'the /p/1 LCP gate, from lighthouserc.json',
     value: () => grouped(budget(asJson('lighthouserc.json'), '.*/p/1$', 'largest-contentful-paint')),
-    document: 'docs/testing.md',
+    document: 'docs/testing/07-performance.md',
   },
   {
     what: 'the admin LCP gate, from lighthouserc.admin.json',
     value: () => grouped(budget(asJson('lighthouserc.admin.json'), '.*/admin/.*', 'largest-contentful-paint')),
-    document: 'docs/testing.md',
+    document: 'docs/testing/07-performance.md',
   },
   {
     what: 'the runs each Lighthouse median is taken over',
@@ -373,12 +377,15 @@ describe('the configured values the documentation quotes', () => {
       AT_LEAST_THIS_MANY_UNIT_GLOBS,
     )
 
-    const testing = text('docs/testing.md')
+    // The enumeration lives in the unit suite's detail file since the Phase 3
+    // standards task split `docs/testing.md`; §2.1's two homes are the config
+    // comment and that file.
+    const testing = text('docs/testing/01-unit.md')
     const undocumented = globs.filter((glob) => !testing.includes(`\`${glob}\``))
 
     expect(
       undocumented,
-      "docs/testing.md's enumeration of the `unit` project's include globs is missing these, so a reader auditing it against CLAUDE.md §2.1 audits a smaller set than the config collects",
+      "docs/testing/01-unit.md's enumeration of the `unit` project's include globs is missing these, so a reader auditing it against CLAUDE.md §2.1 audits a smaller set than the config collects",
     ).toEqual([])
   })
 

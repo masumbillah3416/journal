@@ -1,7 +1,13 @@
 /**
- * standardsSections.test.ts — `CLAUDE.md`'s sections and `docs/standards/`'s
- * reference files point at each other, and every `CLAUDE.md §N` citation in
- * this repository names a section `CLAUDE.md` actually declares.
+ * standardsSections.test.ts — the two split documents and their reference
+ * directories point at each other, and every `CLAUDE.md §N` citation in this
+ * repository names a section `CLAUDE.md` actually declares.
+ *
+ * Two documents were split in the Phase 3 standards task: `CLAUDE.md` into
+ * `docs/standards/`, and `docs/testing.md` into `docs/testing/`. The citation
+ * half applies only to the first, because only `CLAUDE.md`'s numbers are cited
+ * from module headers and configs across the tree; `docs/testing.md` kept every
+ * heading it had, so its numbers are guarded by their own presence.
  *
  * Pattern (CLAUDE.md §3.3): none of the seven. Three extractions and three set
  * comparisons.
@@ -58,6 +64,15 @@ const NUMBERED_ITEM = /^(\d+)\.[ \t]+\S/u
 
 /** A backticked path into the reference directory. */
 const REFERENCE = new RegExp('`(' + STANDARDS_DIRECTORY + '/[A-Za-z0-9._-]+\\.md)`', 'gu')
+
+/** The second document split the same way, and where its per-suite detail lives. */
+const TESTING_MD = path.join(REPOSITORY_ROOT, 'docs/testing.md')
+
+/** Where the detail behind each test suite lives, repository-relative. */
+const TESTING_DIRECTORY = 'docs/testing'
+
+/** A backticked path into the suite reference directory. */
+const SUITE_REFERENCE = new RegExp('`(' + TESTING_DIRECTORY + '/[A-Za-z0-9._-]+\\.md)`', 'gu')
 
 /** The one section that carries its rules in full and points nowhere. */
 const SECTION_WITH_NO_REFERENCE = '0'
@@ -134,12 +149,19 @@ const declaredSections = (): ReadonlySet<string> => {
   return declared
 }
 
-/** Every Markdown file the reference directory holds, repository-relative. */
-const referenceFiles = (): readonly string[] =>
-  readdirSync(path.join(REPOSITORY_ROOT, STANDARDS_DIRECTORY))
+/**
+ * Every Markdown file a reference directory holds, repository-relative.
+ * @param directory - The reference directory, repository-relative.
+ * @returns Repository-relative paths, sorted.
+ */
+const filesUnder = (directory: string): readonly string[] =>
+  readdirSync(path.join(REPOSITORY_ROOT, directory))
     .filter((entry) => entry.endsWith('.md'))
-    .map((entry) => `${STANDARDS_DIRECTORY}/${entry}`)
+    .map((entry) => `${directory}/${entry}`)
     .sort()
+
+/** Every Markdown file the standards reference directory holds. */
+const referenceFiles = (): readonly string[] => filesUnder(STANDARDS_DIRECTORY)
 
 /**
  * Every `CLAUDE.md §N` citation in the tracked corpus, with where it was found.
@@ -233,5 +255,38 @@ describe('the sections of CLAUDE.md and the reference files behind them', () => 
     expect(declared.has(A_SECTION_CLAUDE_MD_DOES_NOT_DECLARE)).toBe(false)
     expect(declared.has(A_SECTION_CLAUDE_MD_DOES_DECLARE)).toBe(true)
     expect(declared.has(`${SECTION_WITH_NO_REFERENCE}.4`)).toBe(true)
+  })
+})
+
+describe('the suites of docs/testing.md and the reference files behind them', () => {
+  // The same split, made in the same task, so it rots the same two ways. There
+  // is no citation case here: `docs/testing.md` §N is cited in this tree, but
+  // the suite headings never left the core, so the numbers are guarded by their
+  // own presence rather than by a scan.
+  it('point at reference files that exist', () => {
+    const present = new Set(filesUnder(TESTING_DIRECTORY))
+
+    const pointedAt = [...readFileSync(TESTING_MD, 'utf8').matchAll(SUITE_REFERENCE)].map((match) => match[1] ?? '')
+    expect(
+      pointedAt.length,
+      'docs/testing.md points at no suite reference file, so a green result here would mean nothing',
+    ).toBeGreaterThanOrEqual(present.size)
+
+    const missing = pointedAt.filter((reference) => !present.has(reference))
+
+    expect(missing, 'docs/testing.md points at these suite reference files and they are not in this tree').toEqual([])
+  })
+
+  it('leave no reference file that docs/testing.md does not point to', () => {
+    const pointedAt = new Set(
+      [...readFileSync(TESTING_MD, 'utf8').matchAll(SUITE_REFERENCE)].map((match) => match[1] ?? ''),
+    )
+
+    const orphans = filesUnder(TESTING_DIRECTORY).filter((file) => !pointedAt.has(file))
+
+    expect(
+      orphans,
+      'these files sit in docs/testing/ and docs/testing.md points at none of them, so nothing routes a reader to them',
+    ).toEqual([])
   })
 })
