@@ -176,4 +176,99 @@ describe('seed', () => {
     },
     SEED_TEST_TIMEOUT_MS,
   )
+
+  it(
+    'marks every media row it writes ready, which is what keeps the public diary lit',
+    async () => {
+      // ═══ THE HIGHEST-CONSEQUENCE LINE IN `seed.ts`, AND IT HAD NO CASE ═══
+      //
+      // `media.state` defaults to `processing`, and both
+      // `collections/media.ts`'s reader rule and `lib/galleryFrames.ts`
+      // withhold a row that is not `ready` from an unauthenticated reader -
+      // the file route, the gallery grid, the census and the download handler.
+      // A seed that omitted `state` would write ten journeys of photographs
+      // that no signed-out reader can see, and every Vitest project would stay
+      // green: the bundle readers are asserted against here with access
+      // overridden. What would break is the running site.
+      //
+      // Counted rather than sampled, and asserted as a MAP so a failure names
+      // the state it found rather than a boolean.
+      await seed(payload)
+
+      const media = await payload.find({ collection: 'media', limit: 500, depth: 0, select: { state: true } })
+      const byState = media.docs.reduce<Record<string, number>>(
+        (counted, row) => ({ ...counted, [String(row.state)]: (counted[String(row.state)] ?? 0) + 1 }),
+        {},
+      )
+      expect({ states: Object.keys(byState).sort(), anyRowsAtAll: media.totalDocs > 0 }).toEqual({
+        states: ['ready'],
+        anyRowsAtAll: true,
+      })
+    },
+    SEED_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'writes a media row it has to CREATE as ready, not only one it updates',
+    async () => {
+      // THE CREATE PATH, PINNED ON ITS OWN. The case above cannot pin it: by
+      // the time it runs, every row exists, so `seed` takes the update path for
+      // all of them and a create that had lost `state` would still be repaired
+      // before the assertion looked. Watched - removing `state` from both
+      // creates leaves that case green and this one red. So one row is deleted
+      // and made again.
+      await seed(payload)
+      const existing = await payload.find({
+        collection: 'media',
+        limit: 1,
+        depth: 0,
+        where: { journey: { exists: true } },
+        select: { alt: true },
+      })
+      const victim = existing.docs[0]
+      if (victim === undefined) throw new Error('the seed wrote no journey media to delete and remake')
+      const label = victim.alt ?? ''
+      await payload.delete({ collection: 'media', id: victim.id })
+
+      await seed(payload)
+
+      const remade = await payload.find({
+        collection: 'media',
+        limit: 1,
+        depth: 0,
+        where: { alt: { equals: label } },
+        select: { state: true },
+      })
+      expect({ found: remade.totalDocs, state: remade.docs[0]?.state }).toEqual({ found: 1, state: 'ready' })
+    },
+    SEED_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'returns a media row to ready on a re-seed, so an existing store is repaired rather than needing a wipe',
+    async () => {
+      // THE UPDATE PATH, which is the half a reader would most plausibly delete
+      // as a redundant write ("create already sets it"). Every row an earlier
+      // seed wrote took the `processing` default, and `upsertSlotMedia` returns
+      // early for a row that exists - so without `state` on that update, a
+      // developer's store stays dark through any number of re-seeds. Forcing a
+      // row back to `processing` is exactly the state such a store is in.
+      await seed(payload)
+      const before = await payload.find({ collection: 'media', limit: 1, depth: 0 })
+      const victim = before.docs[0]
+      if (victim === undefined) throw new Error('the seed wrote no media to force back to processing')
+      await payload.update({ collection: 'media', id: victim.id, data: { state: 'processing' } })
+
+      await seed(payload)
+
+      const after = await payload.findByID({
+        collection: 'media',
+        id: victim.id,
+        depth: 0,
+        select: { state: true },
+      })
+      expect(after.state).toBe('ready')
+    },
+    SEED_TEST_TIMEOUT_MS,
+  )
 })
