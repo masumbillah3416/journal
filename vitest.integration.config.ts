@@ -199,6 +199,11 @@ export default defineConfig({
         'apps/web/lib/media/localUploadEndpoint.ts',
         'apps/web/lib/media/uploadSlots.ts',
         'apps/web/lib/media/testing/uploadProbes.ts',
+        // Phase 3 Task 8's ingest, excluded from `vitest.config.ts`'s coverage
+        // include by exact path for the reason stated there - a real Payload,
+        // a real store and the real Postgres queue - and gated here instead.
+        'apps/web/lib/media/ingestUpload.ts',
+        'apps/web/lib/media/testing/ingestProbes.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
         'apps/web/payload.config.ts',
@@ -502,6 +507,16 @@ export default defineConfig({
         'apps/web/lib/media/localUploadEndpoint.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/media/uploadSlots.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/media/testing/uploadProbes.ts': { lines: 100, branches: 100, functions: 100 },
+        // Phase 3 Task 8's ingest, at the same 100 across and for the same
+        // reason: neither file has a branch whose outcome depends on the
+        // machine. The genuinely unreachable arms in the pair - branded-id
+        // refusals Payload's primary key can never trigger, planner refusals a
+        // valid fixture can never provoke, and the `enqueue` failure that
+        // would need a stubbed port (CLAUDE.md §2.3) - each carry a
+        // `c8 ignore next` with its own reason at the line, rather than a
+        // threshold lowered to hide them.
+        'apps/web/lib/media/ingestUpload.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/media/testing/ingestProbes.ts': { lines: 100, branches: 100, functions: 100 },
         // clipToolchain.ts: THIS FILE HAS TWO SETS OF UNREACHABLE CODE, ONE
         // PER ENVIRONMENT, so every threshold below is the FLOOR of the two
         // rather than either machine's own number. An earlier version gated

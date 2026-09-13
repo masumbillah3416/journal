@@ -557,10 +557,13 @@ transcodes and extracts the poster frame synchronously, in the process it is cal
 the processed bytes, so an adapter that enqueued would have nothing to answer with. The
 Fly.io process is WHERE that adapter runs and the queue hop is how an upload request
 reaches it, which is a seam between the upload receiver and the worker rather than one
-inside the port. Recorded as ADR 0004's Amendment section and `docs/deviations.md` §49,
-and still open work: Tasks 7–9 own the receiver.
+inside the port. Recorded as ADR 0004's Amendment section and `docs/deviations.md` §49. The receiver is
+built: Task 7 staged the bytes and Task 8's `apps/web/lib/media/ingestUpload.ts` is the
+seam itself — under `worker` it records the upload and enqueues the `transcode` job
+rather than running the pipeline in the request, which is the hop that sentence
+describes.
 
-**BUILT, AND WHAT IS AND IS NOT WIRED IS NAMED (Phase 3 Task 6).** `apps/web/lib/ports/mediaProcessor.ts` is the port; `apps/web/lib/adapters/inline-media-processor.ts` and `worker-media-processor.ts` are its two adapters; `apps/web/lib/adapters/contract/media-processor-contract.ts` is the ONE suite both run, wired by one line per adapter, which is ADR 0004's non-negotiable. **The structural decision that makes that honest:** `apps/web/lib/media/stillPipeline.ts` holds steps 1 to 6 once and both adapters compose it, so “the two still pipelines are the same” is true by construction rather than by two implementations happening to agree — the `worker` adapter adds step 7 (`apps/web/lib/media/clipToolchain.ts`, the `ffmpeg` boundary) and nothing else. `apps/web/lib/media/services.ts` is the single place `MEDIA_PIPELINE` chooses one. **WIRED TO ONE CALLER AS OF TASK 7, AND ONLY FOR ITS TYPE LIST:** `apps/web/lib/media/uploadSlots.ts` reads the bound processor's `acceptedTypes` to decide which files get an upload slot at all, which is how “enabling clips is a config switch” becomes observable — under `inline` an mp4 has nowhere to upload to. **Nothing hands it bytes yet:** `process()` has no caller, so no upload reaches either adapter; the ingest that calls it, the derivative tiers and the download handler are Phase 3 Tasks 8–11. **UNRESOLVED on the authoring machine:** `ffmpeg`/`ffprobe` are not installed here, so the clip toolchain's subprocess success arms have never run locally; CI installs both and sets `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1`, which turns a missing binary into a failed build rather than a quieter test run.
+**BUILT, AND WHAT IS AND IS NOT WIRED IS NAMED (Phase 3 Task 6).** `apps/web/lib/ports/mediaProcessor.ts` is the port; `apps/web/lib/adapters/inline-media-processor.ts` and `worker-media-processor.ts` are its two adapters; `apps/web/lib/adapters/contract/media-processor-contract.ts` is the ONE suite both run, wired by one line per adapter, which is ADR 0004's non-negotiable. **The structural decision that makes that honest:** `apps/web/lib/media/stillPipeline.ts` holds steps 1 to 6 once and both adapters compose it, so “the two still pipelines are the same” is true by construction rather than by two implementations happening to agree — the `worker` adapter adds step 7 (`apps/web/lib/media/clipToolchain.ts`, the `ffmpeg` boundary) and nothing else. `apps/web/lib/media/services.ts` is the single place `MEDIA_PIPELINE` chooses one. **WIRED TO ONE CALLER AS OF TASK 7, AND ONLY FOR ITS TYPE LIST:** `apps/web/lib/media/uploadSlots.ts` reads the bound processor's `acceptedTypes` to decide which files get an upload slot at all, which is how “enabling clips is a config switch” becomes observable — under `inline` an mp4 has nowhere to upload to. **IT IS HANDED BYTES AS OF TASK 8:** `apps/web/lib/media/ingestUpload.ts` calls `process()` on the staged bytes under `inline` and creates the `media` row from the re-encode, so both adapters now have a production caller — the sentence here said `process()` had none for two tasks. Under `worker` ingest calls neither adapter: ADR 0004's amendment puts the queue hop between the receiver and the worker, so the row is recorded at `processing` and a `transcode` job enqueued for a worker that is not provisioned. The derivative tiers and the download handler are Phase 3 Tasks 10–11. **UNRESOLVED on the authoring machine:** `ffmpeg`/`ffprobe` are not installed here, so the clip toolchain's subprocess success arms have never run locally; CI installs both and sets `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1`, which turns a missing binary into a failed build rather than a quieter test run.
 
 ## 3 · Data flow
 
@@ -602,12 +605,19 @@ and still open work: Tasks 7–9 own the receiver.
    records that the receiver must be deleted or gated in the same change that adds the
    R2 adapter. The caps are enforced twice: once in the plan (what the client was told)
    and once at the receiver (the bytes that arrived).
-   5a. **NOT BUILT (Task 8):** nothing creates a `media` row from staged bytes yet, and
-   nothing calls `mediaProcessor()`. That action will run the `MediaProcessor` port's
-   `inline` adapter in-process (the `sharp` still pipeline — no queue, no worker, since
-   video is deferred per ADR 0004), marking the row `ready` or `failed`. Once video is
-   re-enabled, a `worker`-mode upload instead writes a job row to the Postgres queue
-   table for the Fly.io worker to claim and run the `sharp`/`ffmpeg` pipeline against.
+   5a. **BUILT (Task 8):** the `finaliseUpload` Server Action
+   (`apps/web/app/(admin)/admin/media/actions.ts`) calls
+   `apps/web/lib/media/ingestUpload.ts`, which reads the staged bytes back through the
+   `StoragePort`, runs the `MediaProcessor` port's `inline` adapter in-process (the
+   `sharp` still pipeline — no queue, no worker, since video is deferred per ADR 0004),
+   looks for a perceptual duplicate **within that journey only**, and creates the `media`
+   row from the re-encode at `state: 'ready'`. A refusal creates no row at all, since
+   Payload's upload collections require a file at `create` and there is no photograph to
+   show a `failed` row for. The staging object is deleted on every path, refusals
+   included: it is the pre-strip original. Once video is re-enabled, a `worker`-mode
+   upload instead records the row at `processing` and writes a job row to the Postgres
+   queue table for the Fly.io worker to claim and run the `sharp`/`ffmpeg` pipeline
+   against.
 
 ## 4 · Why each seam exists
 

@@ -143,7 +143,9 @@ which is a different port, not a different adapter. What the Decision was descri
 the DEPLOYMENT: the Fly.io process is where the `worker` adapter runs, and a queue hop is
 how an upload request reaches that process. That hop lives between the upload receiver and
 the worker, not inside the port — and the receiver is Phase 3 Tasks 7–9, which is where
-`QueuePort` comes back into it. Nothing about the flag changes: `MEDIA_PIPELINE=worker`
+`QueuePort` comes back into it. It has: `apps/web/lib/media/ingestUpload.ts` (Task 8)
+calls `process()` under `inline` and `QueuePort.enqueue` under `worker`, so the hop is
+built where this paragraph said it belongs. Nothing about the flag changes: `MEDIA_PIPELINE=worker`
 still switches which adapter is bound, which types are accepted, and which affordances the
 admin shows.
 

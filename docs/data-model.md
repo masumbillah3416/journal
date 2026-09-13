@@ -31,13 +31,20 @@ Media screen shows). `processing` is a first-class UI state rather than a missin
 one, and every step of the `beforeChange` pipeline below can fail on a row that already
 exists.
 
-A `beforeChange` hook will run, in order: sniff the real mime type from magic bytes (never
-the extension); reject SVG outright; read EXIF into `capturedAt` then strip all EXIF;
-re-encode stills via `sharp`; compute `contentHash` and flag a duplicate within the same
-journey; for clips, probe with `ffprobe`, transcode to H.264 MP4, extract a poster into
-`posterImage`. That order is deliberate — later steps depend on earlier ones having run
-(design spec §9.2) — and the pipeline itself still depends on the storage port and the
-transcode queue, so it lands with them.
+The pipeline the handoff describes runs, in the order it gives — sniff the real mime type
+from magic bytes (never the extension); reject SVG outright; read EXIF into `capturedAt`
+then strip all EXIF; re-encode stills via `sharp`; compute `contentHash` and flag a
+duplicate within the same journey; for clips, probe with `ffprobe`, transcode to H.264
+MP4, extract a poster into `posterImage` — but **not as a `beforeChange` hook, which is
+where `DATA_MODEL.md` puts it** (`docs/deviations.md` §50). Payload calls
+`generateFileData`, the step that hands the bytes to `sharp`, before any `beforeChange`
+hook runs, so a rejection written there would be a check on a file already decoded — and
+this repository's `sharp` decodes SVG. The steps therefore run in
+`apps/web/lib/media/stillPipeline.ts` behind the `MediaProcessor` port, composed by
+`apps/web/lib/media/ingestUpload.ts` BEFORE `payload.create` is called, which is also why
+a refused upload creates no row: Payload's upload collections require a file at `create`,
+so there is nothing to show a `failed` row for. The clip half is deferred behind
+`MEDIA_PIPELINE` (ADR 0004) and runs on a worker that is not provisioned.
 
 The `afterChange` hook from the same section **is** built (Phase 3 Task 5): setting
 `isCover` clears it on the journey's OTHER media, in one query, and the query is keyed by

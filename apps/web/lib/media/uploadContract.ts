@@ -82,10 +82,12 @@
  * between the admin's browser and the upload surface.
  * Depends on: `RequestedUpload`, `SlotRefusal` and `UploadSlotPlan` from
  * `@travel-diary/domain/media/uploadSlot`; `Result` from
- * `@travel-diary/domain/result`.
+ * `@travel-diary/domain/result`; `ProcessingRefusal` from
+ * `../ports/mediaProcessor`, which is type-only and stays so.
  */
 import type { RequestedUpload, SlotRefusal, UploadSlotPlan } from '@travel-diary/domain/media/uploadSlot'
 import type { Result } from '@travel-diary/domain/result'
+import type { ProcessingRefusal } from '../ports/mediaProcessor'
 
 /**
  * The method and content type a browser's own upload PUT carries.
@@ -129,3 +131,66 @@ export type SlotFailure = SlotRefusal | 'invalid-journey' | 'no-upload-url'
 
 /** What the admin's picker gets back: one slot per file, or one refusal. */
 export type UploadSlotResponse = Result<readonly OfferedUploadSlot[], SlotFailure>
+
+/**
+ * What the admin's picker says once the bytes are up: finish this one.
+ *
+ * THE SAME THREE CLAIMS THE SLOT WAS OFFERED FOR, sent back. They are not
+ * read out of the offered slot server-side, and that is deliberate rather than
+ * lax: a slot is offered in one request and redeemed in another, so the only
+ * thing tying them together is the client — and nothing here is believed
+ * anyway. The type is weighed by `sniffMediaType` over the bytes, the filename
+ * decides only the stored name, and the staging key is put through
+ * `validateStorageKey` before it reaches a store.
+ */
+export interface FinaliseRequest {
+  /** The key the slot was offered for, exactly as it was handed out. */
+  readonly stagingKey: string
+  /** What the client called the bytes. A claim, never a fact. */
+  readonly declaredType: string
+  /** What the client called the file. */
+  readonly filename: string
+  /** The journey the row belongs to — branded server-side, never here. */
+  readonly journey: string
+}
+
+/**
+ * What became of one finalised upload.
+ *
+ * NO STORAGE KEY, IN ANY ARM. A response naming the staging key would hand the
+ * caller the store's own naming, which is the enumeration
+ * `apps/web/lib/readGalleryDownload.ts` already refuses to enable. The ids
+ * here are Payload row ids, which the admin already addresses rows by.
+ *
+ * Structurally what `apps/web/lib/media/ingestUpload.ts`'s `IngestOutcome`
+ * is, spelled in plain strings so this module stays free of the branded-id
+ * package and the action's mapping is an identity rather than three arms of a
+ * switch nothing can execute.
+ */
+export type FinalisedMedia =
+  | { readonly kind: 'ready'; readonly media: string }
+  | { readonly kind: 'duplicate'; readonly of: string }
+  | { readonly kind: 'queued'; readonly media: string; readonly job: string }
+
+/**
+ * Why a staged upload became no row.
+ *
+ * DEFINED HERE AND ALIASED BY `IngestRefusalReason` in
+ * `apps/web/lib/media/ingestUpload.ts`, rather than the other way round, so
+ * there is exactly one list: two unions spelling the same names would drift
+ * the first time one gained a member, and a client switching on a name the
+ * service can return would still typecheck. The {@link ProcessingRefusal}
+ * half is the port's — every way the BYTES are refused; the three added here
+ * are decided about the request around them.
+ */
+export type FinaliseFailure =
+  | ProcessingRefusal
+  /** The staging key names no object — nothing was ever PUT to it. */
+  | 'staged-bytes-missing'
+  /** The journey id names no journey a row could be keyed by. */
+  | 'invalid-journey'
+  /** A `worker` ingest could not hand the upload on to the queue. */
+  | 'not-queued'
+
+/** What the admin's picker gets back once it has finished an upload. */
+export type FinaliseResponse = Result<FinalisedMedia, FinaliseFailure>

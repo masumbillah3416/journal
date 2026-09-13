@@ -2141,6 +2141,45 @@ and the worker, and the receiver is Tasks 7–9.
 
 **Cost.** ADR 0004 carries an Amendment section saying the same thing, rather than a
 rewritten Decision — a decision record edited to match the code stops being a record. The
-queue is not cancelled: `QueuePort` and `pgQueue` are built and contract-tested, nothing
-calls either MediaProcessor adapter from a route or a hook yet, and Tasks 7–9 own the
-question of which process the bytes are handed to.
+queue is not cancelled, and Task 8 is where it came back: `apps/web/lib/media/ingestUpload.ts`
+calls `process()` under `inline` and calls `QueuePort.enqueue` under `worker`, which is
+the hop this entry describes. The Fly.io process that would claim that job is still not
+provisioned.
+
+## 50 · The upload pipeline runs before `payload.create`, not in a `beforeChange` hook
+
+**What changed:** `DATA_MODEL.md`'s `media` section specifies the six pipeline steps —
+magic-byte sniff, SVG rejection, EXIF read then strip, re-encode, `contentHash` and the
+duplicate check, and for clips probe/transcode/poster — as a **`beforeChange` hook** on
+the collection. `apps/web/lib/media/ingestUpload.ts` (Phase 3 Task 8) runs them BEFORE
+`payload.create` is called at all, and hands Payload bytes that are already sanitised.
+`apps/web/collections/media.ts` has no `beforeChange` hook.
+
+**Rationale, and it is a measurement rather than a preference.** Payload 3.88.0's create
+operation calls `generateFileData` — the step that hands the bytes to `sharp` to probe
+their dimensions and derive every configured image size — **before** it runs any
+collection hook at all, `beforeChange` included
+(`node_modules/payload/dist/collections/operations/create.js`: `generateFileData` at the
+top of the try block, every collection hook loop below it). So an SVG rejection written as a `beforeChange` hook would be a check on a file
+`sharp` had already decoded — and this repository's `sharp` build DECODES SVG
+(`packages/domain/src/media/sniff.ts`'s header carries that measurement). `SECURITY.md`'s
+order is the mechanism, not a convention: nothing may reach a decoder before the policy
+has accepted it. A hook cannot satisfy that order, whatever it contains.
+
+**The second reason, which would hold even if the ordering did not.** Payload's upload
+collections require a file at `create`, so a hook that wanted to refuse an upload has
+only an exception to refuse it with — a 500 out of a Server Action rather than a typed
+refusal a screen can read — and the row's file would already have been written. Deciding
+before `create` means a refusal creates no row and no file, which is what
+_"creates no row at all when the bytes are refused"_ asserts by counting the collection.
+
+**What is NOT changed by this:** every step, and their order, is exactly `DATA_MODEL.md`'s
+and design spec §9.2's. The steps live in `apps/web/lib/media/stillPipeline.ts` behind the
+`MediaProcessor` port (ADR 0004), which is where §49 and §47 already put them; this entry
+records only that the pipeline is composed ahead of the write instead of inside it.
+
+**Where it is stated in code:** the `// HANDOFF-DEVIATION:` comment at the top of
+`apps/web/lib/media/ingestUpload.ts`.
+
+**Recorded as:** this entry, `docs/data-model.md`'s `media` section, `docs/architecture.md`
+§3 step 5a and `docs/api.md`'s `finaliseUpload` row.

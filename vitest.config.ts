@@ -524,6 +524,17 @@ export default defineConfig({
         'apps/web/lib/media/localUploadEndpoint.ts',
         'apps/web/lib/media/uploadSlots.ts',
         'apps/web/lib/media/testing/uploadProbes.ts',
+        // Phase 3 Task 8's ingest. `ingestUpload.ts` creates rows through a
+        // real Payload, reads bytes back through a real `StoragePort` and
+        // enqueues through the real Postgres queue - three things this
+        // Docker-free pass has none of - and `testing/ingestProbes.ts` builds
+        // the journeys, the staged objects and the `sharp`-encoded
+        // photographs those cases run on. Both are excluded by exact path and
+        // gated instead by vitest.integration.config.ts, with per-file
+        // thresholds at the numbers each actually achieves - same reasoning as
+        // the four Task 7 files above.
+        'apps/web/lib/media/ingestUpload.ts',
+        'apps/web/lib/media/testing/ingestProbes.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by

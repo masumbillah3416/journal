@@ -1062,6 +1062,28 @@ while three documents counted the costs as three.
     no binary lookup, no clock beyond an injected one, no environment fork. That is what
     separates them from `clipToolchain.ts` above, whose numbers needed slack for exactly
     that reason.
+  - **Phase 3 Task 8's ingest gets the same treatment**, two files, each for a stated
+    reason rather than by directory: `apps/web/lib/media/ingestUpload.ts` creates rows
+    through a real Payload, reads staged bytes back through a real `StoragePort` and
+    enqueues through the real Postgres queue — three things the Docker-free `unit`
+    project has none of — and `apps/web/lib/media/testing/ingestProbes.ts` builds the
+    journeys, the staged objects and the `sharp`-encoded photographs those cases run on.
+    Both are excluded from `vitest.config.ts`'s coverage `include` by exact path and
+    gated in `vitest.integration.config.ts` at **100% lines, branches and functions** —
+    measured, not rounded up, and 100 for the same reason the four files above reach it:
+    no branch in either depends on the machine. The unreachable arms — the branded-id
+    refusals Payload's primary key can never trigger, the planner refusals a valid
+    fixture can never provoke, and the `enqueue` failure that would need a stubbed port
+    (CLAUDE.md §2.3 forbids stubbing what we own) — each carry a `c8 ignore next` with
+    its own reason at the line.
+  - **The ingest suite carries an explicit per-case time budget**, `INGEST_BUDGET_MS`,
+    for the reason ruling F2 settled on: its widest case encodes a 4000x3000 JPEG,
+    re-encodes it through `mozjpeg` and has Payload derive every configured tier from it,
+    measured at 6.9s against a harness default of 5,000ms. The 4000 is read off
+    `apps/web/collections/media.ts`'s own `imageSizes` rather than written into the test,
+    because Payload omits a width-only image size whose source is narrower than its
+    target — so a fixture narrower than the widest tier would make the case assert that a
+    tier was omitted, and a tier added later would silently reduce what the case covers.
   - **`apps/web/lib/media/uploadToken.ts` and `apps/web/lib/media/uploadContract.ts` are
     NOT in that list**, and the distinction is the point: HMAC over `node:crypto` is
     pure computation, and the contract is one constant and some types, so both stay in
@@ -1078,7 +1100,10 @@ while three documents counted the costs as three.
     its reason at the line, rather than a threshold lowered to hide it.
   - **`apps/web/app/(admin)/admin/media/upload/route.ts` and
     `apps/web/app/(admin)/admin/media/actions.ts` need no config entry at all.** Both are
-    `c8 ignore start`/`stop`-wrapped framework passthroughs with no authored logic, and
+    `c8 ignore start`/`stop`-wrapped framework passthroughs with no authored logic —
+    `actions.ts` holds two exports now (Task 8 added `finaliseUpload`), and both are one
+    `guardedAction` around one executable service, with every decision made in
+    `uploadSlots.ts` or `ingestUpload.ts` where a test can run it — and
     neither path contains a `[...]` segment — the upload token is a QUERY parameter
     rather than a path segment, deliberately. **What that buys is stated as what was
     observed, not as a mechanism.** Both files report `0 | 0 | 0 | 0` in the unit

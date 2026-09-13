@@ -30,7 +30,8 @@ Task 7 and completed in Task 13; and `/gallery/<slug>` with its download handler
 `/admin/sign-in` and `/admin/sign-in/code`, added in Phase 2 Tasks 7 and 8. Phase 2 Task
 10 added the six `POST` endpoints those screens post to and the request policy every
 `/admin` address is now put through; Phase 3 Task 7 added
-`PUT /admin/media/upload` and the `requestUploadSlots` action that hands out its URLs — see "The admin's request policy" below, which applies
+`PUT /admin/media/upload` and the `requestUploadSlots` action that hands out its URLs, and
+Task 8 the `finaliseUpload` action that turns what it staged into a row — see "The admin's request policy" below, which applies
 to every row in the "Admin routes" section and is stated once rather than in each. `/p/<n>` was completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
 metadata and a canonical link, and settled in
 `docs/adr/0010-static-generation-and-the-content-window.md` why it stays dynamic. Both sets are documented in full below. Everything still unbuilt is
@@ -1008,6 +1009,34 @@ follow: false }`.
 - **Notes:** the caps are enforced again at the receiver above. The plan is only what the
   client was told, and a client is not what enforces a cap.
 
+### `finaliseUpload(request: FinaliseRequest): Promise<FinaliseResponse>`
+
+- **Path:** `apps/web/app/(admin)/admin/media/actions.ts`; the decisions are
+  `apps/web/lib/media/ingestUpload.ts`'s `finaliseStagedUpload` and `ingestUpload`.
+- **Input:** `{ stagingKey, declaredType, filename, journey }` — the same three claims the
+  slot was offered for, plus the journey the row belongs to. Every field is the client's
+  claim: the type is weighed by `sniffMediaType` over the bytes, the filename decides only
+  the stored name, and the key is put through `validateStorageKey` inside the store.
+- **Output:** one of `{ kind: 'ready', media }`, `{ kind: 'duplicate', of }` or
+  `{ kind: 'queued', media, job }`. **No storage key in any arm** — a response naming one
+  would hand the caller the store's own naming, which is the enumeration
+  `readGalleryDownload` refuses to enable. `'queued'` only under `MEDIA_PIPELINE=worker`.
+- **Errors:** `'svg-rejected'`, `'video-deferred'`, `'heic-unsupported'`,
+  `'type-not-allowed'`, `'declared-mismatch'`, `'unreadable'` (the processor's own
+  refusals, every one of them decided from the BYTES); `'staged-bytes-missing'` (the key
+  names no object); `'invalid-journey'` (the id names no journey a row could be keyed by);
+  `'not-queued'` (a `worker` ingest could not hand the upload on). **A refusal creates no
+  row**, and the staged object is deleted on every one of these paths — it is the
+  pre-strip original.
+- **Auth requirement:** **signed in.** Built from `guardedAction`, which is what
+  `eslint-rules/guarded-server-actions.js` requires of every value export of a
+  `'use server'` module.
+- **Notes:** duplicate detection is scoped to ONE journey (`CLAUDE.md` §7), in one query
+  with the journey in its `where`. Under `MEDIA_PIPELINE=worker` the pipeline does not run
+  here at all: the row is created from the staged bytes at `state: 'processing'` and a
+  `transcode` job is enqueued for a worker that does not exist yet — see
+  `docs/runbook.md` for the deployment precondition that carries.
+
 ## Planned routes (Phase 1)
 
 None. Task 14 built the last of them (`/gallery/<slug>` and its download handler, both
@@ -1027,10 +1056,10 @@ deleted rather than annotated: a plan that has happened is not a plan.
 
 **The presigned-upload action is no longer planned — it is built**, by Phase 3 Task 7,
 and it has its own full row above (`requestUploadSlots`), as does the receiver its URLs
-point at. What is still planned: a create-media-row action (Phase 3 Task 8, which turns
-staged bytes into a `media` row), and the full set of admin mutations across all ten
-screens (Phase 4). They are named here only so the shape of what is coming is visible;
-each gets a full row in the commit that adds it.
+point at. **Nor is the create-media-row action** — Phase 3 Task 8 built it as
+`finaliseUpload`, with its own full row above. What is still planned: the full set of
+admin mutations across all ten screens (Phase 4). They are named here only so the shape
+of what is coming is visible; each gets a full row in the commit that adds it.
 
 The reason the upload does not pass through an action at all still stands and is worth
 repeating where a reader meets it: Vercel's serverless functions cap request bodies at

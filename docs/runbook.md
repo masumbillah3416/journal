@@ -61,20 +61,29 @@ Per `docs/adr/0001-hosting-and-cost.md`:
   architecture; see the ADR).
 - **Transcoder worker:** Fly.io, auto-stopping between jobs — **deferred**, not
   provisioned. No video clips at launch (`docs/adr/0004-media-pipeline-mode.md`).
-  **The pipeline exists but nothing calls it yet.** Phase 3 Task 6 built the
-  `MediaProcessor` port, both adapters, the shared still pipeline and the one contract
-  suite they both pass (`apps/web/lib/ports/mediaProcessor.ts`,
+  Phase 3 Task 6 built the `MediaProcessor` port, both adapters, the shared still
+  pipeline and the one contract suite they both pass
+  (`apps/web/lib/ports/mediaProcessor.ts`,
   `apps/web/lib/adapters/inline-media-processor.ts`,
   `apps/web/lib/adapters/worker-media-processor.ts`,
   `apps/web/lib/media/stillPipeline.ts`), and `apps/web/lib/media/services.ts` is the one
-  place `MEDIA_PIPELINE` chooses between them. **No route and no Payload hook calls
-  `mediaProcessor()`**, so setting the flag today changes which adapter a caller WOULD be
-  handed and nothing more: an uploaded still gets whatever Payload's own `sharp` handling
-  gives it and no derivative tier of ours. The receiver is Phase 3 Tasks 7-9.
-  **When `MEDIA_PIPELINE=worker` is eventually switched on, the worker's container must
-  have `ffmpeg` and `ffprobe` on its `PATH`** - `apps/web/lib/media/services.ts` passes
-  those two names to `createFfmpegToolchain`, and a container without them turns every
-  clip upload into an `'unreadable'` refusal rather than an error naming the cause.
+  place `MEDIA_PIPELINE` chooses between them. **Phase 3 Task 8 wired it:** the
+  `finaliseUpload` Server Action (`apps/web/app/(admin)/admin/media/actions.ts`) calls
+  `apps/web/lib/media/ingestUpload.ts`, which calls `MediaProcessor.process()` on the
+  staged bytes and creates the `media` row from the re-encode. This bullet said "no route
+  and no Payload hook calls `mediaProcessor()`" for two tasks; that is no longer true
+  under the configured default.
+  **`MEDIA_PIPELINE=worker` MUST NOT BE SET BEFORE A WORKER EXISTS, and the order is the
+  precaution.** Under `worker`, ingest does not run the pipeline - ADR 0004's amendment
+  puts the queue hop between the receiver and the worker - so it records the STAGED
+  original at `state: 'processing'` and enqueues a `transcode` job. With no worker
+  claiming that job the row never advances, and the bytes sitting behind it are unsniffed
+  and un-stripped. ADR 0004's "enabling video later is" already states the order:
+  provision the Fly.io app, deploy the worker container, THEN set the flag.
+  **That container must have `ffmpeg` and `ffprobe` on its `PATH`** -
+  `apps/web/lib/media/services.ts` passes those two names to `createFfmpegToolchain`, and
+  a container without them turns every clip upload into an `'unreadable'` refusal rather
+  than an error naming the cause.
   This bullet described the `inline` mode as the thing running today, in a document whose
   own opening promises that nothing in it is aspirational (Phase 2's final review,
   finding 30).
@@ -158,8 +167,9 @@ removes the row, and the bytes stay. Every `npm run db:seed`, and every run of
 here was the mistake this paragraph corrects.** A slot that is uploaded to and never
 finalised — the author closes the tab, the request fails, the page is reloaded — leaves
 its object under `apps/web/media/staging/<journey>/` forever: Task 8 of the media phase
-deletes the staging copy on every _finalise_ path, and an upload that never reaches that
-finalise step is swept by nothing. What makes that a security residual rather than a
+deletes the staging copy on every _finalise_ path - `ingestUpload`'s `finally`, so a
+refused upload's original is removed as well as a stored one's - and an upload that never
+reaches that finalise step is swept by nothing. What makes that a security residual rather than a
 capacity one is WHAT THOSE BYTES ARE: the pre-strip original, the copy that still carries
 the GPS coordinates, which is exactly the data `SECURITY.md`'s read-EXIF-then-strip
 requirement exists to remove. Freeing the disk is not the reason to sweep them. The owner
