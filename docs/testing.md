@@ -590,6 +590,25 @@ what was true when they were written, and requiring their citations to resolve w
 their authors to edit the record. `handoff/**` is the specification and is not ours to
 correct.
 
+**That exclusion has a cost, and it is recorded here rather than left as silence
+(Phase 3 Task 13).** A sweep report is a live document on the day it is written — its
+citations name files that exist right then — and for that one day nothing checks them.
+`docs/qa/2026-09-08-media-pipeline-sweep.md` cites seventeen paths; they were resolved by
+hand, because the alternative was to assert they resolved.
+
+**Adding `docs/qa/**` to the corpus is the wrong fix, and that is the decision**, not an
+omission. The corpus is fail-closed over EVERY file it contains, so a historical sweep
+naming a file that has since been renamed would start failing — and the only ways to make
+that run green are to edit the record or to grow an exemption list that quietly becomes a
+second record. Both are worse than the gap.
+
+**What would close it honestly: a write-time check over the NEWEST report only** — the
+one the author is looking at, whose citations are claims about the tree as it is now,
+rather than over the archive behind it. Nothing like that exists today, and Task 13
+deliberately did not build one: it is a check with its own design decisions (which report
+is "newest", what happens on a branch that adds two) and it is not a documentation task's
+to smuggle in. Stated so the next person meets the analysis rather than the silence.
+
 A path resolves if git lists it, or lists a file with that basename; an ESM specifier's
 `.js` is rewritten to `.ts` first. An identifier is a backticked token that is camelCase,
 PascalCase or SCREAMING_SNAKE — that shape is the whole filter, because a list of English

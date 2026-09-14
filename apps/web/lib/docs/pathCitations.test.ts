@@ -39,7 +39,7 @@
  * the failure mode this repository has now watched five times. It resolves if
  * the token appears anywhere in this repository's own source.
  *
- * ═══ WHAT IS EXCLUDED, AND WHY THAT IS NOT A HOLE ═══
+ * ═══ WHAT IS EXCLUDED, WHY, AND THE ONE HOLE IT LEAVES ═══
  *
  * `docs/qa/**` and `docs/superpowers/**` are dated records — sweep reports,
  * plans, specs — of what was true on the day they were written. A file one of
@@ -48,6 +48,16 @@
  * to edit the record. `handoff/**` is the specification of record and is not
  * ours to correct. {@link livingDocuments} is what remains: everything that
  * claims to describe the tree as it is.
+ *
+ * THE HOLE, NAMED RATHER THAN ASSERTED AWAY (Phase 3 Task 13). A sweep report
+ * is a LIVE document on the day it is written, and for that day nothing checks
+ * its citations — Task 13's had to be resolved by hand. Adding `docs/qa/**`
+ * here is the wrong fix and that is a decision: this corpus is fail-closed
+ * over every file in it, so one historical report naming a since-renamed file
+ * would go red, and the only ways to green it are editing the record or an
+ * exemption list that becomes a second record. What would close it honestly is
+ * a write-time check over the NEWEST report alone. It does not exist.
+ * `docs/testing.md` §10.2 carries the reasoning.
  *
  * ═══ THE TWO EXEMPTION LISTS ═══
  *

@@ -142,6 +142,29 @@ export const Media: CollectionConfig = {
     // overrides this per placement (DATA_MODEL.md, "Focal point lives on the slot").
     focalPoint: true,
     mimeTypes: ['image/jpeg', 'image/png', 'image/heic', 'video/mp4', 'video/quicktime'],
+    // ═══ THE THREE SMALLEST TIERS ARE SQUARE, AND ONE KNOWN DEFECT LIVES IN
+    // THAT ═══
+    //
+    // `thumb`, `grid` and `tile` each carry a width AND a height, so Payload
+    // crops them to `cover`; `frame`, `hero` and `hero2x` are width-only, so
+    // they keep the frame's aspect ratio - and Payload derives a width-only
+    // size ONLY from a source at least that wide. There is therefore NO
+    // uncropped derivative below `frame`'s 1400px, and a photograph narrower
+    // than that has nothing uncropped to fall back to.
+    //
+    // Two readers walk that fall-back and both get a crop:
+    // `../lib/readGalleryBundle.ts`'s `FULL_TIERS` (the lightbox) and
+    // `../lib/readGalleryDownload.ts`'s `DOWNLOAD_TIERS` (the download
+    // button). Measured in a browser: the seeded 1200x900 frames are served
+    // as 800x800 in both. MED-001 in
+    // `docs/qa/2026-09-08-media-pipeline-sweep.md`.
+    //
+    // NOT FIXED HERE, and this is the file where the fix would go, so the
+    // reason belongs here rather than only in the sweep: adding an uncropped
+    // rung or changing `tile`'s `fit` re-derives every stored row and moves
+    // the gallery image budget, which is red and is the owner's open decision
+    // (`docs/adr/0013-gallery-image-budget.md`). It needs a failing test
+    // first either way (CLAUDE.md §10).
     imageSizes: [
       { name: 'thumb', width: 400, height: 400, position: 'centre' },
       {
@@ -153,6 +176,15 @@ export const Media: CollectionConfig = {
         // 658 device pixels; without a rung here the browser correctly takes
         // the 800px `tile` and the gallery pays 477,329 bytes for nine
         // images. Square, like `thumb` and `tile`, because a gallery tile is.
+        //
+        // WHERE THAT ARGUMENT STOPS: it is about the GRID, which draws square
+        // tiles by design (SCREENS.md §1.8, and a case pins the ratio at
+        // 1.0). It says nothing about the lightbox or the download, which
+        // draw one whole photograph - and both of them reach this rung by
+        // falling through an empty `frame`. Read as a defence of squareness
+        // in general it becomes the note above's defect wearing a
+        // justification. Widening `grid` would not fix that and would break
+        // the grid.
       },
       { name: 'tile', width: 800, height: 800 },
       { name: 'frame', width: 1400 },
