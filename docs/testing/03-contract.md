@@ -299,6 +299,13 @@ numbers are `docs/testing.md`'s and do not change.
     FAILING pipeline takes, so a passing suite by definition never takes it. Rewriting
     those into non-null assertions would raise the number and violate CLAUDE.md §3.1,
     which is the wrong trade.
+  - **All three of those, and `scripts/rederive-media.ts` at 78% branches, are rows in
+    `docs/deviations.md` §46** — the register of every per-file gate in
+    `vitest.integration.config.ts` under 95 on any axis. They were stated here and in the
+    config and nowhere else until the whole-branch review (F1), which is the same shape
+    Phase 2's third review found and §46 exists to prevent: stating a shortfall only at
+    the point of exclusion states it where somebody already looking will see it. A new
+    sub-95 threshold gets its §46 row in the same commit as the threshold.
   - **Revisit every one of these when `@vitest/coverage-v8` or `sharp` changes version**,
     and re-measure rather than re-asserting: three of the numbers are what an absent
     `ffmpeg` costs, and installing it locally should RAISE them.

@@ -222,14 +222,17 @@ the optional-field folds their headers describe, the same shape `readBookBundle.
 at 83.
 
 **Those branch figures are below CLAUDE.md §2.1's 95% for `apps/web/lib/**`, and that is a
-recorded deviation, not a rounding.** `docs/deviations.md` §46 lists all six per-file
-branch gates in `vitest.integration.config.ts` that sit under 95 — the two gallery readers
-this phase added, plus `readBookBundle.ts`, `seed.ts`, `postgres-queue.ts` and
-`testPayload.ts`, which predate this branch — with the measured `apps/web/lib` branch
-aggregate (83.05%), why `c8 ignore` is the wrong instrument for a reachable branch this
-content does not reach, and what would reverse it. Until this round the shortfall was
-stated at the point of exclusion and nowhere else, which is §1.1's bidirectional rule
-broken.
+recorded deviation, not a rounding.** `docs/deviations.md` §46 is the register of every
+per-file gate in `vitest.integration.config.ts` that sits under 95 on any axis — the two
+gallery readers Phase 2 added, `readBookBundle.ts`, `seed.ts`, `postgres-queue.ts` and
+`testPayload.ts` from Phase 1, and Phase 3's `clipToolchain.ts`, `media-fixtures.ts`,
+`media-processor-contract.ts` and `rederive-media.ts` — with, for each, why `c8 ignore` is
+the wrong instrument and what would reverse it. **The register's table is the count; this
+sentence deliberately quotes no total**, because the one it used to quote ("all six") went
+stale the moment Phase 3 landed four more (whole-branch review F1). A sub-95 threshold added
+to that config gets its §46 row in the same commit. Until Phase 2's third whole-branch
+review the shortfall was stated at the point of exclusion and nowhere else, which is §1.1's
+bidirectional rule broken.
 
 `apps/web/components/**` was genuinely empty until Phase 1 Task 7 (`.gitkeep` only) and
 carried no per-glob threshold override until then — a threshold against zero files is the

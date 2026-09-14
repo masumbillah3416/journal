@@ -2006,59 +2006,113 @@ here** — the marker itself said "See docs/deviations.md" and `5433` had zero h
 file, so `CLAUDE.md` §1.1's bidirectional rule was broken exactly once (Phase 2's final
 review, finding 31).
 
-## 46 · Six per-file branch gates sit below CLAUDE.md §2.1's 95% for `apps/web/lib/**`
+## 46 · The per-file coverage gates in `vitest.integration.config.ts` that sit below CLAUDE.md §2.1's 95%
 
 **What CLAUDE.md §2.1 asks for:** 95% lines, branches and functions for
 `apps/web/lib/**` and server actions. It also names its own remedy for coverage a suite
 cannot reach — `/* c8 ignore next -- <reason> */` — rather than a lower gate.
 
-**What is in the repository:** six per-file thresholds in
-`vitest.integration.config.ts`'s `coverage.thresholds` carry a branch figure under 95, and
-the measured `apps/web/lib` branch aggregate for that pass is **83.05%**.
+**What is in the repository:** the thresholds below, every one of them in
+`vitest.integration.config.ts`'s `coverage.thresholds`. The table is the register, and
+**the list is the count** — this entry carried the word "Six" through the four Phase 3
+additions that made it ten, which is the drift a number in prose always eventually is
+(whole-branch review F1). `apps/web/lib/docs/coverageThresholds.test.ts` now holds this
+table and the config to each other in both directions, in the Docker-free pre-commit pass,
+so a gate added without a row and a row outliving its gate each fail the commit rather than
+the review.
 
-| File                                      | Lines gate | Branch gate | Landed in          |
-| ----------------------------------------- | ---------- | ----------- | ------------------ |
-| `apps/web/lib/readBookBundle.ts`          | 100        | 83          | Phase 1            |
-| `apps/web/scripts/seed.ts`                | 100        | 83          | Phase 1            |
-| `apps/web/lib/adapters/postgres-queue.ts` | **93**     | 75          | Phase 1            |
-| `apps/web/lib/testPayload.ts`             | **93**     | 75          | Phase 1            |
-| `apps/web/lib/readGalleryBundle.ts`       | 100        | 78          | Phase 2, review r2 |
-| `apps/web/lib/readGalleryDownload.ts`     | 100        | 85          | Phase 2, review r2 |
+| File                                                         | Lines gate | Branch gate | Functions gate | Landed in            |
+| ------------------------------------------------------------ | ---------- | ----------- | -------------- | -------------------- |
+| `apps/web/lib/readBookBundle.ts`                             | 100        | 83          | 100            | Phase 1              |
+| `apps/web/scripts/seed.ts`                                   | 100        | 83          | 100            | Phase 1              |
+| `apps/web/lib/adapters/postgres-queue.ts`                    | **93**     | 75          | 100            | Phase 1              |
+| `apps/web/lib/testPayload.ts`                                | **93**     | 75          | 100            | Phase 1              |
+| `apps/web/lib/readGalleryBundle.ts`                          | 100        | 78          | 100            | Phase 2, review r2   |
+| `apps/web/lib/readGalleryDownload.ts`                        | 100        | 85          | 100            | Phase 2, review r2   |
+| `apps/web/lib/media/clipToolchain.ts`                        | **75**     | 72          | **75**         | Phase 3, Task 6      |
+| `apps/web/lib/adapters/contract/media-fixtures.ts`           | **73**     | 87          | **90**         | Phase 3, Task 6      |
+| `apps/web/lib/adapters/contract/media-processor-contract.ts` | 100        | 56          | 100            | Phase 3, Task 6      |
+| `apps/web/scripts/rederive-media.ts`                         | 100        | 78          | 100            | Phase 3, Tasks 10–11 |
 
-Two of the six are also under 95 on LINES, at 93, and that is named here rather than left
-to the word "branch". Both have their own reason in the config beside the number:
-`postgres-queue.ts`'s two error catches (an unexpected database failure inside `enqueue()`,
-and inside `claim()`'s rollback) have no organic trigger without mocking a module we own,
-which §2.3 forbids, or deliberately breaking the test database; and `testPayload.ts`'s
-`CREATE DATABASE` branch runs only the first time any integration test ever meets a given
-Postgres volume, which is the whole point of not tearing `diary_test` down between runs.
-Those two are genuinely closer to §2.1's `c8 ignore` case than the four gallery/seed
-entries are, and are the ones to revisit first.
+**Four of these are under 95 on more than the branch axis**, which is why the table now
+carries all three columns rather than the two it used to: this entry cannot be read as being
+about branches alone.
 
-**Rationale.** Each number is the one its suite ACHIEVES against a real Postgres, not one
-negotiated down to the code. The uncovered branches are, in every case, the same shape: a
-`?? fallback` on an optional Payload field that the ten seeded journeys happen to fill.
-Reaching them means seeding a journey with every optional field blank — a fixture decision,
-and a real one, but a fixture decision rather than a number to edit. `c8 ignore` is the
-wrong instrument here because these are not unreachable lines: they are reachable branches
-that this content does not reach, and marking them ignored would hide a gap a better
-fixture closes.
+- `postgres-queue.ts` and `testPayload.ts`, at 93 lines. `postgres-queue.ts`'s two error
+  catches (an unexpected database failure inside `enqueue()`, and inside `claim()`'s
+  rollback) have no organic trigger without mocking a module we own, which §2.3 forbids, or
+  deliberately breaking the test database; `testPayload.ts`'s `CREATE DATABASE` branch runs
+  only the first time any integration test ever meets a given Postgres volume, which is the
+  whole point of not tearing `diary_test` down between runs. Those two are genuinely closer
+  to §2.1's `c8 ignore` case than the gallery/seed entries are.
+- `clipToolchain.ts`, at 75/72/75 — **the lowest gate in the repository, and it fronts
+  subprocess execution**, so it is the one to revisit first. Its number is a FLOOR OF TWO
+  MACHINES rather than either machine's own: without `ffmpeg` (this machine) the success arms
+  of `createFfmpegToolchain` are unreachable; with it (CI, which installs both binaries and
+  sets `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1`) the four stand-in functions are unreachable instead.
+  Every failure arm is covered on both. Tightening it is **UNRESOLVED with the tool named**:
+  reading CI's own numbers needs `gh` or a repository token this machine does not have, and
+  installing `ffmpeg` locally would settle it the other way. Nothing was routed to an online
+  transcoder to close it (CLAUDE.md §7.1).
+- `media-fixtures.ts`, at 73/87/90 — the same two-environment shape, with the branch axis
+  running the OTHER way (91.67% in CI against 95.83% here), which is why a single number
+  measured on one machine was the wrong thing to commit.
+- `media-processor-contract.ts`, at 56 branches — every LINE runs twice, once per adapter,
+  which is exit criterion 4 demonstrating itself. The branch figure is low because the suite
+  is written defensively: the `processed.ok ? … : null` arms are taken only when the pipeline
+  has already failed, so a passing suite by definition never takes them. Rewriting them into
+  non-null assertions would raise the number and violate §3.1.
+- `rederive-media.ts`, at 78 branches — five `??` defaults that exist only because Payload's
+  GENERATED type makes a field optional where the query that produced the row does not.
+  Reaching them means writing NULLs into `media` behind Payload's back, i.e. a fixture
+  encoding a shape no client produces.
+
+**No aggregate figure is quoted here any more.** This entry used to say "the measured
+`apps/web/lib` branch aggregate for that pass is 83.05%"; the pass's file set has changed
+repeatedly since that was measured, so the number was one nothing produced. The per-file
+gates above are the floors that are actually enforced, and `npm run test:integration:coverage`
+prints the aggregate of the day.
+
+**Rationale.** Each number is the one its suite ACHIEVES — against a real Postgres, and for
+the two-environment entries against the poorer of the two machines — not one negotiated down
+to the code. **The uncovered branches are two shapes, not one.** For the six
+gallery/seed/queue entries it is a `?? fallback` on an optional Payload field that the ten
+seeded journeys happen to fill, or an error catch with no organic trigger; reaching the first
+means seeding a journey with every optional field blank, which is a fixture decision and a
+real one, but a fixture decision rather than a number to edit. For the Phase 3 entries it is
+code one MACHINE cannot run — `ffmpeg`'s success arms here, the stand-in's functions in CI —
+or an arm a passing suite cannot take by definition. `c8 ignore` is the wrong instrument for
+both: the first are reachable branches this content does not reach, and marking them ignored
+would hide a gap a better fixture closes; the second are reachable on the other machine, and
+ignoring them there would hide the half that machine covers.
 
 **Why this entry exists.** Phase 2's third whole-branch review found the two Phase 2
 entries stated at the point of exclusion — in the config comment and in
 `docs/testing.md` — and **no `docs/deviations.md` entry anywhere**, which is CLAUDE.md
 §1.1's bidirectional rule broken again: a stated shortfall is reviewable only if it is
-stated in the place §1.2 makes the register of departures. The four Phase 1 entries had
-never been recorded here either, so all six are listed rather than only the two this phase
-added.
+stated in the place §1.2 makes the register of departures. The Phase 1 entries had never been
+recorded here either, so every gate is listed rather than only the two that phase added.
 
-**What would reverse this:** a seed fixture — one journey whose optional fields are all
-blank — after which each of these six can be raised to whatever the suite then achieves,
-and the ones that reach 95 can be deleted from the override list entirely. That belongs to
-whoever next touches the gallery or the seed.
+**And Phase 3 re-created the same state, which is why the table is now the count.** Its four
+additions were each stated at their point of exclusion — long, measured comments in
+`vitest.integration.config.ts`, and `docs/testing/03-contract.md` — and nowhere in this
+register, while this entry's heading, table and prose all still said six. That is the exact
+failure the paragraph above describes, one phase later (whole-branch review F1). It is a
+check now rather than a habit: `apps/web/lib/docs/coverageThresholds.test.ts`.
+
+**What would reverse this:** for the six gallery/seed/queue entries, a seed fixture — one
+journey whose optional fields are all blank — after which each can be raised to whatever the
+suite then achieves, and the ones that reach 95 can be deleted from the override list
+entirely; that belongs to whoever next touches the gallery or the seed. For the two
+two-environment entries (`clipToolchain.ts`, `media-fixtures.ts`), CI's own coverage numbers
+have to become readable, or `ffmpeg` has to exist on a developer machine; for
+`media-processor-contract.ts`, §3.1 would have to be broken to move the number at all.
 
 **Recorded as:** `vitest.integration.config.ts`'s `thresholds` comments (which name the
-departure at the point of exclusion), `docs/testing.md`'s coverage section, and this entry.
+departure at the point of exclusion), `docs/testing.md`'s coverage section,
+`docs/testing/03-contract.md` for the three media entries, this entry, and
+`apps/web/lib/docs/coverageThresholds.test.ts`, which holds the config and this table to each
+other.
 
 ## 47 · `image/heic` is refused at the port, with the schema left as `DATA_MODEL.md` writes it
 

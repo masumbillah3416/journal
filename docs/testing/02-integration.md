@@ -149,6 +149,18 @@ numbers are `docs/testing.md`'s and do not change.
   0-of-0 group, not a measured zero — the pass has no repository-wide threshold and no
   entry for that path, so it gates nothing and the run exits 0.
 
+  **That "no repository-wide threshold" is deliberate, and it is now guarded rather than
+  argued.** This config's `include` is a hand-enumerated list of exact paths, so a wildcard
+  floor would be a number nobody chose — but it also means a path added here without a
+  threshold key is measured and gated by nothing, which is Phase 2's finding 36 and what the
+  whole-branch review's F5 found had no check. `apps/web/lib/docs/coverageThresholds.test.ts`
+  is that check for BOTH configs now: every measured file is matched by a threshold key or is
+  wholly `c8 ignore`d with a reason (the setup file above is the one file leaning on that
+  second arm, and a case asserts it is non-empty so the arm cannot rot into decoration), and
+  every gate either config sets below §2.1's 95% has a row in `docs/deviations.md` §46 —
+  checked in both directions, so a register that misses an entry and one that outlives an
+  entry each fail the commit.
+
 - **Run:** `npm run test:integration` (requires `DATABASE_URL`), or `npm run verify:full`
   to run it alongside everything else.
 - **Add one:** name the file `<name>.integration.test.ts` so Vitest's project split picks

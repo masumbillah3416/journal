@@ -437,14 +437,17 @@ export default defineConfig({
         // A stated shortfall is reviewable; an absent one is invisible.
         //
         // AND IT IS NOW STATED IN THE REGISTER OF DEPARTURES TOO, which it was
-        // not: `docs/deviations.md` §46 lists all SIX per-file branch gates in
-        // this config that sit under §2.1's 95% - these two, plus
-        // `readBookBundle.ts` at 83, `seed.ts` at 83, `postgres-queue.ts` at 75
-        // and `testPayload.ts` at 75, four of which predate this branch and
-        // none of which had an entry. Stating a shortfall only at the point of
-        // exclusion is stating it where somebody already looking will see it;
-        // §1.2 makes deviations.md the place somebody NOT already looking
-        // will.
+        // not: `docs/deviations.md` §46 is the register of every per-file gate
+        // in this config that sits under §2.1's 95% on ANY axis, these two
+        // included. **ITS TABLE IS THE COUNT AND THIS COMMENT QUOTES NO
+        // TOTAL** - it used to say "all SIX", and Phase 3 then added four more
+        // without touching the register, which is the same failure one phase
+        // later (whole-branch review F1). Adding a sub-95 threshold anywhere
+        // below means adding its §46 row in the same commit, and
+        // `apps/web/lib/docs/coverageThresholds.test.ts` fails the commit that
+        // does not. Stating a shortfall only at the point of exclusion is
+        // stating it where somebody already looking will see it; §1.2 makes
+        // deviations.md the place somebody NOT already looking will.
         'apps/web/lib/readGalleryBundle.ts': { lines: 100, branches: 78, functions: 100 },
         'apps/web/lib/readGalleryDownload.ts': { lines: 100, branches: 85, functions: 100 },
         'apps/web/lib/auth/readCodeScreen.ts': { lines: 100, branches: 100, functions: 100 },
@@ -467,6 +470,7 @@ export default defineConfig({
         // produces. 78 is therefore the measured number (78.26), not a rounded
         // one, and `configuredTiers`'s throw carries its own `c8 ignore` with
         // its reason at the line.
+        // Registered in `docs/deviations.md` §46.
         'apps/web/scripts/rederive-media.ts': { lines: 100, branches: 78, functions: 100 },
         // seed.ts: 100% lines/functions. 83.72% branches is the real,
         // measured number: seed.integration.test.ts's own `beforeAll`
@@ -605,6 +609,8 @@ export default defineConfig({
         // have admin rights to Repository"); installing `ffmpeg` locally
         // would settle it the other way. Tighten these when either exists -
         // do not tighten them by guessing again.
+        // Registered in `docs/deviations.md` §46, which is where a reader not
+        // already looking at this file finds it.
         'apps/web/lib/media/clipToolchain.ts': { lines: 75, branches: 72, functions: 75 },
         // media-fixtures.ts: the same two-environment shape, one axis over.
         // `aGeneratedClip()` shells out to `ffmpeg` and cannot run here, so
@@ -617,6 +623,7 @@ export default defineConfig({
         // derivation rounded down, which is one branch slot of slack; for the
         // reason given above it is 87 instead, and the same UNRESOLVED
         // applies to tightening it.
+        // Registered in `docs/deviations.md` §46.
         'apps/web/lib/adapters/contract/media-fixtures.ts': { lines: 73, branches: 87, functions: 90 },
         // media-processor-contract.ts: every LINE runs, twice - once per
         // adapter, which is the exit criterion demonstrating itself. The
@@ -626,6 +633,7 @@ export default defineConfig({
         // by definition never takes it. Rewriting those into non-null
         // assertions would raise this number and violate CLAUDE.md §3.1,
         // which is the wrong trade.
+        // Registered in `docs/deviations.md` §46.
         'apps/web/lib/adapters/contract/media-processor-contract.ts': { lines: 100, branches: 56, functions: 100 },
       },
     },
