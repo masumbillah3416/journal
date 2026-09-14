@@ -501,6 +501,7 @@ flowchart TB
     storagePort["storage port"]
     mailerPort["mailer port"]
     queuePort["transcodeQueue port"]
+    mediaProcessorPort["MediaProcessor port<br/>MEDIA_PIPELINE picks one"]
   end
 
   subgraph adapters["Adapters — local dev vs. production, one shared contract suite"]
@@ -510,6 +511,8 @@ flowchart TB
     resend["Resend"]
     pgQueue["Postgres job table"]
     worker["Fly.io worker: ffmpeg<br/>DEFERRED — ADR 0004"]
+    inlineProcessor["inline: stillPipeline<br/>sharp, in-process"]
+    workerProcessor["worker: stillPipeline<br/>+ clipToolchain (ffmpeg)"]
   end
 
   payload["Payload collections<br/>Postgres via Neon"] --> bookBundleWeb
@@ -524,6 +527,8 @@ flowchart TB
   mailerPort --> resend
   queuePort --> pgQueue
   queuePort --> worker
+  mediaProcessorPort --> inlineProcessor
+  mediaProcessorPort --> workerProcessor
 
   webLib -.->|depends on| domain
 ```
@@ -543,6 +548,15 @@ needs punctuation, and a rectangle renders identically across Mermaid versions.
 during development, a cloud service in production (R2, Resend, the Fly.io worker
 consuming the same Postgres table), and one shared contract test suite run against both
 so the two implementations are provably interchangeable.
+
+**`MediaProcessor`'s two adapters do not split along that line, and the subgraph's title
+is wrong about them specifically.** `inline` and `worker` are not local-versus-production:
+both are ours, both are shipped, and the axis between them is stills-only versus
+stills-plus-clips (`MEDIA_PIPELINE`, ADR 0004). Only `inline` deploys today, and it
+deploys to production. The shared contract suite applies exactly as it does to the other
+three, which is why the port is drawn here rather than somewhere of its own; the
+distinction is stated in prose rather than redrawn because a second subgraph for one port
+would say less than this paragraph does.
 
 **The Fly.io worker is deferred** (`docs/adr/0004-media-pipeline-mode.md`): no video
 clips for now, so nothing claims jobs from `pgQueue` in production yet. A fourth port,
@@ -591,7 +605,8 @@ describes.
    application route that reads a derivative's bytes back out of the store through the
    `StoragePort` and serves them as an attachment. Never a bucket URL — see
    `docs/security.md`.
-5. **The upload's first half is built (Phase 3 Task 7); its second is not (Task 8).**
+5. **The whole upload path is built (Phase 3 Tasks 7 to 9).** This line said its second
+   half was not, which stopped being true one task later; 5a below is that second half.
    An upload never passes through the app — Vercel caps a request body at ~4.5MB and a
    photograph is larger (design spec §9.1) — so the shape is: the admin asks
    `requestUploadSlots` (a guarded Server Action) for somewhere to put each file; the
@@ -618,6 +633,64 @@ describes.
    upload instead records the row at `processing` and writes a job row to the Postgres
    queue table for the Fly.io worker to claim and run the `sharp`/`ffmpeg` pipeline
    against.
+
+### The upload, drawn
+
+> **THIS DIAGRAM HAS NEVER BEEN RENDERED, AND THAT IS UNRESOLVED RATHER THAN FINE** — the
+> same status as the seam diagram in §2, for the same reason and with the same remedy. No
+> Mermaid renderer is installed on this machine: `mmdc` is not on `PATH`,
+> `npm ls @mermaid-js/mermaid-cli` reports it absent, and `npx --no-install mmdc` exits 1
+> with "could not determine executable to run". `CLAUDE.md` §7.1 forbids pasting the
+> diagram into an online renderer to get a green tick. **Installing
+> `@mermaid-js/mermaid-cli` and running `mmdc` over this file is what would settle the
+> syntax; nothing else here can.** What HAS been done is an audit of every node label
+> against the filesystem — each file, function and route named below exists at the path
+> `docs/api.md` and §3 give for it.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Admin as Admin browser
+  participant Action as requestUploadSlots<br/>(guarded Server Action)
+  participant Plan as planUploadSlots<br/>(packages/domain, pure)
+  participant Store as StoragePort
+  participant Receiver as PUT /admin/media/upload<br/>(local adapter only)
+  participant Finalise as finaliseUpload -> ingestUpload
+  participant Proc as MediaProcessor<br/>(inline or worker)
+  participant Payload as Payload media collection
+
+  Admin->>Action: filenames, declared types, sizes, journey
+  Action->>Plan: cap the count and the size, key by journey
+  Plan-->>Action: one staging key per file, or one refusal
+  Action->>Store: uploadUrl(key, ttl, contentType, maxBytes)
+  Store-->>Action: one capability URL per key
+  Action-->>Admin: slots, never a storage key
+  Admin->>Receiver: PUT the bytes, direct, not through the app
+  Receiver->>Store: put() after verifying the token and weighing the body
+  Admin->>Finalise: finalise this staging key
+  Finalise->>Store: read the staged bytes back
+  Finalise->>Proc: process(bytes)
+  Note over Proc: sniff, refuse, read EXIF,<br/>re-encode (the strip), hash
+  Proc-->>Finalise: sanitised bytes + capturedAt + contentHash
+  Finalise->>Payload: find this journey's hashes (one query)
+  Finalise->>Payload: create the row from the SANITISED bytes
+  Note over Payload: Payload derives every imageSize<br/>from the bytes it is handed
+  Finalise->>Store: delete the staged original, on every path
+  Finalise-->>Admin: ready, duplicate or queued - or a typed refusal
+```
+
+Three things the drawing is making explicit, each of which has been got wrong somewhere in
+this repository's history:
+
+- **The bytes never pass through the app on the way in** (design spec §9.1) — the `Admin`
+  to `Receiver` arrow does not go via `Action`. The receiver is the local adapter's
+  stand-in for a bucket and is deleted or gated the day R2 arrives (ADR 0020).
+- **Nothing reaches a decoder before the policy has accepted it.** The `Note over Proc`
+  order is the mechanism rather than a convention: this `sharp` build decodes SVG, so a
+  refusal below the decode would be no refusal at all (`docs/deviations.md` §50).
+- **Payload derives the tiers, our pipeline does not.** The processor sanitises; the
+  `create` hands Payload the re-encode and Payload's own `imageSizes` do the rest. One
+  derivation, not two — see ADR 0003's correction.
 
 ## 4 · Why each seam exists
 
