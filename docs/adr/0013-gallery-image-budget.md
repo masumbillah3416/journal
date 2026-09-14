@@ -1,6 +1,11 @@
 # 0013 — The gallery image budget, raised from a defect's own measurement
 
-**Status: DECIDED.** The repository owner took **Option 1** below: raise
+**Status: DECIDED, and SUPERSEDED IN ITS NUMBER — the gate is `680000` today, not the
+`600000` this heading records.** See "Owner ruling, 2026-09-14" at the foot of this file,
+which is the current state; everything above it is left exactly as it was written,
+because it recorded a decision that was correct on the evidence of its own day.
+
+The repository owner took **Option 1** below: raise
 `lighthouserc.json`'s `/gallery/<slug>` `resource-summary:image:size` gate from
 `400000` to **`600000`**, not to the 477,329 bytes PH1-003's fix now measures. Option 3
 — the technically correct fix — is accepted and **deferred to Phase 3**, which owns the
@@ -208,8 +213,11 @@ they are files in this repository.
 
 #### What the gate is doing, and what would actually move it
 
-**`resource-summary:image:size` for `/gallery/<slug>` is UNCHANGED at 600,000**, and
-`npm run test:perf` is red on that one assertion at 642,138. Raising it to fit a number
+**`resource-summary:image:size` for `/gallery/<slug>` was UNCHANGED at 600,000 when this
+section was written**, and `npm run test:perf` was red on that one assertion at 642,138.
+_(It is `680000` today: the owner ruled on 2026-09-14 and took Option 2 below — see the
+final section of this file. This paragraph is left as it stood so the three options can
+be read as they were put.)_ Raising it to fit a number
 produced by a fixture-geometry collision would be the mistake this ADR was written to stop —
 a budget recalibrated to whatever the current artefact costs — and lowering it is not
 available either. Three options act on the real lever; each is a decision rather than an
@@ -273,3 +281,112 @@ DPR 2 and 1,062 at DPR 3 — both above 700, both still taking the 800w candidat
 before. So on the phones readers actually hold the rung is neutral rather than a saving. It
 is a saving at the viewport this budget is measured at, which is what Option 3 was written
 against and what it delivers.
+
+---
+
+## Owner ruling, 2026-09-14: take Option 2, and set the gate from the measurement
+
+**The repository owner ruled on this on 2026-09-14, after being shown the measurements
+above**, and took **Option 2** of the three this ADR left open — _accept the number for
+this corpus and record it_ — with one addition: the gate moves to a number derived from
+the measurement rather than staying red. **Option 1** (change `SLOT_SIZE.frame` so no
+rung sits on a fixture's short edge) was not taken: its own row above predicts a
+**264-byte** margin under the old limit, which this ADR already called "not headroom",
+and it would regenerate every visual baseline showing an in-book slot photograph.
+**Option 3** (replace the placeholders with real photographs) remains available and
+remains the most expensive.
+
+**This is a human's decision on measured evidence, not an agent moving a threshold it
+found inconvenient.** The distinction is the reason the gate stayed red for a phase
+instead of being widened when it first went red: raising a budget to make CI pass is how
+a budget stops meaning anything, and nothing below was applied until the owner had the
+numbers and made the call.
+
+### The number, and how it was measured
+
+`npm run test:perf`'s own command, against a production `next build` served by
+`next start`, with `apps/web/.next` deleted first, on a corpus that had been
+`npm run db:seed`-ed and then `npm run media:rederive`-d. Lighthouse's default
+`simulate` throttling, the `lighthouserc.json` viewport (412x823 at DPR 1.75, mobile
+emulation), **five runs, median** — the same `aggregationMethod` the config asserts:
+
+```
+resource-summary.image.size for /gallery/patagonia
+all five runs: 642138, 642138, 642138, 642138, 642138   median 642138
+```
+
+Five identical runs, because this quantity is a sum over the same static files rather
+than anything timing-dependent. **That is a transfer-size figure, not an on-disk one.**
+The two are close but not equal, and the difference is stated rather than elided: the
+nine files the browser actually fetches sum to **636,378 bytes on disk** (each row's own
+`sizes_grid_filename`, read out of `apps/web/media`), and the 5,760-byte gap is nine
+responses' worth of HTTP overhead. Every number in this section that is a disk figure
+says so.
+
+**MED-001's fix did not move it, and the identical figure is the evidence.** That fix
+(`docs/qa/2026-09-08-media-pipeline-sweep.md`, commit `97ea602`) gave `frame`
+`withoutEnlargement: true`, so every row gained an uncropped derivative and every gallery
+tile's `srcset` gained a candidate at the row's own source width. The measurement above
+is nevertheless byte-for-byte the 642,138 this ADR recorded before it, because at 412 CSS
+px and DPR 1.75 a tile needs 658 device pixels and the browser still takes the 700w
+`grid`; the new candidate is 900w, 1000w or 1200w and is never the smallest one that
+covers the need. Confirmed in a browser as well as in the totals: at that surface the
+tile's `currentSrc` is `…-700x700.png`, and only at DPR 3 — where the need is 1,062
+device pixels and the old ladder had nothing above 800w to offer — does the browser take
+the new candidate.
+
+### What this number is a measurement OF, which is the thing the old one hid
+
+**It measures nine stripe-pattern placeholder PNGs, not nine photographs.** The gallery's
+fixtures are rasterised by `apps/web/scripts/seed.ts`, and seven of the nine the gate
+looks at are `SLOT_SIZE.frame` placeholders at 1000x800 whose short edge sits exactly on
+the `tile` rung — the geometry collision the section above measures in detail, which is
+why the 700px rung makes those seven _larger_ rather than smaller. A real photographic
+corpus would produce a different number, in an unknown direction, and **the gate would
+have to be re-measured rather than trusted** on the day the placeholders are replaced.
+The 400,000 figure this ADR originally replaced failed precisely because nobody could
+tell what it measured; the requirement here is that a reader can.
+
+### Why 680,000, derived rather than rounded
+
+Two-sided, and both sides measured:
+
+| bound                                  | value       | what it is                                                                                  |
+| -------------------------------------- | ----------- | ------------------------------------------------------------------------------------------- |
+| the measurement                        | **642,138** | five-run transfer-size median, above                                                        |
+| **the gate**                           | **680,000** | 37,862 above the measurement — **5.90%** of it                                              |
+| the cheapest possible tenth eager tile | ~707,700    | 642,138 + the smallest eager-window tile's 65,331 disk bytes (`patagonia-g010-204-700x700`) |
+| the failure this gate exists to catch  | 4,009,810   | `loading="eager"`, measured below — **5.90x** the gate                                      |
+
+The upper bound is what makes 680,000 a budget rather than a ceiling written where the
+current artefact happens to sit. A tenth tile falling inside the eager window is the
+smallest real regression of the kind this gate watches for, and the cheapest one the
+corpus can produce costs about 65,600 transfer bytes — so any gate at or above ~707,700
+would pass it silently. 680,000 sits **27,700 bytes below** that, and 37,862 above the
+measurement. That margin is not "one byte over" and it is not open-ended: it absorbs
+encoder drift (a `sharp`/`libpng` bump moving PNG sizes a few per cent) and nothing
+larger.
+
+### The gate is still a detector, re-measured on this corpus rather than quoted
+
+`Tile.tsx`'s `loading="lazy"` was changed to `"eager"` on a throwaway local build —
+nothing committed, the file restored immediately after — and `/gallery/patagonia`
+measured once under the same settings against the same re-derived corpus:
+
+|                                                             | requests | image transfer |
+| ----------------------------------------------------------- | -------- | -------------- |
+| lazy-loading intact (the measurement this gate is set from) | 9        | 642,138        |
+| lazy-loading disabled (the regression this gate catches)    | 60       | **4,009,810**  |
+
+4,009,810 is **6.68x** the old 600,000 limit and **5.90x** the new 680,000 one. Sixty
+requests against nine is the assertion's real subject, and it is unchanged. The figure
+reproduces this ADR's earlier eager measurement to the byte, which is the second piece of
+evidence that MED-001's fix changed no candidate the browser takes at this viewport.
+
+### What this ruling does not change
+
+`aggregationMethod: "median"` and `numberOfRuns: 5` are untouched, for the reason this
+ADR and `docs/adr/0008-lcp-budget-and-the-framework-floor.md` both give. The
+`/gallery/<slug>` LCP, script-size and CLS assertions are untouched. `SLOT_SIZE.frame`
+is untouched, so no seeded pixel moves and no visual baseline is regenerated on account
+of this decision.

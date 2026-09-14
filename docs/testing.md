@@ -382,7 +382,7 @@ so.**
 | `largest-contentful-paint`     | `lighthouserc.json`       | `/p/1`, mobile surface (Lighthouse phone emulation, no cookie)             | **≤3000ms**                                                                                                            |
 | `largest-contentful-paint`     | `lighthouserc.json`       | `/gallery/patagonia`                                                       | ≤4000ms                                                                                                                |
 | `resource-summary:script:size` | both                      | `/p/1` (both surfaces), `/gallery/<slug>`                                  | ≤184320 bytes (180KB, `CLAUDE.md` §6)                                                                                  |
-| `resource-summary:image:size`  | `lighthouserc.json`       | `/gallery/<slug>`                                                          | ≤600000 bytes                                                                                                          |
+| `resource-summary:image:size`  | `lighthouserc.json`       | `/gallery/<slug>`                                                          | ≤680000 bytes                                                                                                          |
 | `largest-contentful-paint`     | `lighthouserc.admin.json` | `/admin/sign-in`, `/admin/sign-in/code`, `/admin/reset` (1440x900 desktop) | **≤3000ms**                                                                                                            |
 | `resource-summary:script:size` | `lighthouserc.admin.json` | the same three admin routes                                                | ≤327680 bytes (320KB, `CLAUDE.md` §6)                                                                                  |
 | `cumulative-layout-shift`      | all three                 | every collected URL                                                        | ≤0.1                                                                                                                   |
@@ -390,21 +390,22 @@ so.**
 | —                              | `lighthouserc.json`       | `/cms`                                                                     | `http-status-code` and CLS only: no LCP, no script budget                                                              |
 | **none**                       | —                         | **`/admin`, `/admin/sign-in/done`, `/admin/reset/<token>`**                | **NOT GATED** — behind the guard or behind a live token; the paragraphs under this table say why, and what bounds each |
 
-**TWO OF THESE GATES ARE RED AS THIS PHASE CLOSES, AND BOTH ARE OPEN DECISIONS FOR THE
-OWNER RATHER THAN NUMBERS TO ADJUST.** Stated at the table because this is where a reader
-comes to learn what the gates are, and a table that lists a limit without saying it is
-currently unmet reads as a passing suite.
+**BOTH OF THE GATES THAT WERE RED AS THIS PHASE CLOSED WERE RULED ON BY THE REPOSITORY
+OWNER ON 2026-09-14, ON THE MEASUREMENTS BELOW.** Neither was an agent adjusting a
+threshold: each stayed red for weeks while the numbers were collected, and the decision
+to move it was a human's. Kept at the table because this is where a reader comes to learn
+what the gates are, and because the reasoning for a number matters more than the number.
 
-- **`resource-summary:image:size` on `/gallery/<slug>`: measured 642,138 against 600,000.**
-  ADR 0013's `grid` rung, added in Phase 3 Task 10, inverted the cost of the seven
-  placeholder tiles the seeded corpus is made of. The remedy on the table — making the
-  placeholders 1000×900 instead of 1000×800 — is predicted at 599,736 bytes **on disk**,
-  264 under a gate that asserts a Lighthouse **transfer-size** median, which is why it is
-  a proposal and not a fix. `docs/adr/0013-gallery-image-budget.md` carries the arithmetic
-  and the refusal to raise the gate.
-- **`largest-contentful-paint` at 3,000ms: red in CI on five URLs, 3005–3045.** Two runs,
-  two trees, including three admin routes untouched by this phase.
-  `docs/testing/07-performance.md` §7.0.1 carries both runs and what would settle it.
+- **`resource-summary:image:size` on `/gallery/<slug>`: 600,000 → 680,000**, derived from
+  a five-run Lighthouse transfer-size median of **642,138 bytes** on a seeded, re-derived
+  corpus. The measurement is of nine **stripe-pattern placeholder PNGs**, not of nine
+  photographs, and seven of the nine collide with the ladder's geometry — so it describes
+  this corpus and has to be re-measured when the corpus changes. 680,000 is bounded on
+  both sides: 37,862 above the measurement, and 27,700 **below** the cheapest tenth eager
+  tile (~707,700), which is the smallest real regression of the kind this gate watches
+  for. Still a detector: `loading="eager"` re-measured at **4,009,810 bytes** over 60
+  requests, 5.90× the new limit. `docs/adr/0013-gallery-image-budget.md` carries the
+  ruling and every number in it.
 
 All three configs collect `numberOfRuns: 5` and every `assertMatrix` entry carries
 `"aggregationMethod": "median"`. `npm run test:perf` runs **all three**, and all three are

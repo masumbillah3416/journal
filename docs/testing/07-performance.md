@@ -284,12 +284,15 @@ was reported red and unraised for several rounds before it moved.
   the server guessing one derivative for every device. The second fix is why the number
   moved: at a one-column phone viewport the correct choice is the 800px `tile`
   derivative, not the 400px `thumb`, so the same nine lazy-loaded requests now cost
-  477,329 bytes instead of 173,579. `resource-summary:image:size` is now `600000`, not
-  400,000 and not 477,329 — ADR 0013 records why the limit sits above the current
+  477,329 bytes instead of 173,579. `resource-summary:image:size` was then `600000`, not
+  400,000 and not 477,329 — ADR 0013 records why the limit sat above the current
   measurement (the seeded placeholders understate a real photograph's bytes) rather than
   at it, and pins the regression this gate exists to catch: with `loading="lazy"`
-  disabled, the same route fetched all 60 tiles for **4,600,585 bytes** — 7.67× the new
-  limit, so the detector still fires with room to spare.
+  disabled, the same route fetched all 60 tiles for **4,600,585 bytes** — 7.67× that
+  limit, so the detector still fires with room to spare. **It is `680000` today**: ADR
+  0013's `grid` rung moved the nine measured tiles to 642,138, the repository owner ruled
+  on 2026-09-14 to accept that number for this corpus, and the gate was re-derived from
+  it — see §7.0 for the current state and that ADR's final section for the derivation.
 
 - **`/p/1` was landed as a hard gate before the page existed, deliberately.** The
   controller ruling for Task 1 was to land the gate _before_ the page it measures,
@@ -471,7 +474,8 @@ chrome-linux64/chrome` (`.github/workflows/ci.yml` resolves this with `find` rat
   and this bullet is the record of why the split exists. Collect
   settings in lhci are per-run, not per-URL, so the diary's desktop viewport cannot share
   a run with the gallery's: at 1350x940 `/gallery/<slug>` picks larger derivatives and
-  fetches 1,229,466 bytes of image against its 600,000 budget (ADR 0013), which would
+  fetches 1,229,466 bytes of image against its 680,000 budget (ADR 0013 — 600,000 when
+  this bullet was written), which would
   re-base a budget this change has no business touching. So `lighthouserc.json` collects
   `/p/1`, `/gallery/patagonia` and `/cms` on Lighthouse's phone emulation with no pinned
   cookie, and `lighthouserc.book.json` collects `/p/1` alone on the desktop viewport with
