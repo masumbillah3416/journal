@@ -266,6 +266,19 @@ const DERIVATIVE_PREFERENCE: Readonly<Record<SlotRole, readonly (keyof NonNullab
  *   pipeline defect (every raster upload generates at least `frame`, which
  *   declines to enlarge rather than being omitted), not a condition a caller
  *   should silently paper over with the original.
+ *
+ *   **THIS THROW IS REACHABLE NOW, AND ITS BLAST RADIUS IS THE WHOLE BOOK.**
+ *   Every list above used to end in `'thumb'`, which every row carried, so it
+ *   was unreachable in practice; MED-001's fix removed those terminators
+ *   because a square crop is the thing it exists to stop serving. The reachable
+ *   case is one operational mistake: a deploy that changes `imageSizes` and does
+ *   not run `npm run media:rederive`. Then no in-book slot resolves, this
+ *   throws, and `/p/<n>` answers 500 — or `next build` fails while generating
+ *   the prerendered page window. The gallery degrades in the same situation (a
+ *   frame is omitted, a download 404s) and the book does not, which is the
+ *   asymmetry `docs/runbook.md` now states at the deploy step. Failing loudly is
+ *   the intended behaviour; the operator-facing document is where it is made
+ *   survivable.
  */
 const derivativeUrlFor = (media: SelectedMediaDoc, role: SlotRole): string => {
   for (const tier of DERIVATIVE_PREFERENCE[role]) {

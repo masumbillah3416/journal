@@ -68,10 +68,39 @@ npm run media:rederive   # fill them
 MED-001's fix (`docs/qa/2026-09-08-media-pipeline-sweep.md`) gave the existing `frame`
 tier `withoutEnlargement: true` — no new column, nothing for `npm run db:migrate` to do,
 and every existing row still missing the uncropped derivative its lightbox, download and
-in-book slots now ask for. Those rows do not degrade: a gallery frame with no derivative
-is omitted from the grid and its download answers 404. So the rule is **run
-`npm run media:rederive` after any deploy that changes `imageSizes` at all**, not only
-after one that adds a tier.
+in-book slots now ask for. So the rule is **run `npm run media:rederive` after any deploy
+that changes `imageSizes` at all**, not only after one that adds a tier.
+
+### ⚠ SKIPPING IT TAKES THE WHOLE DIARY DARK. THE TWO SURFACES FAIL DIFFERENTLY
+
+This paragraph said those rows "do not degrade: a gallery frame with no derivative is
+omitted from the grid and its download answers 404". **That is true of the gallery and
+false of the book**, and the difference is the difference between one missing tile and a
+site-wide outage. Corrected here because an operator reading the softer sentence would
+reasonably treat the re-derive as optional.
+
+| surface                             | a row with no `frame`                                                                                                                                                                                                                                                                              |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/gallery/<slug>` grid and lightbox | **Degrades.** The frame is omitted from the grid with a logged warning; the rest of the gallery renders.                                                                                                                                                                                           |
+| `/gallery/<slug>/download/<id>`     | **Degrades.** 404, the same refusal every other unavailable download answers.                                                                                                                                                                                                                      |
+| `/p/<n>` — every in-book slot       | **THROWS.** `apps/web/lib/readBookBundle.ts`'s `derivativeUrlFor` refuses to fall back to the original, so the request 500s — or `next build` fails outright while generating the static page window, because the diary's pages are prerendered. **The whole book goes dark, not one photograph.** |
+
+That asymmetry is deliberate and is not a defect to soften: the book's ladders name
+uncropped tiers only (MED-001), so there is nothing left below `frame` to fall back to
+except the square crop the fix exists to stop serving. Failing loudly is the correct
+behaviour; what was wrong was an operational document that did not say what "loudly"
+means.
+
+**So the ordering is a requirement, not a convenience.** Take the application out of
+service, or run the re-derive before the new build serves its first request:
+
+```
+npm run db:migrate       # if the change added columns; MED-001's did not
+npm run media:rederive   # ALWAYS, after any imageSizes change — before serving
+```
+
+If a deploy has already gone out without it, `npm run media:rederive` is still the fix and
+needs no rollback: it updates rows in place and the next request reads the repaired row.
 
 It reads each row's own original back through the Storage port and hands it to
 `payload.update`, so **rows keep their ids** — the diary addresses media by id
