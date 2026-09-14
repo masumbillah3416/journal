@@ -58,6 +58,8 @@ and what's wired to it_, not the data model.
   - `inline` — runs the still pipeline (magic-byte sniff, SVG rejection, EXIF strip,
     `sharp` re-encode, every configured derivative tier, perceptual hash) in-process on Vercel,
     as part of handling the upload request. No worker, no queue hop, for stills.
+    **Amended by what was built: the derivative tiers are NOT the adapter's — see
+    Amendment 2, and `docs/adr/0003-derivative-generation.md`'s corrected consequence.**
   - `worker` — enqueues onto the Postgres `jobs` table (the existing `QueuePort`,
     already built and contract-tested in Phase 0) for a Fly.io process running the same
     still pipeline plus `ffmpeg`/`ffprobe` transcoding and poster extraction for clips.
@@ -154,7 +156,57 @@ the untouched schema, and the non-negotiable that both adapters run the same con
 suite in CI from day one.
 
 **What a future reader must not conclude from this amendment:** that the Fly.io worker and
-`pgQueue` are cancelled. They are not — no upload path reaches either adapter yet
-(`apps/web/lib/media/services.ts` is not called from a route or a hook), and the queue hop
-is still the plan for getting a clip to a process with `ffmpeg` on it. Recorded in
-`docs/deviations.md` §49 and in `docs/architecture.md` §2.
+`pgQueue` are cancelled. They are not — the queue hop is still the plan for getting a clip
+to a process with `ffmpeg` on it. (This paragraph also said "no upload path reaches either
+adapter yet", which Task 8 ended one task later: `apps/web/lib/media/ingestUpload.ts`
+calls `process()` under `inline`, reached from the `finaliseUpload` Server Action.)
+Recorded in `docs/deviations.md` §49 and in `docs/architecture.md` §2.
+
+## Amendment 2 — Phase 3 Task 13, what this ADR's Consequences now get wrong
+
+The same convention as Amendment 1: the Decision and Consequences above are left as
+written, and what the built system does differently is recorded here.
+
+**1 · "Nothing in this ADR is built now" and "No code changes from this decision" are
+both spent.** Phase 3 built the flag, the port, both adapters and the shared contract
+suite. `apps/web/lib/media/services.ts` is the one place `MEDIA_PIPELINE` chooses an
+adapter, and `apps/web/lib/media/ingestUpload.ts` is its production caller.
+
+**2 · The derivative tiers are Payload's, not the `inline` adapter's.** `process()` answers
+with one set of sanitised bytes; `payload.create` derives every configured `imageSize`
+from them. That is one derivation rather than two, and it means the tiers are proven by
+`apps/web/lib/media/ingestUpload.integration.test.ts` rather than by the contract suite.
+`docs/adr/0003-derivative-generation.md` carries the full correction.
+
+**3 · "Enabling video later is: provision a Fly.io app, deploy the worker container to it,
+and set `MEDIA_PIPELINE=worker`" IS NO LONGER THE WHOLE LIST, AND THIS IS THE SENTENCE
+TWO OTHER DOCUMENTS CITE.** `apps/web/lib/env.ts` refuses the value `'worker'` at
+`parseEnv` with the exported message `WORKER_NOT_DEPLOYED`, so the process does not boot
+under that flag. That refusal is deliberate — under `worker` ingest records the STAGED
+original at `state: 'processing'` and enqueues a job for a process that does not exist, so
+un-sniffed, un-stripped bytes would sit behind a row — but it makes enabling video **a
+code change**, which is exactly what this ADR's one-configuration-change requirement said
+it would not be. The requirement is not abandoned; the cost is one deleted `.refine()`
+clause, in the commit that deploys the worker, and the message names its own removal
+condition. **The order is: provision the Fly.io app, deploy the worker container (with
+`ffmpeg` and `ffprobe` on its `PATH`), THEN delete the refusal and set the flag.**
+`apps/web/lib/env.ts` and `docs/runbook.md` both cite this ADR for that order, and until
+this amendment it was not written here — the citation pointed at a sentence that did not
+say it.
+
+**4 · That commit owes an end-to-end pass, and nothing else will ask for it.** Every
+`worker`-mode case in the suite binds the mode directly, so the one composition no test
+has ever executed is `apps/web/app/(admin)/admin/media/actions.ts` building
+`mediaProcessor()` and `env.MEDIA_PIPELINE` side by side under `worker`. Upload a still
+and a clip through the admin, confirm the row reaches `ready` rather than sitting at
+`processing`, and confirm the stored file carries no metadata marker.
+
+**5 · The test-infrastructure risk this ADR deferred to Phase 3 is discharged.** It asked
+how the `worker` adapter's `ffmpeg`-dependent behaviour could be exercised in CI without a
+Fly.io deployment. The answer is `apps/web/lib/media/clipToolchain.ts` behind a
+`ClipToolchain` seam: every FAILURE arm is covered without a binary, the three success
+arms need real `ffmpeg`/`ffprobe`, and `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1` — which CI sets —
+turns a missing binary into a failed build rather than a quieter run. **On the authoring
+machine `ffmpeg` and `ffprobe` are absent, so those three arms have never run locally and
+that is UNRESOLVED** (`CLAUDE.md` §7.1); nothing was sent anywhere to close it.
+`docs/testing/03-contract.md` carries the rule.

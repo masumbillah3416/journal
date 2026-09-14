@@ -55,9 +55,14 @@ and duration probing, unchanged — that code path is to be the `MediaProcessor`
 `worker` adapter, which ADR 0004 specifies is built and contract-tested alongside
 `inline` rather than deferred with the deployment.
 
-**Neither adapter, nor the port, exists yet.** ADR 0004 is a decision about Phase 3 and
-says so; this sentence read as a statement about code (Phase 2's final review,
-finding 30).
+**Both adapters and the port exist as of Phase 3 Task 6**, and this paragraph said
+neither did — true when it was written, false since. `apps/web/lib/ports/mediaProcessor.ts`
+is the port; `apps/web/lib/adapters/inline-media-processor.ts` and
+`worker-media-processor.ts` are the two adapters; `apps/web/lib/media/stillPipeline.ts`
+holds steps 1 to 3 and 5 once, so both compose the same still pipeline rather than
+agreeing by coincidence. The sentence is corrected rather than deleted because it was
+itself a correction — Phase 2's final review, finding 30, for a sentence that read as a
+statement about code — and the same file going stale a second time is the point.
 
 ## Consequences
 
@@ -66,12 +71,21 @@ finding 30).
 - Costs **~10GB of extra R2 storage for ~$0.15/month** (design spec §2.2) — five stored
   derivative tiers per still instead of on-the-fly transforms — which is materially
   cheaper than a transform vendor's request-based pricing at this scale.
-- Derivative generation is testable in the same `MediaProcessor` contract suite as the
-  rest of the pipeline (magic-byte sniff, EXIF strip, transcode, poster extraction)
-  rather than mocked against an external service's API — one integration surface for
-  the whole upload pipeline, not two, and the same suite runs against both the `inline`
-  and `worker` adapters (ADR 0004) so the still-image steps are proven identical
-  regardless of which one is bound.
+- Derivative generation is testable against a real `sharp` rather than mocked against an
+  external service's API — one integration surface for the whole upload pipeline, not
+  two. **BUT IT IS NOT IN THE `MediaProcessor` CONTRACT SUITE, WHICH THIS BULLET SAID IT
+  WAS (Phase 3 Task 13).** What Phase 3 built divides the work differently from what this
+  ADR anticipated: the port's `process()` answers with ONE set of sanitised bytes
+  (`ProcessedStill` carries `bytes`, `width`, `height`, `contentHash` — no tiers), and
+  **Payload's own `imageSizes` derive the ladder from those bytes at `payload.create`.**
+  One derivation, not two: a processor that also derived tiers would hand Payload an
+  original it would then re-derive from anyway. So the tiers are proven by
+  `apps/web/lib/media/ingestUpload.integration.test.ts`'s _"derives every derivative tier
+  the media collection configures"_, reading the stored FILES back rather than the `sizes`
+  keys — Payload emits a key per configured size whether or not it derived one, and that
+  case passed while `hero2x` was never derived at all until Task 9 caught it. What the
+  contract suite does prove, against both adapters, is steps 1 to 3 and 5: the sniff, the
+  refusal, the EXIF strip, the re-encode and the hash.
 - Originally reasoned as "the worker owns more responsibility (image _and_ video
   processing)" — with the worker deferred (ADR 0004), the still pipeline instead runs
   wherever the upload request is handled (Vercel, in-process), and only the _deferred_
