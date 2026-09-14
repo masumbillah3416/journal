@@ -2032,7 +2032,7 @@ the review.
 | `apps/web/lib/media/clipToolchain.ts`                        | **75**     | 72          | **75**         | Phase 3, Task 6      |
 | `apps/web/lib/adapters/contract/media-fixtures.ts`           | **73**     | 87          | **90**         | Phase 3, Task 6      |
 | `apps/web/lib/adapters/contract/media-processor-contract.ts` | 100        | 56          | 100            | Phase 3, Task 6      |
-| `apps/web/scripts/rederive-media.ts`                         | 100        | 75          | 100            | Phase 3, Tasks 10–11 |
+| `apps/web/scripts/rederive-media.ts`                         | 100        | 86          | 100            | Phase 3, Tasks 10–11 |
 
 **Four of these are under 95 on more than the branch axis**, which is why the table now
 carries all three columns rather than the two it used to: this entry cannot be read as being
@@ -2062,16 +2062,15 @@ about branches alone.
   is written defensively: the `processed.ok ? … : null` arms are taken only when the pipeline
   has already failed, so a passing suite by definition never takes them. Rewriting them into
   non-null assertions would raise the number and violate §3.1.
-- `rederive-media.ts`, at 75 branches — five `??` defaults that exist only because Payload's
+- `rederive-media.ts`, at 86 branches — three `??` defaults that exist only because Payload's
   GENERATED type makes a field optional where the query that produced the row does not.
   Reaching them means writing NULLs into `media` behind Payload's back, i.e. a fixture
-  encoding a shape no client produces. **It read 78 until MED-001's fix and the file did not
-  get worse:** that fix moved this script's ladder reader — one of the five `??` defaults and
-  a `c8 ignore`d throw — out to `apps/web/lib/media/derivativeGeometry.ts` and added
-  `row.height ?? 0` here, so the same kind of uncovered branch is now measured against a
-  smaller denominator. The gate gained a case in the same commit (a row narrower than
-  `frame`'s configured width, which is what fails if the predicate goes back to comparing
-  widths).
+  encoding a shape no client produces. **It read 78 for two tasks and is 86.95 now:**
+  MED-001's fix moved this script's ladder reader out to
+  `apps/web/lib/media/derivativeGeometry.ts` and replaced two of the defaults with a guard
+  whose both arms a case takes — a clip has no width or height, and a `withoutEnlargement`
+  tier is never omitted, so without the guard every clip would be re-uploaded on every
+  deploy.
 
 **No aggregate figure is quoted here any more.** This entry used to say "the measured
 `apps/web/lib` branch aggregate for that pass is 83.05%"; the pass's file set has changed

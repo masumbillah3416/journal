@@ -460,27 +460,27 @@ export default defineConfig({
         // update-in-place, and - since MED-001's fix - a row narrower than
         // `frame`'s configured width, which is the case that fails if the
         // predicate goes back to comparing widths. What 100% branches would
-        // additionally demand is the null arm of five nullish-coalescing
-        // defaults - `sizes ?? {}`, `row.width ?? 0`, `row.height ?? 0`,
-        // `row.filename ?? ''` and `row.mimeType ?? ''` - each of which exists
-        // because Payload's GENERATED type makes the field optional while the
-        // query that produced the row does not. None has an organic trigger:
-        // an upload collection's rows carry a filename, a mime type and both
-        // dimensions. Reaching them would mean writing NULLs into `media`
-        // behind Payload's back to prove a type guard compiles, which is a
-        // fixture encoding a shape no client produces.
+        // additionally demand is the null arm of three nullish-coalescing
+        // defaults - `sizes ?? {}`, `row.filename ?? ''` and
+        // `row.mimeType ?? ''` - each of which exists because Payload's
+        // GENERATED type makes the field optional while the query that
+        // produced the row does not. None has an organic trigger: an upload
+        // collection's rows carry a filename and a mime type. Reaching them
+        // would mean writing NULLs into `media` behind Payload's back to prove
+        // a type guard compiles, which is a fixture encoding a shape no client
+        // produces.
         //
-        // **75, NOT THE 78.26 THIS LINE USED TO CARRY, AND THE FILE DID NOT GET
-        // WORSE.** MED-001's fix moved this file's ladder reader - and its own
-        // `size.width ?? 0` default, plus the `c8 ignore`d throw beside it -
-        // out to `apps/web/lib/media/derivativeGeometry.ts`, and added
-        // `row.height ?? 0` here. The uncovered set is the same KIND of branch
-        // it always was; what changed is the denominator it is measured
-        // against. 75 is the number this pass reports (the uncovered arms are
-        // at lines 98, 123, 158 and 178), not a floor chosen to clear a red
-        // run.
+        // **86, UP FROM THE 78.26 THIS LINE CARRIED FOR TWO TASKS, AND THE
+        // CHANGE IS REAL RATHER THAN ARITHMETIC.** MED-001's fix moved this
+        // file's ladder reader out to
+        // `apps/web/lib/media/derivativeGeometry.ts`, and replaced two `??`
+        // defaults on the row's dimensions with a GUARD whose both arms a case
+        // takes: a clip carries no width or height, so `isDerivable` would
+        // otherwise answer `true` for it - a `withoutEnlargement` tier is never
+        // omitted - and every clip would be re-uploaded on every deploy. The
+        // measured number is 86.95 (uncovered arms at lines 98, 170 and 190).
         // Registered in `docs/deviations.md` §46.
-        'apps/web/scripts/rederive-media.ts': { lines: 100, branches: 75, functions: 100 },
+        'apps/web/scripts/rederive-media.ts': { lines: 100, branches: 86, functions: 100 },
         // seed.ts: 100% lines/functions. 83.72% branches is the real,
         // measured number: seed.integration.test.ts's own `beforeAll`
         // deletes the ten journeys (and the About portrait) first, so the

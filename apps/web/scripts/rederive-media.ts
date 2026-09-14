@@ -114,14 +114,26 @@ type SelectedRow = Pick<PayloadMedia, 'id' | 'filename' | 'mimeType' | 'width' |
  * narrower than 1400px would have read as "legitimately missing `frame`" and
  * this script - the thing that repairs existing rows - would have repaired
  * nothing.
+ *
+ * A ROW WITH NO RECORDED DIMENSIONS IS NOT AN IMAGE, AND THE GUARD BELOW IS
+ * WHAT THE SAME FLAG MAKES NECESSARY. Payload records `width`/`height` only
+ * for a file its `canResizeImage` accepts, so a CLIP has neither, and no run
+ * of this script can ever give it a derivative. A `withoutEnlargement` tier is
+ * never omitted for being too small, so without this guard `isDerivable`
+ * answers `true` for a row of no size at all and every clip in the library is
+ * read back out of the store and re-uploaded on every deploy, for ever. The
+ * old width comparison excluded them by accident (`0 >= 1400` is false); this
+ * excludes them on purpose.
  * @param row - The media row, `depth: 0`.
  * @param tiers - The configured ladder.
  * @returns `true` when re-deriving would add something.
  */
 const needsRederivation = (row: SelectedRow, tiers: readonly ConfiguredDerivative[]): boolean => {
+  const { width, height } = row
+  if (width === null || width === undefined || height === null || height === undefined) return false
+
   const derived = derivedTiers(row.sizes)
-  const source = { width: row.width ?? 0, height: row.height ?? 0 }
-  return tiers.some((tier) => isDerivable(tier, source) && !derived.has(tier.name))
+  return tiers.some((tier) => isDerivable(tier, { width, height }) && !derived.has(tier.name))
 }
 
 /**

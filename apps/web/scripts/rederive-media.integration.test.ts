@@ -33,6 +33,7 @@
  */
 import { Client } from 'pg'
 import sharp from 'sharp'
+import { aClip } from '../lib/adapters/contract/media-fixtures'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { MEDIA_DIR } from '../collections/media'
 import { createLocalStorage } from '../lib/adapters/local-storage'
@@ -259,6 +260,38 @@ describe('rederiveMedia', () => {
         width: 900,
         height: 900,
       })
+    },
+    REDERIVE_BUDGET_MS,
+  )
+
+  it(
+    'leaves a clip alone, since Payload derives no image size from one',
+    async () => {
+      // THE ARM A `withoutEnlargement` TIER OPENS, and it is not hypothetical.
+      // `frame` is never omitted for being too small - that is the whole point
+      // of the flag - so a predicate that asks only "would Payload produce this
+      // tier" answers YES for a row with no dimensions at all. A clip is that
+      // row: `canResizeImage` refuses a video mime type, so Payload records no
+      // width, no height and no `sizes`, and no run of this script can ever
+      // give it one. Without a guard, every clip in the library is read back
+      // out of the store and re-uploaded on EVERY deploy, for ever, and the
+      // "second run does no work" case below cannot see it because the seeded
+      // corpus has no clips.
+      const clip = Buffer.from(await aClip())
+      const created = await payload.create({
+        collection: 'media',
+        data: { kind: 'clip', alt: FIXTURE_ALT, caption: 'rederive-clip', state: 'ready' },
+        file: { data: clip, mimetype: 'video/mp4', name: 'rederive-clip.mp4', size: clip.length },
+      })
+
+      // The sentinel: a fixture that DID carry a derivative would make the
+      // assertion below pass for the wrong reason.
+      expect(created.sizes?.frame?.filename ?? null, 'the clip fixture carries an image derivative').toBeNull()
+      await rederiveMedia({ payload, storage: aStore() })
+
+      const second = await rederiveMedia({ payload, storage: aStore() })
+
+      expect(second.rederived).toBe(0)
     },
     REDERIVE_BUDGET_MS,
   )
