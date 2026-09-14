@@ -1,15 +1,32 @@
 /**
  * media — the upload collection. Everything else references it.
  *
- * Transcribed verbatim from DATA_MODEL.md's `media` section. The `beforeChange`/
- * `afterChange` pipeline it documents (magic-byte sniffing, SVG rejection, EXIF
- * strip, re-encode, duplicate detection, clip transcode) is design spec Phase 3
- * ("Media pipeline") work, not this task's — its exit criteria are "a still and
- * a clip both survive a full round trip; EXIF verifiably absent; SVG verifiably
- * rejected." This task is schema only, per its own interface ("collections
- * registered ... migrated"). Two of those Phase 3 steps — EXIF stripping and
- * SVG rejection — are security requirements (SECURITY.md), not just pipeline
- * steps, so this pointer is load-bearing, not decorative.
+ * Transcribed verbatim from DATA_MODEL.md's `media` section, plus the `state`
+ * and `failureReason` fields the pipeline records its progress in
+ * (docs/deviations.md §48).
+ *
+ * THE PIPELINE IS BUILT, AND IT IS NOT A HOOK ON THIS COLLECTION. This header
+ * said it was "still ahead of this file" for a phase. DATA_MODEL.md's six
+ * steps — magic-byte sniffing, SVG rejection, EXIF read then strip,
+ * re-encode, `contentHash` and the duplicate check, and for clips
+ * probe/transcode/poster — live in `../lib/media/stillPipeline.ts` behind the
+ * `MediaProcessor` port, composed by both of its adapters
+ * (`../lib/adapters/inline-media-processor.ts` and `worker-media-processor.ts`).
+ * Their order is exactly the handoff's; where they run is not.
+ * `../lib/media/ingestUpload.ts` runs them BEFORE `payload.create`, so this
+ * collection has no `beforeChange` hook and never will: §9.1's upload goes
+ * direct to the bucket, so Payload never sees the unsanitised bytes and a
+ * hook here would not run for a real upload at all. Recorded as
+ * docs/deviations.md §50, whose `// HANDOFF-DEVIATION:` comment is at the top
+ * of `ingestUpload.ts`. Two of those steps — EXIF stripping and SVG rejection
+ * — are SECURITY.md requirements rather than pipeline conveniences, which is
+ * why this pointer is load-bearing and why it had to stop being wrong.
+ *
+ * The `afterChange` rule from the same section IS built here, and it is the
+ * only hook this collection has: setting `isCover` clears it on the journey's
+ * OTHER media. No §3.3 pattern is implemented - a collection is a
+ * configuration object Payload reads, and the one function below is a
+ * narrowing of a value Payload hands it, not a seam of ours.
  *
  * ACCESS AND STORAGE were both added in Phase 1 Task 10, the first task whose
  * page actually displays a photograph, and both were found by that page
@@ -25,7 +42,8 @@
  */
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, PayloadRequest } from 'payload'
+import type { Media as PayloadMedia } from '../payload-types'
 
 /**
  * Where uploaded originals and their derivatives live on disk, as an ABSOLUTE
@@ -46,6 +64,27 @@ import type { CollectionConfig } from 'payload'
  */
 export const MEDIA_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../media')
 
+/**
+ * The id of the journey a media row belongs to, or `null` when it belongs to
+ * none.
+ *
+ * INVARIANT, relied on by the `afterChange` hook below: `doc.journey` arrives
+ * in one of TWO shapes and the hook does not get to choose which. Payload
+ * populates a relationship to the depth of the operation that fired the hook,
+ * so an update at `depth: 0` hands it a bare id and an update above 0 hands it
+ * the whole journey. Both are narrowed rather than cast, because a cast that
+ * guessed wrong would not fail loudly - it would clear the wrong journey's
+ * cover, which is exactly the class of defect CLAUDE.md §7 exists to prevent.
+ * @param journey - The relationship value, as the hook received it.
+ * @returns The journey's id, or `null` when the row belongs to no journey.
+ * @example
+ * journeyIdOf(4) // 4
+ * journeyIdOf({ id: 4, name: 'Reykjavik', ... }) // 4
+ * journeyIdOf(null) // null
+ */
+const journeyIdOf = (journey: PayloadMedia['journey']): number | null =>
+  typeof journey === 'object' && journey !== null ? journey.id : (journey ?? null)
+
 /** The upload collection backing every still and clip in the diary. */
 export const Media: CollectionConfig = {
   slug: 'media',
@@ -65,7 +104,48 @@ export const Media: CollectionConfig = {
           // the file route as well as from a listing. Payload applies this
           // constraint to `/api/media/file/<name>` too, which is the URL the
           // diary's own <img> tags resolve to.
-          { hidden: { not_equals: true } },
+          {
+            and: [
+              { hidden: { not_equals: true } },
+              // ═══ `state` IS A SECURITY CONSTRAINT HERE, NOT A UI ONE ═══
+              //
+              // A row that is not `ready` may be holding bytes NOTHING HAS
+              // STRIPPED. Under `MEDIA_PIPELINE=worker`,
+              // `apps/web/lib/media/ingestUpload.ts` records the staged
+              // ORIGINAL - GPS EXIF intact - at `processing` and leaves the
+              // strip to a worker, and `failed` is that same worker's other
+              // answer.
+              //
+              // `inline` REACHES NEITHER STATE, and this comment said it did
+              // (whole-branch review F2): `ingestInline` creates the row in
+              // one `payload.create` at `state: 'ready'` and a refusal creates
+              // no row, so there is no crashed-`inline` window. Re-examined
+              // rather than re-worded, because a control resting on a false
+              // premise has to earn its place again: what justifies this
+              // clause is that `processing` and `failed` are `worker`'s, and
+              // `worker` is one deleted `.refine` away in `lib/env.ts`. The
+              // clause is written BEFORE that day rather than with it, which
+              // is the only ordering that makes it a control at all. Without
+              // it Payload serves either at `/api/media/file/<name>`, which is
+              // SECURITY.md's "shoot anything at home and you have published
+              // your home address" reached by a signed-out stranger.
+              //
+              // It is the SECOND of two controls and is deliberately not the
+              // only one: `apps/web/lib/env.ts` refuses `worker` at boot. That
+              // guard is a line somebody can delete; this one holds if they
+              // do, which is the whole argument for having both (Task 8 review
+              // finding 1).
+              //
+              // **NULL IS ALLOWED, and that is not an oversight.**
+              // `20260910_171154_add_media_state` deliberately did not backfill
+              // (docs/deviations.md §48): a NULL means "ingested before there
+              // was a state to record", which is every row the seed wrote
+              // before this change and no row any pipeline has touched.
+              // Withholding those would take the public diary dark to fix a
+              // hole they cannot be in.
+              { or: [{ state: { equals: 'ready' } }, { state: { exists: false } }] },
+            ],
+          },
   },
   upload: {
     staticDir: MEDIA_DIR,
@@ -73,10 +153,64 @@ export const Media: CollectionConfig = {
     // overrides this per placement (DATA_MODEL.md, "Focal point lives on the slot").
     focalPoint: true,
     mimeTypes: ['image/jpeg', 'image/png', 'image/heic', 'video/mp4', 'video/quicktime'],
+    // ═══ THREE TIERS CROP, THREE KEEP THE FRAME, AND EVERY ORIGINAL GETS
+    // ONE OF EACH ═══
+    //
+    // `thumb`, `grid` and `tile` each carry a width AND a height, so Payload
+    // hands the pair to `sharp(...).resize(...)` and it crops to `cover`.
+    // `frame`, `hero` and `hero2x` carry a width alone, so they keep the
+    // photograph's own shape.
+    //
+    // `frame` CARRIES `withoutEnlargement: true`, AND THAT IS WHAT CLOSES
+    // MED-001. Payload omits a width-only size whose target exceeds the
+    // source (`uploads/image-resizing/getImageResizeAction.js`) UNLESS
+    // `withoutEnlargement` is set - with it, a narrower original is left at
+    // its own size instead. So `frame` means "the whole frame, at most
+    // 1400px wide" rather than "the whole frame, if you are wide enough",
+    // and EVERY raster original now yields an uncropped derivative. Before
+    // this, the only uncropped rungs started at 1400px, so a 1200x900
+    // photograph reached the lightbox and the download as an 800x800 centre
+    // crop - measured in a browser, MED-001 in
+    // `docs/qa/2026-09-08-media-pipeline-sweep.md`.
+    //
+    // `hero` and `hero2x` deliberately do NOT carry it. Their job is to be
+    // genuinely large for a large display, and with the flag they would
+    // duplicate `frame` byte-for-byte on every source under 1400px - three
+    // identical files per row, for one photograph.
+    //
+    // INVARIANT, and `../lib/media/derivativeGeometry.test.ts` is what holds
+    // it: at least one uncropped tier is derivable from an original of any
+    // size, and the three ladders that serve one whole photograph
+    // (`../lib/readGalleryBundle.ts`'s `FULL_TIERS`,
+    // `../lib/readGalleryDownload.ts`'s `DOWNLOAD_TIERS` and
+    // `../lib/readBookBundle.ts`'s `DERIVATIVE_PREFERENCE`) name uncropped
+    // tiers only. Adding a cropped rung to any of them goes red.
     imageSizes: [
       { name: 'thumb', width: 400, height: 400, position: 'centre' },
+      {
+        name: 'grid',
+        width: 700,
+        height: 700,
+        // ADR 0013 Option 3, deferred to this phase by that ADR and taken
+        // here. A one-column gallery tile at 412 CSS px and DPR 1.75 needs
+        // 658 device pixels; without a rung here the browser correctly takes
+        // the 800px `tile` and the gallery pays 477,329 bytes for nine
+        // images. Square, like `thumb` and `tile`, because a gallery tile is.
+        //
+        // WHERE THAT ARGUMENT STOPS: it is about the GRID, which draws square
+        // tiles by design (SCREENS.md §1.8, and a case pins the ratio at
+        // 1.0). It says nothing about the lightbox, the download or an
+        // in-book slot, which each draw one whole photograph - and all three
+        // used to reach this rung and `tile` by falling through an empty
+        // `frame`, which was MED-001. Read as a defence of squareness in
+        // general it is that defect wearing a justification. Widening `grid`
+        // would not have fixed it and would have broken the grid; what fixed
+        // it is `frame` above, and those three ladders no longer name a
+        // cropped tier at all.
+      },
       { name: 'tile', width: 800, height: 800 },
-      { name: 'frame', width: 1400 },
+      // Uncropped, and present on every row - see the block above.
+      { name: 'frame', width: 1400, withoutEnlargement: true },
       { name: 'hero', width: 2000 },
       { name: 'hero2x', width: 4000 }, // 4K displays scale the book up ~2.4x
     ],
@@ -85,6 +219,24 @@ export const Media: CollectionConfig = {
     { name: 'journey', type: 'relationship', relationTo: 'journeys' },
     // Set by the processing pipeline, not the author.
     { name: 'kind', type: 'select', options: ['still', 'clip'], admin: { readOnly: true } },
+    // Set by the MediaProcessor pipeline, never by the author. `processing` is
+    // a first-class UI state, not a missing image (spec §9.2): the Media
+    // screen shows progress against it, and the Galleries poster filmstrip
+    // needs a processed clip.
+    // HANDOFF-DEVIATION: DATA_MODEL.md's `media` field list has no state of
+    // any kind, yet its own `beforeChange` pipeline has six steps that can
+    // each fail on a row that already exists. Without a state, a half-ingested
+    // row is indistinguishable from a finished one. docs/deviations.md §48.
+    {
+      name: 'state',
+      type: 'select',
+      options: ['processing', 'ready', 'failed'],
+      defaultValue: 'processing',
+      admin: { readOnly: true },
+    },
+    // Why a `failed` row failed, in words the Media screen shows. Never a
+    // stack trace and never a storage key.
+    { name: 'failureReason', type: 'text', admin: { readOnly: true } },
     { name: 'caption', type: 'text' }, // shown under the photo
     { name: 'alt', type: 'text' }, // screen readers
     { name: 'capturedAt', type: 'date' }, // from EXIF, before stripping
@@ -98,4 +250,68 @@ export const Media: CollectionConfig = {
     { name: 'order', type: 'number' },
     { name: 'contentHash', type: 'text', index: true }, // duplicate detection
   ],
+  hooks: {
+    // DATA_MODEL.md, `media`: "if `isCover` was set, clear it on the journey's
+    // other media." A cover is per journey, so the clearing is per journey -
+    // CLAUDE.md §7's first rule, and the reason the `journey` clause below is
+    // correctness rather than an optimisation. The handoff records five
+    // defects caused by per-journey state kept in one global value; a hook
+    // that cleared every `isCover` in the collection would be the sixth.
+    afterChange: [
+      async ({ doc, req }: { doc: PayloadMedia; req: PayloadRequest }) => {
+        if (doc.isCover !== true) return doc
+        const journey = journeyIdOf(doc.journey)
+        // A cover on a row that belongs to no journey clears nothing. "The
+        // other media in no journey" must never become "the other media".
+        if (journey === null) return doc
+
+        // WHAT THIS DISCARDED RESULT CONTAINS, stated here because it is an
+        // assumption a future edit could break (CLAUDE.md §1.1). A
+        // `where`-scoped update in Payload 3.88.0 does NOT reject when a
+        // document fails: it catches each one and pushes `{ id, message }`
+        // onto the `errors` array of the `BulkOperationResult` it resolves
+        // with (`payload/dist/collections/operations/update.js`, and the type
+        // in `collections/config/types.d.ts`). Nor does it abort the
+        // surrounding transaction - `killTransaction` runs only under
+        // `bulkOperationsSingleTransaction`, which no `@payloadcms/*` package
+        // sets - so with the Postgres adapter a per-document failure here is
+        // genuinely silent.
+        //
+        // No guard is written for it, and that is deliberate rather than
+        // overlooked: nothing in today's `media` can make `{ isCover: false }`
+        // fail validation, so a guard's true arm would be unreachable and
+        // would have to be bought with a `c8 ignore` for a hypothetical.
+        // UNREACHABLE HERE MEANS "given today's field list", and that list is
+        // growing - Phase 3 Task 5 added two fields, Tasks 7-9 add more, and
+        // `DATA_MODEL.md`'s `beforeChange` validation pipeline is still ahead.
+        // The first field that can refuse a write makes this the one place in
+        // this collection where a refusal is swallowed; read `errors` then.
+        await req.payload.update({
+          collection: 'media',
+          // Threaded through so this runs inside the transaction of the update
+          // that fired the hook: the new cover and the cleared one commit
+          // together, or neither does.
+          req,
+          depth: 0, // nothing here reads a populated relationship
+          where: {
+            and: [
+              { journey: { equals: journey } },
+              { id: { not_equals: doc.id } },
+              // Keeps the write to the rows that need changing: without this
+              // clause, setting a cover rewrites EVERY row in the journey
+              // (CLAUDE.md §6 - no needless writes, no N+1). What bounds the
+              // recursion is the guard above, not this clause, and that was
+              // measured rather than assumed: removing this clause leaves
+              // every case green except the one that reads `updatedAt` on a
+              // bystander, which is how a needless write shows.
+              { isCover: { equals: true } },
+            ],
+          },
+          data: { isCover: false },
+        })
+
+        return doc
+      },
+    ],
+  },
 }

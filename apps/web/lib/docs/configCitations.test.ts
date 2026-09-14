@@ -22,6 +22,30 @@
  *   - It said in bold and in the present tense that `npm run test:perf` runs TWO
  *     Lighthouse configurations. It has run three since Task 11 (F9-9).
  *
+ * THE THIRD OF THOSE WAS CORRECTED IN ONE FILE AND LEFT STANDING IN ANOTHER,
+ * which is F9-9's own species repeating: `.github/workflows/ci.yml`'s comment
+ * above the Lighthouse step still said "runs TWO lhci configurations and both
+ * are gates" and named two of the three, and went on saying it for
+ * seventy-three commits after the number was fixed in `docs/testing.md`. So
+ * the Lighthouse-configuration check below reads a LIST of documents rather
+ * than that one document: whatever describes the gate has to describe all of
+ * it. `ci.yml` is in that list because a workflow comment is the description
+ * a reader meets while looking at the gate itself.
+ *
+ * A CHECK ON THE COUNT ITSELF WAS BUILT AND REJECTED, and the reason belongs
+ * here rather than in a commit message. Matching "<count word> lhci
+ * configurations" and comparing the word to the number of files on disk fired
+ * on two sentences of `docs/testing.md` that are both correct: §7.1's
+ * past-tense record of what the gate was when it was measured, and §10.3's
+ * QUOTATION of the defective sentence, reproduced there in order to explain
+ * it. That is this file's own documented limit — a check cannot tell a
+ * quotation from a claim — and the cost of satisfying it would have been
+ * rewriting a historical record. So the count was DELETED from the workflow
+ * comment instead of guarded, which is `caseCounts.test.ts`'s doctrine
+ * applied one population over: a count in prose is a floor, or it is deleted.
+ * The comment now names the configurations and says "all of them are gates",
+ * and the case below is what keeps that list complete.
+ *
  * Nobody re-reads a config to check a sentence. This does, on every commit.
  *
  * ═══ THE SHAPE, AND WHY IT IS NOT A TABLE OF EXPECTED NUMBERS ═══
@@ -173,17 +197,21 @@ const CONFIG_CITATIONS: readonly ConfigCitation[] = [
   {
     what: 'the /p/1 LCP gate, from lighthouserc.book.json',
     value: () => grouped(budget(asJson('lighthouserc.book.json'), '.*/p/1$', 'largest-contentful-paint')),
-    document: 'docs/testing.md',
+    // The performance suite's detail file, not `docs/testing.md` itself: the
+    // Phase 3 standards task moved every suite's body to `docs/testing/<suite>.md`
+    // and left the gate table and the run commands in the core. The LCP figures
+    // are quoted in the round-by-round record, which went with the body.
+    document: 'docs/testing/07-performance.md',
   },
   {
     what: 'the /p/1 LCP gate, from lighthouserc.json',
     value: () => grouped(budget(asJson('lighthouserc.json'), '.*/p/1$', 'largest-contentful-paint')),
-    document: 'docs/testing.md',
+    document: 'docs/testing/07-performance.md',
   },
   {
     what: 'the admin LCP gate, from lighthouserc.admin.json',
     value: () => grouped(budget(asJson('lighthouserc.admin.json'), '.*/admin/.*', 'largest-contentful-paint')),
-    document: 'docs/testing.md',
+    document: 'docs/testing/07-performance.md',
   },
   {
     what: 'the runs each Lighthouse median is taken over',
@@ -241,6 +269,15 @@ const unitIncludeGlobs = (): readonly string[] => {
   const block = config.slice(config.indexOf("name: 'unit'"), config.indexOf("name: 'unit-dom'"))
   return [...block.matchAll(/^\s*'([^']+\*[^']*)',$/gmu)].map((match) => match[1] ?? '')
 }
+
+/**
+ * Every document that describes what `npm run test:perf` runs.
+ *
+ * A workflow comment is documentation: it is what a reader meets while looking
+ * at the step it sits above, and it is where F9-9's corrected sentence went on
+ * being wrong after `docs/testing.md`'s was fixed.
+ */
+const DOCUMENTS_DESCRIBING_THE_LIGHTHOUSE_GATE = ['docs/testing.md', '.github/workflows/ci.yml'] as const
 
 /** Every `lighthouserc*.json` at the repository root, read off disk. */
 const lighthouseConfigs = (): readonly string[] =>
@@ -340,12 +377,15 @@ describe('the configured values the documentation quotes', () => {
       AT_LEAST_THIS_MANY_UNIT_GLOBS,
     )
 
-    const testing = text('docs/testing.md')
+    // The enumeration lives in the unit suite's detail file since the Phase 3
+    // standards task split `docs/testing.md`; §2.1's two homes are the config
+    // comment and that file.
+    const testing = text('docs/testing/01-unit.md')
     const undocumented = globs.filter((glob) => !testing.includes(`\`${glob}\``))
 
     expect(
       undocumented,
-      "docs/testing.md's enumeration of the `unit` project's include globs is missing these, so a reader auditing it against CLAUDE.md §2.1 audits a smaller set than the config collects",
+      "docs/testing/01-unit.md's enumeration of the `unit` project's include globs is missing these, so a reader auditing it against CLAUDE.md §2.1 audits a smaller set than the config collects",
     ).toEqual([])
   })
 
@@ -353,12 +393,14 @@ describe('the configured values the documentation quotes', () => {
     const configs = lighthouseConfigs()
     expect(configs.length, 'no lighthouserc*.json at the repository root').toBeGreaterThan(1)
 
-    const testing = text('docs/testing.md')
-    const undocumented = configs.filter((config) => !testing.includes(config))
-
-    expect(undocumented, 'these Lighthouse configurations gate a route and docs/testing.md never names them').toEqual(
-      [],
+    const unnamed = DOCUMENTS_DESCRIBING_THE_LIGHTHOUSE_GATE.flatMap((document) =>
+      configs.filter((config) => !text(document).includes(config)).map((config) => `${config} in ${document}`),
     )
+
+    expect(
+      unnamed,
+      'these Lighthouse configurations gate a route and a document that describes the gate never names them',
+    ).toEqual([])
   })
 
   it('never pair a baseline-regeneration script with the flag the other one passes', () => {

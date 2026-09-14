@@ -21,7 +21,10 @@
  * Depends on: sharp, vitest, ./testPayload, ./readGalleryDownload, ../scripts/seed.
  */
 import sharp from 'sharp'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { MEDIA_DIR } from '../collections/media'
+import { createLocalStorage } from './adapters/local-storage'
+import { getPayload } from './payload'
 import { readGalleryDownload } from './readGalleryDownload'
 import { getTestPayload } from './testPayload'
 import { seed } from '../scripts/seed'
@@ -37,6 +40,16 @@ describe('readGalleryDownload', () => {
   beforeAll(async () => {
     payload = await getTestPayload()
     await seed(payload)
+    // THE ONE INCONSISTENT STATE THIS FILE CAN LEAVE BEHIND, repaired
+    // narrowly and nowhere else - the same shape `collections.integration.test.ts`'s
+    // migration repairs take. `withPasswordProtect`'s `finally` covers every
+    // ordinary failure; what it cannot cover is the worker being killed
+    // outright between the set and the restore, and `site` is a global the
+    // seed does not write, so a `true` left behind would survive into every
+    // later run of every file. Measured rather than imagined: mutating that
+    // `finally` away left the flag on, and the next run's own `before`
+    // snapshot then restored it to `true` for ever.
+    await payload.updateGlobal({ slug: 'site', depth: 0, data: { passwordProtect: false } })
 
     const journey = await payload.create({
       collection: 'journeys',
@@ -69,7 +82,11 @@ describe('readGalleryDownload', () => {
         .toBuffer()
       const created = await payload.create({
         collection: 'media',
-        data: { journey: owner, kind: 'still', alt: label, caption: label, ...extra },
+        // `state: 'ready'` because these fixtures ARE finished uploads: the
+        // gallery's own filter withholds a row the pipeline has not finished
+        // (`galleryFrames.ts`), and the field's default is `processing`, so a
+        // fixture that omitted it would be testing the wrong row.
+        data: { journey: owner, kind: 'still', alt: label, caption: label, state: 'ready', ...extra },
         file: { data: png, mimetype: 'image/png', name: `${label}.png`, size: png.length },
       })
       ids[label] = String(created.id)
@@ -80,6 +97,12 @@ describe('readGalleryDownload', () => {
     await upload('dl-hidden', journeyId, { order: 2, hidden: true })
     await upload('dl-withheld', journeyId, { order: 3, allowDownload: false })
     await upload('dl-elsewhere', otherJourneyId, { order: 0 })
+    // A row the pipeline has not finished. Under `MEDIA_PIPELINE=worker` its
+    // stored bytes are the un-stripped original, and `worker` is the only mode
+    // that writes this state - `inline` creates at `ready` and a refusal
+    // creates no row. This handler serves bytes, so it is one of the four
+    // public doors the state filter has to close.
+    await upload('dl-processing', journeyId, { order: 5, state: 'processing' })
     // PH1-002. `role` lives on the `pages` slot, not on the media row, so the
     // only thing that makes a media item the Notes page's decorative scrap is
     // a slot printing it as one. The row itself is an ordinary upload.
@@ -100,6 +123,72 @@ describe('readGalleryDownload', () => {
     await payload.delete({ collection: 'media', where: { journey: { in: [journeyId, otherJourneyId] } } })
     await payload.delete({ collection: 'journeys', where: { slug: { in: ['test-download', 'test-elsewhere'] } } })
   })
+
+  /**
+   * The frame every case that is not about a refusal reads.
+   *
+   * A helper rather than `ids['dl-first']` at each call site so the cases
+   * below say WHICH frame they mean rather than which key they index.
+   * @returns The first visible frame's id, as the URL would carry it.
+   */
+  const aSeededFrameId = (): string => ids['dl-first'] ?? ''
+
+  /**
+   * Runs `body` with `site.passwordProtect` set, and puts it back afterwards.
+   *
+   * The restore is in a `finally` and is not optional: the global is shared by
+   * every case in this file and by every file in the run, so a case that left
+   * the site gated would silently change what the cases after it measure.
+   * @param gated - What to set the flag to for the duration.
+   * @param body - The assertion to run while it is set.
+   */
+  const withPasswordProtect = async (gated: boolean, body: () => Promise<void>): Promise<void> => {
+    const before = await payload.findGlobal({ slug: 'site', depth: 0, select: { passwordProtect: true } })
+    await payload.updateGlobal({ slug: 'site', depth: 0, data: { passwordProtect: gated } })
+    try {
+      await body()
+    } finally {
+      await payload.updateGlobal({
+        slug: 'site',
+        depth: 0,
+        data: { passwordProtect: before.passwordProtect ?? false },
+      })
+    }
+  }
+
+  /**
+   * A frame narrower than every uncropped rung the ladder configures.
+   *
+   * 1200x900, which is the shape MED-001 was measured on: too narrow for
+   * `frame`'s configured 1400 and for everything above it, and not square, so
+   * a crop is distinguishable from a resize. Before MED-001's fix that made
+   * the 800x800 `tile` the head of `DOWNLOAD_TIERS`' preference order; with
+   * `withoutEnlargement: true` on `frame`, Payload leaves the original at its
+   * own size instead and the download is the whole photograph.
+   * @returns The frame's id, and the bytes of the square tier it used to be
+   *   served as - so the assertion can say which one arrived.
+   */
+  const aRowNarrowerThanEveryUncroppedRung = async (): Promise<{
+    readonly id: string
+    readonly squareCropBytes: Buffer
+  }> => {
+    const png = await sharp({ create: { width: 1200, height: 900, channels: 3, background: '#4a6b3c' } })
+      .png()
+      .toBuffer()
+    const created = await payload.create({
+      collection: 'media',
+      data: { journey: journeyId, kind: 'still', alt: 'dl-narrow', caption: 'dl-narrow', state: 'ready', order: 6 },
+      file: { data: png, mimetype: 'image/png', name: 'dl-narrow.png', size: png.length },
+    })
+    ids['dl-narrow'] = String(created.id)
+    const store = createLocalStorage(MEDIA_DIR)
+    const read = async (filename: string | null | undefined): Promise<Buffer> => {
+      const bytes = await store.get(filename ?? '')
+      if (!bytes.ok) throw new Error(`the fixture's own derivative is not in the store: ${bytes.error}`)
+      return Buffer.from(bytes.value)
+    }
+    return { id: String(created.id), squareCropBytes: await read(created.sizes?.tile?.filename) }
+  }
 
   it('serves a derivative’s real bytes', async () => {
     const result = await readGalleryDownload('test-download', ids['dl-first'] ?? '')
@@ -130,6 +219,17 @@ describe('readGalleryDownload', () => {
 
   it('refuses a frame an editor has hidden', async () => {
     const result = await readGalleryDownload('test-download', ids['dl-hidden'] ?? '')
+
+    expect(result.ok).toBe(false)
+  })
+
+  it('refuses a frame the pipeline has not finished, whose bytes may be an unstripped original', async () => {
+    // THE DOOR THE COLLECTION'S OWN `read` RULE DOES NOT COVER. This reader
+    // runs through the Local API with no user, so `Media.access.read` - and
+    // with it its `state` clause - never executes; what closes it is
+    // `galleryFrames.ts`'s own filter, which this handler shares with the grid
+    // and the census (Task 8 fix review, N1).
+    const result = await readGalleryDownload('test-download', ids['dl-processing'] ?? '')
 
     expect(result.ok).toBe(false)
   })
@@ -174,6 +274,73 @@ describe('readGalleryDownload', () => {
     ])
 
     expect(new Set(refusals.map((refusal) => (refusal.ok ? 'ok' : refusal.error))).size).toBe(1)
+  })
+
+  it('marks every download uncacheable once the whole book is password protected', async () => {
+    // SECURITY.md: "The `password the whole book` setting must gate
+    // server-side." A gate the CDN never heard about is a client-side check
+    // wearing a server's clothes.
+    await withPasswordProtect(true, async () => {
+      const attachment = await readGalleryDownload('test-download', aSeededFrameId())
+
+      expect(attachment.ok ? attachment.value.cacheControl : null).toBe('private, no-store')
+    })
+  })
+
+  it('marks an ungated download cacheable by a shared cache', async () => {
+    // DELIBERATELY AFTER THE GATED CASE, which is what makes
+    // `withPasswordProtect`'s restore a mechanism rather than a hope: run it
+    // first and nothing in this file would notice a `finally` that stopped
+    // putting the flag back. Vitest runs `it`s in declaration order, so this
+    // case reads the global the case above was responsible for restoring.
+    const attachment = await readGalleryDownload('test-download', aSeededFrameId())
+
+    expect(attachment.ok ? attachment.value.cacheControl : null).toBe('public, max-age=3600')
+  })
+
+  it('reads the site global exactly once per download, so the header costs no extra round trip', async () => {
+    // RESTORED IN A `finally`, so the restore does not depend on the
+    // assertions below passing - `getPayload()` is memoised, so this spy is on
+    // the instance every later case in this file uses, and the whole point of
+    // the count assertion is that it can fire.
+    //
+    // WHAT A LEAK ACTUALLY COSTS TODAY, measured rather than assumed, because
+    // review reasoning said it would be a cluster of failures: it costs
+    // nothing. `vi.spyOn` with no implementation calls through, so a surviving
+    // wrapper changes no behaviour. Forcing the count assertion to fail with
+    // the `finally` removed reports one failure, not many. The `finally` is
+    // unconditional cleanup rather than a guard over an observed failure, and
+    // it is here so that stays true of the next spy on this instance - one
+    // with a `mockImplementation` would not call through, and then the leak
+    // would be exactly the cluster.
+    const spy = vi.spyOn(await getPayload(), 'findGlobal')
+    try {
+      await readGalleryDownload('test-download', aSeededFrameId())
+
+      expect(spy.mock.calls).toHaveLength(1)
+      expect(spy.mock.calls[0]?.[0]).toMatchObject({ depth: 0, select: { passwordProtect: true } })
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('downloads a four-by-three photograph whole, not cropped to a square', async () => {
+    // MED-001 (`docs/qa/2026-09-08-media-pipeline-sweep.md`), at the level it
+    // was observed: the sweep measured the returned bytes with sharp and read
+    // 800x800 back for a 1200x900 original. `ok` asserts nothing here - the
+    // square crop answered `ok` too - so the SHAPE of what arrived is what is
+    // asserted, and the square tier's bytes are read alongside it so the case
+    // can say the two are not the same file.
+    const narrow = await aRowNarrowerThanEveryUncroppedRung()
+
+    const attachment = await readGalleryDownload('test-download', narrow.id)
+    const served = attachment.ok ? Buffer.from(attachment.value.bytes) : Buffer.alloc(0)
+
+    // The sentinel: a fixture whose square crop happened to be the same file
+    // would make the shape assertion pass on the wrong derivative.
+    expect(await sharp(narrow.squareCropBytes).metadata()).toMatchObject({ width: 800, height: 800 })
+    expect(served.equals(narrow.squareCropBytes)).toBe(false)
+    expect(await sharp(served).metadata()).toMatchObject({ width: 1200, height: 900 })
   })
 
   it('refuses a download from a journey an editor unpublishes', async () => {

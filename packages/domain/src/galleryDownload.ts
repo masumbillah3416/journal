@@ -86,6 +86,38 @@ export const downloadContentType = (mimeType: string | null | undefined): Result
   return ok(match)
 }
 
+/**
+ * The `Cache-Control` a derivative download is served with.
+ *
+ * ═══ WHY THIS IS A DECISION AND NOT A HEADER LITERAL ═══
+ *
+ * A derivative is immutable for the life of the media row it belongs to:
+ * replacing a photograph creates new derivative filenames, and the download
+ * route is keyed by the row's id, so an hour of staleness is the worst an
+ * ungated reader can get. That is what `public, max-age=3600` is for.
+ *
+ * `public` becomes WRONG the moment a journey is gated, and the route carried
+ * that debt in prose for two phases: a `public` response is cacheable by any
+ * proxy between us and the reader, so it would outlive the gate - turn
+ * `site.passwordProtect` on and the derivative is still served by a cache that
+ * never heard about it. SECURITY.md's requirement is that "the `password the
+ * whole book` setting must gate server-side", and a gate the CDN never heard
+ * about is a client-side check wearing a server's clothes.
+ *
+ * `private, no-store` rather than `private, max-age=0`: the reader's own
+ * browser cache is a shared machine often enough - a family laptop, a library
+ * terminal - and `max-age=0` still permits storage, only revalidation.
+ *
+ * An options object rather than a boolean parameter (CLAUDE.md §3.2):
+ * `downloadCacheControl(true)` says nothing at the call site.
+ * @param options - `gated` is whether anything stands in front of this journey.
+ * @returns The header value to send.
+ * @example
+ * downloadCacheControl({ gated: false }) // 'public, max-age=3600'
+ */
+export const downloadCacheControl = (options: { readonly gated: boolean }): string =>
+  options.gated ? 'private, no-store' : 'public, max-age=3600'
+
 /** Anything a filename should not carry, collapsed to a single separator. */
 const UNSAFE_FILENAME_RUN = /[^a-z0-9]+/g
 

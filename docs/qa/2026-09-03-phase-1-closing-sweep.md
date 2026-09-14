@@ -358,7 +358,11 @@ through the whole book — and the machine now holds the reader's location and t
 anchor as two fields instead of one, with a bookmark jump arriving as its own `jump`
 event. Red first at two levels: `Book.test.tsx` polls the counter, page label, active tab
 and `location.pathname` every 40ms across a whole jump, and `e2e/flip.spec.ts` polls the
-same four in a real browser.
+same four in a real browser. (The browser half was **rewritten in Phase 3** to poll the
+address as its own series rather than as a fourth field of the published page — see
+`docs/qa/2026-09-08-flip-address-lag-defect.md`. The unit half still reads all four
+together, correctly: under `act()` there is no sampling window between the render and the
+address effect, so the coupling that flaked in a browser cannot arise there.)
 
 ### PH1-002 · fixed
 

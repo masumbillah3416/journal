@@ -16,23 +16,69 @@ Postgres.
 ### `media`
 
 The upload collection; everything else references it. Payload's `upload` config
-generates five derivative image sizes at upload (`thumb` 400², `tile` 800², `frame`
-1400w, `hero` 2000w, `hero2x` 4000w — see `docs/adr/0003-derivative-generation.md`) and
-Payload's built-in focal-point picker powers the admin control. Fields include `journey`
+generates six derivative image sizes at upload (`thumb` 400², `grid` 700², `tile` 800²,
+`frame` **at most** 1400w, `hero` 2000w, `hero2x` 4000w — see
+`docs/adr/0003-derivative-generation.md` for the original five and
+`docs/adr/0013-gallery-image-budget.md` for `grid`, its Option 3 taken in Phase 3 Task 10)
+and
+Payload's built-in focal-point picker powers the admin control.
+
+**The first three crop and the last three do not, and `frame` is the one every original
+reaches.** A size declared with a width and a height is a `cover` crop; a size declared
+with a width alone keeps the photograph's shape. Payload omits a width-only size whose
+target exceeds the source, so until Phase 3's owner-decisions round the only uncropped
+rungs started at 1400px and a 1200×900 photograph had nothing uncropped to be served —
+it reached the lightbox, the download and every in-book slot as an 800×800 centre crop
+(MED-001, `docs/qa/2026-09-08-media-pipeline-sweep.md`). `frame` now carries
+`withoutEnlargement: true`, which makes it "the whole frame, at most 1400px wide": a
+narrower original is left at its own size rather than skipped, so **every raster row
+carries at least one uncropped derivative**. `hero` and `hero2x` deliberately do not
+carry the flag — with it they would duplicate `frame` byte-for-byte on every source
+under 1400px. Fields include `journey`
 (relationship), `kind` (`still` | `clip`, read-only — set by the pipeline, not the
 author), `caption`, `alt`, `capturedAt` (from EXIF, retained after the EXIF strip),
 `posterAt`/`posterImage`/`durationSec` (clips only), `inBook`, `hidden`, `isCover`,
 `allowDownload`, `order`, `contentHash` (perceptual hash, indexed, for duplicate
-detection within a journey).
+detection within a journey — **a dHash, never an integrity checksum**: two files that
+differ in every byte carry the same value when they are the same photograph, so it cannot
+detect corruption, verify a restore or deduplicate storage, and
+`docs/adr/0022-perceptual-hashing-and-the-duplicate-threshold.md` carries what it does and
+does not tolerate), and — added in Phase 3 Task 5, and not in the handoff's own
+field list (`docs/deviations.md` §48) — `state` (`processing` | `ready` | `failed`,
+read-only, defaulting to `processing`) with `failureReason` (read-only text, the words the
+Media screen shows). `processing` is a first-class UI state rather than a missing image
+(design spec §9.2): without it a half-ingested row is indistinguishable from a finished
+one, and every step of the `beforeChange` pipeline below can fail on a row that already
+exists.
 
-A `beforeChange` hook will run, in order: sniff the real mime type from magic bytes (never
-the extension); reject SVG outright; read EXIF into `capturedAt` then strip all EXIF;
-re-encode stills via `sharp`; compute `contentHash` and flag a duplicate within the same
-journey; for clips, probe with `ffprobe`, transcode to H.264 MP4, extract a poster into
-`posterImage`. An `afterChange` hook will clear `isCover` on the journey's other media when
-one item's `isCover` is set. This order is deliberate — later steps depend on earlier ones
-having run (design spec §9.2). **Schema only lands in Phase 0** (this task); the hooks
-depend on the storage port (Task 7) and transcode queue (Task 9) and land with them.
+The pipeline the handoff describes runs, in the order it gives — sniff the real mime type
+from magic bytes (never the extension); reject SVG outright; read EXIF into `capturedAt`
+then strip all EXIF; re-encode stills via `sharp`; compute `contentHash` and flag a
+duplicate within the same journey; for clips, probe with `ffprobe`, transcode to H.264
+MP4, extract a poster into `posterImage` — but **not as a `beforeChange` hook, which is
+where `DATA_MODEL.md` puts it** (`docs/deviations.md` §50). Payload calls
+`generateFileData`, the step that hands the bytes to `sharp`, before any `beforeChange`
+hook runs, so a rejection written there would be a check on a file already decoded — and
+this repository's `sharp` decodes SVG. The steps therefore run in
+`apps/web/lib/media/stillPipeline.ts` behind the `MediaProcessor` port, composed by
+`apps/web/lib/media/ingestUpload.ts` BEFORE `payload.create` is called, which is also why
+a refused upload creates no row: Payload's upload collections require a file at `create`,
+so there is nothing to show a `failed` row for. The clip half is deferred behind
+`MEDIA_PIPELINE` (ADR 0004) and runs on a worker that is not provisioned.
+
+The `afterChange` hook from the same section **is** built (Phase 3 Task 5): setting
+`isCover` clears it on the journey's OTHER media, in one query, and the query is keyed by
+`journey`. That clause is CLAUDE.md §7's first rule rather than an optimisation — a cover
+belongs to one journey, and a hook that cleared every `isCover` in the collection would be
+the sixth defect of the family the handoff already records five of. Two more clauses matter
+for reasons of their own: `id not_equals` spares the row that was just set, and
+`isCover equals true` keeps the write to the rows that need changing rather than every row
+in the journey. The hook returns immediately unless the changed row's own `isCover` is
+`true`, so editing a caption never clears a cover, and a row that belongs to no journey
+clears nothing at all: "the other media in no journey" must not become "the other media".
+The journey it reads is narrowed rather than cast, because Payload populates a relationship
+to the depth of the operation that fired the hook — an update at `depth: 0` hands the hook
+an id, and one above 0 hands it the whole journey.
 
 ### `journeys`
 
@@ -322,6 +368,8 @@ T>`, never a bare value.
 | `20260905_202028_add_otp_session_hash` | Adds `otp_challenges.session_hash` (`varchar NOT NULL`) and its btree index — the session binding `SECURITY.md` requires and `DATA_MODEL.md` omits (`docs/deviations.md` §25, `docs/adr/0015-otp-challenge-hashing.md`). Its `up()` carries one hand-added statement, `DELETE FROM "otp_challenges"`, before the `ALTER`: a `NOT NULL` column with no default cannot be added to a table that has rows, and every pre-existing challenge is one the new rule can never honour anyway — it has no session binding, so it could not be redeemed. Challenges are five-minute ephemera, so nothing of value is discarded and no default has to be invented. Verified reversible by its own case in `collections.integration.test.ts`, separate from the journey case above because the two fail differently: the journey case proves tables come back and would still pass with this column silently missing. The `down()` drops the index before the column, so a re-apply's `CREATE INDEX` cannot collide with a leftover.                                                                                          |
 | `20260905_230601_add_sign_in_attempts` | Creates the `sign_in_attempts` table and its two enum types (Phase 2 Task 4) backing the sliding window `SECURITY.md` requires per account and per IP (`docs/deviations.md` §27, `docs/adr/0016-rate-limit-window-storage.md`), plus the compound index over `(dimension, endpoint, subject, attempted_at)` and the `payload_locked_documents_rels.sign_in_attempts_id` column/FK Payload adds for its own document-locking feature. Its `down()` carries the same hand-fixed statement order as `20260831_161951_add_jobs`, for the same reason — see the note beneath this table. Verified reversible by its own case in `collections.integration.test.ts`, which asserts on **all five** artefacts the migration creates rather than on the table alone — a `down()` that dropped the table and left the enum types behind would satisfy a table-only assertion and then fail its own re-apply with "type already exists".                                                                                                                                                                                     |
 | `20260906_004937_add_session_expiry`   | Adds `sessions.expires_at` (`timestamp(3) with time zone NOT NULL`) and the btree index on `sessions.token_hash` an authentication reads every admin request by (Phase 2 Task 6, `docs/deviations.md` §30). Its `up()` is hand-split into add-nullable, backfill, `SET NOT NULL`: as generated it was a single `ADD COLUMN ... NOT NULL` with no default, which succeeds only against a table with no rows — true of every database today, and false the moment one session exists, at which point `down()`-then-`up()` would fail on the survivors. The backfill is `created_at`, so a row that predates the column is expired the instant the column exists: a session whose lifetime was never recorded is a session whose lifetime is unknown, and inventing a generous one would grant an expiry nobody ever did. Verified reversible by its own case in `collections.integration.test.ts`, which asserts on the column **and** the index and on the `sessions` table surviving — this migration adds to a table it did not create, so "the table is gone" would say nothing about whether its `down()` ran. |
+| `20260910_171154_add_media_state`      | Adds `media.state` (`enum_media_state`, nullable, defaulting to `'processing'`) and `media.failure_reason` (`varchar`) — the pipeline state design spec §9.2 requires and `DATA_MODEL.md` omits (`docs/deviations.md` §48). Needed neither of the two SQL hand-fixes below, checked rather than assumed: the generator emitted no `NOT NULL`, so there is nothing to split into add-nullable/backfill/`SET NOT NULL`, and its `down()` already drops the two columns before `enum_media_state` — the order the re-apply needs, since a `down()` that dropped the columns and left the type behind would fail its own `up()` with "type already exists". Deliberately no backfill: a row that predates the column reads `state` NULL rather than being asserted into a state nothing measured. Verified reversible by its own case in `collections.integration.test.ts`, which asserts on the two columns, the enum type and the survival of `media` and its rows — this migration adds to a table it did not create.                                                                                              |
+| `20260913_201520_add_media_grid_tier`  | Adds the six `media.sizes_grid_*` columns and the `media_sizes_grid_sizes_grid_filename_idx` btree index Payload derives for one `imageSize` — ADR 0013's deferred ~700px rung (Option 3), taken in Phase 3 Task 10. Needed neither SQL hand-fix: every statement is an `ADD COLUMN` with no `NOT NULL` and no default, so `up()` succeeds against a `media` table full of rows, and the generated `down()` already drops the index before its column. **No backfill is possible here** — the six columns describe a FILE, and a derivative has to be generated before there is a filename to record; they are filled by re-uploading each row's own original through Payload, so that Payload re-runs its own derivative generation. Verified reversible by its own case in `collections.integration.test.ts`, which asserts on all six columns, the index, and the survival of `media` and its rows.                                                                                                                                                                                                            |
 
 Generated with `npm run db:migrate:create -w apps/web -- <name>`, applied with
 `npm run db:migrate -w apps/web`. Payload's generator emits a plain (non-type-only) import

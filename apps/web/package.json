@@ -11,7 +11,8 @@
     "db:migrate:create": "payload migrate:create",
     "db:migrate": "payload migrate",
     "db:migrate:down": "payload migrate:down",
-    "db:seed": "payload run scripts/run-seed.ts"
+    "db:seed": "payload run scripts/run-seed.ts",
+    "media:rederive": "payload run scripts/run-rederive.ts"
   },
   "dependencies": {
     "@next/env": "16.3.3",

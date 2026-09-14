@@ -175,6 +175,18 @@ export default tseslint.config(
     files: ['scripts/run-lighthouse.mjs'],
     rules: { 'no-console': 'off' },
   },
+  {
+    // The clip toolchain's ONE `console.warn`: the UNRESOLVED notice that says
+    // the worker MediaProcessor's clip arm is running against a recorded
+    // stand-in because `ffmpeg` is not installed. CLAUDE.md §7.1 requires an
+    // unresolvable check to be REPORTED rather than routed through an online
+    // equivalent, and a notice nobody sees is not a report - a silent
+    // stand-in is exactly the rot ADR 0004's non-negotiable exists to
+    // prevent. Named by exact path, like the two above, so `console` anywhere
+    // else in application code is still an error.
+    files: ['apps/web/lib/media/clipToolchain.ts'],
+    rules: { 'no-console': 'off' },
+  },
   // Generated output, never authored here. The last four are the browser and
   // performance harnesses' own artefacts, and they are listed for the same
   // reason `coverage/` already was: they are `.gitignore`d, so they are
@@ -211,6 +223,26 @@ export default tseslint.config(
   // that from being a hole is `adminGuardRegistration.test.ts`'s coverage case,
   // which reads GIT's listing — so a `'use server'` module forced into the
   // index from any of these directories fails there.
+  //
+  // `.claude/worktrees/**` is the one entry here that is not generated output,
+  // and it is the one entry where the trade above costs nothing at all. It is a
+  // git WORKTREE directory: a second checkout of this same repository, one
+  // level deep, whose every file is tracked on its own branch and linted there
+  // by this same config. Ignoring it hides a duplicate, never a source file.
+  // The pattern names that one subdirectory rather than `.claude/**`, because
+  // `.claude/skills/` is tracked source (CLAUDE.md §10's two browser-QA
+  // skills), and rather than `**/worktrees/**`, which would hide a directory of
+  // that name at any depth.
+  //
+  // AND THE COVERAGE CASE'S HOLE DOES NOT OPEN HERE, which was checked by
+  // reading it rather than assumed: it scans `git ls-files --cached --others
+  // --exclude-standard`, and a nested repository appears in that listing as a
+  // single DIRECTORY entry — its files are in no listing at all. So a
+  // `'use server'` module inside a worktree was already invisible to that case
+  // before this line existed. What the line changes is that the directory entry
+  // itself disappears, instead of being read and throwing `EISDIR` — which is
+  // what the suite does today, by design, and why `npm run verify` cannot pass
+  // while an unignored worktree exists.
   {
     ignores: [
       '**/dist/**',
@@ -224,6 +256,7 @@ export default tseslint.config(
       'lhci-reports/**',
       '.lighthouseci/**',
       '.superpowers/**',
+      '.claude/worktrees/**',
     ],
   },
 )

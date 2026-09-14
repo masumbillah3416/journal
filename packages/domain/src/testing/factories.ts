@@ -9,6 +9,17 @@
  * field it cares about. Depends on: Journey and BookChrome, from ../bookBundle;
  * GalleryBundle and GalleryFrame, from ../gallery; ChallengeRecord, from
  * ../auth/otpChallenge.
+ *
+ * THE SIX BYTE-LEVEL FIXTURES USED TO LIVE AT THE END OF THIS FILE, AND NOW
+ * LIVE IN `./bytes.ts`. They were a different kind of fixture — a domain
+ * factory merges overrides over defaults and is obviously correct from
+ * reading it, while a byte fixture has to be indistinguishable from a real
+ * file, which is not — and together they were 315 of this file's 511 lines,
+ * against CLAUDE.md §3.2's ~300 mark. `aJpegHeader`, `aPngHeader`,
+ * `anIsoBmffHeader`, `anAvifHeader`, `anSvgDocument`, `anExifJpeg` and the
+ * `EXIF_CANARY` they hide are imported from `./bytes` now, and this module
+ * does not re-export them: a re-export would leave two import paths for one
+ * symbol, and the next reader would not know which is the home.
  */
 import type { ChallengeRecord } from '../auth/otpChallenge'
 import type { AboutContent, BookChrome, Journey, Slot } from '../bookBundle'

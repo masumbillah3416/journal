@@ -51,7 +51,21 @@ import type { Journey, Media, Page } from '../payload-types'
 import { stripedPlaceholder } from './placeholder'
 import { aboutGlobalSeed, bookGlobalSeed, journeySeeds, type JourneySeed, type SeedFocal } from './seed-data'
 
-/** Design-box dimensions for each slot role, lifted from the prototype (Task 11 brief). */
+/**
+ * Design-box dimensions for each slot role, lifted from the prototype (Task 11 brief).
+ *
+ * INVARIANT WORTH KNOWING BEFORE CHANGING ONE OF THESE, because it has already
+ * cost a red budget: a Payload `imageSize` is a
+ * `resize(n, n, { fit: 'cover' })`, whose scale factor is
+ * `max(n / width, n / height)`. When a rung's `n` equals a source's SHORT
+ * edge that derivative is an unresampled crop, and the rung below it is the
+ * first real resample - which for these hard-edged striped placeholders costs
+ * far more, not less. `frame`'s 800 sits exactly on `tile`'s 800, which is why
+ * adding a 700px rung made the seven in-book slot placeholders larger at 700
+ * than at 800 and turned the gallery's image budget red.
+ * `docs/adr/0013-gallery-image-budget.md` has the measurement and names this
+ * constant as the lever.
+ */
 const SLOT_SIZE = {
   hero: { width: 1200, height: 900 },
   ephemera: { width: 1200, height: 560 },
@@ -76,8 +90,12 @@ const IN_BOOK_SLOTS = 9
  * prototype's own 720x720 on purpose: `media.upload.imageSizes` skips a tier
  * whose target width exceeds the source, so a 720px square generates only
  * `thumb` and the lightbox would have nothing bigger than a 400px image to
- * open. At 900 it generates `thumb` AND `tile`, which is the pair the grid
- * and the lightbox actually use.
+ * open. **What 900 is chosen for is clearing `tile`'s 800px target**, so a
+ * gallery placeholder carries every rung up to and including the one the grid
+ * and the lightbox actually use. Which rungs that is today - `thumb` at 400,
+ * ADR 0013's `grid` at 700, `tile` at 800 - is `collections/media.ts`'s to
+ * say, and the list grows with the ladder; the 800 is the number this
+ * constant has to stay above.
  */
 const GALLERY_FRAME_SIZE = { width: 900, height: 900 } as const
 
@@ -231,10 +249,18 @@ const upsertSlotMedia = async (
   // three pages rather than restarting at zero on each - without this update
   // a re-seeded store keeps the old, colliding numbers and its gallery is in
   // a different order from a freshly-seeded one's, which would make a visual
-  // baseline generated locally disagree with CI's. The FILE is not
-  // re-uploaded; only these two columns are written.
+  // baseline generated locally disagree with CI's. `state` joined them for
+  // the same reason and a sharper one: `apps/web/collections/media.ts` now
+  // withholds a row that is not `ready` from a signed-out reader, and every
+  // row an earlier seed wrote took the field's `processing` default - so
+  // without this a developer's existing store goes dark until they wipe it.
+  // The FILE is not re-uploaded; only these columns are written.
   if (found) {
-    const updated = await payload.update({ collection: 'media', id: found.id, data: { order, caption } })
+    const updated = await payload.update({
+      collection: 'media',
+      id: found.id,
+      data: { order, caption, state: 'ready' },
+    })
     return updated.id
   }
 
@@ -242,7 +268,7 @@ const upsertSlotMedia = async (
   const filename = `${label.toLowerCase().replace(/\s+/g, '-')}.png`
   const created = await payload.create({
     collection: 'media',
-    data: { journey: journeyNumericId, kind: 'still', caption, alt: label, order },
+    data: { journey: journeyNumericId, kind: 'still', caption, alt: label, order, state: 'ready' },
     file: { data: png, mimetype: 'image/png', name: filename, size: png.length },
   })
   return created.id
@@ -424,14 +450,14 @@ const upsertPortraitMedia = async (payload: Payload): Promise<Media['id']> => {
   // else to be written from, so an early return would leave a developer's
   // existing store centred for good.
   if (found) {
-    const updated = await payload.update({ collection: 'media', id: found.id, data: focal })
+    const updated = await payload.update({ collection: 'media', id: found.id, data: { ...focal, state: 'ready' } })
     return updated.id
   }
 
   const png = await renderPlaceholderPng(label, '#7d715c', { width: 700, height: 900 })
   const created = await payload.create({
     collection: 'media',
-    data: { kind: 'still', caption: aboutGlobalSeed.portraitCaption, alt: label, order: 0, ...focal },
+    data: { kind: 'still', caption: aboutGlobalSeed.portraitCaption, alt: label, order: 0, state: 'ready', ...focal },
     file: { data: png, mimetype: 'image/png', name: 'portrait.png', size: png.length },
   })
   return created.id

@@ -84,9 +84,22 @@
  * `vitest.config.ts`'s `integration` project (see its header): every
  * integration test file calls `apps/web/lib/testPayload.ts`'s
  * `getTestPayload()`, not `getPayload()` directly.
- * Depends on: vitest/config.
+ *
+ * IT IS DERIVED FROM THE ENVIRONMENT'S OWN `DATABASE_URL` RATHER THAN
+ * WRITTEN OUT HERE, and that is what the first CI run this repository ever
+ * had was about. This line used to read
+ * `postgres://diary:diary@localhost:5433/diary_test`; 5433 is one developer's
+ * Docker port mapping, CI's Postgres service listens on 5432, and CI's two
+ * jobs do not even agree on the host (`localhost` for `verify`, the service
+ * name `postgres` for the containerized `browser` job). Nothing was listening
+ * where this pointed, so Payload never initialised and every integration test
+ * file failed downstream. `apps/web/lib/testDatabaseUrl.ts` replaces the
+ * database NAME and keeps whatever else the environment said - see its header
+ * for why a list of known hosts would be the same defect with more branches.
+ * Depends on: vitest/config, ./apps/web/lib/testDatabaseUrl.
  */
 import { defineConfig } from 'vitest/config'
+import { testDatabaseUrl } from './apps/web/lib/testDatabaseUrl'
 
 export default defineConfig({
   test: {
@@ -99,12 +112,31 @@ export default defineConfig({
     ],
     exclude: ['**/node_modules/**'],
     env: {
-      DATABASE_URL: 'postgres://diary:diary@localhost:5433/diary_test',
+      DATABASE_URL: testDatabaseUrl(process.env.DATABASE_URL),
     },
+    // Runs ONCE, before the first file is collected, and stops the whole run
+    // if the server named above does not answer - see that file's header, and
+    // `apps/web/lib/testDatabaseGuard.ts`. Without it an unreachable Postgres
+    // is reported as one `Cannot read properties of undefined` per
+    // integration file (`getTestPayload()` caches a rejected promise and
+    // Vitest runs the cases anyway), which is what CI printed and why the
+    // wrong port above went two phases unnoticed.
+    globalSetup: ['./vitest.integration.globalSetup.ts'],
     // See vitest.config.ts's own header: these files share one live database,
     // and collections.integration.test.ts migrates the schema down and up as
     // part of its own test - concurrent files would race real DDL against
     // real reads/writes.
+    //
+    // IT ORDERS FILES WITHIN ONE RUN, AND GUARDS NOTHING BETWEEN TWO RUNS.
+    // `diary_test` is shared and nothing locks it, so a second integration
+    // run started while one is in flight corrupts both: two seeds each find
+    // no journeys and each create ten. The symptom is a DOUBLED COUNT rather
+    // than an error - `expected [ ... ] to have a length of 33 but got 66` -
+    // and the database settles afterwards, so a re-run passes and the suite
+    // reads as flaky. Measured in Phase 3 Task 10/11, where a background
+    // `verify:full` and a foreground `test:integration` overlapped. Do not
+    // run two of these at once; docs/testing/02-integration.md's Isolation
+    // bullet says the same where a developer meets the question.
     fileParallelism: false,
     coverage: {
       provider: 'v8',
@@ -115,7 +147,24 @@ export default defineConfig({
         'apps/web/lib/adapters/contract/queue-fixtures.ts',
         'apps/web/scripts/seed.ts',
         'apps/web/scripts/seed-data.ts',
+        // Phase 3 Task 10's re-derivation script, excluded from
+        // `vitest.config.ts`'s coverage include by exact path for the reason
+        // stated there - it needs a real Payload, a real Postgres and a real
+        // store - and gated here instead.
+        'apps/web/scripts/rederive-media.ts',
         'apps/web/lib/testPayload.ts',
+        // The reachability guard's `pg` binding. Included so that CLAUDE.md
+        // §2.1's "no file is in neither include" is satisfied by inclusion
+        // rather than by an argument - and then IGNORED inside the file
+        // itself, with the reason at the ignore: a `globalSetup` module runs
+        // in Vitest's main process, which the v8 provider does not
+        // instrument, so with this path included and no hint the run reported
+        // every line of a file that demonstrably executed as uncovered
+        // (`0 | 100 | 100 | 0 | 39-79`). See that file's header and
+        // docs/testing.md's Integration section; the decisions it could get
+        // wrong live in `apps/web/lib/testDatabaseGuard.ts`, gated at 100% by
+        // the Docker-free pass.
+        'vitest.integration.globalSetup.ts',
         'apps/web/lib/migrate.ts',
         'apps/web/lib/readBookBundle.ts',
         'apps/web/lib/readGalleryBundle.ts',
@@ -134,6 +183,43 @@ export default defineConfig({
         'apps/web/lib/auth/signInEndpoints.ts',
         'apps/web/lib/auth/resetRequestEndpoint.ts',
         'apps/web/lib/auth/readCodeScreen.ts',
+        // Phase 3 Task 6's MediaProcessor pipeline. Every one of these is
+        // reachable only from an `*.integration.test.ts` file - each imports
+        // `sharp`, which is a native module doing real I/O-shaped work, and
+        // the Docker-free `unit` project is pure by design - so they are
+        // excluded from `vitest.config.ts`'s coverage include by exact path
+        // and gated here instead, same reasoning as readBookBundle.ts above.
+        // `apps/web/lib/ports/mediaProcessor.ts` is NOT here: it is
+        // type-only, so it stays in the unit pass's measured set and prints
+        // 0% while contributing no counted lines, exactly like
+        // `apps/web/lib/ports/queue.ts`.
+        'apps/web/lib/media/stillPipeline.ts',
+        'apps/web/lib/media/clipToolchain.ts',
+        'apps/web/lib/media/services.ts',
+        'apps/web/lib/adapters/inline-media-processor.ts',
+        'apps/web/lib/adapters/worker-media-processor.ts',
+        'apps/web/lib/adapters/contract/media-processor-contract.ts',
+        'apps/web/lib/adapters/contract/media-fixtures.ts',
+        // Phase 3 Task 7's presigned-upload surface. Each is reachable only
+        // from an `*.integration.test.ts` file - `receiveLocalUpload.ts` and
+        // `localUploadEndpoint.ts` write real bytes through a real
+        // `StoragePort`, `uploadSlots.ts` binds a real `MediaProcessor` (and
+        // both adapters import `sharp`), and `testing/uploadProbes.ts` builds
+        // those temporary stores and rows in the test Payload - so they are
+        // excluded from
+        // `vitest.config.ts`'s coverage include by exact path and gated here
+        // instead, same reasoning as readBookBundle.ts above.
+        // `apps/web/lib/media/uploadToken.ts` and `uploadContract.ts` are NOT
+        // here: both are pure and stay in the Docker-free pass's measured set.
+        'apps/web/lib/media/receiveLocalUpload.ts',
+        'apps/web/lib/media/localUploadEndpoint.ts',
+        'apps/web/lib/media/uploadSlots.ts',
+        'apps/web/lib/media/testing/uploadProbes.ts',
+        // Phase 3 Task 8's ingest, excluded from `vitest.config.ts`'s coverage
+        // include by exact path for the reason stated there - a real Payload,
+        // a real store and the real Postgres queue - and gated here instead.
+        'apps/web/lib/media/ingestUpload.ts',
+        'apps/web/lib/media/testing/ingestProbes.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
         'apps/web/payload.config.ts',
@@ -351,20 +437,50 @@ export default defineConfig({
         // A stated shortfall is reviewable; an absent one is invisible.
         //
         // AND IT IS NOW STATED IN THE REGISTER OF DEPARTURES TOO, which it was
-        // not: `docs/deviations.md` §46 lists all SIX per-file branch gates in
-        // this config that sit under §2.1's 95% - these two, plus
-        // `readBookBundle.ts` at 83, `seed.ts` at 83, `postgres-queue.ts` at 75
-        // and `testPayload.ts` at 75, four of which predate this branch and
-        // none of which had an entry. Stating a shortfall only at the point of
-        // exclusion is stating it where somebody already looking will see it;
-        // §1.2 makes deviations.md the place somebody NOT already looking
-        // will.
+        // not: `docs/deviations.md` §46 is the register of every per-file gate
+        // in this config that sits under §2.1's 95% on ANY axis, these two
+        // included. **ITS TABLE IS THE COUNT AND THIS COMMENT QUOTES NO
+        // TOTAL** - it used to say "all SIX", and Phase 3 then added four more
+        // without touching the register, which is the same failure one phase
+        // later (whole-branch review F1). Adding a sub-95 threshold anywhere
+        // below means adding its §46 row in the same commit, and
+        // `apps/web/lib/docs/coverageThresholds.test.ts` fails the commit that
+        // does not. Stating a shortfall only at the point of exclusion is
+        // stating it where somebody already looking will see it; §1.2 makes
+        // deviations.md the place somebody NOT already looking will.
         'apps/web/lib/readGalleryBundle.ts': { lines: 100, branches: 78, functions: 100 },
         'apps/web/lib/readGalleryDownload.ts': { lines: 100, branches: 85, functions: 100 },
         'apps/web/lib/auth/readCodeScreen.ts': { lines: 100, branches: 100, functions: 100 },
         // seed-data.ts is a pure data literal - 100% by construction, every
         // call reads every field.
         'apps/web/scripts/seed-data.ts': { lines: 100, branches: 100, functions: 100 },
+        // The re-derivation script (Phase 3 Task 10). Every DECISION is a case,
+        // both ways: the completeness predicate (a row that needs a tier and a
+        // row that needs none), the missing-original report, the
+        // update-in-place, and - since MED-001's fix - a row narrower than
+        // `frame`'s configured width, which is the case that fails if the
+        // predicate goes back to comparing widths. What 100% branches would
+        // additionally demand is the null arm of three nullish-coalescing
+        // defaults - `sizes ?? {}`, `row.filename ?? ''` and
+        // `row.mimeType ?? ''` - each of which exists because Payload's
+        // GENERATED type makes the field optional while the query that
+        // produced the row does not. None has an organic trigger: an upload
+        // collection's rows carry a filename and a mime type. Reaching them
+        // would mean writing NULLs into `media` behind Payload's back to prove
+        // a type guard compiles, which is a fixture encoding a shape no client
+        // produces.
+        //
+        // **86, UP FROM THE 78.26 THIS LINE CARRIED FOR TWO TASKS, AND THE
+        // CHANGE IS REAL RATHER THAN ARITHMETIC.** MED-001's fix moved this
+        // file's ladder reader out to
+        // `apps/web/lib/media/derivativeGeometry.ts`, and replaced two `??`
+        // defaults on the row's dimensions with a GUARD whose both arms a case
+        // takes: a clip carries no width or height, so `isDerivable` would
+        // otherwise answer `true` for it - a `withoutEnlargement` tier is never
+        // omitted - and every clip would be re-uploaded on every deploy. The
+        // measured number is 86.95 (uncovered arms at lines 98, 170 and 190).
+        // Registered in `docs/deviations.md` §46.
+        'apps/web/scripts/rederive-media.ts': { lines: 100, branches: 86, functions: 100 },
         // seed.ts: 100% lines/functions. 83.72% branches is the real,
         // measured number: seed.integration.test.ts's own `beforeAll`
         // deletes the ten journeys (and the About portrait) first, so the
@@ -406,6 +522,128 @@ export default defineConfig({
         // proves the DROP paths - including add_jobs's hand-fixed statement
         // order - are actually executed rather than merely present.
         'apps/web/migrations/**/*.ts': { lines: 100, branches: 100, functions: 100 },
+        // Phase 3 Task 6's MediaProcessor pipeline. Every number below is the
+        // one the file ACTUALLY ACHIEVES on the authoring machine, measured
+        // from this pass's own report - never rounded up, and never rounded
+        // down to leave slack. Three of them are below the 95%
+        // `apps/web/lib/**` bar the unit pass enforces, and each says why at
+        // its own line rather than under one shared excuse.
+        //
+        // THE PIPELINE ITSELF IS AT 100%, WHICH IS WHERE IT BELONGS. The
+        // shared still pipeline, both adapters and the composition root are
+        // the code a bad edit publishes a home address through, and they are
+        // fully covered. The three that are not are the `ffmpeg` boundary and
+        // two test-support files.
+        'apps/web/lib/media/stillPipeline.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/adapters/inline-media-processor.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/adapters/worker-media-processor.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/media/services.ts': { lines: 100, branches: 100, functions: 100 },
+        // Phase 3 Task 7's presigned-upload surface, at the numbers each
+        // actually achieves - measured, not rounded up, and not negotiated
+        // down either. All four reach 100 across, and 100 is the honest number
+        // here rather than an optimistic one: none of these files has a branch
+        // whose outcome depends on the machine (no binary lookup, no clock
+        // beyond an injected one, no environment fork), which is what made
+        // `clipToolchain.ts`'s numbers below need slack and these not.
+        // The one uncoverable branch in the set - the branded-id refusal in
+        // `uploadProbes.ts`, which Payload's primary key can never trigger -
+        // carries a `c8 ignore next` with its reason at the line, rather than a
+        // threshold lowered to hide it.
+        'apps/web/lib/media/receiveLocalUpload.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/media/localUploadEndpoint.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/media/uploadSlots.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/media/testing/uploadProbes.ts': { lines: 100, branches: 100, functions: 100 },
+        // Phase 3 Task 8's ingest, at the same 100 across and for the same
+        // reason: neither file has a branch whose outcome depends on the
+        // machine. The genuinely unreachable arms in the pair - branded-id
+        // refusals Payload's primary key can never trigger, planner refusals a
+        // valid fixture can never provoke, and the `enqueue` failure that
+        // would need a stubbed port (CLAUDE.md §2.3) - each carry a
+        // `c8 ignore next` with its own reason at the line, rather than a
+        // threshold lowered to hide them.
+        'apps/web/lib/media/ingestUpload.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/media/testing/ingestProbes.ts': { lines: 100, branches: 100, functions: 100 },
+        // clipToolchain.ts: THIS FILE HAS TWO SETS OF UNREACHABLE CODE, ONE
+        // PER ENVIRONMENT, so every threshold below is the FLOOR of the two
+        // rather than either machine's own number. An earlier version gated
+        // it at the local numbers with a comment claiming "CI scores HIGHER
+        // than this", which is false in one axis and was never measured:
+        //
+        //   - Unreachable WITHOUT the binaries (this machine, and any
+        //     developer's): the SUCCESS arms of `createFfmpegToolchain` - a
+        //     duration parsed out of `ffprobe`'s stdout, a transcoded MP4, an
+        //     extracted poster frame - plus `run`'s two stream handlers,
+        //     which need a process that actually writes something. That is
+        //     UNRESOLVED and named as such in the module's own header; the
+        //     tool that settles it is `ffmpeg` itself, and nothing was routed
+        //     through an online transcoder to buy a green tick (CLAUDE.md
+        //     §7.1). Every FAILURE arm IS covered, by
+        //     `clipToolchain.integration.test.ts` pointing the toolchain at a
+        //     binary that does not exist - the same code path a real `ffmpeg`
+        //     failure in production takes.
+        //   - Unreachable WITH them (CI, which installs both and sets
+        //     MEDIA_REQUIRE_CLIP_TOOLCHAIN=1): FOUR FUNCTIONS - `recordedStandIn`
+        //     and its `probe`, `transcode` and `poster` closures - reachable
+        //     only from `chooseToolchain`'s stand-in branch, which cannot be
+        //     taken where the binaries answer `-version`. With them, and with
+        //     `clipEncoderCase`'s throw and `chooseToolchain`'s notice,
+        //     `functions` is 14 of 18 = 77.78% there against 100% here, so
+        //     `functions: 100` could only ever have passed on a machine
+        //     WITHOUT ffmpeg.
+        //
+        // Measured here: 93.42 lines, 78.79 branches, 100 functions.
+        // Derived for CI from the same coverage map, by counting the
+        // absent-only lines as uncovered and the present-only ones as
+        // covered: 80.92 lines, 81.82 branches, 77.78 functions.
+        //
+        // THE DERIVATION WAS TOO OPTIMISTIC, AND A CI RUN SAID SO. The first
+        // version of this gate took the floor of each pair rounded down -
+        // 80/75/77 - which left the line axis with under half a point of
+        // slack, i.e. none: 80% of 152 statements is 121.6, and the
+        // derivation counted 123. Run 34535670203 on this branch failed at
+        // `npm run verify:full` with no test-failure annotation of any kind
+        // (Vitest pushes the `github-actions` reporter whenever
+        // GITHUB_ACTIONS is set, so a failing test WOULD annotate), which
+        // leaves the threshold check as what failed. At least one statement
+        // this machine counted as CI-covered is not - `probe`'s
+        // "no usable duration" return is the likeliest, since a real clip has
+        // a duration and a sixteen-byte header fails the exit-code check
+        // first.
+        //
+        // So the numbers below are floors with real margin rather than
+        // rounded-down derivations, and they stay that way until the CI
+        // numbers can be READ. **UNRESOLVED, with the tool named:** the run
+        // log needs `gh` or a GitHub token with repository access, and this
+        // machine has neither (`/actions/jobs/<id>/logs` answers 403, "Must
+        // have admin rights to Repository"); installing `ffmpeg` locally
+        // would settle it the other way. Tighten these when either exists -
+        // do not tighten them by guessing again.
+        // Registered in `docs/deviations.md` §46, which is where a reader not
+        // already looking at this file finds it.
+        'apps/web/lib/media/clipToolchain.ts': { lines: 75, branches: 72, functions: 75 },
+        // media-fixtures.ts: the same two-environment shape, one axis over.
+        // `aGeneratedClip()` shells out to `ffmpeg` and cannot run here, so
+        // lines and functions are low here and near-total in CI (74.48 ->
+        // 99.31 lines, 91.67 -> 100 functions). BRANCHES GO THE OTHER WAY,
+        // which is why 95 was the wrong number to commit: with the binaries
+        // present, the `ftyp`-header fallback and the `generated ===
+        // undefined` arm are the two nobody takes, so 24 slots lose two
+        // rather than one - 91.67% against 95.83% here. 91 was that
+        // derivation rounded down, which is one branch slot of slack; for the
+        // reason given above it is 87 instead, and the same UNRESOLVED
+        // applies to tightening it.
+        // Registered in `docs/deviations.md` §46.
+        'apps/web/lib/adapters/contract/media-fixtures.ts': { lines: 73, branches: 87, functions: 90 },
+        // media-processor-contract.ts: every LINE runs, twice - once per
+        // adapter, which is the exit criterion demonstrating itself. The
+        // branch number is low because the suite is written defensively:
+        // `processed.ok ? processed.value.kind : null` has a null arm that is
+        // only taken when the pipeline has already failed, so a passing suite
+        // by definition never takes it. Rewriting those into non-null
+        // assertions would raise this number and violate CLAUDE.md §3.1,
+        // which is the wrong trade.
+        // Registered in `docs/deviations.md` §46.
+        'apps/web/lib/adapters/contract/media-processor-contract.ts': { lines: 100, branches: 56, functions: 100 },
       },
     },
   },

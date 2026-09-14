@@ -47,6 +47,17 @@
  * writes uploads to, so the two cannot disagree about where the store is -
  * the disagreement that made every seeded photograph answer 500 in Task 10.
  *
+ * THE CACHE POLICY IS DECIDED HERE, NOT IN THE ROUTE, and it is the half of
+ * `site.passwordProtect` this module owns. A `public` response is cacheable by
+ * any proxy between us and the reader, so it would OUTLIVE a gate: the moment
+ * the setting is on, a derivative served from a shared cache is one nothing
+ * asked permission for. `downloadCacheControl` turns the flag into the header
+ * (`@travel-diary/domain/galleryDownload`), and this module is the reader of
+ * the flag that the route's own comment said for two phases did not exist.
+ * **What this does NOT do is refuse the request.** Nothing here returns `err`
+ * for a gated book; the request-level gate in front of the diary is still
+ * ahead, and this header is what stops a cache from undoing it when it lands.
+ *
  * THE FILENAME IS DERIVED, NOT STORED. `downloadFilename` builds it from the
  * journey's slug and the frame's number in the gallery, so a download never
  * leaks the store's own key naming back to the reader. That is why this
@@ -59,7 +70,7 @@
  * (@travel-diary/domain/galleryDownload), Result (@travel-diary/domain/result).
  */
 import type { DownloadableContentType } from '@travel-diary/domain/galleryDownload'
-import { downloadContentType, downloadFilename } from '@travel-diary/domain/galleryDownload'
+import { downloadCacheControl, downloadContentType, downloadFilename } from '@travel-diary/domain/galleryDownload'
 import type { Result } from '@travel-diary/domain/result'
 import { err, ok } from '@travel-diary/domain/result'
 import { MEDIA_DIR } from '../collections/media'
@@ -75,6 +86,17 @@ export interface Attachment {
   readonly contentType: DownloadableContentType
   /** The name the browser saves the file under, derived rather than stored. */
   readonly filename: string
+  /**
+   * The `Cache-Control` the route sends, decided by
+   * `downloadCacheControl` from whether the book is gated.
+   *
+   * It is on the ATTACHMENT rather than in the route because a Next.js route
+   * handler cannot be run without a request context, which is the same split
+   * this module's header argues for the four checks above - and a header is
+   * exactly the thing a unit test can be right about while the route is wrong,
+   * so `e2e/gallery.spec.ts` asserts the one the route actually sends.
+   */
+  readonly cacheControl: string
 }
 
 /**
@@ -82,8 +104,22 @@ export interface Attachment {
  * excluded deliberately: at 4000px it is the tier the book uses to fill a 4K
  * display, and a download button is not a request for the largest file that
  * exists. The original is not in this list at all, and must never be.
+ *
+ * EVERY TIER IN THIS LIST IS UNCROPPED, WHICH IS WHAT A DOWNLOAD IS FOR. It
+ * used to continue `'tile', 'grid', 'thumb'` - all three square - so that a
+ * row which could derive no further was still downloadable at the best size
+ * it had. What it was actually downloadable as was a CENTRE CROP: no
+ * uncropped tier was derivable below 1400px, so a 1200x900 photograph
+ * arrived as 800x800 (MED-001,
+ * `docs/qa/2026-09-08-media-pipeline-sweep.md`). A reader's copy of a
+ * photograph that is missing a fifth of the photograph is not a smaller
+ * copy, it is a different picture. `frame` now carries
+ * `withoutEnlargement: true` in `apps/web/collections/media.ts` and every
+ * raster original yields it, so the small-tier fallback bought nothing and
+ * cost the frame; `apps/web/lib/media/derivativeGeometry.test.ts` refuses
+ * any tier the collection crops from re-entering this list.
  */
-const DOWNLOAD_TIERS = ['hero', 'frame', 'tile', 'thumb'] as const
+const DOWNLOAD_TIERS = ['hero', 'frame'] as const
 
 /** One 404 for every refusal - see this module's header. */
 const NOT_AVAILABLE = 'no downloadable frame at that address'
@@ -171,9 +207,18 @@ export const readGalleryDownload = async (
   const bytes = await mediaStore.get(storageKey)
   if (!bytes.ok) return err(NOT_AVAILABLE)
 
+  // ONE MORE GLOBAL READ, `select`ed to the single field (CLAUDE.md §7:
+  // select only what is needed, and set `depth` explicitly). It is read here
+  // rather than in the route because a route handler cannot be tested without
+  // a request context - the same split this module's header already argues
+  // for the other four checks. LAST, after every refusal has been answered, so
+  // a 404 pays nothing for a header it will never send.
+  const site = await payload.findGlobal({ slug: 'site', depth: 0, select: { passwordProtect: true } })
+
   return ok({
     bytes: bytes.value,
     contentType: contentType.value,
     filename: downloadFilename(journey.slug, index, frames.docs.length, contentType.value),
+    cacheControl: downloadCacheControl({ gated: site.passwordProtect === true }),
   })
 }

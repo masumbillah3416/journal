@@ -176,4 +176,121 @@ describe('seed', () => {
     },
     SEED_TEST_TIMEOUT_MS,
   )
+
+  it(
+    'marks every media row it writes ready, which is what keeps the public diary lit',
+    async () => {
+      // ═══ THE HIGHEST-CONSEQUENCE LINE IN `seed.ts`, AND IT HAD NO CASE ═══
+      //
+      // `media.state` defaults to `processing`, and both
+      // `collections/media.ts`'s reader rule and `lib/galleryFrames.ts`
+      // withhold a row that is not `ready` from an unauthenticated reader -
+      // the file route, the gallery grid, the census and the download handler.
+      // A seed that omitted `state` would write ten journeys of photographs
+      // that no signed-out reader can see, and every Vitest project would stay
+      // green: the bundle readers are asserted against here with access
+      // overridden. What would break is the running site.
+      //
+      // Counted rather than sampled, and asserted as a MAP so a failure names
+      // the state it found rather than a boolean.
+      await seed(payload)
+
+      const media = await payload.find({ collection: 'media', limit: 500, depth: 0, select: { state: true } })
+      const byState = media.docs.reduce<Record<string, number>>(
+        (counted, row) => ({ ...counted, [String(row.state)]: (counted[String(row.state)] ?? 0) + 1 }),
+        {},
+      )
+      expect({ states: Object.keys(byState).sort(), anyRowsAtAll: media.totalDocs > 0 }).toEqual({
+        states: ['ready'],
+        anyRowsAtAll: true,
+      })
+    },
+    SEED_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'writes a media row it has to CREATE as ready, not only one it updates',
+    async () => {
+      // THE CREATE PATH, PINNED ON ITS OWN. The case above cannot pin it: by
+      // the time it runs, every row exists, so `seed` takes the update path for
+      // all of them and a create that had lost `state` would still be repaired
+      // before the assertion looked. Watched - removing `state` from both
+      // creates leaves that case green and this one red.
+      //
+      // ═══ WHY IT BORROWS A SEEDED ROW RATHER THAN MAKING ITS OWN ═══
+      //
+      // The create path is `upsertSlotMedia`, which is not exported and is
+      // keyed by (journey, alt). A row this case invented would be a row `seed`
+      // never looks at, so `seed` would take no path at all over it. The only
+      // way to make `seed` CREATE is to remove something `seed` owns.
+      //
+      // SO IT PUTS IT BACK, AND THE RESTORATION IS ASSERTED RATHER THAN
+      // ASSUMED. The second `seed` call is both the act and the teardown: it
+      // remakes the row, renumbers nothing else, and rewrites the page slots
+      // that named the old id (`upsertJourneyPage` writes `slots` in full). The
+      // count assertion is what makes this case safe to MOVE - it was
+      // previously safe only because it sat second-to-last with a re-seed after
+      // it, which is a shared mutable fixture held together by ordering
+      // (CLAUDE.md §2.3, Task 8 round 3 item 3). It now leaves the store as it
+      // found it, and fails if it does not.
+      await seed(payload)
+      const before = await payload.count({ collection: 'media' })
+      const existing = await payload.find({
+        collection: 'media',
+        limit: 1,
+        depth: 0,
+        where: { journey: { exists: true } },
+        select: { alt: true },
+      })
+      const borrowed = existing.docs[0]
+      if (borrowed === undefined) throw new Error('the seed wrote no journey media to remove and remake')
+      const label = borrowed.alt ?? ''
+      await payload.delete({ collection: 'media', id: borrowed.id })
+
+      await seed(payload)
+
+      const remade = await payload.find({
+        collection: 'media',
+        limit: 1,
+        depth: 0,
+        where: { alt: { equals: label } },
+        select: { state: true },
+      })
+      const after = await payload.count({ collection: 'media' })
+      expect({
+        found: remade.totalDocs,
+        state: remade.docs[0]?.state,
+        storeRestored: after.totalDocs === before.totalDocs,
+      }).toEqual({ found: 1, state: 'ready', storeRestored: true })
+    },
+    SEED_TEST_TIMEOUT_MS,
+  )
+
+  it(
+    'returns a media row to ready on a re-seed, so an existing store is repaired rather than needing a wipe',
+    async () => {
+      // THE UPDATE PATH, which is the half a reader would most plausibly delete
+      // as a redundant write ("create already sets it"). Every row an earlier
+      // seed wrote took the `processing` default, and `upsertSlotMedia` returns
+      // early for a row that exists - so without `state` on that update, a
+      // developer's store stays dark through any number of re-seeds. Forcing a
+      // row back to `processing` is exactly the state such a store is in.
+      await seed(payload)
+      const before = await payload.find({ collection: 'media', limit: 1, depth: 0 })
+      const victim = before.docs[0]
+      if (victim === undefined) throw new Error('the seed wrote no media to force back to processing')
+      await payload.update({ collection: 'media', id: victim.id, data: { state: 'processing' } })
+
+      await seed(payload)
+
+      const after = await payload.findByID({
+        collection: 'media',
+        id: victim.id,
+        depth: 0,
+        select: { state: true },
+      })
+      expect(after.state).toBe('ready')
+    },
+    SEED_TEST_TIMEOUT_MS,
+  )
 })

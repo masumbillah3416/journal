@@ -1,0 +1,285 @@
+/**
+ * media/uploadSlot — what a request for upload slots may ask for, and the
+ * staging key each accepted file is offered.
+ *
+ * Step 0 of `SECURITY.md`'s upload order: it runs before a single byte has
+ * been offered anywhere, because the whole point of a presigned upload is that
+ * the bytes never pass through the app (spec §9.1: Vercel caps a request body
+ * at ~4.5MB, and a 25MB photograph is larger than that). So the only things
+ * this module can see are what the client SAID — a name, a type and a length —
+ * and the only thing it decides is whether to offer a place to put them.
+ *
+ * ═══ PATTERN (CLAUDE.md §3.3) ═══
+ *
+ * Result type. A refusal is a value the caller has to unwrap, and it carries
+ * WHICH refusal, because an admin told "too many files" and an admin told
+ * "that file is too big" have different things to do next.
+ *
+ * ═══ WHAT THIS DISCHARGES, AND WHAT IT DELIBERATELY DOES NOT ═══
+ *
+ * `SECURITY.md`, "Cap file size and the per-request file count; reject
+ * archives". The two caps are {@link MAX_UPLOAD_BYTES} and
+ * {@link MAX_FILES_PER_REQUEST} and they are enforced here. Archives are NOT
+ * rejected here and cannot be: a `.zip` renamed `tokyo.jpg` and declared
+ * `image/jpeg` is indistinguishable from a photograph until somebody reads the
+ * bytes, which is `sniffMediaType`'s job at ingest. What this module refuses is
+ * a request that has not even claimed to be a photograph.
+ *
+ * ═══ INVARIANTS A FUTURE EDIT COULD BREAK ═══
+ *
+ *   - **THE PLAN IS ONLY WHAT THE CLIENT WAS TOLD.** `byteLength` is a number
+ *     the client typed; nothing here has weighed anything. The cap is enforced
+ *     AGAIN at the receiver, against the bytes that actually arrive
+ *     (`apps/web/lib/media/receiveLocalUpload.ts`). Deleting either enforcement
+ *     leaves a cap a client sets for itself.
+ *   - **The whole request is refused when one file fails.** A caller handed
+ *     three slots for four files would upload three and never learn which one
+ *     it lost, so there is no partial success to mishandle.
+ *   - **`acceptedTypes` is the bound processor's own list**, passed in rather
+ *     than written here. ADR 0004 requires enabling clips to be one
+ *     configuration change; a second list in this module would be a second
+ *     place for that change to be forgotten.
+ *   - **The journey segment of the key is the id, unsanitised.** A `JourneyId`
+ *     is branded but its constructor only refuses the empty string, so a key
+ *     built from a hostile one could in principle carry a `..`. That is refused
+ *     at the PORT — `validateStorageKey` in `apps/web/lib/ports/storage.ts`
+ *     rejects it for every adapter, including the R2 one that has no filesystem
+ *     to protect — rather than silently rewritten here into a key naming a
+ *     different journey than the caller asked for.
+ *   - **`nonce` is injected, never reached for.** A key built from
+ *     `randomUUID()` inside pure logic is a key no test can assert, exactly as
+ *     a clock read inside logic is (CLAUDE.md §2.3). The caller in
+ *     `apps/web/app/(admin)/admin/media/actions.ts` passes `() => randomUUID()`.
+ *
+ * Depends on: Result, err and ok from ../result; JourneyId from ../ids.
+ */
+import type { JourneyId } from '../ids'
+import type { Result } from '../result'
+import { err, ok } from '../result'
+
+/**
+ * The most bytes one uploaded file may carry — 50MiB.
+ *
+ * Chosen against the thing being uploaded rather than against a round number:
+ * a 45-megapixel full-frame raw-to-JPEG export lands around 25MB, and 50MiB
+ * leaves room for a burst-mode original without leaving room for a video file
+ * smuggled in under a still's declared type.
+ */
+export const MAX_UPLOAD_BYTES = 52_428_800
+
+/**
+ * The most files one slot request may ask for.
+ *
+ * A day's shooting arrives in tens, not thousands. Twenty is a comfortable
+ * drag-and-drop batch and a hard ceiling on how much staging space one
+ * unattended request can claim.
+ */
+export const MAX_FILES_PER_REQUEST = 20
+
+/**
+ * How long an offered upload URL stays usable — fifteen minutes.
+ *
+ * Long enough for twenty files over a hotel connection, short enough that a URL
+ * copied out of a log or a browser history is dead by the time it is read. The
+ * URL is a capability over one key; see `apps/web/lib/media/uploadToken.ts`.
+ */
+export const UPLOAD_URL_TTL_SECONDS = 900
+
+/** Why a slot request was refused. One name per reason; see the order below. */
+export type SlotRefusal = 'empty-request' | 'too-many-files' | 'too-large' | 'type-not-offered' | 'unnamed-file'
+
+/** One file a client has asked for somewhere to put. Every field is its claim. */
+export interface RequestedUpload {
+  /** What the client called the file. Never used to decide what it IS. */
+  readonly filename: string
+  /** What the client called its type. Never used to decide what it IS. */
+  readonly declaredType: string
+  /** How big the client says it is. Weighed again at the receiver. */
+  readonly byteLength: number
+}
+
+/** One accepted file's place to put itself. */
+export interface UploadSlotPlan {
+  /** The key the bytes are staged under, keyed by journey (CLAUDE.md §7). */
+  readonly stagingKey: string
+  /** The type the offered URL will accept, echoed back from the request. */
+  readonly declaredType: string
+  /** The name the client sent, unaltered, so the admin sees what it uploaded. */
+  readonly filename: string
+}
+
+/**
+ * The first segment of every staging key this module mints.
+ *
+ * Named once and read by both the minting and the checking below, because
+ * those two drifting apart is the whole failure this constant exists to
+ * prevent: a checker that spelled the namespace itself would keep passing a
+ * key the planner had stopped producing.
+ */
+const STAGING_PREFIX = 'staging'
+
+/**
+ * What a single segment of a minted key may hold: {@link keyNameFor}'s own
+ * output, which is also the shape of every Payload row id a journey is keyed
+ * by. Leading character separate from the rest so a segment cannot be `.` or
+ * `..`, and neither slash is in the class, so a segment cannot be a separator
+ * smuggled through as text.
+ */
+const MINTED_SEGMENT = '[a-z0-9][a-z0-9.-]*'
+
+/**
+ * The shape of a key {@link planUploadSlots} mints: the namespace, the journey
+ * it is keyed by, and one sanitised tail.
+ *
+ * ═══ BOTH SEGMENTS ARE CONSTRAINED, AND THE JOURNEY ONE WAS NOT ═══
+ *
+ * The journey capture used to be `[^/]+`, which admits `..` and a backslash.
+ * A client sending the SAME traversal in both `stagingKey` and `journey` —
+ * which is all this predicate compares — was therefore answered `true` for
+ * `staging/7\..\../live.jpg`, and `path.win32.resolve` puts that at the
+ * store's own root, where Payload keeps every stored file. `validateStorageKey`
+ * at the port refused it, so there was never a live hole; the defence was just
+ * not the one this paragraph claimed (Task 8 fix review, N2). Both segments now
+ * use {@link MINTED_SEGMENT}, so the guarantee below is the regex's own.
+ *
+ * A key that matches this names one file inside one journey's staging
+ * directory: no segment is `.` or `..`, no segment holds a separator of either
+ * slash, and there are exactly three of them.
+ */
+const STAGED_KEY = new RegExp(`^${STAGING_PREFIX}/(${MINTED_SEGMENT})/(${MINTED_SEGMENT})$`)
+
+/** Characters a storage key segment may hold. Everything else becomes a hyphen. */
+const UNSAFE_IN_KEY = /[^a-z0-9]+/g
+
+/** Trims the hyphens sanitising leaves at either end of a segment. */
+const EDGE_HYPHENS = /^-+|-+$/g
+
+/**
+ * Reduces one filename part to the characters a storage key may hold.
+ * @param part - A filename's base or extension, in any case.
+ * @returns Lowercased, with every run of unsafe characters collapsed to a
+ *   single hyphen and the edges trimmed. May be empty.
+ */
+const sanitiseKeyPart = (part: string): string =>
+  part.toLowerCase().replace(UNSAFE_IN_KEY, '-').replace(EDGE_HYPHENS, '')
+
+/**
+ * Reduces a client's filename to the tail of a storage key.
+ * @param filename - Exactly what the client called the file.
+ * @returns The sanitised name, or an empty string when nothing usable is left —
+ *   which is refused rather than replaced with an invented name.
+ */
+const keyNameFor = (filename: string): string => {
+  const lastDot = filename.lastIndexOf('.')
+  // A leading dot is not an extension separator: `.profile` is a name, not an
+  // empty name with a `profile` extension.
+  const hasExtension = lastDot > 0
+  const base = sanitiseKeyPart(hasExtension ? filename.slice(0, lastDot) : filename)
+  const extension = hasExtension ? sanitiseKeyPart(filename.slice(lastDot + 1)) : ''
+
+  if (base.length === 0) return ''
+  return extension.length === 0 ? base : `${base}.${extension}`
+}
+
+/**
+ * Decides whether one requested file may be offered a slot at all.
+ *
+ * The order is size, then type, then name, and it is the order the admin is
+ * best served by: a file that is too big is too big whatever it is called, and
+ * a type nobody offers cannot be fixed by renaming it.
+ * @param file - What the client claimed about one file.
+ * @param acceptedTypes - The bound processor's own accepted list.
+ * @returns The refusal to answer the whole request with, or `undefined` when
+ *   the file may have a slot.
+ */
+const refusalFor = (file: RequestedUpload, acceptedTypes: readonly string[]): SlotRefusal | undefined => {
+  if (file.byteLength <= 0 || file.byteLength > MAX_UPLOAD_BYTES) return 'too-large'
+  if (!acceptedTypes.includes(file.declaredType)) return 'type-not-offered'
+  if (keyNameFor(file.filename).length === 0) return 'unnamed-file'
+  return undefined
+}
+
+/**
+ * Plans where each file in one upload request would be staged, or refuses the
+ * whole request.
+ *
+ * @param request - The files claimed, the types the bound processor accepts,
+ *   the journey everything is keyed by, and the nonce source each key's unique
+ *   prefix comes from.
+ * @returns `ok` with one plan per file, in the order they were asked for, or
+ *   `err` naming the first refusal found. Never partially succeeds.
+ * @example
+ * planUploadSlots({
+ *   files: [{ filename: 'tokyo.jpg', declaredType: 'image/jpeg', byteLength: 2_000_000 }],
+ *   acceptedTypes: ['image/jpeg', 'image/png'],
+ *   journey,
+ *   nonce: () => randomUUID(),
+ * })
+ */
+export const planUploadSlots = (request: {
+  readonly files: readonly RequestedUpload[]
+  readonly acceptedTypes: readonly string[]
+  readonly journey: JourneyId
+  readonly nonce: (index: number) => string
+}): Result<readonly UploadSlotPlan[], SlotRefusal> => {
+  if (request.files.length === 0) return err('empty-request')
+  if (request.files.length > MAX_FILES_PER_REQUEST) return err('too-many-files')
+
+  const plans: UploadSlotPlan[] = []
+  for (const [index, file] of request.files.entries()) {
+    const refusal = refusalFor(file, request.acceptedTypes)
+    if (refusal !== undefined) return err(refusal)
+
+    plans.push({
+      stagingKey: `${STAGING_PREFIX}/${request.journey}/${request.nonce(index)}-${keyNameFor(file.filename)}`,
+      declaredType: file.declaredType,
+      filename: file.filename,
+    })
+  }
+
+  return ok(plans)
+}
+
+/**
+ * Whether `key` is one this module would have minted for `journey`.
+ *
+ * ═══ WHY INGEST CANNOT MAKE DO WITH `validateStorageKey` ═══
+ *
+ * That function answers "is this a well-formed key?" — it refuses traversal
+ * and absolute paths and says nothing about WHICH key. Ingest reads the named
+ * object and then deletes it, and the production store is rooted at
+ * `MEDIA_DIR`, the same directory Payload writes every stored file and
+ * derivative into. So a well-formed key naming a live photograph is a
+ * well-formed key, and finalising it would destroy the photograph and answer
+ * `duplicate` — a success-shaped answer over a deletion. The question ingest
+ * has to ask is the narrower one this function answers.
+ *
+ * It is written as a match against the minted shape rather than a list of
+ * things to refuse: a checker that enumerated bad keys would pass the one
+ * nobody listed (`eslint-rules/guarded-server-actions.js` is this
+ * repository's worked example of the same inversion).
+ *
+ * **IT IS NOT THE ONLY LAYER, AND IT IS NOT THE TRAVERSAL ONE.**
+ * `validateStorageKey` in `apps/web/lib/ports/storage.ts` refuses traversal
+ * and absolute paths at the port, for every caller and every adapter. This
+ * answers the narrower question the port cannot: whether the key is one WE
+ * minted, for THIS journey. Both are needed and neither substitutes for the
+ * other — a stored photograph's own key passes the port's question, and the
+ * port's question is the one that holds for callers that never reach here.
+ *
+ * **THE JOURNEY IS PART OF THE ANSWER, not a separate check.** A key minted
+ * for journey A is not a staging key for journey B, or the two fields of one
+ * finalise request could disagree and file A's bytes under B — the defect
+ * family `CLAUDE.md` §7 exists for.
+ * @param candidate - The key a client sent, and the journey it claims to
+ *   belong to.
+ * @returns True only for a key of the shape {@link planUploadSlots} mints,
+ *   under that journey.
+ * @example
+ * isStagingKeyFor({ key: 'staging/4/ab-tokyo.jpg', journey }) // true for journey '4'
+ * isStagingKeyFor({ key: 'tokyo-9.jpg', journey }) // false: a stored file, not a staged one
+ */
+export const isStagingKeyFor = (candidate: { readonly key: string; readonly journey: JourneyId }): boolean => {
+  const matched = STAGED_KEY.exec(candidate.key)
+  return matched !== null && matched[1] === candidate.journey
+}

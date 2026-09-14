@@ -39,7 +39,7 @@
  * the failure mode this repository has now watched five times. It resolves if
  * the token appears anywhere in this repository's own source.
  *
- * ═══ WHAT IS EXCLUDED, AND WHY THAT IS NOT A HOLE ═══
+ * ═══ WHAT IS EXCLUDED, WHY, AND THE ONE HOLE IT LEAVES ═══
  *
  * `docs/qa/**` and `docs/superpowers/**` are dated records — sweep reports,
  * plans, specs — of what was true on the day they were written. A file one of
@@ -48,6 +48,16 @@
  * to edit the record. `handoff/**` is the specification of record and is not
  * ours to correct. {@link livingDocuments} is what remains: everything that
  * claims to describe the tree as it is.
+ *
+ * THE HOLE, NAMED RATHER THAN ASSERTED AWAY (Phase 3 Task 13). A sweep report
+ * is a LIVE document on the day it is written, and for that day nothing checks
+ * its citations — Task 13's had to be resolved by hand. Adding `docs/qa/**`
+ * here is the wrong fix and that is a decision: this corpus is fail-closed
+ * over every file in it, so one historical report naming a since-renamed file
+ * would go red, and the only ways to green it are editing the record or an
+ * exemption list that becomes a second record. What would close it honestly is
+ * a write-time check over the NEWEST report alone. It does not exist.
+ * `docs/testing.md` §10.2 carries the reasoning.
  *
  * ═══ THE TWO EXEMPTION LISTS ═══
  *
@@ -163,10 +173,6 @@ const PATHS_THAT_NAME_NO_FILE: readonly { readonly citation: string; readonly wh
     why: 'the same unwritten file, named by docs/security.md at full path',
   },
   {
-    citation: 'apps/web/lib/journeys/actions.ts',
-    why: 'a probe written to disk to attack the Server Action guard and deleted again; both citations frame it as one',
-  },
-  {
     citation: 'apps/web/scripts/emit-actions.ts',
     why: 'a probe written to disk and deleted, framed as one where it is cited',
   },
@@ -181,10 +187,6 @@ const PATHS_THAT_NAME_NO_FILE: readonly { readonly citation: string; readonly wh
   {
     citation: 'proxy.ts',
     why: 'a Next.js file-convention name used generically in ADR 0018 — the convention Next renames `middleware.ts` to, not a file in this tree',
-  },
-  {
-    citation: 'actions.ts',
-    why: 'a file-convention name used generically in ADR 0018 for "a module a Server Action might live in"',
   },
   {
     citation: 'actions.cjs',
@@ -239,10 +241,6 @@ const IDENTIFIERS_THAT_NAME_NOTHING_HERE: readonly { readonly citation: string; 
     why: "a Payload collection-hook name, named by the runbook as where Phase 3's deletion belongs",
   },
   { citation: '_rsc', why: 'the query parameter Next appends to a prefetch, named by ADR 0014' },
-  {
-    citation: 'MediaProcessor',
-    why: 'the media pipeline is deferred; ADR 0004 states in its own words that nothing in it is built, and four documents agree',
-  },
   {
     citation: 'pgQueue',
     why: "the deferred queue adapter's name in architecture.md's diagram; no clips exist to enqueue",

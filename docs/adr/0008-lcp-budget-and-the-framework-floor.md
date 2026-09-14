@@ -1,6 +1,13 @@
 # 0008 — The LCP budget and the framework's floor beneath it
 
-**Status: DECIDED, 2026-09-02.** The repository owner chose **Option 1** (§"Options"
+**Status: DECIDED, 2026-09-02, and AMENDED IN ITS NUMBER on 2026-09-14 — the gate is
+`3085` today, not the `3000` this document states throughout.** The amendment is the
+final section of this file and is the current state; everything before it is left as it
+was written, because it recorded a decision that was correct on the evidence of its own
+day and on the machine that evidence came from. **The old 3,000 was not simply wrong** —
+see that section.
+
+The repository owner chose **Option 1** (§"Options"
 below): accept a higher budget for this specific simulation, set from the measured
 floor rather than from intuition. This was the owner's call, not a task's — the
 measurement and the four options were produced by the investigation below and reported
@@ -357,3 +364,158 @@ weakened. A red gate that is understood is worth more than a green one that was 
   the old 2,500ms one. 3,000 was chosen, in part, because it does not launder that
   regression; see "Status" above for why it was not cheap to re-demonstrate live and
   what stands in for that demonstration instead.
+
+---
+
+## Owner ruling, 2026-09-14: 3,000 → 3,085ms, derived from ten CI medians
+
+**The repository owner ruled on this on 2026-09-14, after being shown the measurements
+below.** `docs/testing/07-performance.md` §7.0.1's standing recommendation — "amend ADR
+0008 to a measured number with headroom rather than chase 25ms, and never move the
+ceiling merely to make a red run green" — was put to the owner with the numbers, and the
+owner took it. A human made this call, on evidence collected over weeks while the gate
+stayed red; nothing here is an agent moving a threshold it found inconvenient. The gate
+was left failing on purpose until there was something to derive a number _from_.
+
+### THE OLD 3,000 WAS NOT WRONG, AND THAT IS THE POINT OF THIS AMENDMENT
+
+3,000 was set from a measured framework floor (2,023.2ms for one styled heading with no
+application code) on one machine, and ADR 0014 later pinned the two viewports it is
+measured at. **It still passes on that machine.** Re-measured on the authoring host on
+2026-09-14, `apps/web/.next` deleted first, same method as §"THE METHOD" above:
+
+```
+/p/1, mobile surface: 2924.108 2924.988 2925.343 2929.110 2930.506   median 2925.343
+```
+
+75ms of margin against the old 3,000, on the host the number was characterised on. What
+changed is not the application and not the budget's reasoning — it is that the gate is
+now also asserted on a second machine, a shared GitHub-hosted runner inside
+`mcr.microsoft.com/playwright:v1.62.1-noble`, which is marginally slower. **A budget
+characterised on one machine and enforced on two is the defect being corrected, not a
+budget that was too generous.**
+
+**The three admin routes are what make that reading the honest one rather than a
+convenient one.** `/admin/sign-in`, `/admin/sign-in/code` and `/admin/reset` were
+untouched by Phase 3 — thirty-one commits of upload pipeline — and they sit over the
+3,000ms line by the same 16–26ms that `/p/1` does. A regression in the media pipeline
+cannot move three auth screens. What can is the machine underneath all five.
+
+### The ten measurements, and what they are
+
+Every gated LCP URL, `largest-contentful-paint` **medians of five**, from two CI runs on
+two different trees (`90fbbef` and `fba3cf3`), read off the runs' own annotations —
+`docs/testing/07-performance.md` §7.0.1 records them per URL and per run:
+
+```
+3004.981  3011.746  3016.373  3020.813  3021.203
+3021.513  3023.693  3026.088  3031.788  3045.037
+```
+
+| statistic                       | value        |
+| ------------------------------- | ------------ |
+| n                               | 10           |
+| minimum                         | 3004.981     |
+| maximum (worst observed median) | **3045.037** |
+| spread (max − min)              | **40.056**   |
+| mean                            | 3022.323     |
+| sample standard deviation       | 10.923       |
+| worst SINGLE run observed       | 3062.276     |
+
+### The derivation, and why not a round number
+
+The gate asserts a **median of five**, so the population it must clear is the ten medians
+— not the single runs. Two bounds, and the number sits between them:
+
+**Lower bound — what it must pass.** The worst median yet observed is 3045.037. A gate
+there would go red on the next run that lands 1ms higher. The allowance is **one full
+observed spread of the ten medians**:
+
+```
+3045.037  worst observed median
++  40.056  the spread of the ten medians (max - min)
+=  3085.093  ->  3085
+```
+
+**WHAT 40.056 IS, STATED PRECISELY, BECAUSE THE FIRST VERSION OF THIS PARAGRAPH CALLED IT
+SOMETHING IT IS NOT.** It said the spread was "the only measurement of run-to-run
+variation this environment has offered". It is not run-to-run variation at all: it is
+`max − min` across **five different URLs** × two runs, and it is dominated by the gap
+BETWEEN routes — `/p/1` mobile sits at 3005–3012 while `/p/1` book sits at 3032–3045, a
+~30ms difference that is a property of two routes rather than of the runner. The number
+is unchanged and the gate does not move; what was wrong was the method, and a method is
+the part of a derivation a future reader copies.
+
+**The run-to-run variation is recoverable from the same data, and it is what makes 40.056
+conservative.** Pair `docs/testing/07-performance.md` §7.0.1's table by URL (the run on
+`fba3cf3` minus the run on `90fbbef`) and the differences are per-URL, run against run:
+
+| URL                   | `90fbbef` | `fba3cf3` | difference |
+| --------------------- | --------- | --------- | ---------- |
+| `/admin/reset`        | 3026.1    | 3020.8    | −5.3       |
+| `/admin/sign-in/code` | 3021.2    | 3016.4    | −4.8       |
+| `/admin/sign-in`      | 3021.5    | 3023.7    | +2.2       |
+| `/p/1` (book)         | 3031.8    | 3045.0    | **+13.2**  |
+| `/p/1` (mobile)       | 3005.0    | 3011.7    | +6.7       |
+
+**Largest observed run-to-run swing of a median-of-five: 13.2ms. Standard deviation of
+the paired differences: ≈7.9ms.** So the 40.056ms allowance is **3.0× the largest swing
+this environment has shown and ≈5.1σ** — which is the sentence that justifies it. Read
+correctly it is a conservative allowance that happens to be a between-URL spread; read as
+the first version wrote it, somebody amending this gate later from a SINGLE-URL dataset
+would compute a "spread" of about 13ms, set 3,058, and believe they had followed this
+ADR — a gate sitting inside the noise, which is the outcome the next paragraph explicitly
+rejects when it declines `mean + 3σ`.
+
+**n = 2 on the run dimension.** Both figures above come from two CI runs, so they describe
+this runner class on two afternoons and not a population. That residual is why the
+allowance is the conservative term rather than the tight one, and the thing that would
+firm it up is the runner's own medians across several runs of an unchanged tree — the same
+measurement `docs/testing/07-performance.md` §7.0.1 has named as owed since Phase 3 began.
+
+**Upper bound — what it must still fail.** ADR 0006's image-window regression measured
+`/p/1` at **3,170–3,247ms** before its fix, and not laundering that regression is the
+reason 3,000 was chosen over something larger in the first place (see "Why 3,000 and not
+some other number past the floor" above). 3,085 sits **85ms — 2.76% — below** the cheapest
+end of that range, so the gate this amendment writes would have failed that build exactly
+as the 3,000 and 2,500 gates did.
+
+**Why not the tighter statistical bound.** `mean + 3σ` is 3055.09, which also clears the
+worst observed median. It was not taken: ten points from two runs on one runner class is
+not a population, a σ computed from them is a description of two afternoons, and a gate
+that goes red on ordinary noise trains people to re-run rather than to read. The
+conservative bound costs 30ms of an 85ms window and buys a gate that does not cry wolf.
+
+**3,085 rather than 3,100.** A round number here would be a number chosen and then
+justified. 3,085 is `3045.037 + 40.056` floored to the millisecond, every term in that sum
+is above, and the allowance term is sized against the 13.2ms run-to-run swing rather than
+against intuition.
+
+| what                                            | value    | relation to the gate |
+| ----------------------------------------------- | -------- | -------------------- |
+| worst observed CI median                        | 3045.037 | 39.963 under (1.30%) |
+| worst observed CI single run                    | 3062.276 | 22.724 under         |
+| **the gate**                                    | **3085** | —                    |
+| ADR 0006's image-window regression, as measured | 3170+    | 85 over — still red  |
+| the authoring host today                        | 2925.343 | 159.657 under        |
+
+### What this ruling changes, and what it does not
+
+- `lighthouserc.json`, `lighthouserc.book.json` and `lighthouserc.admin.json` all assert
+  `largest-contentful-paint` at `maxNumericValue: 3085`. All three moved together,
+  because all five URLs moved together and a per-config number would be a claim about
+  five routes that the evidence does not support.
+- `CLAUDE.md` §6 and `docs/standards/06-performance.md` now say **≤ 3,085ms** rather than
+  "≤ 3.0s". The prose budget and the enforced one are the same number, which is the
+  condition under which either means anything.
+- **UNCHANGED:** `aggregationMethod: "median"` and `numberOfRuns: 5`, for the reason this
+  ADR gives twice already — the lhci default takes the best of five and would loosen the
+  gate silently. `cumulative-layout-shift` at 0.1. `resource-summary:script:size` at
+  184,320 and 327,680. `http-status-code`. `/gallery/<slug>`'s own 4,000ms LCP. The
+  throttling is still Lighthouse's unpinned default, still the most likely way this gate
+  moves with no diff in this repository, and still deliberately not pinned here.
+- **This is the last widening that has evidence behind it.** If `/p/1` goes red at 3,085,
+  the answer is the one §"A red `/p/1` should be re-measured five times before it is
+  believed" already gives — re-measure, against a cold `.next`, and look for the MEDIAN
+  moving. It is not another 40ms. Two successive widenings to reach a green gate is how a
+  budget stops meaning anything, and the second one would be the one that did it.

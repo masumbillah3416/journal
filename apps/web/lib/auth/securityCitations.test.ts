@@ -163,7 +163,8 @@ const A_CASE_NAME_THAT_MUST_BE_FOUND = 'draws the code from the CSPRNG, not from
 
 /**
  * The quoted runs in that table which are NOT citations: fragments of the
- * handoff, of the UI's own copy, or of a dependency's message, quoted as prose.
+ * handoff, of the UI's own copy, of a dependency's message, or of a phase's own
+ * exit criterion, quoted as prose.
  *
  * THIS LIST IS THE PROPERTY THAT SEPARATES PROSE FROM CITATIONS, and it is
  * deliberately not "the quote character somebody typed" — that was the previous
@@ -176,15 +177,51 @@ const A_CASE_NAME_THAT_MUST_BE_FOUND = 'draws the code from the CSPRNG, not from
  * sentence an exemption was written for removes the exemption with it.
  */
 const QUOTED_PROSE: readonly string[] = [
+  // `SECURITY.md`'s own sentences, quoted back at the requirement they state.
   'too many attempts',
   'wrong password',
-  'respond identically',
   'no such account',
-  'Sign out everywhere',
+  'respond identically',
   'Keep me signed in',
   'keep me signed in',
+  'Sign out everywhere',
+  'EXIF verifiably absent',
+  're-encode stills rather than passing originals through',
+  'shoot anything at home and you have published your home address',
+  "Not an attacker \u2014 losing 40GB of photographs. Automated offsite backups of Postgres and the media bucket, on a schedule, to a different provider. Versioned or write-once bucket storage, so a bad script or a compromised key can't delete history. Test a restore. An untested backup is a hypothesis.",
+  'Export everything',
+  // The admin's and the diary's own copy, quoted so a reader can recognise the
+  // screen the sentence describes.
+  'Those details did not let you in.',
+  'Your password was right, but the code could not be sent. Try again shortly.',
+  'Send a new code',
+  'Three wrong codes',
+  'Signed in',
+  '\u2190 Back to password',
+  // A dependency's or a spec's words, or a column heading, quoted as prose.
   'will never use eval() in production mode',
   'a logged-in user',
+  'Discharged in',
+  'Planned server actions',
+  'Phase 2.',
+  'all collections and the first migration',
+  'server-side',
+  'invalidate it and **force a resend**',
+  // Phrases this document quotes from ITS OWN earlier revisions or from another
+  // module's prose, in order to describe or refuse them. Each is a quotation of
+  // a claim rather than a claim, which is the one thing a check cannot tell
+  // apart - so they are listed, and each is asserted below to still be here.
+  '`overrideAccess: false` is what makes Payload run those rules at all',
+  'only occurrences',
+  'other occurrences',
+  'the only occurrences of the option in this repository',
+  'no per-field sweep',
+  'signed in, or refused',
+  'signed in',
+  'any account',
+  'what a browser form would have sent',
+  'the endpoint works',
+  'a reader can sign in',
 ]
 
 /**
@@ -235,18 +272,26 @@ const declaredCaseNames = (): ReadonlySet<string> => {
   return names
 }
 
-/** Every quoted run in a table row of the document, in order. */
-const quotedRunsInTableRows = (document: string): readonly string[] =>
-  document
-    .split('\n')
-    .filter((line) => line.startsWith('|'))
-    .flatMap((line) => [...line.matchAll(QUOTED_RUN)].map((match) => match[1] ?? match[2] ?? ''))
+/**
+ * The document with every run of whitespace collapsed to one space.
+ *
+ * A quotation in wrapped prose spans lines; a Markdown renderer joins them, and
+ * so does this, so that a citation is one string here exactly as it is one
+ * phrase on the page.
+ * @param document - The document's whole text.
+ * @returns The same text on one line.
+ */
+const collapsed = (document: string): string => document.replace(/\s+/gu, ' ')
+
+/** Every quoted run in the document, in order. */
+const quotedRuns = (document: string): readonly string[] =>
+  [...collapsed(document).matchAll(QUOTED_RUN)].map((match) => match[1] ?? match[2] ?? '')
 
 describe('the case names docs/security.md quotes', () => {
-  it('are all real declarations, spelled exactly as the table spells them', () => {
+  it('are all real declarations, spelled exactly as the document spells them', () => {
     const document = readFileSync(SECURITY_DOC, 'utf8')
     const declared = declaredCaseNames()
-    const quoted = quotedRunsInTableRows(document)
+    const quoted = quotedRuns(document)
     const citations = quoted.filter((run) => !QUOTED_PROSE.includes(run))
 
     // The two floors first: every assertion after them is over these
@@ -268,7 +313,7 @@ describe('the case names docs/security.md quotes', () => {
     const document = readFileSync(SECURITY_DOC, 'utf8')
     const declared = declaredCaseNames()
 
-    const stale = QUOTED_PROSE.filter((prose) => !document.includes(prose))
+    const stale = QUOTED_PROSE.filter((prose) => !collapsed(document).includes(prose))
     const actuallyCases = QUOTED_PROSE.filter((prose) => declared.has(withOneSpellingOfApostrophe(prose)))
 
     expect(stale).toEqual([])

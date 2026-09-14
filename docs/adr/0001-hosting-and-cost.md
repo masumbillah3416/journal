@@ -51,9 +51,10 @@ keep the running cost proportional to that scale.
   auto-stops between jobs — transcoding does not fit a serverless function's runtime
   limits. **Deferred**, per a later user decision recorded in
   `docs/adr/0004-media-pipeline-mode.md`: no video clips for now, so nothing in this
-  stack needs a worker at launch. `sharp` still generates all five still-image
-  derivative tiers (`docs/adr/0003-derivative-generation.md`), but in-process on
-  Vercel rather than inside a separate worker container. Enabling video later
+  stack needs a worker at launch. `sharp` still generates every still-image derivative
+  tier `apps/web/collections/media.ts` configures (`docs/adr/0003-derivative-generation.md`
+  for the original ladder, `docs/adr/0013-gallery-image-budget.md` for the sixth rung Phase
+  3 added), but in-process on Vercel rather than inside a separate worker container. Enabling video later
   provisions Fly.io and flips one environment variable — see ADR 0004 for the
   mechanism and the revised consequences below for the cost this defers.
 - **Resend** sends OTP mail — a handful of messages per month, no marketing-mail

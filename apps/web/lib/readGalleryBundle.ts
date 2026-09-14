@@ -108,11 +108,31 @@ type DerivativeTier = keyof NonNullable<SelectedMediaDoc['sizes']>
  * `galleryTileSizes` tells the browser how wide the tile will be and this list
  * tells it what exists.
  *
+ * `frame` IS ALWAYS ONE OF THE CANDIDATES NOW, at whatever width the row's
+ * own original is: it carries `withoutEnlargement: true`, so Payload leaves a
+ * narrow original at its own size rather than omitting the tier (MED-001's
+ * fix). For a source under 800px that makes `frame` the row's largest
+ * candidate; for a wider one it is the uncropped candidate a high-density
+ * screen takes, where before there was nothing above `tile` to take. A tile
+ * draws at `object-fit: cover` with the frame's own focal point, so an
+ * uncropped candidate is not a shape mismatch here - it is the one the focal
+ * point can actually act on.
+ *
  * `hero2x` is still not offered. The widest tile the grid can draw is under
  * `2 * GALLERY_THUMB_SIZE.max + 16` = 616 CSS px, so `hero`'s 2000px already
  * covers it past DPR 3; a 4000px file is never the right answer for a tile.
+ *
+ * `grid` JOINED IT IN PHASE 3, AND IS THE REASON THE GAP ABOVE WAS EXPENSIVE.
+ * ADR 0013 measured what a `srcset` of 400 and 800 costs a phone: at
+ * Lighthouse's 412 CSS px emulated viewport the grid is one column, so a tile
+ * is 376 CSS px, and at DPR 1.75 that needs 658 device pixels - so the browser
+ * correctly takes the 800w candidate and nine images cost 477,329 bytes. The
+ * 700px rung serves that 658px need almost exactly. Offering it here is the
+ * half of ADR 0013 Option 3 that a reader can see: a tier the row carries but
+ * this list never names is a tier the browser cannot choose, generated and
+ * stored and paid for and never served.
  */
-const TILE_TIERS: readonly DerivativeTier[] = ['thumb', 'tile', 'frame', 'hero']
+const TILE_TIERS: readonly DerivativeTier[] = ['thumb', 'grid', 'tile', 'frame', 'hero']
 
 /**
  * The tiers the LIGHTBOX prefers, largest first - it draws one photograph
@@ -120,8 +140,20 @@ const TILE_TIERS: readonly DerivativeTier[] = ['thumb', 'tile', 'frame', 'hero']
  * it is the 4000px tier the book uses for 2x displays, and a lightbox is one
  * image a reader chose rather than a page's LCP element, so `hero`'s 2000px
  * is the better default and `hero2x` is not offered at all.
+ *
+ * EVERY TIER IN THIS LIST IS UNCROPPED, AND THAT IS THE LIST'S RULE RATHER
+ * THAN A PROPERTY IT HAPPENS TO HAVE. It used to end `'tile', 'thumb'` -
+ * both square - on the reasoning that a fallback is better than nothing.
+ * It was not: `apps/web/collections/media.ts` derived no uncropped tier
+ * below 1400px, so the fallback was the NORMAL case and a 1200x900
+ * photograph opened as an 800x800 centre crop, measured in a browser
+ * (MED-001, `docs/qa/2026-09-08-media-pipeline-sweep.md`). `frame` now
+ * carries `withoutEnlargement: true` and every raster original yields it, so
+ * the square tiers are not a fallback this list needs - and naming one would
+ * put the crop back. `apps/web/lib/media/derivativeGeometry.test.ts` refuses
+ * any tier the collection crops, including one added years from now.
  */
-const FULL_TIERS: readonly DerivativeTier[] = ['hero', 'frame', 'tile', 'thumb']
+const FULL_TIERS: readonly DerivativeTier[] = ['hero', 'frame']
 
 /** The slice of Payload's own logger this module writes to. */
 interface StructuredLogger {

@@ -90,6 +90,10 @@ module, independently testable, named in its own header.
 | `contentWindow`                         | `packages/domain`                  | `(addressedIndex, totalPages) → ContentWindow`. Which leaves' faces a `/p/<n>` document carries — the SERVER's window, a function of the address, where `pageStack.loadsImages` is a function of the flip machine. Also owns the one search parameter with which the book asks for the rest (`docs/adr/0009-server-rendered-page-window.md`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `gallery`                               | `packages/domain` + `apps/web/lib` | Payload `media` rows in, one typed `GalleryBundle` out — the gallery's counterpart to `bookBundle`, and the same rule: `components/gallery/` reads nothing else. The pure half also owns the two decisions the handoff records as having been got wrong: the open frame is addressed by `MediaId` (`openFrameById`, `stepFrame` — the index is DERIVED, for the `003 / 061` counter and nothing else), and the grid is windowed only past a hundred tiles (`tileWindow`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `galleryDownload`                       | `packages/domain` + `apps/web/lib` | The download action's rules, kept out of the route handler so they can be tested at all: a root-relative path with no scheme and no authority (so it can never resolve to a bucket origin), a three-value `Content-Type` allowlist that refuses `image/svg+xml` by name, and a filename derived from the journey slug and the frame's number rather than from the stored key. `SECURITY.md`'s "downloads through your own handler" requirement lives here and in `apps/web/lib/readGalleryDownload.ts`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `sniffMediaType` / `ingestDecision`     | `packages/domain`                  | The upload boundary's first two decisions, pure: what a file IS, and whether it may be ingested at all. `sniff.ts` names a type from the bytes alone - it is given no filename and no client-declared type, so no edit can start believing one (`SECURITY.md`: "never trust the extension or the client-declared mime type") - and `ingestPolicy.ts` answers a `Result` carrying either the accepted type or one named refusal. The ORDER inside each is the control rather than a convention: the sniff must run BEFORE anything decodes the bytes, because this repository's `sharp` build renders SVG (measured), and the refusals are checked SVG-first so an uploaded HTML document is reported as `'svg-rejected'` rather than as a naming mismatch. Inside the sniff it is a FORK rather than an order: a file whose first non-noise byte is `<` is answered from its markup and cannot reach a byte signature at all, because any signature read at an offset is spoofable by a legal prefix of the right width (`<!--ftypisom…` puts `ftyp` at offset 4, and `<br>ftypisom…` does the same) — the Task 2 review defeated a scan-shaped fix for that five ways, with a document Chromium renders and whose script it runs. `acceptedIngestTypes` is the one place `MEDIA_PIPELINE` turns into a list of types, so an upload form's `accept` attribute and an error message cannot disagree (`docs/adr/0004-media-pipeline-mode.md`). Nothing calls either yet - the port and the receiver are later tasks in the same phase.                                                                                                               |
+| `readExifFacts` / `metadataMarkersIn`   | `packages/domain`                  | The upload boundary's third decision and the instrument that audits it. `exif.ts` reads the only two EXIF tags this repository wants - `DateTimeOriginal` and `Orientation` - by walking JPEG segments and TIFF directories, hand-written because a library would be a parser for hundreds of tags reachable from an upload endpoint. `metadataMarkersIn` is the seam that matters: it searches the WHOLE buffer for `Exif\0\0`, `Photoshop 3.0` and the XMP namespace URI, understanding no structure at all, so the phase's "EXIF verifiably absent" criterion is settled by the stored bytes rather than by asking the library that stripped them. Neither function throws on any input; both are fed bytes straight off an upload. The stripping itself is not here - it is the re-encode at the `MediaProcessor` port (Task 6).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `MediaProcessor` / `stillPipeline`      | `apps/web/lib`                     | The upload boundary assembled. `stillPipeline.ts` is steps 1 to 6 in SECURITY.md's own order, written ONCE and composed by both adapters: sniff, then refuse, then read the EXIF facts, then re-encode, then hash the SANITISED bytes, then answer with the encoder's own reported size. The order is the control rather than a convention — nothing has reached `sharp` when the refusal happens, because this `sharp` build decodes SVG — and the mutation that moves the refusal below the decode fails the SVG case in both adapters' suites. No `withMetadata()` and no `keepExif()` anywhere on the chain: the metadata requirement is discharged by the ABSENCE of a call, so the test asserts the absence in the OUTPUT after proving presence in the INPUT. `inline-media-processor.ts` is that function plus `acceptedIngestTypes('inline')`; `worker-media-processor.ts` is that function plus `clipToolchain.ts`'s probe/transcode/poster, with **the poster going back through `runStillPipeline`** so a poster frame is stripped and hashed by the same code as any other still. `services.ts` is the one place `MEDIA_PIPELINE` picks one. As of Task 7 one caller reads its `acceptedTypes` — `uploadSlots.ts`, to decide which files get an upload slot — and nothing hands it bytes yet: `process()` is called by nobody until Task 8's ingest.                                                                                                                                                                                                                                                                                  |
+| `dHash` / `isPerceptualDuplicate`       | `packages/domain`                  | The upload boundary's fourth decision: whether this still is a photograph the journey already holds. `perceptualHash.ts` is a pure function of a 9x8 grayscale grid the encoder at the edge produces - one bit per adjacent horizontal pair, sixty-four of them, sixteen hex characters. A DIFFERENCE hash rather than an average one because it keys on the SIGN of each horizontal step and not on absolute brightness, so it survives the re-encode, resize and quality change the pipeline itself performs, which is the duplicate a reader actually creates. The grid is nine wide and eight tall because eight comparisons need nine samples - an eight-wide grid yields a silently 56-bit hash that still passes a shape assertion, which is why the width has an invariant in the module header and a case of its own. `DUPLICATE_MAX_DISTANCE` is 5, inclusive, and both sides of that boundary are pinned as literals rather than against the constant. The comparison it feeds (Task 8) is a linear scan over ONE JOURNEY's rows, keyed by journey id (CLAUDE.md §7) - at ~100 rows a journey no index and no stored average are earned, and the question is never "is this file anywhere in the library". Nothing calls it yet; the receiver is a later task in the same phase.                                                                                                                                                                                                                                                                                                                                                        |
 | `otpChallenge` / `otpService`           | `packages/domain` + `apps/web/lib` | The sign-in code's lifecycle, split so the rules are pure and the I/O is not. `challengeState`/`canResend` decide validity, exhaustion and whether a resend may be sent, from three persisted numbers and an injected clock; `apps/web/lib/auth/otpService.ts` is the only place an `otpChallenges` row is read or written, and the only place a code exists at all — CSPRNG generation, a scrypt hash with a per-row salt, a SHA-256 session binding used as the lookup key, and `crypto.timingSafeEqual` for the comparison (`docs/adr/0015-otp-challenge-hashing.md`). The domain half never sees the hash, which is what keeps a test or a log line from printing one. Every limit the pure half _decides_ is _enforced_ by Postgres, not by the web process: the attempt is claimed by a conditional `UPDATE` before the code is compared, consumption is claimed the same way, and issuing counts and inserts under a per-account advisory lock — otherwise all three limits hold one request at a time and fall to a parallel burst. Two smaller pure modules sit beside it for the SCREEN rather than for the server: `otpCells` (`nextCell`, `distributePaste`) is where the six code cells' keyboard and paste behaviour lives, and `otpCountdown` (`secondsRemaining`, `formatCountdown`) turns an instant and a window into `SCREENS.md` §3.2's `{m:ss}`. `otpCountdown` takes the window as a parameter rather than importing one, because the same screen counts two of them down — `EXPIRY_MS` and `RESEND_COOLDOWN_MS` — and `otpChallenge` stays the single place either number is written.                                       |
 | `rateWindow` / `rateLimit`              | `packages/domain` + `apps/web/lib` | The layer above the code's own lifecycle: `SECURITY.md`'s sliding window on sign-in attempts, per account and per IP. `admitsAttempt` is pure — given the attempts recorded for a key, the instant being judged, the window and the limit, it answers where that attempt ranks and whether the rank is inside the budget — and `apps/web/lib/auth/rateLimit.ts` is the only place a `signInAttempts` row is written or read. The seam is drawn so the window's arithmetic exists in exactly ONE place: the SQL supplies the newest `limit + 1` attempts at or before this one and applies no window floor of its own, because two copies of one rule would mean neither could be broken by itself. The window lives in Postgres rather than in the process because this app deploys to serverless invocations that do not share memory, and each request records its own attempt BEFORE anything is counted, so there is no check-then-write interval for a racer to occupy (`docs/adr/0016-rate-limit-window-storage.md`). The password endpoint's second dimension is keyed on a SHA-256 of the CLAIMED sign-in address rather than on an account row id (phase ruling F43): at that step the account is not yet known and half the requests name none, so a key that needed a row id would leave the miss path doing strictly less work than the hit path — an enumeration oracle inside the limiter. Its limit sits above Payload's `maxLoginAttempts: 5`, so for an address that names a real account the lockout `SECURITY.md` assigns that job to still binds first, and what the window governs is the address Payload has no row to lock. |
 | `signIn` / `passwordReset`              | `apps/web/lib`                     | The enforcement point, and the only module that composes the four above. `apps/web/lib/auth/signIn.ts` records the attempt in both of the password endpoint's windows, reads the account by its normalised address, asks Payload to check the password (Payload is the credential store and the lockout, and nothing else), reads `users.otpRequired` FROM THE ROW, and then either issues a code bound to the identifier the browser presented or starts a session that supersedes it. `passwordReset.ts` is its sibling for "send yourself a way back in". Both exist to make three refusals indistinguishable — an unknown address, a wrong password and a locked account — in the response AND in the time taken: any branch that cannot reach Payload's own key derivation spends an equivalent one and discards it, or the identical answer is worth nothing. Neither sets a cookie; `startSession`'s `Set-Cookie` value is returned for the route handler to put on a response.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -497,6 +501,7 @@ flowchart TB
     storagePort["storage port"]
     mailerPort["mailer port"]
     queuePort["transcodeQueue port"]
+    mediaProcessorPort["MediaProcessor port<br/>MEDIA_PIPELINE picks one"]
   end
 
   subgraph adapters["Adapters — local dev vs. production, one shared contract suite"]
@@ -506,6 +511,8 @@ flowchart TB
     resend["Resend"]
     pgQueue["Postgres job table"]
     worker["Fly.io worker: ffmpeg<br/>DEFERRED — ADR 0004"]
+    inlineProcessor["inline: stillPipeline<br/>sharp, in-process"]
+    workerProcessor["worker: stillPipeline<br/>+ clipToolchain (ffmpeg)"]
   end
 
   payload["Payload collections<br/>Postgres via Neon"] --> bookBundleWeb
@@ -520,6 +527,8 @@ flowchart TB
   mailerPort --> resend
   queuePort --> pgQueue
   queuePort --> worker
+  mediaProcessorPort --> inlineProcessor
+  mediaProcessorPort --> workerProcessor
 
   webLib -.->|depends on| domain
 ```
@@ -540,15 +549,35 @@ during development, a cloud service in production (R2, Resend, the Fly.io worker
 consuming the same Postgres table), and one shared contract test suite run against both
 so the two implementations are provably interchangeable.
 
+**`MediaProcessor`'s two adapters do not split along that line, and the subgraph's title
+is wrong about them specifically.** `inline` and `worker` are not local-versus-production:
+both are ours, both are shipped, and the axis between them is stills-only versus
+stills-plus-clips (`MEDIA_PIPELINE`, ADR 0004). Only `inline` deploys today, and it
+deploys to production. The shared contract suite applies exactly as it does to the other
+three, which is why the port is drawn here rather than somewhere of its own; the
+distinction is stated in prose rather than redrawn because a second subgraph for one port
+would say less than this paragraph does.
+
 **The Fly.io worker is deferred** (`docs/adr/0004-media-pipeline-mode.md`): no video
 clips for now, so nothing claims jobs from `pgQueue` in production yet. A fourth port,
-`MediaProcessor`, is to get the same treatment when Phase 3 builds it: an `inline`
-adapter (the still-image pipeline, in-process on Vercel, bypassing the queue entirely) and
-a `worker` adapter (the still pipeline plus `ffmpeg`, via `pgQueue` and the Fly.io worker
-above) — both required to pass the same contract suite in CI, per ADR 0004, even though
-only `inline` would deploy until video is turned back on.
+`MediaProcessor`, got the same treatment when Phase 3 Task 6 built it: an `inline` adapter
+(the still-image pipeline, in-process on Vercel) and a `worker` adapter (the same still
+pipeline plus `ffmpeg`) — both required to pass the same contract suite in CI, per ADR
+0004, even though only `inline` deploys until video is turned back on.
 
-**NOT BUILT.** Neither `MediaProcessor` adapter, the port itself, the contract suite or the `MEDIA_PIPELINE` variable exists in this repository: `grep -rn MediaProcessor apps packages` returns nothing, `apps/web/lib/ports/` holds only `mailer.ts`, `queue.ts` and `storage.ts`, `MEDIA_PIPELINE` is declared in neither `apps/web/lib/env.ts` nor `.env.example`, and setting it changes nothing. `docs/adr/0004-media-pipeline-mode.md` says so itself — _Nothing in this ADR is built now_ — and five documents described it in the present tense anyway (Phase 2's final review, finding 30). It is Phase 3's.
+**The `worker` adapter does NOT enqueue, and ADR 0004's Decision says it does.** It probes,
+transcodes and extracts the poster frame synchronously, in the process it is called in;
+`pgQueue` is not on its path at all. The port's own shape is why — `process` answers with
+the processed bytes, so an adapter that enqueued would have nothing to answer with. The
+Fly.io process is WHERE that adapter runs and the queue hop is how an upload request
+reaches it, which is a seam between the upload receiver and the worker rather than one
+inside the port. Recorded as ADR 0004's Amendment section and `docs/deviations.md` §49. The receiver is
+built: Task 7 staged the bytes and Task 8's `apps/web/lib/media/ingestUpload.ts` is the
+seam itself — under `worker` it records the upload and enqueues the `transcode` job
+rather than running the pipeline in the request, which is the hop that sentence
+describes.
+
+**BUILT, AND WHAT IS AND IS NOT WIRED IS NAMED (Phase 3 Task 6).** `apps/web/lib/ports/mediaProcessor.ts` is the port; `apps/web/lib/adapters/inline-media-processor.ts` and `worker-media-processor.ts` are its two adapters; `apps/web/lib/adapters/contract/media-processor-contract.ts` is the ONE suite both run, wired by one line per adapter, which is ADR 0004's non-negotiable. **The structural decision that makes that honest:** `apps/web/lib/media/stillPipeline.ts` holds steps 1 to 6 once and both adapters compose it, so “the two still pipelines are the same” is true by construction rather than by two implementations happening to agree — the `worker` adapter adds step 7 (`apps/web/lib/media/clipToolchain.ts`, the `ffmpeg` boundary) and nothing else. `apps/web/lib/media/services.ts` is the single place `MEDIA_PIPELINE` chooses one. **WIRED TO ONE CALLER AS OF TASK 7, AND ONLY FOR ITS TYPE LIST:** `apps/web/lib/media/uploadSlots.ts` reads the bound processor's `acceptedTypes` to decide which files get an upload slot at all, which is how “enabling clips is a config switch” becomes observable — under `inline` an mp4 has nowhere to upload to. **IT IS HANDED BYTES AS OF TASK 8:** `apps/web/lib/media/ingestUpload.ts` calls `process()` on the staged bytes under `inline` and creates the `media` row from the re-encode, so both adapters now have a production caller — the sentence here said `process()` had none for two tasks. Under `worker` ingest calls neither adapter: ADR 0004's amendment puts the queue hop between the receiver and the worker, so the row is recorded at `processing` and a `transcode` job enqueued for a worker that is not provisioned. The derivative tiers and the download handler are Phase 3 Tasks 10–11. **UNRESOLVED on the authoring machine:** `ffmpeg`/`ffprobe` are not installed here, so the clip toolchain's subprocess success arms have never run locally; CI installs both and sets `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1`, which turns a missing binary into a failed build rather than a quieter test run.
 
 ## 3 · Data flow
 
@@ -576,13 +605,92 @@ only `inline` would deploy until video is turned back on.
    application route that reads a derivative's bytes back out of the store through the
    `StoragePort` and serves them as an attachment. Never a bucket URL — see
    `docs/security.md`.
-5. **(Phase 3, not built — see the note under §2's ports.)** Uploads will go straight from
-   the browser to R2 via a presigned URL (never through Vercel, which caps request bodies
-   at ~4.5MB); a server action will create the `media` row and run the `MediaProcessor`
-   port's `inline` adapter in-process (the `sharp` still pipeline — no queue, no worker,
-   since video is deferred per ADR 0004), marking the row `ready` or `failed`. Once video is re-enabled, a `worker`-mode upload instead
-   writes a job row to the Postgres queue table for the Fly.io worker to claim and run
-   the `sharp`/`ffmpeg` pipeline against.
+5. **The whole upload path is built (Phase 3 Tasks 7 to 9).** This line said its second
+   half was not, which stopped being true one task later; 5a below is that second half.
+   An upload never passes through the app — Vercel caps a request body at ~4.5MB and a
+   photograph is larger (design spec §9.1) — so the shape is: the admin asks
+   `requestUploadSlots` (a guarded Server Action) for somewhere to put each file; the
+   pure `planUploadSlots` caps the count and the size and keys one staging key per file
+   BY JOURNEY; `StoragePort.uploadUrl` mints one capability URL per key; the browser
+   PUTs the bytes straight to it. **The port is the seam, and the adapter behind it is
+   still the local one:** there is no R2 adapter and no credentials for one, so
+   `createLocalStorage.uploadUrl` points at a receiver this repository serves,
+   `PUT /admin/media/upload?token=…`, behind the admin guard —
+   `docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md` records why, and
+   records that the receiver must be deleted or gated in the same change that adds the
+   R2 adapter. The caps are enforced twice: once in the plan (what the client was told)
+   and once at the receiver (the bytes that arrived).
+   5a. **BUILT (Task 8):** the `finaliseUpload` Server Action
+   (`apps/web/app/(admin)/admin/media/actions.ts`) calls
+   `apps/web/lib/media/ingestUpload.ts`, which reads the staged bytes back through the
+   `StoragePort`, runs the `MediaProcessor` port's `inline` adapter in-process (the
+   `sharp` still pipeline — no queue, no worker, since video is deferred per ADR 0004),
+   looks for a perceptual duplicate **within that journey only**, and creates the `media`
+   row from the re-encode at `state: 'ready'`. A refusal creates no row at all, since
+   Payload's upload collections require a file at `create` and there is no photograph to
+   show a `failed` row for. The staging object is deleted on every path, refusals
+   included: it is the pre-strip original. Once video is re-enabled, a `worker`-mode
+   upload instead records the row at `processing` and writes a job row to the Postgres
+   queue table for the Fly.io worker to claim and run the `sharp`/`ffmpeg` pipeline
+   against.
+
+### The upload, drawn
+
+> **THIS DIAGRAM HAS NEVER BEEN RENDERED, AND THAT IS UNRESOLVED RATHER THAN FINE** — the
+> same status as the seam diagram in §2, for the same reason and with the same remedy. No
+> Mermaid renderer is installed on this machine: `mmdc` is not on `PATH`,
+> `npm ls @mermaid-js/mermaid-cli` reports it absent, and `npx --no-install mmdc` exits 1
+> with "could not determine executable to run". `CLAUDE.md` §7.1 forbids pasting the
+> diagram into an online renderer to get a green tick. **Installing
+> `@mermaid-js/mermaid-cli` and running `mmdc` over this file is what would settle the
+> syntax; nothing else here can.** What HAS been done is an audit of every node label
+> against the filesystem — each file, function and route named below exists at the path
+> `docs/api.md` and §3 give for it.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Admin as Admin browser
+  participant Action as requestUploadSlots<br/>(guarded Server Action)
+  participant Plan as planUploadSlots<br/>(packages/domain, pure)
+  participant Store as StoragePort
+  participant Receiver as PUT /admin/media/upload<br/>(local adapter only)
+  participant Finalise as finaliseUpload -> ingestUpload
+  participant Proc as MediaProcessor<br/>(inline or worker)
+  participant Payload as Payload media collection
+
+  Admin->>Action: filenames, declared types, sizes, journey
+  Action->>Plan: cap the count and the size, key by journey
+  Plan-->>Action: one staging key per file, or one refusal
+  Action->>Store: uploadUrl(key, ttl, contentType, maxBytes)
+  Store-->>Action: one capability URL per key
+  Action-->>Admin: slots, never a storage key
+  Admin->>Receiver: PUT the bytes, direct, not through the app
+  Receiver->>Store: put() after verifying the token and weighing the body
+  Admin->>Finalise: finalise this staging key
+  Finalise->>Store: read the staged bytes back
+  Finalise->>Proc: process(bytes)
+  Note over Proc: sniff, refuse, read EXIF,<br/>re-encode (the strip), hash
+  Proc-->>Finalise: sanitised bytes + capturedAt + contentHash
+  Finalise->>Payload: find this journey's hashes (one query)
+  Finalise->>Payload: create the row from the SANITISED bytes
+  Note over Payload: Payload derives every imageSize<br/>from the bytes it is handed
+  Finalise->>Store: delete the staged original, on every path
+  Finalise-->>Admin: ready, duplicate or queued - or a typed refusal
+```
+
+Three things the drawing is making explicit, each of which has been got wrong somewhere in
+this repository's history:
+
+- **The bytes never pass through the app on the way in** (design spec §9.1) — the `Admin`
+  to `Receiver` arrow does not go via `Action`. The receiver is the local adapter's
+  stand-in for a bucket and is deleted or gated the day R2 arrives (ADR 0020).
+- **Nothing reaches a decoder before the policy has accepted it.** The `Note over Proc`
+  order is the mechanism rather than a convention: this `sharp` build decodes SVG, so a
+  refusal below the decode would be no refusal at all (`docs/deviations.md` §50).
+- **Payload derives the tiers, our pipeline does not.** The processor sanitises; the
+  `create` hands Payload the re-encode and Payload's own `imageSizes` do the rest. One
+  derivation, not two — see ADR 0003's correction.
 
 ## 4 · Why each seam exists
 

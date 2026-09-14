@@ -96,11 +96,11 @@
  * it deliberately carried no per-glob threshold - a threshold against zero
  * files is a vacuous pass, not a gate. Task 7 landed the book's frame, page
  * stack and the two hooks that drive them there, so the directory now
- * carries an explicit 90%/90%/90% threshold below: the repository-wide floor
- * this file's earlier revision always said these files would fall under once
- * they existed, now named rather than inherited, per CLAUDE.md §2.1's "adding
- * code in a new directory means adding that directory to an include, with a
- * real threshold, in the same commit".
+ * carries an explicit 90%/90%/90% threshold below, per CLAUDE.md §2.1's
+ * "adding code in a new directory means adding that directory to an include,
+ * with a real threshold, in the same commit". It was the repository-wide floor
+ * when it was written; that floor is gone (see the `thresholds` block), and 90
+ * is now this directory's own named number rather than an inherited one.
  *
  * The `unit-dom` project gains two settings with Task 7's first real
  * components: a `setupFiles` entry (see `vitest.dom-setup.ts`) and
@@ -111,9 +111,10 @@
  * `pointer-events: none` above all) are asserted in a real browser by
  * `e2e/book.spec.ts` - so the strategy is purely about components rendering
  * readable class names under test.
- * Depends on: vitest/config.
+ * Depends on: vitest/config, ./apps/web/lib/testDatabaseUrl.
  */
 import { defineConfig } from 'vitest/config'
+import { testDatabaseUrl } from './apps/web/lib/testDatabaseUrl'
 
 export default defineConfig({
   test: {
@@ -146,6 +147,14 @@ export default defineConfig({
             // Phase 4 rests on, so its behaviour belongs in the gate Husky runs
             // rather than only in CI. See docs/testing.md.
             'eslint-rules/**/*.test.js',
+            // `scripts/**/*.test.js` — the repository's own build/CI scripts.
+            // `scripts/lighthouseAnnotations.mjs` decides what CI is told when
+            // a performance gate goes red, and `run-lighthouse.mjs` cannot be
+            // executed by any Vitest project (it spawns `npx lhci`), so the
+            // deciding half was extracted into a module this glob collects the
+            // test for. Plain JavaScript, matching the script it serves, which
+            // `node` runs with no loader in front of it.
+            'scripts/**/*.test.js',
             // `apps/web/middleware.ts` sits at the app's own root, where
             // Next.js requires it - see its header. Without this glob its
             // test file would be collected by nobody, which is the exact
@@ -232,8 +241,27 @@ export default defineConfig({
             // finding 2). Every integration test file calls `getTestPayload()`
             // from that module, not `getPayload()` directly, so this value is
             // what they actually connect to.
-            DATABASE_URL: 'postgres://diary:diary@localhost:5433/diary_test',
+            //
+            // DERIVED, not written out: this line held
+            // `postgres://diary:diary@localhost:5433/diary_test`, and 5433 is
+            // one developer's Docker port mapping. Its twin in
+            // `vitest.integration.config.ts` - the config `verify:full`
+            // actually gates on - is what failed every integration file on
+            // this repository's first CI run, against a Postgres service
+            // listening on 5432. Both are derived now, from the one module
+            // (`apps/web/lib/testDatabaseUrl.ts`), because a fix applied to
+            // one copy of a value and not the other is this repository's most
+            // repeated finding.
+            DATABASE_URL: testDatabaseUrl(process.env.DATABASE_URL),
           },
+          // The same one-shot reachability guard
+          // `vitest.integration.config.ts` runs, so `npm run test:integration`
+          // - the fast local run without the coverage pass - fails the same
+          // way rather than differently. It is on the PROJECT rather than at
+          // this file's root deliberately: at the root it would run for the
+          // two Docker-free projects too, and the pre-commit gate must stay
+          // one a developer can pass with Docker down (CLAUDE.md §11).
+          globalSetup: ['./vitest.integration.globalSetup.ts'],
         },
       },
     ],
@@ -282,6 +310,16 @@ export default defineConfig({
         // unmeasured rule is one whose branches can rot into always-passing,
         // which is the exact failure the nine text scans before it had.
         'eslint-rules/**/*.js',
+        // `scripts/**/*.mjs` — repository tooling that `node` runs directly.
+        // Added with `scripts/lighthouseAnnotations.mjs` (CLAUDE.md §2.1: code
+        // in a new directory joins an `include`, with a real threshold, in the
+        // same commit). `run-lighthouse.mjs` is in the same directory and
+        // carries a whole-file `c8 ignore` with its reason: it spawns
+        // `npx lhci`, which no Vitest project can run, so it is the "nothing
+        // can measure it" treatment rather than the "some other pass sees it"
+        // one. That is exactly why everything it DECIDES now lives in the
+        // module beside it.
+        'scripts/**/*.mjs',
       ],
       exclude: [
         '**/*.test.ts',
@@ -324,6 +362,16 @@ export default defineConfig({
         // reasoning as the queue files above.
         'apps/web/scripts/seed.ts',
         'apps/web/scripts/seed-data.ts',
+        // rederive-media.ts (Phase 3 Task 10) is reachable only from
+        // rederive-media.integration.test.ts: it imports the `media`
+        // collection for the configured ladder and drives a real
+        // `payload.update` with a `file`, which is Payload's own derivative
+        // generation against a real Postgres and a real store. Same
+        // exclude-and-regate treatment as the two seed files above; gated by
+        // vitest.integration.config.ts. Its CLI entry point beside it,
+        // `run-rederive.ts`, is NOT here - it stays in this pass's measured
+        // set, fully `c8 ignore`d, exactly like `run-seed.ts`.
+        'apps/web/scripts/rederive-media.ts',
         // testPayload.ts (Task 10/11 review finding 2) is reachable only
         // from an `*.integration.test.ts` file - it needs a real Postgres
         // server to create diary_test against - so it is gated by
@@ -445,6 +493,58 @@ export default defineConfig({
         // a claim about an `otpChallenges` row. Gated by
         // vitest.integration.config.ts instead.
         'apps/web/lib/auth/readCodeScreen.ts',
+        // Phase 3 Task 6's MediaProcessor pipeline. Every one of these imports
+        // `sharp` - a native module doing real I/O-shaped work - so every test
+        // that exercises them is an `*.integration.test.ts`, which this
+        // Docker-free pass never runs. Excluded by exact path and gated
+        // instead by vitest.integration.config.ts, with per-file thresholds at
+        // the numbers each actually achieves; same reasoning as
+        // readBookBundle.ts above. `apps/web/lib/ports/mediaProcessor.ts` is
+        // NOT in this list: it is type-only, so it stays measured here and
+        // prints 0% while contributing no counted lines, exactly like
+        // `apps/web/lib/ports/queue.ts`.
+        'apps/web/lib/media/stillPipeline.ts',
+        'apps/web/lib/media/clipToolchain.ts',
+        'apps/web/lib/media/services.ts',
+        'apps/web/lib/adapters/inline-media-processor.ts',
+        'apps/web/lib/adapters/worker-media-processor.ts',
+        'apps/web/lib/adapters/contract/media-processor-contract.ts',
+        'apps/web/lib/adapters/contract/media-fixtures.ts',
+        // Phase 3 Task 7's presigned-upload surface. Each of these four is
+        // reachable only from an `*.integration.test.ts` file, which this
+        // Docker-free pass never runs, and for a reason per file:
+        // `receiveLocalUpload.ts` and `localUploadEndpoint.ts` write real
+        // bytes through a real `StoragePort` (a filesystem, which the `unit`
+        // project is pure of by design); `uploadSlots.ts` binds a real
+        // `MediaProcessor`, and both adapters import `sharp`;
+        // `testing/uploadProbes.ts` builds those temporary stores, the request
+        // fixtures they are driven with, and rows in the test Payload. Excluded
+        // by exact path and gated instead by vitest.integration.config.ts,
+        // with per-file thresholds at the numbers each actually achieves -
+        // same reasoning as readBookBundle.ts above.
+        // `apps/web/lib/media/uploadToken.ts` and
+        // `apps/web/lib/media/uploadContract.ts` are NOT in this list: HMAC
+        // over `node:crypto` is pure computation and the contract is a
+        // constant and some types, so both stay measured here.
+        // `uploadProbes.ts` IS imported by the unit suite - `uploadToken.test.ts`
+        // takes `SECRET` from it, so the unit and integration suites sign with
+        // one value - but only that one constant of it executes there, which
+        // is exactly the partial measurement §2.1 calls worse than none.
+        'apps/web/lib/media/receiveLocalUpload.ts',
+        'apps/web/lib/media/localUploadEndpoint.ts',
+        'apps/web/lib/media/uploadSlots.ts',
+        'apps/web/lib/media/testing/uploadProbes.ts',
+        // Phase 3 Task 8's ingest. `ingestUpload.ts` creates rows through a
+        // real Payload, reads bytes back through a real `StoragePort` and
+        // enqueues through the real Postgres queue - three things this
+        // Docker-free pass has none of - and `testing/ingestProbes.ts` builds
+        // the journeys, the staged objects and the `sharp`-encoded
+        // photographs those cases run on. Both are excluded by exact path and
+        // gated instead by vitest.integration.config.ts, with per-file
+        // thresholds at the numbers each actually achieves - same reasoning as
+        // the four Task 7 files above.
+        'apps/web/lib/media/ingestUpload.ts',
+        'apps/web/lib/media/testing/ingestProbes.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by
@@ -559,10 +659,31 @@ export default defineConfig({
         'apps/web/app/(payload)/cms/\\[\\[...segments\\]\\]/not-found.tsx',
       ],
       thresholds: {
-        // Repository-wide floor.
-        lines: 90,
-        branches: 90,
-        functions: 90,
+        // THERE IS NO REPOSITORY-WIDE FLOOR, and its absence is a decision
+        // (CLAUDE.md §2.1, as amended for Phase 3). There was a 90% one here.
+        // It gated the wrong thing: the layers carrying real behaviour already
+        // have stricter per-glob gates below, so the only files a repo-wide
+        // number could ever bind are the ones no glob names - and a floor
+        // across those buys tests that assert Next.js and Payload behave as
+        // documented. It produced at least one commit (`4c1b267`) whose whole
+        // purpose was widening floors CI had failed on, which added no test and
+        // found no defect.
+        //
+        // REMOVING A GLOBAL THRESHOLD IS NOT A DELETION: every file inside an
+        // `include` that matches no per-glob key below would fall through to no
+        // gate at all, which is the unmeasured-file danger §2.1 exists to
+        // prevent. So the set was enumerated against this pass's own lcov
+        // output rather than reasoned about, with the same `picomatch` call
+        // Vitest's `resolveThresholds` makes. It held exactly two files -
+        // `apps/web/scripts/placeholder.ts` and `apps/web/scripts/run-seed.ts` -
+        // and both are named below at the numbers they actually achieve. The
+        // enumeration is reproducible: read `coverage/lcov.info`'s `SF:` lines
+        // and ask which match none of this block's glob keys.
+        //
+        // What replaces the floor is the rule that was doing the work all
+        // along: no file is in neither config's `include`. A file nothing
+        // measures is the real danger, and that is a question of registration,
+        // not of a percentage.
         // Pure logic: every branch is a real behaviour, so every branch is covered.
         'packages/domain/src/**/*.ts': {
           lines: 100,
@@ -588,6 +709,18 @@ export default defineConfig({
           branches: 95,
           functions: 95,
         },
+        // `scripts/**` is the same kind of code as `eslint-rules/**`: pure
+        // repository tooling with no framework under it. The real threshold is
+        // the number it achieves - 100/100/100, measured, because
+        // `lighthouseAnnotations.mjs` is a mapping whose every branch is a real
+        // behaviour and `run-lighthouse.mjs` reports nothing either way behind
+        // its `c8 ignore`. Named rather than inherited, so a second script
+        // landing at 91% fails on its own commit.
+        'scripts/**/*.mjs': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
         // Task 1 of Phase 1: matches apps/web/lib's bar, since Phase 1's
         // server actions, page components and BookBundle mappers are the
         // same kind of code - our own logic, not framework glue. Every file
@@ -595,10 +728,10 @@ export default defineConfig({
         // wrapped or config-excluded (see this file's own header), so this
         // threshold has nothing to bind against yet; it starts applying the
         // moment real code lands.
-        // No equivalent entry for apps/web/components/**: that directory
-        // holds no files yet (`.gitkeep` only), and a threshold against zero
-        // files is the vacuous pass this task was told not to add - it
-        // falls under the repo-wide floor above once populated instead.
+        // apps/web/components/** carried no entry while it held no files
+        // (`.gitkeep` only), because a threshold against zero files is a
+        // vacuous pass rather than a gate. Task 7 of Phase 1 populated it and
+        // gave it the entry it has below.
         'apps/web/app/**/*.ts': {
           lines: 95,
           branches: 95,
@@ -614,9 +747,10 @@ export default defineConfig({
         // drive them), so the directory now gets the explicit threshold
         // CLAUDE.md §2.1 asks for - "adding code in a new directory means
         // adding that directory to an include, with a real threshold, in the
-        // same commit". It is set at the repository-wide 90% floor, which is
-        // the bar this config's own header always said these files would
-        // fall under once they existed; the higher 95% bar is reserved for
+        // same commit". It is set at 90 - what was then the repository-wide
+        // floor, kept as this directory's own number when that floor was
+        // removed, since every file under it measures 100 today and 90 is the
+        // bar this config always said they sit at; the higher 95% bar is reserved for
         // `lib/**` and `app/**`, whose files are server-side logic rather
         // than a React binding whose last few percent are framework glue.
         'apps/web/components/**/*.tsx': {
@@ -671,6 +805,90 @@ export default defineConfig({
         // `NextRequest` (apps/web/middleware.test.ts). 100% is the number that
         // is actually achieved there, not a rounded-up one.
         'apps/web/middleware.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        // testDatabaseUrl.ts: 100% on every axis, measured rather than rounded
+        // up - it is one pure function and two constants, and every branch in
+        // it (a derivation, an absent variable, an empty one, a value that is
+        // not a URL) has a case of its own. Named at 100 rather than left
+        // under `apps/web/lib/**`'s 95% because it decides WHICH DATABASE the
+        // integration gate runs against, and the gate's integration half
+        // silently gated nothing in CI for two phases while that decision was
+        // a literal. A branch here that nobody has driven is a gate nobody
+        // has driven.
+        'apps/web/lib/testDatabaseUrl.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        // testDatabaseGuard.ts: 100% on every axis, with the connection
+        // injected rather than mocked - `connect` is the network boundary
+        // CLAUDE.md §2.3 permits standing in for, and injecting it is what
+        // lets the message be asserted in the Docker-free gate instead of
+        // only in the gate it guards. Named at 100 for the same reason
+        // testDatabaseUrl.ts is: it is the only thing that turns an
+        // unreachable database from N silent `undefined`s into one failure,
+        // and every arm of its message (which database it probes, the mask, a
+        // rejection with no message of its own) is a case.
+        'apps/web/lib/testDatabaseGuard.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        // THE TWO FILES THE REMOVED GLOBAL FLOOR WAS ACTUALLY GATING, named
+        // here rather than left to fall through to nothing. Both are matched by
+        // this pass's `apps/web/scripts/**/*.ts` include and by no glob above;
+        // their two siblings in that directory (`seed.ts`, `seed-data.ts`) are
+        // excluded here and re-gated by vitest.integration.config.ts.
+        //
+        // `placeholder.ts` is gated at the numbers it measures - 100 lines, 100
+        // functions, 87.5 branches - rather than a number rounded up to meet it.
+        // The missing branch is `parseHex`'s `if (!isSixDigitHex)` guard, whose
+        // `/* c8 ignore next -- … */` hint spans three comment lines, so "next"
+        // names the comment's own second line and not the statement beneath it.
+        // The hint therefore suppresses nothing and the branch is counted. That
+        // is a defect in the hint, not in the file, and it is left standing here
+        // rather than repaired inside a standards commit: repairing it raises
+        // this entry to 100/100/100 and is its own change with its own test.
+        //
+        // `run-seed.ts` carries a whole-file `c8 ignore start`/`stop` with its
+        // reason (a CLI entry point whose body is top-level `await` ending in
+        // `process.exit(0)`, so no test can import it). It therefore reports no
+        // measurable lines at all, and 100 is the honest gate for a file with
+        // nothing left uncovered - not an achievement, a statement that the
+        // suppression is total and must stay so. Adding a measurable line to it
+        // fails here, which is the direction that matters.
+        //
+        // A THIRD FILE LANDING IN apps/web/scripts/ WOULD BE GATED BY NEITHER
+        // ENTRY, AND `apps/web/lib/docs/coverageThresholds.test.ts` REFUSES IT.
+        // That check reads this block's own `include`, `exclude` and threshold
+        // keys - never a copy of them - and fails the commit that adds a
+        // measured file no glob here matches, which is what §2.1's rule
+        // ("a real threshold, in the same commit") asks for and what the
+        // removed repository-wide floor never did: that floor was an aggregate
+        // over every measured file (99.93% today), so a small untested file
+        // never moved it either, which docs/testing.md records as a
+        // measurement. Gating each file individually is still
+        // `coverage.thresholds.perFile`'s job, and its blast radius is why it
+        // is its own decision.
+        'apps/web/scripts/placeholder.ts': {
+          lines: 100,
+          branches: 87.5,
+          functions: 100,
+        },
+        'apps/web/scripts/run-seed.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        // `run-rederive.ts` is `run-seed.ts`'s twin and carries the identical
+        // whole-file `c8 ignore start`/`stop` with its own reason (a CLI entry
+        // point whose body is top-level `await` ending in `process.exit(0)`).
+        // 100 is the honest gate for a file with nothing left uncovered, and
+        // adding a measurable line to it fails here.
+        'apps/web/scripts/run-rederive.ts': {
           lines: 100,
           branches: 100,
           functions: 100,

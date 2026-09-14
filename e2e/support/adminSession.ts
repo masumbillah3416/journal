@@ -61,14 +61,27 @@
  * NOTHING HERE LOGS AN IDENTIFIER, A PASSWORD OR A CODE (CLAUDE.md §7). The
  * code is returned to the caller and nowhere else.
  *
- * Depends on: `getPayload` (apps/web/lib/payload), `createSessionService`,
- * `createOtpService`, `createConsoleMailer`, `readCodeFromOutbox`.
+ * SINCE PHASE 3 TASK 9 IT ALSO OFFERS AN UPLOAD SLOT. {@link anUploadUrlFor}
+ * is here for the same reason everything else is: the URL a browser PUTs to
+ * is minted server-side, by `offerUploadSlots` over the live store, and a
+ * page cannot ask for one until the admin's picker exists. It mints the real
+ * thing rather than assembling a URL, so `e2e/upload.spec.ts` measures a
+ * browser against what the application actually hands out.
+ *
+ * Depends on: node:crypto; `getPayload` (apps/web/lib/payload), `createSessionService`,
+ * `createOtpService`, `createConsoleMailer`, `readCodeFromOutbox`,
+ * `offerUploadSlots`, `mediaProcessor`, `createLocalStorage` and `MEDIA_DIR`.
  */
+import { randomUUID } from 'node:crypto'
 import type { SessionId, UserId } from '../../packages/domain/src/ids'
+import { MEDIA_DIR } from '../../apps/web/collections/media'
 import { createConsoleMailer } from '../../apps/web/lib/adapters/console-mailer'
+import { createLocalStorage } from '../../apps/web/lib/adapters/local-storage'
 import { createOtpService } from '../../apps/web/lib/auth/otpService'
 import { createSessionService } from '../../apps/web/lib/auth/sessions'
 import { readCodeFromOutbox } from '../../apps/web/lib/auth/testing/otpProbes'
+import { mediaProcessor } from '../../apps/web/lib/media/services'
+import { offerUploadSlots } from '../../apps/web/lib/media/uploadSlots'
 import { getPayload } from '../../apps/web/lib/payload'
 
 /**
@@ -288,4 +301,150 @@ export const removeSignedInFixture = async (domainOrEmail: string): Promise<void
   // per-worker. Deleting by `where` asks the database the question once, and a
   // predicate that now matches nothing is not an error.
   await payload.delete({ collection: 'users', where: { email: { like: domainOrEmail } } })
+}
+
+/**
+ * How many bytes {@link anUploadUrlFor}'s slot is offered for.
+ *
+ * Two kilobytes, matching the body `apps/web/lib/media/uploadContract.ts`'s
+ * measurement sent through a real Chromium — small enough that the PUT is
+ * instant and large enough that a `Content-Length` of it is not a rounding
+ * error.
+ *
+ * IT IS A CLAIM THE WIRE THEN HAS TO BEAR OUT, and this sentence used to say
+ * something weaker. It said the spec asserts "the `File` the browser built is
+ * this size", which was true of the version that read `File.prototype.size`
+ * back out of the page — the same echo the review found in the content-type
+ * assertion beside it. `e2e/upload.spec.ts` now asserts this number against
+ * the request's own `content-length` header and against the bytes the store
+ * holds. Nothing the page reports about its own `File` is compared to
+ * anything.
+ */
+const UPLOAD_FIXTURE_BYTES = 2_048
+
+/** A presigned upload slot, and what the browser is expected to send to it. */
+export interface OfferedUpload {
+  /** The URL to PUT to, carrying its own capability token. */
+  readonly url: string
+  /** The key the bytes will land at, so a test can read the store back. */
+  readonly stagingKey: string
+  /** The type the slot was offered for — the `File`'s own `type`. */
+  readonly contentType: string
+  /** How many bytes the slot was offered for. */
+  readonly byteLength: number
+}
+
+/**
+ * A genuine presigned upload URL, minted the way the admin's own screen mints
+ * one.
+ *
+ * ═══ THROUGH `offerUploadSlots`, NOT THROUGH A HAND-BUILT URL ═══
+ *
+ * A helper that assembled `/admin/media/upload?token=…` itself would be the
+ * fixture-agreeing-with-itself shape `apps/web/lib/media/uploadContract.ts`'s
+ * header records two Phase 2 blockers for. This calls the same function
+ * `requestUploadSlots` calls, with the same live store
+ * (`createLocalStorage(MEDIA_DIR)`) and the same bound processor, so the
+ * browser is handed the URL the application would have handed it — signed
+ * with the real `PAYLOAD_SECRET`, capped at the real `MAX_UPLOAD_BYTES`, and
+ * pointed at the real `ADMIN_ORIGIN`.
+ *
+ * ═══ IT CREATES NO JOURNEY, AND THAT IS DELIBERATE ═══
+ *
+ * A slot is keyed by the journey it is staged under (CLAUDE.md §0.9), so one
+ * is needed — but a fixture journey of its own would be a published row in the
+ * same database `e2e/visual.spec.ts` photographs, which is how a fixture
+ * becomes a baseline change. The SEEDED journeys are already there, already
+ * published, and a slot offered in one is exactly what an admin working in
+ * that journey would get. Nothing is written to it: this spec stops at the
+ * PUT, and the staged object is removed by {@link removeOfferedUpload}.
+ *
+ * @param testInfo - Playwright's own `TestInfo`, so the staged file is named
+ *   after this worker and a failure says which one left it. The key's nonce is
+ *   a fresh UUID rather than that label, so two calls in one worker cannot be
+ *   handed the same key — the signed-out case needs a key nothing has written
+ *   to.
+ * @returns The URL, the key it writes to, and the shape the page should send.
+ * @throws When the database holds no journey to key a slot by, or when the
+ *   slot request is refused — both of which are a broken environment rather
+ *   than a defect a case should report.
+ * @example
+ * const upload = await anUploadUrlFor(testInfo)
+ */
+export const anUploadUrlFor = async (testInfo: {
+  readonly project: { readonly name: string }
+  readonly workerIndex: number
+}): Promise<OfferedUpload> => {
+  const payload = await getPayload()
+  const journeys = await payload.find({ collection: 'journeys', limit: 1, depth: 0, select: { slug: true } })
+  const journey = journeys.docs[0]
+  if (journey === undefined) throw new Error('the database holds no journey to offer an upload slot in')
+
+  // THE TYPE COMES OFF THE BOUND PIPELINE, NEVER OFF
+  // `EXPECTED_UPLOAD_REQUEST`. The page types its `File` with whatever this
+  // returns, and the spec then compares the browser's request against that
+  // constant - so a helper that took the type FROM the constant would make
+  // the two agree by construction, which is the exact defect the spec exists
+  // to catch. `acceptedTypes` is the domain's own still-type list, reached
+  // through the adapter `requestUploadSlots` binds.
+  const processor = mediaProcessor()
+  const declaredType = processor.acceptedTypes[0]
+  if (declaredType === undefined) throw new Error('the bound pipeline accepts no type to offer a slot for')
+
+  const offered = await offerUploadSlots(
+    {
+      journey: String(journey.id),
+      files: [
+        {
+          filename: `tokyo-${fixtureLabel(testInfo)}.jpg`,
+          declaredType,
+          byteLength: UPLOAD_FIXTURE_BYTES,
+        },
+      ],
+    },
+    {
+      processor,
+      storage: createLocalStorage(MEDIA_DIR),
+      nonce: () => randomUUID(),
+    },
+  )
+  if (!offered.ok) throw new Error(`the slot request was refused: ${offered.error}`)
+
+  const slot = offered.value[0]
+  if (slot === undefined) throw new Error('no slot was offered for a single file')
+  return {
+    url: slot.uploadUrl,
+    stagingKey: slot.stagingKey,
+    contentType: slot.declaredType,
+    byteLength: UPLOAD_FIXTURE_BYTES,
+  }
+}
+
+/**
+ * How many bytes are sitting at a staging key, or `null` when nothing is.
+ *
+ * READ THROUGH THE PORT the receiver writes through, so "the bytes landed"
+ * is answered by the store rather than by the status code the browser saw.
+ * @param stagingKey - The key {@link anUploadUrlFor} offered.
+ * @returns The stored length, or `null` if the key names no object.
+ * @example
+ * expect(await storedUploadLength(upload.stagingKey)).toBe(upload.byteLength)
+ */
+export const storedUploadLength = async (stagingKey: string): Promise<number | null> => {
+  const stored = await createLocalStorage(MEDIA_DIR).get(stagingKey)
+  return stored.ok ? stored.value.byteLength : null
+}
+
+/**
+ * Deletes whatever a case left at a staging key.
+ *
+ * The store is rooted at `MEDIA_DIR`, which is the directory Payload keeps
+ * every stored file in. A suite that left two kilobytes there per worker per
+ * run would grow that directory every time it ran.
+ * @param stagingKey - The key {@link anUploadUrlFor} offered.
+ * @example
+ * test.afterEach(async () => { await removeOfferedUpload(upload.stagingKey) })
+ */
+export const removeOfferedUpload = async (stagingKey: string): Promise<void> => {
+  await createLocalStorage(MEDIA_DIR).delete(stagingKey)
 }

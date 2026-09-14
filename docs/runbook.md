@@ -49,6 +49,79 @@ duplicates, and leaves anything else (new journeys, new pages) untouched. It wri
 whatever `DATABASE_URL` names — the real dev/production database, never the isolated
 `diary_test` database the integration test suite uses (see `docs/testing.md`).
 
+## Re-deriving derivatives after a tier is added
+
+`npm run media:rederive` gives every stored `media` row the derivative tiers
+`apps/web/collections/media.ts`'s `imageSizes` configures today. **It is an operational
+step, not a one-off**: a migration that adds a tier adds six columns describing a FILE,
+and a derivative has to be generated from the original before there is a filename to
+record — so `npm run db:migrate` alone leaves every existing row carrying the old ladder.
+Phase 3 Task 10 is the first run of it, for `docs/adr/0013-gallery-image-budget.md`'s
+700px `grid` rung; the next tier anyone adds needs the same step, in this order:
+
+```
+npm run db:migrate       # add the columns
+npm run media:rederive   # fill them
+```
+
+**A DEPLOY CAN NEED IT WITH NO MIGRATION AT ALL, and that case has already happened.**
+MED-001's fix (`docs/qa/2026-09-08-media-pipeline-sweep.md`) gave the existing `frame`
+tier `withoutEnlargement: true` — no new column, nothing for `npm run db:migrate` to do,
+and every existing row still missing the uncropped derivative its lightbox, download and
+in-book slots now ask for. So the rule is **run `npm run media:rederive` after any deploy
+that changes `imageSizes` at all**, not only after one that adds a tier.
+
+### ⚠ SKIPPING IT TAKES THE WHOLE DIARY DARK. THE TWO SURFACES FAIL DIFFERENTLY
+
+This paragraph said those rows "do not degrade: a gallery frame with no derivative is
+omitted from the grid and its download answers 404". **That is true of the gallery and
+false of the book**, and the difference is the difference between one missing tile and a
+site-wide outage. Corrected here because an operator reading the softer sentence would
+reasonably treat the re-derive as optional.
+
+| surface                             | a row with no `frame`                                                                                                                                                                                                                                                                              |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/gallery/<slug>` grid and lightbox | **Degrades.** The frame is omitted from the grid with a logged warning; the rest of the gallery renders.                                                                                                                                                                                           |
+| `/gallery/<slug>/download/<id>`     | **Degrades.** 404, the same refusal every other unavailable download answers.                                                                                                                                                                                                                      |
+| `/p/<n>` — every in-book slot       | **THROWS.** `apps/web/lib/readBookBundle.ts`'s `derivativeUrlFor` refuses to fall back to the original, so the request 500s — or `next build` fails outright while generating the static page window, because the diary's pages are prerendered. **The whole book goes dark, not one photograph.** |
+
+That asymmetry is deliberate and is not a defect to soften: the book's ladders name
+uncropped tiers only (MED-001), so there is nothing left below `frame` to fall back to
+except the square crop the fix exists to stop serving. Failing loudly is the correct
+behaviour; what was wrong was an operational document that did not say what "loudly"
+means.
+
+**So the ordering is a requirement, not a convenience.** Take the application out of
+service, or run the re-derive before the new build serves its first request:
+
+```
+npm run db:migrate       # if the change added columns; MED-001's did not
+npm run media:rederive   # ALWAYS, after any imageSizes change — before serving
+```
+
+If a deploy has already gone out without it, `npm run media:rederive` is still the fix and
+needs no rollback: it updates rows in place and the next request reads the repaired row.
+
+It reads each row's own original back through the Storage port and hands it to
+`payload.update`, so **rows keep their ids** — the diary addresses media by id
+(`CLAUDE.md` §7), and a script that created new rows would leave every
+`pages.slots[].media` reference in the book pointing at the old one. Captions, alt text,
+focal points and `order` are untouched.
+
+It is safe to run again: a row is re-derived only when the ladder asks for a tier it does
+not carry AND Payload would actually produce that tier from its own original — which
+`apps/web/lib/media/derivativeGeometry.ts` answers, because "wide enough" is only the
+answer for a plain width-only rung and is the wrong one for both of the other shapes the
+ladder now holds. So a second
+run reports `Re-derived 0 media row(s)` and re-encodes nothing. A row whose original is no
+longer in the store is NAMED in that output and skipped, never thrown on — the run
+finishes rather than leaving the corpus half-converted. The gallery's image budget in
+`lighthouserc.json` is measured against a re-derived corpus, so this step comes before
+`npm run test:perf` means anything.
+
+Like the seed, it writes to whatever `DATABASE_URL` names, and it does not delete the
+derivatives it replaces — see the media-store section below.
+
 ## Deploy
 
 Per `docs/adr/0001-hosting-and-cost.md`:
@@ -61,13 +134,50 @@ Per `docs/adr/0001-hosting-and-cost.md`:
   architecture; see the ADR).
 - **Transcoder worker:** Fly.io, auto-stopping between jobs — **deferred**, not
   provisioned. No video clips at launch (`docs/adr/0004-media-pipeline-mode.md`).
-  **There is no media pipeline to run in either mode yet, and `MEDIA_PIPELINE` is not a
-  variable this application reads** — it is declared in neither `apps/web/lib/env.ts` nor
-  `.env.example`, and setting it changes nothing. This bullet described the `inline` mode
-  as the thing running today, in a document whose own opening promises that nothing in it
-  is aspirational (Phase 2's final review, finding 30). Phase 3 builds the pipeline; until
-  then an uploaded still gets whatever Payload's own `sharp` handling gives it and no
-  derivative tier of ours.
+  Phase 3 Task 6 built the `MediaProcessor` port, both adapters, the shared still
+  pipeline and the one contract suite they both pass
+  (`apps/web/lib/ports/mediaProcessor.ts`,
+  `apps/web/lib/adapters/inline-media-processor.ts`,
+  `apps/web/lib/adapters/worker-media-processor.ts`,
+  `apps/web/lib/media/stillPipeline.ts`), and `apps/web/lib/media/services.ts` is the one
+  place `MEDIA_PIPELINE` chooses between them. **Phase 3 Task 8 wired it:** the
+  `finaliseUpload` Server Action (`apps/web/app/(admin)/admin/media/actions.ts`) calls
+  `apps/web/lib/media/ingestUpload.ts`, which calls `MediaProcessor.process()` on the
+  staged bytes and creates the `media` row from the re-encode. This bullet said "no route
+  and no Payload hook calls `mediaProcessor()`" for two tasks; that is no longer true
+  under the configured default.
+  **`MEDIA_PIPELINE=worker` DOES NOT BOOT, and that is a guard rather than a limitation.**
+  Under `worker`, ingest does not run the pipeline - ADR 0004's amendment puts the queue
+  hop between the receiver and the worker - so it records the STAGED original at
+  `state: 'processing'` and enqueues a `transcode` job for a process that would sniff,
+  strip and re-encode it. No such process exists here, so the bytes behind that row are
+  unsniffed and un-stripped, and Payload would serve them. **This bullet was a warning
+  and nothing else until the Task 8 review; there are now two controls, deliberately
+  independent.** (1) `apps/web/lib/env.ts` refuses the value at `parseEnv`, so the
+  process fails to start rather than failing a request with bytes already written, and
+  the message names its own removal condition. (2)
+  `apps/web/collections/media.ts`'s `read` access withholds any row that is not `ready`
+  (NULL included, as "written before the column existed") from a signed-out reader, so
+  the disclosure does not reopen if somebody deletes the first guard. Both sides of each
+  are pinned by a case. ADR 0004's "enabling video later is" states the order the removal
+  follows: provision the Fly.io app, deploy the worker container, THEN delete the refusal
+  and set the flag - a code change, in the commit that deploys the worker.
+  **That commit owes an end-to-end pass through `finaliseUpload` under the real flag**,
+  and this sentence is here because nothing else would ask for it: every `worker`-mode
+  case in the suite binds the mode directly, so the one composition no test has ever
+  executed is `apps/web/app/(admin)/admin/media/actions.ts` building `mediaProcessor()`
+  and `env.MEDIA_PIPELINE` side by side under `worker` - a Server Action has no
+  test-process request context, and `env` is fixed per run. Upload a still and a clip
+  through the admin, confirm the row reaches `ready` rather than sitting at `processing`,
+  and confirm the stored file carries no metadata marker. That path will be running in
+  production having never run anywhere.
+  **That container must have `ffmpeg` and `ffprobe` on its `PATH`** -
+  `apps/web/lib/media/services.ts` passes those two names to `createFfmpegToolchain`, and
+  a container without them turns every clip upload into an `'unreadable'` refusal rather
+  than an error naming the cause.
+  This bullet described the `inline` mode as the thing running today, in a document whose
+  own opening promises that nothing in it is aspirational (Phase 2's final review,
+  finding 30).
 - **Mail:** Resend, for OTP only.
 - **Offsite backup:** Backblaze B2 — a provider independent of both Neon and R2, so a
   single provider's outage or account compromise cannot take out the primary data and
@@ -130,15 +240,41 @@ visible from the code that was added:
 
 ## The local media store grows without bound, and it fails a test rather than the disk
 
-`apps/web/media` is where Payload writes uploads and their five derivative tiers:
-`apps/web/collections/media.ts` sets `staticDir: MEDIA_DIR` and declares the five
-`imageSizes`, and Payload's own upload handling does the writing. Nothing of ours does —
-`apps/web/lib/adapters/local-storage.ts`'s `StoragePort` is a **read** path here, its
-only non-test construction being `apps/web/lib/readGalleryDownload.ts`'s `mediaStore`,
-which streams one file back for a gallery download. The directory is gitignored, so it
+`apps/web/media` is where Payload writes uploads and every one of their derivative tiers:
+`apps/web/collections/media.ts` sets `staticDir: MEDIA_DIR` and declares the `imageSizes`
+ladder — deliberately not enumerated here, since it grew a rung in Phase 3 Task 10 — and
+Payload's own upload handling does the writing. Nothing of ours does —
+`apps/web/lib/adapters/local-storage.ts`'s `StoragePort` was a **read** path here until
+Phase 3 Task 7, its only non-test construction being
+`apps/web/lib/readGalleryDownload.ts`'s `mediaStore`, which streams one file back for a
+gallery download. It now also WRITES: `PUT /admin/media/upload` stages an upload's bytes
+under `apps/web/media/staging/<journey>/…` through the same port (see
+`docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`), so the growth
+described below has a second source. The directory is gitignored, so it
 never appears in `git status`, and **nothing deletes a file from it**: `payload.delete`
 removes the row, and the bytes stay. Every `npm run db:seed`, and every run of
-`apps/web/scripts/seed.integration.test.ts`, writes a fresh set.
+`apps/web/scripts/seed.integration.test.ts`, writes a fresh set. So does every
+`npm run media:rederive` that actually re-derives something: Payload writes the new
+derivative files and the superseded ones are left behind, which is the same growth from a
+third source rather than a new kind of problem.
+
+**Staged bytes that are never finalised are NOT part of this problem, and filing them
+here was the mistake this paragraph corrects.** A slot that is uploaded to and never
+finalised — the author closes the tab, the request fails, the page is reloaded — leaves
+its object under `apps/web/media/staging/<journey>/` forever: Task 8 of the media phase
+deletes the staging copy on every _finalise_ path - `ingestUpload`'s `finally`, so a
+refused upload's original is removed as well as a stored one's - and an upload that never
+reaches that finalise step is swept by nothing. What makes that a security residual rather than a
+capacity one is WHAT THOSE BYTES ARE: the pre-strip original, the copy that still carries
+the GPS coordinates, which is exactly the data `SECURITY.md`'s read-EXIF-then-strip
+requirement exists to remove. Freeing the disk is not the reason to sweep them. The owner
+is named in
+`docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`'s Consequences — the
+sweep is **Phase 4's**, which is where a scheduler exists to hang it on — and the
+requirement it is a residual against is `docs/security.md`'s EXIF row. **Until then, an
+operator clearing space should treat `apps/web/media/staging/` as the first thing to
+remove, not the last:** nothing published depends on it, and everything in it is either
+in flight or an un-stripped original.
 
 **The first symptom is not a full disk. It is a test that has always passed timing out,
 with no commit in between** — the same confusing shape as the wall-clock guard suite
@@ -192,7 +328,7 @@ visual baselines would fail for a reason that has nothing to do with any change.
 
 **The real fix is Phase 3's**, and it is named rather than implied: deletion has to be
 attached where the writing happens, which today is the `media` collection — an
-`afterDelete` hook that unlinks the file and its five tiers under `staticDir`. When
+`afterDelete` hook that unlinks the file and every derivative of it under `staticDir`. When
 storage moves to R2 the same deletion moves into the adapter, which is what R2 will need
 in order not to bill for orphans forever. Until then this is housekeeping, and the table above is what
 tells you when it is due.
@@ -215,6 +351,13 @@ tells you when it is due.
    where the provider supports it, write-only from the upload path — a compromised
    upload credential should not be able to read or delete existing media
    (`SECURITY.md`, "Dependencies and secrets").
+6. **Rotating `PAYLOAD_SECRET` also invalidates every outstanding upload URL**, because
+   that secret is what `apps/web/lib/media/uploadToken.ts` signs an upload capability
+   with (Phase 3 Task 7). That is correct rather than a problem — a capability minted
+   under a retired secret should stop working — and it costs at most
+   `UPLOAD_URL_TTL_SECONDS`, fifteen minutes, of in-flight uploads. An author who was
+   mid-upload sees a `403` and re-selects the files; nothing is half-written, because the
+   receiver writes only after the token verifies.
 
 ## Restore drill
 

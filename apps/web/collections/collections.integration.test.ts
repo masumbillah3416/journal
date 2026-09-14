@@ -9,11 +9,14 @@
  * Named `*.integration.test.ts` so it runs only under the `integration` Vitest
  * project (see vitest.config.ts), never in `npm run verify` (pre-commit).
  *
- * The last TWO cases are the Migration suite of CLAUDE.md §2, one per shape
- * of migration this repository has: the journey case covers a migration that
- * creates tables, and the `otpChallenges` case covers one that adds a column
- * and an index to a table that already exists. They are separate because they
- * fail differently - see the comment on the second.
+ * The reversibility cases are the Migration suite of CLAUDE.md §2, one per
+ * migration on disk: the journey case covers the migration that creates
+ * tables (and rolls every migration to zero to reach it), and each of the
+ * others rolls back ONE migration and asserts on exactly the artefacts that
+ * migration is responsible for. No count is written here on purpose - the
+ * list grows with every migration, and a number in prose goes stale silently
+ * while the cases below cannot. They are separate because they fail
+ * differently - see the comment on each.
  *
  * The first of them replaced one named
  * "runs down and up again without loss" that seeded nothing and compared
@@ -54,6 +57,7 @@
  * database, never the developer's own dev database (Task 10/11 review
  * finding 2) - see that module's header.
  */
+import { randomUUID } from 'node:crypto'
 import type { MigrateUpArgs } from '@payloadcms/db-postgres'
 import { Client } from 'pg'
 import { type PayloadRequest, readMigrationFiles } from 'payload'
@@ -64,13 +68,45 @@ import { appliedMigrationCount, runMigrateDownToZero, runMigrateUp } from '../li
 import { getPayload } from '../lib/payload'
 import { getTestPayload } from '../lib/testPayload'
 
-const FIXTURE_SLUGS = ['test-tokyo', 'test-bergen', 'test-lisbon', 'test-reversibility']
+/**
+ * The slug prefix every cover-hook journey is minted under, and the entry in
+ * `FIXTURE_SLUGS` that removes all of them. Prefixed `test-` like every other
+ * fixture slug, so no seeded journey can match it.
+ */
+const FIXTURE_COVER_SLUG_PREFIX = 'test-cover-'
 
-/** The `alt` values the two media access fixtures are created with, so `afterAll` can find and delete them. */
-const FIXTURE_MEDIA_ALTS = ['test-access-visible', 'test-access-hidden', 'test-access-hidden-editor']
+/**
+ * What `afterAll` sweeps the `journeys` collection by. Entries are matched as
+ * PREFIXES, not whole slugs, which is what lets the last one stand for every
+ * journey the cover-hook cases mint: `journeys.slug` is unique and those cases
+ * need several journeys at once, so their slugs cannot be literals.
+ */
+const FIXTURE_SLUGS = ['test-tokyo', 'test-bergen', 'test-lisbon', 'test-reversibility', FIXTURE_COVER_SLUG_PREFIX]
+
+/** The `alt` values the media access fixtures are created with, so `afterAll` can find and delete them. */
+const FIXTURE_MEDIA_ALTS = [
+  'test-access-visible',
+  'test-access-stateless',
+  'test-access-processing',
+  'test-access-processing-editor',
+  'test-access-failed',
+  'test-access-hidden',
+  'test-access-hidden-editor',
+]
+
+/**
+ * The `alt` value every media row the Phase 3 fixtures upload carries. One
+ * value rather than one per case so `afterAll`'s existing loop over
+ * `FIXTURE_MEDIA_ALTS` removes them all, and no second cleanup path exists to
+ * forget.
+ */
+const FIXTURE_MEDIA_STATE_ALT = 'test-media-state'
 
 /** The editor fixture's email, so `afterAll` can remove the account the access tests sign in as. */
 const FIXTURE_USER_EMAIL = 'test-access-editor@example.com'
+
+/** The second editor, for the case that reads a `processing` row as one. Swept by the same loop. */
+const FIXTURE_STATE_USER_EMAIL = 'test-access-state-editor@example.com'
 
 /**
  * A real, uploadable PNG for the media access fixtures - built with the same
@@ -123,6 +159,26 @@ const aReversibilityJourney = (): {
     { key: 'DAYLIGHT HOURS', value: 'uncounted' },
     { key: 'PUFFINS', value: 'none, wrong season' },
   ],
+})
+
+/**
+ * A journey for the cover-hook cases: the shape `aReversibilityJourney()`
+ * returns, with a slug of its own.
+ *
+ * The slug is minted per call rather than fixed because these cases need two
+ * journeys at once and `journeys.slug` is unique - two of them sharing a
+ * literal would fail inside the fixture rather than in the assertion it was
+ * written for, and a slug left behind by an interrupted run would fail the
+ * next one. `afterAll` removes them all by the shared prefix.
+ * @param overrides - Fields to replace; `slug` is the only one a case pins.
+ * @returns The journey's create data.
+ */
+const aCoverFixtureJourney = (
+  overrides: Partial<{ readonly slug: string }> = {},
+): ReturnType<typeof aReversibilityJourney> => ({
+  ...aReversibilityJourney(),
+  slug: `${FIXTURE_COVER_SLUG_PREFIX}${randomUUID()}`,
+  ...overrides,
 })
 
 /**
@@ -342,6 +398,99 @@ const signInAttemptsSchema = async (): Promise<string[]> => {
 /** Every artefact `signInAttemptsSchema` looks for, when the migration is applied. */
 const SIGN_IN_ATTEMPTS_SCHEMA = ['dimension-type', 'endpoint-type', 'index', 'locked-documents-column', 'table']
 
+/** The migration that gives a media row a processing state (Phase 3 Task 5). */
+const MEDIA_STATE_MIGRATION = '20260910_171154_add_media_state'
+
+/**
+ * Which of the artefacts `MEDIA_STATE_MIGRATION` is responsible for exist.
+ *
+ * The enum type as well as the columns: a `down()` that dropped the columns
+ * and left `enum_media_state` behind would satisfy a column-only assertion
+ * and then fail its own re-apply with "type already exists" - the failure the
+ * hand-fixed statement order in `add_jobs` exists to prevent. And the `media`
+ * table itself, because this migration adds to a table it did not create.
+ * @returns The artefacts that exist, sorted, so an assertion reads as a set.
+ */
+const mediaStateSchema = async (): Promise<string[]> => {
+  const client = new Client({ connectionString: env.DATABASE_URL })
+  await client.connect()
+  try {
+    const found = await client.query<{ artefact: string }>(
+      `SELECT 'state-column' AS artefact FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'media' AND column_name = 'state'
+       UNION ALL
+       SELECT 'reason-column' FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'media' AND column_name = 'failure_reason'
+       UNION ALL
+       SELECT 'state-type' FROM pg_type WHERE typname = 'enum_media_state'
+       UNION ALL
+       SELECT 'media-table' FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'media'`,
+    )
+    return found.rows.map((row) => row.artefact).sort()
+  } finally {
+    await client.end()
+  }
+}
+
+/** Every artefact `mediaStateSchema` looks for, when the migration is applied. */
+const MEDIA_STATE_SCHEMA = ['media-table', 'reason-column', 'state-column', 'state-type']
+
+/** What `mediaStateSchema` returns when this migration's `down()` has run: the table alone. */
+const MEDIA_STATE_SCHEMA_ROLLED_BACK = ['media-table']
+
+/** The migration that adds ADR 0013's deferred intermediate tier (Phase 3 Task 10). */
+const MEDIA_GRID_TIER_MIGRATION = '20260913_201520_add_media_grid_tier'
+
+/**
+ * Which of the artefacts one `imageSize` adds currently exist, plus the table.
+ *
+ * All six columns rather than one: Payload derives a column per size FIELD,
+ * and a `down()` that dropped `sizes_grid_url` alone would leave five orphans
+ * that its own `up()` could not re-add. The filename INDEX is here too - the
+ * generator emits one per size and the brief's six-column list predates
+ * seeing it, so asserting on the columns alone would leave one artefact of
+ * this migration's unwatched. And the `media` table itself, because this
+ * migration adds columns to a table it did not create.
+ * @returns The artefacts that exist, sorted, so an assertion reads as a set.
+ */
+const mediaGridTierSchema = async (): Promise<string[]> => {
+  const client = new Client({ connectionString: env.DATABASE_URL })
+  await client.connect()
+  try {
+    const found = await client.query<{ artefact: string }>(
+      `SELECT column_name AS artefact FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'media'
+          AND column_name IN ('sizes_grid_url', 'sizes_grid_width', 'sizes_grid_height',
+                              'sizes_grid_mime_type', 'sizes_grid_filesize', 'sizes_grid_filename')
+       UNION ALL
+       SELECT 'grid-filename-index' FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = 'media_sizes_grid_sizes_grid_filename_idx'
+       UNION ALL
+       SELECT 'media-table' FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'media'`,
+    )
+    return found.rows.map((row) => row.artefact).sort()
+  } finally {
+    await client.end()
+  }
+}
+
+/** Every artefact `mediaGridTierSchema` looks for, when the migration is applied. */
+const MEDIA_GRID_TIER_SCHEMA = [
+  'grid-filename-index',
+  'media-table',
+  'sizes_grid_filename',
+  'sizes_grid_filesize',
+  'sizes_grid_height',
+  'sizes_grid_mime_type',
+  'sizes_grid_url',
+  'sizes_grid_width',
+]
+
+/** What `mediaGridTierSchema` returns when this migration's `down()` has run: the table alone. */
+const MEDIA_GRID_TIER_SCHEMA_ROLLED_BACK = ['media-table']
+
 /**
  * Runs one migration's own `up()` or `down()`, outside Payload's batch
  * bookkeeping.
@@ -382,6 +531,55 @@ const runMigrationDirection = async (
     // assembling a whole PayloadRequest to hand to a discarded parameter.
     req: {} as PayloadRequest,
   })
+}
+
+/**
+ * Rolls one migration down, reads the schema it left behind, and puts it back.
+ *
+ * ═══ WHY THE PROBE IS CAPTURED RATHER THAN ASSERTED IN PLACE ═══
+ *
+ * The four cases below used to assert INSIDE a `try` whose `finally`
+ * re-applied the migration. Between the `down` and the `up`, `diary_test` is
+ * in a state `payload_migrations` does not describe, so the re-apply is not
+ * tidiness: without it, one failing assertion leaves a database the next
+ * run's `runMigrateUp()` cannot repair, because it has nothing pending to
+ * apply. That part was right and is unchanged.
+ *
+ * What was wrong is what the failure then SAYS. A `down()` that leaves
+ * artefacts behind - the exact mutation these cases exist to catch - makes
+ * the re-apply collide (`type "enum_media_state" already exists`), and a
+ * `finally` that throws REPLACES the error from the `try`. So the mutation's
+ * report named the collision rather than the assertion diff, and Task 5's
+ * report recorded that masking as intrinsic. It is not: capture the probe,
+ * re-apply tolerantly, assert afterwards, and the same mutation reports
+ * `expected [ Array(4) ] to deeply equal [ 'media-table' ]`.
+ *
+ * The tolerance is NARROW rather than a swallow (CLAUDE.md §3.1): the
+ * re-apply's failure is accepted only when the schema is back in its applied
+ * state anyway, which is the one situation a collision means. Anything else
+ * is re-thrown, because a repair that did not repair must not be quiet.
+ * @param migration - The migration's name, as `payload_migrations` records it.
+ * @param payload - The test Payload instance.
+ * @param probe - `read` gathers whatever the caller wants to assert about the
+ *   rolled-back schema; `whenApplied` is what `read` answers once the
+ *   migration is back, and the only answer a collision is tolerated for.
+ * @returns What `read` answered while the migration was rolled back.
+ */
+const acrossItsOwnRollback = async <T>(
+  migration: string,
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  probe: { readonly read: () => Promise<T>; readonly whenApplied: T },
+): Promise<T> => {
+  await runMigrationDirection(migration, 'down', payload)
+  try {
+    return await probe.read()
+  } finally {
+    try {
+      await runMigrationDirection(migration, 'up', payload)
+    } catch (reapplyFailure) {
+      if (JSON.stringify(await probe.read()) !== JSON.stringify(probe.whenApplied)) throw reapplyFailure
+    }
+  }
 }
 
 /** The three tables a journey's own fields, highlights and tally live in. */
@@ -434,6 +632,26 @@ describe('collections', () => {
     }
   }
 
+  /**
+   * Creates one media row for the cover-hook cases.
+   *
+   * The filename is minted per call because Payload derives the stored file's
+   * name from it, and two fixtures uploading `cover.png` would collide in the
+   * media directory rather than in an assertion. `alt` is the shared fixture
+   * value, so `afterAll`'s one media loop removes these too.
+   * @param input - The journey the row belongs to (`null` for none, which is a
+   *   case of its own) and whether it is that journey's cover.
+   * @returns The created media row.
+   */
+  const createFixtureMedia = async (input: { readonly journey: number | null; readonly isCover: boolean }) => {
+    const png = await aTinyPng()
+    return payload.create({
+      collection: 'media',
+      data: { journey: input.journey, isCover: input.isCover, alt: FIXTURE_MEDIA_STATE_ALT },
+      file: { data: png, mimetype: 'image/png', name: `test-cover-${randomUUID()}.png`, size: png.length },
+    })
+  }
+
   beforeAll(async () => {
     payload = await getTestPayload()
     // Repairs the ONE inconsistent state this file's own reversibility case
@@ -457,6 +675,21 @@ describe('collections', () => {
     if ((await sessionExpirySchema()).length === 0) {
       await runMigrationDirection(SESSION_EXPIRY_MIGRATION, 'up', payload)
     }
+    // And once more for the media state case: its two columns and its enum
+    // type dropped while `payload_migrations` still records the migration as
+    // applied. Compared against the rolled-back set rather than emptiness,
+    // because `media` is a table this migration did not create, so it is
+    // still there when this migration's own artefacts are not.
+    if (JSON.stringify(await mediaStateSchema()) === JSON.stringify(MEDIA_STATE_SCHEMA_ROLLED_BACK)) {
+      await runMigrationDirection(MEDIA_STATE_MIGRATION, 'up', payload)
+    }
+    // And once more for the grid tier case, for the same narrow hazard: its
+    // six size columns dropped while `payload_migrations` still records the
+    // migration as applied. Compared against the rolled-back set for the same
+    // reason - `media` outlives this migration's own artefacts.
+    if (JSON.stringify(await mediaGridTierSchema()) === JSON.stringify(MEDIA_GRID_TIER_SCHEMA_ROLLED_BACK)) {
+      await runMigrationDirection(MEDIA_GRID_TIER_MIGRATION, 'up', payload)
+    }
 
     // Cleaned at BOTH ends, and the editor minted ONCE: `users.email` is
     // unique, so a row left behind by an interrupted run - or a second case
@@ -470,8 +703,12 @@ describe('collections', () => {
     await removeGuardFixtures()
     // "test-marrakech" is deliberately absent: that test's create() is
     // expected to reject (the highlights-cap case), so no row ever exists.
+    // Matched with `like` - Payload's case-insensitive contains - rather than
+    // `equals`, so the one `test-cover-` entry sweeps every journey the
+    // cover-hook cases minted a unique slug for. Every entry starts `test-`,
+    // so the ten real seeded journeys cannot match.
     for (const slug of FIXTURE_SLUGS) {
-      const found = await payload.find({ collection: 'journeys', where: { slug: { equals: slug } } })
+      const found = await payload.find({ collection: 'journeys', where: { slug: { like: slug } } })
       for (const doc of found.docs) {
         await payload.delete({ collection: 'journeys', id: doc.id })
       }
@@ -480,15 +717,17 @@ describe('collections', () => {
     // removed: `seed.integration.test.ts` counts rows in the shared
     // collections, and a fixture left behind here inflates whichever file
     // runs second.
-    for (const alt of FIXTURE_MEDIA_ALTS) {
+    for (const alt of [...FIXTURE_MEDIA_ALTS, FIXTURE_MEDIA_STATE_ALT]) {
       const found = await payload.find({ collection: 'media', where: { alt: { equals: alt } } })
       for (const doc of found.docs) {
         await payload.delete({ collection: 'media', id: doc.id })
       }
     }
-    const editors = await payload.find({ collection: 'users', where: { email: { equals: FIXTURE_USER_EMAIL } } })
-    for (const doc of editors.docs) {
-      await payload.delete({ collection: 'users', id: doc.id })
+    for (const email of [FIXTURE_USER_EMAIL, FIXTURE_STATE_USER_EMAIL]) {
+      const editors = await payload.find({ collection: 'users', where: { email: { equals: email } } })
+      for (const doc of editors.docs) {
+        await payload.delete({ collection: 'users', id: doc.id })
+      }
     }
     // The OTP reversibility case creates one account either side of the
     // rollback, and the rollback destroys the first - so the address is
@@ -669,7 +908,7 @@ describe('collections', () => {
   it('serves a media item to an unauthenticated reader, so the public diary can show a photograph', async () => {
     const visible = await payload.create({
       collection: 'media',
-      data: { kind: 'still', alt: 'test-access-visible', order: 0 },
+      data: { kind: 'still', alt: 'test-access-visible', order: 0, state: 'ready' },
       file: { data: await aTinyPng(), mimetype: 'image/png', name: 'test-access-visible.png', size: 1 },
     })
 
@@ -680,6 +919,91 @@ describe('collections', () => {
     })
 
     expect(read.docs).toHaveLength(1)
+  })
+
+  it('serves a media item with no state at all, which is what every row written before the column means', async () => {
+    // `20260910_171154_add_media_state` deliberately did not backfill
+    // (docs/deviations.md §48), so NULL means "ingested before there was a
+    // state to record". Withholding those would take the public diary dark to
+    // close a hole they cannot be in, so the clause below has to admit them -
+    // and this is the case that says so, since nothing else in this file
+    // writes a NULL state on purpose.
+    const legacy = await payload.create({
+      collection: 'media',
+      data: { kind: 'still', alt: 'test-access-stateless', order: 0, state: null },
+      file: { data: await aTinyPng(), mimetype: 'image/png', name: 'test-access-stateless.png', size: 1 },
+    })
+
+    const read = await payload.find({
+      collection: 'media',
+      overrideAccess: false,
+      where: { id: { equals: legacy.id } },
+    })
+
+    expect({ state: legacy.state, visible: read.docs.length }).toEqual({ state: null, visible: 1 })
+  })
+
+  it('withholds a still-processing media item from an unauthenticated reader, so an unstripped original is never served', async () => {
+    // THE SECOND OF THE TWO CONTROLS ON `MEDIA_PIPELINE=worker`, and the one
+    // that holds if somebody deletes the first. A `processing` row may be
+    // carrying bytes nothing has stripped - the staged original a worker was
+    // meant to collect, which is the only way the delivered system writes one
+    // (`inline` creates at `ready` and refuses without a row) - and Payload
+    // serves a readable row's file at `/api/media/file/<name>` to anybody.
+    const unfinished = await payload.create({
+      collection: 'media',
+      data: { kind: 'still', alt: 'test-access-processing', order: 0, state: 'processing' },
+      file: { data: await aTinyPng(), mimetype: 'image/png', name: 'test-access-processing.png', size: 1 },
+    })
+
+    const asReader = await payload.find({
+      collection: 'media',
+      overrideAccess: false,
+      where: { id: { equals: unfinished.id } },
+    })
+    const asServer = await payload.find({ collection: 'media', where: { id: { equals: unfinished.id } } })
+
+    expect({ reader: asReader.docs.length, server: asServer.docs.length }).toEqual({ reader: 0, server: 1 })
+  })
+
+  it('withholds a failed media item from an unauthenticated reader, since its bytes were never finished either', async () => {
+    const broken = await payload.create({
+      collection: 'media',
+      data: { kind: 'still', alt: 'test-access-failed', order: 0, state: 'failed', failureReason: 'a reason' },
+      file: { data: await aTinyPng(), mimetype: 'image/png', name: 'test-access-failed.png', size: 1 },
+    })
+
+    const asReader = await payload.find({
+      collection: 'media',
+      overrideAccess: false,
+      where: { id: { equals: broken.id } },
+    })
+
+    expect(asReader.docs).toHaveLength(0)
+  })
+
+  it('shows a still-processing media item to a signed-in editor, so the Media screen can show progress', async () => {
+    // Spec section 9.2 makes `processing` a first-class UI state rather than a
+    // missing image. The clause above must withhold it from a READER without
+    // hiding it from the author whose upload it is.
+    const unfinished = await payload.create({
+      collection: 'media',
+      data: { kind: 'still', alt: 'test-access-processing-editor', order: 0, state: 'processing' },
+      file: { data: await aTinyPng(), mimetype: 'image/png', name: 'test-access-processing-editor.png', size: 1 },
+    })
+    const editor = await payload.create({
+      collection: 'users',
+      data: { email: 'test-access-state-editor@example.com', password: 'not-a-real-password' },
+    })
+
+    const asEditor = await payload.find({
+      collection: 'media',
+      overrideAccess: false,
+      user: editor,
+      where: { id: { equals: unfinished.id } },
+    })
+
+    expect(asEditor.docs).toHaveLength(1)
   })
 
   it('withholds a hidden media item from an unauthenticated reader, so hiding one is not merely cosmetic', async () => {
@@ -722,6 +1046,182 @@ describe('collections', () => {
     })
 
     expect(asEditor.docs).toHaveLength(1)
+  })
+
+  it('clears isCover on the journeys other media when a new cover is set', async () => {
+    const journey = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    const first = await createFixtureMedia({ journey: journey.id, isCover: true })
+    const second = await createFixtureMedia({ journey: journey.id, isCover: false })
+    // The fixture really did set a cover: without this, a `createFixtureMedia`
+    // that silently dropped `isCover` would leave the assertion below passing
+    // on a row that was never the cover in the first place.
+    expect(first.isCover).toBe(true)
+
+    await payload.update({ collection: 'media', id: second.id, data: { isCover: true } })
+
+    const reread = await payload.findByID({
+      collection: 'media',
+      id: first.id,
+      depth: 0,
+      select: { isCover: true },
+    })
+
+    expect(reread.isCover).toBe(false)
+  })
+
+  it('leaves another journeys cover alone, because a cover belongs to one journey', async () => {
+    // CLAUDE.md §7: key everything by journey id. A hook that cleared every
+    // isCover in the collection would be the sixth defect of the family the
+    // handoff already records five of, and the case above cannot see the
+    // difference - with one journey, its media are also all the media.
+    const mine = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    const theirs = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    const theirCover = await createFixtureMedia({ journey: theirs.id, isCover: true })
+    const myNewCover = await createFixtureMedia({ journey: mine.id, isCover: false })
+    expect(theirCover.isCover).toBe(true)
+
+    await payload.update({ collection: 'media', id: myNewCover.id, data: { isCover: true } })
+
+    const reread = await payload.findByID({
+      collection: 'media',
+      id: theirCover.id,
+      depth: 0,
+      select: { isCover: true },
+    })
+
+    expect(reread.isCover).toBe(true)
+  })
+
+  it('clears the previous cover when the update is made at depth 0, where a journey is an id', async () => {
+    // The mirror of the first case rather than a duplicate of it: at depth 0
+    // Payload hands the hook `doc.journey` as an id, and above 0 as a
+    // populated journey. A hook that read only the object shape would clear
+    // nothing here, and one that read only the id shape would clear nothing
+    // there - both sides are pinned, because the cases written first
+    // exercised only one of them.
+    const journey = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    const outgoing = await createFixtureMedia({ journey: journey.id, isCover: true })
+    const incoming = await createFixtureMedia({ journey: journey.id, isCover: false })
+    expect(outgoing.isCover).toBe(true)
+
+    await payload.update({ collection: 'media', id: incoming.id, depth: 0, data: { isCover: true } })
+
+    const reread = await payload.findByID({
+      collection: 'media',
+      id: outgoing.id,
+      depth: 0,
+      select: { isCover: true },
+    })
+
+    expect(reread.isCover).toBe(false)
+  })
+
+  it('leaves every cover alone when the new cover belongs to no journey at all', async () => {
+    // `journey` is optional on `media`, so `isCover` can be set on a row that
+    // belongs to nothing. "Clear the other media in no journey" must not
+    // become "clear the other media", which is the one way this hook could
+    // reach a journey nobody named.
+    const journey = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    const cover = await createFixtureMedia({ journey: journey.id, isCover: true })
+    const orphan = await createFixtureMedia({ journey: null, isCover: false })
+    expect(cover.isCover).toBe(true)
+
+    await payload.update({ collection: 'media', id: orphan.id, data: { isCover: true } })
+
+    const reread = await payload.findByID({
+      collection: 'media',
+      id: cover.id,
+      depth: 0,
+      select: { isCover: true },
+    })
+
+    expect(reread.isCover).toBe(true)
+  })
+
+  it('leaves the journeys cover alone when a sibling is edited without touching isCover', async () => {
+    // The hook fires on EVERY change to a media row, not only on a cover
+    // being set. Without the isCover guard, editing a caption anywhere in a
+    // journey would quietly clear that journey's cover - and none of the
+    // cases above can see that, because each of them sets isCover to true.
+    const journey = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    const cover = await createFixtureMedia({ journey: journey.id, isCover: true })
+    const sibling = await createFixtureMedia({ journey: journey.id, isCover: false })
+    expect(cover.isCover).toBe(true)
+
+    await payload.update({ collection: 'media', id: sibling.id, data: { caption: 'nineteen tarts, no regrets' } })
+
+    const reread = await payload.findByID({
+      collection: 'media',
+      id: cover.id,
+      depth: 0,
+      select: { isCover: true },
+    })
+
+    expect(reread.isCover).toBe(true)
+  })
+
+  it('rewrites only the media that was actually the cover, never the rest of the journey', async () => {
+    // What the isCover-equals-true clause in the `where` is FOR. Measured by
+    // mutation: dropping that clause leaves every other case in this file
+    // green, because the guard on the changed doc is what bounds the
+    // recursion - the clause is what keeps the write narrow (CLAUDE.md §6, no
+    // needless writes and no N+1), and `updatedAt` is how a needless write
+    // shows. Without it, setting a cover rewrites every row in the journey.
+    const journey = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    const outgoing = await createFixtureMedia({ journey: journey.id, isCover: true })
+    const bystander = await createFixtureMedia({ journey: journey.id, isCover: false })
+    const incoming = await createFixtureMedia({ journey: journey.id, isCover: false })
+
+    await payload.update({ collection: 'media', id: incoming.id, data: { isCover: true } })
+
+    // The hook DID run - the old cover is cleared - so an untouched bystander
+    // below means the write was narrow, not that nothing happened at all.
+    const cleared = await payload.findByID({
+      collection: 'media',
+      id: outgoing.id,
+      depth: 0,
+      select: { isCover: true },
+    })
+    expect(cleared.isCover).toBe(false)
+    const reread = await payload.findByID({
+      collection: 'media',
+      id: bystander.id,
+      depth: 0,
+      select: { updatedAt: true },
+    })
+
+    expect(reread.updatedAt).toBe(bystander.updatedAt)
+  })
+
+  it('leaves another journeyless rows cover flag alone, because no journey is not a journey', async () => {
+    // The other half of the no-journey guard. Without it the hook would run a
+    // `journey IS NULL` query and reach across every row that belongs to
+    // nothing - rows with no gallery to be the cover of, and no journey id to
+    // be keyed by (CLAUDE.md §7). "No journey" is not a group.
+    const firstOrphan = await createFixtureMedia({ journey: null, isCover: true })
+    const secondOrphan = await createFixtureMedia({ journey: null, isCover: false })
+    expect(firstOrphan.isCover).toBe(true)
+
+    await payload.update({ collection: 'media', id: secondOrphan.id, data: { isCover: true } })
+
+    const reread = await payload.findByID({
+      collection: 'media',
+      id: firstOrphan.id,
+      depth: 0,
+      select: { isCover: true },
+    })
+
+    expect(reread.isCover).toBe(true)
+  })
+
+  it('settles rather than recursing when the hook clears a sibling', async () => {
+    // An afterChange that updates siblings fires afterChange for each sibling,
+    // so the hook has to reach a fixed point rather than a stack overflow.
+    const journey = await payload.create({ collection: 'journeys', data: aCoverFixtureJourney() })
+    await createFixtureMedia({ journey: journey.id, isCover: true })
+    const next = await createFixtureMedia({ journey: journey.id, isCover: false })
+
+    await expect(payload.update({ collection: 'media', id: next.id, data: { isCover: true } })).resolves.toBeDefined()
   })
 
   it('refuses every operation on otpChallenges, signed in or out, so a code hash is neither enumerable nor resettable', async () => {
@@ -847,29 +1347,21 @@ describe('collections', () => {
   it('drops and restores only the otpChallenges session binding when its own migration is reversed', async () => {
     expect(await sessionHashSchema()).toEqual(['column', 'index'])
 
-    await runMigrationDirection(SESSION_HASH_MIGRATION, 'down', payload)
-    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS. Between the
-    // `down` above and the `up` below, `diary_test` is in a state
-    // `payload_migrations` does not describe: the column is gone while the
-    // bookkeeping still records the migration as applied, so the next run's
-    // `runMigrateUp()` is a no-op and EVERY subsequent integration run fails
-    // against a database with no way to repair itself. Without this, one
-    // failing assertion in here stops being a red test and becomes a session
-    // in which nothing at all can be verified - and the damage presents as a
-    // broken fixture, several files away from the test that caused it. The
-    // version this replaced rolled every migration to zero, which was
-    // worthless as a test (see below) but was at least self-healing; the
-    // narrower test must not buy its precision with that blast radius.
-    try {
-      expect(await sessionHashSchema()).toEqual([])
-      // The table itself must survive: this migration adds a column to a table
-      // it did not create, so a `down()` that took the table with it would be a
-      // different and much worse kind of reversible.
-      expect(await existingTablesAmong(['otp_challenges'])).toEqual(['otp_challenges'])
-    } finally {
-      await runMigrationDirection(SESSION_HASH_MIGRATION, 'up', payload)
-    }
+    // The re-apply is not tidiness and the probe is not asserted in place:
+    // see `acrossItsOwnRollback`. Between the `down` and the `up`,
+    // `diary_test` is in a state `payload_migrations` does not describe, so a
+    // failing assertion in here would otherwise stop being a red test and
+    // become a session in which nothing at all can be verified - with the
+    // damage presenting as a broken fixture several files away.
+    const rolledBack = await acrossItsOwnRollback(SESSION_HASH_MIGRATION, payload, {
+      read: async () => ({ binding: await sessionHashSchema(), tables: await existingTablesAmong(['otp_challenges']) }),
+      whenApplied: { binding: ['column', 'index'], tables: ['otp_challenges'] },
+    })
 
+    // The column and the index are gone; the TABLE is not. This migration adds
+    // a column to a table it did not create, so a `down()` that took the table
+    // with it would be a different and much worse kind of reversible.
+    expect(rolledBack).toEqual({ binding: [], tables: ['otp_challenges'] })
     expect(await sessionHashSchema()).toEqual(['column', 'index'])
     // And the rebuilt column still holds what it is for. A migration that
     // restored a column of the wrong type or nullability would satisfy every
@@ -947,18 +1439,15 @@ describe('collections', () => {
   it('drops and restores the whole sign-in attempt window, enum types included, when its own migration is reversed', async () => {
     expect(await signInAttemptsSchema()).toEqual(SIGN_IN_ATTEMPTS_SCHEMA)
 
-    await runMigrationDirection(SIGN_IN_ATTEMPTS_MIGRATION, 'down', payload)
-    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS - see the
-    // otpChallenges case above. Between the `down` and the `up`, `diary_test`
-    // is in a state `payload_migrations` does not describe, and the next
-    // run's `runMigrateUp()` would be a no-op against a database with no way
-    // to repair itself.
-    try {
-      expect(await signInAttemptsSchema()).toEqual([])
-    } finally {
-      await runMigrationDirection(SIGN_IN_ATTEMPTS_MIGRATION, 'up', payload)
-    }
+    // Probe captured, re-apply tolerant, assertion afterwards - see
+    // `acrossItsOwnRollback` for why the older shape reported the re-apply's
+    // collision instead of the diff.
+    const rolledBack = await acrossItsOwnRollback(SIGN_IN_ATTEMPTS_MIGRATION, payload, {
+      read: signInAttemptsSchema,
+      whenApplied: SIGN_IN_ATTEMPTS_SCHEMA,
+    })
 
+    expect(rolledBack).toEqual([])
     expect(await signInAttemptsSchema()).toEqual(SIGN_IN_ATTEMPTS_SCHEMA)
     // And the rebuilt table still holds what it is for. A migration that
     // restored a column of the wrong type, or an enum missing a value, would
@@ -989,22 +1478,17 @@ describe('collections', () => {
   it('drops and restores the session lifetime column and its lookup index when its own migration is reversed', async () => {
     expect(await sessionExpirySchema()).toEqual(['column', 'index'])
 
-    await runMigrationDirection(SESSION_EXPIRY_MIGRATION, 'down', payload)
-    // THE `finally` IS THE POINT OF THIS BLOCK, NOT TIDINESS - see the
-    // otpChallenges case above. Between the `down` and the `up`, `diary_test`
-    // is in a state `payload_migrations` does not describe, and the next
-    // run's `runMigrateUp()` would be a no-op against a database with no way
-    // to repair itself.
-    try {
-      expect(await sessionExpirySchema()).toEqual([])
-      // The table itself must survive: this migration adds a column and an
-      // index to a table it did not create, so a `down()` that took the table
-      // with it would be a different and much worse kind of reversible.
-      expect(await existingTablesAmong(['sessions'])).toEqual(['sessions'])
-    } finally {
-      await runMigrationDirection(SESSION_EXPIRY_MIGRATION, 'up', payload)
-    }
+    // Probe captured, re-apply tolerant, assertion afterwards - see
+    // `acrossItsOwnRollback`.
+    const rolledBack = await acrossItsOwnRollback(SESSION_EXPIRY_MIGRATION, payload, {
+      read: async () => ({ lifetime: await sessionExpirySchema(), tables: await existingTablesAmong(['sessions']) }),
+      whenApplied: { lifetime: ['column', 'index'], tables: ['sessions'] },
+    })
 
+    // The table itself must survive: this migration adds a column and an index
+    // to a table it did not create, so a `down()` that took the table with it
+    // would be a different and much worse kind of reversible.
+    expect(rolledBack).toEqual({ lifetime: [], tables: ['sessions'] })
     expect(await sessionExpirySchema()).toEqual(['column', 'index'])
     // And the rebuilt column still holds what it is for. A migration that
     // restored it nullable, or of the wrong type, would satisfy every
@@ -1020,5 +1504,91 @@ describe('collections', () => {
     })
 
     expect(session.expiresAt).toBe(expiresAt)
+  })
+
+  // The media row's processing state and its failure reason (Phase 3 Task 5)
+  // get the same per-migration treatment as the three cases above, and for
+  // the same reason: a roll to zero would drop `media` as a side effect of
+  // the INITIAL migration, so it would say nothing about whether THIS
+  // migration's `down()` did anything. Verified by mutation: replacing
+  // `down()` with a comment fails it (see the task report).
+  it('rolls the media state column and its enum type down and back up, with the table and its rows intact', async () => {
+    const png = await aTinyPng()
+    const existing = await payload.create({
+      collection: 'media',
+      data: { alt: FIXTURE_MEDIA_STATE_ALT },
+      file: { data: png, mimetype: 'image/png', name: 'state-reversibility.png', size: png.length },
+    })
+
+    expect(await mediaStateSchema()).toEqual(MEDIA_STATE_SCHEMA)
+
+    // THIS IS THE CASE THAT SHOWED THE OLDER SHAPE MASKING ITS OWN DIFF. With
+    // `down()` replaced by a comment, the assertion failed - and then the
+    // `finally`'s re-apply threw `type "enum_media_state" already exists`,
+    // which replaced it, so the mutation's report named the collision rather
+    // than the schema. Captured probe, tolerant re-apply, assertion
+    // afterwards: the same mutation now reports
+    // `expected [ Array(4) ] to deeply equal [ 'media-table' ]`. See
+    // `acrossItsOwnRollback`.
+    const rolledBack = await acrossItsOwnRollback(MEDIA_STATE_MIGRATION, payload, {
+      read: mediaStateSchema,
+      whenApplied: MEDIA_STATE_SCHEMA,
+    })
+
+    // The columns and the type are gone; the table and the row are not. A
+    // `down()` that took `media` with it would be a much worse kind of
+    // reversible - every photograph in the diary.
+    expect(rolledBack).toEqual(MEDIA_STATE_SCHEMA_ROLLED_BACK)
+    expect(await mediaStateSchema()).toEqual(MEDIA_STATE_SCHEMA)
+    // And the row that predates the rollback still reads back through the
+    // rebuilt schema: this migration adds columns rather than tables, so
+    // nothing here is allowed to cost a photograph.
+    const survived = await payload.findByID({
+      collection: 'media',
+      id: existing.id,
+      depth: 0,
+      select: { alt: true },
+    })
+
+    expect(survived.alt).toBe(FIXTURE_MEDIA_STATE_ALT)
+  })
+
+  // ADR 0013's deferred ~700px rung (Phase 3 Task 10) gets the same
+  // per-migration treatment as the four cases above. What is different is
+  // WHAT it adds: one `imageSize` is six columns, not one, because Payload
+  // derives a column per size field - so a `down()` that dropped
+  // `sizes_grid_url` alone would satisfy a single-column assertion and then
+  // fail its own re-apply with "column already exists" for the other five.
+  // The filename index the generator emits alongside them is asserted too.
+  // Verified by mutation: see the task report.
+  it('rolls the grid tier’s six size columns and its index down and back up, with the table and its rows intact', async () => {
+    const png = await aTinyPng()
+    const existing = await payload.create({
+      collection: 'media',
+      data: { alt: FIXTURE_MEDIA_STATE_ALT },
+      file: { data: png, mimetype: 'image/png', name: 'grid-reversibility.png', size: png.length },
+    })
+
+    expect(await mediaGridTierSchema()).toEqual(MEDIA_GRID_TIER_SCHEMA)
+
+    // Probe captured, re-apply tolerant, assertion afterwards - see
+    // `acrossItsOwnRollback`, and the media-state case above for what that
+    // shape was written to stop masking.
+    const rolledBack = await acrossItsOwnRollback(MEDIA_GRID_TIER_MIGRATION, payload, {
+      read: mediaGridTierSchema,
+      whenApplied: MEDIA_GRID_TIER_SCHEMA,
+    })
+
+    // The six columns and the index are gone; the table and the row are not.
+    expect(rolledBack).toEqual(MEDIA_GRID_TIER_SCHEMA_ROLLED_BACK)
+    expect(await mediaGridTierSchema()).toEqual(MEDIA_GRID_TIER_SCHEMA)
+    const survived = await payload.findByID({
+      collection: 'media',
+      id: existing.id,
+      depth: 0,
+      select: { alt: true },
+    })
+
+    expect(survived.alt).toBe(FIXTURE_MEDIA_STATE_ALT)
   })
 })

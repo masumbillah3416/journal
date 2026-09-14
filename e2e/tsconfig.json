@@ -1,5 +1,5 @@
 {
-  "//": "e2e/tsconfig.json — brings the browser test harness under the same strict compiler settings as the rest of the repo (../tsconfig.base.json), as a project typescript-eslint's `projectService` can discover for e2e/**/*.ts (Task 12) and as a third leg of the root `npm run typecheck` script (via `tsc -p e2e/tsconfig.json --noEmit`). Also covers ../playwright.config.ts for the typecheck step specifically — see that file and eslint.config.js for why it stays outside ESLint's own type-aware tier even though it is typechecked here, the same treatment vitest.config.ts already gets.",
+  "//": "e2e/tsconfig.json — brings the browser test harness under the same strict compiler settings as the rest of the repo (../tsconfig.base.json), as a project typescript-eslint's `projectService` can discover for e2e/**/*.ts (Task 12) and as a third leg of the root `npm run typecheck` script (via `tsc -p e2e/tsconfig.json --noEmit`). Also covers ../playwright.config.ts and ../vitest.config.ts for the typecheck step specifically — see playwright.config.ts and eslint.config.js for why it stays outside ESLint's own type-aware tier even though it is typechecked here. vitest.config.ts is listed for a second reason: apps/web/lib/docs/coverageThresholds.test.ts imports it to read the coverage include and threshold keys rather than restating them, and this project's include reaches that file, so TypeScript's project boundaries require the config it imports to be listed too. That check now reads vitest.integration.config.ts as well, so it is listed beside it. The same lines exist in apps/web/tsconfig.json for the same reason.",
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "module": "ESNext",
@@ -9,6 +9,8 @@
   "include": [
     "**/*.ts",
     "../playwright.config.ts",
+    "../vitest.config.ts",
+    "../vitest.integration.config.ts",
     "../apps/web/lib/**/*.ts",
     "../apps/web/collections/**/*.ts",
     "../apps/web/globals/**/*.ts",

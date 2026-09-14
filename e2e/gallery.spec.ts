@@ -24,6 +24,10 @@
  *    a path of ours rather than a store URL, and what answers it carries
  *    `Content-Disposition: attachment` with a strict `Content-Type` — which
  *    is a response header, and therefore a thing only a real request can see.
+ *    `Cache-Control` joined them in Phase 3 Task 11 for exactly that reason:
+ *    `downloadCacheControl` decides the value and `readGalleryDownload`
+ *    carries it, but whether the ROUTE sends it is a claim only a real
+ *    response can settle.
  *
  * 3 · RETURNING RESTORES `/p/<n>`, NOT `/`. The design spec asks for it by
  *    name, and there are two ways a reader does it — the gallery's own back
@@ -62,7 +66,7 @@
  * running app from playwright.config.ts's `webServer`, and the seeded diary
  * (`npm run db:seed`).
  */
-import { expect, test } from '@playwright/test'
+import { type Page, expect, test } from '@playwright/test'
 import { waitForLiveBook } from './support/liveBook'
 import { drawsMobileReadingMode } from './support/surface'
 
@@ -355,6 +359,35 @@ test('serves that download as an attachment with a strict type', async ({ page, 
   expect(response.headers()['content-type']).toBe('image/png')
   expect(response.headers()['x-content-type-options']).toBe('nosniff')
   expect((await response.body()).byteLength).toBeGreaterThan(0)
+})
+
+/**
+ * The download path the seeded Patagonia gallery offers for one frame.
+ *
+ * Read off the lightbox rather than built here: the id is the seed's, not a
+ * constant this file could know, and reading it is also how the three cases
+ * above prove the link the reader actually clicks is the one being fetched.
+ * @param page - The test's page, navigated by this helper.
+ * @returns The root-relative download path.
+ */
+const aSeededDownloadPath = async (page: Page): Promise<string> => {
+  await page.goto(GALLERY)
+  await page.locator('[data-tile]').nth(2).click()
+  return (await page.locator('[data-lightbox-download]').getAttribute('href')) ?? ''
+}
+
+test('sends the download’s cache policy rather than a literal of its own', async ({ page, request }) => {
+  // A header is exactly the thing a unit test can be right about while the
+  // route is wrong. `downloadCacheControl` decides the value and
+  // `readGalleryDownload` carries it; whether the ROUTE sends it is a claim
+  // only a real response settles, and it sent a hard-coded `public` literal
+  // until Phase 3 Task 11. The seeded site is not password protected, so
+  // `public` is the value visible here; the gated one is
+  // `apps/web/lib/readGalleryDownload.integration.test.ts`'s, which can set
+  // the global a browser cannot.
+  const response = await request.get(await aSeededDownloadPath(page))
+
+  expect(response.headers()['cache-control']).toBe('public, max-age=3600')
 })
 
 test('refuses a download addressed through a journey the frame does not belong to', async ({ page, request }) => {

@@ -145,6 +145,8 @@ export interface Media {
   id: number;
   journey?: (number | null) | Journey;
   kind?: ('still' | 'clip') | null;
+  state?: ('processing' | 'ready' | 'failed') | null;
+  failureReason?: string | null;
   caption?: string | null;
   alt?: string | null;
   capturedAt?: string | null;
@@ -170,6 +172,14 @@ export interface Media {
   focalY?: number | null;
   sizes?: {
     thumb?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    grid?: {
       url?: string | null;
       width?: number | null;
       height?: number | null;
@@ -474,6 +484,8 @@ export interface PayloadMigration {
 export interface MediaSelect<T extends boolean = true> {
   journey?: T;
   kind?: T;
+  state?: T;
+  failureReason?: T;
   caption?: T;
   alt?: T;
   capturedAt?: T;
@@ -501,6 +513,16 @@ export interface MediaSelect<T extends boolean = true> {
     | T
     | {
         thumb?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+        grid?:
           | T
           | {
               url?: T;

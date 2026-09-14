@@ -805,7 +805,11 @@ const DIRECTIVE_IN_PROSE: readonly { readonly path: string; readonly because: st
     path: 'docs/superpowers/plans/2026-09-08-phase-3-media-pipeline.md',
     because: 'the Phase 3 plan quotes the directive in the module header it tells an implementer to write',
   },
-  { path: 'docs/testing.md', because: 'the section explaining this suite, which §1.2 requires' },
+  {
+    path: 'docs/testing/01-unit.md',
+    because:
+      'the unit suite’s detail file explains §1a, the ESLint rule, which §1.2 requires; this was docs/testing.md until the Phase 3 standards task split that document by suite',
+  },
 ]
 
 /** Narrows an unknown to an indexable object, so nothing below needs a cast. */
@@ -1393,7 +1397,7 @@ describe('the rule that reports an unguarded Server Action', () => {
     //
     // THE CHAIN IS ASSERTED LINK BY LINK BELOW, because a command nothing
     // runs is not a gate: `ci.yml` runs `verify:full`, which runs `verify`,
-    // which runs `lint`, and the Husky hook CLAUDE.md §8.4 relies on runs
+    // which runs `lint`, and the Husky hook CLAUDE.md §11 relies on runs
     // `verify` too. Each link is one string, and each of them was unread
     // until this case.
     //
@@ -1465,7 +1469,7 @@ describe('the rule that reports an unguarded Server Action', () => {
       shellCommandLines(bytesOf('.husky/pre-commit').toString('utf8')).filter((command) =>
         runsExactly(command, ['npm', 'run', 'verify']),
       ),
-      'the Husky pre-commit hook no longer runs exactly `npm run verify`, which is the gate CLAUDE.md §8.4 relies on',
+      'the Husky pre-commit hook no longer runs exactly `npm run verify`, which is the gate CLAUDE.md §11 relies on',
     ).not.toEqual([])
   })
 
@@ -1732,7 +1736,9 @@ describe('the rule that reports an unguarded Server Action', () => {
       'docs/architecture.md',
       'docs/security.md',
       'docs/api.md',
-      'docs/testing.md',
+      // The paragraph describing what defeats the guard is §1a's, which moved
+      // to the unit suite's detail file when docs/testing.md was split.
+      'docs/testing/01-unit.md',
       'apps/web/lib/auth/guard.ts',
       'eslint-rules/guarded-server-actions.js',
     ]

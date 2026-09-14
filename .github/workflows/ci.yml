@@ -32,8 +32,22 @@ jobs:
       PAYLOAD_SECRET: ci-only-secret-value-never-used-outside-actions-32
       MEDIA_ORIGIN: http://localhost:3000
       ADMIN_ORIGIN: http://localhost:3000
+      # Turns a missing ffmpeg into a FAILED BUILD rather than a quieter test
+      # run. Without it, `apps/web/lib/media/clipToolchain.ts` falls back to a
+      # recorded stand-in and prints an UNRESOLVED notice - which is the right
+      # behaviour on a developer's machine and the wrong one here, because a
+      # deferred code path with no test rots invisibly (ADR 0004's
+      # non-negotiable). Read only by that module, never by application code,
+      # which is why it is not in `apps/web/lib/env.ts`'s schema.
+      MEDIA_REQUIRE_CLIP_TOOLCHAIN: '1'
     steps:
       - uses: actions/checkout@v4
+      # ffmpeg/ffprobe for the worker MediaProcessor's clip cases (ADR 0004:
+      # both adapters are tested from day one). Installed explicitly rather
+      # than relied on from the runner image, and MEDIA_REQUIRE_CLIP_TOOLCHAIN
+      # above turns a missing binary into a failure instead of a quieter test
+      # run.
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
@@ -164,7 +178,14 @@ jobs:
       # the prototype's flag, and the footer line unmoved when that key is
       # planted in `localStorage` before navigation. They can only run in a
       # browser, so this is the only place they gate a merge.
-      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/signIn.spec.ts e2e/codeStep.spec.ts e2e/reset.spec.ts e2e/signInJourney.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
+      # Phase 3 Task 9 adds `e2e/upload.spec.ts`, which is the same argument
+      # one layer down: `EXPECTED_UPLOAD_REQUEST` in
+      # `apps/web/lib/media/uploadContract.ts` is a MEASUREMENT of what a
+      # browser's upload PUT looks like, and the integration fixture builds
+      # itself from that constant — so no Vitest run can tell the constant
+      # drifting from the browser drifting. Only a browser can, and this is
+      # where it does.
+      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/signIn.spec.ts e2e/codeStep.spec.ts e2e/reset.spec.ts e2e/signInJourney.spec.ts e2e/upload.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
       # image: chrome-launcher's own auto-detection looks for a system
       # `google-chrome`/`chromium-browser` binary, which this image does not
@@ -199,22 +220,45 @@ jobs:
       # leftover noise.
       # `/cms` keeps its own budget entry in lighthouserc.json
       # (`http-status-code` and CLS, no LCP) rather than sharing `/p/1`'s —
-      # CLAUDE.md §6 scopes the diary LCP budget (3000ms, ADR 0008) to the
+      # CLAUDE.md §6 scopes the diary LCP budget (3085ms, ADR 0008) to the
       # diary route specifically, and holding Payload's heavy admin bundle
       # to it was the original reason this whole step was informational.
-      # The budget both lighthouserc files assert is 3000ms, not the 2500ms
-      # this comment used to name: ADR 0008 set it from the measured
-      # framework floor, ADR 0014 fixed the two viewports it is measured at,
-      # and docs/testing.md §7.0 is the current-state table.
-      # `npm run test:perf` runs TWO lhci configurations and both are gates:
-      # `lighthouserc.json` (phone emulation - the mobile reading surface,
-      # the gallery and `/cms`) and `lighthouserc.book.json` (a 1350x940
-      # viewport with `Cookie: td-reading-surface=book` - the book surface).
-      # They are separate because lhci collect settings are per-run, not
-      # per-URL, and a desktop viewport makes the gallery fetch larger
-      # derivatives than its own image budget allows. Do not merge them, and
-      # do not drop the second command from this step: without it the book
-      # surface - the heavier one, and the one every LCP ADR measured - is
-      # not gated at all. See docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md.
+      # The LCP budget every lighthouserc file asserts is 3085ms, not the
+      # 2500ms this comment first named nor the 3000ms that replaced it: ADR
+      # 0008 set 3000 from the measured framework floor on the authoring host,
+      # ADR 0014 fixed the two viewports it is measured at, and on 2026-09-14
+      # the owner amended it to 3085 from ten medians measured on THIS runner
+      # — the worst of them plus one observed spread. docs/testing.md §7.0 is
+      # the current-state table.
+      #
+      # `npm run test:perf` runs every `lighthouserc*.json` at the repository
+      # root, and all of them are gates:
+      #   - `lighthouserc.json` - phone emulation: the mobile reading
+      #     surface, the gallery and `/cms`
+      #   - `lighthouserc.book.json` - a 1350x940 viewport with
+      #     `Cookie: td-reading-surface=book`: the book surface
+      #   - `lighthouserc.admin.json` - a 1440x900 desktop viewport: the
+      #     three public admin screens (Phase 2 Task 11, the admin's first
+      #     performance gate)
+      # THIS COMMENT NAMED TWO OF THE THREE AND SAID "TWO", and went on
+      # saying it for seventy-three commits after the same sentence was
+      # corrected in docs/testing.md (finding F9-9, commit cd7fc0c). That is
+      # the species the correction was supposed to end - a fix applied to one
+      # copy of a sentence and not the other - so the count is gone rather
+      # than updated (caseCounts.test.ts's doctrine, one population over: a
+      # count in prose is a floor, or it is deleted), and
+      # apps/web/lib/docs/configCitations.test.ts now reads THIS FILE as well
+      # as docs/testing.md and fails if a `lighthouserc*.json` on disk is
+      # named in neither.
+      #
+      # They are separate configs because lhci collect settings are per-run,
+      # not per-URL: a desktop viewport makes the gallery fetch larger
+      # derivatives than its own image budget allows, and the admin is an
+      # authoring surface measured at a desktop viewport rather than under
+      # phone emulation. Do not merge them, and do not drop one from the
+      # `test:perf` script: without the book config the heaviest surface -
+      # the one every LCP ADR measured - is not gated at all, and
+      # e2e/ciRegistration.test.ts fails if the script stops naming one.
+      # See docs/adr/0014-the-viewport-the-diary-lcp-gate-is-measured-at.md.
       - name: Lighthouse CI budgets
         run: npm run test:perf

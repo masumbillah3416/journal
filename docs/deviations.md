@@ -28,15 +28,28 @@ DATA_MODEL.md and SECURITY.md, the more specific and more binding of the three s
 ## 2 · `sharp` in the worker instead of an image transform vendor
 
 **What changed:** `README.md` suggests Cloudflare Images or imgproxy as a transform
-layer for derivative image sizes. This project generates all five derivative tiers
-(`thumb`, `tile`, `frame`, `hero`, `hero2x`) with `sharp`, inside the same Fly.io worker
-container that already runs `ffmpeg` for video transcoding.
+layer for derivative image sizes. This project generates every derivative tier
+`apps/web/collections/media.ts`'s `imageSizes` declares with `sharp`, inside the same
+Fly.io worker container that already runs `ffmpeg` for video transcoding. The ladder is
+not enumerated here: it grew a rung in Phase 3 Task 10 (`docs/adr/0013-gallery-image-budget.md`
+Option 3) and a list in prose would have gone stale silently.
+
+**Where that sentence is now out of date, corrected rather than rewritten.** There is no
+Fly.io worker container: ADR 0004 deferred it with video, so the still pipeline runs
+in-process wherever the upload request is handled. And the tiers are derived by **Payload's
+own `imageSizes`** at `payload.create`, from bytes `apps/web/lib/media/stillPipeline.ts`
+has already re-encoded — one derivation rather than two, which is
+`docs/adr/0003-derivative-generation.md`'s corrected consequence. What this entry records
+is unchanged by either: no image transform vendor is used, and `sharp` is what does the
+work.
 
 **Rationale:** The worker already exists for video processing; adding `sharp` to it is
 additive infrastructure rather than a new service, and removes a vendor (no account,
 billing relationship, or API surface to integrate and keep available). The cost of the
-change is ~10GB of extra R2 storage, roughly $0.15/month, for storing five tiers instead
-of transforming on the fly.
+change is ~10GB of extra R2 storage, roughly $0.15/month, for storing a ladder of
+derivatives instead of transforming on the fly. That figure scales with the ladder, which
+grew a rung in Phase 3 Task 10 (`docs/adr/0013-gallery-image-budget.md`); the ladder itself
+is declared in one place, `apps/web/collections/media.ts`.
 
 **Recorded as:** `docs/adr/0003-derivative-generation.md`; design spec §2.2.
 
@@ -109,7 +122,7 @@ Task 11 of Phase 0, review round 1, finding 1.
 **What changed:** the design spec (§2, §9, §13) and `docs/adr/0001-hosting-and-cost.md`
 originally assumed a dedicated Fly.io worker running `sharp` + `ffmpeg` from the start.
 A user decision made after those documents were written defers it: no video clips for
-now. Stills still get all five derivative tiers via `sharp` (unchanged from
+now. Stills still get every configured derivative tier via `sharp` (unchanged from
 `docs/adr/0003-derivative-generation.md`), but in-process on Vercel rather than inside a
 separate worker container. A `MEDIA_PIPELINE` environment variable (`'inline' |
 'worker'`, Zod-validated, default `'inline'`) switches a new `MediaProcessor` port
@@ -117,8 +130,8 @@ between an `inline` adapter (the still pipeline only, no worker) and a `worker` 
 (the still pipeline plus `ffmpeg` transcoding, on Fly.io) — the same Ports & Adapters
 shape already used for `storage`/`mailer`/`queue`.
 
-**NOT BUILT.** Neither `MediaProcessor` adapter, the port itself, the contract suite or the `MEDIA_PIPELINE` variable exists in this repository: `grep -rn MediaProcessor apps packages` returns nothing, `apps/web/lib/ports/` holds only `mailer.ts`, `queue.ts` and `storage.ts`, `MEDIA_PIPELINE` is declared in neither `apps/web/lib/env.ts` nor `.env.example`, and setting it changes nothing. `docs/adr/0004-media-pipeline-mode.md` says so itself — _Nothing in this ADR is built now_ — and five documents described it in the present tense anyway (Phase 2's final review, finding 30). It is Phase 3's. What this entry records is the DECISION, which stands; what it does
-not record, and used to read as though it did, is a shipped pipeline.
+**BUILT AS OF PHASE 3 TASK 6, AND THE CLIP SWITCH IS A CONFIG SWITCH RATHER THAN NEW CODE.** The port is `apps/web/lib/ports/mediaProcessor.ts`; both adapters and the ONE contract suite they share are in `apps/web/lib/adapters/`; `apps/web/lib/media/services.ts` is where `MEDIA_PIPELINE` chooses. `inline` REFUSES `video/mp4` and `video/quicktime` at the port — `'video-deferred'`, asserted by the shared suite's mode case — with `apps/web/collections/media.ts`'s `mimeTypes` untouched, which is what makes enabling clips one configuration change rather than a migration. The `worker` adapter is built and contract-tested although nothing deploys it, which ADR 0004 calls non-negotiable. **What is UNRESOLVED, named rather than worked around:** `ffmpeg`/`ffprobe` are not installed on the authoring machine, so the clip toolchain's subprocess success arms have never run locally — the still cases, which are the shared pipeline both adapters compose, do not need them. CI installs both and sets `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1`, which makes a missing binary a failed build rather than a quieter run. **What is still NOT built:** as of Phase 3 Task 7 exactly one caller reaches `mediaProcessor()`, and only for its `acceptedTypes` — `apps/web/lib/media/uploadSlots.ts`, deciding which files are offered an upload slot at all. Nothing calls `process()`, so no real upload is processed by either adapter yet (Phase 3 Task 8).
+What this entry records is the DECISION, which stands; it once read as though a pipeline had shipped when none had, and now says which files exist and which caller does not.
 
 **Rationale:** this is not a departure from anything `handoff/design_handoff_travel_diary/`
 mandates — the handoff's own non-goals already describe clips as silent ~20-second loops,
@@ -1961,9 +1974,17 @@ and the three `admin-panel-*` baselines in `e2e/visual.spec.ts-snapshots/`.
 ## 45 · Postgres is published on host port 5433, not 5432
 
 **What changed:** `docker-compose.yml` maps the container's standard `5432` to host port
-**`5433`**, and every connection string in the repository (`.env.example`, `docker/`,
-`vitest.integration.config.ts`'s `diary_test` URL) is written against it. The brief's own
-example maps `5432:5432`.
+**`5433`**, and the connection strings in `.env.example` and `docker/` are written against
+it. The brief's own example maps `5432:5432`.
+
+**The two Vitest configs no longer are, and that correction is part of this entry.** Both
+held `postgres://diary:diary@localhost:5433/diary_test` as a literal until Phase 3, which
+made this machine's port mapping the port the INTEGRATION GATE required — so the gate's
+integration half failed every file on this repository's first CI run, where Postgres
+listens on `5432`. They now derive the string from the environment's own `DATABASE_URL`
+through `apps/web/lib/testDatabaseUrl.ts`, replacing only the database name. `5433`
+survives there as the fallback for a developer with nothing set, which is what a local run
+has always used, and it is the only place in the two configs that names a port at all.
 
 **Rationale:** a pre-existing native Postgres service already listens on this machine's
 `5432`. Connections to `localhost:5432` were silently served by THAT service rather than by
@@ -1985,56 +2006,305 @@ here** — the marker itself said "See docs/deviations.md" and `5433` had zero h
 file, so `CLAUDE.md` §1.1's bidirectional rule was broken exactly once (Phase 2's final
 review, finding 31).
 
-## 46 · Six per-file branch gates sit below CLAUDE.md §2.1's 95% for `apps/web/lib/**`
+## 46 · The per-file coverage gates in `vitest.integration.config.ts` that sit below CLAUDE.md §2.1's 95%
 
 **What CLAUDE.md §2.1 asks for:** 95% lines, branches and functions for
 `apps/web/lib/**` and server actions. It also names its own remedy for coverage a suite
 cannot reach — `/* c8 ignore next -- <reason> */` — rather than a lower gate.
 
-**What is in the repository:** six per-file thresholds in
-`vitest.integration.config.ts`'s `coverage.thresholds` carry a branch figure under 95, and
-the measured `apps/web/lib` branch aggregate for that pass is **83.05%**.
+**What is in the repository:** the thresholds below, every one of them in
+`vitest.integration.config.ts`'s `coverage.thresholds`. The table is the register, and
+**the list is the count** — this entry carried the word "Six" through the four Phase 3
+additions that made it ten, which is the drift a number in prose always eventually is
+(whole-branch review F1). `apps/web/lib/docs/coverageThresholds.test.ts` now holds this
+table and the config to each other in both directions, in the Docker-free pre-commit pass,
+so a gate added without a row and a row outliving its gate each fail the commit rather than
+the review.
 
-| File                                      | Lines gate | Branch gate | Landed in          |
-| ----------------------------------------- | ---------- | ----------- | ------------------ |
-| `apps/web/lib/readBookBundle.ts`          | 100        | 83          | Phase 1            |
-| `apps/web/scripts/seed.ts`                | 100        | 83          | Phase 1            |
-| `apps/web/lib/adapters/postgres-queue.ts` | **93**     | 75          | Phase 1            |
-| `apps/web/lib/testPayload.ts`             | **93**     | 75          | Phase 1            |
-| `apps/web/lib/readGalleryBundle.ts`       | 100        | 78          | Phase 2, review r2 |
-| `apps/web/lib/readGalleryDownload.ts`     | 100        | 85          | Phase 2, review r2 |
+| File                                                         | Lines gate | Branch gate | Functions gate | Landed in            |
+| ------------------------------------------------------------ | ---------- | ----------- | -------------- | -------------------- |
+| `apps/web/lib/readBookBundle.ts`                             | 100        | 83          | 100            | Phase 1              |
+| `apps/web/scripts/seed.ts`                                   | 100        | 83          | 100            | Phase 1              |
+| `apps/web/lib/adapters/postgres-queue.ts`                    | **93**     | 75          | 100            | Phase 1              |
+| `apps/web/lib/testPayload.ts`                                | **93**     | 75          | 100            | Phase 1              |
+| `apps/web/lib/readGalleryBundle.ts`                          | 100        | 78          | 100            | Phase 2, review r2   |
+| `apps/web/lib/readGalleryDownload.ts`                        | 100        | 85          | 100            | Phase 2, review r2   |
+| `apps/web/lib/media/clipToolchain.ts`                        | **75**     | 72          | **75**         | Phase 3, Task 6      |
+| `apps/web/lib/adapters/contract/media-fixtures.ts`           | **73**     | 87          | **90**         | Phase 3, Task 6      |
+| `apps/web/lib/adapters/contract/media-processor-contract.ts` | 100        | 56          | 100            | Phase 3, Task 6      |
+| `apps/web/scripts/rederive-media.ts`                         | 100        | 86          | 100            | Phase 3, Tasks 10–11 |
 
-Two of the six are also under 95 on LINES, at 93, and that is named here rather than left
-to the word "branch". Both have their own reason in the config beside the number:
-`postgres-queue.ts`'s two error catches (an unexpected database failure inside `enqueue()`,
-and inside `claim()`'s rollback) have no organic trigger without mocking a module we own,
-which §2.3 forbids, or deliberately breaking the test database; and `testPayload.ts`'s
-`CREATE DATABASE` branch runs only the first time any integration test ever meets a given
-Postgres volume, which is the whole point of not tearing `diary_test` down between runs.
-Those two are genuinely closer to §2.1's `c8 ignore` case than the four gallery/seed
-entries are, and are the ones to revisit first.
+**Four of these are under 95 on more than the branch axis**, which is why the table now
+carries all three columns rather than the two it used to: this entry cannot be read as being
+about branches alone.
 
-**Rationale.** Each number is the one its suite ACHIEVES against a real Postgres, not one
-negotiated down to the code. The uncovered branches are, in every case, the same shape: a
-`?? fallback` on an optional Payload field that the ten seeded journeys happen to fill.
-Reaching them means seeding a journey with every optional field blank — a fixture decision,
-and a real one, but a fixture decision rather than a number to edit. `c8 ignore` is the
-wrong instrument here because these are not unreachable lines: they are reachable branches
-that this content does not reach, and marking them ignored would hide a gap a better
-fixture closes.
+- `postgres-queue.ts` and `testPayload.ts`, at 93 lines. `postgres-queue.ts`'s two error
+  catches (an unexpected database failure inside `enqueue()`, and inside `claim()`'s
+  rollback) have no organic trigger without mocking a module we own, which §2.3 forbids, or
+  deliberately breaking the test database; `testPayload.ts`'s `CREATE DATABASE` branch runs
+  only the first time any integration test ever meets a given Postgres volume, which is the
+  whole point of not tearing `diary_test` down between runs. Those two are genuinely closer
+  to §2.1's `c8 ignore` case than the gallery/seed entries are.
+- `clipToolchain.ts`, at 75/72/75 — **the lowest gate in the repository, and it fronts
+  subprocess execution**, so it is the one to revisit first. Its number is a FLOOR OF TWO
+  MACHINES rather than either machine's own: without `ffmpeg` (this machine) the success arms
+  of `createFfmpegToolchain` are unreachable; with it (CI, which installs both binaries and
+  sets `MEDIA_REQUIRE_CLIP_TOOLCHAIN=1`) the four stand-in functions are unreachable instead.
+  Every failure arm is covered on both. Tightening it is **UNRESOLVED with the tool named**:
+  reading CI's own numbers needs `gh` or a repository token this machine does not have, and
+  installing `ffmpeg` locally would settle it the other way. Nothing was routed to an online
+  transcoder to close it (CLAUDE.md §7.1).
+- `media-fixtures.ts`, at 73/87/90 — the same two-environment shape, with the branch axis
+  running the OTHER way (91.67% in CI against 95.83% here), which is why a single number
+  measured on one machine was the wrong thing to commit.
+- `media-processor-contract.ts`, at 56 branches — every LINE runs twice, once per adapter,
+  which is exit criterion 4 demonstrating itself. The branch figure is low because the suite
+  is written defensively: the `processed.ok ? … : null` arms are taken only when the pipeline
+  has already failed, so a passing suite by definition never takes them. Rewriting them into
+  non-null assertions would raise the number and violate §3.1.
+- `rederive-media.ts`, at 86 branches — three `??` defaults that exist only because Payload's
+  GENERATED type makes a field optional where the query that produced the row does not.
+  Reaching them means writing NULLs into `media` behind Payload's back, i.e. a fixture
+  encoding a shape no client produces. **It read 78 for two tasks and is 86.95 now:**
+  MED-001's fix moved this script's ladder reader out to
+  `apps/web/lib/media/derivativeGeometry.ts` and replaced two of the defaults with a guard
+  whose both arms a case takes — a clip has no width or height, and a `withoutEnlargement`
+  tier is never omitted, so without the guard every clip would be re-uploaded on every
+  deploy.
+
+**No aggregate figure is quoted here any more.** This entry used to say "the measured
+`apps/web/lib` branch aggregate for that pass is 83.05%"; the pass's file set has changed
+repeatedly since that was measured, so the number was one nothing produced. The per-file
+gates above are the floors that are actually enforced, and `npm run test:integration:coverage`
+prints the aggregate of the day.
+
+**Rationale.** Each number is the one its suite ACHIEVES — against a real Postgres, and for
+the two-environment entries against the poorer of the two machines — not one negotiated down
+to the code. **The uncovered branches are two shapes, not one.** For the six
+gallery/seed/queue entries it is a `?? fallback` on an optional Payload field that the ten
+seeded journeys happen to fill, or an error catch with no organic trigger; reaching the first
+means seeding a journey with every optional field blank, which is a fixture decision and a
+real one, but a fixture decision rather than a number to edit. For the Phase 3 entries it is
+code one MACHINE cannot run — `ffmpeg`'s success arms here, the stand-in's functions in CI —
+or an arm a passing suite cannot take by definition. `c8 ignore` is the wrong instrument for
+both: the first are reachable branches this content does not reach, and marking them ignored
+would hide a gap a better fixture closes; the second are reachable on the other machine, and
+ignoring them there would hide the half that machine covers.
 
 **Why this entry exists.** Phase 2's third whole-branch review found the two Phase 2
 entries stated at the point of exclusion — in the config comment and in
 `docs/testing.md` — and **no `docs/deviations.md` entry anywhere**, which is CLAUDE.md
 §1.1's bidirectional rule broken again: a stated shortfall is reviewable only if it is
-stated in the place §1.2 makes the register of departures. The four Phase 1 entries had
-never been recorded here either, so all six are listed rather than only the two this phase
-added.
+stated in the place §1.2 makes the register of departures. The Phase 1 entries had never been
+recorded here either, so every gate is listed rather than only the two that phase added.
 
-**What would reverse this:** a seed fixture — one journey whose optional fields are all
-blank — after which each of these six can be raised to whatever the suite then achieves,
-and the ones that reach 95 can be deleted from the override list entirely. That belongs to
-whoever next touches the gallery or the seed.
+**And Phase 3 re-created the same state, which is why the table is now the count.** Its four
+additions were each stated at their point of exclusion — long, measured comments in
+`vitest.integration.config.ts`, and `docs/testing/03-contract.md` — and nowhere in this
+register, while this entry's heading, table and prose all still said six. That is the exact
+failure the paragraph above describes, one phase later (whole-branch review F1). It is a
+check now rather than a habit: `apps/web/lib/docs/coverageThresholds.test.ts`.
+
+**What would reverse this:** for the six gallery/seed/queue entries, a seed fixture — one
+journey whose optional fields are all blank — after which each can be raised to whatever the
+suite then achieves, and the ones that reach 95 can be deleted from the override list
+entirely; that belongs to whoever next touches the gallery or the seed. For the two
+two-environment entries (`clipToolchain.ts`, `media-fixtures.ts`), CI's own coverage numbers
+have to become readable, or `ffmpeg` has to exist on a developer machine; for
+`media-processor-contract.ts`, §3.1 would have to be broken to move the number at all.
 
 **Recorded as:** `vitest.integration.config.ts`'s `thresholds` comments (which name the
-departure at the point of exclusion), `docs/testing.md`'s coverage section, and this entry.
+departure at the point of exclusion), `docs/testing.md`'s coverage section,
+`docs/testing/03-contract.md` for the three media entries, this entry, and
+`apps/web/lib/docs/coverageThresholds.test.ts`, which holds the config and this table to each
+other.
+
+## 47 · `image/heic` is refused at the port, with the schema left as `DATA_MODEL.md` writes it
+
+**What changed:** `DATA_MODEL.md` lists `image/heic` among the `media` collection's
+accepted `mimeTypes`, and `apps/web/collections/media.ts` transcribes that list verbatim.
+`packages/domain/src/media/ingestPolicy.ts` refuses a HEIC anyway, with the refusal
+`'heic-unsupported'`, in both pipeline modes.
+
+**Rationale, measured rather than assumed.** This repository's `sharp` is 0.35.4, and on
+this machine its `heif` input accepts only the suffix `.avif` while the bundled codec is
+aom (AV1) rather than HEVC. So a HEIC cannot be decoded here at all, which means
+accepting one would store an original that no derivative tier could ever be made from -
+a row in the store that looks ingested and can never be displayed. Refusing it at the
+port is the same shape ADR 0004 already applies to video: **the schema is untouched, the
+port enforces**, so the day a `sharp` build that decodes HEVC is available, turning HEIC
+on is deleting one guard clause rather than writing a migration.
+
+**Why the schema is not narrowed instead.** Two reasons. The schema is the handoff's, and
+narrowing it would make `apps/web/collections/media.ts` disagree with `DATA_MODEL.md`
+permanently for a reason that is a property of one dependency's build. And a schema
+change is a migration, which is exactly the cost ADR 0004 exists to avoid paying twice.
+
+**Where it is stated in code:** the `// HANDOFF-DEVIATION:` comment on the refusal in
+`packages/domain/src/media/ingestPolicy.ts`, which carries the measurement, and the case
+“refuses HEIC in both modes, because this sharp build cannot decode it”.
+
+**What would reverse this:** a `sharp` build here whose `heif` input reports a `.heic`
+suffix and an HEVC decoder. Re-measure before deleting the guard; the refusal is about
+this build, not about the format.
+
+**Recorded as:** this entry and the code comment above. Phase 3's plan also assigns an
+ADR to the decision (Task 13, ADR 0021); this entry is written now rather than then
+because CLAUDE.md §1.3 requires the record to ship in the same commit as the code, and a
+deviation whose register entry arrives eleven tasks later is a deviation nobody could
+have reviewed.
+
+## 48 · `media` carries a `state` and a `failureReason` the handoff's field list does not
+
+**What changed:** `DATA_MODEL.md`'s `media` collection lists fourteen fields and none of
+them records how far the upload pipeline got. `apps/web/collections/media.ts` adds two
+more: `state` (`select`, `processing` | `ready` | `failed`, read-only, defaulting to
+`processing`) and `failureReason` (read-only text). `20260910_171154_add_media_state`
+migrates them in.
+
+**Rationale.** The same handoff section specifies a `beforeChange` pipeline of six steps —
+magic-byte sniff, SVG rejection, EXIF read and strip, re-encode, `contentHash` and
+duplicate check, and for clips `ffprobe`/transcode/poster extraction — every one of which
+can fail on a row that already exists. With no state on the row, a half-ingested upload is
+indistinguishable from a finished one: the Media screen cannot tell a photograph still
+being processed from a photograph whose derivatives will never arrive, and step 8 of design
+spec §9.2 ("Mark `ready`, or `failed` with a reason the Media screen surfaces") has nowhere
+to write. Design spec §9.2 also makes `processing` a first-class UI state — "not a missing
+image: the Media screen shows progress and the Galleries poster filmstrip needs a processed
+clip" — which is a screen the handoff's own `README.md` describes ("upload progress,
+duplicate-skipped notice") without giving it a column to read.
+
+**Why two fields rather than one.** A `failed` state a reader cannot act on is a shrug.
+`failureReason` holds the words the Media screen shows, and it holds them in prose:
+never a stack trace and never a storage key, because both are internal detail and the
+second is the bucket path `SECURITY.md` keeps out of the client.
+
+**What is deliberately absent: a backfill.** The migration leaves rows that predate the
+column reading `state` NULL. `processing` would claim a pipeline run that is not
+happening — and since §9.2 makes `processing` a state the screen draws progress for, that
+would be a visible lie — while `ready` would claim a full ladder of derivative tiers the
+migration has not looked at. NULL says "ingested before there was a state to record", which is the
+only true thing available. Only the seed writes `media` rows today, and re-running it
+writes them through the field's default.
+
+**Where it is stated in code:** the `// HANDOFF-DEVIATION:` comment on the `state` field
+in `apps/web/collections/media.ts`.
+
+**Recorded as:** this entry, `docs/data-model.md`'s `media` section and migration history,
+and the reversibility case
+_"rolls the media state column and its enum type down and back up, with the table and its
+rows intact"_ in `apps/web/collections/collections.integration.test.ts`.
+
+## 49 · The `worker` MediaProcessor adapter transcodes in-process, where ADR 0004 says it enqueues
+
+**What changed:** `docs/adr/0004-media-pipeline-mode.md`'s Decision defines the `worker`
+adapter as one that "enqueues onto the Postgres `jobs` table (the existing `QueuePort`)
+for a Fly.io process". `apps/web/lib/adapters/worker-media-processor.ts` (Phase 3 Task 6)
+never touches `pgQueue`: it probes, transcodes and extracts the poster frame synchronously,
+in the process it is called in, through `apps/web/lib/media/clipToolchain.ts`.
+
+**Rationale.** `MediaProcessor.process` answers with the processed bytes
+(`Promise<Result<Processed, ProcessingRefusal>>`), and an adapter that enqueued would have
+nothing to answer with — it would need a job id and somewhere to deliver the result, which
+is a second port rather than a second adapter. The ADR's sentence conflated the adapter
+with its deployment: the Fly.io process is WHERE this adapter runs, and the queue hop is
+how an upload request reaches that process. That hop belongs between the upload receiver
+and the worker, and the receiver is Tasks 7–9.
+
+**Cost.** ADR 0004 carries an Amendment section saying the same thing, rather than a
+rewritten Decision — a decision record edited to match the code stops being a record. The
+queue is not cancelled, and Task 8 is where it came back: `apps/web/lib/media/ingestUpload.ts`
+calls `process()` under `inline` and calls `QueuePort.enqueue` under `worker`, which is
+the hop this entry describes. The Fly.io process that would claim that job is still not
+provisioned.
+
+## 50 · The upload pipeline runs before `payload.create`, not in a `beforeChange` hook
+
+**What changed:** `DATA_MODEL.md`'s `media` section specifies the six pipeline steps —
+magic-byte sniff, SVG rejection, EXIF read then strip, re-encode, `contentHash` and the
+duplicate check, and for clips probe/transcode/poster — as a **`beforeChange` hook** on
+the collection. `apps/web/lib/media/ingestUpload.ts` (Phase 3 Task 8) runs them BEFORE
+`payload.create` is called at all, and hands Payload bytes that are already sanitised.
+`apps/web/collections/media.ts` has no `beforeChange` hook.
+
+**Rationale, and it is a measurement rather than a preference.** Payload 3.88.0's create
+operation calls `generateFileData` — the step that hands the bytes to `sharp` to probe
+their dimensions and derive every configured image size — **before it runs the collection's
+`beforeValidate` or `beforeChange` hooks**
+(`node_modules/payload/dist/collections/operations/create.js`: `generateFileData` in the
+try block, the `beforeValidate` and `beforeChange` loops below it). So an SVG rejection
+written as a `beforeChange` hook — which is the hook `DATA_MODEL.md` names — would be a
+check on a file `sharp` had already decoded, and this repository's `sharp` build DECODES
+SVG (`packages/domain/src/media/sniff.ts`'s header carries that measurement).
+`SECURITY.md`'s order is the mechanism, not a convention: nothing may reach a decoder
+before the policy has accepted it.
+
+**THIS PARAGRAPH SAID "before it runs any collection hook at all" AND THAT IS FALSE
+(Task 8 review finding 4).** The same file runs the collection's beforeOperation hooks,
+through buildBeforeOperation, at the very top of the same try block — forty lines above
+`generateFileData` — and the Local API sets `req.file` before the operation begins
+(`node_modules/payload/dist/collections/operations/local/create.js`), so a beforeOperation
+hook genuinely can see the bytes first. The over-claim is corrected rather than deleted, because a wrong sentence
+about a security ordering is exactly the thing that gets copied into a fifth document.
+What the measurement does support is the narrower claim above, which is what
+`apps/web/lib/media/ingestUpload.ts`'s own header and `docs/data-model.md` already say.
+A beforeOperation hook is still not the answer here, for the second reason below and for
+one of its own: it is handed the whole operation's arguments rather than a document, so a refusal
+in it is the same exception, at the same point, with the row's file about to be written
+anyway.
+
+**The second reason, which holds independently of the ordering and is the load-bearing
+one.** Payload's upload collections require a file at `create`, so a hook that wanted to
+refuse an upload has only an exception to refuse it with — a 500 out of a Server Action
+rather than a typed refusal a screen can read — and the row's file would already have been
+written. Deciding before `create` means a refusal creates no row and no file, which is what
+_"creates no row at all when the bytes are refused"_ asserts by counting the collection.
+
+**What is NOT changed by this:** every step, and their order, is exactly `DATA_MODEL.md`'s
+and design spec §9.2's. The steps live in `apps/web/lib/media/stillPipeline.ts` behind the
+`MediaProcessor` port (ADR 0004), which is where §49 and §47 already put them; this entry
+records only that the pipeline is composed ahead of the write instead of inside it.
+
+**Where it is stated in code:** the `// HANDOFF-DEVIATION:` comment at the top of
+`apps/web/lib/media/ingestUpload.ts`.
+
+**Recorded as:** this entry, `docs/data-model.md`'s `media` section, `docs/architecture.md`
+§3 step 5a and `docs/api.md`'s `finaliseUpload` row.
+
+## 51 · A write endpoint of ours sits behind the presign seam, because a filesystem has no HTTP surface
+
+**What changed:** design spec §9.1 specifies the upload as direct-to-bucket — the browser
+PUTs the bytes to a presigned URL and nothing passes through the app, because Vercel caps
+a request body at ~4.5MB and a photograph is larger. This repository serves
+`PUT /admin/media/upload?token=<capability>`
+(`apps/web/app/(admin)/admin/media/upload/route.ts`,
+`apps/web/lib/media/localUploadEndpoint.ts`, `apps/web/lib/media/receiveLocalUpload.ts`)
+and `createLocalStorage.uploadUrl` points at it. The handoff describes no such route.
+
+**Rationale.** The shape the spec asks for is built exactly as asked: `StoragePort.uploadUrl`
+is the seam, `planUploadSlots` mints one staging key per file by journey, and the browser
+PUTs straight to whatever URL the bound adapter offers. The deviation is entirely in what
+the LOCAL adapter can offer. Its `signedUrl` returns a `file://` URL, and no browser can
+PUT to one — a filesystem has no HTTP surface. Without something in between, "direct to
+bucket" is not exercisable on a developer machine at all: no test, no browser sweep and no
+developer could drive the upload path until the day R2 credentials appeared, and
+`docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md` records why those
+credentials do not exist here and why `CLAUDE.md` §7.1 forbids finding out by sending.
+
+**Why this is a stand-in rather than a second upload path.** The route is behind the admin
+guard, the token is an HMAC capability over ONE key carrying its own expiry and byte cap,
+and the caps are enforced twice — once in the plan, which is only what the client was
+told, and once at the receiver, over the bytes that actually arrived. Nothing above the
+port knows the route exists; swapping in an R2 adapter changes no caller.
+
+**THE RESIDUAL, and it is the reason this entry exists as a deviation rather than only as
+an ADR consequence.** The receiver is a real write endpoint that ships to production
+today. **It must be deleted, or gated behind the pipeline configuration, in the same
+change that adds the R2 adapter** — a second write path left standing beside the bucket is
+one nobody is thinking about any more. `apps/web/lib/ports/storage.ts`'s header states the
+same obligation at the port, because that file is what the next adapter's author reads
+first; this entry is what a reader auditing departures from the handoff finds.
+
+**Recorded as:** this entry,
+`docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`, `docs/api.md`'s
+`PUT /admin/media/upload?token=<capability>` row, and `docs/architecture.md` §3 step 5.

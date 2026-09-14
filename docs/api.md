@@ -22,13 +22,16 @@ updating its row in the same commit that changes the code (`CLAUDE.md` §1.3).
 
 ## Status
 
-Eight routes exist today: Payload's own four, mounted under the `(payload)` route
+Every route below the "live today" headings exists; a count is not written here, because
+one written in prose has been stale by the next task every time it was. Payload's own four are mounted under the `(payload)` route
 group; three of the diary's own — `/p/<n>`, added with the book itself in Phase 1
 Task 7 and completed in Task 13; and `/gallery/<slug>` with its download handler
 `/gallery/<slug>/download/<id>`, added in Task 14 — and the bespoke admin's first,
 `/admin/sign-in` and `/admin/sign-in/code`, added in Phase 2 Tasks 7 and 8. Phase 2 Task
-10 added the four `POST` endpoints those screens post to and the request policy every
-`/admin` address is now put through — see "The admin's request policy" below, which applies
+10 added the six `POST` endpoints those screens post to and the request policy every
+`/admin` address is now put through; Phase 3 Task 7 added
+`PUT /admin/media/upload` and the `requestUploadSlots` action that hands out its URLs, and
+Task 8 the `finaliseUpload` action that turns what it staged into a row — see "The admin's request policy" below, which applies
 to every row in the "Admin routes" section and is stated once rather than in each. `/p/<n>` was completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
 metadata and a canonical link, and settled in
 `docs/adr/0010-static-generation-and-the-content-window.md` why it stays dynamic. Both sets are documented in full below. Everything still unbuilt is
@@ -364,12 +367,19 @@ minmax({thumbSize}px, 1fr))` grid of one square tile per visible frame. Its cont
   parameters, both read as opaque strings and matched against the database rather than
   parsed; nothing from the request body or headers is read, so the response never varies
   by caller.
-- **Output:** the bytes of one derivative (`hero`, else `frame`, else `tile`, else
-  `thumb` — never `hero2x`, and never the uploaded original), with
+- **Output:** the bytes of one derivative (`hero`, else `frame` — never `hero2x`, never a
+  cropped tier, and never the uploaded original; the list ended `tile, grid, thumb` until
+  MED-001 showed that a 1200×900 photograph was therefore downloaded as an 800×800 centre
+  crop, and `frame` now declines to enlarge rather than being omitted, so every raster row
+  carries it), with
   `Content-Disposition: attachment; filename="<slug>-<nnn>.<ext>"`, a `Content-Type`
   from a three-value allowlist (`image/jpeg`, `image/png`, `image/webp`),
-  `X-Content-Type-Options: nosniff`, `X-Robots-Tag: noindex` and
-  `Cache-Control: public, max-age=3600`. The filename is derived from the journey's slug
+  `X-Content-Type-Options: nosniff`, `X-Robots-Tag: noindex` and a `Cache-Control` that
+  depends on one site setting: `private, no-store` when `site.passwordProtect` is on,
+  `public, max-age=3600` when it is not (`downloadCacheControl`,
+  `packages/domain/src/galleryDownload.ts`). `grid` is ADR 0013's 700px rung, added in
+  Phase 3 Task 10, so a row that could derive no further than it is still downloadable at
+  the best size it has. The filename is derived from the journey's slug
   and the frame's position in the gallery, never from the stored key.
 - **Errors:** `404`, with the body `Not found`, for every refusal: no such journey; the
   journey is unpublished, archived or soft-deleted; no such media row; the row belongs
@@ -952,6 +962,104 @@ follow: false }`.
   at all. `signInEndpoints.integration.test.ts` asserts the revoked identifier is refused
   afterwards, not merely that a cookie was cleared.
 
+### `PUT /admin/media/upload?token=<capability>`
+
+- **Path:** `apps/web/app/(admin)/admin/media/upload/route.ts`; the handler is
+  `apps/web/lib/media/localUploadEndpoint.ts`'s `handleLocalUpload`, and the decisions are
+  `apps/web/lib/media/receiveLocalUpload.ts`'s.
+- **Method:** `PUT`, which is what a browser's own `fetch(url, { method: 'PUT', body: file })`
+  sends — measured against this repository's Chromium, along with the `Content-Type` (the
+  `File`'s own type) and the `Content-Length` (set by the browser from the body, and not
+  settable by the page). See `apps/web/lib/media/uploadContract.ts`'s header for the run.
+- **Input:** the capability token in the query string, and the file's bytes as the body.
+  **The storage key comes from inside the token, never from the URL** — otherwise this
+  address would be a write-anywhere primitive.
+- **Output:** `204` with no body.
+- **Errors:** `413` when the body is over the cap the token carries. The cap is **the
+  weighing of the bytes that actually arrived**; the `Content-Length` check that runs
+  first is an optimisation for clients that declare one — every browser does — and a
+  chunked client that declares nothing walks past it and is refused after the body has
+  been buffered. Accepted rather than fixed by streaming: the route is behind the admin
+  guard, and it is deleted or gated the day R2 lands (see Notes). `403` for a malformed,
+  expired or wrongly-signed token, **all three identically**, so the endpoint cannot
+  become an oracle telling a forger which part was wrong. `500` when the store refused or
+  could not take the bytes. No refusal carries a body.
+- **Auth requirement:** **signed in.** The guard is applied in the route file
+  (`guarded(handleLocalUpload)`). A token is a capability over one key, not
+  authentication, so a leaked URL is not a way in.
+- **Notes:** this route exists because there is no R2 bucket on a developer machine and
+  the local disk adapter's `signedUrl` returns a `file://` URL no browser can PUT to — see
+  `docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`, which also records
+  the residual: **it must be deleted or gated in the same change that adds the R2
+  adapter.**
+
+## Server actions (live today)
+
+### `requestUploadSlots(request: UploadSlotRequest): Promise<UploadSlotResponse>`
+
+- **Path:** `apps/web/app/(admin)/admin/media/actions.ts`; the decisions are
+  `apps/web/lib/media/uploadSlots.ts`'s `offerUploadSlots`.
+- **Input:** the journey to stage under, and one `{ filename, declaredType, byteLength }`
+  per file the picker selected. Every field is the client's claim; nothing has been
+  weighed.
+- **Output:** one slot per file — `{ stagingKey, declaredType, filename, uploadUrl }` — in
+  the order asked for, each URL carrying its own token over its own key.
+- **Errors:** `'empty-request'`, `'too-many-files'` (over `MAX_FILES_PER_REQUEST`, 20),
+  `'too-large'` (zero bytes, or over `MAX_UPLOAD_BYTES`, 52,428,800), `'type-not-offered'`
+  (a type the bound `MediaProcessor` does not accept — under `MEDIA_PIPELINE=inline` that
+  is every video type), `'unnamed-file'`, `'invalid-journey'`, `'no-upload-url'`. **The
+  whole request is refused when one file fails**, so a caller is never handed three slots
+  for four files.
+- **Auth requirement:** **signed in.** Built from `guardedAction`, which is what
+  `eslint-rules/guarded-server-actions.js` requires of every value export of a
+  `'use server'` module.
+- **Notes:** the caps are enforced again at the receiver above. The plan is only what the
+  client was told, and a client is not what enforces a cap.
+
+### `finaliseUpload(request: FinaliseRequest): Promise<FinaliseResponse>`
+
+- **Path:** `apps/web/app/(admin)/admin/media/actions.ts`; the decisions are
+  `apps/web/lib/media/ingestUpload.ts`'s `finaliseStagedUpload` and `ingestUpload`.
+- **Input:** `{ stagingKey, declaredType, filename, journey }` — the same three claims the
+  slot was offered for, plus the journey the row belongs to. Every field is the client's
+  claim: the type is weighed by `sniffMediaType` over the bytes, the filename decides only
+  the stored name, and **the key must be one `planUploadSlots` would have minted for this
+  journey** (`isStagingKeyFor`), checked before the object is read. That is a narrower
+  question than the store's own `validateStorageKey`, which asks only whether a key is
+  well formed — and a stored photograph's key is well formed. This row said
+  `validateStorageKey` was the protection, which was an overstatement: ingest reads AND
+  deletes what it is handed, and the production store is rooted at `MEDIA_DIR`, where
+  Payload keeps every stored file.
+- **Output:** one of `{ kind: 'ready', media }`, `{ kind: 'duplicate', of }` or
+  `{ kind: 'queued', media, job }`. **No storage key in any arm** — a response naming one
+  would hand the caller the store's own naming, which is the enumeration
+  `readGalleryDownload` refuses to enable. `'queued'` only under `MEDIA_PIPELINE=worker`.
+- **Errors:** `'svg-rejected'`, `'video-deferred'`, `'heic-unsupported'`,
+  `'type-not-allowed'`, `'declared-mismatch'`, `'unreadable'` (the processor's own
+  refusals, every one of them decided from the BYTES); `'key-not-staged'` (the key is not
+  one this journey's slots were minted under — refused before anything is read or
+  deleted); `'staged-bytes-missing'` (the key names no object);
+  `'invalid-journey'` (the id names no journey a row could be keyed by);
+  `'not-queued'` (a `worker` ingest could not hand the upload on). **A refusal creates no
+  row**, and the staged object is deleted on every one of these paths — it is the
+  pre-strip original.
+- **Auth requirement:** **signed in.** Built from `guardedAction`, which is what
+  `eslint-rules/guarded-server-actions.js` requires of every value export of a
+  `'use server'` module.
+- **Notes:** **under `MEDIA_PIPELINE=inline`, which is the only mode that boots**,
+  duplicate detection is scoped to ONE journey (`CLAUDE.md` §7), in one query with the
+  journey in its `where`, and the match is perceptual rather than an equality — a re-save,
+  a re-encode or a resize of a photograph already in the journey is reported as a copy.
+  **A re-crop is not**, and this sentence said it was: measured, five per cent off every
+  edge is 13 bits away against a threshold of 5. See
+  `docs/adr/0022-perceptual-hashing-and-the-duplicate-threshold.md` for the table. **Under
+  `worker` there is no duplicate detection at all:** that mode does not run the pipeline,
+  so the row is created from the staged bytes at `state: 'processing'` with no
+  `contentHash` to match on, and a `transcode` job is enqueued for a worker that has to do
+  the matching as well as the processing. `worker` is refused at `parseEnv` until such a
+  worker exists — see `docs/runbook.md` and `docs/security.md` for the two controls and
+  the order that removes them.
+
 ## Planned routes (Phase 1)
 
 None. Task 14 built the last of them (`/gallery/<slug>` and its download handler, both
@@ -969,12 +1077,17 @@ that has not been written yet", while the routes that call them today sat docume
 thirty rows higher (Phase 2's final review, finding 10). Those three paragraphs are
 deleted rather than annotated: a plan that has happened is not a plan.
 
-**What is still planned, and it is Phase 3's and Phase 4's**: a presigned-upload action
-and a create-media-row action (Phase 3, gated by declared type/size/per-request-file-count
-validation — Vercel's serverless functions cap request bodies at ~4.5MB, which is why
-upload goes straight to R2 rather than through an action, per design spec §9.1); and the
-full set of admin mutations across all ten screens (Phase 4). They are named here only so
-the shape of what is coming is visible; each gets a full row in the commit that adds it.
+**The presigned-upload action is no longer planned — it is built**, by Phase 3 Task 7,
+and it has its own full row above (`requestUploadSlots`), as does the receiver its URLs
+point at. **Nor is the create-media-row action** — Phase 3 Task 8 built it as
+`finaliseUpload`, with its own full row above. What is still planned: the full set of
+admin mutations across all ten screens (Phase 4). They are named here only so the shape
+of what is coming is visible; each gets a full row in the commit that adds it.
+
+The reason the upload does not pass through an action at all still stands and is worth
+repeating where a reader meets it: Vercel's serverless functions cap request bodies at
+~4.5MB (design spec §9.1), so a 25MB photograph cannot go through one. The action hands
+out a URL; the bytes go somewhere else.
 
 **HOW A PHASE 4 ACTION WILL BE WRITTEN, because that is now decided rather than open.**
 Every one of them is built from `guardedAction()` (`apps/web/lib/auth/guard.ts`), which
