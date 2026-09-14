@@ -220,13 +220,16 @@ jobs:
       # leftover noise.
       # `/cms` keeps its own budget entry in lighthouserc.json
       # (`http-status-code` and CLS, no LCP) rather than sharing `/p/1`'s —
-      # CLAUDE.md §6 scopes the diary LCP budget (3000ms, ADR 0008) to the
+      # CLAUDE.md §6 scopes the diary LCP budget (3085ms, ADR 0008) to the
       # diary route specifically, and holding Payload's heavy admin bundle
       # to it was the original reason this whole step was informational.
-      # The LCP budget every lighthouserc file asserts is 3000ms, not the
-      # 2500ms this comment used to name: ADR 0008 set it from the measured
-      # framework floor, ADR 0014 fixed the two viewports it is measured at,
-      # and docs/testing.md §7.0 is the current-state table.
+      # The LCP budget every lighthouserc file asserts is 3085ms, not the
+      # 2500ms this comment first named nor the 3000ms that replaced it: ADR
+      # 0008 set 3000 from the measured framework floor on the authoring host,
+      # ADR 0014 fixed the two viewports it is measured at, and on 2026-09-14
+      # the owner amended it to 3085 from ten medians measured on THIS runner
+      # — the worst of them plus one observed spread. docs/testing.md §7.0 is
+      # the current-state table.
       #
       # `npm run test:perf` runs every `lighthouserc*.json` at the repository
       # root, and all of them are gates:

@@ -87,7 +87,7 @@ Tests first; suite green and pasted; gates met; docs in the same commit; budgets
 
 ## 6 · Performance budgets — hard gates
 
-60fps flip, `transform`/`opacity` only. Diary JS ≤ 180KB gzipped, admin ≤ 320KB. LCP ≤ 3.0s — book at 1350x940, mobile pinned at 412x823, DPR 1.75. CLS ≤ 0.1, INP ≤ 200ms. No N+1; always a derivative tier.
+60fps flip, `transform`/`opacity` only. Diary JS ≤ 180KB gzipped, admin ≤ 320KB. LCP ≤ 3,085ms — book at 1350x940, mobile pinned at 412x823, DPR 1.75. CLS ≤ 0.1, INP ≤ 200ms. No N+1; always a derivative tier.
 **Detail:** `docs/standards/06-performance.md`
 
 ## 7 · Data handling

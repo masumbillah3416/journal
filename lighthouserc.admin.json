@@ -24,7 +24,7 @@
           "assertions": {
             "http-status-code": ["error", { "minScore": 1 }],
             "resource-summary:script:size": ["error", { "maxNumericValue": 327680 }],
-            "largest-contentful-paint": ["error", { "maxNumericValue": 3000 }],
+            "largest-contentful-paint": ["error", { "maxNumericValue": 3085 }],
             "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }]
           }
         }

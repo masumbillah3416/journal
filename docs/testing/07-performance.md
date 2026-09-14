@@ -4,7 +4,18 @@ The detail for `docs/testing.md` §7. That document states the suite's tool, its
 and how to run it, and points here; everything else about the suite is below. The section
 numbers are `docs/testing.md`'s and do not change.
 
-#### 7.0.1 · Every number above was measured on ONE machine, CI is a second one, and CI's LCP gate is RED there — an open decision for the owner
+#### 7.0.1 · Every number above was measured on ONE machine, CI is a second one — and the owner ruled on the gap on 2026-09-14
+
+**RULED ON.** This section was written while CI's LCP gate was red and the question was
+open. It is no longer: the repository owner was shown the ten medians below and, on
+**2026-09-14**, amended ADR 0008's budget from 3,000ms to **3,085ms** — the worst observed
+CI median plus one full observed spread, still 85ms below the regression ADR 0006 fixed.
+**The recommendation this section put on record is the one that was taken**, including its
+second half: never move the ceiling merely to make a red run green, and this is the last
+widening that has evidence behind it. The section below is left as it was written, because
+the reasoning that led to the ruling is worth more than a restatement of its outcome —
+read every "3,000ms" in it as the gate of the day, and `docs/adr/0008-...`'s final section
+as the current state.
 
 **Read this before treating any margin in the tables above as headroom.** Every median in
 §7.0 was collected on this developer's Windows host, against a production `next build` +
@@ -14,8 +25,8 @@ numbers are `docs/testing.md`'s and do not change.
 different amount of contention, and no measurement of its own recorded anywhere. The
 budgets are hard gates on both machines while having been characterised on one.
 
-**The margins are the reason this matters rather than a footnote.** The LCP gate is
-3000ms (ADR 0008), and the medians above clear it by roughly 65–75ms: 2,934.53ms on the
+**The margins are the reason this matters rather than a footnote.** The LCP gate was
+3000ms then (ADR 0008; 3,085ms today), and the medians above clear it by roughly 65–75ms: 2,934.53ms on the
 book surface, 2,925.59ms on the mobile surface, 2,926.9–2,928.4ms on the three admin
 screens. ADR 0008 measured the framework floor at 2,023.2ms for one styled heading with
 no application code, so most of that number is Next.js and Lighthouse's own simulated
@@ -61,7 +72,9 @@ measured at. **The recommendation on record, when asked, is to amend ADR 0008 to
 measured number with headroom rather than chase 25ms — and never to move the ceiling
 merely to make a red run green.**
 
-**No budget in §7.0 was changed by this entry, and none should be.** The paragraph
+**No budget in §7.0 was changed by this entry, and none should be** _(and none was: the
+change came from the owner's ruling above, four weeks and ten medians later, not from
+this entry)_**.** The paragraph
 immediately below is this document's fullest record of why: `/p/1` went red in Phase 2,
 the bimodal spread was reached for as the explanation, and the real cause was a stylesheet
 crossing the route-group seam so that the diary served four render-blocking sheets where
@@ -236,7 +249,7 @@ was reported red and unraised for several rounds before it moved.
     still not yet implemented; they need the flip and data-fetching code these budgets
     describe).
 - **Scope:** the hard budgets in `CLAUDE.md` §6 — 60fps flip (only `transform`/`opacity`
-  animated), diary route JS ≤180KB gzipped, admin ≤320KB, LCP **≤3.0s** (ADR 0008 for
+  animated), diary route JS ≤180KB gzipped, admin ≤320KB, LCP **≤3,085ms** (ADR 0008 for
   the number, ADR 0014 for the two viewports it is measured at), CLS ≤0.1, INP
   ≤200ms, no N+1 queries, always a derivative tier never an original.
 - **Status — hard-gated in CI as of Task 1 of Phase 1, ahead of the route it guards.**
@@ -245,7 +258,7 @@ was reported red and unraised for several rounds before it moved.
   `assert.assertMatrix` rather than one shared `assert.assertions` block: `/p/1` is held
   to `http-status-code` (`minScore: 1`), `resource-summary:script:size`
   (≤184320 bytes), `largest-contentful-paint` (≤2500ms **as landed in Task 1 — the
-  budget is 3000ms today, see §7.0**) and `cumulative-layout-shift` (≤0.1); `/cms` is
+  budget is 3,085ms today, see §7.0**) and `cumulative-layout-shift` (≤0.1); `/cms` is
   held to `http-status-code` and `cumulative-layout-shift` only.
 
   **Task 14 added a third URL and a fourth budget.** `/gallery/patagonia` is collected
@@ -268,7 +281,7 @@ was reported red and unraised for several rounds before it moved.
   ever dropped the route fetches every tile in the gallery while every functional test
   still passes. `e2e/gallery.spec.ts` asserts the ATTRIBUTE; only this budget asserts
   the EFFECT. `CLAUDE.md` §6 scopes the diary LCP budget (2500ms at the time of writing;
-  3000ms today, §7.0) to the diary route specifically —
+  3,085ms today, §7.0) to the diary route specifically —
   holding Payload's heavy admin bundle to it was the original reason this whole step
   was informational, and giving `/cms` its own entry with no LCP assertion is what
   stops that recurring now that `/cms` shares a config with a real route.
