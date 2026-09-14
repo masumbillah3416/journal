@@ -387,6 +387,22 @@ so.**
 | —                              | `lighthouserc.json`       | `/cms`                                                                     | `http-status-code` and CLS only: no LCP, no script budget                                                              |
 | **none**                       | —                         | **`/admin`, `/admin/sign-in/done`, `/admin/reset/<token>`**                | **NOT GATED** — behind the guard or behind a live token; the paragraphs under this table say why, and what bounds each |
 
+**TWO OF THESE GATES ARE RED AS THIS PHASE CLOSES, AND BOTH ARE OPEN DECISIONS FOR THE
+OWNER RATHER THAN NUMBERS TO ADJUST.** Stated at the table because this is where a reader
+comes to learn what the gates are, and a table that lists a limit without saying it is
+currently unmet reads as a passing suite.
+
+- **`resource-summary:image:size` on `/gallery/<slug>`: measured 642,138 against 600,000.**
+  ADR 0013's `grid` rung, added in Phase 3 Task 10, inverted the cost of the seven
+  placeholder tiles the seeded corpus is made of. The remedy on the table — making the
+  placeholders 1000×900 instead of 1000×800 — is predicted at 599,736 bytes **on disk**,
+  264 under a gate that asserts a Lighthouse **transfer-size** median, which is why it is
+  a proposal and not a fix. `docs/adr/0013-gallery-image-budget.md` carries the arithmetic
+  and the refusal to raise the gate.
+- **`largest-contentful-paint` at 3,000ms: red in CI on five URLs, 3005–3045.** Two runs,
+  two trees, including three admin routes untouched by this phase.
+  `docs/testing/07-performance.md` §7.0.1 carries both runs and what would settle it.
+
 All three configs collect `numberOfRuns: 5` and every `assertMatrix` entry carries
 `"aggregationMethod": "median"`. `npm run test:perf` runs **all three**, and all three are
 gates; `e2e/ciRegistration.test.ts` asserts that the script still names every

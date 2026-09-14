@@ -4,7 +4,7 @@ The detail for `docs/testing.md` §7. That document states the suite's tool, its
 and how to run it, and points here; everything else about the suite is below. The section
 numbers are `docs/testing.md`'s and do not change.
 
-#### 7.0.1 · Every number above was measured on ONE machine, CI is a second one, and CI's result is UNRESOLVED
+#### 7.0.1 · Every number above was measured on ONE machine, CI is a second one, and CI's LCP gate is RED there — an open decision for the owner
 
 **Read this before treating any margin in the tables above as headroom.** Every median in
 §7.0 was collected on this developer's Windows host, against a production `next build` +
@@ -24,23 +24,42 @@ whole distance to the ceiling. A slower, noisier runner can therefore fail the s
 application unchanged, and can equally fail it because something is genuinely wrong.
 Neither can be assumed.
 
-**The status: the first CI run's `Lighthouse CI budgets` step failed, and its numbers have
-not been read.** They cannot be read from this machine: the GitHub CLI is not installed
-here, the Actions logs endpoint answers 403 without credentials, and `CLAUDE.md` §7.1
-forbids routing anything through a third-party service to work around that. No repository
-content was sent anywhere to try. So this is recorded as **UNRESOLVED**, which is the
-honest state, rather than as a budget that needs loosening.
+**THE STATUS CHANGED, AND THIS PARAGRAPH USED TO SAY THE NUMBERS "HAVE NOT BEEN READ".**
+They have. That was true while the only way to see them was the Actions logs endpoint,
+which answers 403 without credentials, with no GitHub CLI installed here and `CLAUDE.md`
+§7.1 forbidding a third-party workaround — so the annotation mechanism described further
+down this file was built instead, and it prints the numbers onto the run's own page where
+they are readable without log access. What it showed, on two CI runs against two different
+trees:
 
-**What would settle it, in order.** (1) An authenticated read of that step's log — the
-GitHub CLI's run-log view, or the Actions web UI — which prints, per URL, which assertion
-failed, its expected ceiling and the value observed. (2) Deciding from that which of three
-things it is: a failing `http-status-code` assertion, which is a route not serving on the
-runner at all and a real defect rather than a timing question; an LCP over the ceiling by
-noise, which is a question about how the gate is MEASURED; or an LCP over the ceiling
-consistently, which is a question about the application. (3) For the middle case only, a
-decision taken as an ADR with the runner's own five-run medians in it — the way ADR 0014
-settled which viewports the gate is measured at — never by moving a ceiling to make a red
-run green.
+| URL (Lighthouse configuration) | run on `90fbbef` | run on `fba3cf3` |
+| ------------------------------ | ---------------- | ---------------- |
+| `/admin/reset`                 | 3026.1           | 3020.8           |
+| `/admin/sign-in/code`          | 3021.2           | 3016.4           |
+| `/admin/sign-in`               | 3021.5           | 3023.7           |
+| `/p/1` (book)                  | 3031.8           | 3045.0           |
+| `/p/1` (mobile)                | 3005.0           | 3011.7           |
+
+Milliseconds, `largest-contentful-paint` medians of five, against a 3,000ms budget.
+
+**That is not one flaky route, and reading it as variance is the mistake this section was
+written to prevent in the other direction.** Five URLs, every gated LCP, reproducing to
+within roughly 15ms across two runs on two trees, each with a tight internal spread. **The
+three admin screens are the decisive evidence:** `/admin/sign-in`, `/admin/sign-in/code`
+and `/admin/reset` are untouched by any media work in this phase and sit as far over as
+`/p/1` does. Thirty-one commits of upload pipeline do not move three auth screens by
+21ms each. What this looks like is a budget set AT the framework floor — ADR 0008 measured
+that floor at 2,023.2ms and set 3,000 from it — being measured on a runner marginally
+slower than the host it was characterised on.
+
+**It is not settled, and it is the owner's decision, not a test author's.** What is NOT
+established: the same budget passed on an earlier run of this branch, so something changed
+between them, and runner variance and a uniform regression both explain five routes moving
+together. What would settle it: the runner's own five-run medians across several runs of
+an unchanged tree, taken as an ADR the way ADR 0014 settled which viewports the gate is
+measured at. **The recommendation on record, when asked, is to amend ADR 0008 to a
+measured number with headroom rather than chase 25ms — and never to move the ceiling
+merely to make a red run green.**
 
 **No budget in §7.0 was changed by this entry, and none should be.** The paragraph
 immediately below is this document's fullest record of why: `/p/1` went red in Phase 2,

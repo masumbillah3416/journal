@@ -6,7 +6,7 @@ numbers are `docs/testing.md`'s and do not change.
 
 - **Tool:** Vitest.
 - **Scope:** every migration runs up, down, and up again against a seeded database.
-- **Status:** implemented. `apps/web/migrations/` holds six migrations:
+- **Status:** implemented. `apps/web/migrations/` holds, at least:
   `20260831_154311_initial` (every collection and global's schema),
   `20260831_161951_add_jobs` (the `jobs` table backing the `queue` port, Task 9),
   `20260905_202028_add_otp_session_hash` (the OTP challenge's session binding, Phase 2
@@ -15,8 +15,12 @@ numbers are `docs/testing.md`'s and do not change.
   `20260906_004937_add_session_expiry` (the session row's lifetime and the index an
   authentication reads by, Phase 2 Task 6 — `docs/deviations.md` §30) and
   `20260910_171154_add_media_state` (the media row's processing state and failure reason,
-  Phase 3 Task 5 — `docs/deviations.md` §48). Each of the five later ones has its **own**
-  case in `collections.integration.test.ts` rather than sharing one.
+  Phase 3 Task 5 — `docs/deviations.md` §48) and `20260913_201520_add_media_grid_tier`
+  (the six `media.sizes_grid_*` columns and their index for ADR 0013's deferred ~700px
+  rung, Phase 3 Task 10). **Every migration after the initial one has its own case** in
+  `collections.integration.test.ts` rather than sharing one — the count that used to open
+  this bullet went stale within one task of being written, so it is a floor and a list
+  now rather than a number (`caseCounts.test.ts`'s doctrine).
 
   The `session_expiry` case asserts on the column **and** the index, and on the
   `sessions` table surviving — this migration adds to a table it did not create, so a
@@ -46,6 +50,24 @@ numbers are `docs/testing.md`'s and do not change.
   it would be a much worse kind of reversible, and it would cost every photograph in the
   diary. Verified by replacing `down()` with a comment and watching it fail.
 
+  The `grid_tier` case asserts on **eight** artefacts — the six `media.sizes_grid_*`
+  columns, the `media_sizes_grid_sizes_grid_filename_idx` index Payload derives with them,
+  and the `media` table — and on a row written before the rollback still reading back
+  after it. Eight rather than one for the reason the `sign_in_attempts` case gives: a
+  `down()` that dropped `sizes_grid_url` and left the other five behind would satisfy a
+  single-column assertion and then fail its own re-apply. Verified by replacing `down()`
+  with a no-op, which reports
+
+  ```
+  AssertionError: expected [ Array(8) ] to deeply equal [ 'media-table' ]
+  +   "grid-filename-index",
+      "media-table",
+  +   "sizes_grid_filename",
+  ```
+
+  — the schema, not a collision, because this case goes through
+  `acrossItsOwnRollback` like the four before it.
+
   **What a deliberate `down()` mutation reports here, and the claim that had to be
   withdrawn.** With `down()` a no-op the case fails either way, which is what matters —
   but WHAT it said was wrong, and Task 5's report recorded the reason as intrinsic. The
@@ -67,8 +89,8 @@ exists`), a `finally` that throws replaces the error from the `try`, and so the 
   the mutation left them), then let the next run apply `up()` again — measured again in
   the Tasks 4–6 fix round, and that is still all it takes.
 
-  **All five reversibility cases put the migration back before the test can end** — the
-  four per-migration ones through `acrossItsOwnRollback`, and the roll-to-zero one in a
+  **Every reversibility case puts the migration back before the test can end** — the
+  per-migration ones through `acrossItsOwnRollback`, and the roll-to-zero one in a
   `finally`, which it did not until a review pointed out that documenting its blast radius
   was not the same as closing it. Between `runMigrateDownToZero()` and `runMigrateUp()` the
   database has no schema at all, and an assertion failing in that gap used to leave it
