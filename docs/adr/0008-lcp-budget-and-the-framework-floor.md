@@ -429,14 +429,49 @@ The gate asserts a **median of five**, so the population it must clear is the te
 
 **Lower bound — what it must pass.** The worst median yet observed is 3045.037. A gate
 there would go red on the next run that lands 1ms higher. The allowance is **one full
-observed spread** above it, because the spread is the only measurement of run-to-run
-variation this environment has offered:
+observed spread of the ten medians**:
 
 ```
 3045.037  worst observed median
-+  40.056  the observed spread of medians, across two runs on two trees
++  40.056  the spread of the ten medians (max - min)
 =  3085.093  ->  3085
 ```
+
+**WHAT 40.056 IS, STATED PRECISELY, BECAUSE THE FIRST VERSION OF THIS PARAGRAPH CALLED IT
+SOMETHING IT IS NOT.** It said the spread was "the only measurement of run-to-run
+variation this environment has offered". It is not run-to-run variation at all: it is
+`max − min` across **five different URLs** × two runs, and it is dominated by the gap
+BETWEEN routes — `/p/1` mobile sits at 3005–3012 while `/p/1` book sits at 3032–3045, a
+~30ms difference that is a property of two routes rather than of the runner. The number
+is unchanged and the gate does not move; what was wrong was the method, and a method is
+the part of a derivation a future reader copies.
+
+**The run-to-run variation is recoverable from the same data, and it is what makes 40.056
+conservative.** Pair `docs/testing/07-performance.md` §7.0.1's table by URL (the run on
+`fba3cf3` minus the run on `90fbbef`) and the differences are per-URL, run against run:
+
+| URL                   | `90fbbef` | `fba3cf3` | difference |
+| --------------------- | --------- | --------- | ---------- |
+| `/admin/reset`        | 3026.1    | 3020.8    | −5.3       |
+| `/admin/sign-in/code` | 3021.2    | 3016.4    | −4.8       |
+| `/admin/sign-in`      | 3021.5    | 3023.7    | +2.2       |
+| `/p/1` (book)         | 3031.8    | 3045.0    | **+13.2**  |
+| `/p/1` (mobile)       | 3005.0    | 3011.7    | +6.7       |
+
+**Largest observed run-to-run swing of a median-of-five: 13.2ms. Standard deviation of
+the paired differences: ≈7.9ms.** So the 40.056ms allowance is **3.0× the largest swing
+this environment has shown and ≈5.1σ** — which is the sentence that justifies it. Read
+correctly it is a conservative allowance that happens to be a between-URL spread; read as
+the first version wrote it, somebody amending this gate later from a SINGLE-URL dataset
+would compute a "spread" of about 13ms, set 3,058, and believe they had followed this
+ADR — a gate sitting inside the noise, which is the outcome the next paragraph explicitly
+rejects when it declines `mean + 3σ`.
+
+**n = 2 on the run dimension.** Both figures above come from two CI runs, so they describe
+this runner class on two afternoons and not a population. That residual is why the
+allowance is the conservative term rather than the tight one, and the thing that would
+firm it up is the runner's own medians across several runs of an unchanged tree — the same
+measurement `docs/testing/07-performance.md` §7.0.1 has named as owed since Phase 3 began.
 
 **Upper bound — what it must still fail.** ADR 0006's image-window regression measured
 `/p/1` at **3,170–3,247ms** before its fix, and not laundering that regression is the
@@ -452,8 +487,9 @@ that goes red on ordinary noise trains people to re-run rather than to read. The
 conservative bound costs 30ms of an 85ms window and buys a gate that does not cry wolf.
 
 **3,085 rather than 3,100.** A round number here would be a number chosen and then
-justified. 3,085 is `3045.037 + 40.056` floored to the millisecond, and every term in that
-sum is above.
+justified. 3,085 is `3045.037 + 40.056` floored to the millisecond, every term in that sum
+is above, and the allowance term is sized against the 13.2ms run-to-run swing rather than
+against intuition.
 
 | what                                            | value    | relation to the gate |
 | ----------------------------------------------- | -------- | -------------------- |
