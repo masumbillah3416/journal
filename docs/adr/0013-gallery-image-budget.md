@@ -351,21 +351,43 @@ tell what it measured; the requirement here is that a reader can.
 
 Two-sided, and both sides measured:
 
-| bound                                  | value       | what it is                                                                                  |
-| -------------------------------------- | ----------- | ------------------------------------------------------------------------------------------- |
-| the measurement                        | **642,138** | five-run transfer-size median, above                                                        |
-| **the gate**                           | **680,000** | 37,862 above the measurement — **5.90%** of it                                              |
-| the cheapest possible tenth eager tile | ~707,700    | 642,138 + the smallest eager-window tile's 65,331 disk bytes (`patagonia-g010-204-700x700`) |
-| the failure this gate exists to catch  | 4,009,810   | `loading="eager"`, measured below — **5.90x** the gate                                      |
+| bound                                  | value       | what it is                                             |
+| -------------------------------------- | ----------- | ------------------------------------------------------ |
+| the measurement                        | **642,138** | five-run transfer-size median, above                   |
+| **the gate**                           | **680,000** | 37,862 above the measurement — **5.90%** of it         |
+| the cheapest possible TENTH eager tile | ~707,700    | see the sum below                                      |
+| the failure this gate exists to catch  | 4,009,810   | `loading="eager"`, measured below — **5.90x** the gate |
+
+**The tenth tile, named and summed — and the first published version of this row named
+the wrong file and did not close its own arithmetic.** It read
+`642,138 + 65,331 (patagonia-g010-204-700x700)`, which is 707,469 rather than the ~707,700
+it claimed, and `g010` is the **ninth** file, not a tenth: it is already inside the eager
+window, which is why it is one of the nine in the 636,378 disk sum above. The correction
+is kept rather than quietly swapped, because the error it made — adding a disk figure to
+a transfer figure with no overhead term — is exactly the disk-versus-transfer conflation
+that produced this phase's 264-byte non-margin.
+
+The cheapest tile that could ENTER the window is the next one in
+`GALLERY_FRAME_SORT` order — the row whose `sizes_grid_filename` is
+`patagonia-g011-204-700x700`, a generated derivative in the gitignored
+`apps/web/media` store rather than a file in this repository:
+
+```
+     642,138   the measured transfer-size median of the nine
++     64,922   g011's grid derivative, ON DISK
++       ~640   one response's HTTP overhead
+                 (the nine measure 642,138 transfer against 636,378 on disk:
+                  5,760 / 9 = 640 bytes each)
+=   ~707,700   the cheapest measurement a tenth eager tile could produce
+```
 
 The upper bound is what makes 680,000 a budget rather than a ceiling written where the
 current artefact happens to sit. A tenth tile falling inside the eager window is the
-smallest real regression of the kind this gate watches for, and the cheapest one the
-corpus can produce costs about 65,600 transfer bytes — so any gate at or above ~707,700
-would pass it silently. 680,000 sits **27,700 bytes below** that, and 37,862 above the
-measurement. That margin is not "one byte over" and it is not open-ended: it absorbs
-encoder drift (a `sharp`/`libpng` bump moving PNG sizes a few per cent) and nothing
-larger.
+smallest real regression of the kind this gate watches for, so any gate at or above
+~707,700 would pass it silently. 680,000 sits **27,700 bytes below** that, and 37,862
+above the measurement. That margin is not "one byte over" and it is not open-ended: it
+absorbs encoder drift (a `sharp`/`libpng` bump moving PNG sizes a few per cent) and
+nothing larger.
 
 ### The gate is still a detector, re-measured on this corpus rather than quoted
 
