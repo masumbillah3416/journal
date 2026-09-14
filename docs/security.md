@@ -1191,8 +1191,12 @@ had there rather than anything Phase 3 introduced. Filtering that query is the w
 resolving to nothing makes `withSlots` throw, so one unfinished upload would take the whole
 diary down rather than leave one frame empty. The right fix, if it is ever worth making, is a
 fallback in `withSlots` so an unreadable slot draws an empty frame — written at the query
-itself, and owned by no phase: whoever next needs a `failed` row to render gracefully owns it. A
-crashed `inline` upload is covered by both filters, for the same reason a `worker` row is. **AND
+itself, and owned by no phase: whoever next needs a `failed` row to render gracefully owns it. `inline`
+produces no unfinished row for either filter to cover: it creates the row in one `payload.create`
+at `state: 'ready'` and a refusal creates none, so `processing` and `failed` are `worker`'s alone.
+This paragraph claimed a crashed `inline` upload left a `processing` row, which the code cannot
+produce (whole-branch review F2). Both filters are written for the day `MEDIA_PIPELINE=worker`
+boots — one deleted `.refine` in `apps/web/lib/env.ts` — rather than for a state `inline` reaches. **AND
 ONE RESIDUAL BELONGS IN THIS ROW RATHER THAN IN A CAPACITY NOTE (Phase 3 Task 7's fix round).**
 A slot that is uploaded to and never finalised leaves its staged object on disk forever: Task
 8's `ingestUpload` deletes the staging copy on every _finalise_ path — a `finally`, so a refusal

@@ -113,9 +113,20 @@ export const Media: CollectionConfig = {
               // STRIPPED. Under `MEDIA_PIPELINE=worker`,
               // `apps/web/lib/media/ingestUpload.ts` records the staged
               // ORIGINAL - GPS EXIF intact - at `processing` and leaves the
-              // strip to a worker; a crashed `inline` upload leaves the same
-              // state for a different reason. Without this clause Payload
-              // serves either at `/api/media/file/<name>`, which is
+              // strip to a worker, and `failed` is that same worker's other
+              // answer.
+              //
+              // `inline` REACHES NEITHER STATE, and this comment said it did
+              // (whole-branch review F2): `ingestInline` creates the row in
+              // one `payload.create` at `state: 'ready'` and a refusal creates
+              // no row, so there is no crashed-`inline` window. Re-examined
+              // rather than re-worded, because a control resting on a false
+              // premise has to earn its place again: what justifies this
+              // clause is that `processing` and `failed` are `worker`'s, and
+              // `worker` is one deleted `.refine` away in `lib/env.ts`. The
+              // clause is written BEFORE that day rather than with it, which
+              // is the only ordering that makes it a control at all. Without
+              // it Payload serves either at `/api/media/file/<name>`, which is
               // SECURITY.md's "shoot anything at home and you have published
               // your home address" reached by a signed-out stranger.
               //

@@ -947,8 +947,9 @@ describe('collections', () => {
     // THE SECOND OF THE TWO CONTROLS ON `MEDIA_PIPELINE=worker`, and the one
     // that holds if somebody deletes the first. A `processing` row may be
     // carrying bytes nothing has stripped - the staged original a worker was
-    // meant to collect, or a crashed inline upload - and Payload serves a
-    // readable row's file at `/api/media/file/<name>` to anybody.
+    // meant to collect, which is the only way the delivered system writes one
+    // (`inline` creates at `ready` and refuses without a row) - and Payload
+    // serves a readable row's file at `/api/media/file/<name>` to anybody.
     const unfinished = await payload.create({
       collection: 'media',
       data: { kind: 'still', alt: 'test-access-processing', order: 0, state: 'processing' },

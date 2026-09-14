@@ -34,7 +34,11 @@
  *      `collections/media.ts` withholds a row that is not `ready` from an
  *      unauthenticated reader because its stored bytes may be an original
  *      nothing has stripped - under `MEDIA_PIPELINE=worker` that is exactly
- *      what they are, and a crashed `inline` upload leaves the same state.
+ *      what they are, and `failed` is the same worker's other answer.
+ *      `inline` reaches neither: it creates the row once at `'ready'` and a
+ *      refusal creates no row, so the crashed-`inline` case this paragraph
+ *      used to name does not exist (whole-branch review F2). What the clause
+ *      withholds is what the day `worker` boots will write.
  *      That rule gates `/api/media/file/<name>` and nothing else: these three
  *      callers override access, so without the clause here a `processing` row
  *      is LISTED in the grid, COUNTED in the census, and its bytes are served

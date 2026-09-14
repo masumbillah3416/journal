@@ -604,8 +604,15 @@ describe('ingestUpload', () => {
   )
 
   it(
-    'leaves a row processing when nothing sets its state, so a crashed upload is visible',
+    'defaults a row nobody gave a state to processing, which is the value handOffToWorker leans on',
     async () => {
+      // THE NAME USED TO SAY "so a crashed upload is visible" and named a
+      // scenario the code cannot produce (whole-branch review F2):
+      // `ingestInline` creates its row in one `payload.create` at
+      // `state: 'ready'`, and a refusal creates no row, so no crashed `inline`
+      // request leaves a `processing` one. What this case establishes is the
+      // collection's schema default - the value `handOffToWorker` relies on by
+      // omitting `state` from its `data` rather than writing it.
       const payload = await getTestPayload()
       const journey = await aFixtureJourney()
       const png = await aTinyPng()
@@ -615,7 +622,7 @@ describe('ingestUpload', () => {
         // The branded id is a string and the relationship column is numeric, so
         // the row id is what goes in - the same conversion `ingestUpload` makes.
         data: { journey: Number(journey) },
-        file: { data: Buffer.from(png), mimetype: 'image/png', name: 'crashed.png', size: png.length },
+        file: { data: Buffer.from(png), mimetype: 'image/png', name: 'defaulted.png', size: png.length },
       })
 
       const row = await payload.findByID({ collection: 'media', id: created.id, depth: 0, select: { state: true } })

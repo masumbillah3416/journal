@@ -242,7 +242,8 @@ describe('readGalleryBundle', () => {
       await upload('test-no-derivative', 100, { order: 3 })
       // A row the pipeline has not finished. Its stored bytes may be an
       // un-stripped original - that is what `MEDIA_PIPELINE=worker` records,
-      // and what a crashed `inline` upload leaves behind.
+      // and `worker` is the only mode that writes this state (`inline`
+      // creates at `ready` and a refusal creates no row at all).
       await upload('test-processing', 900, { order: 4, state: 'processing' })
       // Wide enough for `thumb` (400) and too narrow for ADR 0013's `grid`
       // (700), so Payload derives exactly ONE tier for it. That is the only

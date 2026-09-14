@@ -98,9 +98,10 @@ describe('readGalleryDownload', () => {
     await upload('dl-withheld', journeyId, { order: 3, allowDownload: false })
     await upload('dl-elsewhere', otherJourneyId, { order: 0 })
     // A row the pipeline has not finished. Under `MEDIA_PIPELINE=worker` its
-    // stored bytes are the un-stripped original; a crashed `inline` upload
-    // leaves the same state. This handler serves bytes, so it is one of the
-    // four public doors the state filter has to close.
+    // stored bytes are the un-stripped original, and `worker` is the only mode
+    // that writes this state - `inline` creates at `ready` and a refusal
+    // creates no row. This handler serves bytes, so it is one of the four
+    // public doors the state filter has to close.
     await upload('dl-processing', journeyId, { order: 5, state: 'processing' })
     // PH1-002. `role` lives on the `pages` slot, not on the media row, so the
     // only thing that makes a media item the Notes page's decorative scrap is

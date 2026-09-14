@@ -45,12 +45,17 @@
  *     the upload and hands it on. Running `process()` here would transcode a
  *     clip inside the web request, which is the single thing `worker` mode
  *     exists to avoid.
- *   - **`processing` is reachable under `inline` too**, and usefully: the
- *     field defaults to `'processing'`
- *     (`apps/web/collections/media.ts`), so a request that dies between
- *     `create` and anything after it leaves a VISIBLY processing row rather
- *     than an invisible one. That is the state the Media screen shows for a
- *     crashed upload, and the default is asserted rather than assumed.
+ *   - **`processing` is NOT reachable under `inline`.** The row is created by
+ *     ONE `payload.create` whose `data` already carries `state: 'ready'`, and
+ *     nothing after it writes state; a refusal creates no row. So a crashed
+ *     `inline` request leaves a `ready` row or no row — never a `processing`
+ *     one. This bullet claimed the opposite until the whole-branch review
+ *     disbelieved it (F2): the sentence survived from the plan, which
+ *     described a `create` and a SEPARATE state write, and Task 8 collapsed
+ *     the two into one. The collection's `'processing'` default
+ *     (`apps/web/collections/media.ts`) is real and asserted rather than
+ *     assumed — `handOffToWorker` below leans on it instead of naming the
+ *     value — but `worker` is the only mode that reaches it.
  *
  * ═══ WHAT `worker` MODE DOES NOT DO YET, SAID HERE RATHER THAN DISCOVERED ═══
  *
@@ -388,8 +393,11 @@ const handOffToWorker = async (
     collection: 'media',
     // No `kind`, no `contentHash`, no `capturedAt`: all three are answers the
     // pipeline gives, and the pipeline has not run. `state` is left to the
-    // collection's own default of `processing`, which is the same value a
-    // crashed `inline` upload leaves, and means the same thing.
+    // collection's own default of `processing` rather than restated here, so
+    // the two cannot drift. This `create` is the ONLY writer of a `processing`
+    // row in the delivered system: `ingestInline` writes `'ready'` explicitly,
+    // the seed writes `'ready'` explicitly, and `rederiveMedia` updates with
+    // `data: {}` and leaves state alone.
     data: { journey: staged.journey },
     file: {
       data: Buffer.from(staged.bytes),
@@ -401,7 +409,7 @@ const handOffToWorker = async (
 
   const media = brandedRowId(created.id)
   const enqueued = await deps.queue.enqueue({ kind: 'transcode', mediaId: media })
-  /* c8 ignore next -- no organic trigger: `createPostgresQueue().enqueue` refuses only when the `jobs` insert throws, and every field it writes is either a literal or the primary key Payload has just assigned. Arranging one would mean stubbing a port this repository owns (CLAUDE.md §2.3). The row is left at `processing` rather than deleted: that is the state a crashed upload leaves, it means the same thing to the Media screen, and it keeps the photograph rather than discarding an author's upload because the queue was down. */
+  /* c8 ignore next -- no organic trigger: `createPostgresQueue().enqueue` refuses only when the `jobs` insert throws, and every field it writes is either a literal or the primary key Payload has just assigned. Arranging one would mean stubbing a port this repository owns (CLAUDE.md §2.3). The row is left at `processing` rather than deleted: that is what the Media screen shows for an upload no worker has finished, which is exactly what this row is, and it keeps the photograph rather than discarding an author's upload because the queue was down. */
   if (!enqueued.ok) return err('not-queued')
 
   return ok({ kind: 'queued', media, job: enqueued.value })
