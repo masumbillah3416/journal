@@ -1045,8 +1045,11 @@ follow: false }`.
   `'use server'` module.
 - **Notes:** **under `MEDIA_PIPELINE=inline`, which is the only mode that boots**,
   duplicate detection is scoped to ONE journey (`CLAUDE.md` §7), in one query with the
-  journey in its `where`, and the match is perceptual rather than an equality — a re-crop
-  or a re-save of a photograph already in the journey is reported as a copy. **Under
+  journey in its `where`, and the match is perceptual rather than an equality — a re-save,
+  a re-encode or a resize of a photograph already in the journey is reported as a copy.
+  **A re-crop is not**, and this sentence said it was: measured, five per cent off every
+  edge is 13 bits away against a threshold of 5. See
+  `docs/adr/0022-perceptual-hashing-and-the-duplicate-threshold.md` for the table. **Under
   `worker` there is no duplicate detection at all:** that mode does not run the pipeline,
   so the row is created from the staged bytes at `state: 'processing'` with no
   `contentHash` to match on, and a `transcode` job is enqueued for a worker that has to do

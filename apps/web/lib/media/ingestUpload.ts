@@ -102,8 +102,12 @@
  *     same-journey case green, which is why both cases exist.
  *   - **THE MATCH IS PERCEPTUAL, NOT AN EQUALITY, and the difference is the
  *     feature.** `isPerceptualDuplicate` admits a photograph within
- *     `DUPLICATE_MAX_DISTANCE` bits — a crop, a brightness tweak, a "save for
- *     web" resize. Replacing it with `===` is a plausible edit ("the hashes
+ *     `DUPLICATE_MAX_DISTANCE` bits — a re-encode at any quality, a
+ *     brightness change, a "save for web" resize. **NOT a crop**, which this
+ *     sentence used to claim: measured on the contract suite's own fixture,
+ *     five per cent off every edge scores 13 and is stored as a new
+ *     photograph. `docs/adr/0022-perceptual-hashing-and-the-duplicate-threshold.md`
+ *     carries the whole table. Replacing it with `===` is a plausible edit ("the hashes
  *     are deterministic, why the helper") and every case that named a
  *     duplicate stayed green under it until three cases read the constant and
  *     moved the STORED row's hash to sit a measured distance away. See

@@ -394,8 +394,11 @@ export const workerDeps = async (storage: StoragePort): Promise<IngestDeps> => {
  * ═══ WHY THE NEAR-DUPLICATE IS A HASH AND NOT A PHOTOGRAPH ═══
  *
  * `DUPLICATE_MAX_DISTANCE` is 5 because real clients produce photographs a
- * few bits apart: a crop, a brightness tweak, a "save for web" resize, the
- * second frame of a phone's HDR pair. Neither fixture in
+ * few bits apart: a brightness tweak, a "save for web" resize, the second
+ * frame of a phone's HDR pair. **Not a crop** — this sentence listed one
+ * until it was measured, and five per cent off every edge scores 13
+ * (`docs/adr/0022-perceptual-hashing-and-the-duplicate-threshold.md`).
+ * Neither fixture in
  * `../../adapters/contract/media-fixtures.ts` is in that band — measured, and
  * recorded there: the q55 re-encode is 0 bits from its original and the
  * different photograph is 30. So a case that has to sit between them either

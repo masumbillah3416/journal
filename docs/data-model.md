@@ -25,7 +25,11 @@ Payload's built-in focal-point picker powers the admin control. Fields include `
 author), `caption`, `alt`, `capturedAt` (from EXIF, retained after the EXIF strip),
 `posterAt`/`posterImage`/`durationSec` (clips only), `inBook`, `hidden`, `isCover`,
 `allowDownload`, `order`, `contentHash` (perceptual hash, indexed, for duplicate
-detection within a journey), and — added in Phase 3 Task 5, and not in the handoff's own
+detection within a journey — **a dHash, never an integrity checksum**: two files that
+differ in every byte carry the same value when they are the same photograph, so it cannot
+detect corruption, verify a restore or deduplicate storage, and
+`docs/adr/0022-perceptual-hashing-and-the-duplicate-threshold.md` carries what it does and
+does not tolerate), and — added in Phase 3 Task 5, and not in the handoff's own
 field list (`docs/deviations.md` §48) — `state` (`processing` | `ready` | `failed`,
 read-only, defaulting to `processing`) with `failureReason` (read-only text, the words the
 Media screen shows). `processing` is a first-class UI state rather than a missing image
