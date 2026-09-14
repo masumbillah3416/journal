@@ -774,9 +774,20 @@ describe('readBookBundle', () => {
         },
       })
 
-      await expect(readBookBundle()).rejects.toThrow(/no derivative of any tier/)
-
-      await payload.delete({ collection: 'media', id: media.id })
+      // CLEANED UP IN A `finally`, AND THE RESTORE IS NOT OPTIONAL. This row
+      // belongs to no journey, so no `afterAll` in this file sweeps it, and it
+      // takes `state`'s `processing` default - which
+      // `../scripts/seed.integration.test.ts` reads as a failure, because that
+      // case counts the states of EVERY media row in the shared test database.
+      // A case that throws before an unconditional delete therefore fails a
+      // different file, in a later run, with a message about the seed. Measured
+      // rather than imagined: it happened during this fix's own mutation
+      // testing.
+      try {
+        await expect(readBookBundle()).rejects.toThrow(/no derivative of any tier/)
+      } finally {
+        await payload.delete({ collection: 'media', id: media.id })
+      }
     })
 
     it('prints a wide photograph in a slot whole, not cropped to a square', async () => {
@@ -822,20 +833,29 @@ describe('readBookBundle', () => {
         },
       })
 
-      const bundle = await readBookBundle()
-      const notes = bundle.pages.find((page) => page.kind === 'notes' && page.slug === 'test-readbookbundle-kind-order')
-      const slot = notes?.kind === 'notes' ? notes.slots?.find((candidate) => candidate.role === 'ephemera') : undefined
-      const stored = await payload.findByID({ collection: 'media', id: media.id, depth: 0, select: { sizes: true } })
-      const served = Object.values(stored.sizes ?? {}).find((size) => size.url === slot?.src)
+      // The delete is in a `finally` for the reason the case above gives: this
+      // row belongs to no journey, nothing else sweeps it, and a failure here
+      // would leave a `processing` row that fails
+      // `../scripts/seed.integration.test.ts` instead.
+      try {
+        const bundle = await readBookBundle()
+        const notes = bundle.pages.find(
+          (page) => page.kind === 'notes' && page.slug === 'test-readbookbundle-kind-order',
+        )
+        const slot =
+          notes?.kind === 'notes' ? notes.slots?.find((candidate) => candidate.role === 'ephemera') : undefined
+        const stored = await payload.findByID({ collection: 'media', id: media.id, depth: 0, select: { sizes: true } })
+        const served = Object.values(stored.sizes ?? {}).find((size) => size.url === slot?.src)
 
-      // Two sentinels: a page that did not resolve, and a `src` that is not
-      // one of this row's own derivatives - either would make the shape
-      // assertion vacuous.
-      expect(slot, 'the ephemera slot did not resolve at all').toBeDefined()
-      expect(served, 'the slot’s src is not one of the row’s own derivatives').toBeDefined()
-      expect({ width: served?.width, height: served?.height }).toEqual({ width: 1200, height: 560 })
-
-      await payload.delete({ collection: 'media', id: media.id })
+        // Two sentinels: a page that did not resolve, and a `src` that is not
+        // one of this row's own derivatives - either would make the shape
+        // assertion vacuous.
+        expect(slot, 'the ephemera slot did not resolve at all').toBeDefined()
+        expect(served, 'the slot’s src is not one of the row’s own derivatives').toBeDefined()
+        expect({ width: served?.width, height: served?.height }).toEqual({ width: 1200, height: 560 })
+      } finally {
+        await payload.delete({ collection: 'media', id: media.id })
+      }
     })
 
     it('defaults a slot with no role to "frame", since pages.slots.role carries no schema default', async () => {
