@@ -34,6 +34,15 @@ Fly.io worker container that already runs `ffmpeg` for video transcoding. The la
 not enumerated here: it grew a rung in Phase 3 Task 10 (`docs/adr/0013-gallery-image-budget.md`
 Option 3) and a list in prose would have gone stale silently.
 
+**Where that sentence is now out of date, corrected rather than rewritten.** There is no
+Fly.io worker container: ADR 0004 deferred it with video, so the still pipeline runs
+in-process wherever the upload request is handled. And the tiers are derived by **Payload's
+own `imageSizes`** at `payload.create`, from bytes `apps/web/lib/media/stillPipeline.ts`
+has already re-encoded — one derivation rather than two, which is
+`docs/adr/0003-derivative-generation.md`'s corrected consequence. What this entry records
+is unchanged by either: no image transform vendor is used, and `sharp` is what does the
+work.
+
 **Rationale:** The worker already exists for video processing; adding `sharp` to it is
 additive infrastructure rather than a new service, and removes a vendor (no account,
 billing relationship, or API surface to integrate and keep available). The cost of the
@@ -2202,3 +2211,41 @@ records only that the pipeline is composed ahead of the write instead of inside 
 
 **Recorded as:** this entry, `docs/data-model.md`'s `media` section, `docs/architecture.md`
 §3 step 5a and `docs/api.md`'s `finaliseUpload` row.
+
+## 51 · A write endpoint of ours sits behind the presign seam, because a filesystem has no HTTP surface
+
+**What changed:** design spec §9.1 specifies the upload as direct-to-bucket — the browser
+PUTs the bytes to a presigned URL and nothing passes through the app, because Vercel caps
+a request body at ~4.5MB and a photograph is larger. This repository serves
+`PUT /admin/media/upload?token=<capability>`
+(`apps/web/app/(admin)/admin/media/upload/route.ts`,
+`apps/web/lib/media/localUploadEndpoint.ts`, `apps/web/lib/media/receiveLocalUpload.ts`)
+and `createLocalStorage.uploadUrl` points at it. The handoff describes no such route.
+
+**Rationale.** The shape the spec asks for is built exactly as asked: `StoragePort.uploadUrl`
+is the seam, `planUploadSlots` mints one staging key per file by journey, and the browser
+PUTs straight to whatever URL the bound adapter offers. The deviation is entirely in what
+the LOCAL adapter can offer. Its `signedUrl` returns a `file://` URL, and no browser can
+PUT to one — a filesystem has no HTTP surface. Without something in between, "direct to
+bucket" is not exercisable on a developer machine at all: no test, no browser sweep and no
+developer could drive the upload path until the day R2 credentials appeared, and
+`docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md` records why those
+credentials do not exist here and why `CLAUDE.md` §7.1 forbids finding out by sending.
+
+**Why this is a stand-in rather than a second upload path.** The route is behind the admin
+guard, the token is an HMAC capability over ONE key carrying its own expiry and byte cap,
+and the caps are enforced twice — once in the plan, which is only what the client was
+told, and once at the receiver, over the bytes that actually arrived. Nothing above the
+port knows the route exists; swapping in an R2 adapter changes no caller.
+
+**THE RESIDUAL, and it is the reason this entry exists as a deviation rather than only as
+an ADR consequence.** The receiver is a real write endpoint that ships to production
+today. **It must be deleted, or gated behind the pipeline configuration, in the same
+change that adds the R2 adapter** — a second write path left standing beside the bucket is
+one nobody is thinking about any more. `apps/web/lib/ports/storage.ts`'s header states the
+same obligation at the port, because that file is what the next adapter's author reads
+first; this entry is what a reader auditing departures from the handoff finds.
+
+**Recorded as:** this entry,
+`docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`, `docs/api.md`'s
+`PUT /admin/media/upload?token=<capability>` row, and `docs/architecture.md` §3 step 5.
