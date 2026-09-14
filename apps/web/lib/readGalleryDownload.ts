@@ -111,6 +111,18 @@ export interface Attachment {
  * a derivative the row carries and hands back the 400px `thumb` - which is
  * `ok`, and wrong, and is why that case asserts the BYTES rather than the
  * `ok`.
+ *
+ * KNOWN DEFECT, RECORDED RATHER THAN FIXED: every tier after `frame` in this
+ * list is SQUARE (`apps/web/collections/media.ts` gives `tile`, `grid` and
+ * `thumb` a width AND a height, so Payload crops them to `cover`), and Payload
+ * derives a width-only tier only from a source at least that wide. So a row
+ * whose original is narrower than `frame`'s 1400px is downloaded CROPPED - a
+ * 1200x900 photograph arrives as 800x800, measured. Closing it needs an
+ * uncropped rung or a `fit` change, which is a derivative-generation decision
+ * with a re-derive and a gallery image budget behind it, and a failing test
+ * first (CLAUDE.md §10). MED-001 in
+ * `docs/qa/2026-09-08-media-pipeline-sweep.md`; the same defect reaches the
+ * lightbox through `readGalleryBundle.ts`'s `FULL_TIERS`.
  */
 const DOWNLOAD_TIERS = ['hero', 'frame', 'tile', 'grid', 'thumb'] as const
 

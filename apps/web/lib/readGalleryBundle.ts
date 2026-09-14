@@ -130,6 +130,17 @@ const TILE_TIERS: readonly DerivativeTier[] = ['thumb', 'grid', 'tile', 'frame',
  * it is the 4000px tier the book uses for 2x displays, and a lightbox is one
  * image a reader chose rather than a page's LCP element, so `hero`'s 2000px
  * is the better default and `hero2x` is not offered at all.
+ *
+ * KNOWN DEFECT, RECORDED RATHER THAN FIXED: `tile` and `thumb` are SQUARE
+ * (`apps/web/collections/media.ts` gives both a width AND a height, so Payload
+ * crops them to `cover`), and Payload derives `frame` and `hero` only from a
+ * source at least that wide. So a row whose original is narrower than 1400px
+ * opens in the lightbox CROPPED rather than letterboxed - the seeded 1200x900
+ * frames are served as 800x800, measured in a browser. Closing it needs an
+ * uncropped rung or a `fit` change, which is a derivative-generation decision
+ * with a re-derive behind it and a failing test first (CLAUDE.md §10).
+ * MED-001 in `docs/qa/2026-09-08-media-pipeline-sweep.md`; the download's own
+ * ladder in `readGalleryDownload.ts` has the same hole.
  */
 const FULL_TIERS: readonly DerivativeTier[] = ['hero', 'frame', 'tile', 'thumb']
 
