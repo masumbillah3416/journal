@@ -10,9 +10,14 @@
  * and fall back to a square one, against a collection where no uncropped tier
  * was derivable from an original under 1400px — so every ladder's fallback was
  * the normal case and a reader got an 800x800 crop of a 1200x900 photograph.
- * Two halves have to hold for the class to stay closed, and each has its own
- * case below: the collection must OFFER an uncropped tier that any original
- * can produce, and the ladders must not NAME a cropped one.
+ * THREE halves have to hold for the class to stay closed, and each has its own
+ * case below: the collection must OFFER an uncropped tier that any original can
+ * produce; the ladders must not NAME a cropped one; and the SET OF LADDERS must
+ * be the set of files that actually read a derivative tier, so a fourth
+ * consumer cannot arrive unclassified. The third was added after the first
+ * review of this file pointed out that it inverted on tiers and enumerated on
+ * ladders — and that the consumer this round found, `readBookBundle.ts`, is
+ * exactly what a hand-written list of files misses.
  *
  * ═══ WHY IT READS THREE MODULES AS TEXT ═══
  *
@@ -31,12 +36,15 @@
  * The cases below do not list the tiers that would be wrong. They compute the
  * uncropped set from the collection and refuse everything outside it, so a rung
  * added in five years is covered by a case written today (CLAUDE.md §3.3's
- * rejected anti-patterns, and the standing order about enumerations).
+ * rejected anti-patterns, and the standing order about enumerations). The
+ * census does the same on the other axis: it reads the POPULATION of consumers
+ * off the filesystem rather than trusting a list, so the failure mode is "you
+ * have not said what this file draws", not silence.
  *
- * PATTERN (CLAUDE.md §3.3): none — file reads, one projection and two refusals.
+ * PATTERN (CLAUDE.md §3.3): none — file reads, one projection and three refusals.
  * Depends on: vitest, node:fs, node:path, node:url, ./derivativeGeometry.
  */
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -70,8 +78,83 @@ const UNCROPPED_LADDERS: readonly { readonly file: string; readonly declaration:
   { file: 'apps/web/lib/readBookBundle.ts', declaration: /const DERIVATIVE_PREFERENCE: [^=]*= \{([\s\S]*?)\n\}/ },
 ]
 
+/**
+ * The ladders that resolve a media row to a SQUARE derivative on purpose.
+ *
+ * They are declared rather than asserted on: a grid tile is square by design
+ * (SCREENS.md §1.8), and its `srcset` legitimately offers uncropped candidates
+ * too, so there is no tier rule to check here. What this list exists for is the
+ * census below — a file that walks tiers must appear in one of the two lists,
+ * and this is how a deliberate square consumer says so out loud.
+ */
+const SQUARE_BY_DESIGN: readonly { readonly file: string; readonly declaration: RegExp }[] = [
+  // The gallery grid. Square tiles, drawn at `object-fit: cover` with the
+  // frame's own focal point.
+  {
+    file: 'apps/web/lib/readGalleryBundle.ts',
+    declaration: /const TILE_TIERS: readonly DerivativeTier\[\] = \[([^\]]*)\]/,
+  },
+]
+
+/**
+ * Where a module that serves a media row could live. Every source root under
+ * `apps/web`, because `media.sizes` is a Payload GENERATED type and nothing
+ * outside this workspace has it.
+ */
+const SOURCE_ROOTS = ['lib', 'app', 'components', 'collections', 'globals', 'scripts'] as const
+
 /** One single-quoted tier name inside an extracted declaration. */
 const QUOTED_TIER = /'([^']+)'/g
+
+/**
+ * Every `.ts`/`.tsx` file under `apps/web`'s source roots that is not a test.
+ * @returns Repository-relative paths, forward-slashed.
+ */
+const sourceFiles = (): readonly string[] => {
+  const walk = (directory: string): readonly string[] =>
+    readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const full = path.join(directory, entry.name)
+      return entry.isDirectory() ? walk(full) : [full]
+    })
+
+  return SOURCE_ROOTS.flatMap((root) => walk(path.join(REPO_ROOT, 'apps/web', root)))
+    .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
+    .map((file) => path.relative(REPO_ROOT, file).split(path.sep).join('/'))
+}
+
+/**
+ * A module's source with its comments removed.
+ *
+ * Comments are stripped because the census below asks whether a file READS a
+ * derivative tier, and prose that merely names one is not a read: a sentence
+ * mentioning `sizes.hero2x` in `lib/media/testing/ingestProbes.ts` matched the
+ * pattern before this. Stripping can only remove text, so it cannot hide a real
+ * read — the one shape it would miss is a string literal containing a comment
+ * opener, which no file here has. The `[^:]` in the line-comment pattern is
+ * what keeps `https://` from being read as one.
+ * @param file - A repository-relative path.
+ * @returns The file's source, comments blanked.
+ */
+const codeOf = (file: string): string =>
+  readFileSync(path.join(REPO_ROOT, file), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+
+/**
+ * Every source file that reads a media row's derivative map BY TIER — which is
+ * the one shape a ladder walk takes, whether it indexes with a variable
+ * (`sizes?.[tier]`) or names a rung outright (`sizes?.frame`).
+ *
+ * THE TIER NAMES COME FROM THE COLLECTION, not from a literal here, so the
+ * census inverts on the same axis the rest of this file does: a rung added in
+ * five years widens what counts as a read without anybody editing this.
+ * @returns Repository-relative paths of every consumer.
+ */
+const derivativeReaders = (): readonly string[] => {
+  const tiers = configuredDerivatives().map((tier) => tier.name)
+  const readsATier = new RegExp(`sizes\\??\\.(\\[|${tiers.join('|')})`)
+  return sourceFiles().filter((file) => readsATier.test(codeOf(file)))
+}
 
 /**
  * Every tier name a ladder declaration names.
@@ -106,6 +189,47 @@ describe('the configured derivative ladder', () => {
     // uncropped tiers would satisfy them while proving nothing, and it would
     // also mean the square gallery grid had lost its rungs.
     expect(configuredDerivatives().filter((tier) => tier.geometry === 'cropped')).not.toEqual([])
+  })
+})
+
+describe('the census of derivative consumers', () => {
+  it('classifies every file that reads a derivative tier, so a fourth consumer cannot arrive unnoticed', () => {
+    // THE LADDER AXIS, INVERTED - and it is inverted because of what this
+    // round found. The tier axis above refuses any rung the collection crops,
+    // computed from the collection, so a rung added later is covered. The
+    // LADDER axis was a hand-written list of three files, which is exactly the
+    // shape that let MED-001 hide: the browser sweep named the lightbox and
+    // the download, and `readBookBundle.ts` - a THIRD consumer of the same
+    // fall-through, serving every in-book slot - was found only because
+    // somebody went looking for one. A fourth would have passed a guard that
+    // had never been told it existed.
+    //
+    // So the population is read off the filesystem instead. Every file under
+    // `apps/web`'s source roots that reads `media.sizes` BY TIER must be
+    // classified: either its ladder serves one whole photograph (checked
+    // above) or it is square on purpose and says so. A fifth file cannot pass
+    // silently - it fails here, by name, and somebody has to decide which it
+    // is.
+    const classified = new Set([...UNCROPPED_LADDERS, ...SQUARE_BY_DESIGN].map((ladder) => ladder.file))
+    const readers = derivativeReaders()
+
+    // THE SENTINEL, and it is the one that matters most here: a walk that
+    // found nothing, or a pattern that matched nothing, would make the
+    // comparison below pass against an empty set - a census that cannot see
+    // its own population is worse than no census, because it reports "all
+    // classified".
+    expect(readers.length, 'the census found no consumer of media.sizes at all').toBeGreaterThan(0)
+    expect(
+      [...readers].sort(),
+      'a file reads a media row by derivative tier and no list here says what it draws. If it serves ONE WHOLE PHOTOGRAPH, add it to UNCROPPED_LADDERS and its ladder will be checked; if it is square on purpose, add it to SQUARE_BY_DESIGN with the reason. Silence is how MED-001 reached a third consumer.',
+    ).toEqual([...classified].sort())
+  })
+
+  it.each(SQUARE_BY_DESIGN)('finds the square-by-design ladder it claims is in $file', (ladder) => {
+    // Without this, `SQUARE_BY_DESIGN` would be a free pass keyed on a
+    // filename: a file could be classified square while carrying no such
+    // declaration at all, and the census above would still be satisfied.
+    expect(ladder.declaration.test(readFileSync(path.join(REPO_ROOT, ladder.file), 'utf8'))).toBe(true)
   })
 })
 
