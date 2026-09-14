@@ -17,10 +17,24 @@ Postgres.
 
 The upload collection; everything else references it. Payload's `upload` config
 generates six derivative image sizes at upload (`thumb` 400², `grid` 700², `tile` 800²,
-`frame` 1400w, `hero` 2000w, `hero2x` 4000w — see `docs/adr/0003-derivative-generation.md`
-for the original five and `docs/adr/0013-gallery-image-budget.md` for `grid`, its Option 3
-taken in Phase 3 Task 10) and
-Payload's built-in focal-point picker powers the admin control. Fields include `journey`
+`frame` **at most** 1400w, `hero` 2000w, `hero2x` 4000w — see
+`docs/adr/0003-derivative-generation.md` for the original five and
+`docs/adr/0013-gallery-image-budget.md` for `grid`, its Option 3 taken in Phase 3 Task 10)
+and
+Payload's built-in focal-point picker powers the admin control.
+
+**The first three crop and the last three do not, and `frame` is the one every original
+reaches.** A size declared with a width and a height is a `cover` crop; a size declared
+with a width alone keeps the photograph's shape. Payload omits a width-only size whose
+target exceeds the source, so until Phase 3's owner-decisions round the only uncropped
+rungs started at 1400px and a 1200×900 photograph had nothing uncropped to be served —
+it reached the lightbox, the download and every in-book slot as an 800×800 centre crop
+(MED-001, `docs/qa/2026-09-08-media-pipeline-sweep.md`). `frame` now carries
+`withoutEnlargement: true`, which makes it "the whole frame, at most 1400px wide": a
+narrower original is left at its own size rather than skipped, so **every raster row
+carries at least one uncropped derivative**. `hero` and `hero2x` deliberately do not
+carry the flag — with it they would duplicate `frame` byte-for-byte on every source
+under 1400px. Fields include `journey`
 (relationship), `kind` (`still` | `clip`, read-only — set by the pipeline, not the
 author), `caption`, `alt`, `capturedAt` (from EXIF, retained after the EXIF strip),
 `posterAt`/`posterImage`/`durationSec` (clips only), `inBook`, `hidden`, `isCover`,

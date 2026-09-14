@@ -40,6 +40,7 @@
  */
 import { coverCloths } from '@travel-diary/tokens/colour'
 import sharp from 'sharp'
+import { aClip } from './adapters/contract/media-fixtures'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { getPayload } from './payload'
 import { getTestPayload } from './testPayload'
@@ -733,19 +734,22 @@ describe('readBookBundle', () => {
     })
 
     it('throws when a slot resolves to media with no derivative of any tier, rather than falling back to the original', async () => {
-      // Every one of Payload's image sizes needs a source at least as
-      // large as its own target dimensions (thumb's 400x400 is the smallest);
-      // a 100x100 upload is genuinely too small to generate ANY of them - not
-      // a contrived mock, the same `sharp`-backed pipeline the seed itself uses.
-      const tinyPng = await sharp({
-        create: { width: 100, height: 100, channels: 3, background: { r: 200, g: 200, b: 200 } },
-      })
-        .png()
-        .toBuffer()
+      // NO RASTER UPLOAD CAN BE THIS FIXTURE ANY MORE. It was a 100x100 PNG,
+      // "genuinely too small to generate ANY of them" - true while every tier
+      // needed a source at least its own size, and false since MED-001's fix
+      // gave `frame` `withoutEnlargement: true`, which exists precisely so
+      // that no original is too small for an uncropped derivative. A clip is
+      // what is left: Payload's `canResizeImage` refuses a video mime type, so
+      // the row carries no `sizes` at all - and a clip in a book slot is a
+      // real state, since `pages.slots[].media` relates to the whole `media`
+      // collection. `aClip()` writes a real container where ffmpeg exists and
+      // an `ftyp` header where it does not; neither is resizable, which is the
+      // only property this fixture needs.
+      const clip = Buffer.from(await aClip())
       const media = await payload.create({
         collection: 'media',
-        data: { kind: 'still', alt: 'too small for any derivative', order: 0 },
-        file: { data: tinyPng, mimetype: 'image/png', name: 'too-small.png', size: tinyPng.length },
+        data: { kind: 'clip', alt: 'a clip has no image derivative', order: 0 },
+        file: { data: clip, mimetype: 'video/mp4', name: 'no-derivative.mp4', size: clip.length },
       })
       const journey = await payload.create({
         collection: 'journeys',
@@ -771,6 +775,65 @@ describe('readBookBundle', () => {
       })
 
       await expect(readBookBundle()).rejects.toThrow(/no derivative of any tier/)
+
+      await payload.delete({ collection: 'media', id: media.id })
+    })
+
+    it('prints a wide photograph in a slot whole, not cropped to a square', async () => {
+      // MED-001 (`docs/qa/2026-09-08-media-pipeline-sweep.md`) reached the
+      // sweep through the lightbox and the download, and the SWEEP DID NOT
+      // WALK THIS ONE - it is the third consumer of the same fall-through.
+      // `DERIVATIVE_PREFERENCE`'s ephemera list read `['tile', 'frame',
+      // 'thumb']`, so a 1200x560 ticket stub was served as an 800x800 centre
+      // crop: 560 of its 1200 pixels of width, blown back across a wide strip,
+      // with the editor's focal point choosing between what was left.
+      //
+      // THE ASSERTION IS ON THE DERIVATIVE'S STORED SHAPE, not on which tier
+      // was chosen, so a future ladder that gets there another way stays
+      // green.
+      const wide = await sharp({ create: { width: 1200, height: 560, channels: 3, background: '#7e3d81' } })
+        .png()
+        .toBuffer()
+      const media = await payload.create({
+        collection: 'media',
+        data: { kind: 'still', alt: 'a wide ticket stub', order: 0 },
+        file: { data: wide, mimetype: 'image/png', name: 'wide-ephemera.png', size: wide.length },
+      })
+      const journey = await payload.create({
+        collection: 'journeys',
+        data: {
+          name: 'Kind Order Trip',
+          place: 'Nowhere',
+          slug: 'test-readbookbundle-kind-order',
+          dates: '1 - 2 January 2025',
+          startsOn: '2025-01-01T00:00:00.000Z',
+          _status: 'published',
+        },
+      })
+      await payload.create({
+        collection: 'pages',
+        data: {
+          journey: journey.id,
+          kind: 'notes',
+          title: 'Notes',
+          order: 0,
+          slots: [{ role: 'ephemera', media: media.id, caption: '', focalX: 50, focalY: 50 }],
+          _status: 'published',
+        },
+      })
+
+      const bundle = await readBookBundle()
+      const notes = bundle.pages.find((page) => page.kind === 'notes' && page.slug === 'test-readbookbundle-kind-order')
+      const slot = notes?.kind === 'notes' ? notes.slots?.find((candidate) => candidate.role === 'ephemera') : undefined
+      const stored = await payload.findByID({ collection: 'media', id: media.id, depth: 0, select: { sizes: true } })
+      const served = Object.values(stored.sizes ?? {}).find((size) => size.url === slot?.src)
+
+      // Two sentinels: a page that did not resolve, and a `src` that is not
+      // one of this row's own derivatives - either would make the shape
+      // assertion vacuous.
+      expect(slot, 'the ephemera slot did not resolve at all').toBeDefined()
+      expect(served, 'the slot’s src is not one of the row’s own derivatives').toBeDefined()
+      expect({ width: served?.width, height: served?.height }).toEqual({ width: 1200, height: 560 })
 
       await payload.delete({ collection: 'media', id: media.id })
     })

@@ -28,6 +28,7 @@
  * vitest, ./testPayload, ./readGalleryBundle, ../scripts/seed.
  */
 import sharp from 'sharp'
+import { aClip } from './adapters/contract/media-fixtures'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { getPayload } from './payload'
 import { readGalleryBundle } from './readGalleryBundle'
@@ -127,17 +128,39 @@ describe('readGalleryBundle', () => {
     // ladder's configured target: Payload skips a tier whose target exceeds the
     // source, and preserves aspect ratio, so a tier's real width is a property
     // of the file. A descriptor that lied would make the browser's choice worse
-    // than no choice. The seeded gallery placeholders are 900px squares, so
-    // Payload generates `thumb` (400), ADR 0013's `grid` (700) and `tile`
-    // (800), and nothing above them.
+    // than no choice.
+    //
+    // MED-001's FIX IS WHAT GIVES THIS CASE TEETH. Until `frame` carried
+    // `withoutEnlargement: true` every descriptor in the seeded corpus
+    // happened to equal its tier's configured target - 400, 700, 800 - so a
+    // module that printed the CONFIG would have passed. `frame` is configured
+    // at 1400 and no seeded original is that wide, so its descriptor is now
+    // the file's own width and the two can finally disagree: the seed's three
+    // placeholder families are 900, 1000 and 1200 pixels wide, and the last
+    // candidate has to be each row's own.
     const bundle = await readGalleryBundle(VERIFIED_GALLERY.slug)
     const frames = bundle?.frames ?? []
+    const rows = await payload.find({
+      collection: 'media',
+      depth: 0,
+      pagination: false,
+      limit: 20_000,
+      where: { journey: { equals: bundle?.journey.id } },
+      select: { width: true },
+    })
+    const originalWidth = new Map(rows.docs.map((row) => [String(row.id), row.width]))
 
     expect(frames).not.toEqual([])
     // Every frame, not just the first: a `w` descriptor missing from one row is
     // a wrong choice on one tile, which is exactly the kind of gap a
     // spot-check misses.
-    expect(frames.filter((frame) => !/^\S+ 400w, \S+ 700w, \S+ 800w$/.test(frame.tileSrcSet))).toEqual([])
+    const wrong = frames.flatMap((frame) => {
+      const descriptors = frame.tileSrcSet.split(', ').map((candidate) => candidate.split(' ')[1])
+      const expected = ['400w', '700w', '800w', `${String(originalWidth.get(frame.id) ?? 0)}w`]
+      return descriptors.join(' ') === expected.join(' ') ? [] : [{ id: frame.id, descriptors, expected }]
+    })
+
+    expect(wrong).toEqual([])
     // The `src` stays the smallest, for a browser that reads no `srcset`.
     expect(frames.filter((frame) => !frame.tileSrcSet.startsWith(`${frame.tileSrc} 400w`))).toEqual([])
   })
@@ -234,23 +257,61 @@ describe('readGalleryBundle', () => {
         })
       }
 
+      /** A real upload of a given shape, for the one question squares cannot answer. */
+      const uploadRectangle = async (
+        label: string,
+        size: { readonly width: number; readonly height: number },
+        extra: Record<string, unknown> = {},
+      ): Promise<void> => {
+        const png = await sharp({ create: { ...size, channels: 3, background: '#7e3d81' } })
+          .png()
+          .toBuffer()
+        await payload.create({
+          collection: 'media',
+          data: { journey: journeyId, kind: 'still', alt: label, caption: label, state: 'ready', ...extra },
+          file: { data: png, mimetype: 'image/png', name: `${label}.png`, size: png.length },
+        })
+      }
+
       await upload('test-visible', 900, { order: 0, focalX: 30, focalY: 72 })
       await upload('test-hidden', 900, { order: 1, hidden: true })
       await upload('test-withheld', 900, { order: 2, allowDownload: false })
-      // Smaller than the smallest derivative tier (400px), so Payload
-      // generates none at all - the unprocessed-upload case.
-      await upload('test-no-derivative', 100, { order: 3 })
+      // A ROW WITH NO IMAGE DERIVATIVE, AND SINCE MED-001'S FIX ONLY A CLIP
+      // CAN BE ONE. This was a 100px PNG, "smaller than the smallest tier, so
+      // Payload generates none at all" - which stopped being true the moment
+      // `frame` gained `withoutEnlargement: true`: a 100px original now yields
+      // a 100x100 `frame`, because the whole point of that flag is that no
+      // original is too small for an uncropped derivative. A clip is what is
+      // left: Payload's `canResizeImage` refuses a video mime type, so the row
+      // carries no `sizes` at all. `aClip()` writes a real container where
+      // ffmpeg exists and an `ftyp` header where it does not; neither is
+      // resizable, which is the only property this fixture needs.
+      await payload.create({
+        collection: 'media',
+        data: { journey: journeyId, kind: 'clip', alt: 'test-no-derivative', state: 'ready', order: 3 },
+        file: {
+          data: Buffer.from(await aClip()),
+          mimetype: 'video/mp4',
+          name: 'test-no-derivative.mp4',
+          size: (await aClip()).byteLength,
+        },
+      })
       // A row the pipeline has not finished. Its stored bytes may be an
       // un-stripped original - that is what `MEDIA_PIPELINE=worker` records,
       // and `worker` is the only mode that writes this state (`inline`
       // creates at `ready` and a refusal creates no row at all).
       await upload('test-processing', 900, { order: 4, state: 'processing' })
-      // Wide enough for `thumb` (400) and too narrow for ADR 0013's `grid`
-      // (700), so Payload derives exactly ONE tier for it. That is the only
-      // way to reach the refused side of `tileSrcSet`'s two-candidate
-      // threshold, and before the `grid` rung existed there was no width
-      // between 400 and 800 that could express it.
-      await upload('test-one-derivative', 500, { order: 5 })
+      // EXACTLY ONE DERIVATIVE, which is the refused side of `tileSrcSet`'s
+      // two-candidate threshold. 300px: too small on both axes for `thumb`
+      // (400), `grid` (700) and `tile` (800), and `frame` declines to enlarge
+      // rather than being omitted, so the row carries `frame` alone. It was a
+      // 500px upload - one `thumb` - until MED-001's fix, which gave that
+      // upload a `frame` as well and made it a two-candidate row.
+      await upload('test-one-derivative', 300, { order: 5 })
+      // A 4:3 ORIGINAL, WHICH IS WHAT MED-001 WAS ABOUT. Every other fixture
+      // in this file is square, and a square original cannot tell a crop from
+      // a resize.
+      await uploadRectangle('test-four-by-three', { width: 1200, height: 900 }, { order: 6 })
     }, SETUP_TIMEOUT_MS)
 
     afterAll(async () => {
@@ -265,23 +326,24 @@ describe('readGalleryBundle', () => {
     })
 
     it('offers one candidate per derivative for a row carrying several', async () => {
-      // `test-visible` is a 900px upload, so Payload derives `thumb`, `grid`
-      // and `tile` for it - the accepted side of `tileSrcSet`'s two-candidate
-      // threshold, and a count that moves when the ladder does.
+      // `test-visible` is a 900px upload, so Payload derives `thumb`, `grid`,
+      // `tile` and - since MED-001's fix - `frame` at the source's own 900:
+      // the accepted side of `tileSrcSet`'s two-candidate threshold, and a
+      // count that moves when the ladder does.
       const bundle = await readGalleryBundle('test-gallery')
       const visible = bundle?.frames.find((frame) => frame.alt === 'test-visible')
 
-      expect(visible?.tileSrcSet.split(', ')).toHaveLength(3)
+      expect(visible?.tileSrcSet.split(', ')).toHaveLength(4)
     })
 
     it('offers no srcset for a row carrying a single derivative, since one candidate is not a choice', async () => {
-      // THE REFUSED SIDE OF THE SAME THRESHOLD, which nothing pinned until the
-      // `grid` rung made a one-tier row expressible: `test-one-derivative` is
-      // 500px, so it clears `thumb` and nothing else. The row is still listed -
-      // it has a derivative - it simply has no choice to offer, and the grid
-      // omits the attribute rather than printing a single-entry list on every
-      // one of sixty tiles. `test-no-derivative` is the case below this one:
-      // no tier at all, and omitted from the gallery entirely.
+      // THE REFUSED SIDE OF THE SAME THRESHOLD: `test-one-derivative` is
+      // 300px, so `frame` declines to enlarge and every cropping tier is
+      // omitted - one tier, exactly. The row is still listed - it has a
+      // derivative - it simply has no choice to offer, and the grid omits the
+      // attribute rather than printing a single-entry list on every one of
+      // sixty tiles. `test-no-derivative` is the case below this one: no tier
+      // at all, and omitted from the gallery entirely.
       const bundle = await readGalleryBundle('test-gallery')
       const narrow = bundle?.frames.find((frame) => frame.alt === 'test-one-derivative')
 
@@ -293,6 +355,38 @@ describe('readGalleryBundle', () => {
 
       expect(bundle?.frames.map((frame) => frame.alt)).not.toContain('test-no-derivative')
       expect(bundle?.frames.map((frame) => frame.alt)).toContain('test-visible')
+    })
+
+    it('opens a four-by-three photograph in the lightbox whole, not cropped to a square', async () => {
+      // MED-001 (`docs/qa/2026-09-08-media-pipeline-sweep.md`), at the level it
+      // was observed. `fullSrc` is what the lightbox draws at
+      // `object-fit: contain`; `FULL_TIERS` used to end in the square `tile`
+      // and `thumb`, and no uncropped tier was derivable below 1400px, so a
+      // 1200x900 original was served as 800x800 - a fifth of the frame gone.
+      //
+      // THE ASSERTION IS ON THE DERIVATIVE'S STORED DIMENSIONS, not on which
+      // tier was chosen. A tier name is how it is fixed today; the shape of
+      // the picture a reader sees is what must stay true, and a future ladder
+      // that reached the same shape by another rung should keep this green.
+      const bundle = await readGalleryBundle('test-gallery')
+      const frame = bundle?.frames.find((candidate) => candidate.alt === 'test-four-by-three')
+      const row = await payload.find({
+        collection: 'media',
+        depth: 0,
+        limit: 1,
+        where: { alt: { equals: 'test-four-by-three' } },
+        select: { sizes: true },
+      })
+      const served = Object.values(row.docs[0]?.sizes ?? {}).find(
+        (size) => size.url !== null && size.url !== undefined && frame?.fullSrc === size.url,
+      )
+
+      // The sentinel: a frame the gallery omitted would make every assertion
+      // below vacuous, and omitting it is exactly what a missing derivative
+      // does.
+      expect(frame, 'the four-by-three fixture is not in the gallery at all').toBeDefined()
+      expect(served, 'the lightbox source is not one of the row’s own derivatives').toBeDefined()
+      expect({ width: served?.width, height: served?.height }).toEqual({ width: 1200, height: 900 })
     })
 
     it('omits a frame the pipeline has not finished, since its bytes may be an unstripped original', async () => {

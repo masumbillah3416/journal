@@ -64,6 +64,15 @@ npm run db:migrate       # add the columns
 npm run media:rederive   # fill them
 ```
 
+**A DEPLOY CAN NEED IT WITH NO MIGRATION AT ALL, and that case has already happened.**
+MED-001's fix (`docs/qa/2026-09-08-media-pipeline-sweep.md`) gave the existing `frame`
+tier `withoutEnlargement: true` — no new column, nothing for `npm run db:migrate` to do,
+and every existing row still missing the uncropped derivative its lightbox, download and
+in-book slots now ask for. Those rows do not degrade: a gallery frame with no derivative
+is omitted from the grid and its download answers 404. So the rule is **run
+`npm run media:rederive` after any deploy that changes `imageSizes` at all**, not only
+after one that adds a tier.
+
 It reads each row's own original back through the Storage port and hands it to
 `payload.update`, so **rows keep their ids** — the diary addresses media by id
 (`CLAUDE.md` §7), and a script that created new rows would leave every
@@ -71,7 +80,10 @@ It reads each row's own original back through the Storage port and hands it to
 focal points and `order` are untouched.
 
 It is safe to run again: a row is re-derived only when the ladder asks for a tier it does
-not carry AND its own original is wide enough for Payload to have produced it, so a second
+not carry AND Payload would actually produce that tier from its own original — which
+`apps/web/lib/media/derivativeGeometry.ts` answers, because "wide enough" is only the
+answer for a plain width-only rung and is the wrong one for both of the other shapes the
+ladder now holds. So a second
 run reports `Re-derived 0 media row(s)` and re-encodes nothing. A row whose original is no
 longer in the store is NAMED in that output and skipped, never thrown on — the run
 finishes rather than leaving the corpus half-converted. The gallery's image budget in

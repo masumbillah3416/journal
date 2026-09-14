@@ -10,6 +10,14 @@
  * them, and `npm run media:rederive` is the operational step a deploy runs
  * between the migration and serving the gallery (docs/runbook.md).
  *
+ * MED-001's FIX NEEDS IT TOO, AND THAT ONE HAS NO MIGRATION AT ALL. Giving
+ * `frame` `withoutEnlargement: true` changes no column - `sizes_frame_*` has
+ * existed since the first migration - so the ONLY thing that gives an existing
+ * row the uncropped derivative its lightbox, download and page slots now ask
+ * for is a run of this script. A deploy that ships that change without running
+ * it serves rows whose `frame` is still absent, and those rows drop out of the
+ * gallery rather than degrading.
+ *
  * IT UPDATES IN PLACE, AND THAT IS THE WHOLE DESIGN CONSTRAINT. The diary
  * addresses media by id (CLAUDE.md §7) - `pages.slots[].media` is a
  * relationship - so a script that re-uploaded each original as a NEW row would
@@ -20,13 +28,15 @@
  * the one `./seed.ts` already uses.
  *
  * WHAT MAKES A SECOND RUN A NO-OP. A row is re-derived only when the ladder
- * asks for a tier the row does not carry AND the row's own original is wide
- * enough for Payload to have produced it - Payload skips a size whose target
- * exceeds the source, so "missing" alone would mark every 500px placeholder
- * incomplete forever and make this script a full re-encode of the library on
- * every deploy. The predicate is written against the CONFIGURED ladder rather
- * than against `grid` by name, because the next tier to be added will need
- * exactly this script and naming one tier here would hide that.
+ * asks for a tier the row does not carry AND Payload would actually produce
+ * that tier from the row's own original - which `../lib/media/derivativeGeometry.ts`
+ * answers, because "would Payload produce it" has three different answers for
+ * the three tier shapes the ladder now holds. Without that half, "missing"
+ * alone would mark every 500px placeholder incomplete forever and make this
+ * script a full re-encode of the library on every deploy. The predicate is
+ * written against the CONFIGURED ladder rather than against `grid` or `frame`
+ * by name, because the next tier to be added will need exactly this script and
+ * naming one tier here would hide that.
  *
  * A MISSING ORIGINAL IS REPORTED, NEVER THROWN. A store with no file for a row
  * is a real state - it is the 500 Phase 1 Task 10 found - and aborting the run
@@ -48,12 +58,14 @@
  * than module-scope singletons, so its test drives it against the test Payload
  * (`./rederive-media.integration.test.ts`) and the CLI entry point
  * (`./run-rederive.ts`) supplies the real ones.
- * Depends on: `payload`'s `Payload` type, `Media` (../collections/media) for
- * the configured ladder, `StoragePort` (../lib/ports/storage), and the
- * generated `Media` document type.
+ * Depends on: `payload`'s `Payload` type, `configuredDerivatives`/`isDerivable`
+ * (../lib/media/derivativeGeometry) for the configured ladder and Payload's own
+ * omit rule over it, `StoragePort` (../lib/ports/storage), and the generated
+ * `Media` document type.
  */
 import type { Payload } from 'payload'
-import { Media } from '../collections/media'
+import type { ConfiguredDerivative } from '../lib/media/derivativeGeometry'
+import { configuredDerivatives, isDerivable } from '../lib/media/derivativeGeometry'
 import type { StoragePort } from '../lib/ports/storage'
 import type { Media as PayloadMedia } from '../payload-types'
 
@@ -73,29 +85,6 @@ export interface RederiveMediaSummary {
   readonly skipped: readonly string[]
 }
 
-/** One configured derivative tier, reduced to what the predicate below needs. */
-interface ConfiguredTier {
-  readonly name: string
-  readonly width: number
-}
-
-/**
- * The derivative ladder `apps/web/collections/media.ts` configures today.
- *
- * A size with no width contributes `0`, which reads as "no source is too small
- * for it" - the right answer for a height-only size, of which the collection
- * configures none today and `ImageSize` permits.
- * @returns One entry per configured tier.
- * @throws When the collection configures no image sizes, which would mean it
- *   had stopped deriving tiers at all and this script had nothing to do.
- */
-const configuredTiers = (): readonly ConfiguredTier[] => {
-  const upload = Media.upload
-  /* c8 ignore next -- no organic trigger: the collection is an upload collection that configures image sizes, and a change removing them would fail `../lib/media/tierRegistration.test.ts` and every derivative case long before this line. The throw stays so the absence is named rather than read as an empty ladder. */
-  if (typeof upload !== 'object' || upload.imageSizes === undefined) throw new Error('no image sizes to re-derive')
-  return upload.imageSizes.map((size) => ({ name: size.name, width: size.width ?? 0 }))
-}
-
 /**
  * The tiers a row has a stored FILE for.
  *
@@ -109,18 +98,30 @@ const derivedTiers = (sizes: PayloadMedia['sizes']): ReadonlySet<string> =>
   new Set(Object.entries(sizes ?? {}).flatMap(([tier, size]) => (typeof size.filename === 'string' ? [tier] : [])))
 
 /** The fields the re-derivation query reads, and nothing else (CLAUDE.md §7). */
-type SelectedRow = Pick<PayloadMedia, 'id' | 'filename' | 'mimeType' | 'width' | 'sizes'>
+type SelectedRow = Pick<PayloadMedia, 'id' | 'filename' | 'mimeType' | 'width' | 'height' | 'sizes'>
 
 /**
- * Whether the ladder asks this row for a tier it does not carry and its own
- * original is wide enough to produce.
+ * Whether the ladder asks this row for a tier it does not carry and Payload
+ * would actually produce from this row's own original.
+ *
+ * THE SECOND HALF IS ASKED OF `isDerivable`, NOT OF A WIDTH COMPARISON, and
+ * the difference is a repair that would otherwise never run. This predicate
+ * used to read `(row.width ?? 0) >= tier.width`, which is right for a plain
+ * width-only rung and wrong for the two other shapes the ladder now has: a
+ * `cover` tier is omitted only when the original is smaller on BOTH axes, and
+ * a tier carrying `withoutEnlargement` is never omitted at all. `frame` is the
+ * second of those (MED-001's fix), so under the old comparison every row
+ * narrower than 1400px would have read as "legitimately missing `frame`" and
+ * this script - the thing that repairs existing rows - would have repaired
+ * nothing.
  * @param row - The media row, `depth: 0`.
  * @param tiers - The configured ladder.
  * @returns `true` when re-deriving would add something.
  */
-const needsRederivation = (row: SelectedRow, tiers: readonly ConfiguredTier[]): boolean => {
+const needsRederivation = (row: SelectedRow, tiers: readonly ConfiguredDerivative[]): boolean => {
   const derived = derivedTiers(row.sizes)
-  return tiers.some((tier) => (row.width ?? 0) >= tier.width && !derived.has(tier.name))
+  const source = { width: row.width ?? 0, height: row.height ?? 0 }
+  return tiers.some((tier) => isDerivable(tier, source) && !derived.has(tier.name))
 }
 
 /**
@@ -134,13 +135,13 @@ const needsRederivation = (row: SelectedRow, tiers: readonly ConfiguredTier[]): 
  * // { rederived: 61, skipped: [] }
  */
 export const rederiveMedia = async ({ payload, storage }: RederiveMediaDeps): Promise<RederiveMediaSummary> => {
-  const tiers = configuredTiers()
+  const tiers = configuredDerivatives()
   const rows = await payload.find({
     collection: 'media',
     depth: 0,
     pagination: false,
     limit: 20_000,
-    select: { filename: true, mimeType: true, width: true, sizes: true },
+    select: { filename: true, mimeType: true, width: true, height: true, sizes: true },
   })
 
   const skipped: string[] = []

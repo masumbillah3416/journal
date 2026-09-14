@@ -108,6 +108,16 @@ type DerivativeTier = keyof NonNullable<SelectedMediaDoc['sizes']>
  * `galleryTileSizes` tells the browser how wide the tile will be and this list
  * tells it what exists.
  *
+ * `frame` IS ALWAYS ONE OF THE CANDIDATES NOW, at whatever width the row's
+ * own original is: it carries `withoutEnlargement: true`, so Payload leaves a
+ * narrow original at its own size rather than omitting the tier (MED-001's
+ * fix). For a source under 800px that makes `frame` the row's largest
+ * candidate; for a wider one it is the uncropped candidate a high-density
+ * screen takes, where before there was nothing above `tile` to take. A tile
+ * draws at `object-fit: cover` with the frame's own focal point, so an
+ * uncropped candidate is not a shape mismatch here - it is the one the focal
+ * point can actually act on.
+ *
  * `hero2x` is still not offered. The widest tile the grid can draw is under
  * `2 * GALLERY_THUMB_SIZE.max + 16` = 616 CSS px, so `hero`'s 2000px already
  * covers it past DPR 3; a 4000px file is never the right answer for a tile.
@@ -131,18 +141,19 @@ const TILE_TIERS: readonly DerivativeTier[] = ['thumb', 'grid', 'tile', 'frame',
  * image a reader chose rather than a page's LCP element, so `hero`'s 2000px
  * is the better default and `hero2x` is not offered at all.
  *
- * KNOWN DEFECT, RECORDED RATHER THAN FIXED: `tile` and `thumb` are SQUARE
- * (`apps/web/collections/media.ts` gives both a width AND a height, so Payload
- * crops them to `cover`), and Payload derives `frame` and `hero` only from a
- * source at least that wide. So a row whose original is narrower than 1400px
- * opens in the lightbox CROPPED rather than letterboxed - the seeded 1200x900
- * frames are served as 800x800, measured in a browser. Closing it needs an
- * uncropped rung or a `fit` change, which is a derivative-generation decision
- * with a re-derive behind it and a failing test first (CLAUDE.md §10).
- * MED-001 in `docs/qa/2026-09-08-media-pipeline-sweep.md`; the download's own
- * ladder in `readGalleryDownload.ts` has the same hole.
+ * EVERY TIER IN THIS LIST IS UNCROPPED, AND THAT IS THE LIST'S RULE RATHER
+ * THAN A PROPERTY IT HAPPENS TO HAVE. It used to end `'tile', 'thumb'` -
+ * both square - on the reasoning that a fallback is better than nothing.
+ * It was not: `apps/web/collections/media.ts` derived no uncropped tier
+ * below 1400px, so the fallback was the NORMAL case and a 1200x900
+ * photograph opened as an 800x800 centre crop, measured in a browser
+ * (MED-001, `docs/qa/2026-09-08-media-pipeline-sweep.md`). `frame` now
+ * carries `withoutEnlargement: true` and every raster original yields it, so
+ * the square tiers are not a fallback this list needs - and naming one would
+ * put the crop back. `apps/web/lib/media/derivativeGeometry.test.ts` refuses
+ * any tier the collection crops, including one added years from now.
  */
-const FULL_TIERS: readonly DerivativeTier[] = ['hero', 'frame', 'tile', 'thumb']
+const FULL_TIERS: readonly DerivativeTier[] = ['hero', 'frame']
 
 /** The slice of Payload's own logger this module writes to. */
 interface StructuredLogger {

@@ -4,7 +4,8 @@
 **Routes walked:** 3 — `/gallery/patagonia`, its lightbox, `/gallery/patagonia/download/<id>` (60 of 60 frames probed)
 **Surfaces:** 1440x900 at DPR 1 and DPR 2 · 1000x800 at DPR 1 · 390x844 at DPR 3 (iPhone UA, touch) · 412x823 at DPR 1.75 (iPhone UA, touch)
 **Servers:** `next dev` on :3000 for the walk; **every finding below was then re-confirmed against a production `next build` + `next start` on :3100**, because a header this sweep reports is one Next.js adds and a dev-only artefact would be a defect report about the dev server
-**Result:** 3 defects — S1:0 S2:1 S3:0 S4:2
+**Result:** 3 defects — S1:0 S2:1 S3:0 S4:2. **MED-001 was fixed on 2026-09-14** — see
+its entry; the other two are unchanged by that round.
 
 **Instrumentation, attached before the first navigation on every context:** `console`
 (**all levels**, not errors only), `pageerror`, every `response` with a status ≥ 400, and
@@ -66,13 +67,26 @@ commit that lands this file.
                    sharp metadata of the returned bytes: 800x800
   ```
 
-- **Owner: nobody yet, and it is not Phase 3's to fix here.** Closing it is a decision
-  about the tier ladder — either an uncropped rung below 1400px, or a `fit` change on
-  `tile`, or a `fullSrc` that refuses a cropped tier and letterboxes the `thumb` instead —
-  and each of those is a derivative-generation decision with a re-derive behind it
-  (ADR 0003, ADR 0013). **It needs a failing test first** (`readGalleryBundle`'s frame
-  mapping for a row with no `frame` tier, and `readGalleryDownload`'s equivalent), per
-  `CLAUDE.md` §10.
+- **FIXED, 2026-09-14**, in Phase 3's owner-decisions round, on the owner's ruling that
+  it be fixed now rather than carried. **Not by any of the three shapes this entry
+  proposed**: `frame` keeps its 1400px width and gains `withoutEnlargement: true`, so
+  Payload leaves a narrower original at its own size instead of skipping the tier and
+  every raster row carries an uncropped derivative. The `fit` change on `tile` was
+  rejected because the grid needs `tile` square (SCREENS.md §1.8), and letterboxing a
+  `thumb` was rejected because it serves a 400px file where a 1200px one exists.
+- **THE CLASS WAS WIDER THAN THIS ENTRY SAYS, and the third consumer is the one this
+  sweep did not walk.** `readBookBundle.ts`'s `DERIVATIVE_PREFERENCE` resolves every
+  in-book slot through the same fall-through, and its `ephemera` list read
+  `['tile', 'frame', 'thumb']` — `tile` FIRST — so a 1200×560 ephemera strip was served
+  as an 800×800 centre crop even where a `frame` existed, with the slot's focal point
+  choosing between what was left. All three ladders now name uncropped tiers only, and
+  `apps/web/lib/media/derivativeGeometry.test.ts` computes the uncropped set from the
+  collection and refuses anything outside it, so a rung added later cannot be swept back
+  in. Each consumer has its own failing-first case: the lightbox in
+  `readGalleryBundle.integration.test.ts`, the download in
+  `readGalleryDownload.integration.test.ts`, the slot in
+  `readBookBundle.integration.test.ts`, and the repair of existing rows in
+  `scripts/rederive-media.integration.test.ts`.
 - **Not introduced by Phase 3**, and the record should say so: `FULL_TIERS` has had this
   shape since Phase 1. What Phase 3 did was walk past it — Task 10 added `grid` to
   `TILE_TIERS` and Task 11 added `grid` to the download ladder, and neither touched

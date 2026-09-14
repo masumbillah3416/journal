@@ -61,6 +61,9 @@ const GRID_COLUMNS = [
   'sizes_grid_filename',
 ]
 
+/** The same six columns for the `frame` tier - see {@link GRID_COLUMNS}. */
+const FRAME_COLUMNS = GRID_COLUMNS.map((column) => column.replace('_grid_', '_frame_'))
+
 describe('rederiveMedia', () => {
   let payload: Awaited<ReturnType<typeof getTestPayload>>
 
@@ -72,12 +75,12 @@ describe('rederiveMedia', () => {
    * other tier, and nothing at all under `grid`.
    * @param id - The row to strip.
    */
-  const stripTheGridTier = async (id: number): Promise<void> => {
+  const stripTiers = async (id: number, columns: readonly string[]): Promise<void> => {
     const client = new Client({ connectionString: env.DATABASE_URL })
     await client.connect()
     try {
       await client.query(
-        `UPDATE "media" SET ${GRID_COLUMNS.map((column) => `"${column}" = NULL`).join(', ')}
+        `UPDATE "media" SET ${columns.map((column) => `"${column}" = NULL`).join(', ')}
          WHERE id = $1`,
         [id],
       )
@@ -85,6 +88,13 @@ describe('rederiveMedia', () => {
       await client.end()
     }
   }
+
+  /**
+   * Puts one row back into the state the migration left it in: carrying every
+   * other tier, and nothing at all under `grid`.
+   * @param id - The row to strip.
+   */
+  const stripTheGridTier = async (id: number): Promise<void> => stripTiers(id, GRID_COLUMNS)
 
   /**
    * Uploads a 900px square and then strips its `grid` tier.
@@ -209,6 +219,46 @@ describe('rederiveMedia', () => {
       const summary = await rederiveMedia({ payload, storage: aStore() })
 
       expect(summary.skipped).toContain(String(orphan.id))
+    },
+    REDERIVE_BUDGET_MS,
+  )
+
+  it(
+    'repairs a row narrower than the frame tier’s configured width, which is every row MED-001 touched',
+    async () => {
+      // THE PREDICATE, NOT THE PIPELINE. `frame` is configured at 1400 and
+      // carries `withoutEnlargement: true`, so Payload derives it from a 900px
+      // original at 900px - and a predicate that asked "is this row at least
+      // 1400 wide" would read the missing tier as legitimately absent and
+      // repair nothing. That is not hypothetical: it is what this script did
+      // until MED-001's fix, and it would have left every existing row serving
+      // the square crop while every NEW upload was fixed.
+      const png = await sharp({ create: { width: 900, height: 900, channels: 3, background: '#2f5d62' } })
+        .png()
+        .toBuffer()
+      const before = await payload.create({
+        collection: 'media',
+        data: { kind: 'still', alt: FIXTURE_ALT, caption: 'rederive-frame', state: 'ready' },
+        file: { data: png, mimetype: 'image/png', name: 'rederive-frame.png', size: png.length },
+      })
+      // The sentinel: the fixture has to START with the tier for stripping it
+      // to mean anything, and a row that never had it would make the
+      // assertion below pass on a pipeline that does nothing.
+      expect(before.sizes?.frame?.filename, 'the fixture never carried a frame tier to strip').toBeTypeOf('string')
+      await stripTiers(before.id, FRAME_COLUMNS)
+
+      await rederiveMedia({ payload, storage: aStore() })
+
+      const after = await payload.findByID({
+        collection: 'media',
+        id: before.id,
+        depth: 0,
+        select: { sizes: true },
+      })
+      expect({ width: after.sizes?.frame?.width, height: after.sizes?.frame?.height }).toEqual({
+        width: 900,
+        height: 900,
+      })
     },
     REDERIVE_BUDGET_MS,
   )

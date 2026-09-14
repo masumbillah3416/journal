@@ -153,29 +153,38 @@ export const Media: CollectionConfig = {
     // overrides this per placement (DATA_MODEL.md, "Focal point lives on the slot").
     focalPoint: true,
     mimeTypes: ['image/jpeg', 'image/png', 'image/heic', 'video/mp4', 'video/quicktime'],
-    // ═══ THE THREE SMALLEST TIERS ARE SQUARE, AND ONE KNOWN DEFECT LIVES IN
-    // THAT ═══
+    // ═══ THREE TIERS CROP, THREE KEEP THE FRAME, AND EVERY ORIGINAL GETS
+    // ONE OF EACH ═══
     //
     // `thumb`, `grid` and `tile` each carry a width AND a height, so Payload
-    // crops them to `cover`; `frame`, `hero` and `hero2x` are width-only, so
-    // they keep the frame's aspect ratio - and Payload derives a width-only
-    // size ONLY from a source at least that wide. There is therefore NO
-    // uncropped derivative below `frame`'s 1400px, and a photograph narrower
-    // than that has nothing uncropped to fall back to.
+    // hands the pair to `sharp(...).resize(...)` and it crops to `cover`.
+    // `frame`, `hero` and `hero2x` carry a width alone, so they keep the
+    // photograph's own shape.
     //
-    // Two readers walk that fall-back and both get a crop:
-    // `../lib/readGalleryBundle.ts`'s `FULL_TIERS` (the lightbox) and
-    // `../lib/readGalleryDownload.ts`'s `DOWNLOAD_TIERS` (the download
-    // button). Measured in a browser: the seeded 1200x900 frames are served
-    // as 800x800 in both. MED-001 in
+    // `frame` CARRIES `withoutEnlargement: true`, AND THAT IS WHAT CLOSES
+    // MED-001. Payload omits a width-only size whose target exceeds the
+    // source (`uploads/image-resizing/getImageResizeAction.js`) UNLESS
+    // `withoutEnlargement` is set - with it, a narrower original is left at
+    // its own size instead. So `frame` means "the whole frame, at most
+    // 1400px wide" rather than "the whole frame, if you are wide enough",
+    // and EVERY raster original now yields an uncropped derivative. Before
+    // this, the only uncropped rungs started at 1400px, so a 1200x900
+    // photograph reached the lightbox and the download as an 800x800 centre
+    // crop - measured in a browser, MED-001 in
     // `docs/qa/2026-09-08-media-pipeline-sweep.md`.
     //
-    // NOT FIXED HERE, and this is the file where the fix would go, so the
-    // reason belongs here rather than only in the sweep: adding an uncropped
-    // rung or changing `tile`'s `fit` re-derives every stored row and moves
-    // the gallery image budget, which is red and is the owner's open decision
-    // (`docs/adr/0013-gallery-image-budget.md`). It needs a failing test
-    // first either way (CLAUDE.md §10).
+    // `hero` and `hero2x` deliberately do NOT carry it. Their job is to be
+    // genuinely large for a large display, and with the flag they would
+    // duplicate `frame` byte-for-byte on every source under 1400px - three
+    // identical files per row, for one photograph.
+    //
+    // INVARIANT, and `../lib/media/derivativeGeometry.test.ts` is what holds
+    // it: at least one uncropped tier is derivable from an original of any
+    // size, and the three ladders that serve one whole photograph
+    // (`../lib/readGalleryBundle.ts`'s `FULL_TIERS`,
+    // `../lib/readGalleryDownload.ts`'s `DOWNLOAD_TIERS` and
+    // `../lib/readBookBundle.ts`'s `DERIVATIVE_PREFERENCE`) name uncropped
+    // tiers only. Adding a cropped rung to any of them goes red.
     imageSizes: [
       { name: 'thumb', width: 400, height: 400, position: 'centre' },
       {
@@ -190,15 +199,18 @@ export const Media: CollectionConfig = {
         //
         // WHERE THAT ARGUMENT STOPS: it is about the GRID, which draws square
         // tiles by design (SCREENS.md §1.8, and a case pins the ratio at
-        // 1.0). It says nothing about the lightbox or the download, which
-        // draw one whole photograph - and both of them reach this rung by
-        // falling through an empty `frame`. Read as a defence of squareness
-        // in general it becomes the note above's defect wearing a
-        // justification. Widening `grid` would not fix that and would break
-        // the grid.
+        // 1.0). It says nothing about the lightbox, the download or an
+        // in-book slot, which each draw one whole photograph - and all three
+        // used to reach this rung and `tile` by falling through an empty
+        // `frame`, which was MED-001. Read as a defence of squareness in
+        // general it is that defect wearing a justification. Widening `grid`
+        // would not have fixed it and would have broken the grid; what fixed
+        // it is `frame` above, and those three ladders no longer name a
+        // cropped tier at all.
       },
       { name: 'tile', width: 800, height: 800 },
-      { name: 'frame', width: 1400 },
+      // Uncropped, and present on every row - see the block above.
+      { name: 'frame', width: 1400, withoutEnlargement: true },
       { name: 'hero', width: 2000 },
       { name: 'hero2x', width: 4000 }, // 4K displays scale the book up ~2.4x
     ],

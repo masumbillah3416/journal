@@ -367,8 +367,11 @@ minmax({thumbSize}px, 1fr))` grid of one square tile per visible frame. Its cont
   parameters, both read as opaque strings and matched against the database rather than
   parsed; nothing from the request body or headers is read, so the response never varies
   by caller.
-- **Output:** the bytes of one derivative (`hero`, else `frame`, else `tile`, else `grid`,
-  else `thumb` — never `hero2x`, and never the uploaded original), with
+- **Output:** the bytes of one derivative (`hero`, else `frame` — never `hero2x`, never a
+  cropped tier, and never the uploaded original; the list ended `tile, grid, thumb` until
+  MED-001 showed that a 1200×900 photograph was therefore downloaded as an 800×800 centre
+  crop, and `frame` now declines to enlarge rather than being omitted, so every raster row
+  carries it), with
   `Content-Disposition: attachment; filename="<slug>-<nnn>.<ext>"`, a `Content-Type`
   from a three-value allowlist (`image/jpeg`, `image/png`, `image/webp`),
   `X-Content-Type-Options: nosniff`, `X-Robots-Tag: noindex` and a `Cache-Control` that

@@ -550,7 +550,13 @@ by a file read, in `npm run verify`, on every commit.
 They are modelled on the two guards of this shape the repository already had —
 `e2e/ciRegistration.test.ts`, which refuses a spec that no CI line names, and
 `apps/web/lib/auth/securityCitations.test.ts`, which refuses a citation that resolves to no
-test case. Like both, each one **fails by name**: it prints the document, the line and the
+test case. `apps/web/lib/media/derivativeGeometry.test.ts` is the same move over SOURCE
+rather than prose: it computes the uncropped derivative tiers from
+`apps/web/collections/media.ts` and refuses any other tier appearing in the three ladders
+that serve one whole photograph — the lightbox's `FULL_TIERS`, the download's
+`DOWNLOAD_TIERS` and the book slots' `DERIVATIVE_PREFERENCE`. MED-001 was one defect in
+three places, so the guard is written over the population rather than the instance, and a
+rung added years from now is refused by a case written today. Like both, each one **fails by name**: it prints the document, the line and the
 offending text, not an exception.
 
 They live under `apps/web/lib/docs/` for the reason `securityCitations.test.ts` lives under

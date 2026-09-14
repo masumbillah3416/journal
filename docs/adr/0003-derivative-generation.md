@@ -100,6 +100,16 @@ statement about code — and the same file going stale a second time is the poin
   reader who needs the current ladder should read `apps/web/collections/media.ts`'s
   `imageSizes`, which is the only place it is declared. The storage line above scales with
   it: one more derivative per still.
+- **`frame` is no longer "1400w"; it is "at most 1400w", and that changed the storage
+  line again.** Phase 3's owner-decisions round gave it `withoutEnlargement: true` to
+  close MED-001 (`docs/qa/2026-09-08-media-pipeline-sweep.md`): this ADR's list of five
+  tiers derived an uncropped one ONLY from a source at least 1400px wide, so every
+  narrower photograph fell through to the square `tile` in all three of the ladders that
+  serve one whole photograph. With the flag, a narrower original is left at its own size
+  instead of the tier being skipped, so **every raster row now carries an uncropped
+  derivative** — one more file per still below 1400px, which is every seeded placeholder
+  and most phone photographs. `hero` and `hero2x` were deliberately left without the flag:
+  they would be byte-identical duplicates of `frame` on exactly those sources.
 - Logged as deviation 2 in `docs/deviations.md` and in the design spec §2.2/§15. The
   in-process-on-Vercel update is logged as the pipeline-mode deviation in the same
   file and in `docs/adr/0004-media-pipeline-mode.md`.

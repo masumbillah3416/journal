@@ -230,17 +230,31 @@ const sortForJourneyOrderMode = (mode: JourneyOrderMode): string[] => {
 
 /**
  * Which derivative tiers to try, in preference order, for a slot's role.
- * Every list ends in `'thumb'`, the one tier the seed's placeholder images
- * (all ≤ 1200px) are guaranteed to generate — Payload omits a tier whose
- * target width exceeds the source image's own width (see
- * `getImageResizeAction`), so `frame`/`hero`/`hero2x` are legitimately absent
- * for those fixtures and real, larger production photos are what actually
- * exercises the top of each list.
+ *
+ * EVERY TIER HERE IS UNCROPPED, AND A SLOT IS THE REASON THAT MATTERS MOST.
+ * A slot draws its photograph at `object-fit: cover` into the slot's own
+ * shape, positioned at the slot's own `focalX`/`focalY` - and a focal point
+ * can only choose between pixels the derivative still has. Every list used to
+ * end `'tile', 'thumb'`, both square `cover` crops at `position: centre`, on
+ * the reasoning that they were the tiers the seed's placeholders were
+ * guaranteed to generate. They were also, until `frame` gained
+ * `withoutEnlargement: true`, the tiers every source under 1400px actually
+ * GOT: a 1200x900 hero reached the page as an 800x800 centre crop with a
+ * fifth of the frame already discarded and the editor's focal point applied
+ * to what was left (MED-001,
+ * `docs/qa/2026-09-08-media-pipeline-sweep.md`). Every raster original now
+ * yields `frame`, so no list needs a square fallback, and
+ * `apps/web/lib/media/derivativeGeometry.test.ts` refuses one that returns.
+ *
+ * `frame` and `ephemera` resolve to the same list, and that is a coincidence
+ * of today's ladder rather than one decision: both want the modest uncropped
+ * tier and there is exactly one below `hero`. They are written out separately
+ * so that adding a rung can move one without moving the other.
  */
 const DERIVATIVE_PREFERENCE: Readonly<Record<SlotRole, readonly (keyof NonNullable<SelectedMediaDoc['sizes']>)[]>> = {
-  hero: ['hero2x', 'hero', 'frame', 'tile', 'thumb'],
-  frame: ['frame', 'hero', 'tile', 'thumb'],
-  ephemera: ['tile', 'frame', 'thumb'],
+  hero: ['hero2x', 'hero', 'frame'],
+  frame: ['frame', 'hero'],
+  ephemera: ['frame', 'hero'],
 }
 
 /**
@@ -249,8 +263,9 @@ const DERIVATIVE_PREFERENCE: Readonly<Record<SlotRole, readonly (keyof NonNullab
  * @param role - The slot's role, choosing which tiers to prefer.
  * @returns The first available derivative URL in {@link DERIVATIVE_PREFERENCE}'s order for `role`.
  * @throws {Error} When `media` has no derivative of any tier — a media
- *   pipeline defect (every real upload generates at least `thumb`), not a
- *   condition a caller should silently paper over with the original.
+ *   pipeline defect (every raster upload generates at least `frame`, which
+ *   declines to enlarge rather than being omitted), not a condition a caller
+ *   should silently paper over with the original.
  */
 const derivativeUrlFor = (media: SelectedMediaDoc, role: SlotRole): string => {
   for (const tier of DERIVATIVE_PREFERENCE[role]) {

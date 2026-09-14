@@ -105,26 +105,21 @@ export interface Attachment {
  * display, and a download button is not a request for the largest file that
  * exists. The original is not in this list at all, and must never be.
  *
- * `grid` (ADR 0013's 700px rung, Phase 3 Task 10) sits between `tile` and
- * `thumb` so that a row which could derive no further than it is still
- * downloadable at the best size it has. Without the entry the walk falls past
- * a derivative the row carries and hands back the 400px `thumb` - which is
- * `ok`, and wrong, and is why that case asserts the BYTES rather than the
- * `ok`.
- *
- * KNOWN DEFECT, RECORDED RATHER THAN FIXED: every tier after `frame` in this
- * list is SQUARE (`apps/web/collections/media.ts` gives `tile`, `grid` and
- * `thumb` a width AND a height, so Payload crops them to `cover`), and Payload
- * derives a width-only tier only from a source at least that wide. So a row
- * whose original is narrower than `frame`'s 1400px is downloaded CROPPED - a
- * 1200x900 photograph arrives as 800x800, measured. Closing it needs an
- * uncropped rung or a `fit` change, which is a derivative-generation decision
- * with a re-derive and a gallery image budget behind it, and a failing test
- * first (CLAUDE.md §10). MED-001 in
- * `docs/qa/2026-09-08-media-pipeline-sweep.md`; the same defect reaches the
- * lightbox through `readGalleryBundle.ts`'s `FULL_TIERS`.
+ * EVERY TIER IN THIS LIST IS UNCROPPED, WHICH IS WHAT A DOWNLOAD IS FOR. It
+ * used to continue `'tile', 'grid', 'thumb'` - all three square - so that a
+ * row which could derive no further was still downloadable at the best size
+ * it had. What it was actually downloadable as was a CENTRE CROP: no
+ * uncropped tier was derivable below 1400px, so a 1200x900 photograph
+ * arrived as 800x800 (MED-001,
+ * `docs/qa/2026-09-08-media-pipeline-sweep.md`). A reader's copy of a
+ * photograph that is missing a fifth of the photograph is not a smaller
+ * copy, it is a different picture. `frame` now carries
+ * `withoutEnlargement: true` in `apps/web/collections/media.ts` and every
+ * raster original yields it, so the small-tier fallback bought nothing and
+ * cost the frame; `apps/web/lib/media/derivativeGeometry.test.ts` refuses
+ * any tier the collection crops from re-entering this list.
  */
-const DOWNLOAD_TIERS = ['hero', 'frame', 'tile', 'grid', 'thumb'] as const
+const DOWNLOAD_TIERS = ['hero', 'frame'] as const
 
 /** One 404 for every refusal - see this module's header. */
 const NOT_AVAILABLE = 'no downloadable frame at that address'

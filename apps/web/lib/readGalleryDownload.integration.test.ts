@@ -157,20 +157,22 @@ describe('readGalleryDownload', () => {
   }
 
   /**
-   * A frame whose widest derivative is ADR 0013's `grid` rung.
+   * A frame narrower than every uncropped rung the ladder configures.
    *
-   * 750px square: wide enough for `thumb` (400) and `grid` (700), too narrow
-   * for `tile` (800) and everything above it. Payload skips a size whose
-   * target exceeds the source, so this is the only shape that puts `grid` at
-   * the head of `DOWNLOAD_TIERS`' preference order.
-   * @returns The frame's id and the bytes of both derivatives it carries.
+   * 1200x900, which is the shape MED-001 was measured on: too narrow for
+   * `frame`'s configured 1400 and for everything above it, and not square, so
+   * a crop is distinguishable from a resize. Before MED-001's fix that made
+   * the 800x800 `tile` the head of `DOWNLOAD_TIERS`' preference order; with
+   * `withoutEnlargement: true` on `frame`, Payload leaves the original at its
+   * own size instead and the download is the whole photograph.
+   * @returns The frame's id, and the bytes of the square tier it used to be
+   *   served as - so the assertion can say which one arrived.
    */
-  const aRowWithOnlyTheSmallTiers = async (): Promise<{
+  const aRowNarrowerThanEveryUncroppedRung = async (): Promise<{
     readonly id: string
-    readonly gridBytes: Buffer
-    readonly thumbBytes: Buffer
+    readonly squareCropBytes: Buffer
   }> => {
-    const png = await sharp({ create: { width: 750, height: 750, channels: 3, background: '#4a6b3c' } })
+    const png = await sharp({ create: { width: 1200, height: 900, channels: 3, background: '#4a6b3c' } })
       .png()
       .toBuffer()
     const created = await payload.create({
@@ -185,11 +187,7 @@ describe('readGalleryDownload', () => {
       if (!bytes.ok) throw new Error(`the fixture's own derivative is not in the store: ${bytes.error}`)
       return Buffer.from(bytes.value)
     }
-    return {
-      id: String(created.id),
-      gridBytes: await read(created.sizes?.grid?.filename),
-      thumbBytes: await read(created.sizes?.thumb?.filename),
-    }
+    return { id: String(created.id), squareCropBytes: await read(created.sizes?.tile?.filename) }
   }
 
   it('serves a derivative’s real bytes', async () => {
@@ -326,19 +324,23 @@ describe('readGalleryDownload', () => {
     }
   })
 
-  it('serves the grid derivative when it is the largest tier a row carries', async () => {
-    // ADR 0013's rung is a DOWNLOAD tier as well as a gallery one. Before it
-    // joined `DOWNLOAD_TIERS` the handler fell past it to the 400px `thumb`,
-    // which answers `ok` too - so `ok` alone would assert nothing here, and
-    // the bytes are compared instead.
-    const narrow = await aRowWithOnlyTheSmallTiers()
+  it('downloads a four-by-three photograph whole, not cropped to a square', async () => {
+    // MED-001 (`docs/qa/2026-09-08-media-pipeline-sweep.md`), at the level it
+    // was observed: the sweep measured the returned bytes with sharp and read
+    // 800x800 back for a 1200x900 original. `ok` asserts nothing here - the
+    // square crop answered `ok` too - so the SHAPE of what arrived is what is
+    // asserted, and the square tier's bytes are read alongside it so the case
+    // can say the two are not the same file.
+    const narrow = await aRowNarrowerThanEveryUncroppedRung()
 
     const attachment = await readGalleryDownload('test-download', narrow.id)
+    const served = attachment.ok ? Buffer.from(attachment.value.bytes) : Buffer.alloc(0)
 
-    // The sentinel: two derivatives that happened to be byte-identical would
-    // make the assertion below pass whichever one was served.
-    expect(narrow.gridBytes.length).not.toBe(narrow.thumbBytes.length)
-    expect(attachment.ok ? Buffer.from(attachment.value.bytes) : null).toEqual(narrow.gridBytes)
+    // The sentinel: a fixture whose square crop happened to be the same file
+    // would make the shape assertion pass on the wrong derivative.
+    expect(await sharp(narrow.squareCropBytes).metadata()).toMatchObject({ width: 800, height: 800 })
+    expect(served.equals(narrow.squareCropBytes)).toBe(false)
+    expect(await sharp(served).metadata()).toMatchObject({ width: 1200, height: 900 })
   })
 
   it('refuses a download from a journey an editor unpublishes', async () => {
