@@ -109,9 +109,16 @@ commit that lands this file.
   The route file sets exactly four headers
   (`apps/web/app/(diary)/gallery/[slug]/download/[id]/route.ts`); every header above it
   is the framework's.
-- **Owner: not this phase.** The fix is a framework-level setting or an explicit `Vary` on
-  the route, and it wants a test that reads the header off a built response, which no
-  suite does today.
+- **Owner: NOBODY, stated as an absence rather than dressed as an assignment.** This said
+  "not this phase", which names who it is not and leaves a reader to assume somebody has it
+  (whole-branch review F4). Nobody does: no phase in the plan owns the HTTP boundary of the
+  download route, and nothing schedules this. What that means concretely is that the
+  fragmentation persists until somebody adopts it, and the cost of that is bounded and
+  known — a shared cache holds two entries per downloadable frame instead of one, and no
+  reader sees anything wrong. **The trigger that should adopt it:** whoever next changes
+  this route's cache headers, or whoever writes the first test that reads a header off a
+  production build. That test is the real prerequisite, it does not exist today, and
+  MED-003 needs the same one — so the two are cheapest done together.
 
 ### MED-003 · S4 · `X-Powered-By: Next.js, Payload` on every public response
 
@@ -130,10 +137,14 @@ commit that lands this file.
   X-Powered-By: Next.js, Payload
   ```
 
-- **Owner: not this phase**, and deliberately reported at its real weight. It is
-  site-wide rather than the gallery's, it discloses no version, and it is one
-  `poweredByHeader: false` away — but nothing in `docs/security.md` records a decision
-  either way, so it is recorded here rather than assumed to have been considered.
+- **Owner: the repository owner**, because this is a posture decision rather than a defect —
+  and it is now recorded in `docs/security.md` ("Residuals at the HTTP boundary") as an open
+  decision, which is where §1.2 puts a security decision. It said "not this phase" and lived
+  only here; `docs/qa/**` sits outside every documentation guard's corpus and no register
+  indexes it, so a security decision parked here is parked where nothing reads (whole-branch
+  review F4). Reported at its real weight otherwise: site-wide rather than the gallery's, no
+  version disclosed, and one `poweredByHeader: false` away. The ruling, either way, wants
+  the same header-off-a-built-response test MED-002 does.
 
 ---
 

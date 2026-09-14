@@ -1412,6 +1412,27 @@ round 1 and their struck-through entries are removed; the commits carry what wen
   security weakness — nothing is delivered to the wrong person — but it is the difference
   between "the endpoint works" and "a reader can sign in", and `docs/runbook.md` says so.
 
+- **`X-Powered-By: Next.js, Payload` is on every public response, and whether to keep it is
+  an OPEN DECISION rather than a settled one.** Measured on a production build against
+  `/p/1`, `/gallery/<slug>` and a download route — no version disclosed, and it is one
+  `poweredByHeader: false` in `next.config.ts` away. It is recorded here, in this document,
+  because it is a hardening decision against `SECURITY.md`'s default-deny posture, and a
+  security decision recorded only in `docs/qa/**` is recorded outside every documentation
+  guard's corpus and indexed by no register — which is where this one sat until the
+  whole-branch review (F4). The sweep that found it is
+  `docs/qa/2026-09-08-media-pipeline-sweep.md`, MED-003, and it carries the `curl`
+  transcript.
+
+  **Its owner is the repository owner, because it is a posture decision and not a defect.**
+  Naming the framework and the CMS is free reconnaissance for an attacker choosing which
+  advisories to try; against that, the header is what several Next.js deployments ship and
+  removing it changes nothing an attacker cannot infer from response shape. Both readings
+  are defensible, which is exactly why the answer is not an implementer's to assume. What that
+  openness means concretely: nothing schedules it, no test asserts either way, and the header
+  ships until the owner rules. The day the ruling is to remove it, the change is that one
+  config line plus a case that reads the header off a built response — which no suite does
+  today, and which MED-002 needs as well.
+
 **One residual of the identical refusal is a TIMING tell, and it is recorded here rather
 than left to be rediscovered.** The three answers `SECURITY.md` requires to be
 indistinguishable — an unknown address, a wrong password, a locked account — all cost the
