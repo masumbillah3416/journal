@@ -456,22 +456,31 @@ export default defineConfig({
         'apps/web/scripts/seed-data.ts': { lines: 100, branches: 100, functions: 100 },
         // The re-derivation script (Phase 3 Task 10). Every DECISION is a case,
         // both ways: the completeness predicate (a row that needs a tier and a
-        // row that needs none), the missing-original report, and the
-        // update-in-place. What 100% branches would additionally demand is the
-        // null arm of five nullish-coalescing defaults - `size.width ?? 0`,
-        // `sizes ?? {}`, `row.width ?? 0`, `row.filename ?? ''` and
-        // `row.mimeType ?? ''` - each of which exists because Payload's
-        // GENERATED type makes the field optional while the query that
-        // produced the row does not. None has an organic trigger: an upload
-        // collection's rows carry a filename, a mime type and a width, and the
-        // collection configures no height-only size. Reaching them would mean
-        // writing NULLs into `media` behind Payload's back to prove a type
-        // guard compiles, which is a fixture encoding a shape no client
-        // produces. 78 is therefore the measured number (78.26), not a rounded
-        // one, and `configuredTiers`'s throw carries its own `c8 ignore` with
-        // its reason at the line.
+        // row that needs none), the missing-original report, the
+        // update-in-place, and - since MED-001's fix - a row narrower than
+        // `frame`'s configured width, which is the case that fails if the
+        // predicate goes back to comparing widths. What 100% branches would
+        // additionally demand is the null arm of five nullish-coalescing
+        // defaults - `sizes ?? {}`, `row.width ?? 0`, `row.height ?? 0`,
+        // `row.filename ?? ''` and `row.mimeType ?? ''` - each of which exists
+        // because Payload's GENERATED type makes the field optional while the
+        // query that produced the row does not. None has an organic trigger:
+        // an upload collection's rows carry a filename, a mime type and both
+        // dimensions. Reaching them would mean writing NULLs into `media`
+        // behind Payload's back to prove a type guard compiles, which is a
+        // fixture encoding a shape no client produces.
+        //
+        // **75, NOT THE 78.26 THIS LINE USED TO CARRY, AND THE FILE DID NOT GET
+        // WORSE.** MED-001's fix moved this file's ladder reader - and its own
+        // `size.width ?? 0` default, plus the `c8 ignore`d throw beside it -
+        // out to `apps/web/lib/media/derivativeGeometry.ts`, and added
+        // `row.height ?? 0` here. The uncovered set is the same KIND of branch
+        // it always was; what changed is the denominator it is measured
+        // against. 75 is the number this pass reports (the uncovered arms are
+        // at lines 98, 123, 158 and 178), not a floor chosen to clear a red
+        // run.
         // Registered in `docs/deviations.md` §46.
-        'apps/web/scripts/rederive-media.ts': { lines: 100, branches: 78, functions: 100 },
+        'apps/web/scripts/rederive-media.ts': { lines: 100, branches: 75, functions: 100 },
         // seed.ts: 100% lines/functions. 83.72% branches is the real,
         // measured number: seed.integration.test.ts's own `beforeAll`
         // deletes the ten journeys (and the About portrait) first, so the
