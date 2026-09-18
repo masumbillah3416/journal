@@ -2366,6 +2366,20 @@ the config, so the sweep in `adminAccess.integration.test.ts` — which enumerat
 `resetPasswordExpiration`, `loginAttempts`, `lockUntil`, `createdAt`, `updatedAt` and the
 `sessions` join are all attempted, and none of them moves.
 
+**That last clause was false for six of them until review round 1 (F2), and the correction
+is what makes the sentence above true.** The sweep read its before-and-after documents
+without `showHiddenFields`, and Payload marks all six of `salt`, `hash`,
+`resetPasswordToken`, `resetPasswordExpiration`, `loginAttempts` and `lockUntil` as
+`hidden: true` in its own auth and account-lock base fields — omitting them from a
+document entirely. So the sweep **attempted** sixteen fields and **compared** ten: the six where
+"did it move?" matters most, the password material and the lockout counter, were compared
+`undefined` to `undefined` and could not have been seen to move. The entry asserted
+otherwise, as measured, and that is species 3 inside the register entry every later task
+reads. Both reads now pass `showHiddenFields: true`, and the case carries a floor
+assertion — every field it attempts must be present in what it read, and `hash` and `salt`
+must be strings, because a key present as `null` on both sides compares equal for exactly
+the reason an absent one did. Measured: with the option removed, the floor names all six.
+
 **What would reverse this:** a `DATA_MODEL.md` revision that states an access rule for
 `users`. None exists.
 

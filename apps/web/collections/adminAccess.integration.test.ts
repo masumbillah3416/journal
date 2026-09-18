@@ -275,7 +275,21 @@ describe('users, across two accounts', () => {
     )
     expect(writable.length).toBeGreaterThan(0)
 
-    const before = await payload.findByID({ collection: 'users', id: accountB.id, depth: 0 })
+    // `showHiddenFields` IS THE WHOLE VALUE HALF OF THIS CASE, and it was
+    // missing until review round 1 (F2). Payload marks `salt`, `hash`,
+    // `resetPasswordToken`, `resetPasswordExpiration` (auth/baseFields/auth.js)
+    // and `loginAttempts`, `lockUntil` (auth/baseFields/accountLock.js) as
+    // `hidden: true` and omits them from a document entirely. Without this
+    // option the sweep ATTEMPTED all sixteen fields and COMPARED ten, so the
+    // six where "did it move?" matters most - the password material and the
+    // lockout counter - were compared undefined-to-undefined. Measured before
+    // this word existed: the floor assertion above named all six.
+    const before = await payload.findByID({
+      collection: 'users',
+      id: accountB.id,
+      depth: 0,
+      showHiddenFields: true,
+    })
     const attempts = await Promise.allSettled(
       writable.map((name) =>
         payload.update({
@@ -287,9 +301,26 @@ describe('users, across two accounts', () => {
         }),
       ),
     )
-    const after = await payload.findByID({ collection: 'users', id: accountB.id, depth: 0 })
+    const after = await payload.findByID({
+      collection: 'users',
+      id: accountB.id,
+      depth: 0,
+      showHiddenFields: true,
+    })
 
     expect(attempts.filter((outcome) => outcome.status === 'fulfilled')).toEqual([])
+    // THE FLOOR FOR THE COMPARISON BELOW, and review round 1's F2. A field
+    // this case ATTEMPTS but does not READ is compared undefined-to-undefined
+    // and can never be seen to move, so the value check would be silently
+    // vacuous for it while the list above claimed to cover it.
+    expect(writable.filter((name) => !(name in before))).toEqual([])
+    // And they carry VALUES, not just keys: a key present as `null` on both
+    // sides compares equal for exactly the reason an absent one did. These two
+    // are what Payload wrote when `beforeAll` created the account, so the
+    // comparison below has real password material on both sides of it.
+    const password = rulesOf(before)
+    expect(typeof password['hash']).toBe('string')
+    expect(typeof password['salt']).toBe('string')
     // COMPARED BY VALUE, NOT BY IDENTITY, and that is a correction this run
     // earned: `sessions` is a join field, so the two reads return two
     // different empty arrays and `!==` reported it changed on a row nothing
