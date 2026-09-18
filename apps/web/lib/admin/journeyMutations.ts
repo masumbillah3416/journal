@@ -26,14 +26,13 @@
  * ═══ WHAT A NON-DRAFT UPDATE COSTS, MEASURED ═══
  *
  * Archiving and trashing write the MAIN row, because the list reads the main
- * row. Payload's `update` without `draft: true` also saves a version, and
- * `@payloadcms/drizzle`'s `createVersion` clears `latest` on every other
- * version of that document — so a journey that had unpublished edits waiting
- * stops reporting `edited` once it is archived. That is Payload's versioning,
- * not a choice here, and the alternative is worse: a `draft: true` write would
- * leave `archived` in a version the screen never reads, so the button would do
- * nothing visible. `journeyMutations.integration.test.ts` records the
- * behaviour; SCREENS.md §2.8's Publish screen is where it is owned.
+ * row — and Payload merges such a write into the NEWEST VERSION, which for a
+ * journey in the `edited` state is the author's unpublished rewrite. This block
+ * used to say the cost was that the journey "stops reporting `edited`". That
+ * was the smaller half. The larger half is that the rewrite was written into
+ * the main row and the journey left the public book, and the fix is
+ * {@link writeJourneyFlag} below — read its header before changing either flag
+ * write (fix round 2, finding 1).
  *
  * PATTERNS (CLAUDE.md §3.3): Repository — the collection's shape stops here,
  * and the screen's actions speak in journeys and row ids. DTO for
@@ -351,6 +350,77 @@ export const duplicateJourneyRow = async (payload: Payload, scope: AdminScope, j
 }
 
 /**
+ * Writes one operational flag to a journey without publishing anything.
+ *
+ * ═══ WHY THIS IS TWO WRITES AND NOT ONE `payload.update` ═══
+ *
+ * `archived` and `deletedAt` are shelf and bin markers, not content — but they
+ * live on a collection with `versions.drafts` on, and Payload's `update` does
+ * not offer a way to say so. `updateByID` fetches the document to merge into
+ * with `getLatestCollectionVersion`, which is passed no `published` flag, so it
+ * always returns the NEWEST VERSION; `updateDocument` then writes that merge to
+ * the main row whenever `draft` is not set. For a journey in the `edited` state
+ * the newest version is the author's unpublished rewrite, so a one-line
+ * `payload.update({ data: { archived: true } })` wrote that rewrite into the
+ * main row and stamped it `_status: 'draft'`.
+ *
+ * MEASURED, AND IT IS WHAT A READER WOULD HAVE SEEN: one press of Archive took
+ * a published journey out of the public book — `readBookBundle.ts` selects
+ * `_status: { equals: 'published' }` — and left the only way back through a
+ * Publish of the half-finished text. `softDeleteJourney` was the same two
+ * lines, so the §2.10 trash round trip did it too (fix round 2, finding 1).
+ *
+ * ═══ WHAT THE TWO WRITES ARE ═══
+ *
+ * FIRST, the main row is written from ITS OWN content plus the flag, so the
+ * merge above has nothing of the draft's left to win with and `_status` stays
+ * where it was. SECOND, when the newest version is a draft, that draft is saved
+ * again with the flag on it — because the first write made a non-draft version
+ * the latest one, and `@payloadcms/drizzle`'s `createVersion` clears `latest`
+ * on every other row, which would have left the screen reporting `published`
+ * for a journey with a rewrite still waiting.
+ *
+ * THE SECOND WRITE IS CONDITIONED ON THE NEWEST VERSION BEING A DRAFT, not on
+ * the main row being published, and that matters for the journey that has never
+ * gone out: nothing writes ITS main row either, so its newest draft is the only
+ * copy of every edit since it was created, and a first write that made the
+ * stale main row the newest version would throw all of them away.
+ *
+ * THE COST, stated rather than hidden: two version rows per flag write instead
+ * of one, and one of them is a republish of what was already published. A
+ * journey with no pending draft pays one extra read and nothing else.
+ *
+ * @param payload - The Local API instance.
+ * @param scope - The hoisted {@link AdminScope}.
+ * @param journey - The row id.
+ * @param flag - The one column being written.
+ * @throws From Payload, when the id names no row or a write is refused.
+ */
+const writeJourneyFlag = async (
+  payload: Payload,
+  scope: AdminScope,
+  journey: number,
+  flag: { readonly archived: boolean } | { readonly deletedAt: string },
+): Promise<void> => {
+  const [live, newest] = await Promise.all([
+    payload.findByID({ collection: 'journeys', id: journey, ...scope, depth: 0 }),
+    payload.findByID({ collection: 'journeys', id: journey, ...scope, depth: 0, draft: true }),
+  ])
+
+  await payload.update({ collection: 'journeys', id: journey, ...scope, data: { ...live, ...flag } })
+
+  if (newest._status === 'draft') {
+    await payload.update({
+      collection: 'journeys',
+      id: journey,
+      ...scope,
+      draft: true,
+      data: { ...newest, ...flag },
+    })
+  }
+}
+
+/**
  * Puts a journey on the archive shelf, or takes it off.
  *
  * ONE BUTTON, SO IT READS BEFORE IT WRITES. SCREENS.md §2.2's strip prints
@@ -365,12 +435,7 @@ export const duplicateJourneyRow = async (payload: Payload, scope: AdminScope, j
  */
 export const toggleJourneyArchived = async (payload: Payload, scope: AdminScope, journey: number): Promise<void> => {
   const row = await payload.findByID({ collection: 'journeys', id: journey, ...scope, depth: 0 })
-  await payload.update({
-    collection: 'journeys',
-    id: journey,
-    ...scope,
-    data: { archived: row.archived !== true },
-  })
+  await writeJourneyFlag(payload, scope, journey, { archived: row.archived !== true })
 }
 
 /**
@@ -388,10 +453,5 @@ export const toggleJourneyArchived = async (payload: Payload, scope: AdminScope,
  * await softDeleteJourney(payload, scope, 42)
  */
 export const softDeleteJourney = async (payload: Payload, scope: AdminScope, journey: number): Promise<void> => {
-  await payload.update({
-    collection: 'journeys',
-    id: journey,
-    ...scope,
-    data: { deletedAt: new Date().toISOString() },
-  })
+  await writeJourneyFlag(payload, scope, journey, { deletedAt: new Date().toISOString() })
 }

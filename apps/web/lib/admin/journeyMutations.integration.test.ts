@@ -536,6 +536,114 @@ describe('toggleJourneyArchived', () => {
   })
 })
 
+describe('the two flag writes, over a journey with a pending draft', () => {
+  // FIX-ROUND-2 FINDING 1. `archived` and `deletedAt` are operational flags on
+  // a collection with `versions.drafts` on, and Payload's `update` merges the
+  // change into the LATEST VERSION — which, for a journey in the `edited`
+  // state, is the author's unpublished rewrite. So one press of Archive used to
+  // write that rewrite into the main row and mark it `draft`: the journey left
+  // the public book and the only way back was to publish the half-finished
+  // text. `softDeleteJourney` is the same two lines, so the §2.10 trash round
+  // trip did it too.
+  //
+  // Both cases here assert the SAME three facts, because all three have to
+  // hold: what the public book reads is unchanged, the journey is still
+  // published, and the pending draft is still pending.
+
+  /**
+   * A published journey with an unpublished rewrite waiting on top of it.
+   * @param label - What distinguishes this fixture's slug from the others'.
+   * @returns The row id, and the name the public book still shows.
+   */
+  const aJourneyWithAPendingDraft = async (label: string): Promise<{ id: number; published: string }> => {
+    const published = `${MARKER} ${label}`
+    const id = await createJourneyRow(payload, scope, { name: published, place: 'Spain', dates: '2 – 9 May 2025' })
+    await payload.update({ collection: 'journeys', id, ...scope, data: { _status: 'published' } })
+    await payload.update({
+      collection: 'journeys',
+      id,
+      ...scope,
+      draft: true,
+      data: { name: `${published} REWRITTEN`, place: 'Andalusia' },
+    })
+    return { id, published }
+  }
+
+  it('archives without publishing the author’s draft, and unarchives back to edited', async () => {
+    const { id, published } = await aJourneyWithAPendingDraft('archivedraft')
+    const before = await readJourneysScreen(payload, scope, { search: published, filter: 'all' })
+
+    await toggleJourneyArchived(payload, scope, id)
+    const shelved = await payload.findByID({ collection: 'journeys', id, ...scope, depth: 0 })
+    await toggleJourneyArchived(payload, scope, id)
+    const after = await readJourneysScreen(payload, scope, { search: published, filter: 'all' })
+
+    expect(before[0]?.status).toBe('edited')
+    // What the public book reads. `readBookBundle.ts` selects
+    // `_status: { equals: 'published' }`, so both halves of this decide whether
+    // the journey is still in the book at all.
+    expect(shelved.name).toBe(published)
+    expect(shelved._status).toBe('published')
+    expect(shelved.archived).toBe(true)
+    // And the author's rewrite is still waiting, rather than published or lost.
+    expect(after[0]?.status).toBe('edited')
+    expect(after[0]?.name).toBe(published)
+  })
+
+  it('trashes without publishing the author’s draft either', async () => {
+    const { id, published } = await aJourneyWithAPendingDraft('trashdraft')
+
+    await softDeleteJourney(payload, scope, id)
+
+    const trashed = await payload.findByID({ collection: 'journeys', id, ...scope, depth: 0 })
+    expect(trashed.deletedAt).not.toBeNull()
+    expect(trashed.name).toBe(published)
+    expect(trashed._status).toBe('published')
+    // The pending draft survives the trip to the trash, because §2.10 restores
+    // a journey whole and a restore that published the rewrite would be the
+    // same defect one screen along.
+    const newest = await payload.findVersions({
+      collection: 'journeys',
+      ...scope,
+      depth: 0,
+      pagination: false,
+      where: { and: [{ parent: { equals: id } }, { latest: { equals: true } }] },
+    })
+    expect(newest.docs[0]?.version._status).toBe('draft')
+  })
+
+  it('leaves a never-published journey’s newest draft as the newest draft', async () => {
+    // The other side of the same inference. Nothing writes the main row of a
+    // journey that has never gone out either, so a flag write that took the
+    // main row's stale content and made it the newest version would throw away
+    // every draft save since the journey was created.
+    const id = await createJourneyRow(payload, scope, {
+      name: `${MARKER} nevergonearchive`,
+      place: 'Wales',
+      dates: 'a day',
+    })
+    await payload.update({
+      collection: 'journeys',
+      id,
+      ...scope,
+      draft: true,
+      data: { name: `${MARKER} nevergonearchive REWRITTEN` },
+    })
+
+    await toggleJourneyArchived(payload, scope, id)
+
+    const newest = await payload.findVersions({
+      collection: 'journeys',
+      ...scope,
+      depth: 0,
+      pagination: false,
+      where: { and: [{ parent: { equals: id } }, { latest: { equals: true } }] },
+    })
+    expect(newest.docs[0]?.version.name).toBe(`${MARKER} nevergonearchive REWRITTEN`)
+    expect(newest.docs[0]?.version.archived).toBe(true)
+  })
+})
+
 describe('softDeleteJourney', () => {
   it('soft-deletes a journey, leaving the row where the trash screen can find it', async () => {
     const id = await createJourneyRow(payload, scope, { name: `${MARKER} Doomed`, place: 'Iceland', dates: 'a day' })
