@@ -511,6 +511,36 @@ test('has no axe violations on /admin, the admin panel’s root', async ({ page,
   await expectNoAxeViolations(page)
 })
 
+test('has no axe violations on /admin/journeys, the first screen with data on it', async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  // SCREENS.md §2.2, and a guarded screen like its neighbour above: it needs a
+  // session before it draws anything (see e2e/support/adminSession.ts).
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`a11yjourneys.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin/journeys')
+  // The table is drawn AND the rows are there before axe looks: a screen that
+  // rendered an empty card would have no violations either. The disclosure is
+  // then OPENED, because the strip behind `⋯` is markup axe cannot see while it
+  // is closed — three buttons, one of them destructive, that no other case
+  // here puts in front of it.
+  await expect(page.locator('[data-admin-journeys]')).toBeVisible()
+  await expect(page.locator('[data-journey-id]').first()).toBeVisible()
+  await page.locator('[data-journey-id]').first().locator('[data-row-more]').click()
+  await expect(page.locator('[data-journey-strip]').first()).toBeVisible()
+  await page.locator('[data-create-open]').click()
+  await expect(page.locator('[data-create-panel]')).toBeVisible()
+
+  await expectNoAxeViolations(page)
+})
+
 test('meets AA contrast on the sign-in cloth panel, which axe cannot judge', async ({ page, viewport }) => {
   test.skip((viewport?.width ?? 0) < 820, 'the cloth panel is drawn only above SCREENS.md §3’s breakpoint')
 

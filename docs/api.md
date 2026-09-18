@@ -567,6 +567,53 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   domain's own entry table in a real browser. It is also the first guarded address with a
   performance budget — see `docs/testing.md` §7.
 
+### `GET /admin/journeys`
+
+- **Path:** `apps/web/app/(admin)/admin/journeys/page.tsx`; the frame is
+  `apps/web/components/admin/shell/AdminShell.tsx`, and the screen inside it is
+  `apps/web/components/admin/journeys/` - `JourneyControls.tsx`, `CreatePanel.tsx`,
+  `JourneyTable.tsx` and `RowActions.tsx`.
+- **Method:** `GET`. This route answers nothing else; the four mutations below are Server
+  Actions with their own opaque `POST` addresses.
+- **Input:** the session cookie, plus two optional query parameters - `q`, what the author
+  typed into the search box, and `filter`, one of `published`, `edited`, `draft` or
+  `archived`. Both are parsed by `journeysQuery` in
+  `apps/web/lib/admin/readJourneysScreen.ts`: a repeated parameter takes its first value,
+  and a `filter` no chip offers falls back to everything rather than selecting nothing.
+- **Output:** an HTML document: `SCREENS.md` §2's shell - with the screen title "Journeys"
+  and a crumb that counts what is on screen ("10 entries · 30 pages") - around §2.2's
+  screen: the search box, the five status chips, the "New journey" button, and the table in
+  one card. Each row carries a 44px cover thumbnail, the journey's name over its place, its
+  dates, page and media counts, the date it was last edited, a status pill and Edit /
+  Gallery / `⋯`. Columns drop by width; the ladder is
+  `packages/domain/src/admin/journeyColumns.ts`'s and the media queries that act on it are
+  `journeys.module.css`'s. `metadata` sets the document title and
+  `robots: { index: false, follow: false }`.
+- **Reads:** three call sites, nine queries, under ONE hoisted `adminScope` -
+  `readNavCounts` (four `payload.count` calls), one `findGlobal('site')` selecting `name`,
+  and `readJourneysScreen` (four: the journeys, then one grouped read each of `pages`,
+  `media` and the journeys' VERSIONS, all keyed `{ in: ids }`). Nine whatever the number of
+  journeys: Payload has no `GROUP BY`, so the counts are tallied in memory rather than
+  asked per row (CLAUDE.md §6). Plus the one `users` row `adminScope` itself resolves.
+- **Errors:** none observable from the screen's own content. A refused read would throw
+  before anything is drawn, which is a bug in the guard that admitted the session rather
+  than a state this screen draws. A search that matches nothing draws the card with "No
+  journeys match that." in it.
+- **Auth requirement:** **signed in.** `requireAdminSession` runs in this file before
+  anything is drawn, with the same five refusals `GET /admin` lists.
+- **Notes:** **the search and the chips are addresses, not state.** Both survive a reload
+  and can be sent to somebody, and both ship no JavaScript. The screen buys exactly two
+  client islands - the create panel's open state and the `⋯` disclosure - and nothing else
+  on it is a client component.
+
+  **`Edited` prints a date where the design prints "2 months ago"** - `docs/deviations.md`
+  §54, because a relative string is a function of the current instant and this screen is
+  rendered once on a server that never re-renders it.
+
+  **Edit and Gallery point at addresses Tasks 5 and 7 mount**, so until they land both
+  answer Next's own not-found page - the same intermediate state `GET /admin` records for
+  eight of the nine rail buttons, behind the same session guard.
+
 ### `GET /admin/sign-in`
 
 - **Method:** `GET`. This route answers nothing else; see the note below.
@@ -1125,6 +1172,76 @@ follow: false }`.
   the matching as well as the processing. `worker` is refused at `parseEnv` until such a
   worker exists — see `docs/runbook.md` and `docs/security.md` for the two controls and
   the order that removes them.
+
+### `createJourney(form: FormData): Promise<void>`
+
+- **Path:** `apps/web/app/(admin)/admin/journeys/actions.ts`; the decisions are
+  `apps/web/lib/admin/journeyMutations.ts`'s `readNewJourney` and `createJourneyRow`.
+- **Method:** server action.
+- **Input:** the create panel's `FormData` - `name`, `place`, `dates` - parsed by
+  `readNewJourney`'s Zod schema: three trimmed, non-empty strings. `FormData` rather than
+  an object because a `<form action={...}>` is the only caller there is.
+- **Output:** `void`. The screen is re-rendered by `revalidatePath('/admin/journeys')`.
+- **Errors:** a `ZodError` when any field is missing, empty or not a string; from Payload,
+  a refused write. The slug is derived from the name and made unique before the write, so
+  a second journey of the same name does not fail the collection's unique index.
+- **Auth requirement:** **signed in.** Built from `guardedAction`, which is what
+  `eslint-rules/guarded-server-actions.js` requires of every value export of a
+  `'use server'` module.
+- **Notes:** **the journey is created as a DRAFT**, which is what the panel's own line
+  promises - "Starts as a draft - no bookmark until you publish." - and **three pages are
+  created with it**, one `notes` and two `frames` (Notes, Frames I, Frames II), which is the
+  other sentence the panel prints. Both are asserted in
+  `journeyMutations.integration.test.ts`.
+
+### `duplicateJourney(form: FormData): Promise<void>`
+
+- **Path:** `apps/web/app/(admin)/admin/journeys/actions.ts`; the decisions are
+  `apps/web/lib/admin/journeyMutations.ts`'s `readJourneyRef` and `duplicateJourneyRow`.
+- **Method:** server action.
+- **Input:** the row strip's `FormData` - one `journey` field, coerced to a positive
+  integer by Zod, so nothing reaches the driver as `NaN`.
+- **Output:** `void`, then `revalidatePath('/admin/journeys')`.
+- **Errors:** a `ZodError` when the field is absent or is not a row id; from Payload, `Not
+Found` when the id names no journey, and a refused write.
+- **Auth requirement:** **signed in**, through `guardedAction`.
+- **Notes:** the copy is named `"<name> (copy)"`, takes a slug that does not collide, and
+  **is a draft even when the source is published** - a duplicate that went out the moment it
+  was made would publish an unedited copy of somebody's journey. Its pages are copied with
+  their slots, and every array row's `id` is stripped: handing Payload the SOURCE's array
+  ids asks it to insert rows that already exist, which it refuses as "The following field is
+  invalid: id".
+
+### `archiveJourney(form: FormData): Promise<void>`
+
+- **Path:** `apps/web/app/(admin)/admin/journeys/actions.ts`; the decision is
+  `apps/web/lib/admin/journeyMutations.ts`'s `toggleJourneyArchived`.
+- **Method:** server action.
+- **Input:** the row strip's `FormData` - one `journey` field, as above.
+- **Output:** `void`, then `revalidatePath('/admin/journeys')`.
+- **Errors:** a `ZodError` for a field that is not a row id; from Payload, `Not Found` and
+  a refused write.
+- **Auth requirement:** **signed in**, through `guardedAction`.
+- **Notes:** it TOGGLES, because SCREENS.md §2.2's strip prints Archive or Unarchive from
+  the row's own state and posts the same action either way - so it reads the row before it
+  writes. Archiving is a shelf and not a stage: `journeyStatus` lets `archived` shadow the
+  version state rather than replacing it.
+
+### `trashJourney(form: FormData): Promise<void>`
+
+- **Path:** `apps/web/app/(admin)/admin/journeys/actions.ts`; the decision is
+  `apps/web/lib/admin/journeyMutations.ts`'s `softDeleteJourney`.
+- **Method:** server action.
+- **Input:** the row strip's `FormData` - one `journey` field, as above.
+- **Output:** `void`, then `revalidatePath('/admin/journeys')`.
+- **Errors:** a `ZodError` for a field that is not a row id; from Payload, `Not Found` and
+  a refused write.
+- **Auth requirement:** **signed in**, through `guardedAction`.
+- **Notes:** **a `deletedAt`, never `payload.delete`** (CLAUDE.md §7). SCREENS.md §2.10
+  keeps the trash for thirty days with a restore, so the row has to survive - and the
+  journey's pages are left exactly where they are, because a restore returns a journey
+  whole rather than an empty one. `journeyMutations.integration.test.ts` asserts both
+  halves: the list stops showing it AND the row is still there with a `deletedAt` on it.
 
 ## Planned routes (Phase 1)
 

@@ -160,6 +160,18 @@
  * the three projects ARE §3's two layouts, `desktop` and `mid` above the
  * breakpoint and `mobile` below it. None of them uses `settled()`.
  *
+ * PHASE 4 TASK 4 ADDS THE JOURNEYS SCREEN, in two states:
+ * `admin-journeys-*.png` (SCREENS.md §2.2's table inside the Task 3 shell) and
+ * `admin-journeys-create-*.png` (the create panel, which is a client island and
+ * is therefore only on screen once its button has been pressed). Six images.
+ * The three projects are doing real work here rather than photographing one
+ * layout three times: `desktop` (1440) is above every rung of §2.2's column
+ * ladder, `mid` (1000) is exactly at the `dates` rung, and `mobile` (390) is
+ * below all four, so the three pictures are the base table, the full table and
+ * one step down from full. Neither case uses `settled()` — there is no scaled
+ * design box on an admin route — and both wait on the screen and
+ * `document.fonts.ready`.
+ *
  * WHAT THESE FOUR DO NOT COVER, and it is written here because a baseline
  * invites the assumption that it does: the geometry `SCREENS.md` states in
  * numbers. At `maxDiffPixelRatio: 0.01` this suite was measured absorbing a
@@ -555,6 +567,43 @@ test('matches the baseline screenshot of the admin panel’s root', async ({ pag
   await page.evaluate(() => document.fonts.ready)
 
   await expect(page).toHaveScreenshot('admin-panel.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the journeys screen', async ({ page, context, baseURL }, testInfo) => {
+  // SCREENS.md §2.2 — the column ladder, the status pills and the 44px cover
+  // squares, which is the densest piece of the admin surface and the one where
+  // a moved breakpoint shows as a picture rather than as a number.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`visualjourneys.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin/journeys', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-admin-journeys]')).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-journeys.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the journeys create panel', async ({ page, context, baseURL }, testInfo) => {
+  // The panel is a client island, so it is only on screen once the button has
+  // been pressed — and its terracotta ring, its washi strip and its three
+  // fields are exactly the kind of thing a component test cannot see.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`visualcreate.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin/journeys', { waitUntil: 'networkidle' })
+  await page.locator('[data-create-open]').click()
+  await expect(page.locator('[data-create-panel]')).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-journeys-create.png', { fullPage: true })
 })
 
 test('matches the baseline screenshot of the sign-in screen', async ({ page }) => {
