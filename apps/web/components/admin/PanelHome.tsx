@@ -23,6 +23,12 @@
  * and the guess that was never judged. Only a screen that SAYS what is behind
  * the door is honest, and this is the smallest one that does.
  *
+ * IT IS A SECTION INSIDE `AdminShell`, NOT A PAGE. Phase 4 Task 3 put the
+ * shell around it, so the document's `<main>` and its one `<h1>` — the screen's
+ * title, "Overview" — are the shell's. This pane was both until then; a second
+ * `<main>` and a second `<h1>` inside one are each an accessibility defect
+ * `e2e/a11y.spec.ts` would report, so it is a `<section>` with an `<h2>`.
+ *
  * IT IS NOT A PLACEHOLDER, and the distinction matters against `CLAUDE.md`
  * §1.3's ban on placeholder text: it states a true fact about the product a
  * reader is looking at, in the design's own voice, exactly as
@@ -91,10 +97,10 @@ export const PANEL_SCREENS: readonly string[] = [
  * <PanelHome />
  */
 export const PanelHome = (): React.JSX.Element => (
-  <main data-admin-panel className={styles.panel}>
+  <section data-admin-panel className={styles.panel}>
     <div className={styles.pane}>
       <p className={styles.eyebrow}>The back room</p>
-      <h1 className={styles.title}>Still being furnished</h1>
+      <h2 className={styles.title}>Still being furnished</h2>
       <p className={styles.lede}>{PANEL_STATUS}</p>
 
       <hr className={styles.rule} />
@@ -115,5 +121,5 @@ export const PanelHome = (): React.JSX.Element => (
         </button>
       </form>
     </div>
-  </main>
+  </section>
 )

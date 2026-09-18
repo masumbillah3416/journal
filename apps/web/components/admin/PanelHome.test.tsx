@@ -43,11 +43,15 @@ afterEach(() => {
 })
 
 describe('PanelHome', () => {
-  it('titles the screen as its only level-one heading', () => {
+  it('titles the pane under the shell’s own heading, never as a second level one', () => {
     const host = renderPanel()
 
-    expect(host.querySelectorAll('h1')).toHaveLength(1)
-    expect(host.querySelector('h1')?.textContent).toBe('Still being furnished')
+    // Phase 4 Task 3 put `AdminShell` around this pane, and the shell's header
+    // carries the screen's `<h1>`. A second one here is the defect
+    // `e2e/a11y.spec.ts` reports, so both halves are asserted: the pane has its
+    // heading, and it is not a level one.
+    expect(host.querySelectorAll('h1')).toHaveLength(0)
+    expect(host.querySelector('h2')?.textContent).toBe('Still being furnished')
   })
 
   it('prints "The back room" eyebrow above it', () => {
@@ -102,7 +106,11 @@ describe('PanelHome', () => {
     expect(host.querySelectorAll('button')).toHaveLength(1)
   })
 
-  it('renders one landmark, so a screen reader is given a main region', () => {
-    expect(renderPanel().querySelectorAll('main')).toHaveLength(1)
+  it('renders no landmark of its own, because the shell around it owns the main region', () => {
+    // It carried the `<main>` until Phase 4 Task 3 put `AdminShell` around it.
+    // Two `<main>` elements in one document is the accessibility defect
+    // `e2e/a11y.spec.ts` reports, and the shell's is the one that stays.
+    expect(renderPanel().querySelectorAll('main')).toHaveLength(0)
+    expect(renderPanel().querySelector('[data-admin-panel]')?.tagName).toBe('SECTION')
   })
 })

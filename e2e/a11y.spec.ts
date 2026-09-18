@@ -500,9 +500,13 @@ test('has no axe violations on /admin, the admin panel’s root', async ({ page,
   ])
   await page.goto('/admin')
   // The pane is drawn AND the heading is present before axe looks: a route
-  // that rendered an empty shell would have no violations either.
+  // that rendered an empty shell would have no violations either. The level-one
+  // heading is the SHELL's since Phase 4 Task 3 — the screen's own title, out
+  // of `ADMIN_NAV` — and the pane's "Still being furnished" is the level two
+  // beneath it, which is why both are asserted here rather than one.
   await expect(page.locator('[data-admin-panel]')).toBeVisible()
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Still being furnished')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Overview')
+  await expect(page.getByRole('heading', { level: 2, name: 'Still being furnished' })).toBeVisible()
 
   await expectNoAxeViolations(page)
 })

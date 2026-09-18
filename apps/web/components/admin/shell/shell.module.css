@@ -1,0 +1,388 @@
+/**
+ * shell.module.css — the chrome SCREENS.md §2's preamble puts every admin
+ * screen inside: a 238px dark rail and a main column of a 96px header over a
+ * scrolling content area.
+ *
+ * A CSS MODULE, NOT A RULE IN `admin.css`, for the reason `panel.module.css`
+ * already gives: `admin.css` is loaded by the group's root layout, so every
+ * byte in it is a byte `/admin/sign-in` fetches before it can paint, and that
+ * route carries a Lighthouse LCP gate. A module is loaded only by the routes
+ * that import it — which, from Task 4 onwards, is every screen behind the
+ * guard and none in front of it.
+ *
+ * ═══ THE FIVE WIDTHS BELOW ARE THE DOMAIN'S, AND THAT IS EXECUTABLE ═══
+ *
+ * `packages/domain/src/admin/breakpoints.ts` holds the five numbers SCREENS.md
+ * §2 and design spec §8.2 give. They are spelled again here because a media
+ * query is the only thing that can act on a viewport the server never saw
+ * (`packages/domain/src/readingSurface.ts`'s header is this repository's own
+ * statement of that), and a number spelled twice is this repository's most
+ * repeated defect.
+ *
+ * So both spellings are pinned to each other by test, at both sides of every
+ * boundary: `ScreenHeader.test.tsx` reads the three `data-control` hide rules
+ * out of this file and asks `headerControls` what it says one pixel either
+ * side, and `AdminShell.test.tsx` does the same with `adminWidthMode` and the
+ * two `--admin-width-mode` markers. THE MARKER DECLARATION EXISTS FOR THAT
+ * PIN AND FOR NOTHING ELSE: it is this stylesheet saying, in the domain's own
+ * three words, which mode each breakpoint begins, so a media query moved by a
+ * pixel fails a test rather than a screenshot.
+ *
+ * Depends on: packages/tokens/src/tokens.css, loaded by the admin layout.
+ */
+
+/* ── The frame ─────────────────────────────────────────────────────────── */
+
+/* 238px rail + `flex: 1` main, as a grid: the rail is a fixed track and the
+ * main column takes what is left, which is the same result with one fewer
+ * flex-basis to get wrong. */
+.shell {
+  --admin-width-mode: wide;
+
+  display: grid;
+  grid-template-columns: 238px minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--td-desk-from);
+}
+
+/* ── The rail ──────────────────────────────────────────────────────────── */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0 16px 18px;
+  background: linear-gradient(180deg, var(--td-sidebar-from), var(--td-sidebar-to));
+}
+
+.masthead {
+  padding-right: 18px;
+  margin-bottom: 26px;
+}
+
+.siteName {
+  margin: 0;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--td-cream-dim);
+}
+
+.mastheadTitle {
+  margin: 2px 0 0;
+  font-family: var(--td-font-caveat);
+  font-size: 38px;
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--td-cream);
+}
+
+.nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 18px;
+}
+
+.navButton {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px 9px 0;
+  border-radius: 0 5px 5px 0;
+  color: var(--td-cream);
+  text-decoration: none;
+  transition: transform 160ms ease;
+}
+
+/* The colour itself arrives as `--section-colour` on the element, from
+ * `sectionColour`. See NavRail.tsx for why it is a custom property. */
+.sectionBar {
+  flex: none;
+  width: 5px;
+  align-self: stretch;
+  border-radius: 0 2px 2px 0;
+  background: var(--section-colour);
+}
+
+.navText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.navLabel {
+  font-family: var(--td-font-caveat);
+  font-size: 23px;
+  line-height: 1.05;
+}
+
+.navSubLabel {
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--td-cream-dim);
+}
+
+.navCount {
+  flex: none;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--td-cream-dim);
+}
+
+/* Active: the button lifts out of the rail toward the content it opened. Only
+ * `transform` is animated (CLAUDE.md §6). */
+.navButtonCurrent {
+  background: #fbf6e9;
+  box-shadow: 0 3px 12px -5px rgb(0 0 0 / 50%);
+  color: #2f3b38;
+  transform: translateX(-4px);
+}
+
+.navButtonCurrent .navSubLabel,
+.navButtonCurrent .navCount {
+  color: var(--td-ink-muted);
+}
+
+.railFooter {
+  padding-right: 18px;
+  margin-top: 20px;
+}
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.avatar {
+  display: flex;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid transparent;
+  border-radius: 50%;
+  background: rgb(243 231 205 / 14%);
+  font-family: var(--td-font-caveat);
+  font-size: 19px;
+  color: var(--td-cream);
+}
+
+.profileName {
+  overflow: hidden;
+  font-family: var(--td-font-caveat);
+  font-size: 19px;
+  line-height: 1.1;
+  color: var(--td-cream);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profileRole {
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--td-cream-dim);
+}
+
+.lastPublished {
+  margin: 12px 0 0;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--td-cream-dim);
+}
+
+.signOutForm {
+  margin: 8px 0 0;
+}
+
+.signOut {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--td-cream-dim);
+  cursor: pointer;
+}
+
+.signOut:hover {
+  color: var(--td-cream);
+}
+
+/* ── The main column ───────────────────────────────────────────────────── */
+
+.main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  min-height: 96px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 30px 15px;
+  border-bottom: 1px solid rgb(120 98 60 / 22%);
+}
+
+/* The controls wrap, not the title — SCREENS.md §2 is explicit, and a wrapped
+ * 48px title is what it is guarding against. */
+.titleBlock {
+  flex: 1 1 230px;
+  min-width: 230px;
+}
+
+.crumb {
+  margin: 0;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--td-font-caveat);
+  font-size: 48px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--td-ink);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chipSaved {
+  padding: 5px 10px;
+  border-radius: 2px;
+  background: rgb(47 107 104 / 8%);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--td-status-published);
+}
+
+.chipUnpublished {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border-radius: 2px;
+  background: rgb(163 68 52 / 9%);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--td-accent);
+}
+
+.chipMark {
+  width: 7px;
+  height: 7px;
+  background: var(--td-accent);
+  transform: rotate(45deg);
+}
+
+.previewDraft {
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+  text-decoration: none;
+}
+
+.previewDraft:hover {
+  color: var(--td-accent);
+}
+
+.content {
+  flex: 1;
+  padding: 24px 30px 44px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* ── The widths ────────────────────────────────────────────────────────── */
+
+/* "Saved just now" goes first: it is the least load-bearing of the three, and
+ * SCREENS.md §2 drops it below 1040px. */
+@media (max-width: 1039px) {
+  .controls [data-control='saved'] {
+    display: none;
+  }
+}
+
+/* "n unpublished", below 900px. */
+@media (max-width: 899px) {
+  .controls [data-control='unpublished'] {
+    display: none;
+  }
+}
+
+/* "Preview draft", below 780px. Publish is never dropped. */
+@media (max-width: 779px) {
+  .controls [data-control='preview-draft'] {
+    display: none;
+  }
+}
+
+/* The mid surface: design spec §8.2's wide surface ends here. The content's
+ * side padding tightens; nothing moves. */
+@media (max-width: 1179px) {
+  .shell {
+    --admin-width-mode: mid;
+  }
+
+  .content {
+    padding: 22px 22px 40px;
+  }
+
+  .header {
+    padding: 18px 22px 14px;
+  }
+}
+
+/* The narrow surface: the rail stops being a column beside the screen and
+ * becomes a band above it, because 238px of a 780px surface is a third of it. */
+@media (max-width: 859px) {
+  .shell {
+    --admin-width-mode: narrow;
+
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rail {
+    padding: 16px 18px;
+  }
+
+  .nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding-right: 0;
+  }
+
+  .railFooter {
+    padding-right: 0;
+  }
+}

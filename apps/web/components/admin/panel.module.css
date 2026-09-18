@@ -31,9 +31,13 @@
 /* The desk, and a column that never grows past a comfortable measure. The
  * shell is deliberately not §3's grid: that shell is the sign-in door, with a
  * cloth panel and a "PRIVATE / 01" stamp, and this screen is behind the door. */
+/* `min-height: 100%`, not `100vh`: Phase 4 Task 3 put `AdminShell` around this
+ * pane, so it now sits inside the shell's scrolling content area, under a 96px
+ * header. A viewport height in there is a viewport height PLUS the header, and
+ * the page scrolls for no reason. */
 .panel {
   display: flex;
-  min-height: 100vh;
+  min-height: 100%;
   align-items: center;
   justify-content: center;
   padding: 24px;
