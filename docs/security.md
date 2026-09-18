@@ -1530,32 +1530,31 @@ this document and in `docs/api.md`, and refuses the old claim's own words in eit
 document. An absolute claim about the codebase in a document is one `git grep` away from
 being a test; this one is that test.
 
-**2 · `journeys` and `pages` declare no `access` block at all.** They inherit
-Payload's "signed in, or refused" default. That is the same shape Ruling F37 called a
-cross-account leak on `sessions` — there, "signed in" meant "any account", which on a
-single-author diary means one account, so nothing is presently reachable that should not
-be. Two things keep it from being exploitable today rather than one: the deployment has a
-single account, and after `apps/web/collections/sealedUserAuth.ts` **no caller can be
-signed in on `/api/**` at all**. Neither is a rule. Phase 4 adds the second author or the
-first server action, and then the rule has to exist. `journeys` and `pages` in particular
-are read by the public diary through the Local API, so an explicit block on them changes
-nothing about the diary and everything about `/api/journeys` — which is why it belongs in
-the phase that also decides §1 above, in one pass, with tests, rather than as a change
-made here for tidiness.
+**2 · `journeys`, `pages` and `users` declared no `access` block at all — CLOSED by Phase 4
+Task 1, and this paragraph is kept with its discharge rather than deleted, because what it
+got wrong is the part worth keeping.** They inherited Payload's "signed in, or refused"
+default. This paragraph argued that nothing presently reachable should not be, on two
+grounds: the deployment has a single account, and after
+`apps/web/collections/sealedUserAuth.ts` **no caller can be signed in on `/api/**` at
+all**. Both are true of `journeys` and `pages`. **Neither covered `users`, and the second
+was offered as though it did.** That module seals seven endpoints, all `POST` and all
+credential-bearing; `PATCH /api/users/<id>` is an ordinary collection CRUD route and was
+never in its scope. Measured cross-account against a real Payload before the block
+existed: account A turned off account B's `otpRequired`, which this document calls the
+only source of truth for the code step. A single-account deployment was the only thing
+standing in front of it.
 
-**`users` WAS the third name in that sentence, and the sentence understated it.** It is
-closed, by Phase 4 Task 1: `apps/web/collections/users.ts` now carries `ownAccountOnly` on
-`read` and `update` and `() => false` on `create` and `delete`. The claim above that
-nothing presently reachable should not be was true only of a single-account deployment,
-and that paragraph offered `sealedUserAuth.ts` as the second thing keeping it
-unexploitable.
-That module seals **seven `POST` auth endpoints**; `PATCH /api/users/<id>` is an ordinary
-CRUD route and was never in its scope. Measured cross-account against a real Payload
-before the block existed: account A turned off account B's `otpRequired`, which this
-document calls the only source of truth for the code step. See `docs/deviations.md` §52.
+What now exists: `users` carries `ownAccountOnly` on `read` and `update` and `() => false`
+on `create` and `delete`; `journeys`, `pages`, `media`'s three write operations and the
+`book`, `site` and `about` globals carry their rules written out, behaviour-identical to
+the default they replace, so Phase 4 Task 2 can make `overrideAccess: false` load-bearing
+against rules this repository decided. A sweep over the **sanitised** config refuses any
+collection or global of ours left on the function Payload fills a missing rule in with —
+which is the case that found `media`'s three, and which is why the set is enumerated by
+the test rather than by this paragraph. See `docs/deviations.md` §52.
 
 Both were named by Phase 2's final whole-branch review (finding 12 and section F-3) and by
-Ruling F42, whose stated cost — "no per-field sweep" — understated them: it is no block,
+Ruling F42, whose stated cost — "no per-field sweep" — understated them: it was no block,
 not an unrefined one.
 
 ## The one cookie the admin sets

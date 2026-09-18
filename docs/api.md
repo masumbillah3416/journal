@@ -72,11 +72,24 @@ Phase 4 Task 1 added a sixth, so the count is deleted rather than corrected a th
   `{ hidden: { not_equals: true } }` rather than a refusal, so unhidden media is
   **served, not refused** — including through `/api/media/file/<name>`. That is
   deliberate and is what the public diary depends on (`docs/security.md`'s
-  "A hidden media item stays hidden from a signed-out reader" row).
+  "A hidden media item stays hidden from a signed-out reader" row). Its `create`,
+  `update` and `delete` are **signed in, or refused**, written out in Phase 4 Task 1
+  rather than inherited.
+- `journeys` and `pages` are **signed in, or refused** on all four operations, and the
+  `book`, `site` and `about` globals on the two a global has. Added by Phase 4 Task 1,
+  behaviour-identical to the default they replace: the public diary reads these rows
+  through the Local API, which bypasses access control, so nothing public depends on
+  them over HTTP and widening them would be exposure nobody asked for
+  (`docs/deviations.md` §52).
 
-Every other collection and global inherits Payload's default access,
-`({ req: { user } }) => Boolean(user)` — **signed in, or refused**. Phase 4 tightens the
-remainder per `docs/security.md`.
+**Nothing of this repository's is left on Payload's default access**,
+`({ req: { user } }) => Boolean(user)`. That is a claim a test makes rather than a claim
+this document makes: Payload's sanitiser FILLS every missing operation with that one
+function object, so `adminAccess.integration.test.ts` takes a live reference to it from
+`payload-migrations` — a collection Payload owns and gives no rule — and refuses any
+collection or global of ours whose `read`, `create`, `update` or `delete` still points at
+it. `unlock` is deliberately outside that sweep: Payload fills it everywhere but routes it
+only on an auth collection, and `users`'s `POST /api/users/unlock` is sealed.
 
 **Nothing can be signed in through these routes any more.** `users` carries an `auth`
 block, so Payload mounted a set of credential endpoints on it — `POST /api/users/login`

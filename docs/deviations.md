@@ -2369,7 +2369,49 @@ the config, so the sweep in `adminAccess.integration.test.ts` — which enumerat
 **What would reverse this:** a `DATA_MODEL.md` revision that states an access rule for
 `users`. None exists.
 
+### The other five objects, and the `media` operations the sweep found
+
+`journeys`, `pages` and the `book`, `site` and `about` globals inherited the same default
+and now declare it themselves — **signed in, or refused**, on all four operations for the
+two collections and on the two a global has. **There is no present exploit here and the
+entry does not claim one**: the deployment has a single account, and after
+`sealedUserAuth.ts` no caller can be signed in on `/api/**` at all, so the behaviour is
+identical to the default it replaces. Three things make writing it out worth a commit
+anyway: Phase 4 Task 2 turns these from an unexercised default into the rule that runs on
+every admin screen; a dependency's default is not this repository's decision, and a
+Payload release that changed it would change ours silently; and the public diary reads
+these rows through the Local API, which bypasses access control, so nothing public depends
+on them being readable over HTTP and widening them would be exposure nobody asked for.
+
+**`media`'s `create`, `update` and `delete` are in this entry, and they were not in the
+task's file list.** `apps/web/collections/media.ts` declared `read` only, with a comment
+saying the other three "keep Payload's default ('a logged-in user'), which is what the
+admin runs as" — a true sentence about a rule nobody here had decided. The sanitised-config
+sweep named all three the first time it ran. They are written out rather than excluded from
+the sweep, because a sweep that lists its exceptions passes the exception nobody listed
+(`CLAUDE.md` §0, and `eslint-rules/guarded-server-actions.js` as the worked example).
+`media.read` is untouched: it is the one genuinely different rule in this schema, handing a
+signed-out caller a `Where` rather than a refusal so the public diary is served.
+
+**THE SWEEP CANNOT BE A CHECK THAT AN `access` KEY EXISTS, and that is measured.** Payload's
+sanitiser **fills every missing operation** with `defaultAccess`, so
+`Object.keys(collection.access)` reads the same five names on a collection with a block and
+on one without — a case shaped that way would have passed against the exact defect this
+entry records. What the sweep compares instead is function identity against a **live
+reference** to that filler, taken from `payload-migrations`: a collection Payload owns and
+gives no rule of its own, every slot of whose sanitised block holds that one shared object.
+Any collection or global of ours still pointing at it is named in the failure. `unlock` is
+deliberately outside the sweep — Payload fills it everywhere but routes it only on an auth
+collection, and `users`'s `POST /api/users/unlock` is sealed.
+
+**What would reverse the five:** a `DATA_MODEL.md` revision stating access rules for them,
+or a decision to serve `journeys`/`pages` publicly over `/api/**`. Neither exists.
+
 **Recorded as:** this entry; a `// HANDOFF-DEVIATION` at the access block in
-`apps/web/collections/users.ts`; five cases in
-`apps/web/collections/adminAccess.integration.test.ts`. Verified to fail when the block is
-removed: all five, with the failures pasted in the Phase 4 Task 1 report.
+`apps/web/collections/users.ts`, `journeys.ts`, `pages.ts` and the three files in
+`apps/web/globals/`, and a rewritten comment at `media.ts`'s block; thirteen cases in
+`apps/web/collections/adminAccess.integration.test.ts`. Every block is verified to fail a
+named case when removed or weakened — the `users` block all five of its cases, each of the
+other five objects exactly one, `media`'s `create` the sweep, and `Journeys`'s `create`,
+`update` and `delete` the author case — with the failures pasted in the Phase 4 Task 1
+report.

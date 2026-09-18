@@ -13,6 +13,22 @@ import type { CollectionConfig } from 'payload'
 /** A trip: its own pages, media, notes-page furniture and tally. */
 export const Journeys: CollectionConfig = {
   slug: 'journeys',
+  // HANDOFF-DEVIATION: DATA_MODEL.md prints no access block for this
+  // collection, so it inherited Payload's defaultAccess. Written out because
+  // Phase 4 Task 2 makes every admin read and write run with Payload's access
+  // control ON, which turns this from an unexercised default into the rule
+  // that runs on every screen — and because a dependency's default is not this
+  // repository's decision. It is the SAME behaviour as the default,
+  // deliberately: the diary reads these rows through the Local API, which
+  // bypasses access control, so nothing public depends on them being readable
+  // over HTTP and widening them would be exposure nobody asked for.
+  // See docs/deviations.md §52.
+  access: {
+    read: ({ req: { user } }) => Boolean(user),
+    create: ({ req: { user } }) => Boolean(user),
+    update: ({ req: { user } }) => Boolean(user),
+    delete: ({ req: { user } }) => Boolean(user),
+  },
   versions: { drafts: true }, // the Publish screen's editions + restore
   fields: [
     { name: 'name', type: 'text', required: true },

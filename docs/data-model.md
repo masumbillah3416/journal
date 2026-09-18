@@ -51,6 +51,16 @@ Media screen shows). `processing` is a first-class UI state rather than a missin
 one, and every step of the `beforeChange` pipeline below can fail on a row that already
 exists.
 
+`create`, `update` and `delete` are **signed in, or refused**, written out in Phase 4
+Task 1 rather than left inherited — no behaviour change, and the reason is the one under
+`journeys` below. They had been described in that collection's own comment as
+deliberately keeping Payload's default, which was true and was still a rule nobody here
+had decided; the sanitised-config sweep in
+`apps/web/collections/adminAccess.integration.test.ts` named all three the first time it
+ran. `read` is unchanged and is the one genuinely different rule in this schema: a
+signed-out caller gets a `Where`, not a refusal, so unhidden and `ready` media is served
+to the public diary.
+
 The pipeline the handoff describes runs, in the order it gives — sniff the real mime type
 from magic bytes (never the extension); reject SVG outright; read EXIF into `capturedAt`
 then strip all EXIF; re-encode stills via `sharp`; compute `contentHash` and flag a
@@ -91,6 +101,14 @@ its sortable partner `startsOn`, `order` (indexed), `hiddenFromBookmarks`, `arch
 for 3–4), `note`, and `tally` (array, exactly 4 rows, `value` deliberately typed as
 **text** — journeys use values like "plenty" and "uncounted", not just numbers).
 
+Access is **signed in, or refused**, written out on all four operations rather than left
+to Payload's default. That is the same behaviour the default gave, deliberately: the
+public diary reads these rows through the Local API, which bypasses access control, so
+nothing public depends on them being readable over HTTP and widening them would be
+exposure nobody asked for. What changes is that the rule is this repository's, and that
+Phase 4 Task 2 makes it load-bearing by passing `overrideAccess: false` on every admin
+read and write. See `docs/deviations.md` §52.
+
 ### `pages`
 
 Pages are rows, not a fixed triple of Cover/Notes/Frames — the admin can add, duplicate,
@@ -124,6 +142,14 @@ is why.** The `about` global holds a bare `upload` with no slot on it, so there 
 nothing for a slot to override: `media.focalPoint` IS the portrait's focal point, and
 `readBookBundle` reads `media.focalX/focalY` for that one photograph. The seed writes
 it onto the media row rather than onto a `pages` slot for the same reason.
+
+Access is **signed in, or refused**, written out on all four operations rather than left
+to Payload's default. That is the same behaviour the default gave, deliberately: the
+public diary reads these rows through the Local API, which bypasses access control, so
+nothing public depends on them being readable over HTTP and widening them would be
+exposure nobody asked for. What changes is that the rule is this repository's, and that
+Phase 4 Task 2 makes it load-bearing by passing `overrideAccess: false` on every admin
+read and write. See `docs/deviations.md` §52.
 
 ### `users`
 
@@ -328,6 +354,11 @@ attempt, so the table stays bounded without a scheduler.
   `kit` (array of text), `replyTo`.
 - **`site`** — `name`, `domain`, `description`, `replyTo`, `analyticsId`,
   `allowDownloads`, `allowShare`, `indexGalleries`, `passwordProtect`, `touchPageTurn`.
+
+All three carry the same access block — `read` and `update` are **signed in, or refused**,
+written out rather than inherited, and a global has no `create` or `delete` to write. The
+behaviour is identical to the default they replace; see `docs/deviations.md` §52 and the
+paragraph under `journeys` above for why writing it out is the point.
 
 ## Branded identifiers
 

@@ -89,9 +89,15 @@ const journeyIdOf = (journey: PayloadMedia['journey']): number | null =>
 export const Media: CollectionConfig = {
   slug: 'media',
   access: {
-    // Read only. Create, update and delete keep Payload's default ("a logged-in
-    // user"), which is what the admin runs as - a public diary must be able to
-    // SHOW a photograph, never to add or change one.
+    // Create, update and delete are WRITTEN OUT below rather than left to
+    // Payload's default. This comment used to say they "keep Payload's default
+    // ('a logged-in user'), which is what the admin runs as" — a true sentence
+    // about a rule nobody here had decided, and the sanitised-config sweep in
+    // `adminAccess.integration.test.ts` named all three the first time it ran
+    // (Phase 4 Task 1). The behaviour is identical on purpose; what changes is
+    // that the three predicates are now this repository's, and a future
+    // Payload whose default differs cannot alter them silently. A public diary
+    // must be able to SHOW a photograph, never to add or change one.
     read: ({ req: { user } }) =>
       // An editor sees everything, including what they have hidden, so the
       // admin's own Media screen is not lying to them about what exists.
@@ -146,6 +152,9 @@ export const Media: CollectionConfig = {
               { or: [{ state: { equals: 'ready' } }, { state: { exists: false } }] },
             ],
           },
+    create: ({ req: { user } }) => Boolean(user),
+    update: ({ req: { user } }) => Boolean(user),
+    delete: ({ req: { user } }) => Boolean(user),
   },
   upload: {
     staticDir: MEDIA_DIR,
