@@ -94,6 +94,15 @@ const SQUARE_BY_DESIGN: readonly { readonly file: string; readonly declaration: 
     file: 'apps/web/lib/readGalleryBundle.ts',
     declaration: /const TILE_TIERS: readonly DerivativeTier\[\] = \[([^\]]*)\]/,
   },
+  // The journeys table's 44px cover square (SCREENS.md §2.2), drawn at
+  // `background-size: cover` and rotated -1.5deg. It names one rung rather
+  // than a ladder, and `thumb` is the only rung small enough for a 44px cell —
+  // a list row that reached for an uncropped tier would put the whole media
+  // library on the wire for ten thumbnails (CLAUDE.md §6).
+  {
+    file: 'apps/web/lib/admin/readJourneysScreen.ts',
+    declaration: /const thumb = row\.sizes\?\.thumb\?\.url/,
+  },
 ]
 
 /**

@@ -2509,3 +2509,33 @@ from.
 `packages/domain/src/admin/navigation.test.ts`, which assert the table's properties rather
 than its strings — no case here spells a sub-label, so this copy is reviewed here and
 nowhere else.
+
+## 54 · The journeys table's `Edited` cell prints a date, where the design prints a relative time
+
+**What changed:** `apps/web/lib/admin/readJourneysScreen.ts` formats each row's `editedAt`
+as a date — "2 May 2025" — using `Intl.DateTimeFormat('en-GB', …)`. `Travel Diary
+Admin.dc.html`'s journey rows carry relative strings instead: `edited: '2 months ago'`,
+and `'just now'` for a journey the mock has only created.
+
+**Rationale:** a relative string is a function of TWO instants, and this screen only has
+one of them. `/admin/journeys` is a Server Component rendered once per request and never
+re-rendered — the shell it hangs in ships no client JavaScript at all, which is the whole
+of the CLAUDE.md §6 headroom argument the twelve screens inherit — so "2 months ago" would
+be true at the moment the response was written and quietly wrong for as long as the tab
+stayed open. Making it true would mean either a client component ticking a clock, which
+buys exactly the JavaScript the shell exists to avoid, or an injected clock parameter on a
+repository whose signature the phase fixed. The date needs neither: it is a pure function
+of the timestamp Postgres already holds, so it is the same string on every render and
+`readJourneysScreen.integration.test.ts` can assert it.
+
+**`en-GB`, not the reader's locale:** the diary's own dates are written that way
+throughout — the `journeys` collection's own `dates` field is free text in the shape
+"12 – 24 March 2025" — and a cell whose format depended on the machine rendering it would
+make the visual baseline a test of the CI container's locale.
+
+**What would reverse it:** the Journeys screen gaining a client island for another reason,
+at which point the relative string is that island's to draw and costs nothing new; or a
+`SCREENS.md` revision that specifies the format rather than showing one instance of it.
+
+**Recorded as:** this entry, and a `HANDOFF-DEVIATION` note on `EDITED_FORMAT` in
+`apps/web/lib/admin/readJourneysScreen.ts`.

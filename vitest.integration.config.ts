@@ -193,6 +193,10 @@ export default defineConfig({
         // `vitest.config.ts`'s exclude: four `payload.count` calls, nothing to
         // execute without a database.
         'apps/web/lib/admin/readNavCounts.ts',
+        // Phase 4 Task 4's journeys screen rows, here for the reason stated in
+        // `vitest.config.ts`'s exclude: four grouped queries, nothing to
+        // execute without a database.
+        'apps/web/lib/admin/readJourneysScreen.ts',
         // Phase 4 Task 3's minting script, here for the reason stated in
         // `vitest.config.ts`'s exclude: it writes a `users` row and a
         // `sessions` row, so nothing without a database can execute it.
@@ -476,6 +480,15 @@ export default defineConfig({
         // `readNavCounts.integration.test.ts` drives each of the four filters
         // and the cost of all four together.
         'apps/web/lib/admin/readNavCounts.ts': { lines: 100, branches: 100, functions: 100 },
+        // readJourneysScreen.ts (Phase 4 Task 4): MEASURED, and the branch
+        // number is 96 rather than 100 for exactly ONE arm - `ownerOf`'s
+        // refusal of a relationship value that is not a bare id. Every read in
+        // that module is `depth: 0`, so Payload hands it the id and the arm is
+        // unreachable today; it is written rather than cast because a `depth`
+        // raised by a later task would otherwise tally rows against `NaN`
+        // instead of dropping them. Not a §46 entry: §46 registers the gates
+        // BELOW CLAUDE.md §2.1's 95%, and this is above it.
+        'apps/web/lib/admin/readJourneysScreen.ts': { lines: 100, branches: 96, functions: 100 },
         // mint-lighthouse-session.ts (Phase 4 Task 3): 100% on every axis. Its
         // two branches are the account that already exists and the account that
         // does not, and `mint-lighthouse-session.integration.test.ts` drives

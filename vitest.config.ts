@@ -507,6 +507,14 @@ export default defineConfig({
         // its neighbour above and is gated at 100/100/100 by
         // vitest.integration.config.ts.
         'apps/web/lib/admin/readNavCounts.ts',
+        // readJourneysScreen.ts (Phase 4 Task 4) is four grouped queries over a
+        // real Postgres — including one over the VERSIONS table, whose whole
+        // point is a fact no main row records — and its subject is what those
+        // queries return and what they cost. There is nothing in it a
+        // Docker-free pass could execute, so it gets the same
+        // exclude-and-regate treatment as its two neighbours above and is gated
+        // by vitest.integration.config.ts.
+        'apps/web/lib/admin/readJourneysScreen.ts',
         // `mint-lighthouse-session.ts` (Phase 4 Task 3) creates an account and
         // issues a session through this repository's own session service, both
         // of which are rows in a real Postgres, so its only test is an
