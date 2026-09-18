@@ -515,6 +515,12 @@ export default defineConfig({
         // exclude-and-regate treatment as its two neighbours above and is gated
         // by vitest.integration.config.ts.
         'apps/web/lib/admin/readJourneysScreen.ts',
+        // journeyMutations.ts (Phase 4 Task 4) is the four writes behind the
+        // Journeys screen's row actions — a create with three pages, a copy, a
+        // toggle and a soft delete — each of which is a fact about Postgres and
+        // about Payload's draft handling. Same exclude-and-regate treatment as
+        // its two neighbours above.
+        'apps/web/lib/admin/journeyMutations.ts',
         // `mint-lighthouse-session.ts` (Phase 4 Task 3) creates an account and
         // issues a session through this repository's own session service, both
         // of which are rows in a real Postgres, so its only test is an

@@ -1,0 +1,422 @@
+/**
+ * journeyMutations.integration.test.ts — what the Journeys screen's four
+ * actions actually do to the database.
+ *
+ * Integration test (CLAUDE.md §2): every property here is Payload's or
+ * Postgres's. Whether a create lands as a draft, whether a unique index refuses
+ * a second "Kyoto", whether a copied page keeps its slots, and — the one that
+ * matters most — whether a soft delete leaves the row where the trash screen
+ * can find it, are all answers a stub would give by agreeing with itself.
+ *
+ * THE SOFT DELETE IS ASSERTED FROM BOTH SIDES, because only one of them is the
+ * point. A `payload.delete` would satisfy "the list no longer shows it" — which
+ * is why the case below reads the ROW back afterwards and requires it to be
+ * there with a `deletedAt` on it.
+ *
+ * Uses `getTestPayload()` rather than `getPayload()`, like every integration
+ * file here, so these rows land in the isolated `diary_test` database.
+ *
+ * Depends on: vitest, payload (types), @travel-diary/domain/ids, ../testPayload,
+ * ./adminScope, ./journeyMutations, ./readJourneysScreen.
+ */
+import { userId, type UserId } from '@travel-diary/domain/ids'
+import type { Payload } from 'payload'
+import sharp from 'sharp'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { getTestPayload } from '../testPayload'
+import { adminScope, type AdminScope } from './adminScope'
+import {
+  createJourneyRow,
+  duplicateJourneyRow,
+  NEW_JOURNEY_PAGES,
+  readJourneyRef,
+  readNewJourney,
+  softDeleteJourney,
+  toggleJourneyArchived,
+} from './journeyMutations'
+import { readJourneysScreen } from './readJourneysScreen'
+
+/** What every row this file writes carries, so cleanup can find them all. */
+const MARKER = 'test-journey-mutations'
+
+/** A password that is not one: this account is never signed in to. */
+const NOT_A_PASSWORD = 'not-a-real-password'
+
+let payload: Payload
+let scope: AdminScope
+
+/**
+ * Rows whose NAME cannot carry {@link MARKER}, so `clean` cannot find them.
+ *
+ * One case needs a journey whose name holds no letter or digit at all — the
+ * only input `slugStem` answers with the empty string — so it cannot also hold
+ * the marker. Its id is remembered here instead.
+ */
+const strays: number[] = []
+
+/**
+ * A branded account id for a row id.
+ * @param raw - The id as a session would spell it.
+ * @returns The branded id.
+ */
+const anAccount = (raw: string): UserId => {
+  const built = userId(raw)
+  if (!built.ok) throw new Error(built.error)
+  return built.value
+}
+
+/**
+ * The `FormData` a browser would send from the create panel.
+ *
+ * FORM DATA, NOT AN OBJECT LITERAL, and that is the point rather than
+ * incidental: the only thing that ever calls `readNewJourney` is a
+ * `<form action={createJourney}>`, so an object fixture would be a shape no
+ * client produces — and the parse it exercises would not be the one that runs.
+ * @param fields - What the three inputs hold.
+ * @returns The form body.
+ */
+const aForm = (fields: Readonly<Record<string, string>>): FormData => {
+  const form = new FormData()
+  for (const [name, value] of Object.entries(fields)) form.append(name, value)
+  return form
+}
+
+/** Removes every row this file has ever written. */
+const clean = async (): Promise<void> => {
+  await payload.delete({ collection: 'media', where: { alt: { like: MARKER } } })
+  const journeys = await payload.find({
+    collection: 'journeys',
+    where: { name: { like: MARKER } },
+    pagination: false,
+    depth: 0,
+  })
+  for (const journey of journeys.docs) {
+    await payload.delete({ collection: 'pages', where: { journey: { equals: journey.id } } })
+  }
+  await payload.delete({ collection: 'journeys', where: { name: { like: MARKER } } })
+  await payload.delete({ collection: 'users', where: { email: { like: MARKER } } })
+}
+
+beforeAll(async () => {
+  payload = await getTestPayload()
+  await clean()
+  const account = await payload.create({
+    collection: 'users',
+    data: { email: `${MARKER}@example.test`, password: NOT_A_PASSWORD },
+  })
+  scope = await adminScope({ user: anAccount(String(account.id)) })
+}, 120_000)
+
+afterAll(async () => {
+  for (const id of strays) {
+    await payload.delete({ collection: 'pages', where: { journey: { equals: id } } })
+    await payload.delete({ collection: 'journeys', id })
+  }
+  await clean()
+})
+
+describe('readNewJourney', () => {
+  it('reads the three fields the panel sends', () => {
+    expect(readNewJourney(aForm({ name: ' Kyoto ', place: 'Japan', dates: '28 Oct – 6 Nov 2026' }))).toEqual({
+      name: 'Kyoto',
+      place: 'Japan',
+      dates: '28 Oct – 6 Nov 2026',
+    })
+  })
+
+  it('refuses a field that is only whitespace, which `required` in the browser never sees', () => {
+    // A Server Action is a POST endpoint anybody with the action id can reach
+    // (`guard.ts`'s header), so the input is untrusted even though the guard
+    // admitted the caller. `required` on the input is a convenience, not this.
+    expect(() => readNewJourney(aForm({ name: '   ', place: 'Japan', dates: 'one day' }))).toThrow()
+  })
+
+  it('refuses a body missing a field outright, rather than creating half a journey', () => {
+    expect(() => readNewJourney(aForm({ name: 'Kyoto', place: 'Japan' }))).toThrow()
+  })
+})
+
+describe('readJourneyRef', () => {
+  it('reads the row id the strip’s hidden field carries', () => {
+    expect(readJourneyRef(aForm({ journey: '42' }))).toBe(42)
+  })
+
+  it('refuses anything that is not a row id, so nothing reaches the driver as NaN', () => {
+    expect(() => readJourneyRef(aForm({ journey: 'nonsense' }))).toThrow()
+    expect(() => readJourneyRef(aForm({ journey: '0' }))).toThrow()
+    expect(() => readJourneyRef(aForm({ journey: '-3' }))).toThrow()
+    expect(() => readJourneyRef(aForm({ journey: '1.5' }))).toThrow()
+  })
+})
+
+describe('createJourneyRow', () => {
+  it('creates the journey as a draft, which is what the panel’s own line promises', async () => {
+    const id = await createJourneyRow(payload, scope, { name: `${MARKER} Kyoto`, place: 'Japan', dates: 'one week' })
+
+    const row = await payload.findByID({ collection: 'journeys', id, ...scope, depth: 0 })
+    expect(row._status).toBe('draft')
+    expect(row.archived).toBe(false)
+    expect((await readJourneysScreen(payload, scope, { search: `${MARKER} Kyoto`, filter: 'all' }))[0]?.status).toBe(
+      'draft',
+    )
+  })
+
+  it('creates the three pages the panel says it creates, in the order the editor opens them', async () => {
+    // The panel prints "three pages are created — notes, then two of frames".
+    // This is that sentence, asked of the database.
+    const id = await createJourneyRow(payload, scope, { name: `${MARKER} Lisbon`, place: 'Portugal', dates: 'a week' })
+
+    const pages = await payload.find({
+      collection: 'pages',
+      ...scope,
+      depth: 0,
+      pagination: false,
+      sort: 'order',
+      where: { journey: { equals: id } },
+    })
+
+    expect(pages.docs.map((page) => [page.title, page.kind])).toEqual(
+      NEW_JOURNEY_PAGES.map((page) => [page.title, page.kind]),
+    )
+    expect(pages.docs.map((page) => page.kind)).toEqual(['notes', 'frames', 'frames'])
+  })
+
+  it('gives a journey whose name has no letters or digits a slug of its own', async () => {
+    // `slugStem` answers the empty string for a name of pure punctuation, and
+    // an empty slug would make every such journey collide with every other —
+    // on a column the collection declares `unique`. The name cannot carry the
+    // marker (that would give it letters), so the row is cleaned up by id.
+    const first = await createJourneyRow(payload, scope, { name: '———', place: 'Nowhere', dates: 'a day' })
+    strays.push(first)
+    const second = await createJourneyRow(payload, scope, { name: '!!!', place: 'Nowhere', dates: 'a day' })
+    strays.push(second)
+
+    const slugs = await Promise.all(
+      [first, second].map(
+        async (id) => (await payload.findByID({ collection: 'journeys', id, ...scope, depth: 0 })).slug,
+      ),
+    )
+    expect(slugs.every((slug) => slug !== '')).toBe(true)
+    expect(new Set(slugs).size).toBe(2)
+  })
+
+  it('does not collide with a journey that already has that name, which the unique index would refuse', async () => {
+    const first = await createJourneyRow(payload, scope, { name: `${MARKER} Same`, place: 'Spain', dates: 'a day' })
+    const second = await createJourneyRow(payload, scope, { name: `${MARKER} Same`, place: 'Spain', dates: 'a day' })
+
+    const slugs = await Promise.all(
+      [first, second].map(
+        async (id) => (await payload.findByID({ collection: 'journeys', id, ...scope, depth: 0 })).slug,
+      ),
+    )
+    expect(new Set(slugs).size).toBe(2)
+  })
+})
+
+describe('duplicateJourneyRow', () => {
+  it('copies the journey and its pages, always as drafts and never under the same slug', async () => {
+    const source = await createJourneyRow(payload, scope, {
+      name: `${MARKER} Bergen`,
+      place: 'Norway',
+      dates: '3 – 9 June 2025',
+    })
+    await payload.update({ collection: 'journeys', id: source, ...scope, data: { _status: 'published' } })
+    // The SOURCE's pages are published too, which is what makes the assertion
+    // about the copies' `_status` below load-bearing: a page created with no
+    // `draft` flag takes the field's own `draft` default, so copying an
+    // already-draft page proves nothing about the flag.
+    await payload.update({
+      collection: 'pages',
+      ...scope,
+      where: { journey: { equals: source } },
+      data: { _status: 'published' },
+    })
+
+    const copy = await duplicateJourneyRow(payload, scope, source)
+
+    const [original, duplicated] = await Promise.all(
+      [source, copy].map((id) => payload.findByID({ collection: 'journeys', id, ...scope, depth: 0 })),
+    )
+    const pages = await payload.find({
+      collection: 'pages',
+      ...scope,
+      depth: 0,
+      pagination: false,
+      where: { journey: { equals: copy } },
+    })
+
+    expect(copy).not.toBe(source)
+    expect(duplicated?.name).toBe(`${original?.name ?? ''} (copy)`)
+    expect(duplicated?.place).toBe('Norway')
+    expect(duplicated?.slug).not.toBe(original?.slug)
+    // The copy is a draft even though the source was published — a duplicate
+    // that went out the moment it was made would publish an unedited copy of
+    // somebody's journey.
+    expect(duplicated?._status).toBe('draft')
+    expect(pages.docs).toHaveLength(NEW_JOURNEY_PAGES.length)
+    expect(pages.docs.every((page) => page._status === 'draft')).toBe(true)
+  })
+
+  it('carries each page’s slots over, with row ids of their own rather than the source’s', async () => {
+    // THE SLOTS ARE THE PAGE. A copy that dropped them would leave the author
+    // three empty spreads that look like a journey until they open one — and a
+    // copy that carried the SOURCE's array row ids over would ask Payload to
+    // create rows that already exist.
+    const source = await createJourneyRow(payload, scope, { name: `${MARKER} Slots`, place: 'Japan', dates: 'a week' })
+    const pages = await payload.find({
+      collection: 'pages',
+      ...scope,
+      depth: 0,
+      pagination: false,
+      sort: 'order',
+      where: { journey: { equals: source } },
+    })
+    const frames = pages.docs[1]
+    if (frames === undefined) throw new Error('the fixture journey has no second page')
+    const png = await sharp({ create: { width: 60, height: 60, channels: 3, background: { r: 9, g: 9, b: 9 } } })
+      .png()
+      .toBuffer()
+    const photograph = (
+      await payload.create({
+        collection: 'media',
+        ...scope,
+        data: { journey: source, alt: `${MARKER} still`, state: 'ready' },
+        file: { data: png, mimetype: 'image/png', name: `${MARKER}-slot.png`, size: png.length },
+      })
+    ).id
+    await payload.update({
+      collection: 'pages',
+      id: frames.id,
+      ...scope,
+      data: {
+        // One slot with every field set and one with none of them: both arms of
+        // every fallback in the copy, from a shape the editor really produces
+        // (a slot is added before a photograph is dropped into it).
+        slots: [
+          { role: 'hero', media: photograph, caption: 'Rain on the fjord', alt: 'A wet wharf', focalX: 30, focalY: 70 },
+          {},
+        ],
+      },
+    })
+    // A page with neither title nor layout, which is what an editor that adds a
+    // page before naming it leaves behind.
+    await payload.create({
+      collection: 'pages',
+      ...scope,
+      data: { journey: source, kind: 'frames', order: 9 },
+    })
+
+    const copy = await duplicateJourneyRow(payload, scope, source)
+
+    const copied = await payload.find({
+      collection: 'pages',
+      ...scope,
+      depth: 0,
+      pagination: false,
+      sort: 'order',
+      where: { journey: { equals: copy } },
+    })
+    const copiedFrames = copied.docs[1]
+    expect(
+      copiedFrames?.slots?.map((slot) => [slot.role, slot.media, slot.caption, slot.alt, slot.focalX, slot.focalY]),
+    ).toEqual([
+      ['hero', photograph, 'Rain on the fjord', 'A wet wharf', 30, 70],
+      [null, null, null, null, 50, 50],
+    ])
+    expect(copiedFrames?.slots?.every((slot) => !frames.slots?.some((original) => original.id === slot.id))).toBe(true)
+    expect(copied.docs).toHaveLength(NEW_JOURNEY_PAGES.length + 1)
+  })
+
+  it('carries the journey’s own furniture over, so a copy is not a blank page', async () => {
+    const source = await createJourneyRow(payload, scope, { name: `${MARKER} Full`, place: 'Iceland', dates: 'a week' })
+    await payload.update({
+      collection: 'journeys',
+      id: source,
+      ...scope,
+      data: {
+        startsOn: '2025-05-02T00:00:00.000Z',
+        weather: 'CLEAR 14C',
+        mood: 'WIDE EYED',
+        weatherGlyph: 'haze',
+        note: 'The heat organises the day for you.',
+        highlights: [{ text: 'Orange trees everywhere' }],
+        // The fourth entry is EMPTY on purpose: `tally` is `minRows: 4`, and a
+        // journey the author has not finished counting leaves a row blank.
+        tally: [
+          { key: 'Days', value: '7' },
+          { key: 'Kilometres walked', value: '48' },
+          { key: 'Rolls shot', value: '3' },
+          {},
+        ],
+      },
+    })
+
+    const copy = await duplicateJourneyRow(payload, scope, source)
+
+    const copied = await payload.findByID({ collection: 'journeys', id: copy, ...scope, depth: 0 })
+    expect([copied.weather, copied.mood, copied.weatherGlyph, copied.note]).toEqual([
+      'CLEAR 14C',
+      'WIDE EYED',
+      'haze',
+      'The heat organises the day for you.',
+    ])
+    expect(copied.highlights?.map((highlight) => highlight.text)).toEqual(['Orange trees everywhere'])
+    expect(copied.tally?.map((entry) => [entry.key, entry.value])).toEqual([
+      ['Days', '7'],
+      ['Kilometres walked', '48'],
+      ['Rolls shot', '3'],
+      [null, null],
+    ])
+  })
+
+  it('leaves the source journey’s own pages where they were, rather than moving them', async () => {
+    const source = await createJourneyRow(payload, scope, { name: `${MARKER} Oslo`, place: 'Norway', dates: 'a week' })
+    const before = await payload.count({ collection: 'pages', ...scope, where: { journey: { equals: source } } })
+
+    await duplicateJourneyRow(payload, scope, source)
+
+    const after = await payload.count({ collection: 'pages', ...scope, where: { journey: { equals: source } } })
+    expect(after.totalDocs).toBe(before.totalDocs)
+  })
+})
+
+describe('toggleJourneyArchived', () => {
+  it('puts a journey on the shelf and takes it off again, which is what one button has to do', async () => {
+    const id = await createJourneyRow(payload, scope, { name: `${MARKER} Shelf`, place: 'Wales', dates: 'a day' })
+
+    await toggleJourneyArchived(payload, scope, id)
+    const shelved = await payload.findByID({ collection: 'journeys', id, ...scope, depth: 0 })
+
+    await toggleJourneyArchived(payload, scope, id)
+    const back = await payload.findByID({ collection: 'journeys', id, ...scope, depth: 0 })
+
+    expect(shelved.archived).toBe(true)
+    expect(back.archived).toBe(false)
+  })
+})
+
+describe('softDeleteJourney', () => {
+  it('soft-deletes a journey, leaving the row where the trash screen can find it', async () => {
+    const id = await createJourneyRow(payload, scope, { name: `${MARKER} Doomed`, place: 'Iceland', dates: 'a day' })
+
+    await softDeleteJourney(payload, scope, id)
+
+    // BOTH HALVES. A `payload.delete` would satisfy the second on its own, and
+    // the trash screen would have nothing to restore.
+    const row = await payload.findByID({ collection: 'journeys', id, ...scope, depth: 0 })
+    expect(row.deletedAt).not.toBeNull()
+    expect(row.deletedAt).not.toBeUndefined()
+    expect(
+      (await readJourneysScreen(payload, scope, { search: `${MARKER} Doomed`, filter: 'all' })).map((r) => r.name),
+    ).toEqual([])
+  })
+
+  it('leaves the journey’s pages alone, because the trash restores a journey whole', async () => {
+    const id = await createJourneyRow(payload, scope, { name: `${MARKER} Kept`, place: 'Iceland', dates: 'a day' })
+
+    await softDeleteJourney(payload, scope, id)
+
+    const pages = await payload.count({ collection: 'pages', ...scope, where: { journey: { equals: id } } })
+    expect(pages.totalDocs).toBe(NEW_JOURNEY_PAGES.length)
+  })
+})

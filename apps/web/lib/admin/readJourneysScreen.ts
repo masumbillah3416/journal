@@ -62,7 +62,7 @@
  * (@travel-diary/domain/admin/journeyStatus), `JourneyId`/`journeyId`
  * (@travel-diary/domain/ids), `AdminScope` (./adminScope).
  */
-import { journeyStatus, type JourneyStatus } from '@travel-diary/domain/admin/journeyStatus'
+import { JOURNEY_STATUS_FILTERS, journeyStatus, type JourneyStatus } from '@travel-diary/domain/admin/journeyStatus'
 import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
 import type { Payload } from 'payload'
 import type { AdminScope } from './adminScope'
@@ -95,6 +95,41 @@ export interface JourneysQuery {
   readonly search: string
   /** Which of SCREENS.md §2.2's five chips is pressed. */
   readonly filter: 'all' | JourneyStatus
+}
+
+/**
+ * What one Next.js `searchParams` entry can be.
+ *
+ * A repeated parameter arrives as an array, which is a shape a browser really
+ * does produce (`?q=a&q=b`, and a form posted twice) rather than a defensive
+ * guess.
+ */
+type SearchParam = string | readonly string[] | undefined
+
+/**
+ * The first value of a `searchParams` entry.
+ * @param value - What Next.js handed over.
+ * @returns The single value, or `undefined` when there is none.
+ */
+const firstOf = (value: SearchParam): string | undefined => (typeof value === 'string' ? value : value?.[0])
+
+/**
+ * The screen's query, read out of the address it was served at.
+ *
+ * REFUSES A FILTER NO CHIP OFFERS. `?filter=nonsense` is an address anybody can
+ * type; trusting it would draw an empty table under a chip row with nothing
+ * pressed, which reads as "there are no journeys". Falling back to `all` shows
+ * the list. It is an inversion rather than an enumeration of bad values: the
+ * value has to be one `JOURNEY_STATUS_FILTERS` names.
+ * @param params - Next.js's own `searchParams`, already awaited.
+ * @returns What to ask {@link readJourneysScreen} for.
+ * @example
+ * journeysQuery({ q: 'bergen', filter: 'edited' }) // { search: 'bergen', filter: 'edited' }
+ */
+export const journeysQuery = (params: Readonly<Record<string, SearchParam>>): JourneysQuery => {
+  const filter = firstOf(params['filter'])
+  const offered = JOURNEY_STATUS_FILTERS.find((chip) => chip === filter)
+  return { search: firstOf(params['q']) ?? '', filter: offered ?? 'all' }
 }
 
 /**

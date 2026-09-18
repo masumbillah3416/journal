@@ -36,7 +36,7 @@ import sharp from 'sharp'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { getTestPayload } from '../testPayload'
 import { adminScope } from './adminScope'
-import { readJourneysScreen } from './readJourneysScreen'
+import { journeysQuery, readJourneysScreen } from './readJourneysScreen'
 
 /** What every row this file writes carries, so cleanup can find them all. */
 const MARKER = 'test-journeys-screen'
@@ -413,5 +413,29 @@ describe('readJourneysScreen', () => {
     const calls = [...find.mock.calls, ...findVersions.mock.calls]
     expect(calls).toHaveLength(QUERIES_PER_READ)
     expect(calls.every(([options]) => options.user === scope.user)).toBe(true)
+  })
+})
+
+describe('journeysQuery', () => {
+  it('reads the search and the chip out of the address the screen was served at', () => {
+    expect(journeysQuery({ q: 'bergen', filter: 'edited' })).toEqual({ search: 'bergen', filter: 'edited' })
+  })
+
+  it('defaults to everything, so a bare address is the whole list', () => {
+    expect(journeysQuery({})).toEqual({ search: '', filter: 'all' })
+  })
+
+  it('refuses a filter no chip offers rather than selecting nothing', () => {
+    // `?filter=nonsense` is an address anybody can type. Falling back to `all`
+    // shows the list; trusting it would show an empty table under a chip row
+    // where nothing is pressed.
+    expect(journeysQuery({ filter: 'nonsense' })).toEqual({ search: '', filter: 'all' })
+  })
+
+  it('takes the first of a repeated parameter, because `?q=a&q=b` is one box', () => {
+    expect(journeysQuery({ q: ['bergen', 'oslo'], filter: ['draft', 'published'] })).toEqual({
+      search: 'bergen',
+      filter: 'draft',
+    })
   })
 })

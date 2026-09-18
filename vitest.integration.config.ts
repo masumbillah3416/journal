@@ -197,6 +197,10 @@ export default defineConfig({
         // `vitest.config.ts`'s exclude: four grouped queries, nothing to
         // execute without a database.
         'apps/web/lib/admin/readJourneysScreen.ts',
+        // Phase 4 Task 4's four row-action writes, here for the reason stated
+        // in `vitest.config.ts`'s exclude: nothing to execute without a
+        // database.
+        'apps/web/lib/admin/journeyMutations.ts',
         // Phase 4 Task 3's minting script, here for the reason stated in
         // `vitest.config.ts`'s exclude: it writes a `users` row and a
         // `sessions` row, so nothing without a database can execute it.
@@ -489,6 +493,14 @@ export default defineConfig({
         // instead of dropping them. Not a §46 entry: §46 registers the gates
         // BELOW CLAUDE.md §2.1's 95%, and this is above it.
         'apps/web/lib/admin/readJourneysScreen.ts': { lines: 100, branches: 96, functions: 100 },
+        // journeyMutations.ts (Phase 4 Task 4): MEASURED, and the branch number
+        // is 95 rather than 100 for exactly ONE arm — the `?? {}` behind a
+        // copied journey's `furniture`. Payload fills a group field with its
+        // own defaults, so the source always has one; the fallback is there
+        // because `exactOptionalPropertyTypes` refuses an explicit `undefined`
+        // and a group is not a shape `orNull` can express. Not a §46 entry: §46
+        // registers the gates BELOW CLAUDE.md §2.1's 95%, and this is at it.
+        'apps/web/lib/admin/journeyMutations.ts': { lines: 100, branches: 95, functions: 100 },
         // mint-lighthouse-session.ts (Phase 4 Task 3): 100% on every axis. Its
         // two branches are the account that already exists and the account that
         // does not, and `mint-lighthouse-session.integration.test.ts` drives

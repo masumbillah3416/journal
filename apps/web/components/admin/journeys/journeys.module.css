@@ -1,0 +1,578 @@
+/**
+ * journeys.module.css — SCREENS.md §2.2's Journeys screen: the controls row,
+ * the create panel and the table whose columns drop by priority.
+ *
+ * A CSS MODULE, NOT A RULE IN `admin.css`, for the reason `shell.module.css`
+ * and `panel.module.css` already give: `admin.css` is loaded by the route
+ * group's root layout, so every byte in it is a byte `/admin/sign-in` fetches
+ * before it can paint, and that route carries a Lighthouse LCP gate. A module
+ * is loaded only by the route that imports it.
+ *
+ * ═══ THE FOUR WIDTHS BELOW ARE THE DOMAIN'S, AND THAT IS EXECUTABLE ═══
+ *
+ * `packages/domain/src/admin/journeyColumns.ts` holds the four widths
+ * SCREENS.md §2.2's ladder gives. They are spelled again here because a media
+ * query is the only thing that can act on a viewport the server never saw, and
+ * a number spelled twice is this repository's most repeated defect.
+ *
+ * So both spellings are pinned to each other: `JourneyTable.test.tsx` reads
+ * every `min-width` out of this file and compares it against every width at
+ * which `visibleJourneyColumns` gains a column — derived by asking the
+ * function, not by listing them. A media query moved by a pixel fails a test
+ * rather than a screenshot.
+ *
+ * EVERY CELL IS RENDERED AT EVERY WIDTH and hidden here. The row is one grid,
+ * so a cell dropped from the DOM instead would slide every cell after it one
+ * track to the left — which is why the hiding is `display: none` on the cell
+ * and a matching track in `grid-template-columns`, changed together in each
+ * block below.
+ *
+ * THE TRACK ORDER IS THE DESIGN'S: thumb · name · dates · pages · media ·
+ * status · edited · actions, which is `jCols` in `Travel Diary Admin.dc.html`
+ * and `JOURNEY_COLUMNS`'s own order. It is NOT the order the columns appear in
+ * as the table widens.
+ *
+ * Depends on: packages/tokens/src/tokens.css, loaded by the admin layout.
+ */
+
+/* ── The screen ────────────────────────────────────────────────────────── */
+
+.screen {
+  display: flex;
+  max-width: 1320px;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Controls: search, five chips, New journey ─────────────────────────── */
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.searchForm {
+  display: flex;
+  flex: 1;
+  min-width: 220px;
+  gap: 8px;
+}
+
+.search {
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 2px;
+  background: var(--td-paper-mount);
+  box-shadow: inset 0 0 0 1px rgb(120 98 60 / 30%);
+  font-family: var(--td-font-garamond);
+  font-size: 16px;
+  color: var(--td-ink);
+}
+
+.search:focus-visible {
+  outline: 2px solid rgb(163 68 52 / 45%);
+  outline-offset: 1px;
+}
+
+/* Submits the search without JavaScript. Visually hidden rather than absent:
+ * a `GET` form with one text input submits on Enter, and a reader arriving by
+ * keyboard alone still needs something focusable that says what Enter does. */
+.searchSubmit {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.chips {
+  display: flex;
+  gap: 7px;
+}
+
+.chip {
+  padding: 8px 13px;
+  border: 1px solid rgb(120 98 60 / 30%);
+  border-radius: 2px;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.chipCurrent {
+  border-color: var(--td-accent);
+  background: rgb(163 68 52 / 9%);
+  color: var(--td-accent);
+}
+
+.newJourney {
+  flex: none;
+  padding: 10px 18px;
+  border: 1.5px solid var(--td-accent);
+  border-radius: 2px;
+  background: var(--td-accent);
+  color: var(--td-cream-alt);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.newJourney:hover {
+  border-color: var(--td-accent-hover);
+  background: var(--td-accent-hover);
+}
+
+/* ── The create panel ──────────────────────────────────────────────────── */
+
+.createPanel {
+  position: relative;
+  padding: 20px 22px 22px;
+  border-radius: 3px;
+  background: var(--td-paper-mount);
+  box-shadow:
+    0 0 0 1.5px rgb(163 68 52 / 32%),
+    0 14px 30px -22px rgb(60 44 20 / 55%);
+}
+
+/* The washi strip. Decorative, so it is `aria-hidden` in the markup. */
+.washi {
+  position: absolute;
+  top: -12px;
+  left: 40px;
+  width: 118px;
+  height: 26px;
+  background: repeating-linear-gradient(120deg, rgb(163 68 52 / 50%) 0 7px, rgb(163 68 52 / 25%) 7px 14px);
+  clip-path: polygon(0 9%, 5% 0, 100% 5%, 96% 98%, 4% 100%);
+  opacity: 0.72;
+  transform: rotate(-2deg);
+}
+
+.createHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  padding-bottom: 11px;
+  border-bottom: 1px solid rgb(120 98 60 / 22%);
+  margin-bottom: 15px;
+  gap: 12px;
+}
+
+.createTitle {
+  margin: 0;
+  font-family: var(--td-font-caveat);
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.15;
+  color: var(--td-ink);
+}
+
+.createNote {
+  font-family: var(--td-font-garamond);
+  font-size: 15.5px;
+  font-style: italic;
+  color: var(--td-ink-muted);
+}
+
+.createFields {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.fieldLabel {
+  display: block;
+  margin-bottom: 5px;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+.fieldInput {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 2px;
+  background: var(--td-paper-mount);
+  box-shadow: inset 0 0 0 1px rgb(120 98 60 / 30%);
+  font-family: var(--td-font-garamond);
+  font-size: 16px;
+  color: var(--td-ink);
+}
+
+/* The handwritten field: SCREENS.md §2's "handwritten fields use Caveat". */
+.fieldInputWritten {
+  padding: 9px 12px;
+  font-family: var(--td-font-caveat);
+  font-size: 26px;
+}
+
+.fieldInputData {
+  font-family: var(--td-font-courier);
+  font-size: 13px;
+}
+
+.fieldInput:focus-visible {
+  outline: 2px solid rgb(163 68 52 / 45%);
+  outline-offset: 1px;
+}
+
+.createActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 17px;
+  gap: 12px;
+}
+
+.createSubmit {
+  padding: 10px 19px;
+  border: 1.5px solid var(--td-accent);
+  border-radius: 2px;
+  background: var(--td-accent);
+  color: var(--td-cream-alt);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.createSubmit:hover {
+  border-color: var(--td-accent-hover);
+  background: var(--td-accent-hover);
+}
+
+.createCancel {
+  padding: 10px 17px;
+  border: 1.5px solid rgb(120 98 60 / 40%);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.createCancel:hover {
+  border-color: var(--td-ink-body);
+  color: var(--td-ink-body);
+}
+
+.createSpacer {
+  flex: 1 1 200px;
+}
+
+.createPromise {
+  font-family: var(--td-font-garamond);
+  font-size: 15.5px;
+  font-style: italic;
+  color: var(--td-ink-muted);
+}
+
+/* ── The table, in one card ────────────────────────────────────────────── */
+
+.card {
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--td-paper-mount);
+  box-shadow:
+    0 0 0 1px rgb(120 98 60 / 16%),
+    0 12px 26px -22px rgb(60 44 20 / 55%);
+}
+
+/* The base ladder: 48px thumb, the name, the status pill, the actions.
+ * Every other track joins in one of the four blocks at the foot of this file. */
+.head,
+.row {
+  display: grid;
+  align-items: center;
+  gap: 12px;
+  grid-template-columns: 48px minmax(0, 1.7fr) 96px minmax(0, 104px);
+}
+
+.head {
+  padding: 12px 20px;
+  border-bottom: 1px solid rgb(120 98 60 / 20%);
+  background: rgb(120 98 60 / 7%);
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+.row {
+  padding: 13px 20px;
+  border-bottom: 1px dotted var(--td-hairline-dotted-min);
+}
+
+.rowWrap:hover .row {
+  background: rgb(163 68 52 / 4.5%);
+}
+
+/* The 44px cover square. The image itself arrives as `--cover` on the element,
+ * because the URL is data and a CSS Module cannot hold one. */
+.thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 2px;
+  background-image: var(--cover);
+  background-position: center;
+  background-size: cover;
+  box-shadow: inset 0 0 0 1px rgb(120 98 60 / 22%);
+  transform: rotate(-1.5deg);
+}
+
+.nameCell {
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  font-family: var(--td-font-caveat);
+  font-size: var(--td-admin-journey-row-name);
+  line-height: 1;
+  color: var(--td-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.place {
+  overflow: hidden;
+  font-family: var(--td-font-garamond);
+  font-size: 15px;
+  font-style: italic;
+  color: var(--td-ink-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* SCREENS.md §2.2: "monospace data cells (all truncating)". The truncation is
+ * the point — one long free-text date would otherwise push the actions off the
+ * end of the row. `JourneyTable.test.tsx` reads this rule. */
+.dataCell {
+  overflow: hidden;
+  min-width: 0;
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--td-ink-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pagesCell {
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.editedCell {
+  font-size: 10.5px;
+  color: var(--td-ink-muted);
+}
+
+.pill {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px var(--pill-ring);
+  color: var(--pill-ink);
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.action {
+  border: none;
+  background: transparent;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  padding-inline: 0;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.actionPrimary {
+  color: var(--td-accent);
+}
+
+.actionPrimary:hover {
+  color: var(--td-accent-hover);
+}
+
+.action:hover {
+  color: var(--td-ink-body);
+}
+
+.more {
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.more[aria-expanded='true'],
+.more:hover {
+  color: var(--td-accent);
+}
+
+/* ── The strip behind ⋯ ────────────────────────────────────────────────── */
+
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 10px 20px 13px;
+  background: rgb(163 68 52 / 5%);
+  box-shadow: inset 0 1px 0 rgb(120 98 60 / 16%);
+  gap: 14px;
+}
+
+.stripName {
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+.stripSpacer {
+  flex: 1 1 60px;
+}
+
+.stripAction {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--td-ink-body);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.stripAction:hover {
+  color: var(--td-accent);
+}
+
+.stripDanger {
+  padding: 6px 12px;
+  border: 1px solid rgb(163 68 52 / 50%);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--td-accent);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.stripDanger:hover {
+  background: var(--td-accent);
+  color: var(--td-cream-alt);
+}
+
+.empty {
+  padding: 26px 20px;
+  font-family: var(--td-font-garamond);
+  font-size: 16px;
+  font-style: italic;
+  color: var(--td-ink-muted);
+}
+
+/* ── The ladder ────────────────────────────────────────────────────────── */
+
+/* Four optional columns, four blocks. Each one adds its track AND un-hides its
+ * cell, because doing either alone slides the row. The widths are
+ * `journeyColumns.ts`'s; see this file's header for the pin. */
+
+.dates,
+.pages,
+.media,
+.edited {
+  display: none;
+}
+
+@media (min-width: 720px) {
+  .head,
+  .row {
+    grid-template-columns: 48px minmax(0, 1.7fr) 52px 96px minmax(0, 104px);
+  }
+
+  .pages {
+    display: block;
+  }
+}
+
+@media (min-width: 800px) {
+  .head,
+  .row {
+    grid-template-columns: 48px minmax(0, 1.7fr) 52px 96px minmax(0, 94px) minmax(0, 104px);
+  }
+
+  .edited {
+    display: block;
+  }
+}
+
+@media (min-width: 880px) {
+  .head,
+  .row {
+    grid-template-columns: 48px minmax(0, 1.7fr) 52px minmax(0, 1fr) 96px minmax(0, 94px) minmax(0, 104px);
+  }
+
+  .media {
+    display: block;
+  }
+}
+
+@media (min-width: 1000px) {
+  .head,
+  .row {
+    grid-template-columns:
+      48px minmax(0, 1.7fr) minmax(0, 1.15fr) 52px minmax(0, 1fr) 96px
+      minmax(0, 94px) minmax(0, 104px);
+  }
+
+  .dates {
+    display: block;
+  }
+}
+
+/* SCREENS.md §2.2: the create panel's three fields are `1.1fr 1fr 1fr` above
+ * 820px. Not part of the column ladder — a different element and a width the
+ * design gives separately — which is why it sits below the four blocks rather
+ * than among them. */
+@media (min-width: 820px) {
+  .createFields {
+    grid-template-columns: 1.1fr 1fr 1fr;
+  }
+}
