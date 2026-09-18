@@ -1120,7 +1120,7 @@ deleted rather than annotated: a plan that has happened is not a plan.
 and it has its own full row above (`requestUploadSlots`), as does the receiver its URLs
 point at. **Nor is the create-media-row action** — Phase 3 Task 8 built it as
 `finaliseUpload`, with its own full row above. What is still planned: the full set of
-admin mutations across all ten screens (Phase 4). They are named here only so the shape
+admin mutations across every admin screen (Phase 4). They are named here only so the shape
 of what is coming is visible; each gets a full row in the commit that adds it.
 
 The reason the upload does not pass through an action at all still stands and is worth
@@ -1142,10 +1142,14 @@ export const publishJourney = guardedAction(async (session, id: string) => {
   // `session.user` is the account the guard admitted. Nothing above this line
   // ran before it.
   const payload = await getPayload()
+  // RESOLVE THE SCOPE ONCE PER ACTION, not once per call. It costs one
+  // `users` lookup, and `adminScope` memoises nothing — awaiting it inside
+  // each call in a loop is the N+1 CLAUDE.md §6 forbids.
+  const scope = await adminScope(session)
   // The spread is the whole interface: it carries the resolved account row and
   // `overrideAccess: false`, so Payload runs the collection and field access
   // rules. See `apps/web/lib/admin/adminScope.ts` and the paragraph below.
-  await payload.update({ collection: 'journeys', id, ...(await adminScope(session)), data: {} })
+  await payload.update({ collection: 'journeys', id, ...scope, data: {} })
 })
 ```
 

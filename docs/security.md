@@ -1527,8 +1527,10 @@ this once, for every admin screen, rather than per call site.
 OPPOSITE VALUES.** `apps/web/lib/admin/adminScope.ts` is that decision:
 `adminScope(session)` resolves the account ROW the session's branded id names — Payload's
 access predicates read `req.user.id`, and an `AuthenticatedSession` carries a branded
-string — and answers `{ user, overrideAccess: false }`. Every admin read and write spreads
-it (`await payload.update({ collection, id, ...(await adminScope(session)), data })`), so
+string — and answers `{ user, overrideAccess: false }`. An action resolves it ONCE
+(`const scope = await adminScope(session)`) and spreads it into every call it makes
+(`await payload.update({ collection, id, ...scope, data })`) — awaiting it inside each call
+of a loop would be one `users` lookup per row, which is the N+1 it exists to avoid — so
 no screen decides the option and no screen can forget it: the interface IS the spread. The
 `false` is a literal type, which refuses an `AdminScope` value built with anything else but
 does NOT stop a call site spreading the scope and then setting the option itself — Payload's

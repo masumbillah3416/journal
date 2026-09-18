@@ -80,11 +80,19 @@ export interface AdminScope {
 }
 ```
 
-Every admin read and write spreads it:
+An action resolves it **once**, and spreads it into every call it makes:
 
 ```ts
-await payload.update({ collection: 'journeys', id, ...(await adminScope(session)), data })
+const scope = await adminScope(session)
+
+await payload.update({ collection: 'journeys', id, ...scope, data })
+await payload.update({ collection: 'pages', id: pageId, ...scope, data: pageData })
 ```
+
+Resolve it once per action, not once per call. `adminScope` memoises nothing — only
+`getPayload()` is memoised (`apps/web/lib/payload.ts`) — so `...(await adminScope(session))`
+written inside a call that runs in a loop is one `users` lookup per row, which is exactly
+the N+1 the next section says this design avoids.
 
 That spread is the whole interface. No screen task writes `overrideAccess`.
 
@@ -167,6 +175,19 @@ every Phase 4 mutation runs unchecked with the test still green.
   The scope makes every call run the rules; it cannot make the rules agree with each
   other. Task 11 owns this, and it is recorded here because `adminScope` is what every
   such screen will be built on and is therefore where a reader will look.
+
+- **`apps/web/lib/auth/sessions.ts` reaches Postgres through `payload.db.pool.query`, and
+  those statements are outside the scope entirely.** Spreading `adminScope` into a Local API
+  call does not put the session table under Payload's rules, because that module does not go
+  through Payload to reach it. What guards those statements today is the owner in the
+  predicate — `revokeSession` is
+  `UPDATE sessions … WHERE token_hash = $1 AND user_id = $2 AND revoked_at IS NULL`,
+  `revokeAllSessions` is `WHERE user_id = $1 …` — rather than a check performed after the
+  row is read, which is the stronger form and is why this is a carry and not a defect. The
+  account screen (Task 12) is the task that needs to know: its session list and its revoke
+  buttons are guarded by that SQL and by nothing else, so a statement added to that module
+  without `user_id` in the `WHERE` is a cross-account read no access rule and no scope will
+  refuse.
 
 - **`adminScope` is not itself an authorization decision.** It makes Payload's rules run.
   What those rules say is `apps/web/collections/`'s business, and today only `users`
