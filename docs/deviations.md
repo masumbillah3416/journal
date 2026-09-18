@@ -2471,3 +2471,41 @@ named case when removed or weakened — the `users` block all five of its cases,
 other five objects exactly one, `media`'s `create` the sweep, and `Journeys`'s `create`,
 `update` and `delete` the author case — with the failures pasted in the Phase 4 Task 1
 report.
+
+## 53 · The admin rail's nine sub-labels are ours, because `SCREENS.md` §2 prints none
+
+**What changed:** `packages/domain/src/admin/navigation.ts`'s `ADMIN_NAV` carries a
+`subLabel` for each of the nine rail entries — "The desk", "Trips and pages", "Everything
+uploaded", "Order and captions", "Bookmarks and settings", "Cloth and about", "What goes
+out", "Site and readers", "Kept for thirty days".
+
+**Rationale:** `SCREENS.md` §2's preamble specifies the sub-label completely as a piece of
+type — "sub-label (Courier 10px `.13em` uppercase, `rgba(243,231,205,.72)`)" — and prints
+no strings for it. The ten section headings that follow name the screens (Overview,
+Journeys, Media, Galleries, Book & bookmarks, Cover & About, Publish, Settings, Trash,
+Account) but give the rail no second line. Leaving the line out would drop a specified
+element of the design; inventing it silently would leave a reader unable to tell which
+nine lines came from the handoff. They are written in the register of the screens they
+name, the way §44 and §38 settled the two earlier pieces of copy that are ours.
+
+**Two entries `SCREENS.md` §2 does NOT put in the rail, and the module says so:**
+Account, which §2.11 reaches from the rail's profile button rather than from the nav
+list, and the Journey editor, which §2.3 is an address under Journeys rather than a
+screen of its own. Both are stated in `navigation.ts`'s header so the next task does not
+add them, and `activeNavId` matching on segment boundaries is what makes the editor
+address light the Journeys button.
+
+**The rail's own "Sign out" is a `POST`, where §2 writes "a Sign out link".** The same
+decision `PanelHome` already carries for the same reason: a sign-out reachable by `GET` is
+one a prefetch, a crawler or an `<img>` on another site can perform for a reader who never
+clicked it. It is styled as the borderless link §2 describes.
+
+**What would reverse it:** a `SCREENS.md` revision printing the nine strings, in which
+case they are transcribed and this entry becomes a note about which revision they came
+from.
+
+**Recorded as:** this entry; a `// HANDOFF-DEVIATION` on `ADMIN_NAV` in
+`packages/domain/src/admin/navigation.ts`; and the cases in
+`packages/domain/src/admin/navigation.test.ts`, which assert the table's properties rather
+than its strings — no case here spells a sub-label, so this copy is reviewed here and
+nowhere else.

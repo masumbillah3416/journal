@@ -507,6 +507,13 @@ export default defineConfig({
         // its neighbour above and is gated at 100/100/100 by
         // vitest.integration.config.ts.
         'apps/web/lib/admin/readNavCounts.ts',
+        // `mint-lighthouse-session.ts` (Phase 4 Task 3) creates an account and
+        // issues a session through this repository's own session service, both
+        // of which are rows in a real Postgres, so its only test is an
+        // `*.integration.test.ts`. Same exclude-and-regate treatment as
+        // `adminScope.ts`; gated at 100/100/100 by
+        // vitest.integration.config.ts.
+        'apps/web/scripts/mint-lighthouse-session.ts',
         // Phase 3 Task 6's MediaProcessor pipeline. Every one of these imports
         // `sharp` - a native module doing real I/O-shaped work - so every test
         // that exercises them is an `*.integration.test.ts`, which this
@@ -903,6 +910,16 @@ export default defineConfig({
         // 100 is the honest gate for a file with nothing left uncovered, and
         // adding a measurable line to it fails here.
         'apps/web/scripts/run-rederive.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        // `run-mint-lighthouse-session.ts` (Phase 4 Task 3) is the third of the
+        // same twins, with the identical whole-file `c8 ignore start`/`stop`
+        // and the identical reason: a CLI entry point whose body is top-level
+        // `await` ending in `process.exit(0)`, which no test can import without
+        // writing to a real database and killing its own worker.
+        'apps/web/scripts/run-mint-lighthouse-session.ts': {
           lines: 100,
           branches: 100,
           functions: 100,

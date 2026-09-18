@@ -510,16 +510,26 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
 
 ### `GET /admin`
 
-- **Path:** `apps/web/app/(admin)/admin/page.tsx`; the pane is
+- **Path:** `apps/web/app/(admin)/admin/page.tsx`; the frame is
+  `apps/web/components/admin/shell/AdminShell.tsx` and the pane inside it is
   `apps/web/components/admin/PanelHome.tsx`.
 - **Method:** `GET`. This route answers nothing else.
 - **Input:** the session cookie, and nothing else. No path parameter, no query, no body.
-- **Output:** an HTML document: the admin panel's root — a "The back room" eyebrow, the
-  heading "Still being furnished", a line saying what is behind the door today, the four
-  groups of screens `SCREENS.md` §2 specifies, a primary "Read the diary" to `/p/1`, and a
-  borderless "Sign out and start again" posting to `/admin/sign-out`. `metadata` sets the
-  document title and `robots: { index: false, follow: false }`.
-- **Errors:** none observable. The screen is fixed content and decides nothing.
+- **Output:** an HTML document: `SCREENS.md` §2's shell — the 238px rail with its nine
+  buttons, the counts beside four of them, the profile block and the sign-out form; the
+  96px header with its crumb over the screen title "Overview" — around the pane, which is a
+  "The back room" eyebrow, the level-two heading "Still being furnished", a line saying
+  what is behind the door today, the four groups of screens `SCREENS.md` §2 specifies, a
+  primary "Read the diary" to `/p/1`, and a borderless "Sign out and start again" posting
+  to `/admin/sign-out`. `metadata` sets the document title and
+  `robots: { index: false, follow: false }`.
+- **Reads:** three, under one hoisted `adminScope` — `readNavCounts`'s four
+  `payload.count` calls, and one `findGlobal('site')` selecting `name` for the masthead.
+  The scope is resolved ONCE and spread; resolving it per call would be one `users` lookup
+  per operation (CLAUDE.md §7).
+- **Errors:** none observable from the screen's own content. A refused count would throw
+  before anything is drawn, which is a bug in the guard that admitted the session rather
+  than a state this screen draws.
 - **Auth requirement:** **signed in.** `requireAdminSession` runs before anything is
   drawn; an absent cookie, an identifier naming no row, a revoked row, an expired row and
   the pre-auth identifier the middleware mints for anonymous browsers are all answered with
@@ -539,6 +549,12 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   **It is the first guarded address on this surface that is not part of signing in**, which
   is why `e2e/signInJourney.spec.ts` walks it in both directions: from the signed-in
   screen's own button, and from a browser with no session at all.
+
+  **Phase 4 Task 3 put `SCREENS.md` §2's shell around it**, so this route is now what
+  proves the frame the next eleven screens hang in actually draws. Nothing under the shell
+  is a client component, and `e2e/admin.spec.ts` is what asserts the rail against the
+  domain's own entry table in a real browser. It is also the first guarded address with a
+  performance budget — see `docs/testing.md` §7.
 
 ### `GET /admin/sign-in`
 

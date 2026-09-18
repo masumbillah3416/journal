@@ -81,12 +81,40 @@
  * nothing in this file can be executed by a Vitest project, so nothing in this
  * file may decide anything.
  *
+ * ═══ WHY A CONFIGURATION CAN NEED A SESSION BEFORE IT RUNS ═══
+ *
+ * `docs/testing.md` recorded for seven rounds that "`/admin` ITSELF HAS NO
+ * LIGHTHOUSE BUDGET", because `/admin` is guarded: a collector that sends no
+ * cookie is answered with a redirect to `/admin/sign-in` and measures that
+ * screen twice under `/admin`'s name. Closing it needs "a seeded account plus
+ * an `extraHeaders` cookie in the collect settings", and Phase 4 Task 3 is
+ * where that happens.
+ *
+ * So before any configuration that collects an `/admin…` address, this mints a
+ * live session (`npm run lighthouse:session -w apps/web`) and passes it to lhci
+ * as a collect-settings override. IT REFUSES TO RUN WITHOUT ONE, and that
+ * refusal is the whole point: a missing cookie does not fail the gate on its
+ * own — Lighthouse follows the redirect and reports a 200 for the sign-in
+ * screen — so a run that could not mint one would be green and meaningless.
+ *
+ * WHAT IS PRINTED IS A LIVE CREDENTIAL AND NEVER TOUCHES A FILE. It is read off
+ * the child's stdout, handed to lhci as an argument, and forgotten (CLAUDE.md
+ * §0.6).
+ *
+ * Every DECISION in the paragraph above lives in `./lighthouseSession.mjs`,
+ * beside the annotations' own module and for the identical reason: nothing in
+ * this file can be executed by a Vitest project, so nothing in this file may
+ * decide anything.
+ *
  * Depends on: node:child_process, node:fs; `annotationLines`
- * (./lighthouseAnnotations.mjs); and `@lhci/cli` on the PATH via npx.
+ * (./lighthouseAnnotations.mjs); `collectsAdmin`, `sessionCookie` and
+ * `sessionOverrideArgs` (./lighthouseSession.mjs); and `@lhci/cli` on the PATH
+ * via npx.
  */
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { annotationLines } from './lighthouseAnnotations.mjs'
+import { collectsAdmin, sessionCookie, sessionOverrideArgs } from './lighthouseSession.mjs'
 
 /** Where `lhci autorun` writes the assertion outcomes of the run just finished. */
 const ASSERTION_RESULTS = '.lighthouseci/assertion-results.json'
@@ -99,12 +127,41 @@ const ASSERTION_RESULTS = '.lighthouseci/assertion-results.json'
  */
 const CI_ONLY_ARGS = process.env.GITHUB_ACTIONS ? ['--assert.includePassedAssertions'] : []
 
+/** What mints the collector's session, and where it is run from. */
+const MINT_COMMAND = ['run', 'lighthouse:session', '-w', 'apps/web', '--silent']
+
 /** The configuration files to run, in order, from the command line. */
 const configs = process.argv.slice(2)
 
 if (configs.length === 0) {
   console.error('run-lighthouse: no lighthouserc files were named')
   process.exit(2)
+}
+
+/**
+ * The lhci overrides one configuration needs before it can be trusted.
+ *
+ * THIS FUNCTION DECIDES NOTHING, like `annotate` below: whether a
+ * configuration needs a session, what counts as a cookie in the child's
+ * output, and what lhci is handed are all `./lighthouseSession.mjs`'s, where a
+ * test drives them. What is here is the process spawn and the exit.
+ * @param {string} config - The `lighthouserc*.json` about to be run.
+ * @returns {readonly string[]} The extra arguments for `lhci autorun`.
+ */
+const sessionArgs = (config) => {
+  if (!collectsAdmin(readFileSync(config, 'utf8'))) return []
+
+  const minted = spawnSync('npm', MINT_COMMAND, { encoding: 'utf8', shell: true })
+  const cookie = sessionCookie(minted.stdout ?? '')
+
+  if (cookie === null) {
+    console.error(`run-lighthouse: could not mint a session for ${config}`)
+    console.error(minted.stderr ?? '')
+    console.error('run-lighthouse: it collects a guarded admin address, so without one it would measure sign-in')
+    process.exit(2)
+  }
+
+  return sessionOverrideArgs(cookie)
 }
 
 /**
@@ -132,7 +189,7 @@ const results = configs.map((config) => {
   // `shell: true` because `npx` is a shim on Windows; `stdio: 'inherit'` so
   // lhci's own assertion output reaches the terminal unchanged, which is what
   // anybody reading a red gate actually needs.
-  const run = spawnSync('npx', ['lhci', 'autorun', `--config=${config}`, ...CI_ONLY_ARGS], {
+  const run = spawnSync('npx', ['lhci', 'autorun', `--config=${config}`, ...CI_ONLY_ARGS, ...sessionArgs(config)], {
     stdio: 'inherit',
     shell: true,
   })

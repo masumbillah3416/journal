@@ -193,6 +193,10 @@ export default defineConfig({
         // `vitest.config.ts`'s exclude: four `payload.count` calls, nothing to
         // execute without a database.
         'apps/web/lib/admin/readNavCounts.ts',
+        // Phase 4 Task 3's minting script, here for the reason stated in
+        // `vitest.config.ts`'s exclude: it writes a `users` row and a
+        // `sessions` row, so nothing without a database can execute it.
+        'apps/web/scripts/mint-lighthouse-session.ts',
         // Phase 3 Task 6's MediaProcessor pipeline. Every one of these is
         // reachable only from an `*.integration.test.ts` file - each imports
         // `sharp`, which is a native module doing real I/O-shaped work, and
@@ -472,6 +476,12 @@ export default defineConfig({
         // `readNavCounts.integration.test.ts` drives each of the four filters
         // and the cost of all four together.
         'apps/web/lib/admin/readNavCounts.ts': { lines: 100, branches: 100, functions: 100 },
+        // mint-lighthouse-session.ts (Phase 4 Task 3): 100% on every axis. Its
+        // two branches are the account that already exists and the account that
+        // does not, and `mint-lighthouse-session.integration.test.ts` drives
+        // both — the second case mints twice. The unwrap of a branded id that
+        // Postgres cannot produce carries its own `c8 ignore` with the reason.
+        'apps/web/scripts/mint-lighthouse-session.ts': { lines: 100, branches: 100, functions: 100 },
         // seed-data.ts is a pure data literal - 100% by construction, every
         // call reads every field.
         'apps/web/scripts/seed-data.ts': { lines: 100, branches: 100, functions: 100 },
