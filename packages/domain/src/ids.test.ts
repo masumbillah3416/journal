@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { journeyId, mediaId, pageId, sessionId, slotKey, userId } from './ids'
+import { accountRowId, journeyId, mediaId, pageId, sessionId, slotKey, userId } from './ids'
 import type { JourneyId, PageId, SessionId, UserId } from './ids'
 
 describe('branded identifiers', () => {
@@ -57,5 +57,51 @@ describe('branded identifiers', () => {
     // cosmetic one.
     const wrong: UserId = 'sess-1' as SessionId
     expect(wrong).toBe('sess-1')
+  })
+})
+
+/**
+ * A branded account id, unwrapped.
+ *
+ * `userId` answers a `Result`, so without this every case below would repeat
+ * the same unwrap to reach the brand `accountRowId` takes.
+ * @param raw - The candidate identifier.
+ * @returns The branded id.
+ * @throws When `raw` is empty or whitespace-only, which no case here passes.
+ */
+const anAccount = (raw: string): UserId => {
+  const built = userId(raw)
+  if (!built.ok) throw new Error(built.error)
+  return built.value
+}
+
+describe('accountRowId', () => {
+  it('returns the row id for a branded id that names one', () => {
+    expect(accountRowId(anAccount('104'))).toBe(104)
+  })
+
+  it('returns undefined rather than NaN for a brand that is not a row id', () => {
+    // `Number('nonsense')` reaching the driver escapes as a raw
+    // `Failed query: … params: NaN`, past every Result contract above it.
+    expect(accountRowId(anAccount('nonsense'))).toBeUndefined()
+  })
+
+  it('returns undefined for a row id no table can hold', () => {
+    expect(accountRowId(anAccount('0'))).toBeUndefined()
+    expect(accountRowId(anAccount('-3'))).toBeUndefined()
+  })
+
+  it('accepts the first row id a table can hold, so the refusal above is a boundary', () => {
+    // Both sides of `> 0`. Without this, `>= 0` — or a guard refusing every
+    // small id — would leave the case above green and say nothing.
+    expect(accountRowId(anAccount('1'))).toBe(1)
+  })
+
+  it('refuses the first integer JavaScript can no longer tell from its neighbour', () => {
+    // Both sides of `Number.isSafeInteger`. `Number('9007199254740993')` is
+    // 9007199254740992, so an id that survived here would be the WRONG row —
+    // which is why the guard is `isSafeInteger` and not `isInteger`.
+    expect(accountRowId(anAccount('9007199254740991'))).toBe(9007199254740991)
+    expect(accountRowId(anAccount('9007199254740993'))).toBeUndefined()
   })
 })

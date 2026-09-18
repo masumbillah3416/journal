@@ -14,6 +14,11 @@
  * branding exists to prevent, and here it is a security-relevant confusion —
  * an OTP challenge is bound to the session that requested it, not to a user —
  * rather than a cosmetic one.
+ *
+ * {@link accountRowId} is the one place a brand is converted BACK, to the
+ * integer Payload's Postgres adapter wants. It lives here rather than beside
+ * any one caller because three of them now need it, and three copies of a
+ * guard are three chances for one of them to drift.
  * Depends on: Result, from ./result.
  */
 import type { Result } from './result'
@@ -102,3 +107,26 @@ export const userId = brandedId('UserId')
  * @returns `ok` with the branded id, or `err` when `raw` is empty or whitespace-only.
  */
 export const sessionId = brandedId('SessionId')
+
+/**
+ * The numeric row id a branded account id names, or `undefined`.
+ *
+ * The brand only promises a non-empty string, so a caller can hand over
+ * something that is not a Payload id; answering `undefined` keeps
+ * `Number('nonsense')` from reaching the driver as `NaN` and escaping as a raw
+ * `Failed query` past whatever `Result` contract is above it.
+ *
+ * `isSafeInteger` rather than `isInteger`: past 2^53 `Number` stops telling
+ * one integer from the next, so a larger id would name a DIFFERENT row rather
+ * than fail.
+ *
+ * @param user - The branded account id.
+ * @returns The row id, or `undefined` when the brand does not name one.
+ * @example
+ * const built = userId('104')
+ * if (built.ok) accountRowId(built.value) // 104
+ */
+export const accountRowId = (user: UserId): number | undefined => {
+  const parsed = Number(user)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined
+}

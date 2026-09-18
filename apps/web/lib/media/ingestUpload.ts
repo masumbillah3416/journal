@@ -208,7 +208,9 @@ export type IngestRefusalReason = FinaliseFailure
  * @returns The numeric row id, or `undefined` when `journey` is not one — the
  *   alternative being `Number('nonsense')` reaching the driver as `NaN` and
  *   escaping as a raw `Failed query` past the `Result` contract. The same
- *   guard, for the same reason, as `../auth/sessions.ts`'s `accountRowId`.
+ *   guard, for the same reason, as `accountRowId` in
+ *   `@travel-diary/domain/ids` — not shared with it, because that one takes a
+ *   `UserId` and this brand is a different one.
  */
 const journeyRowId = (journey: JourneyId): number | undefined => {
   const parsed = Number(journey)

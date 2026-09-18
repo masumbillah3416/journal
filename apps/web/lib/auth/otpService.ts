@@ -130,7 +130,7 @@ import {
   challengeState,
 } from '@travel-diary/domain/auth/otpChallenge'
 import { PRUNE_SWEEP_ROWS } from '@travel-diary/domain/auth/retention'
-import { type SessionId, type UserId, userId } from '@travel-diary/domain/ids'
+import { type SessionId, type UserId, accountRowId, userId } from '@travel-diary/domain/ids'
 import { type Result, err, isOk, ok } from '@travel-diary/domain/result'
 import type { Payload } from 'payload'
 import type { MailerPort } from '../ports/mailer'
@@ -487,22 +487,6 @@ const codeMatches = async (stored: string, candidate: string): Promise<boolean> 
   Buffer.from(stored.slice(SALT_HEX_LENGTH), 'hex').copy(expected)
   const derived = await deriveKey(candidate, salt)
   return timingSafeEqual(expected, derived)
-}
-
-/**
- * The Payload row id an account's branded {@link UserId} names.
- *
- * @param user - The branded id.
- * @returns The numeric row id, or `undefined` when `user` is not one. The
- *   brand only promises a non-empty string, so a caller *can* hand over
- *   something that is not a Payload id — and the alternative to answering
- *   `undefined` here is `Number('nonsense')` reaching the driver as `NaN` and
- *   escaping as a raw `Failed query: … params: NaN`, past the `Result`
- *   contract and into whatever surfaces it.
- */
-const accountRowId = (user: UserId): number | undefined => {
-  const parsed = Number(user)
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined
 }
 
 /**
