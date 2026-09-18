@@ -49,7 +49,11 @@ exposure surface nobody reviews.
 
 **Authorization, for all of them.** None of these routes carries its own auth check.
 Every one runs Payload's collection- and global-level access control on the operation it
-performs. **Five** collections declare `access` and they do not all say the same thing (this sentence said four, having counted the three flat refusals as one group and then listed them separately — Phase 2's final review):
+performs. The collections that declare `access` do not all say the same thing, and the
+list below is what they say rather than how many there are — this sentence carried a count
+twice, wrong the first time (Phase 2's final review) and going stale again the moment
+Phase 4 Task 1 added a sixth, so the count is deleted rather than corrected a third time
+(`CLAUDE.md` §1.3):
 
 - `jobs`, `otpChallenges` and `signInAttempts` refuse every operation outright —
   `read`, `create`, `update` **and `delete`**, all four predicates. The `delete` one is
@@ -59,6 +63,11 @@ performs. **Five** collections declare `access` and they do not all say the same
 - `sessions` declares **per-user ownership** rather than a flat refusal: `read`,
   `update` and `delete` each return a `Where` constraining the operation to the caller's
   own rows, and `create` is refused for everyone. See `apps/web/collections/sessions.ts`.
+- `users` declares **per-row ownership**: `read` and `update` return
+  `{ id: { equals: req.user.id } }`, so an operation is narrowed to the caller's own row
+  and refused with no caller, and `create`/`delete` are refused for everyone — the diary
+  has one author. Added by Phase 4 Task 1; before it, any signed-in account could `PATCH`
+  any other account's row, `otpRequired` included (`docs/deviations.md` §52).
 - `media` declares a **public-read** rule: a signed-out caller gets
   `{ hidden: { not_equals: true } }` rather than a refusal, so unhidden media is
   **served, not refused** — including through `/api/media/file/<name>`. That is

@@ -1530,7 +1530,7 @@ this document and in `docs/api.md`, and refuses the old claim's own words in eit
 document. An absolute claim about the codebase in a document is one `git grep` away from
 being a test; this one is that test.
 
-**2 · `journeys`, `pages` and `users` declare no `access` block at all.** They inherit
+**2 · `journeys` and `pages` declare no `access` block at all.** They inherit
 Payload's "signed in, or refused" default. That is the same shape Ruling F37 called a
 cross-account leak on `sessions` — there, "signed in" meant "any account", which on a
 single-author diary means one account, so nothing is presently reachable that should not
@@ -1542,6 +1542,17 @@ are read by the public diary through the Local API, so an explicit block on them
 nothing about the diary and everything about `/api/journeys` — which is why it belongs in
 the phase that also decides §1 above, in one pass, with tests, rather than as a change
 made here for tidiness.
+
+**`users` WAS the third name in that sentence, and the sentence understated it.** It is
+closed, by Phase 4 Task 1: `apps/web/collections/users.ts` now carries `ownAccountOnly` on
+`read` and `update` and `() => false` on `create` and `delete`. The claim above that
+nothing presently reachable should not be was true only of a single-account deployment,
+and that paragraph offered `sealedUserAuth.ts` as the second thing keeping it
+unexploitable.
+That module seals **seven `POST` auth endpoints**; `PATCH /api/users/<id>` is an ordinary
+CRUD route and was never in its scope. Measured cross-account against a real Payload
+before the block existed: account A turned off account B's `otpRequired`, which this
+document calls the only source of truth for the code step. See `docs/deviations.md` §52.
 
 Both were named by Phase 2's final whole-branch review (finding 12 and section F-3) and by
 Ruling F42, whose stated cost — "no per-field sweep" — understated them: it is no block,

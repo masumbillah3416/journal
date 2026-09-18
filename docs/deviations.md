@@ -2308,3 +2308,68 @@ first; this entry is what a reader auditing departures from the handoff finds.
 **Recorded as:** this entry,
 `docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`, `docs/api.md`'s
 `PUT /admin/media/upload?token=<capability>` row, and `docs/architecture.md` §3 step 5.
+
+## 52 · `users` gets a per-row access block, where the handoff states no rule at all
+
+**What changed:** `apps/web/collections/users.ts` declares an `access` block. `read` and
+`update` return `ownAccountOnly` — `{ id: { equals: req.user.id } }`, narrowing the
+operation to the caller's own row and refusing outright when there is no caller — and
+`create` and `delete` are `() => false` for everybody.
+
+**Rationale:** `DATA_MODEL.md`'s `users` section prints a field list and **no access
+block**, so Payload applied its `defaultAccess` — `({ req: { user } }) => Boolean(user)`,
+"signed in, or refused" — to every operation. "Signed in" there means **any account**,
+which is the shape §29 records as a cross-account leak on `sessions`. On this collection
+it is worse than an enumeration: `otpRequired` is, in `DATA_MODEL.md`'s own words, "the
+**only** source of truth" for whether the code step runs, and it lives on a row any
+signed-in caller could `PATCH`.
+
+**`apps/web/collections/sealedUserAuth.ts` does not close it, and this is the part worth
+saying plainly** — three documents describe that module as sealing the `users` auth
+surface, which it does. It seals **seven endpoints, all `POST` and all
+credential-bearing**: `/login`, `/first-register`, `/forgot-password`, `/reset-password`,
+`/refresh-token`, `/unlock` and `/verify/:id`. `PATCH /api/users/<id>` is an ordinary
+collection CRUD route, was never in that seal's scope, and is exactly the one that
+mattered here.
+
+**Measured before the block existed**, cross-account, against a real Payload and a real
+Postgres: account A's `payload.update` on account B's row with `overrideAccess: false`
+**resolved**, returning B's document with `otpRequired: false`. A's `find` returned both
+accounts' rows. A's `create` minted a third account and A's `delete` removed B's row
+outright. All five cases in
+`apps/web/collections/adminAccess.integration.test.ts` failed, and every one of them
+would have passed against a single-account suite, because everything the broken
+configuration granted was granted to "signed in".
+
+`create` and `delete` are refused outright rather than narrowed, where §29 narrowed all
+three of `sessions`'s: the design has **one author**, accounts arrive through
+`npm run db:seed`, and an account cannot meaningfully delete itself from the screen it is
+signed in on. `read` and `update` are narrowed rather than refused because the Account
+screen (`SCREENS.md` §4) reads and writes the caller's own row — a flat refusal would be
+"secure" and would also make that screen impossible, which is the outcome §29 names as the
+thing to avoid.
+
+**Two field-level rules were considered and are deliberately absent**, recorded because
+their absence is a decision. (1) Payload's injected `loginAttempts`/`lockUntil` stay
+writable by the row's owner, so an account can clear its own cooling-off period — but the
+principal who can do that already holds the password or the session, so it is not the
+escalation `sessions.user` was (§29). (2) `createdAt`/`updatedAt` are injected and
+therefore carry no rule, as on `sessions` — but nothing on `users` authenticates or is
+audited against them, so what §29's third hole falsified has no counterpart here. A rule
+with no threat behind it is a rule the next reader deletes.
+
+**The per-field sweep reaches the injected fields anyway, and that is measured rather than
+assumed.** Payload mutates a collection's `fields` array **in place** when it sanitises
+the config, so the sweep in `adminAccess.integration.test.ts` — which enumerates from
+`Users.fields` after Payload has bootstrapped — probes sixteen names, not the six
+`users.ts` declares: `email`, `salt`, `hash`, `resetPasswordToken`,
+`resetPasswordExpiration`, `loginAttempts`, `lockUntil`, `createdAt`, `updatedAt` and the
+`sessions` join are all attempted, and none of them moves.
+
+**What would reverse this:** a `DATA_MODEL.md` revision that states an access rule for
+`users`. None exists.
+
+**Recorded as:** this entry; a `// HANDOFF-DEVIATION` at the access block in
+`apps/web/collections/users.ts`; five cases in
+`apps/web/collections/adminAccess.integration.test.ts`. Verified to fail when the block is
+removed: all five, with the failures pasted in the Phase 4 Task 1 report.

@@ -141,6 +141,17 @@ DURATION rather than its existence (`docs/adr/0016-rate-limit-window-storage.md`
 source of truth for whether the OTP step runs; the prototype's `localStorage` flag is
 deleted, not moved, per `SECURITY.md`), `notifyOnPublish`, `notifyWeekly`.
 
+Access is **per-row ownership**: `read` and `update` return
+`{ id: { equals: req.user.id } }` (`ownAccountOnly`), so an operation is narrowed to the
+caller's own row and refused outright when there is no caller, and `create`/`delete` are
+`() => false` for everybody — the diary has one author, accounts arrive through
+`npm run db:seed`, and an account cannot meaningfully delete itself from the screen it is
+signed in on. The collection previously declared **no access block at all**, which left
+Payload's `defaultAccess` applying: any signed-in account could `PATCH` any other's row
+and turn off the `otpRequired` above. `apps/web/collections/sealedUserAuth.ts` did not
+stop it — that module seals the seven `POST` auth endpoints, not
+`PATCH /api/users/<id>`. See `docs/deviations.md` §52 for what was measured and how.
+
 ### `otpChallenges`
 
 `access: { read: () => false, create: () => false, update: () => false, delete: () => false }`

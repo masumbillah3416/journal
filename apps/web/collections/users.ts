@@ -17,12 +17,54 @@
  * own dispatcher rather than asserting the config's shape.
  * Depends on: `payload`, `./sealedUserAuth`.
  */
-import type { CollectionConfig } from 'payload'
+import type { Access, CollectionConfig } from 'payload'
 import { sealedUserAuthEndpoints } from './sealedUserAuth'
+
+/**
+ * Restricts an operation to the caller's own account row.
+ *
+ * Returns a `Where` rather than a boolean so a `find` NARROWS to the caller's
+ * own row instead of refusing the request, while an `update` aimed at anybody
+ * else's row matches nothing and is refused. The same shape, for the same
+ * reason, as `ownSessionsOnly` in `./sessions.ts`.
+ *
+ * @param request - Payload's access argument; only `req.user` is read.
+ * @returns A `Where` matching the caller's own row, or `false` with no caller.
+ */
+export const ownAccountOnly: Access = ({ req: { user } }) => (user ? { id: { equals: user.id } } : false)
 
 /** The one-row author account backing sign-in and OTP-required policy. */
 export const Users: CollectionConfig = {
   slug: 'users',
+  // HANDOFF-DEVIATION: DATA_MODEL.md's `users` section prints a field list and
+  // no access block, so this collection inherited Payload's defaultAccess —
+  // "signed in, or refused", where "signed in" means ANY account. That is the
+  // shape docs/deviations.md §29 records as a cross-account leak on
+  // `sessions`, and `sealedUserAuth.ts` does not close it: that module seals
+  // the AUTH endpoints, not `PATCH /api/users/<id>`. Measured before this
+  // block existed: account A turned off account B's `otpRequired`, which
+  // DATA_MODEL.md calls the only source of truth for the code step.
+  // `create` and `delete` are refused outright rather than narrowed — the
+  // design has one author (design spec §1.2), accounts arrive through
+  // `npm run db:seed`, and an account cannot meaningfully delete itself from
+  // the screen it is signed in on. See docs/deviations.md §52.
+  //
+  // TWO FIELD-LEVEL RULES WERE CONSIDERED AND ARE DELIBERATELY ABSENT, said
+  // here because their absence is a decision rather than an oversight.
+  // (1) Payload's injected `loginAttempts`/`lockUntil` stay writable by the
+  // row's owner, so an account can clear its own cooling-off period — but the
+  // principal who can do that already holds the password or the session, so
+  // it is not the escalation `sessions.user` was. (2) `createdAt`/`updatedAt`
+  // are injected and therefore carry no rule, as on `sessions` — but nothing
+  // on `users` authenticates or is audited against them. Both are recorded
+  // rather than closed, because a rule with no threat behind it is a rule the
+  // next reader deletes.
+  access: {
+    read: ownAccountOnly,
+    create: () => false,
+    update: ownAccountOnly,
+    delete: () => false,
+  },
   // THE TWO DURATIONS HERE ARE IN DIFFERENT UNITS, WHICH IS PAYLOAD'S API
   // AND NOT A TYPO. `tokenExpiration` is SECONDS (its default is 7200, two
   // hours); `lockTime` is MILLISECONDS (its default is 600000, ten minutes).
