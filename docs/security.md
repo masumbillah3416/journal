@@ -1490,21 +1490,28 @@ closed by it. They are written here because `docs/api.md` and the table above de
 access control as the thing that stops an unauthorized mutation, and both of these are
 conditions that control runs under.
 
-**1 · Every Local API call here runs with collection and field access control OFF, and one
-production site says so explicitly.** Payload's Local API defaults `overrideAccess` to
-`true`, so a call that passes nothing runs with those rules skipped. The one production
-module that passes the option is **`apps/web/lib/auth/setNewPassword.ts:209`**, at the
-password-reset spend, and it is right there: a reader holding a reset link is by definition
-not signed in, so the token is the authorisation and Payload has no user to judge — the
-reasoning is at that file's lines 203-205. **Its other occurrences are not listed here, and that is round 8's correction to this
-sentence.** They were, and the list omitted a file — `apps/web/lib/auth/overrideAccessSites.test.ts`
+**1 · A Local API call here runs with collection and field access control OFF unless it
+says otherwise, and two production sites say something about it — in opposite
+directions.** Payload's Local API defaults `overrideAccess` to `true`, so a call that
+passes nothing runs with those rules skipped. **`apps/web/lib/auth/setNewPassword.ts:209`**
+is the only place this repository asks for that deliberately, at the password-reset spend,
+and it is right there: a reader holding a reset link is by definition not signed in, so the
+token is the authorisation and Payload has no user to judge — the reasoning is at that
+file's lines 203-205. **`apps/web/lib/admin/adminScope.ts`** is the other, and it passes
+`false`: it is Phase 4 Task 2's answer to the trap this paragraph ends by naming, described
+three paragraphs down. Neither path is enumerated in prose — both are derived by
+`apps/web/lib/auth/overrideAccessSites.test.ts` from git's own listing, and a case there
+now also refuses a sentence in either document that describes the set as a single module,
+because the last correction to this paragraph left exactly that standing four paragraphs
+above its own fix. **The option's other occurrences are not listed here, and that is round
+8's correction to this sentence.** They were, and the list omitted a file — `apps/web/lib/auth/overrideAccessSites.test.ts`
 itself, which excluded itself from its own scan through an `OWN_PATH` constant, so nothing
 could catch the omission. That is an "other occurrences" list that omits a file, inside the
 sentence written to fix an "only occurrences" list that omitted a file. The pin no longer
-excludes itself — it assembles the option's name from its halves, so the scanner is not its
-own first match — and the set is whatever that test enumerates: every occurrence outside the
-one production module above must be a test file, and the case that says so fails on the
-commit that adds a production occurrence anywhere. `apps/web/collections/collections.integration.test.ts`
+excludes itself — it is a `.test.ts`, so it is counted as one of the test occurrences its
+own second case permits, which is what it always was — and the set is whatever that test
+derives: every occurrence outside the two production modules above must be a test file, and
+the case that says so fails on the commit that adds a production occurrence anywhere. `apps/web/collections/collections.integration.test.ts`
 is where the reason is written plainly — "`overrideAccess: false` is what makes Payload run
 those rules at all". For
 Phase 2 the arrangement is correct and deliberate: every server-side read and write here is
@@ -1548,9 +1555,12 @@ production call above landed in `c9fec84` on 2026-09-06 and the sentence in
 `05da7fa` on 2026-09-07, a day after its own counter-example, after which a fix round
 copied it into `docs/api.md` — and it then reached a merge decision as fact, in the section
 written expressly to hand facts to Phase 4. `apps/web/lib/auth/overrideAccessSites.test.ts`
-now pins the production set to that one path, requires every production site to be named in
-this document and in `docs/api.md`, and refuses the old claim's own words in either
-document. An absolute claim about the codebase in a document is one `git grep` away from
+now pins the production set exactly — one path when that sentence was written, two since
+Phase 4 Task 2 — requires every production site to be named in this document and in
+`docs/api.md`, reads the bytes of each so the `false`/`true` split between them cannot
+silently invert, checks that every line number either document cites lands on a line that
+actually carries the option, and refuses both the old claim's own words and any sentence
+calling the set a single module while it is not. An absolute claim about the codebase in a document is one `git grep` away from
 being a test; this one is that test.
 
 **2 · `journeys`, `pages` and `users` declared no `access` block at all — CLOSED by Phase 4

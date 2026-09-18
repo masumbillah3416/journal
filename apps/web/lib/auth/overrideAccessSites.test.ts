@@ -40,6 +40,22 @@
  * assertion is non-vacuous because the production set is asserted non-empty
  * two cases above it.
  *
+ * ═══ AND TWO MORE SENTENCES, BECAUSE THE FIRST CORRECTION LEFT ITS OWN ═══
+ *
+ * Fix round 1 of Phase 4 Task 2 found that the commit which grew the set to two
+ * paths appended a correct paragraph to `docs/security.md` and left THREE
+ * singular assertions standing four paragraphs above it. Every case here was
+ * green, because each asks only whether a document contains a path — a document
+ * could name both sites and, in the same section, tell a reader there is one.
+ * {@link SINGULAR_CLAIMS} refuses that, on the same argument as
+ * {@link NOWHERE_CLAIM}, and with the same honesty about being a floor.
+ *
+ * The same round disputed which LINE of `setNewPassword.ts` carries the option,
+ * and neither the review nor the documents could settle it without opening the
+ * file — so {@link lineCitations} settles it: every `<site>:<line>` pointer
+ * either document writes must land on a line that actually carries the option.
+ * A line number in prose is a claim about bytes.
+ *
  * WHY `overrideAccess: true` IS RIGHT AT THE ONE SITE THAT PASSES IT, so this
  * file is not read as recording a defect: a reader holding a password-reset
  * link is by definition not signed in, so the token IS the authorisation and
@@ -135,6 +151,51 @@ const DOCUMENTS: readonly string[] = ['docs/security.md', 'docs/api.md']
 const NOWHERE_CLAIM = 'nowhere in production'
 
 /**
+ * Phrases asserting the production set holds exactly ONE path.
+ *
+ * The same mechanism as {@link NOWHERE_CLAIM} and for the same reason, but
+ * aimed at the failure that outlived it: the commit that grew the set to two
+ * appended a correct paragraph and left three singular assertions standing four
+ * paragraphs above it, and every case here stayed green because each asks only
+ * whether a document CONTAINS a path. A document could name both sites and, in
+ * the same section, tell a reader there is one.
+ *
+ * IT IS A FLOOR, NOT AN INVERSION, and that is said plainly rather than
+ * implied. English cardinality cannot be matched by a string comparison, so
+ * this refuses the spellings that were actually wrong and would not catch a
+ * fourth way of writing the same falsehood. The inverted half is the case above
+ * it — the production SET is derived from git's listing, never enumerated — and
+ * what this adds is that the prose around it cannot contradict the derivation
+ * in a spelling that has already been committed once.
+ *
+ * Guarded by the set's own size below, so it disappears honestly if the set
+ * ever returns to one path rather than becoming a rule nobody can satisfy.
+ *
+ * Written with single spaces and compared against {@link unwrapped} text, so a
+ * claim that survives only because Prettier wrapped it across two lines is
+ * still caught. Three of the four below do wrap in `docs/security.md` today.
+ */
+const SINGULAR_CLAIMS: readonly string[] = [
+  'one production module',
+  'that one path',
+  'the one production site',
+  'and one production site says so explicitly',
+]
+
+/**
+ * A document's text with every run of whitespace collapsed to one space.
+ *
+ * A sentence in these documents is wrapped to 100 columns, so the line break
+ * falls wherever Prettier put it. Searching the raw bytes for a phrase would
+ * make the guard depend on that, which is a guard a reflow switches off.
+ *
+ * @param document - The repository-relative path.
+ * @returns The file's text, unwrapped.
+ */
+const unwrapped = (document: string): string =>
+  readFileSync(path.join(repositoryRoot, document), 'utf8').replaceAll(/\s+/g, ' ')
+
+/**
  * A real source file that must NOT carry the option.
  *
  * So the scan is proved able to answer no. `guard.ts` is the module every
@@ -151,6 +212,15 @@ const A_FILE_THAT_MUST_NOT_CARRY_IT = 'apps/web/lib/auth/guard.ts'
  * byte in a source file would be invisible in a diff.
  */
 const NUL_SEPARATOR = String.fromCharCode(0)
+
+/**
+ * The newline a line citation counts.
+ *
+ * `.gitattributes` normalises these files to LF in the working tree, so
+ * splitting on LF gives the same numbering an editor shows. Built from its code
+ * point for the same reason {@link NUL_SEPARATOR} is.
+ */
+const LINE_SEPARATOR = String.fromCharCode(10)
 
 /**
  * Every file git lists for this repository.
@@ -193,6 +263,41 @@ const filesCarryingTheOption = (): readonly string[] =>
     .filter((file) => file.endsWith('.ts') || file.endsWith('.tsx'))
     .filter((file) => readFileSync(path.join(repositoryRoot, file), 'utf8').includes(OPTION))
     .toSorted((left, right) => left.localeCompare(right))
+
+/** One `<production site>:<line>` pointer a document writes. */
+interface LineCitation {
+  /** The §1.2 document it appears in. */
+  readonly document: string
+  /** The production site cited, as {@link PRODUCTION_SITES} spells it. */
+  readonly site: string
+  /** The 1-based line the document sends a reader to. */
+  readonly line: number
+}
+
+/**
+ * Every `<production site>:<line>` citation either document writes.
+ *
+ * Both documents point a reader at the exact line of the reset spend, and
+ * nothing has ever checked that the line is the right one — which is how the
+ * review of this very task and the documents it reviewed disagreed about it,
+ * neither able to settle it without opening the file. A line number in prose is
+ * a claim about bytes, so it is checkable like any other.
+ *
+ * Derived from {@link PRODUCTION_SITES} rather than from a hard-coded path, so
+ * a citation of a site added later is judged by the same case.
+ *
+ * @returns One entry per citation, with the document it appears in.
+ */
+const lineCitations = (): readonly LineCitation[] =>
+  DOCUMENTS.flatMap((document) => {
+    const text = readFileSync(path.join(repositoryRoot, document), 'utf8')
+    return PRODUCTION_SITES.flatMap((site) => {
+      // The path's dots are escaped so `.ts` matches only `.ts`, and the
+      // capture is the digits immediately after the colon.
+      const citation = new RegExp(`${site.replaceAll('.', String.raw`\.`)}:(\\d+)`, 'g')
+      return [...text.matchAll(citation)].map((found) => ({ document, site, line: Number(found[1]) }))
+    })
+  })
 
 /** Whether a repository-relative path is a test file rather than production. */
 const isTestFile = (file: string): boolean => file.endsWith('.test.ts') || file.endsWith('.test.tsx')
@@ -247,6 +352,37 @@ describe('the overrideAccess call sites the security document hands to Phase 4',
     expect(scope).toContain(`${OPTION}: false`)
     expect(scope).not.toContain(`${OPTION}: true`)
     expect(spend).toContain(`${OPTION}: true`)
+  })
+
+  it('cannot be described as a single production module while there are two of them', () => {
+    // The paragraph this document devotes to a false absolute claim acquired a
+    // second one, in the commit that fixed the first. Non-vacuous only while
+    // the set is not a singleton, which the guard below states rather than
+    // assumes.
+    expect(PRODUCTION_SITES.length).not.toBe(1)
+
+    const claiming = DOCUMENTS.flatMap((document) => {
+      const text = unwrapped(document)
+      return SINGULAR_CLAIMS.filter((claim) => text.includes(claim)).map((claim) => `${document} says "${claim}"`)
+    })
+
+    expect(claiming).toEqual([])
+  })
+
+  it('are cited at the line they are actually on, in every document that gives one', () => {
+    // A citation nothing checks is a citation that drifts, and this one was
+    // disputed before it was measured. The floor first: a regular expression
+    // that matched nothing would satisfy the assertion under it having read no
+    // document at all.
+    const citations = lineCitations()
+    expect(citations.length).toBeGreaterThan(0)
+
+    const wrong = citations.filter(({ site, line }) => {
+      const lines = readFileSync(path.join(repositoryRoot, site), 'utf8').split(LINE_SEPARATOR)
+      return lines[line - 1]?.includes(OPTION) !== true
+    })
+
+    expect(wrong).toEqual([])
   })
 
   it('are found by a scan that can actually answer no', () => {
