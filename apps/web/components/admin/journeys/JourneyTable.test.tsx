@@ -194,6 +194,42 @@ describe('JourneyTable', () => {
     expect(named.every((input) => input.value === '12')).toBe(true)
   })
 
+  it('is a table to a screen reader, not a run of text per row', () => {
+    // REVIEW ROUND 1, FINDING 8. axe was green over divs with no roles at all,
+    // because axe judges the markup that is there rather than the markup that
+    // is missing — so this asserts the structure directly. The strip is a row
+    // of one cell rather than a div loose inside the table, which is what makes
+    // the `rowgroup` legal.
+    const host = renderTable([aRow(), aRow({ id: anId('12'), name: 'Bergen' })])
+    act(() => {
+      host.querySelector<HTMLButtonElement>('[data-row-more]')?.click()
+    })
+
+    expect(host.querySelector('[role="table"]')?.getAttribute('aria-label')).toBe('Journeys')
+    expect(host.querySelectorAll('[role="table"] > [role="row"] > [role="columnheader"]')).toHaveLength(
+      visibleJourneyColumns(1400).length,
+    )
+    expect(host.querySelectorAll('[role="table"] > [role="rowgroup"]')).toHaveLength(2)
+    // One cell per column in the row itself, and the open strip is a row of
+    // exactly one — which is what makes the `rowgroup` legal.
+    expect(
+      host.querySelectorAll('[data-journey-id="7"] > [role="row"]:not([data-journey-strip]) > [role="cell"]'),
+    ).toHaveLength(visibleJourneyColumns(1400).length)
+    expect(host.querySelectorAll('[data-journey-strip][role="row"] > [role="cell"]')).toHaveLength(1)
+  })
+
+  it('gives the two headings the design prints nothing in a name a screen reader can read', () => {
+    // An empty `columnheader` leaves two cells per row nobody can place. The
+    // text is clipped rather than labelled, because axe's `empty-table-header`
+    // reads the header's subtree text and not its `aria-label` — measured.
+    const host = renderTable([aRow()])
+    const named = ['thumb', 'actions'].map(
+      (column) => host.querySelector(`[data-heading="${column}"]`)?.textContent ?? '',
+    )
+
+    expect(named).toEqual(['Cover', 'Actions'])
+  })
+
   it('says so when the filter has matched nothing, rather than drawing an empty card', () => {
     const host = renderTable([])
 

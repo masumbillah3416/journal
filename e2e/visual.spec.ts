@@ -160,17 +160,32 @@
  * the three projects ARE §3's two layouts, `desktop` and `mid` above the
  * breakpoint and `mobile` below it. None of them uses `settled()`.
  *
- * PHASE 4 TASK 4 ADDS THE JOURNEYS SCREEN, in two states:
- * `admin-journeys-*.png` (SCREENS.md §2.2's table inside the Task 3 shell) and
+ * PHASE 4 TASK 4 ADDS THE JOURNEYS SCREEN, in three states:
+ * `admin-journeys-*.png` (SCREENS.md §2.2's table inside the Task 3 shell),
  * `admin-journeys-create-*.png` (the create panel, which is a client island and
- * is therefore only on screen once its button has been pressed). Six images.
- * The three projects are doing real work here rather than photographing one
- * layout three times: `desktop` (1440) is above every rung of §2.2's column
- * ladder, `mid` (1000) is exactly at the `dates` rung, and `mobile` (390) is
- * below all four, so the three pictures are the base table, the full table and
- * one step down from full. Neither case uses `settled()` — there is no scaled
- * design box on an admin route — and both wait on the screen and
+ * is therefore only on screen once its button has been pressed) and
+ * `admin-journeys-rungs-*.png` (below). None of them uses `settled()` — there
+ * is no scaled design box on an admin route — and each waits on the screen and
  * `document.fonts.ready`.
+ *
+ * ═══ WHAT THE THREE PROJECTS ACTUALLY PHOTOGRAPH, WHICH IS TWO SHAPES AND NOT
+ *     THREE ═══
+ *
+ * This paragraph said the three projects were the base table, the full table
+ * and one step down from full, with `mid` "exactly at the `dates` rung". That
+ * was true of the VIEWPORT queries this screen shipped with for one commit;
+ * they are CONTAINER queries now (docs/deviations.md §55), and the number that
+ * decides a rung is the table's own width, not the window's. Measured:
+ * `desktop` 1440 → about 1142, so all eight columns; `mid` 1000 → about 718,
+ * which is 2px UNDER the first rung, so the base four; `mobile` 390 → about
+ * 346, the base four again. Two shapes, not three, and nothing in between.
+ *
+ * SO THE LADDER'S MIDDLE RUNGS HAD NO PICTURE AT ALL — `pages`, `edited` and
+ * `media` appeared in no baseline — which is what `admin-journeys-rungs` is
+ * for: one case, `desktop` only, that resizes to 1200 wide and photographs the
+ * ~902px table where those three rungs are in and `dates` is not. It is the
+ * one case here that sets its own viewport, and it says why (review round 1,
+ * finding 4).
  *
  * WHAT THESE FOUR DO NOT COVER, and it is written here because a baseline
  * invites the assumption that it does: the geometry `SCREENS.md` states in
@@ -585,6 +600,41 @@ test('matches the baseline screenshot of the journeys screen', async ({ page, co
   await page.evaluate(() => document.fonts.ready)
 
   await expect(page).toHaveScreenshot('admin-journeys.png', { fullPage: true })
+})
+
+test('matches the baseline screenshot of the journeys table at its middle rungs', async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  // ONE PROJECT, ONE VIEWPORT OF ITS OWN. The ladder is keyed on the TABLE's
+  // width, and the three projects give it about 1142, 718 and 346 — so the
+  // `pages`, `edited` and `media` rungs are in none of them. 1200 wide puts the
+  // table at about 902: above `media` (880) and below `dates` (1000), which is
+  // the three rungs no other baseline shows. Run at `desktop` only because the
+  // viewport is set here rather than by the project, so the other two would
+  // photograph this same width twice more.
+  test.skip(testInfo.project.name !== 'desktop', 'this case sets its own viewport, so one project is enough')
+
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`visualrungs.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.setViewportSize({ width: 1200, height: 900 })
+  await page.goto('/admin/journeys', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-admin-journeys]')).toBeVisible()
+  // The rungs themselves, asserted rather than left to the picture: a baseline
+  // of the wrong shape is still a baseline.
+  await expect(page.locator('[data-journey-id]').first().locator('[data-cell="pages"]')).toBeVisible()
+  await expect(page.locator('[data-journey-id]').first().locator('[data-cell="media"]')).toBeVisible()
+  await expect(page.locator('[data-journey-id]').first().locator('[data-cell="edited"]')).toBeVisible()
+  await expect(page.locator('[data-journey-id]').first().locator('[data-cell="dates"]')).toBeHidden()
+  await page.evaluate(() => document.fonts.ready)
+
+  await expect(page).toHaveScreenshot('admin-journeys-rungs.png', { fullPage: true })
 })
 
 test('matches the baseline screenshot of the journeys create panel', async ({ page, context, baseURL }, testInfo) => {

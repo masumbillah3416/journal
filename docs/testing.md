@@ -522,13 +522,21 @@ measured rather than argued.** It ships one script request MORE than `/admin` an
 panel's open state and the `⋯` disclosure, and nothing else: the search and the five status
 chips are `searchParams`, so they are links and a `GET` form and cost nothing. At 140,106
 bytes against 327,680 the screen is 42.8% of the ceiling, and the ten still to come have
-187,574 bytes between them. Those two numbers are worth reading together with the one above:
-the first screen with real data, a form and a disclosure on it cost about 2KB, so the
-ceiling is not what the remaining screens are likely to run into.
+187,574 bytes between them.
 
-`lhci assert --includePassedAssertions` over the saved runs reports **"4 result(s) for
-http://localhost:3000/admin"** — the URL is judged, not merely collected. That is the check
-to re-run if a future task adds a URL to this config.
+**WHICH OF THE TWO BUDGETS IS ACTUALLY BINDING, said plainly because the paragraph above
+reads off the byte column and the byte column is the roomy one.** The first screen with real
+data, a form and a disclosure on it cost about 2KB of script, so on that axis ten more
+screens are not the worry. **LCP is:** 2,930ms against the 3,085ms gate is **95% of budget,
+155ms of margin**, on the first of eleven screens, and it is a number a screen can move
+without shipping a byte of JavaScript — one more query, one uncached font, one image above
+the fold. Read the LCP column first when this gate goes red.
+
+Every URL above is JUDGED and not merely collected, which was once a manual
+`lhci assert --includePassedAssertions` reading of the saved runs and is now
+`scripts/lighthouseJudged.test.js` — landed from the Task 3 review, run in the pre-commit
+gate, and the thing to read when a future task adds a URL to this config. `/admin/journeys`
+is matched by the `.*/admin/.*` matrix entry.
 
 **`/admin/sign-in/code` is collected with no cookie**, so what it measures is the
 no-challenge placeholder rather than the pane a signing-in reader sees. Said rather than left

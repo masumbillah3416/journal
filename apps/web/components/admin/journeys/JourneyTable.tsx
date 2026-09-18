@@ -26,6 +26,15 @@
  * PATTERNS (CLAUDE.md §3.3): none of the seven. It is a list rendered, and the
  * shaping was `readJourneysScreen`'s.
  *
+ * IT IS A TABLE TO A SCREEN READER, not only to a sighted one. The design uses
+ * divs and so does this, so the markup is §2.2's — but a run of unlabelled text
+ * per row is not, and axe is green either way because axe judges the markup
+ * that is there rather than the markup that is missing (review round 1, finding
+ * 8). The ARIA roles change no pixel: the card is a `table`, the header is a
+ * `row` of `columnheader`s, and each journey is a `rowgroup` holding its row
+ * and — when it is open — its strip, which is `RowActions`' half of the same
+ * structure.
+ *
  * INVARIANT — the headings and the cells are the same sequence,
  * `JOURNEY_COLUMNS`. A grid whose tracks outnumber its cells slides every row
  * one column left, which looks like a data defect and is a markup one.
@@ -50,6 +59,24 @@ export interface JourneyTableProps {
   readonly archive: (form: FormData) => Promise<void>
   /** Soft-deletes a journey. */
   readonly trash: (form: FormData) => Promise<void>
+}
+
+/**
+ * The accessible name of a column whose heading prints nothing.
+ *
+ * The thumbnail's and the actions' headings are empty in the design and stay
+ * empty on screen. They are still `columnheader`s, and a column header with no
+ * accessible name leaves a screen-reader user with two cells per row they
+ * cannot place (review round 1, finding 8).
+ *
+ * VISUALLY HIDDEN TEXT, NOT AN `aria-label`, and that was measured rather than
+ * chosen: axe's `empty-table-header` rule runs `has-visible-text` over the
+ * header's SUBTREE TEXT, so a label attribute leaves it reporting "Element does
+ * not have text that is visible to screen readers". A clipped span is text.
+ */
+const UNPRINTED_HEADINGS: Readonly<Partial<Record<JourneyColumn, string>>> = {
+  thumb: 'Cover',
+  actions: 'Actions',
 }
 
 /**
@@ -168,30 +195,30 @@ export const journeysSummary = (rows: readonly JourneyRow[]): string => {
  */
 const cellsFor = (row: JourneyRow): React.JSX.Element => (
   <>
-    <div data-cell="thumb" className={styles.thumb} style={thumbStyle(row.coverSrc)} />
+    <div role="cell" data-cell="thumb" className={styles.thumb} style={thumbStyle(row.coverSrc)} />
 
-    <div data-cell="name" className={styles.nameCell}>
+    <div role="cell" data-cell="name" className={styles.nameCell}>
       <div className={styles.name}>{row.name}</div>
       <div className={styles.place}>{row.place}</div>
     </div>
 
-    <div data-cell="dates" className={[styles.dataCell, styles.dates].join(' ')}>
+    <div role="cell" data-cell="dates" className={[styles.dataCell, styles.dates].join(' ')}>
       {row.dates}
     </div>
-    <div data-cell="pages" className={[styles.dataCell, styles.pagesCell, styles.pages].join(' ')}>
+    <div role="cell" data-cell="pages" className={[styles.dataCell, styles.pagesCell, styles.pages].join(' ')}>
       {row.pages}
     </div>
-    <div data-cell="media" className={[styles.dataCell, styles.media].join(' ')}>
+    <div role="cell" data-cell="media" className={[styles.dataCell, styles.media].join(' ')}>
       {row.media}
     </div>
 
-    <div data-cell="status">
+    <div role="cell" data-cell="status">
       <span className={styles.pill} style={pillStyle(row.status)}>
         {PILL_LABEL[row.status]}
       </span>
     </div>
 
-    <div data-cell="edited" className={[styles.dataCell, styles.editedCell, styles.edited].join(' ')}>
+    <div role="cell" data-cell="edited" className={[styles.dataCell, styles.editedCell, styles.edited].join(' ')}>
       {row.editedAt}
     </div>
   </>
@@ -207,11 +234,12 @@ const cellsFor = (row: JourneyRow): React.JSX.Element => (
  * <JourneyTable rows={rows} duplicate={duplicateJourney} archive={archiveJourney} trash={trashJourney} />
  */
 export const JourneyTable = ({ rows, duplicate, archive, trash }: JourneyTableProps): React.JSX.Element => (
-  <div className={styles.card}>
-    <div className={styles.head}>
+  <div className={styles.card} role="table" aria-label="Journeys">
+    <div className={styles.head} role="row">
       {JOURNEY_COLUMNS.map((column) => (
         <div
           key={column}
+          role="columnheader"
           data-heading={column}
           className={
             column === 'dates' || column === 'pages' || column === 'media' || column === 'edited'
@@ -220,6 +248,9 @@ export const JourneyTable = ({ rows, duplicate, archive, trash }: JourneyTablePr
           }
         >
           {HEADINGS[column]}
+          {UNPRINTED_HEADINGS[column] === undefined ? null : (
+            <span className={styles.hiddenLabel}>{UNPRINTED_HEADINGS[column]}</span>
+          )}
         </div>
       ))}
     </div>

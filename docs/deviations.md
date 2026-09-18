@@ -2613,6 +2613,12 @@ smallest thing that makes all five reachable and changes nothing at any width th
 fits them; "keeps every status chip reachable, at every width" is the case, and it failed at
 `mobile` before the rule existed.
 
+**What the three viewport projects give the container, measured, so the next screen does not
+re-derive them:** `desktop` (1440) → about 1142, `mid` (1000) → about 718, `mobile` (390) →
+about 346. `mid` sits 2px UNDER the first rung, so two shapes are photographed and not three
+— which is why `e2e/visual.spec.ts` carries a fourth width of its own for the `pages`,
+`edited` and `media` rungs (review round 1, finding 4).
+
 **What would reverse it:** a `SCREENS.md` revision that states what the four thresholds
 measure, or that gives the row's controls a width they fit in — an icon-only row, or a
 `⋯` that carries Edit and Gallery too.

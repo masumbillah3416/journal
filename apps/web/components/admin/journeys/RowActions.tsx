@@ -29,6 +29,11 @@
  * arbitrary closure is not, and a prop is what lets `JourneyTable.test.tsx`
  * render this without importing a `'use server'` module into jsdom.
  *
+ * THE ROLES ARE THE OTHER HALF OF `JourneyTable`'s, and they only make sense
+ * together: the card is a `table`, so each journey is a `rowgroup` holding the
+ * `row` of cells and — when it is open — the strip, which is a `row` of one
+ * cell rather than a div loose inside the table. See that module's header.
+ *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. One boolean and a disclosure.
  *
  * INVARIANT — the button's `aria-expanded` and the strip's presence are the
@@ -87,10 +92,10 @@ export const RowActions = ({
   const stripId = `journey-strip-${journey}`
 
   return (
-    <div className={styles.rowWrap} data-journey-id={journey}>
-      <div className={styles.row}>
+    <div className={styles.rowWrap} data-journey-id={journey} role="rowgroup">
+      <div className={styles.row} role="row">
         {cells}
-        <div className={styles.actions} data-cell="actions">
+        <div className={styles.actions} role="cell" data-cell="actions">
           <a className={[styles.action, styles.actionPrimary].join(' ')} href={editHref}>
             Edit
           </a>
@@ -114,30 +119,35 @@ export const RowActions = ({
       </div>
 
       {open ? (
-        <div id={stripId} data-journey-strip className={styles.strip}>
-          <span className={styles.stripName}>{name}</span>
-          <span className={styles.stripSpacer} />
+        <div id={stripId} data-journey-strip className={styles.strip} role="row">
+          {/* One cell spanning the strip: a `rowgroup` owns rows, and a row owns
+              cells, so the strip is a row of one rather than a div loose inside
+              the table (review round 1, finding 8). */}
+          <div role="cell" className={styles.stripCell}>
+            <span className={styles.stripName}>{name}</span>
+            <span className={styles.stripSpacer} />
 
-          <form action={duplicate}>
-            <input type="hidden" name="journey" value={journey} />
-            <button type="submit" className={styles.stripAction}>
-              Duplicate
-            </button>
-          </form>
+            <form action={duplicate}>
+              <input type="hidden" name="journey" value={journey} />
+              <button type="submit" className={styles.stripAction}>
+                Duplicate
+              </button>
+            </form>
 
-          <form action={archive}>
-            <input type="hidden" name="journey" value={journey} />
-            <button type="submit" data-strip-archive className={styles.stripAction}>
-              {archived ? 'Unarchive' : 'Archive'}
-            </button>
-          </form>
+            <form action={archive}>
+              <input type="hidden" name="journey" value={journey} />
+              <button type="submit" data-strip-archive className={styles.stripAction}>
+                {archived ? 'Unarchive' : 'Archive'}
+              </button>
+            </form>
 
-          <form action={trash}>
-            <input type="hidden" name="journey" value={journey} />
-            <button type="submit" className={styles.stripDanger}>
-              Move to trash
-            </button>
-          </form>
+            <form action={trash}>
+              <input type="hidden" name="journey" value={journey} />
+              <button type="submit" className={styles.stripDanger}>
+                Move to trash
+              </button>
+            </form>
+          </div>
         </div>
       ) : null}
     </div>
