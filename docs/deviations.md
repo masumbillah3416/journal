@@ -2642,3 +2642,45 @@ the measurement at the line it changed; `e2e/admin.spec.ts`'s cases — "keeps e
 controls inside their own column, at every width" and "leaves the journey's name a column it
 can be read in, at every width" — both of which failed before the change, at every viewport
 project, and pass after it.
+
+## 56 · A page added from the journey editor is a draft — and today's public book shows it anyway
+
+**What changed:** `apps/web/lib/admin/pageMutations.ts`'s `addPageRow` and `copyPageRow`
+create their rows with `draft: true`, so a page nobody has put anything on is not born
+published. `SCREENS.md` §2.3 describes the rail's Add and Copy as immediate operations and
+says nothing about their status; the admin's own chrome (§2, "Preview draft" and "Publish")
+is what makes "a new page starts as a draft" the reading taken, and it is the same reading
+the create panel already states out loud one screen along — "Starts as a draft — no bookmark
+until you publish."
+
+**The consequence, measured rather than reasoned about, and it points the other way.**
+`apps/web/lib/readBookBundle.ts`'s `pages` query carries no `_status` filter, where its
+`journeys` query immediately above carries one with a comment explaining why ("Without this
+filter, an unpublished draft would appear in the public book"). Pages have the same property
+and no such filter, so a draft page IS in the public book. Measured against a real Postgres
+in `diary_test`: a published journey with one published page, plus one page added by
+`addPageRow`, returns BOTH pages from the query `readBookBundle` runs, and only the published
+one from the same query with `_status: { equals: 'published' }` added.
+
+So on today's code, pressing Add on a published journey puts an empty page into the live
+book at once. Nothing could reach that state before this task, because nothing in the admin
+created a page on a journey that was already out: `createJourneyRow` and
+`duplicateJourneyRow` only ever make pages for a journey that is itself a draft, which the
+`journeys` filter already excludes.
+
+**Why it is recorded rather than fixed here.** The fix is one clause in a Phase 1 read that
+the whole public diary runs through, and it changes what that read returns: every page
+fixture in `readBookBundle.integration.test.ts`, `readGalleryBundle.integration.test.ts` and
+`readGalleryDownload.integration.test.ts` creates pages without a status and would have to
+say `_status: 'published'` for those suites to still describe the book. That is a change to
+the public surface, made from inside a screen task, and it is worth someone deciding on
+rather than someone noticing. It is also not merely cosmetic in the other direction: with
+the filter and no page-level Publish yet built (`SCREENS.md` §2.8 is a later task), an added
+page would be invisible in the book until that screen exists.
+
+**What would reverse it:** adding `_status: { equals: 'published' }` to the `pages` query in
+`readBookBundle.ts`, with the three fixture files above updated in the same commit — after
+which this entry reduces to its first paragraph.
+
+**Recorded as:** this entry, and the `addPageRow` note in
+`apps/web/lib/admin/pageMutations.ts` that cites it.

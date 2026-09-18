@@ -521,6 +521,13 @@ export default defineConfig({
         // about Payload's draft handling. Same exclude-and-regate treatment as
         // its two neighbours above.
         'apps/web/lib/admin/journeyMutations.ts',
+        // pageMutations.ts (Phase 4 Task 5) is the five writes behind the
+        // journey editor's page rail — add, copy, delete, reorder and set
+        // layout. Every one of them is a fact about Postgres and about how
+        // Payload merges a write into a versioned collection's newest version,
+        // which is the defect Task 4 paid two rounds for. Same
+        // exclude-and-regate treatment as its neighbours above.
+        'apps/web/lib/admin/pageMutations.ts',
         // `mint-lighthouse-session.ts` (Phase 4 Task 3) creates an account and
         // issues a session through this repository's own session service, both
         // of which are rows in a real Postgres, so its only test is an

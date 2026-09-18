@@ -201,6 +201,9 @@ export default defineConfig({
         // in `vitest.config.ts`'s exclude: nothing to execute without a
         // database.
         'apps/web/lib/admin/journeyMutations.ts',
+        // Phase 4 Task 5's five page-rail writes, here for the reason stated in
+        // `vitest.config.ts`'s exclude: nothing to execute without a database.
+        'apps/web/lib/admin/pageMutations.ts',
         // Phase 4 Task 3's minting script, here for the reason stated in
         // `vitest.config.ts`'s exclude: it writes a `users` row and a
         // `sessions` row, so nothing without a database can execute it.
@@ -501,6 +504,19 @@ export default defineConfig({
         // and a group is not a shape `orNull` can express. Not a §46 entry: §46
         // registers the gates BELOW CLAUDE.md §2.1's 95%, and this is at it.
         'apps/web/lib/admin/journeyMutations.ts': { lines: 100, branches: 95, functions: 100 },
+        // pageMutations.ts (Phase 4 Task 5): MEASURED at 100/97.5/100, and the
+        // branch number is 97 rather than 100 for exactly ONE arm — `journeyOf`'s
+        // refusal of a relationship value that is not a bare id, which is the
+        // same arm and the same reason as `readJourneysScreen.ts` above. Every
+        // read in that module is `depth: 0`, so Payload hands it the id and the
+        // arm is unreachable today; it is written rather than cast because a
+        // `depth` raised by a later task would otherwise file a page under
+        // `NaN`. Two other arms that were uncovered when this entry was first
+        // written are gone rather than excused: `nextPlace` replaced two
+        // `last === undefined` ternaries whose empty-rail side copyPageRow can
+        // never take. Not a §46 entry: §46 registers the gates BELOW
+        // CLAUDE.md §2.1's 95%, and this is above it.
+        'apps/web/lib/admin/pageMutations.ts': { lines: 100, branches: 97, functions: 100 },
         // mint-lighthouse-session.ts (Phase 4 Task 3): 100% on every axis. Its
         // two branches are the account that already exists and the account that
         // does not, and `mint-lighthouse-session.integration.test.ts` drives
