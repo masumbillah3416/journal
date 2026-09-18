@@ -6,6 +6,7 @@ import {
   anAboutContent,
   aPortrait,
   aJourney,
+  aRailPage,
   galleryFrames,
 } from './factories'
 
@@ -141,5 +142,24 @@ describe('galleryFrames', () => {
     const ids = galleryFrames(61).map((frame) => frame.id)
 
     expect(new Set(ids).size).toBe(61)
+  })
+})
+
+describe('aRailPage', () => {
+  it('builds a rail page at the id and the place the call names', () => {
+    expect(aRailPage('b', 1)).toEqual({ id: 'b', title: 'Page b', kind: 'frames', order: 1 })
+  })
+
+  it('merges overrides shallowly over the defaults', () => {
+    expect(aRailPage('a', 0, { title: 'Notes', kind: 'notes' })).toEqual({
+      id: 'a',
+      title: 'Notes',
+      kind: 'notes',
+      order: 0,
+    })
+  })
+
+  it('gives every call its own object, never a shared reference', () => {
+    expect(aRailPage('a', 0)).not.toBe(aRailPage('a', 0))
   })
 })

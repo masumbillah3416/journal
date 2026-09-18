@@ -8,7 +8,7 @@
  * sensible defaults, so a test's `aJourney({ slug: 'tokyo' })` names only the
  * field it cares about. Depends on: Journey and BookChrome, from ../bookBundle;
  * GalleryBundle and GalleryFrame, from ../gallery; ChallengeRecord, from
- * ../auth/otpChallenge.
+ * ../auth/otpChallenge; RailPage, from ../admin/pageRail.
  *
  * THE SIX BYTE-LEVEL FIXTURES USED TO LIVE AT THE END OF THIS FILE, AND NOW
  * LIVE IN `./bytes.ts`. They were a different kind of fixture — a domain
@@ -21,10 +21,11 @@
  * does not re-export them: a re-export would leave two import paths for one
  * symbol, and the next reader would not know which is the home.
  */
+import type { RailPage } from '../admin/pageRail'
 import type { ChallengeRecord } from '../auth/otpChallenge'
 import type { AboutContent, BookChrome, Journey, Slot } from '../bookBundle'
 import type { GalleryBundle, GalleryFrame } from '../gallery'
-import type { JourneyId, MediaId } from '../ids'
+import type { JourneyId, MediaId, PageId } from '../ids'
 
 // Test-only default id. The literal below is a fixed, non-empty string, so
 // routing it through the fallible `journeyId()` constructor would only add a
@@ -187,5 +188,32 @@ export const aChallenge = (overrides: Partial<ChallengeRecord> = {}): ChallengeR
   createdAt: 0,
   attempts: 0,
   consumedAt: null,
+  ...overrides,
+})
+
+/**
+ * Builds a {@link RailPage} for SCREENS.md §2.3's page rail.
+ *
+ * `id` and `order` are PARAMETERS rather than overrides, for the reason
+ * {@link aGalleryFrame} gives about its own id: every case about the rail is
+ * about which page moved and where it sat, so naming both at the call site is
+ * what makes those cases readable — `aRailPage('b', 1)` rather than an
+ * anonymous page whose place has to be looked up.
+ *
+ * `kind` defaults to `'frames'` because a journey's pages are one Notes page
+ * and the rest frames, so the common fixture is a frames page; a case about
+ * the notes page names it.
+ * @param id - The page's id, e.g. `'b'`. Branded directly: as
+ *   `DEFAULT_JOURNEY_ID` above, a non-empty literal cannot fail the fallible
+ *   constructor, so the cast adds no unreachable branch.
+ * @param order - Where it sits in the journey, from 0.
+ * @param overrides - Fields to override on the default page.
+ * @returns A fresh rail page, shared with no other call's result.
+ */
+export const aRailPage = (id: string, order: number, overrides: Partial<RailPage> = {}): RailPage => ({
+  id: id as PageId,
+  title: `Page ${id}`,
+  kind: 'frames',
+  order,
   ...overrides,
 })
