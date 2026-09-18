@@ -101,7 +101,7 @@ const renderTable = (rows: readonly JourneyRow[]): HTMLElement => {
  *   media query block has to produce rather than a silently empty comparison.
  */
 const stylesheetWidths = (): readonly number[] => {
-  const found = STYLESHEET.split('@container journeys (min-width: ')
+  const found = STYLESHEET.split('@container td-journeys-table (min-width: ')
     .slice(1)
     // Each piece runs to the next query, so this is the block's own body.
     .filter((block) => (block.split('@container')[0] ?? '').includes('.row'))
@@ -211,6 +211,27 @@ describe('JourneyTable', () => {
 
     expect(grows.length).toBeGreaterThan(0)
     expect(stylesheetWidths()).toEqual(grows)
+  })
+
+  it('puts the create panel’s fields three-up at SCREENS.md §2.2’s own 820px, and not before', () => {
+    // REVIEW ROUND 1, FINDING 2. This threshold was left unpinned on the
+    // argument that the visual baselines stood over it. They do not: the six
+    // baselines see container widths of about 1142, 718 and 346, so ANY
+    // replacement in (718, 1142] — including 880 and 1000, the two ladder rungs
+    // a typo would most likely reach for — renders every one of them
+    // identically. The reviewer changed it to 900 and all 47 Vitest cases
+    // passed.
+    //
+    // ONE LITERAL, IN A TEST, CITING THE SECTION. It is not the abstraction
+    // CLAUDE.md §4 forbids — no module, no export, no caller — and it is not
+    // part of the column ladder, which is why it is asserted here rather than
+    // folded into `stylesheetWidths`.
+    const block = STYLESHEET.split('@container td-journeys-table (min-width: ')
+      .slice(1)
+      .find((piece) => (piece.split('@container')[0] ?? '').includes('.createFields'))
+
+    expect(block, 'journeys.module.css has no container query that sets the create panel’s columns').toBeDefined()
+    expect(Number(/^(\d+)px/.exec(block ?? '')?.[1])).toBe(820)
   })
 
   it('truncates every data cell, which is what stops one long date pushing the actions off the row', () => {

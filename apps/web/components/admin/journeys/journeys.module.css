@@ -61,7 +61,7 @@
   max-width: 1320px;
   flex-direction: column;
   gap: 16px;
-  container-name: journeys;
+  container-name: td-journeys-table;
   container-type: inline-size;
 }
 
@@ -400,6 +400,11 @@
   min-width: 0;
 }
 
+/* THE NAME AND THE PLACE TRUNCATE TOO, which SCREENS.md §2.2 specifies for the
+ * monospace data cells only (docs/deviations.md §55). The row is one grid, so
+ * without it a long journey name widens nothing — the track is `minmax(0,
+ * 1.7fr)` — and simply overflows into the cell beside it, which is the defect
+ * the actions column already cost this task once. */
 .name {
   overflow: hidden;
   font-family: var(--td-font-caveat);
@@ -581,7 +586,7 @@
   display: none;
 }
 
-@container journeys (min-width: 720px) {
+@container td-journeys-table (min-width: 720px) {
   .head,
   .row {
     grid-template-columns: 48px minmax(0, 1.7fr) 52px 96px minmax(0, 128px);
@@ -592,7 +597,7 @@
   }
 }
 
-@container journeys (min-width: 800px) {
+@container td-journeys-table (min-width: 800px) {
   .head,
   .row {
     grid-template-columns: 48px minmax(0, 1.7fr) 52px 96px minmax(0, 94px) minmax(0, 128px);
@@ -603,7 +608,7 @@
   }
 }
 
-@container journeys (min-width: 880px) {
+@container td-journeys-table (min-width: 880px) {
   .head,
   .row {
     grid-template-columns: 48px minmax(0, 1.7fr) 52px minmax(0, 1fr) 96px minmax(0, 94px) minmax(0, 128px);
@@ -614,7 +619,7 @@
   }
 }
 
-@container journeys (min-width: 1000px) {
+@container td-journeys-table (min-width: 1000px) {
   .head,
   .row {
     grid-template-columns:
@@ -632,7 +637,7 @@
  * design gives separately (its own `newGrid`, keyed on the same measured width)
  * — which is why it sits below the four blocks rather than among them, and why
  * `JourneyTable.test.tsx`'s pin reads only the blocks that touch `.row`. */
-@container journeys (min-width: 820px) {
+@container td-journeys-table (min-width: 820px) {
   .createFields {
     grid-template-columns: 1.1fr 1fr 1fr;
   }

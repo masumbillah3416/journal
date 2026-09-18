@@ -2598,6 +2598,13 @@ that floor the base ladder's own fixed tracks exceed the row: the first
 `admin-journeys-mobile-linux.png` rendered every journey as "S.", "B.", "P.". A horizontally
 scrolling card keeps every transcribed number and shows the whole row.
 
+**And a third addition, small and easy to miss: the journey's name and place truncate.**
+§2.2 gives `text-overflow: ellipsis` to the monospace data cells and says nothing about the
+Caveat 30px name or the Garamond italic place beneath it. The row is one grid and the name's
+track is `minmax(0, 1.7fr)`, so a long name widens nothing and simply overflows into the cell
+beside it — the same mechanism that put the row's controls over the Edited cell. It is listed
+here because it was the one addition §55 did not name.
+
 **And one more addition the same baselines found: the chip row wraps.** §2.2 describes the
 five chips as a row and gives them no wrapping. At 390px the fifth ran off the right edge,
 and the shell's content area is `overflow-x: hidden` — so "Archived" was not merely

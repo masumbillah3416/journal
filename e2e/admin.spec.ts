@@ -238,14 +238,22 @@ test('lines each heading up with the column beneath it, at every width', async (
   await page.goto('/admin/journeys')
   const row = page.locator('[data-journey-id]').first()
 
+  let measured = 0
   for (const column of ['status', 'edited']) {
     const heading = await page.locator(`[data-heading="${column}"]`).boundingBox()
     const cell = await row.locator(`[data-cell="${column}"]`).boundingBox()
+    // `edited` is `display: none` below its rung, so at `mobile` only `status`
+    // is measurable — which is correct, and is also how this case could come to
+    // measure NOTHING if a later change hid or renamed both. The counter below
+    // is what stops that being a silent pass (review round 1, finding 7).
     if (heading === null || cell === null) continue
+    measured += 1
     // One pixel of slack for sub-pixel track rounding, and no more: a heading
     // over the wrong column is out by tens.
     expect(Math.abs(heading.x - cell.x), `the ${column} heading is not over its own cells`).toBeLessThanOrEqual(1)
   }
+
+  expect(measured, 'this case compared no heading against any cell').toBeGreaterThan(0)
 })
 
 test('keeps every status chip reachable, at every width', async ({ page, viewport }) => {
