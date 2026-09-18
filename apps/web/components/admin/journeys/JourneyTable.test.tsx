@@ -91,21 +91,22 @@ const renderTable = (rows: readonly JourneyRow[]): HTMLElement => {
  * The widths at which `journeys.module.css` changes the TABLE's shape.
  *
  * Read out of the stylesheet rather than written down — see this file's header.
- * Only the blocks that touch `.row` count: SCREENS.md §2.2 also gives the
- * create panel a breakpoint of its own at 820px, which is a different element
- * and no part of the column ladder, so a comparison over every `min-width` in
- * the file would be comparing two different specifications.
+ * CONTAINER queries, not media queries, and that is the subject rather than a
+ * detail: the ladder is about the width the TABLE has, not the window's, which
+ * is what the prototype measures too. Only the blocks that touch `.row` count —
+ * SCREENS.md §2.2 gives the create panel a threshold of its own at 820px, which
+ * is a different element and no part of the column ladder.
  * @returns Every such `min-width`, ascending, deduplicated.
  * @throws When the stylesheet declares none, which is the failure a deleted
  *   media query block has to produce rather than a silently empty comparison.
  */
 const stylesheetWidths = (): readonly number[] => {
-  const found = STYLESHEET.split('@media (min-width: ')
+  const found = STYLESHEET.split('@container journeys (min-width: ')
     .slice(1)
-    // Each piece runs to the next media query, so this is the block's own body.
-    .filter((block) => (block.split('@media')[0] ?? '').includes('.row'))
+    // Each piece runs to the next query, so this is the block's own body.
+    .filter((block) => (block.split('@container')[0] ?? '').includes('.row'))
     .map((block) => Number(/^(\d+)px/.exec(block)?.[1]))
-  if (found.length === 0) throw new Error('journeys.module.css declares no min-width media query touching .row')
+  if (found.length === 0) throw new Error('journeys.module.css declares no container query touching .row')
   return [...new Set(found)].sort((left, right) => left - right)
 }
 

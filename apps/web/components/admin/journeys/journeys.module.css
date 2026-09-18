@@ -37,11 +37,32 @@
 
 /* ── The screen ────────────────────────────────────────────────────────── */
 
+/* THE QUERY CONTAINER, and that is a correction rather than a flourish. Every
+ * breakpoint in this file was a `@media` query first, and the first baselines
+ * generated in the pinned container showed why that was wrong: at a 1000px
+ * viewport the table drew all eight columns into the ~700px the 238px rail
+ * leaves it, and the name column was crushed to 74px. The prototype does not
+ * key on the viewport either — `Travel Diary Admin.dc.html` measures
+ * `document.querySelector('[data-content]').clientWidth` and passes THAT to
+ * every one of these thresholds. A container query is that measurement,
+ * expressed in CSS.
+ *
+ * WHAT IS MEASURED HERE, exactly, because it is 60px narrower than the
+ * prototype's number: `clientWidth` includes the content area's own `24px 30px`
+ * padding, and a container query's `inline-size` is the content box. So a
+ * threshold fires here when the table has that much room, and in the prototype
+ * when the column around it does. The difference is one padding, it is in the
+ * same direction at every rung, and it is written down rather than compensated
+ * for — compensating would put a number in this file that
+ * `journeyColumns.ts` does not have, which is the drift the pin exists to
+ * prevent. */
 .screen {
   display: flex;
   max-width: 1320px;
   flex-direction: column;
   gap: 16px;
+  container-name: journeys;
+  container-type: inline-size;
 }
 
 /* ── Controls: search, five chips, New journey ─────────────────────────── */
@@ -89,8 +110,16 @@
   white-space: nowrap;
 }
 
+/* `flex-wrap: wrap` is not in SCREENS.md §2.2's description of the chip row,
+ * and it is here because of what the first `admin-journeys-mobile` baseline
+ * showed: at 390px the fifth chip ran off the right edge, and the shell's
+ * content area is `overflow-x: hidden` — so "Archived" was not merely
+ * off-screen, it was a filter nobody on a phone could select. Wrapping is the
+ * smallest thing that makes all five reachable and changes nothing at any width
+ * that already fits them. */
 .chips {
   display: flex;
+  flex-wrap: wrap;
   gap: 7px;
 }
 
@@ -284,8 +313,13 @@
 
 /* ── The table, in one card ────────────────────────────────────────────── */
 
+/* `overflow-x: auto` rather than `hidden`: below the row floor declared under
+ * the base ladder, the row is wider than the card and the card scrolls, which
+ * is the one honest answer for a table narrower than the columns it has to
+ * show. Hiding it would clip the controls; crushing the tracks is what the
+ * first baselines showed. */
 .card {
-  overflow: hidden;
+  overflow-x: auto;
   border-radius: 3px;
   background: var(--td-paper-mount);
   box-shadow:
@@ -294,13 +328,39 @@
 }
 
 /* The base ladder: 48px thumb, the name, the status pill, the actions.
- * Every other track joins in one of the four blocks at the foot of this file. */
+ * Every other track joins in one of the four blocks at the foot of this file.
+ *
+ * THE ACTIONS TRACK IS 128px, NOT SCREENS.md §2.2's `minmax(0,104px)`, and that
+ * is docs/deviations.md §55. Edit, Gallery and `⋯` measure 119.4px together in
+ * Chromium on the authoring host and 117px in the Linux container the baselines
+ * come from, at the type the same section gives them — and
+ * `justify-content: flex-end` sends the overflow LEFT, so the first baselines
+ * printed "14 Sept 2026EDIT GALLERY ⋯" over the Edited cell.
+ *
+ * IT IS A FIXED NUMBER RATHER THAN `max-content`, WHICH WAS TRIED AND BROKE
+ * SOMETHING ELSE. The header row and the body rows are two grids, not one, so
+ * `max-content` resolved to zero for the header's empty actions cell and to
+ * ~120px for a row's — and every heading after it sat over the wrong column.
+ * `e2e/admin.spec.ts`'s "lines each heading up with the column beneath it" is
+ * what caught that, and 128 is the larger measurement rounded up with room for
+ * the metric difference between the two environments. */
 .head,
 .row {
   display: grid;
   align-items: center;
   gap: 12px;
-  grid-template-columns: 48px minmax(0, 1.7fr) 96px minmax(0, 104px);
+  grid-template-columns: 48px minmax(0, 1.7fr) 96px minmax(0, 128px);
+}
+
+/* THE ROW'S FLOOR, derived rather than chosen: 40 (the row's own padding) + 48
+ * (the cover square) + 130 (a name column a journey is readable in at Caveat
+ * 30px) + 96 (the status pill) + 128 (the actions track above) + 36 (three 12px
+ * gaps) = 478, rounded to 480. Below it the card scrolls; the
+ * alternative, which the first `admin-journeys-mobile` baseline shows, is every
+ * journey rendered as "S.", "B.", "P.". */
+.head,
+.rowWrap {
+  min-width: 480px;
 }
 
 .head {
@@ -521,10 +581,10 @@
   display: none;
 }
 
-@media (min-width: 720px) {
+@container journeys (min-width: 720px) {
   .head,
   .row {
-    grid-template-columns: 48px minmax(0, 1.7fr) 52px 96px minmax(0, 104px);
+    grid-template-columns: 48px minmax(0, 1.7fr) 52px 96px minmax(0, 128px);
   }
 
   .pages {
@@ -532,10 +592,10 @@
   }
 }
 
-@media (min-width: 800px) {
+@container journeys (min-width: 800px) {
   .head,
   .row {
-    grid-template-columns: 48px minmax(0, 1.7fr) 52px 96px minmax(0, 94px) minmax(0, 104px);
+    grid-template-columns: 48px minmax(0, 1.7fr) 52px 96px minmax(0, 94px) minmax(0, 128px);
   }
 
   .edited {
@@ -543,10 +603,10 @@
   }
 }
 
-@media (min-width: 880px) {
+@container journeys (min-width: 880px) {
   .head,
   .row {
-    grid-template-columns: 48px minmax(0, 1.7fr) 52px minmax(0, 1fr) 96px minmax(0, 94px) minmax(0, 104px);
+    grid-template-columns: 48px minmax(0, 1.7fr) 52px minmax(0, 1fr) 96px minmax(0, 94px) minmax(0, 128px);
   }
 
   .media {
@@ -554,12 +614,12 @@
   }
 }
 
-@media (min-width: 1000px) {
+@container journeys (min-width: 1000px) {
   .head,
   .row {
     grid-template-columns:
       48px minmax(0, 1.7fr) minmax(0, 1.15fr) 52px minmax(0, 1fr) 96px
-      minmax(0, 94px) minmax(0, 104px);
+      minmax(0, 94px) minmax(0, 128px);
   }
 
   .dates {
@@ -569,9 +629,10 @@
 
 /* SCREENS.md §2.2: the create panel's three fields are `1.1fr 1fr 1fr` above
  * 820px. Not part of the column ladder — a different element and a width the
- * design gives separately — which is why it sits below the four blocks rather
- * than among them. */
-@media (min-width: 820px) {
+ * design gives separately (its own `newGrid`, keyed on the same measured width)
+ * — which is why it sits below the four blocks rather than among them, and why
+ * `JourneyTable.test.tsx`'s pin reads only the blocks that touch `.row`. */
+@container journeys (min-width: 820px) {
   .createFields {
     grid-template-columns: 1.1fr 1fr 1fr;
   }

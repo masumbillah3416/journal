@@ -190,3 +190,72 @@ test('opens one row’s action strip behind its ⋯, and closes it again', async
   await row.locator('[data-row-more]').click()
   await expect(row.locator('[data-journey-strip]')).toHaveCount(0)
 })
+
+test('keeps each row’s controls inside their own column, at every width', async ({ page }) => {
+  // FOUND IN A BASELINE, NOT REASONED ABOUT. The first `admin-journeys-*.png`
+  // generated in the pinned container showed "14 Sept 2026EDIT GALLERY ⋯" —
+  // the Edited cell's date and the row's controls printed on top of each
+  // other. Measured in a real browser: the three controls are 119.4px wide at
+  // the type SCREENS.md §2.2 gives them, the actions track was capped at the
+  // 104px the same section gives it, and `justify-content: flex-end` sends the
+  // overflow LEFT, over whichever cell is beside it. A picture of overlapping
+  // text is still a picture, and `maxDiffPixelRatio` would have ratified it
+  // for the life of the screen.
+  await page.goto('/admin/journeys')
+  const row = page.locator('[data-journey-id]').first()
+  const cell = await row.locator('[data-cell="actions"]').boundingBox()
+  const firstControl = await row.locator('[data-cell="actions"] a').first().boundingBox()
+
+  expect(cell, 'the row drew no actions cell').not.toBeNull()
+  expect(firstControl, 'the actions cell drew no controls').not.toBeNull()
+  // The controls start at or after their own column does. A cell whose content
+  // begins before its own box is content printed over its neighbour.
+  expect(firstControl?.x ?? 0).toBeGreaterThanOrEqual(cell?.x ?? 0)
+})
+
+test('leaves the journey’s name a column it can be read in, at every width', async ({ page }) => {
+  // The other half of the same measurement, and the one the `mobile` project is
+  // for: at 390px the base ladder's fixed tracks and the controls together
+  // exceeded the row, and the name column was crushed to a few pixels — every
+  // journey rendered as "S.", "B.", "P.". The card scrolls instead.
+  await page.goto('/admin/journeys')
+  const name = await page.locator('[data-journey-id]').first().locator('[data-cell="name"]').boundingBox()
+
+  expect(name, 'the row drew no name cell').not.toBeNull()
+  // The floor `journeys.module.css` states and derives; a name cell under it is
+  // the crushed state, whatever the viewport.
+  expect(name?.width ?? 0).toBeGreaterThanOrEqual(120)
+})
+
+test('lines each heading up with the column beneath it, at every width', async ({ page }) => {
+  // THE DEFECT THE FIRST FIX INTRODUCED, and the reason this case exists rather
+  // than a second look at a screenshot. Sizing the actions track to
+  // `max-content` stopped the controls overflowing — and silently broke the
+  // alignment, because the header row and the body rows are two grids: the
+  // header's actions cell is empty, so its `max-content` is zero, so every
+  // heading after it sat over the wrong column. The track is a fixed width
+  // again for exactly this reason (docs/deviations.md §55).
+  await page.goto('/admin/journeys')
+  const row = page.locator('[data-journey-id]').first()
+
+  for (const column of ['status', 'edited']) {
+    const heading = await page.locator(`[data-heading="${column}"]`).boundingBox()
+    const cell = await row.locator(`[data-cell="${column}"]`).boundingBox()
+    if (heading === null || cell === null) continue
+    // One pixel of slack for sub-pixel track rounding, and no more: a heading
+    // over the wrong column is out by tens.
+    expect(Math.abs(heading.x - cell.x), `the ${column} heading is not over its own cells`).toBeLessThanOrEqual(1)
+  }
+})
+
+test('keeps every status chip reachable, at every width', async ({ page, viewport }) => {
+  // The `mobile` baseline showed the fifth chip cut off at the right edge, and
+  // the shell's content area is `overflow-x: hidden` — so "Archived" was not
+  // merely off-screen, it was unreachable. A chip row that does not wrap is a
+  // filter nobody on a phone can select.
+  await page.goto('/admin/journeys')
+  const chip = await page.locator('[data-chip="archived"]').boundingBox()
+
+  expect(chip, 'the screen drew no Archived chip').not.toBeNull()
+  expect((chip?.x ?? 0) + (chip?.width ?? 0)).toBeLessThanOrEqual(viewport?.width ?? 0)
+})

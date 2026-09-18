@@ -2539,3 +2539,70 @@ at which point the relative string is that island's to draw and costs nothing ne
 
 **Recorded as:** this entry, and a `HANDOFF-DEVIATION` note on `EDITED_FORMAT` in
 `apps/web/lib/admin/readJourneysScreen.ts`.
+
+## 55 · The journeys table's column ladder is a CONTAINER query, and its actions column is as wide as its controls
+
+**What changed:** two numbers in `apps/web/components/admin/journeys/journeys.module.css`
+depart from `SCREENS.md` §2.2 as written, and both were found by looking at a generated
+baseline rather than by reading the section again.
+
+**One — the four thresholds are `@container`, not `@media`.** §2.2 writes the ladder as
+"+720px", "+800px", "+880px", "+1000px" and does not say what is being measured. Written as
+media queries against the viewport, the table drew all eight columns at a 1000px window —
+where the 238px rail and the content area's padding leave it about 700px — and the name
+column came out 74px wide. `Travel Diary Admin.dc.html` settles it: the prototype measures
+`document.querySelector('[data-content]').clientWidth` and passes that to every one of
+these thresholds, and to the create panel's 820px as well. So the ladder is about the room
+the TABLE has, which is what a container query expresses and what
+`packages/domain/src/admin/journeyColumns.ts` already documented its parameter to be.
+
+**What that measurement is NOT:** `clientWidth` includes the content area's own 30px
+padding either side, and a container query's `inline-size` is the content box, so a
+threshold fires here when the table itself is that wide and in the prototype when the
+column around it is — 60px apart, in the same direction at every rung. It is written down
+rather than compensated for: adding 60 to four numbers in the stylesheet would put four
+values in it that `journeyColumns.ts` does not have, which is exactly the drift
+`JourneyTable.test.tsx`'s pin exists to catch.
+
+**Two — the actions column is `minmax(0, 128px)`, where §2.2 writes `minmax(0, 104px)`.**
+Edit, Gallery and `⋯` measure **119.4px** together in Chromium on the authoring host and
+**117px** in the Linux container the baselines are generated in, at the type §2.2 gives them
+(Courier 10px, `.14em`, uppercase, 10px gaps, plus the 16px `⋯`) — and
+`justify-content: flex-end` sends the overflow to the LEFT, so the first
+`admin-journeys-desktop-linux.png` printed "14 Sept 2026EDIT GALLERY ⋯", the Edited cell's
+date and the row's controls on top of each other. The section specifies both the controls
+and the track, and the two do not fit.
+
+**`max-content` was tried first and broke something else**, which is why the number is
+fixed. The header row and the body rows are two grids rather than one, so `max-content`
+resolved to zero for the header's empty actions cell and to about 120px for a row's — and
+every heading after it sat over the wrong column. That is a defect a screenshot invites you
+to miss and a measurement does not, so it has its own case: "lines each heading up with the
+column beneath it, at every width", which failed at all three viewport projects before the
+track became a number again.
+
+**And one addition rather than a departure: the card scrolls below a 480px row.** The floor
+is derived — 40 (the row's padding) + 48 (the cover square) + 130 (a name column a journey
+is readable in at Caveat 30px) + 96 (the status pill) + 130 (the controls, measured above
+and rounded up) + 36 (three gaps). §2.2 gives the table no phone layout at all, and below
+that floor the base ladder's own fixed tracks exceed the row: the first
+`admin-journeys-mobile-linux.png` rendered every journey as "S.", "B.", "P.". A horizontally
+scrolling card keeps every transcribed number and shows the whole row.
+
+**And one more addition the same baselines found: the chip row wraps.** §2.2 describes the
+five chips as a row and gives them no wrapping. At 390px the fifth ran off the right edge,
+and the shell's content area is `overflow-x: hidden` — so "Archived" was not merely
+off-screen, it was a filter nobody on a phone could select. `flex-wrap: wrap` is the
+smallest thing that makes all five reachable and changes nothing at any width that already
+fits them; "keeps every status chip reachable, at every width" is the case, and it failed at
+`mobile` before the rule existed.
+
+**What would reverse it:** a `SCREENS.md` revision that states what the four thresholds
+measure, or that gives the row's controls a width they fit in — an icon-only row, or a
+`⋯` that carries Edit and Gallery too.
+
+**Recorded as:** this entry; the three comment blocks in `journeys.module.css` that carry
+the measurement at the line it changed; `e2e/admin.spec.ts`'s cases — "keeps each row's
+controls inside their own column, at every width" and "leaves the journey's name a column it
+can be read in, at every width" — both of which failed before the change, at every viewport
+project, and pass after it.
