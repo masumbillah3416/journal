@@ -508,13 +508,23 @@ guard**, five runs, medians, 1440x900 desktop, on the authoring host:
 | `/admin/sign-in/code` | `/admin/sign-in/code` | 1                  | 141,478         | 7               | 2,928ms     | 0   |
 | `/admin/reset`        | `/admin/reset`        | 1                  | 140,606         | 7               | 2,927ms     | 0   |
 | **`/admin`**          | **`/admin`**          | **1**              | **137,986**     | **6**           | **2,777ms** | 0   |
+| **`/admin/journeys`** | **`/admin/journeys`** | **1**              | **140,106**     | **7**           | **2,930ms** | 0   |
 
-**The final URL is `/admin`, not `/admin/sign-in`** — that is what says the cookie survived
-into the collector, and it is the first thing to read when this gate behaves oddly. **137,986
-bytes against 327,680 is 42.1% of the ceiling, with 189,694 bytes of headroom** for the
-eleven screens still to come. `/admin` ships one script request FEWER than each sign-in
-pane, which is the shell being Server Components throughout: nothing under
-`components/admin/shell/` carries a `'use client'` directive.
+**The final URL is the requested one in every row, not `/admin/sign-in`** — that is what says
+the cookie survived into the collector, and it is the first thing to read when this gate
+behaves oddly. `/admin` ships one script request FEWER than each sign-in pane, which is the
+shell being Server Components throughout: nothing under `components/admin/shell/` carries a
+`'use client'` directive.
+
+**`/admin/journeys` is the first screen to spend any of that headroom, and what it spent is
+measured rather than argued.** It ships one script request MORE than `/admin` and
+**2,120 bytes** more — which is the two client islands SCREENS.md §2.2 needs, the create
+panel's open state and the `⋯` disclosure, and nothing else: the search and the five status
+chips are `searchParams`, so they are links and a `GET` form and cost nothing. At 140,106
+bytes against 327,680 the screen is 42.8% of the ceiling, and the ten still to come have
+187,574 bytes between them. Those two numbers are worth reading together with the one above:
+the first screen with real data, a form and a disclosure on it cost about 2KB, so the
+ceiling is not what the remaining screens are likely to run into.
 
 `lhci assert --includePassedAssertions` over the saved runs reports **"4 result(s) for
 http://localhost:3000/admin"** — the URL is judged, not merely collected. That is the check
