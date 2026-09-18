@@ -126,6 +126,7 @@ export const mintLighthouseSession = async (payload: Payload): Promise<string> =
     device: DEVICE_LABEL,
     location: null,
   })
+  /* c8 ignore next -- `startSession` refuses only `'unknown-account'`, and the account was found or created three lines above inside the same process. The guard exists because the service answers a Result that has to be unwrapped, not because this arm is reachable — and it must stay a throw rather than a fallback, because a collector handed an empty cookie measures the sign-in screen under `/admin`'s name. */
   if (!started.ok) throw new Error(`the collector's session was not issued: ${started.error}`)
 
   return `${SESSION_COOKIE_NAME}=${started.value.session}`

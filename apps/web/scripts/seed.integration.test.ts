@@ -16,8 +16,20 @@
  * upload (see seed.ts's own header for why), which makes the *first* call to
  * `seed()` here - ninety-plus media items across ten journeys and the About
  * portrait - noticeably slower than vitest's 5s default; every later call is
- * idempotent lookups only. `SEED_TEST_TIMEOUT_MS` covers the slow first call
- * generously.
+ * idempotent lookups only.
+ *
+ * `SEED_TEST_TIMEOUT_MS` COVERED THAT FIRST CALL BY 6%, NOT GENEROUSLY, which
+ * is what this sentence used to claim. Measured on the authoring host with this
+ * file run ALONE and the machine otherwise idle: the first case takes
+ * **56,393ms against a 60,000ms budget**, and the nine after it take 2,359ms to
+ * 5,166ms. Run as part of the whole integration pass it exceeded 60,000ms and
+ * failed — twice, reproducibly, and green again the moment two unrelated
+ * integration files were excluded from the same run. So the budget was not
+ * loose enough to survive the suite it belongs to, and a one-sided allowance
+ * that only holds when a file is run by itself is the shape this repository
+ * keeps finding. The first call gets {@link FIRST_SEED_TIMEOUT_MS} instead; the
+ * other nine keep the 60s one, because none of them has ever come close to it
+ * and a budget they share with the slow call would stop noticing if one did.
  *
  * `beforeAll` deletes the ten journeys (and their pages/media) before the
  * suite runs, rather than assuming a clean database: this file's own
@@ -45,6 +57,20 @@ import { seed } from './seed'
 import { aboutGlobalSeed, bookGlobalSeed, journeySeeds } from './seed-data'
 
 const SEED_TEST_TIMEOUT_MS = 60_000
+
+/**
+ * What the FIRST `seed()` call gets, which is the only slow one.
+ *
+ * 180,000ms, against a measured 56,393ms idle — see this file's header for both
+ * numbers and for why 60,000 was not enough. It is the number
+ * `readGalleryBundle.integration.test.ts` and
+ * `readGalleryDownload.integration.test.ts` already give the same call, so the
+ * four `seed()` setups in this repository now agree rather than two of them
+ * being stragglers that had not yet been bitten. It is a harness allowance for
+ * one rasterising call, not a performance budget: what the seed costs is gated
+ * by nothing here, and `CLAUDE.md` §6's budgets are Lighthouse's.
+ */
+const FIRST_SEED_TIMEOUT_MS = 180_000
 
 describe('seed', () => {
   let payload: Awaited<ReturnType<typeof getTestPayload>>
@@ -84,7 +110,8 @@ describe('seed', () => {
       const journeys = await payload.find({ collection: 'journeys', limit: 100 })
       expect(journeys.totalDocs).toBe(10)
     },
-    SEED_TEST_TIMEOUT_MS,
+    // The one slow call in the file - see the header.
+    FIRST_SEED_TIMEOUT_MS,
   )
 
   it(

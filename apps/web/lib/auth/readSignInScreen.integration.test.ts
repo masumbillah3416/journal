@@ -34,7 +34,21 @@ import { seed } from '../../scripts/seed'
 import { bookGlobalSeed } from '../../scripts/seed-data'
 import { readSignInScreen } from './readSignInScreen'
 
-const SETUP_TIMEOUT_MS = 60_000
+/**
+ * What a `beforeAll` that calls `seed()` is given.
+ *
+ * 180,000ms, the number `readGalleryBundle.integration.test.ts` and
+ * `readGalleryDownload.integration.test.ts` already use for the same call. This
+ * file had 60,000, and 60,000 is not enough: the first `seed()` of a run
+ * rasterises ninety-plus placeholder PNGs and was **measured at 56,393ms on an
+ * idle authoring host** — 6% of margin — so it holds when this file is run
+ * alone and fails when it is run as part of `npm run verify:full`, which is
+ * exactly what happened. A budget that only holds in isolation is a one-sided
+ * one; see `apps/web/scripts/seed.integration.test.ts`'s header for both
+ * numbers. Only ONE file in a run pays this: `seed()` is idempotent, so every
+ * caller after the first finds the rows already there.
+ */
+const SETUP_TIMEOUT_MS = 180_000
 
 /** The password every fixture account here is created with. Never asserted on. */
 const FIXTURE_PASSWORD = 'the-one-this-fixture-account-was-created-with'
