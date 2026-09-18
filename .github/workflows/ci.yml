@@ -243,9 +243,16 @@ jobs:
       #     surface, the gallery and `/cms`
       #   - `lighthouserc.book.json` - a 1350x940 viewport with
       #     `Cookie: td-reading-surface=book`: the book surface
-      #   - `lighthouserc.admin.json` - a 1440x900 desktop viewport: the
-      #     three public admin screens (Phase 2 Task 11, the admin's first
-      #     performance gate)
+      #   - `lighthouserc.admin.json` - a 1440x900 desktop viewport: the three
+      #     public admin screens (Phase 2 Task 11, the admin's first
+      #     performance gate) AND `/admin` itself, which Phase 4 Task 3 added
+      #     once the collector could carry a session. `/admin` is behind the
+      #     guard, so that run mints one (`npm run lighthouse:session -w
+      #     apps/web`) and passes it as an `extraHeaders` cookie - see
+      #     scripts/lighthouseSession.mjs. This bullet said "three public admin
+      #     screens" for the length of that task's review, in the same comment
+      #     block that lectures below about a sentence fixed in one copy and
+      #     not the other.
       # THIS COMMENT NAMED TWO OF THE THREE AND SAID "TWO", and went on
       # saying it for seventy-three commits after the same sentence was
       # corrected in docs/testing.md (finding F9-9, commit cd7fc0c). That is

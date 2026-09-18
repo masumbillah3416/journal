@@ -144,6 +144,24 @@ const budget = (config: unknown, urlPattern: string, audit: string): number => {
   return value
 }
 
+/**
+ * Every assert-matrix entry in a Lighthouse config, as `<pattern>` -> assertions.
+ *
+ * Used by the case that refuses two entries in one config from judging the same
+ * routes by different numbers. {@link budget} reads ONE entry by its pattern,
+ * which is what let `lighthouserc.admin.json`'s second entry — added in Phase 4
+ * Task 3 for `/admin` itself — hold a budget no document was pinned to.
+ * @param config - The parsed `lighthouserc*.json`.
+ * @returns One entry per matrix row: its pattern, and its assertions as JSON.
+ */
+const assertionsByPattern = (config: unknown): readonly { pattern: string; assertions: string }[] =>
+  (config as { ci: { assert?: { assertMatrix?: readonly Record<string, unknown>[] } } }).ci.assert?.assertMatrix?.map(
+    (entry) => ({
+      pattern: String(entry['matchingUrlPattern']),
+      assertions: JSON.stringify(entry['assertions']),
+    }),
+  ) ?? []
+
 /** A Lighthouse config's collect settings. */
 const collect = (config: unknown): { numberOfRuns: number; settings: { screenEmulation: Record<string, number> } } =>
   (config as { ci: { collect: { numberOfRuns: number; settings: { screenEmulation: Record<string, number> } } } }).ci
@@ -401,6 +419,33 @@ describe('the configured values the documentation quotes', () => {
       unnamed,
       'these Lighthouse configurations gate a route and a document that describes the gate never names them',
     ).toEqual([])
+  })
+
+  it('hold one set of numbers per configuration, so a second matrix entry cannot drift from the documented one', () => {
+    // WHY THIS EXISTS. `budget` above reads ONE matrix entry, by its pattern,
+    // and every admin citation reads `.*/admin/.*`. Phase 4 Task 3 added a
+    // second entry, `.*/admin$`, so that `/admin` — which has no path segment
+    // after `admin` and was therefore collected and never judged — is judged
+    // too. Nothing read the new entry. `docs/testing.md` describes "the same
+    // four admin routes" at one number while two independent entries hold it,
+    // so raising one of them is a budget documented at one number and enforced
+    // at another, on the one route this phase cares about (review finding 4).
+    //
+    // The configuration MEANS one budget for the surface, so the entries are
+    // required to agree rather than each being cited separately: a third entry
+    // added tomorrow is inside this claim without anybody adding a citation.
+    const admin = assertionsByPattern(asJson('lighthouserc.admin.json'))
+
+    expect(
+      admin.length,
+      'lighthouserc.admin.json has fewer than two matrix entries; this case is now vacuous',
+    ).toBeGreaterThan(1)
+    expect(
+      new Set(admin.map(({ assertions }) => assertions)).size,
+      `these assert-matrix entries judge the same surface by different numbers: ${admin
+        .map(({ pattern, assertions }) => `${pattern} -> ${assertions}`)
+        .join(' | ')}`,
+    ).toBe(1)
   })
 
   it('never pair a baseline-regeneration script with the flag the other one passes', () => {
