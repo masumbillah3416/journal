@@ -806,6 +806,11 @@ const DIRECTIVE_IN_PROSE: readonly { readonly path: string; readonly because: st
     because: 'the Phase 3 plan quotes the directive in the module header it tells an implementer to write',
   },
   {
+    path: 'docs/superpowers/plans/2026-09-18-phase-4-admin.md',
+    because:
+      'the Phase 4 plan quotes the directive in the actions module it tells an implementer to write, and in the sentence saying every export of one must be a guardedAction call',
+  },
+  {
     path: 'docs/testing/01-unit.md',
     because:
       'the unit suite’s detail file explains §1a, the ESLint rule, which §1.2 requires; this was docs/testing.md until the Phase 3 standards task split that document by suite',
