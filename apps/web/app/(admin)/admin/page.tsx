@@ -36,8 +36,11 @@
  * THE SCOPE IS RESOLVED ONCE AND SPREAD, never resolved per call.
  * `adminScope` reads the account's row, so `...(await adminScope(session))` at
  * each operation would be one `users` lookup per operation — the N+1
- * `CLAUDE.md` §7 forbids. Two reads follow it here: the rail's four counts,
- * and the site's own name for the masthead.
+ * `CLAUDE.md` §7 forbids. Two call sites follow it here — `readNavCounts` and
+ * one `findGlobal` for the masthead — which is FIVE queries, because the first
+ * is four `payload.count`s. `docs/api.md`'s row for this address says the same
+ * two numbers; it said "three" until the Task 3 review found the two documents
+ * disagreeing about what was being counted.
  *
  * WHAT THIS ROUTE DOES NOT DO. It answers `GET` only. The `POST` that
  * "Sign out" makes goes to `/admin/sign-out`, which the rail's footer and the

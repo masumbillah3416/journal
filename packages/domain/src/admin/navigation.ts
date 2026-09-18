@@ -2,9 +2,21 @@
  * navigation — the admin rail's entries, their section colours, and which one
  * an address belongs to.
  *
- * Pure and in the domain because three consumers need the same answer and none
- * of them should own it: the rail draws the buttons, `ScreenHeader` prints the
- * crumb, and `lighthouserc.admin.json`'s URL list is checked against it.
+ * Pure and in the domain because two consumers need the same answer and neither
+ * should own it: the rail draws the buttons from it, and `AdminShell` hands one
+ * entry to both the rail and `ScreenHeader` so the button that lights and the
+ * title that prints cannot disagree. A third reason stood here — that
+ * `lighthouserc.admin.json`'s URL list is checked against this table — and it
+ * was not true of anything: no test read both. It is deleted rather than made
+ * true, because the check that matters is the one
+ * `scripts/lighthouseJudged.test.js` performs, and that is a question about the
+ * configuration's own assert matrix rather than about this table.
+ *
+ * ONLY `/admin` HAS A ROUTE TODAY. The other entries address screens Tasks 4-14
+ * of this phase mount, so until each lands its button answers with Next's own
+ * not-found page. The panel is behind the session guard, so no public reader
+ * meets it; `docs/api.md`'s `GET /admin` entry says the same thing where a
+ * reader who is not in this file will meet it.
  *
  * ACCOUNT IS NOT AN ENTRY. SCREENS.md §2 reaches it from the rail's profile
  * button, not from the nav list. THE JOURNEY EDITOR IS NOT AN ENTRY EITHER: it

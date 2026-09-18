@@ -7,10 +7,15 @@
  * `NavRail.test.tsx` renders the component; this renders the ROUTE. Between
  * the two sit the things jsdom has no opinion about and that have broken this
  * surface before: the CSS Module actually resolving to class names, the guard
- * admitting the request, `readNavCounts` reaching Postgres, and the shell
- * being a Server Component — a `'use client'` added anywhere under it would
- * still pass every jsdom case and would cost the admin JS budget
- * (`CLAUDE.md` §6) on all twelve screens.
+ * admitting the request, and `readNavCounts` reaching Postgres.
+ *
+ * WHAT IT DOES NOT ADD, because this header claimed it did and a review
+ * measured otherwise: it does NOT catch a `'use client'` added under the
+ * shell. All five cases below pass with `NavRail.tsx` carrying the directive —
+ * the route renders identically, and the 320KB gate has 189KB of headroom to
+ * absorb the cost. That property is
+ * `apps/web/lib/admin/shellShipsNoClientJs.test.ts`'s, which reads the
+ * directive off disk and fails on the commit that adds it.
  *
  * THE COUNT COMES FROM THE DOMAIN, THE DOM FROM CHROMIUM. `ADMIN_NAV.length`
  * is imported rather than written as a number: a case asserting "nine" would

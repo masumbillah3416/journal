@@ -523,10 +523,12 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   primary "Read the diary" to `/p/1`, and a borderless "Sign out and start again" posting
   to `/admin/sign-out`. `metadata` sets the document title and
   `robots: { index: false, follow: false }`.
-- **Reads:** three, under one hoisted `adminScope` — `readNavCounts`'s four
-  `payload.count` calls, and one `findGlobal('site')` selecting `name` for the masthead.
-  The scope is resolved ONCE and spread; resolving it per call would be one `users` lookup
-  per operation (CLAUDE.md §7).
+- **Reads:** two call sites, five queries, under one hoisted `adminScope` —
+  `readNavCounts` (four `payload.count` calls, one per rail number) and one
+  `findGlobal('site')` selecting `name` for the masthead. Plus the one `users` row
+  `adminScope` itself resolves, which is what the scope is. The scope is resolved ONCE and
+  spread; resolving it per call site would be one `users` lookup per operation
+  (CLAUDE.md §7).
 - **Errors:** none observable from the screen's own content. A refused count would throw
   before anything is drawn, which is a bug in the guard that admitted the session rather
   than a state this screen draws.
@@ -549,6 +551,15 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   **It is the first guarded address on this surface that is not part of signing in**, which
   is why `e2e/signInJourney.spec.ts` walks it in both directions: from the signed-in
   screen's own button, and from a browser with no session at all.
+
+  **ONLY THIS ADDRESS IS MOUNTED, of the nine the rail offers.** The rail is drawn from
+  `ADMIN_NAV`, which addresses every screen `SCREENS.md` §2 specifies, and Tasks 4-14 of
+  Phase 4 mount them one at a time — so until each lands, its button answers with Next's
+  own not-found page. That is an intermediate state of a phase, not a defect to file, and
+  it is written here because the panel is the one screen a reader meets and this row is the
+  one document describing it. It is behind the session guard, so no public reader reaches
+  it. `packages/domain/src/admin/navigation.ts`'s header says the same thing beside the
+  table itself.
 
   **Phase 4 Task 3 put `SCREENS.md` §2's shell around it**, so this route is now what
   proves the frame the next eleven screens hang in actually draws. Nothing under the shell
