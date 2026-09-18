@@ -101,8 +101,9 @@ its sortable partner `startsOn`, `order` (indexed), `hiddenFromBookmarks`, `arch
 for 3–4), `note`, and `tally` (array, exactly 4 rows, `value` deliberately typed as
 **text** — journeys use values like "plenty" and "uncounted", not just numbers).
 
-Access is **signed in, or refused**, written out on all four operations rather than left
-to Payload's default. That is the same behaviour the default gave, deliberately: the
+Access is **signed in, or refused**, written out on all four operations — and on
+`readVersions`, a fifth that Payload does not fill in at all and that `read` says nothing
+about (`docs/deviations.md` §52, review round 1) — rather than left to Payload's default. That is the same behaviour the default gave, deliberately: the
 public diary reads these rows through the Local API, which bypasses access control, so
 nothing public depends on them being readable over HTTP and widening them would be
 exposure nobody asked for. What changes is that the rule is this repository's, and that
@@ -143,8 +144,9 @@ nothing for a slot to override: `media.focalPoint` IS the portrait's focal point
 `readBookBundle` reads `media.focalX/focalY` for that one photograph. The seed writes
 it onto the media row rather than onto a `pages` slot for the same reason.
 
-Access is **signed in, or refused**, written out on all four operations rather than left
-to Payload's default. That is the same behaviour the default gave, deliberately: the
+Access is **signed in, or refused**, written out on all four operations — and on
+`readVersions`, a fifth that Payload does not fill in at all and that `read` says nothing
+about (`docs/deviations.md` §52, review round 1) — rather than left to Payload's default. That is the same behaviour the default gave, deliberately: the
 public diary reads these rows through the Local API, which bypasses access control, so
 nothing public depends on them being readable over HTTP and widening them would be
 exposure nobody asked for. What changes is that the rule is this repository's, and that
@@ -172,7 +174,9 @@ Access is **per-row ownership**: `read` and `update` return
 caller's own row and refused outright when there is no caller, and `create`/`delete` are
 `() => false` for everybody — the diary has one author, accounts arrive through
 `npm run db:seed`, and an account cannot meaningfully delete itself from the screen it is
-signed in on. The collection previously declared **no access block at all**, which left
+signed in on. `unlock` and `admin` are `() => false` as well: Payload fills neither with
+its default, so undeclared the first let any signed-in caller clear any account's lockout
+counter and the second granted `canAccessAdmin` to anybody signed in. The collection previously declared **no access block at all**, which left
 Payload's `defaultAccess` applying: any signed-in account could `PATCH` any other's row
 and turn off the `otpRequired` above. `apps/web/collections/sealedUserAuth.ts` did not
 stop it — that module seals the seven `POST` auth endpoints, not

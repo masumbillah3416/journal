@@ -28,6 +28,16 @@ export const Journeys: CollectionConfig = {
     create: ({ req: { user } }) => Boolean(user),
     update: ({ req: { user } }) => Boolean(user),
     delete: ({ req: { user } }) => Boolean(user),
+    // REVIEW ROUND 1, F1. `readVersions` is a FIFTH routed operation, and
+    // Payload does not fill it: `addDefaultsToCollectionConfig` fills
+    // `create`, `delete`, `read`, `unlock` and `update` only, so an undeclared
+    // `readVersions` reaches `executeAccess`'s own hardcoded
+    // `if (req.user) return true` instead. Measured before this line existed:
+    // a signed-in `payload.findVersions({ collection: 'journeys' })` returned
+    // 160 rows under no rule this repository wrote. `read` says nothing about
+    // it - narrow `read` to a per-author rule and version history stays open -
+    // which is why it is its own predicate rather than a consequence of one.
+    readVersions: ({ req: { user } }) => Boolean(user),
   },
   versions: { drafts: true }, // the Publish screen's editions + restore
   fields: [

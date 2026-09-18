@@ -32,18 +32,86 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import sharp from 'sharp'
-import type { TypedUser } from 'payload'
+import type { SanitizedCollectionConfig, SanitizedGlobalConfig, TypedUser } from 'payload'
 import { getTestPayload } from '../lib/testPayload'
 import { ownAccountOnly, Users } from './users'
 
 /** The marker every row this file creates carries, so cleanup can find them. */
 const MARKER = 'test-admin-access'
 
-/** The operations Payload routes on a collection, and the sweep compares. */
-const COLLECTION_OPERATIONS = ['read', 'create', 'update', 'delete'] as const
+/** Every access operation this sweep knows how to look at. */
+type SweptOperation = 'read' | 'create' | 'update' | 'delete' | 'readVersions' | 'unlock' | 'admin'
 
-/** The two a global has; there is nothing to create or delete. */
-const GLOBAL_OPERATIONS = ['read', 'update'] as const
+/** The subset of those a global's access object can hold. */
+type SweptGlobalOperation = 'read' | 'update' | 'readVersions'
+
+/**
+ * One sanitised `access` object, read as a plain record.
+ *
+ * THE DECLARED TYPE LIES THE SAME WAY `auth` DOES, and this is the second
+ * place this file has to work around it: Payload types every key of `access`
+ * as a present `Access`, while `readVersions` and `admin` are never filled and
+ * really are `undefined`. Comparing the declared type against `undefined` is
+ * "the types have no overlap" to ESLint - correct about the type, wrong about
+ * the object - so the comparison is made against `unknown` instead, which is
+ * what CLAUDE.md §0.8 asks for in the first place.
+ * @param access - A sanitised collection's or global's access object.
+ * @returns The same entries, typed as what they are: unknown until checked.
+ */
+const rulesOf = (access: object): Record<string, unknown> => ({ ...access })
+
+/**
+ * Whether this collection counts login attempts, and so routes `unlock`.
+ *
+ * The same lie, one field over: `SanitizedCollectionConfig['auth']` is typed
+ * `Auth`, and at runtime a collection with no `auth` block carries the boolean
+ * `false`. Measured - eleven of the twelve sanitised collections in this
+ * config hold `false`, and only `users` holds an object.
+ * @param collection - One entry of the sanitised `payload.config.collections`.
+ * @returns Whether `unlock` is an operation this collection can route.
+ */
+const countsLoginAttempts = (collection: SanitizedCollectionConfig): boolean => {
+  const auth: unknown = collection.auth
+  if (typeof auth !== 'object' || auth === null || !('maxLoginAttempts' in auth)) return false
+  const attempts: unknown = auth.maxLoginAttempts
+  return typeof attempts === 'number' && attempts > 0
+}
+
+/** The four Payload routes on every collection, whatever else it declares. */
+const ALWAYS_ROUTED: readonly SweptOperation[] = ['read', 'create', 'update', 'delete']
+
+/** The two a global always has; there is nothing to create or delete. */
+const GLOBAL_OPERATIONS: readonly SweptGlobalOperation[] = ['read', 'update']
+
+/**
+ * The operations Payload can route on one collection.
+ *
+ * DECIDED FROM THE COLLECTION'S OWN SANITISED CONFIG, NEVER FROM ITS SLUG.
+ * `readVersions` exists exactly where `versions` is enabled, `unlock` exactly
+ * where an auth collection counts login attempts, and `admin` on the one
+ * collection `config.admin.user` names — so a collection that gains versions
+ * tomorrow is swept for `readVersions` the day it does, with nobody editing a
+ * list here.
+ * @param collection - One entry of the sanitised `payload.config.collections`.
+ * @param adminUserSlug - `payload.config.admin.user`.
+ * @returns The operation names applicable to this collection.
+ */
+const routedOperations = (collection: SanitizedCollectionConfig, adminUserSlug: string): readonly SweptOperation[] => [
+  ...ALWAYS_ROUTED,
+  ...(collection.versions ? (['readVersions'] as const) : []),
+  ...(countsLoginAttempts(collection) ? (['unlock'] as const) : []),
+  ...(collection.slug === adminUserSlug ? (['admin'] as const) : []),
+]
+
+/**
+ * The operations Payload can route on one global.
+ * @param global - One entry of the sanitised `payload.config.globals`.
+ * @returns The operation names applicable to this global.
+ */
+const routedGlobalOperations = (global: SanitizedGlobalConfig): readonly SweptGlobalOperation[] => [
+  ...GLOBAL_OPERATIONS,
+  ...(global.versions ? (['readVersions'] as const) : []),
+]
 
 /** The shared test Payload instance, assigned by `beforeAll`. */
 let payload: Awaited<ReturnType<typeof getTestPayload>>
@@ -58,6 +126,20 @@ let accountB: TypedUser
 let fixtureJourney: number
 
 /**
+ * The address one fixture account is created under.
+ *
+ * A function rather than two literals, so the account the `unlock` case aims
+ * at and the account `beforeAll` created are the same address BY
+ * CONSTRUCTION - not because two places in this file were typed to agree.
+ * @param local - The local part, which is what distinguishes the accounts.
+ * @returns The address.
+ */
+const addressOf = (local: string): string => `${MARKER}-${local}@example.test`
+
+/** The password every fixture account is created with, and signed in with below. */
+const FIXTURE_PASSWORD = 'not-a-real-password'
+
+/**
  * Creates one fixture account.
  *
  * `overrideAccess` is left at its Local API default of `true`: the accounts
@@ -68,7 +150,7 @@ let fixtureJourney: number
 const anAccount = async (local: string): Promise<TypedUser> => {
   const created = await payload.create({
     collection: 'users',
-    data: { email: `${MARKER}-${local}@example.test`, password: 'not-a-real-password' },
+    data: { email: addressOf(local), password: FIXTURE_PASSWORD },
   })
   return { ...created, collection: 'users' }
 }
@@ -168,7 +250,7 @@ describe('users, across two accounts', () => {
         collection: 'users',
         overrideAccess: false,
         user: accountA,
-        data: { email: `${MARKER}-c@example.test`, password: 'not-a-real-password' },
+        data: { email: addressOf('c'), password: FIXTURE_PASSWORD },
       }),
     ).rejects.toThrow()
   })
@@ -311,6 +393,23 @@ describe('the content collections and globals, for a caller with no session', ()
       }),
     ).rejects.toThrow()
   })
+
+  // VERSION HISTORY IS A SEPARATE OPERATION WITH A SEPARATE PREDICATE, and
+  // until review round 1 neither collection had one. `read` says nothing about
+  // `readVersions`: narrow `journeys.read` to a per-author rule tomorrow and
+  // every case above still passes while `GET /api/journeys/versions` keeps
+  // handing every draft of every journey to any signed-in caller.
+  it("refuses a journey's version history", async () => {
+    await expect(
+      payload.findVersions({ collection: 'journeys', overrideAccess: false, depth: 0, limit: 1 }),
+    ).rejects.toThrow()
+  })
+
+  it("refuses a page's version history", async () => {
+    await expect(
+      payload.findVersions({ collection: 'pages', overrideAccess: false, depth: 0, limit: 1 }),
+    ).rejects.toThrow()
+  })
 })
 
 describe('the content collections and globals, for the signed-in author', () => {
@@ -376,6 +475,22 @@ describe('the content collections and globals, for the signed-in author', () => 
 
     await payload.delete({ collection: 'media', id: created.id, overrideAccess: false, user: accountA })
   })
+
+  it("lets the author read a journey's version history, so the Publish screen's editions are not locked out", async () => {
+    // `versions: { drafts: true }` means creating the fixture journey wrote a
+    // version row for it. The row this asserts on is therefore one THIS FILE
+    // caused Payload to write, matched by the parent id `beforeAll` was handed
+    // - not a row that happened to be in the database.
+    const found = await payload.findVersions({
+      collection: 'journeys',
+      overrideAccess: false,
+      user: accountA,
+      depth: 0,
+      where: { parent: { equals: fixtureJourney } },
+    })
+
+    expect(found.docs.map((doc) => doc.parent)).toEqual([fixtureJourney])
+  })
 })
 
 // THE SWEEP, AND IT IS INVERTED ON PURPOSE (CLAUDE.md §0, standing orders
@@ -390,6 +505,57 @@ describe('the content collections and globals, for the signed-in author', () => 
 // `defaultAccess`, so `Object.keys(collection.access)` is the same five names
 // on a collection with a block and on one without. Such a case would pass
 // against the exact defect this task exists to close.
+// THE TWO OPERATIONS PAYLOAD NEVER FILLS IN. Review round 1's F4 and F5, and
+// both are BEHAVIOURAL cases rather than config assertions because the sweep
+// alone cannot prove them: it asks whether a rule is the object Payload would
+// have filled in, so a lookalike behaving exactly like the default passes it.
+// Measured - replacing `unlock: () => false` with an inline
+// `({ req: { user } }) => Boolean(user)` left the sweep green. These two cases
+// are what fails.
+describe('users, on the two operations Payload leaves undeclared', () => {
+  it("refuses one account the ability to clear another account's lockout counter", async () => {
+    // The address is a real account's - `beforeAll` created it - so the
+    // refusal is for being FORBIDDEN rather than for naming nobody
+    // (docs/deviations.md §28). `unlock` is the operation that undoes
+    // SECURITY.md §3's cooling-off period.
+    await expect(
+      payload.unlock({
+        collection: 'users',
+        // `password` is in Payload's type for this operation and is ignored
+        // by it - `unlockOperation` reads only the address. Passed so the
+        // call typechecks without an assertion.
+        data: { email: addressOf('b'), password: FIXTURE_PASSWORD },
+        overrideAccess: false,
+        // `unlock` takes its caller through `req`, not through a `user`
+        // option as the CRUD operations do - Payload's own
+        // `Options<AuthCollectionSlug>` has no `user` key. Same principal,
+        // different door.
+        req: { user: accountA },
+      }),
+    ).rejects.toThrow()
+  })
+
+  it('grants no Payload admin access to an account holding a real Payload token', async () => {
+    // Signed in through the LOCAL API deliberately: `sealedUserAuth.ts` seals
+    // the HTTP endpoint, not this operation, so this is the strongest caller
+    // that can exist - one holding a genuine Payload JWT. That even it is
+    // refused `/cms` is docs/deviations.md §42's decision written as a rule
+    // instead of resting on the seal.
+    const signedIn = await payload.login({
+      collection: 'users',
+      data: { email: addressOf('a'), password: FIXTURE_PASSWORD },
+    })
+    const authenticated = await payload.auth({
+      headers: new Headers({ Authorization: `JWT ${signedIn.token ?? ''}` }),
+    })
+
+    // The token really is account A's. Without this, the assertion below would
+    // pass just as well against a request nothing authenticated.
+    expect(authenticated.user?.id).toBe(accountA.id)
+    expect(authenticated.permissions.canAccessAdmin).not.toBe(true)
+  })
+})
+
 describe('the access rules as a whole, swept from the sanitised config', () => {
   it('leaves no collection or global of this repository on the default Payload fills in', () => {
     // `payload-migrations` is Payload's own and declares no access, so every
@@ -406,23 +572,45 @@ describe('the access rules as a whole, swept from the sanitised config', () => {
     expect(ours.length).toBeGreaterThan(0)
     expect(payload.config.globals.length).toBeGreaterThan(0)
 
+    // UNDECLARED COUNTS, AND THAT IS REVIEW ROUND 1's CORRECTION (F1). The
+    // first version of this sweep compared identity against `inherited` alone,
+    // which silently assumed every routed operation gets filled. TWO DO NOT:
+    // `addDefaultsToCollectionConfig` fills exactly `create`, `delete`, `read`,
+    // `unlock` and `update`, so `readVersions` and `admin` stay `undefined` —
+    // and `executeAccess` then runs its OWN hardcoded `if (req.user) return
+    // true`, a second copy of the default reached through a door an identity
+    // comparison cannot look through. Measured at the time: `journeys` and
+    // `pages` both carry `versions: { drafts: true }`, both had
+    // `access.readVersions === undefined`, and a signed-in
+    // `payload.findVersions` on `journeys` returned 160 rows under no rule
+    // this repository wrote. So the test is `undefined` OR `inherited`: the
+    // first catches an operation Payload leaves alone, the second one it
+    // fills, and the sweep keeps working whichever Payload does next.
     const onTheDefault = [
       ...ours.flatMap((collection) =>
-        COLLECTION_OPERATIONS.filter((operation) => collection.access[operation] === inherited).map(
-          (operation) => `${collection.slug}.${operation}`,
-        ),
+        routedOperations(collection, payload.config.admin.user)
+          .filter((operation) => {
+            const rule = rulesOf(collection.access)[operation]
+            return rule === undefined || rule === inherited
+          })
+          .map((operation) => `${collection.slug}.${operation}`),
       ),
       ...payload.config.globals.flatMap((global) =>
-        GLOBAL_OPERATIONS.filter((operation) => global.access[operation] === inherited).map(
-          (operation) => `${global.slug}.${operation}`,
-        ),
+        routedGlobalOperations(global)
+          .filter((operation) => {
+            const rule = rulesOf(global.access)[operation]
+            return rule === undefined || rule === inherited
+          })
+          .map((operation) => `${global.slug}.${operation}`),
       ),
     ]
 
-    // `unlock` is deliberately not swept. Payload fills it on every
-    // collection but routes it only on an auth one, and the only auth
-    // collection here is `users` — whose `POST /api/users/unlock` is sealed by
-    // ./sealedUserAuth.ts, so the slot it fills is unreachable.
+    // NO OPERATION IS EXCLUDED ANY MORE. `unlock` used to be, on the grounds
+    // that `POST /api/users/unlock` is sealed — which was true, incomplete
+    // (what keeps `unlockUser` out of the GraphQL schema is a SECOND decision,
+    // `graphQL: { disableMutations: true }`) and, either way, an exception
+    // list on the guard built to refuse exception lists. `users` declares
+    // `unlock` and `admin` instead, so this assertion means what its name says.
     expect(onTheDefault).toEqual([])
   })
 

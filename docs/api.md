@@ -66,7 +66,9 @@ Phase 4 Task 1 added a sixth, so the count is deleted rather than corrected a th
 - `users` declares **per-row ownership**: `read` and `update` return
   `{ id: { equals: req.user.id } }`, so an operation is narrowed to the caller's own row
   and refused with no caller, and `create`/`delete` are refused for everyone — the diary
-  has one author. Added by Phase 4 Task 1; before it, any signed-in account could `PATCH`
+  has one author. `unlock` and `admin` are refused outright too: undeclared, the first let
+  any signed-in caller clear any account's lockout counter (measured — the call resolved
+  `true`) and the second answered `canAccessAdmin` with "is anybody signed in". Added by Phase 4 Task 1; before it, any signed-in account could `PATCH`
   any other account's row, `otpRequired` included (`docs/deviations.md` §52).
 - `media` declares a **public-read** rule: a signed-out caller gets
   `{ hidden: { not_equals: true } }` rather than a refusal, so unhidden media is
@@ -75,8 +77,10 @@ Phase 4 Task 1 added a sixth, so the count is deleted rather than corrected a th
   "A hidden media item stays hidden from a signed-out reader" row). Its `create`,
   `update` and `delete` are **signed in, or refused**, written out in Phase 4 Task 1
   rather than inherited.
-- `journeys` and `pages` are **signed in, or refused** on all four operations, and the
-  `book`, `site` and `about` globals on the two a global has. Added by Phase 4 Task 1,
+- `journeys` and `pages` are **signed in, or refused** on all four operations **and on
+  `readVersions`**, which is a fifth routed operation Payload does not fill in and which
+  `read` says nothing about — narrow `read` and version history stays open. The `book`,
+  `site` and `about` globals carry the two a global has. Added by Phase 4 Task 1,
   behaviour-identical to the default they replace: the public diary reads these rows
   through the Local API, which bypasses access control, so nothing public depends on
   them over HTTP and widening them would be exposure nobody asked for
@@ -84,12 +88,25 @@ Phase 4 Task 1 added a sixth, so the count is deleted rather than corrected a th
 
 **Nothing of this repository's is left on Payload's default access**,
 `({ req: { user } }) => Boolean(user)`. That is a claim a test makes rather than a claim
-this document makes: Payload's sanitiser FILLS every missing operation with that one
-function object, so `adminAccess.integration.test.ts` takes a live reference to it from
-`payload-migrations` — a collection Payload owns and gives no rule — and refuses any
-collection or global of ours whose `read`, `create`, `update` or `delete` still points at
-it. `unlock` is deliberately outside that sweep: Payload fills it everywhere but routes it
-only on an auth collection, and `users`'s `POST /api/users/unlock` is sealed.
+this document makes, and **the first version of both the claim and the test was false** —
+review round 1, finding 1. `adminAccess.integration.test.ts` takes a live reference to
+that function from `payload-migrations`, a collection Payload owns and gives no rule, and
+refuses any operation of ours pointing at it. The correction is that **an undeclared
+operation now counts too**: `addDefaultsToCollectionConfig` fills exactly `create`,
+`delete`, `read`, `unlock` and `update`, so `readVersions` and `admin` were left
+`undefined` — and `executeAccess` then runs its own hardcoded `if (req.user) return true`,
+a second copy of the default behind a door an identity comparison cannot see through.
+Measured at the time: `journeys` and `pages` both carry `versions: { drafts: true }`, both
+had no `readVersions`, and a signed-in `findVersions` on `journeys` returned 160 rows.
+
+Which operations are swept is decided per object from its own sanitised config, never from
+its slug: `read`/`create`/`update`/`delete` always, `readVersions` wherever `versions` is
+enabled, `unlock` on an auth collection counting login attempts, `admin` on the collection
+`config.admin.user` names. **There are no exclusions.** `unlock` used to be one, on the
+grounds that `POST /api/users/unlock` is sealed — true, and incomplete, since what keeps
+`unlockUser` out of the GraphQL schema is a second decision,
+`graphQL: { disableMutations: true }`. `users` declares `unlock: () => false` and
+`admin: () => false` instead, so the refusal no longer depends on either seal holding.
 
 **Nothing can be signed in through these routes any more.** `users` carries an `auth`
 block, so Payload mounted a set of credential endpoints on it — `POST /api/users/login`

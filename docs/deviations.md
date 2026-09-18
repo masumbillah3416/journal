@@ -2400,17 +2400,59 @@ on one without — a case shaped that way would have passed against the exact de
 entry records. What the sweep compares instead is function identity against a **live
 reference** to that filler, taken from `payload-migrations`: a collection Payload owns and
 gives no rule of its own, every slot of whose sanitised block holds that one shared object.
-Any collection or global of ours still pointing at it is named in the failure. `unlock` is
-deliberately outside the sweep — Payload fills it everywhere but routes it only on an auth
-collection, and `users`'s `POST /api/users/unlock` is sealed.
+Any collection or global of ours still pointing at it is named in the failure.
+
+### Review round 1: the sweep had a blind spot, and two real rules were behind it
+
+**The first version of that sweep compared identity alone, which assumed every routed
+operation gets filled. Two do not.** `addDefaultsToCollectionConfig` fills exactly
+`create`, `delete`, `read`, `unlock` and `update`; `readVersions` and `admin` stay
+`undefined`, and `executeAccess` then runs its **own** hardcoded `if (req.user) return
+true` — a second copy of the default, reached through a door an identity comparison is
+structurally unable to look through. So the sweep's own assertion name, and this entry's
+claim above it, were false as written.
+
+What was behind it, measured before the fix: `journeys` and `pages` both carry
+`versions: { drafts: true }`, both had `access.readVersions === undefined`, and a
+signed-in `payload.findVersions({ collection: 'journeys' })` returned **160 version rows**
+under no rule this repository wrote. `read` says nothing about `readVersions` — narrow
+`journeys.read` to a per-author rule, as the Publish screen is likely to want, and every
+behavioural case still passes while `GET /api/journeys/versions` keeps handing every draft
+of every journey to any signed-in caller. Both collections now declare
+`readVersions: ({ req: { user } }) => Boolean(user)`.
+
+**`users.unlock` and `users.admin` were the same species, one protocol over.** `unlock`
+clears the lockout counter `SECURITY.md` §3 requires, and it was on the default: measured,
+account A's `payload.unlock` aimed at account B **resolved `true`**. Two decisions kept it
+unreachable and neither was an access rule — `sealedUserAuth.ts` shadows
+`POST /api/users/unlock`, and `graphQL: { disableMutations: true }` keeps `unlockUser` out
+of the schema Payload generates for any auth collection with `maxLoginAttempts > 0`. The
+sweep's old `unlock` exclusion cited only the first. `admin` is what `canAccessAdmin`
+reads, and undeclared it answers "is anybody signed in": measured, an account holding a
+real Payload JWT got `canAccessAdmin: true`. Both are now `() => false`, which is §42's
+decision written as a rule rather than resting on a seal — and with them declared, **the
+sweep has no exclusions left**.
+
+**The sweep now reports an operation that is `undefined` OR identical to the filler**, and
+which operations apply is decided from each object's own sanitised config rather than from
+its slug: `readVersions` wherever `versions` is enabled, `unlock` on an auth collection
+counting login attempts, `admin` on the collection `config.admin.user` names. A collection
+that gains versions tomorrow is swept the day it does.
+
+**Identity is not enough on its own, and the mutations say so.** Replacing
+`unlock: () => false` with an inline `({ req: { user } }) => Boolean(user)` leaves the
+sweep green — it is a different function object, so the sweep calls it ours. What fails is
+a behavioural case, which is why `unlock` and `admin` each have one.
 
 **What would reverse the five:** a `DATA_MODEL.md` revision stating access rules for them,
 or a decision to serve `journeys`/`pages` publicly over `/api/**`. Neither exists.
 
 **Recorded as:** this entry; a `// HANDOFF-DEVIATION` at the access block in
 `apps/web/collections/users.ts`, `journeys.ts`, `pages.ts` and the three files in
-`apps/web/globals/`, and a rewritten comment at `media.ts`'s block; thirteen cases in
-`apps/web/collections/adminAccess.integration.test.ts`. Every block is verified to fail a
+`apps/web/globals/`, and a rewritten comment at `media.ts`'s block; the cases in
+`apps/web/collections/adminAccess.integration.test.ts`. **No count is given, deliberately**
+— one stood here saying "thirteen" while the file held twenty-one, which is the drift
+`docs/api.md` deleted its own count in this task to avoid (review round 1, finding 3). Every block is verified to fail a
 named case when removed or weakened — the `users` block all five of its cases, each of the
 other five objects exactly one, `media`'s `create` the sweep, and `Journeys`'s `create`,
 `update` and `delete` the author case — with the failures pasted in the Phase 4 Task 1

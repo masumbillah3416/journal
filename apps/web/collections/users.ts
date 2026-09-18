@@ -64,6 +64,30 @@ export const Users: CollectionConfig = {
     create: () => false,
     update: ownAccountOnly,
     delete: () => false,
+    // REVIEW ROUND 1, F4 and F5. THE THIRD REFUSAL ON EACH OF THESE TWO, and
+    // it is the only one that holds if either of the first two is changed.
+    //
+    // `unlock` clears the lockout counter SECURITY.md §3 requires. Two
+    // decisions already keep it unreachable and NEITHER is an access rule:
+    // `./sealedUserAuth.ts` shadows `POST /api/users/unlock`, and
+    // `graphQL: { disableMutations: true }` below keeps `unlockUser` out of
+    // the schema Payload generates for any auth collection with
+    // `maxLoginAttempts > 0`. Undeclared, this operation sat on Payload's
+    // default - "any signed-in caller may clear any account's lockout" -
+    // behind two doors, and whoever re-opens either door gets that rule back
+    // without touching it. `() => false` is not a behaviour change: nothing
+    // in this repository calls `payload.unlock()`, and the only other caller
+    // is the sealed endpoint.
+    unlock: () => false,
+    // `admin` is what `canAccessAdmin` reads (`getAccessResults.js:12`), and
+    // Payload does not fill it either: undeclared, it answers `isLoggedIn`.
+    // docs/deviations.md §42 already decided that Payload's own admin surface
+    // is not a way in - `/cms` is a development scaffold and no caller can
+    // mint a Payload auth cookie at all - so this line encodes that decision
+    // rather than making a new one. It is what a second, non-author account
+    // would otherwise be handed by default, which §52 names as the thing that
+    // would reverse `create: () => false`.
+    admin: () => false,
   },
   // THE TWO DURATIONS HERE ARE IN DIFFERENT UNITS, WHICH IS PAYLOAD'S API
   // AND NOT A TYPO. `tokenExpiration` is SECONDS (its default is 7200, two

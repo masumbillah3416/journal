@@ -1549,9 +1549,13 @@ on `create` and `delete`; `journeys`, `pages`, `media`'s three write operations 
 `book`, `site` and `about` globals carry their rules written out, behaviour-identical to
 the default they replace, so Phase 4 Task 2 can make `overrideAccess: false` load-bearing
 against rules this repository decided. A sweep over the **sanitised** config refuses any
-collection or global of ours left on the function Payload fills a missing rule in with —
-which is the case that found `media`'s three, and which is why the set is enumerated by
-the test rather than by this paragraph. See `docs/deviations.md` §52.
+operation of ours that is undeclared or left on the function Payload fills a missing rule
+in with — which is the case that found `media`'s three writes, and then, in review round 1,
+`journeys.readVersions`, `pages.readVersions`, `users.unlock` and `users.admin`. Version
+history was the one that mattered: `read` says nothing about `readVersions`, Payload does
+not fill it, and a signed-in `findVersions` on `journeys` returned 160 rows under no rule
+of ours. The set is enumerated by the test rather than by this paragraph.
+See `docs/deviations.md` §52.
 
 Both were named by Phase 2's final whole-branch review (finding 12 and section F-3) and by
 Ruling F42, whose stated cost — "no per-field sweep" — understated them: it was no block,
