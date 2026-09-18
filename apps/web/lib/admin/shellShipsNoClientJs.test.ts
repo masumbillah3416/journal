@@ -8,8 +8,10 @@
  * report reads 189,694 bytes of headroom for the eleven screens to come.
  *
  * NOTHING ELSE ASSERTS IT, WHICH WAS MEASURED RATHER THAN ASSUMED. With
- * `'use client'` prepended to `NavRail.tsx`: all 25 jsdom cases in the shell
- * directory stay green, because jsdom renders a component the same either way;
+ * `'use client'` prepended to `NavRail.tsx`, every jsdom case in the shell
+ * directory stays green (25 of them when this was measured, and the number is
+ * left out of the claim because it is not the point and a later task would have
+ * to edit it), because jsdom renders a component the same either way;
  * `e2e/admin.spec.ts`'s five cases stay green, because the route renders the
  * same either way; and the Lighthouse gate stays green, because one client
  * component costs a few KB against 189,694 bytes of headroom. So the property
@@ -27,9 +29,22 @@
  * `docs/testing.md` §7 is what would show that, and it is one measurement, not
  * a gate.
  *
- * The directory list is read off disk rather than written down, so a component
- * a later task adds to the shell is inside the claim from the commit that adds
- * it.
+ * The directory list is read off disk rather than written down, and RECURSIVELY,
+ * so a component a later task adds to the shell — in a subdirectory of it too,
+ * which is ordinary housekeeping once eleven screens have grown their parts —
+ * is inside the claim from the commit that adds it. It was not recursive until
+ * the second fix round, and a module in `shell/nested/` escaped the guard while
+ * every suite stayed green.
+ *
+ * THE DIRECTIVE IS EXPECTED ON LINE 1, which is a convention rather than a
+ * guarantee and is therefore said out loud. `'use client'` is a directive
+ * prologue, so a bundler still honours one placed after a module header comment
+ * — and this repository puts a header comment at the top of every module. All
+ * seven client components here today put it on line 1, so the anchored pattern
+ * matches the house style; a module that put it below its header would not be
+ * seen. Loosening the pattern to skip a leading comment block is the fix if
+ * that convention ever breaks, and this sentence is the record that it is a
+ * convention.
  *
  * Depends on: node:fs, node:path, node:url, vitest.
  */
@@ -49,7 +64,9 @@ const DIRECTIVE = /^\s*['"]use client['"]/
  * @returns The file names, relative to {@link SHELL}.
  */
 const shellModules = (): readonly string[] =>
-  readdirSync(SHELL).filter((name) => /\.tsx?$/.test(name) && !name.includes('.test.'))
+  readdirSync(SHELL, { recursive: true })
+    .map(String)
+    .filter((name) => /\.tsx?$/.test(name) && !name.includes('.test.'))
 
 describe('the admin shell', () => {
   it('has modules to judge, so the case below cannot pass by finding nothing', () => {

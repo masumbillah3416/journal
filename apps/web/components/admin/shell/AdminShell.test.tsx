@@ -48,15 +48,17 @@ const JOURNEYS: NavEntry = ADMIN_NAV.find((entry) => entry.id === 'journeys') ??
  * two layout breakpoints declares `--admin-width-mode` naming the mode it
  * begins, so the pin reads a name rather than guessing from a rule.
  *
- * AND THE MARKER MUST BE THE ONLY THING THAT DECLARES IT. A marker is a value
+ * AND THE LAYOUT MUST MOVE ONLY WHERE A MODE IS NAMED. A marker is a value
  * nothing paints with, so a pin bound to it alone binds `adminWidthMode` to a
  * label rather than to the layout: a later task adding a second
  * `grid-template-columns` block at a different width would leave both pins
  * green while the rail stacked somewhere the domain says it does not (Task 3
- * review, finding 8). {@link markerBlockCount} refuses that by requiring the
- * marker to be declared exactly three times — the `wide` default on `.shell`
- * and the two breakpoints — so a third breakpoint has to declare its own mode
- * and be pinned here, or fail.
+ * review, finding 8). {@link unmarkedLayoutBlocks} refuses that, and it refuses
+ * it by asking which `@media` blocks set `grid-template-columns` WITHOUT also
+ * declaring `--admin-width-mode` — not by counting how many times each appears.
+ * Counting was the first attempt and it was measured NOT to work: three markers
+ * and three layout blocks satisfy a total either way, whichever blocks they sit
+ * in, and the mutation passed.
  * @param mode - The mode whose upper bound is wanted.
  * @returns The largest width the stylesheet draws that mode at.
  * @throws When the stylesheet marks no breakpoint for that mode, which is the
