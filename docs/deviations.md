@@ -2537,6 +2537,20 @@ been published printed its creation date forever (review round 1, finding 1).
 `readJourneysScreen.integration.test.ts` backdates the main row in SQL and asserts the cell
 moves, because a publish and an edit in the same minute format identically.
 
+**THE ROW IS MIXED BY CONSTRUCTION, AND THIS IS THE WHOLE RULE RATHER THAN HALF OF IT.** The
+DATE is the newest draft's; the TEXT beside it — the name, the place and the dates — is the
+PUBLISHED row's, and so is what the screen's search matches on. So an author who renames
+_Seville_ to _Sevilla_ in a draft save sees a row that says it was edited today and still
+calls it _Seville_, and typing "Sevilla" into the search finds nothing.
+
+That is deliberate, and it is a choice between two defensible readings. A list of what is
+LIVE is the one taken: the table is what the public book holds, with a status pill and a date
+saying what is waiting on top of it. Following the draft for the text would need the fourth
+query to select `version: { name, place, dates }` — no extra query — but **the `where` could
+not follow without a fifth**, so the search would still be blind to a draft rename while the
+rows had already changed under it. Half of it is worse than none. If the draft's text is ever
+wanted, both halves move together (fix round 2, finding 3).
+
 **`en-GB`, not the reader's locale:** the diary's own dates are written that way
 throughout — the `journeys` collection's own `dates` field is free text in the shape
 "12 – 24 March 2025" — and a cell whose format depended on the machine rendering it would

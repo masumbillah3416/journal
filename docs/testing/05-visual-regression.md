@@ -128,6 +128,20 @@ numbers are `docs/testing.md`'s and do not change.
   npm run test:visual:container:update:all       # regenerate every one — opt-in, see below
   ```
 
+  **NOTHING ELSE MAY TOUCH THE `diary` DATABASE WHILE BASELINES ARE BEING GENERATED.** The
+  pictures are of that data, so anything writing to it while the container runs is
+  photographed — and `--update-snapshots=changed` then commits the photograph.
+  `e2e/admin.spec.ts` creates a journey in `diary` and deletes it in `afterAll`, so a
+  `npm run test:e2e` finishing in another terminal is enough: one `admin-journeys` baseline
+  was generated with an eleventh row in it (`Kyoto adminshell.mobile.w30`, a `DRAFT` pill,
+  "11 ENTRIES · 33 PAGES") and was caught only by somebody opening the PNG. The recovery is
+  to delete the affected baselines and regenerate with nothing else running.
+
+  It is a property of ANY SHARED STORE rather than of one database name, which is the general
+  form of the warning `vitest.integration.config.ts` carries for `diary_test` ("two of these
+  at once corrupts both"): a suite whose subject is a shared store cannot run beside anything
+  else that writes to it, and the symptom is a plausible wrong answer rather than an error.
+
   Both are `docker compose run --rm` against the `visual`/`visual-update` services in
   `docker-compose.yml`, which are `mcr.microsoft.com/playwright:v1.62.1-noble` — the same
   image, at the same tag, that CI's `browser` job runs in. **Phase 2 Task 7 wrote them

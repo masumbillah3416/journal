@@ -71,6 +71,16 @@ const NOT_COPIED: Readonly<Record<string, string>> = {
 }
 
 /**
+ * The three fields `createJourneyRow` sets from the create panel's own inputs.
+ *
+ * They are not in the fixture literal below because the fixture is an UPDATE
+ * over an already-created journey, and the sentinel has to count them as
+ * written — `name` is a `NOT_COPIED` exception, and `place` and `dates` are
+ * carried and set.
+ */
+const SET_BY_CREATE: readonly string[] = ['name', 'place', 'dates']
+
+/**
  * Every field `apps/web/collections/journeys.ts` declares, by name.
  *
  * Read off the collection config rather than written down, which is the whole
@@ -436,34 +446,45 @@ describe('duplicateJourneyRow', () => {
     // their reasons, and everything else has to match. `order` and
     // `hiddenFromBookmarks` were the two being dropped; a field added tomorrow
     // fails here rather than being dropped in silence.
+    //
+    // THE SENTINEL IS BUILT FROM THE FIXTURE'S OWN KEYS, NOT FROM NULL-NESS,
+    // and that is fix round 2's finding 2. Asking whether the source's value is
+    // null is blind to every field with a `defaultValue` — Payload fills those
+    // on the copy as well as on the source, so the sentinel stayed quiet and
+    // the comparison passed two equal defaults. Three of this collection's
+    // fields are like that, INCLUDING `hiddenFromBookmarks`, one of the two the
+    // inversion was written to protect: the reviewer stopped the copy carrying
+    // it, removed it from the fixture, and all eighteen cases passed. Keyed on
+    // the fixture instead, a field added to the collection fails whatever its
+    // default.
+    //
+    // EVERY VALUE BELOW DIFFERS FROM THE FIELD'S OWN DEFAULT, for the same
+    // reason: a fixture that set `weatherGlyph: 'sun'` would compare two
+    // defaults even with the sentinel satisfied.
     const scope2 = scope
+    const written = {
+      startsOn: '2025-06-04T00:00:00.000Z',
+      order: 7,
+      hiddenFromBookmarks: true,
+      weather: 'RAIN 9C',
+      mood: 'SOAKED',
+      weatherGlyph: 'haze' as const,
+      furniture: { signoff: 'until next time', stampCountry: 'ISLAND', stampValue: '2.10', accent: '#a06b3e' },
+      highlights: [{ text: 'Rain on the fjord' }],
+      note: 'The weather organises the day for you.',
+      tally: [
+        { key: 'Days', value: '7' },
+        { key: 'Kilometres walked', value: '48' },
+        { key: 'Rolls shot', value: '3' },
+        { key: 'Rainy days', value: '5' },
+      ],
+    }
     const source = await createJourneyRow(payload, scope2, {
       name: `${MARKER} Whole`,
       place: 'Iceland',
       dates: '4 – 11 June 2025',
     })
-    await payload.update({
-      collection: 'journeys',
-      id: source,
-      ...scope2,
-      data: {
-        startsOn: '2025-06-04T00:00:00.000Z',
-        order: 7,
-        hiddenFromBookmarks: true,
-        weather: 'RAIN 9C',
-        mood: 'SOAKED',
-        weatherGlyph: 'haze',
-        furniture: { signoff: 'until next time', stampCountry: 'ISLAND', stampValue: '2.10', accent: '#3d817e' },
-        highlights: [{ text: 'Rain on the fjord' }],
-        note: 'The weather organises the day for you.',
-        tally: [
-          { key: 'Days', value: '7' },
-          { key: 'Kilometres walked', value: '48' },
-          { key: 'Rolls shot', value: '3' },
-          { key: 'Rainy days', value: '5' },
-        ],
-      },
-    })
+    await payload.update({ collection: 'journeys', id: source, ...scope2, data: written })
 
     const copy = await duplicateJourneyRow(payload, scope2, source)
     const [original, duplicated] = await Promise.all(
@@ -478,12 +499,12 @@ describe('duplicateJourneyRow', () => {
     const carried = DECLARED_FIELDS.filter((field) => !(field in NOT_COPIED))
 
     // THE SENTINEL, and it is the half that makes this inverting rather than
-    // decorative: every carried field must be SET on the source, or the
-    // comparison below would compare two nulls and pass for a field the copy
-    // drops. A field added to the collection lands here first.
+    // decorative: every carried field must be one the fixture ACTUALLY WRITES,
+    // or the comparison below compares two defaults and passes for a field the
+    // copy drops. A field added to the collection lands here first.
     expect(
-      carried.filter((field) => (original?.[field] ?? null) === null),
-      'the fixture above does not set every field the journeys collection declares, so the comparison below would pass over them',
+      carried.filter((field) => !(field in written) && !SET_BY_CREATE.includes(field)),
+      'the fixture above does not write every field the journeys collection declares, so the comparison below would pass over them',
     ).toEqual([])
 
     expect(carried.map((field) => [field, withoutRowIds((duplicated as Record<string, unknown>)[field])])).toEqual(

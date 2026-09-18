@@ -237,6 +237,21 @@ describe('JourneyTable', () => {
     expect(host.querySelector('[data-journeys-empty]')?.textContent).toBe('No journeys match that.')
   })
 
+  it('is not a table at all when nothing matched, because an empty result is not one', () => {
+    // FIX ROUND 2, FINDING 4. The `role="table"` was on the card whatever was
+    // in it, so the empty state was a table owning a bare `<p>` — which an ARIA
+    // table does not own, and which axe passed, because axe judges the markup
+    // that is there. A reader filtering to Archived with nothing archived heard
+    // "table, 1 row" and, on some assistive technology, nothing else.
+    const empty = renderTable([])
+    const filled = renderTable([aRow()])
+
+    expect(empty.querySelector('[role="table"]')).toBeNull()
+    expect(empty.querySelectorAll('[role="row"], [role="columnheader"], [role="cell"]')).toHaveLength(0)
+    // The sentinel: the roles are still there when there is a table to be.
+    expect(filled.querySelector('[role="table"]')).not.toBeNull()
+  })
+
   it('changes shape at exactly the widths the domain names, and at no others', () => {
     // BOTH SIDES OF ALL FOUR, derived. The left is every `min-width` the
     // stylesheet declares; the right is every width at which the domain's

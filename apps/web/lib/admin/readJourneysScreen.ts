@@ -32,6 +32,19 @@
  * it was written before that was measured, and the count here is the measured
  * one (`readJourneysScreen.integration.test.ts` pins it from both sides).
  *
+ * ═══ THE ROW IS MIXED, DELIBERATELY: A DRAFT'S DATE OVER A PUBLISHED ROW'S
+ *     TEXT ═══
+ *
+ * `editedAt` is the newest draft's; `name`, `place` and `dates` are the main
+ * row's, and so is the `where` the search runs against. A draft rename is
+ * therefore invisible here and unfindable by the search. The table is a list of
+ * what is LIVE, with a pill and a date saying what is waiting on top of it —
+ * and the alternative is only half available: the fourth query could select
+ * `version: { name, place, dates }` for no extra query, but the `where` cannot
+ * follow without a fifth, so the search would stay blind while the rows changed
+ * under it. Written down whole in `docs/deviations.md` §54 (fix round 2,
+ * finding 3).
+ *
  * ═══ THE CHIPS FILTER IN MEMORY, AND THAT IS NOT LAZINESS ═══
  *
  * Three of the five chips could be pushed into the `where`; `edited` cannot,

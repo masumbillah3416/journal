@@ -233,34 +233,45 @@ const cellsFor = (row: JourneyRow): React.JSX.Element => (
  * @example
  * <JourneyTable rows={rows} duplicate={duplicateJourney} archive={archiveJourney} trash={trashJourney} />
  */
-export const JourneyTable = ({ rows, duplicate, archive, trash }: JourneyTableProps): React.JSX.Element => (
-  <div className={styles.card} role="table" aria-label="Journeys">
-    <div className={styles.head} role="row">
-      {JOURNEY_COLUMNS.map((column) => (
-        <div
-          key={column}
-          role="columnheader"
-          data-heading={column}
-          className={
-            column === 'dates' || column === 'pages' || column === 'media' || column === 'edited'
-              ? styles[column]
-              : undefined
-          }
-        >
-          {HEADINGS[column]}
-          {UNPRINTED_HEADINGS[column] === undefined ? null : (
-            <span className={styles.hiddenLabel}>{UNPRINTED_HEADINGS[column]}</span>
-          )}
-        </div>
-      ))}
-    </div>
-
-    {rows.length === 0 ? (
+export const JourneyTable = ({ rows, duplicate, archive, trash }: JourneyTableProps): React.JSX.Element =>
+  // AN EMPTY RESULT IS NOT A TABLE, so it is not given the roles of one. The
+  // first version put `role="table"` on the card whatever was in it, and in the
+  // empty state that table owned a bare `<p>` — which an ARIA table does not
+  // own, and which axe passed, because axe judges the markup that is there
+  // rather than the markup that is missing. That is this module's own argument
+  // for having the roles at all, pointed back at it (fix round 2, finding 4).
+  // A reader filtering to Archived with nothing archived heard "table, 1 row"
+  // and, on some assistive technology, nothing else — the one piece of
+  // information on the screen.
+  rows.length === 0 ? (
+    <div className={styles.card}>
       <p data-journeys-empty className={styles.empty}>
         No journeys match that.
       </p>
-    ) : (
-      rows.map((row) => (
+    </div>
+  ) : (
+    <div className={styles.card} role="table" aria-label="Journeys">
+      <div className={styles.head} role="row">
+        {JOURNEY_COLUMNS.map((column) => (
+          <div
+            key={column}
+            role="columnheader"
+            data-heading={column}
+            className={
+              column === 'dates' || column === 'pages' || column === 'media' || column === 'edited'
+                ? styles[column]
+                : undefined
+            }
+          >
+            {HEADINGS[column]}
+            {UNPRINTED_HEADINGS[column] === undefined ? null : (
+              <span className={styles.hiddenLabel}>{UNPRINTED_HEADINGS[column]}</span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {rows.map((row) => (
         <RowActions
           key={row.id}
           journey={row.id}
@@ -273,7 +284,6 @@ export const JourneyTable = ({ rows, duplicate, archive, trash }: JourneyTablePr
           archive={archive}
           trash={trash}
         />
-      ))
-    )}
-  </div>
-)
+      ))}
+    </div>
+  )
