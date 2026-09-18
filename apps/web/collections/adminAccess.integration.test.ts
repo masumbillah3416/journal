@@ -26,9 +26,12 @@
  * Uses `getTestPayload()`, not `getPayload()` directly, so this file connects
  * to the isolated `diary_test` database rather than a developer's own — see
  * that module's header.
- * Depends on: vitest, ../lib/testPayload, ./users.
+ * Depends on: vitest, sharp (a real image, because `media` is an upload
+ * collection and Payload will not create a row without bytes),
+ * ../lib/testPayload, ./users.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import sharp from 'sharp'
 import type { TypedUser } from 'payload'
 import { getTestPayload } from '../lib/testPayload'
 import { ownAccountOnly, Users } from './users'
@@ -50,6 +53,9 @@ let accountA: TypedUser
 
 /** The account whose row every refusal case is aimed at. */
 let accountB: TypedUser
+
+/** The journey the `pages` and `media` fixtures hang off; neither can exist without one. */
+let fixtureJourney: number
 
 /**
  * Creates one fixture account.
@@ -77,7 +83,41 @@ const anAccount = async (local: string): Promise<TypedUser> => {
  */
 const removeFixtures = async (): Promise<void> => {
   await payload.delete({ collection: 'users', where: { email: { like: MARKER } } })
+  // Children before parents: `pages.journey` and `media.journey` point at a
+  // journey row, so deleting the journey first fails on the foreign key.
+  await payload.delete({ collection: 'pages', where: { title: { like: MARKER } } })
+  await payload.delete({ collection: 'media', where: { alt: { like: MARKER } } })
   await payload.delete({ collection: 'journeys', where: { slug: { like: MARKER } } })
+}
+
+/**
+ * A real 100x100 PNG.
+ *
+ * `media` is an upload collection: Payload refuses a row with no bytes, so a
+ * fixture here has to be an actual image rather than a record that claims to
+ * be one. Generated rather than committed, which is the shape
+ * `collections.integration.test.ts` already uses.
+ * @returns The encoded PNG.
+ */
+const aTinyPng = (): Promise<Buffer> =>
+  sharp({ create: { width: 100, height: 100, channels: 3, background: { r: 200, g: 200, b: 200 } } })
+    .png()
+    .toBuffer()
+
+/**
+ * Creates one fixture journey, with access control left off.
+ *
+ * The journey is a fixture for the `pages` and `media` cases below, not their
+ * subject - neither collection can hold a row without one.
+ * @param slugSuffix - Distinguishes this journey from the other fixtures'.
+ * @returns The created row's id.
+ */
+const aJourney = async (slugSuffix: string): Promise<number> => {
+  const created = await payload.create({
+    collection: 'journeys',
+    data: { name: MARKER, place: MARKER, slug: `${MARKER}-${slugSuffix}`, dates: 'one day' },
+  })
+  return created.id
 }
 
 beforeAll(async () => {
@@ -88,6 +128,7 @@ beforeAll(async () => {
   await removeFixtures()
   accountA = await anAccount('a')
   accountB = await anAccount('b')
+  fixtureJourney = await aJourney('fixtures')
 })
 
 afterAll(async () => {
@@ -224,6 +265,52 @@ describe('the content collections and globals, for a caller with no session', ()
       payload.updateGlobal({ slug: 'about', overrideAccess: false, data: { replyTo: 'nobody@example.test' } }),
     ).rejects.toThrow()
   })
+
+  // THE READ HALF OF EACH GLOBAL, which the update cases above do not reach:
+  // Payload judges `read` and `update` with two different predicates, and a
+  // suite that only ever writes leaves the one every admin screen calls first
+  // unexercised.
+  it('refuses to read the book global', async () => {
+    await expect(payload.findGlobal({ slug: 'book', overrideAccess: false })).rejects.toThrow()
+  })
+
+  it('refuses to read the site global', async () => {
+    await expect(payload.findGlobal({ slug: 'site', overrideAccess: false })).rejects.toThrow()
+  })
+
+  it('refuses to read the about global', async () => {
+    await expect(payload.findGlobal({ slug: 'about', overrideAccess: false })).rejects.toThrow()
+  })
+
+  // THE OTHER ARM OF `ownAccountOnly`. Every `users` case above has a caller,
+  // so the branch that answers `false` with none had never run - and it is the
+  // arm that decides what an anonymous HTTP caller gets from `/api/users`.
+  it('refuses to list the accounts at all, since an account row belongs to somebody', async () => {
+    await expect(payload.find({ collection: 'users', overrideAccess: false })).rejects.toThrow()
+  })
+
+  it('refuses to create a page', async () => {
+    await expect(
+      payload.create({
+        collection: 'pages',
+        overrideAccess: false,
+        data: { journey: fixtureJourney, kind: 'notes', title: MARKER, order: 1 },
+      }),
+    ).rejects.toThrow()
+  })
+
+  it('refuses to create a media item', async () => {
+    const png = await aTinyPng()
+
+    await expect(
+      payload.create({
+        collection: 'media',
+        overrideAccess: false,
+        data: { alt: MARKER },
+        file: { data: png, mimetype: 'image/png', name: `${MARKER}-refused.png`, size: png.length },
+      }),
+    ).rejects.toThrow()
+  })
 })
 
 describe('the content collections and globals, for the signed-in author', () => {
@@ -245,6 +332,49 @@ describe('the content collections and globals, for the signed-in author', () => 
     expect(updated.place).toBe('somewhere else')
 
     await payload.delete({ collection: 'journeys', id: created.id, overrideAccess: false, user: accountA })
+  })
+
+  it('lets the author read and write a page, so the page editor is not locked out by its own rule', async () => {
+    const created = await payload.create({
+      collection: 'pages',
+      overrideAccess: false,
+      user: accountA,
+      data: { journey: fixtureJourney, kind: 'notes', title: MARKER, order: 2 },
+    })
+    const updated = await payload.update({
+      collection: 'pages',
+      id: created.id,
+      overrideAccess: false,
+      user: accountA,
+      data: { order: 3 },
+    })
+
+    expect(updated.order).toBe(3)
+
+    await payload.delete({ collection: 'pages', id: created.id, overrideAccess: false, user: accountA })
+  })
+
+  it('lets the author change and remove a media item, so the media screen is not locked out by its own rule', async () => {
+    const png = await aTinyPng()
+    // Created with access control OFF: `media.create` is asserted by the
+    // signed-out case above, and what this case is about is the two
+    // predicates that need a row to exist before anything can reach them.
+    const created = await payload.create({
+      collection: 'media',
+      data: { alt: MARKER, journey: fixtureJourney },
+      file: { data: png, mimetype: 'image/png', name: `${MARKER}-author.png`, size: png.length },
+    })
+    const updated = await payload.update({
+      collection: 'media',
+      id: created.id,
+      overrideAccess: false,
+      user: accountA,
+      data: { caption: 'changed by the author' },
+    })
+
+    expect(updated.caption).toBe('changed by the author')
+
+    await payload.delete({ collection: 'media', id: created.id, overrideAccess: false, user: accountA })
   })
 })
 
