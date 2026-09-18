@@ -485,14 +485,14 @@ export default defineConfig({
         // and the cost of all four together.
         'apps/web/lib/admin/readNavCounts.ts': { lines: 100, branches: 100, functions: 100 },
         // readJourneysScreen.ts (Phase 4 Task 4): MEASURED, and the branch
-        // number is 96 rather than 100 for exactly ONE arm - `ownerOf`'s
+        // number is 97 rather than 100 for exactly ONE arm - `ownerOf`'s
         // refusal of a relationship value that is not a bare id. Every read in
         // that module is `depth: 0`, so Payload hands it the id and the arm is
         // unreachable today; it is written rather than cast because a `depth`
         // raised by a later task would otherwise tally rows against `NaN`
         // instead of dropping them. Not a §46 entry: §46 registers the gates
         // BELOW CLAUDE.md §2.1's 95%, and this is above it.
-        'apps/web/lib/admin/readJourneysScreen.ts': { lines: 100, branches: 96, functions: 100 },
+        'apps/web/lib/admin/readJourneysScreen.ts': { lines: 100, branches: 97, functions: 100 },
         // journeyMutations.ts (Phase 4 Task 4): MEASURED, and the branch number
         // is 95 rather than 100 for exactly ONE arm — the `?? {}` behind a
         // copied journey's `furniture`. Payload fills a group field with its

@@ -247,6 +247,23 @@ export const createJourneyRow = async (payload: Payload, scope: AdminScope, inpu
  * THE COPY IS A DRAFT EVEN WHEN THE SOURCE IS PUBLISHED. A duplicate that went
  * out the moment it was made would publish an unedited copy of somebody's
  * journey, with "(copy)" in the book's own contents.
+ *
+ * ═══ FOUR COLUMNS ARE DELIBERATELY NOT CARRIED, AND NOTHING ELSE IS ═══
+ *
+ * `name` becomes "<name> (copy)"; `slug` is unique on the collection, so the
+ * copy takes a free one; `archived` and `deletedAt` are reset, because a copy
+ * starts off the shelf and out of the trash whatever the source was in. Every
+ * other column the collection declares is carried — which used to be true of
+ * all but `order` and `hiddenFromBookmarks`, silently, so an author who had
+ * kept a journey out of the book's bookmarks got a duplicate that was in them
+ * (review round 1, finding 3).
+ *
+ * THE LIST IS JUDGED BY INVERSION rather than by cases that each name the
+ * fields they check, which is what let those two hide:
+ * `journeyMutations.integration.test.ts` reads the field names off
+ * `apps/web/collections/journeys.ts` itself, subtracts the four above by name
+ * and with their reasons, and requires everything left to match — so a field a
+ * later task adds fails there until somebody decides about it.
  * @param payload - The Local API instance.
  * @param scope - The hoisted {@link AdminScope}.
  * @param journey - The row id to copy.
@@ -269,6 +286,8 @@ export const duplicateJourneyRow = async (payload: Payload, scope: AdminScope, j
       dates: source.dates,
       slug: await freeSlug(payload, scope, name),
       archived: false,
+      order: orNull(source.order),
+      hiddenFromBookmarks: orNull(source.hiddenFromBookmarks),
       startsOn: orNull(source.startsOn),
       weather: orNull(source.weather),
       mood: orNull(source.mood),

@@ -23,6 +23,7 @@ import { userId, type UserId } from '@travel-diary/domain/ids'
 import type { Payload } from 'payload'
 import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { Journeys } from '../../collections/journeys'
 import { getTestPayload } from '../testPayload'
 import { adminScope, type AdminScope } from './adminScope'
 import {
@@ -38,6 +39,66 @@ import { readJourneysScreen } from './readJourneysScreen'
 
 /** What every row this file writes carries, so cleanup can find them all. */
 const MARKER = 'test-journey-mutations'
+
+/**
+ * The journey columns a copy is DEFINED not to carry, each with its reason.
+ *
+ * ═══ AN EXCLUSION LIST, SO THE CARRY LIST IS INVERTED ═══
+ *
+ * `duplicateJourneyRow` used to be judged by cases that each named the fields
+ * they checked, so the two it silently dropped — `order` and
+ * `hiddenFromBookmarks` — passed every one of them (review round 1, finding 3).
+ * That is the enumeration CLAUDE.md §3.3's rejected anti-patterns and this
+ * repository's standing orders both say to invert: a field added to
+ * `apps/web/collections/journeys.ts` by a later task now fails the case below
+ * until somebody decides about it, rather than being dropped in silence.
+ *
+ * THE LAST THREE ARE PAYLOAD'S OWN, and they are named rather than filtered out
+ * by shape: `sanitizeCollection` MUTATES the imported config and appends
+ * `updatedAt`, `createdAt` and `_status` to `fields`, so the derivation below
+ * does reach them once Payload has booted. Measured — the first version of this
+ * case said they were "not in the collection's own field list at all" and
+ * failed on all three.
+ */
+const NOT_COPIED: Readonly<Record<string, string>> = {
+  name: 'the copy is "<name> (copy)"',
+  slug: 'unique on the collection; the copy takes a free one',
+  archived: 'a copy starts off the archive shelf, whatever the source was on',
+  deletedAt: 'a copy starts out of the trash, whatever the source was in',
+  createdAt: "Payload's own; the copy is new",
+  updatedAt: "Payload's own; the copy is new",
+  _status: 'a copy is always a draft, whatever the source was',
+}
+
+/**
+ * Every field `apps/web/collections/journeys.ts` declares, by name.
+ *
+ * Read off the collection config rather than written down, which is the whole
+ * point: this is the list that grows when a task adds a field.
+ */
+const DECLARED_FIELDS: readonly string[] = Journeys.fields.flatMap((field) =>
+  'name' in field && typeof field.name === 'string' ? [field.name] : [],
+)
+
+/**
+ * A value with every array row's own `id` removed.
+ *
+ * Payload mints an `id` per array row, so a copy's rows can never equal the
+ * source's by identity — what has to match is everything else.
+ * @param value - A field's value as Payload returned it.
+ * @returns The same value with `id` dropped from every object in it.
+ */
+const withoutRowIds = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(withoutRowIds)
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => key !== 'id')
+        .map(([key, nested]) => [key, withoutRowIds(nested)]),
+    )
+  }
+  return value
+}
 
 /** A password that is not one: this account is never signed in to. */
 const NOT_A_PASSWORD = 'not-a-real-password'
@@ -367,6 +428,86 @@ describe('duplicateJourneyRow', () => {
       ['Rolls shot', '3'],
       [null, null],
     ])
+  })
+
+  it('carries every column the collection declares that a copy is not defined to drop', async () => {
+    // REVIEW ROUND 1, FINDING 3, and the case is written the way the finding
+    // asks: the fields come from the COLLECTION, the exceptions are named with
+    // their reasons, and everything else has to match. `order` and
+    // `hiddenFromBookmarks` were the two being dropped; a field added tomorrow
+    // fails here rather than being dropped in silence.
+    const scope2 = scope
+    const source = await createJourneyRow(payload, scope2, {
+      name: `${MARKER} Whole`,
+      place: 'Iceland',
+      dates: '4 – 11 June 2025',
+    })
+    await payload.update({
+      collection: 'journeys',
+      id: source,
+      ...scope2,
+      data: {
+        startsOn: '2025-06-04T00:00:00.000Z',
+        order: 7,
+        hiddenFromBookmarks: true,
+        weather: 'RAIN 9C',
+        mood: 'SOAKED',
+        weatherGlyph: 'haze',
+        furniture: { signoff: 'until next time', stampCountry: 'ISLAND', stampValue: '2.10', accent: '#3d817e' },
+        highlights: [{ text: 'Rain on the fjord' }],
+        note: 'The weather organises the day for you.',
+        tally: [
+          { key: 'Days', value: '7' },
+          { key: 'Kilometres walked', value: '48' },
+          { key: 'Rolls shot', value: '3' },
+          { key: 'Rainy days', value: '5' },
+        ],
+      },
+    })
+
+    const copy = await duplicateJourneyRow(payload, scope2, source)
+    const [original, duplicated] = await Promise.all(
+      [source, copy].map(async (id): Promise<Record<string, unknown>> => ({
+        // `Promise.all` over a two-element map gives `Journey | undefined`,
+        // and every read below is by a name the collection supplies rather
+        // than one this file invented — so the widening is to a record of
+        // unknowns, narrowed by the comparison itself, not a cast to a shape.
+        ...(await payload.findByID({ collection: 'journeys', id, ...scope2, depth: 0 })),
+      })),
+    )
+    const carried = DECLARED_FIELDS.filter((field) => !(field in NOT_COPIED))
+
+    // THE SENTINEL, and it is the half that makes this inverting rather than
+    // decorative: every carried field must be SET on the source, or the
+    // comparison below would compare two nulls and pass for a field the copy
+    // drops. A field added to the collection lands here first.
+    expect(
+      carried.filter((field) => (original?.[field] ?? null) === null),
+      'the fixture above does not set every field the journeys collection declares, so the comparison below would pass over them',
+    ).toEqual([])
+
+    expect(carried.map((field) => [field, withoutRowIds((duplicated as Record<string, unknown>)[field])])).toEqual(
+      carried.map((field) => [field, withoutRowIds((original as Record<string, unknown>)[field])]),
+    )
+  })
+
+  it('starts the copy off the shelf and out of the trash, whatever the source was in', async () => {
+    // The other side of {@link NOT_COPIED}: the four exceptions are exceptions
+    // because a copy is DEFINED to differ, not because nobody looked.
+    const scope2 = scope
+    const source = await createJourneyRow(payload, scope2, { name: `${MARKER} Shelved`, place: 'Peru', dates: 'a day' })
+    await payload.update({
+      collection: 'journeys',
+      id: source,
+      ...scope2,
+      data: { archived: true, deletedAt: new Date().toISOString() },
+    })
+
+    const copy = await duplicateJourneyRow(payload, scope2, source)
+
+    const duplicated = await payload.findByID({ collection: 'journeys', id: copy, ...scope2, depth: 0 })
+    expect(duplicated.archived).toBe(false)
+    expect(duplicated.deletedAt ?? null).toBeNull()
   })
 
   it('leaves the source journey’s own pages where they were, rather than moving them', async () => {
