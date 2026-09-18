@@ -41,7 +41,23 @@ import { getPayload } from '../payload'
 export interface AdminScope {
   /** The account row Payload's access predicates judge against. */
   readonly user: TypedUser
-  /** Literally `false`: the type refuses a call site that flips it. */
+  /**
+   * Literally `false`, not `boolean`.
+   *
+   * WHAT THIS TYPE DOES AND DOES NOT CATCH, because the first draft of this
+   * line credited the wrong mechanism and thirteen screen tasks read it. It
+   * refuses an {@link AdminScope} VALUE built with anything but `false` — a
+   * second producer of this shape cannot hand out a permissive one. It does
+   * NOT refuse a call site that spreads this and then sets the option itself:
+   * the destination parameter is `overrideAccess?: boolean`, a later key in an
+   * object literal wins, and that flip compiles (measured under
+   * `tsc -p apps/web --noEmit`, exit 0).
+   *
+   * What catches THAT is `apps/web/lib/auth/overrideAccessSites.test.ts`: any
+   * non-test file under `apps/` or `packages/` carrying the option is a third
+   * production site, and its first case fails on the commit that adds one. A
+   * Server Action under `apps/web/app/` is inside that scan.
+   */
   readonly overrideAccess: false
 }
 

@@ -1529,8 +1529,14 @@ OPPOSITE VALUES.** `apps/web/lib/admin/adminScope.ts` is that decision:
 access predicates read `req.user.id`, and an `AuthenticatedSession` carries a branded
 string — and answers `{ user, overrideAccess: false }`. Every admin read and write spreads
 it (`await payload.update({ collection, id, ...(await adminScope(session)), data })`), so
-no screen decides the option and no screen can forget it: the interface IS the spread, and
-the `false` is a literal type, so a call site that flips it does not compile. It is a
+no screen decides the option and no screen can forget it: the interface IS the spread. The
+`false` is a literal type, which refuses an `AdminScope` value built with anything else but
+does NOT stop a call site spreading the scope and then setting the option itself — Payload's
+parameter is `overrideAccess?: boolean` and a later key wins, so that flip compiles
+(measured, `tsc -p apps/web --noEmit`, exit 0). What catches it is
+`apps/web/lib/auth/overrideAccessSites.test.ts`, which would see a third production site.
+An earlier draft of this paragraph credited the compiler, which is how the check that
+actually holds gets deleted as redundant. It is a
 module rather than a convention for the same reason `guardedAction` is — a decision every
 screen takes for itself is one chance per screen to take it wrong, and the screen that
 takes it wrong is silent. One `findByID` per action pays for it, by primary key, and that

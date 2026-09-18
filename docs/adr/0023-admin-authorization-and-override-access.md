@@ -86,9 +86,26 @@ Every admin read and write spreads it:
 await payload.update({ collection: 'journeys', id, ...(await adminScope(session)), data })
 ```
 
-That spread is the whole interface. No screen task writes `overrideAccess`, and the
-option's type is the literal `false` rather than `boolean`, so a call site that flips it
-does not compile — the decision is enforced by the type, not by review.
+That spread is the whole interface. No screen task writes `overrideAccess`.
+
+**WHAT ENFORCES THAT, PRECISELY, BECAUSE THE FIRST DRAFT OF THIS ADR GOT IT WRONG AND
+THIRTEEN SCREEN TASKS READ IT.** It said "a call site that flips it does not compile — the
+decision is enforced by the type, not by review". The first half is false. The option's
+type on `AdminScope` is the literal `false` rather than `boolean`, and that does refuse an
+`AdminScope` VALUE built with anything else — a second producer of this shape cannot hand
+out a permissive one. It does not reach a call site: Payload's destination parameter is
+`overrideAccess?: boolean`, a later key in an object literal wins, and
+`{ ...scope, overrideAccess: true }` compiles. Measured under `tsc -p apps/web --noEmit`,
+exit 0, twice — once by fix round 1's review and once again before this paragraph was
+written.
+
+What actually catches a flip is `apps/web/lib/auth/overrideAccessSites.test.ts`. Its
+production-set case derives every non-test file under `apps/` or `packages/` carrying the
+option from git's own listing, and fails on the commit that adds a third. A Server Action
+at `apps/web/app/(admin)/…/actions.ts` is inside that scan, so the protection genuinely
+covers every screen task — but it is a test, running in `npm run verify`, and not the
+compiler. Crediting the compiler is how the test that actually holds gets deleted as
+redundant.
 
 Three details are load-bearing.
 
