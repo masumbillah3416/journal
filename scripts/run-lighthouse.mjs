@@ -97,27 +97,44 @@
  * own — Lighthouse follows the redirect and reports a 200 for the sign-in
  * screen — so a run that could not mint one would be green and meaningless.
  *
- * WHAT IS PRINTED IS A LIVE CREDENTIAL AND NEVER TOUCHES A FILE. It is read off
- * the child's stdout, handed to lhci as an argument, and forgotten (CLAUDE.md
- * §0.6).
+ * AND IT CHECKS THAT THE COOKIE WAS HONOURED, not merely that one was minted.
+ * A cookie that mints and is refused leaves Lighthouse on `/admin/sign-in`
+ * with **all four assertions passing** — that screen measures status 1,
+ * 140,763 bytes against 327,680, LCP 2,929ms against 3,085 and CLS 0. So after
+ * each such configuration this reads the runs' own final URLs and exits
+ * non-zero if any of them moved. Without it the gate is green on the wrong
+ * screen and every later task's headroom is fictional.
  *
- * Every DECISION in the paragraph above lives in `./lighthouseSession.mjs`,
- * beside the annotations' own module and for the identical reason: nothing in
- * this file can be executed by a Vitest project, so nothing in this file may
- * decide anything.
+ * WHAT IS PRINTED IS A LIVE CREDENTIAL. It is read off the child's stdout,
+ * handed to lhci as an argument, and never written to a file by this code —
+ * but **Lighthouse copies its own `configSettings`, `extraHeaders` included,
+ * into every report it writes**, so the header does land in `.lighthouseci/`
+ * and `lhci-reports/`. Both are `.gitignore`d and MUST STAY SO, and neither may
+ * be uploaded as a CI artifact. What makes the written copy harmless rather
+ * than merely hidden is the revocation below: once a configuration's runs are
+ * done, every session the collector holds is revoked, so the value in those
+ * files authenticates nothing.
+ *
+ * Every DECISION in the three paragraphs above lives in
+ * `./lighthouseSession.mjs`, beside the annotations' own module and for the
+ * identical reason: nothing in this file can be executed by a Vitest project,
+ * so nothing in this file may decide anything.
  *
  * Depends on: node:child_process, node:fs; `annotationLines`
- * (./lighthouseAnnotations.mjs); `collectsAdmin`, `sessionCookie` and
- * `sessionOverrideArgs` (./lighthouseSession.mjs); and `@lhci/cli` on the PATH
- * via npx.
+ * (./lighthouseAnnotations.mjs); `collectorLanded`, `collectsAdmin`,
+ * `sessionCookie` and `sessionOverrideArgs` (./lighthouseSession.mjs); and
+ * `@lhci/cli` on the PATH via npx.
  */
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { annotationLines } from './lighthouseAnnotations.mjs'
-import { collectsAdmin, sessionCookie, sessionOverrideArgs } from './lighthouseSession.mjs'
+import { collectorLanded, collectsAdmin, sessionCookie, sessionOverrideArgs } from './lighthouseSession.mjs'
 
 /** Where `lhci autorun` writes the assertion outcomes of the run just finished. */
 const ASSERTION_RESULTS = '.lighthouseci/assertion-results.json'
+
+/** Where it writes one report per run, and which the next `autorun` replaces. */
+const REPORT_DIR = '.lighthouseci'
 
 /**
  * What CI adds to every `autorun`, and a local run does not.
@@ -129,6 +146,9 @@ const CI_ONLY_ARGS = process.env.GITHUB_ACTIONS ? ['--assert.includePassedAssert
 
 /** What mints the collector's session, and where it is run from. */
 const MINT_COMMAND = ['run', 'lighthouse:session', '-w', 'apps/web', '--silent']
+
+/** What takes every session the collector holds away again, once the runs are done. */
+const REVOKE_COMMAND = ['run', 'lighthouse:session:revoke', '-w', 'apps/web', '--silent']
 
 /** The configuration files to run, in order, from the command line. */
 const configs = process.argv.slice(2)
@@ -165,6 +185,55 @@ const sessionArgs = (config) => {
 }
 
 /**
+ * Refuses a run that was answered somewhere other than it asked.
+ *
+ * THIS FUNCTION DECIDES NOTHING either: what counts as landing where it asked,
+ * and what an empty set of reports means, are `./lighthouseSession.mjs`'s,
+ * where cases drive them. The directory read and the exit are here. It is read
+ * INSIDE the loop for the same reason `annotate` is — the next `autorun`
+ * replaces these files.
+ * @param {string} config - The `lighthouserc*.json` that was just run.
+ */
+const refuseARedirectedRun = (config) => {
+  if (!collectsAdmin(readFileSync(config, 'utf8'))) return
+
+  const reports = readdirSync(REPORT_DIR)
+    .filter((name) => /^lhr-.*\.json$/.test(name))
+    .map((name) => readFileSync(`${REPORT_DIR}/${name}`, 'utf8'))
+
+  const landed = collectorLanded(reports)
+  if (landed.ok) return
+
+  console.error(`run-lighthouse: ${config} did not measure the screens it named`)
+  console.error(`run-lighthouse: ${landed.message}`)
+  console.error('run-lighthouse: the collector carried a session and the guard did not accept it, so these numbers')
+  console.error('run-lighthouse: describe the sign-in screen and not the screen they are named after')
+  process.exit(3)
+}
+
+/**
+ * Takes the collector's sessions away once a configuration is done with them.
+ *
+ * Lighthouse writes `extraHeaders` into every report it saves, so the cookie
+ * outlives the run in `.lighthouseci/` and `lhci-reports/` whatever this script
+ * does. Revoking is what makes those copies worthless rather than merely
+ * gitignored. A failure here is reported and does not fail the gate: the
+ * numbers are already collected, and turning a cleanup into a red performance
+ * run would teach people to ignore a red performance run.
+ * @param {string} config - The `lighthouserc*.json` that was just run.
+ */
+const revokeCollectorSessions = (config) => {
+  if (!collectsAdmin(readFileSync(config, 'utf8'))) return
+
+  const revoked = spawnSync('npm', REVOKE_COMMAND, { encoding: 'utf8', shell: true })
+  if (revoked.status !== 0) {
+    console.error(`run-lighthouse: could not revoke the collector's session after ${config}`)
+    console.error(revoked.stderr ?? '')
+    console.error('run-lighthouse: a live admin cookie is in .lighthouseci/ and lhci-reports/ until it expires')
+  }
+}
+
+/**
  * Prints one configuration's measured numbers as GitHub workflow commands.
  *
  * Called immediately after that configuration's `autorun`, because the next one
@@ -194,6 +263,10 @@ const results = configs.map((config) => {
     shell: true,
   })
   annotate(config)
+  // BEFORE the revoke, because it reads the reports that carry the cookie, and
+  // BEFORE the next configuration, which replaces them.
+  refuseARedirectedRun(config)
+  revokeCollectorSessions(config)
   return { config, code: run.status ?? 1 }
 })
 

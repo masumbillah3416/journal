@@ -460,13 +460,32 @@ which is the shape of green this branch has spent four reviews removing.
   `e2e/support/adminSession.ts` makes, so there is one definition of how a session is
   stored. `scripts/run-lighthouse.mjs` runs it before any configuration that collects an
   `/admin…` address and passes the cookie as a collect-settings override
-  (`--collect.settings.extraHeaders.Cookie=…`). **It refuses to run without one**: a missing
-  cookie does not fail the gate on its own, because Lighthouse follows the redirect and
-  reports a 200 for the sign-in screen, so a run that could not mint one would be green and
-  meaningless. Nothing it prints reaches a file in this repository (`CLAUDE.md` §0.6). Its
-  integration test judges the cookie by the PRODUCTION reader and the PRODUCTION
-  authenticator — `readBrowserSession` then `createSessionService.authenticate`, which is
-  exactly what the guard does — so "a well-formed string" cannot pass it.
+  (`--collect.settings.extraHeaders.Cookie=…`). Its integration test judges the cookie by
+  the PRODUCTION reader and the PRODUCTION authenticator — `readBrowserSession` then
+  `createSessionService.authenticate`, which is exactly what the guard does — so "a
+  well-formed string" cannot pass it.
+- **The two refusals, because one of them is not enough.** A cookie that cannot be minted
+  exits the runner non-zero, since a missing cookie does not fail the gate on its own:
+  Lighthouse follows the redirect and reports a 200 for the sign-in screen. **A cookie that
+  mints and is not honoured is that same failure wearing a pass** — the sign-in screen
+  measures `http-status-code` 1, 140,763 bytes against 327,680, LCP 2,929ms against 3,085
+  and CLS 0, so all four assertions go green on the wrong page and every later task's
+  headroom is fictional. So after each admin configuration the runner reads the runs' own
+  final URLs (`collectorLanded`, `scripts/lighthouseSession.mjs`) and exits non-zero if any
+  of them moved. **The `redirects` audit cannot do this job**, and that was measured rather
+  than assumed: it scores 0 on all four admin URLs, including the three gated since Phase 2,
+  because every admin address self-redirects once.
+- **Where the credential goes, which is not nowhere.** `mint-lighthouse-session.ts` writes
+  it to no file, and `run-lighthouse.mjs` captures the child's stdout rather than inheriting
+  it, so nothing is committed and nothing reaches a CI log. **Lighthouse writes it down
+  itself**: it copies its own `configSettings`, `extraHeaders` among them, into every LHR
+  and every HTML report, so `td-session=…` lands in `.lighthouseci/` and `lhci-reports/`
+  twice per run. Both directories are `.gitignore`d and **must stay so**, and **neither may
+  be uploaded as a CI artifact** — this repository is public. What makes those copies
+  harmless rather than merely hidden is that the runner revokes every session the collector
+  holds once a configuration is done (`npm run lighthouse:session:revoke -w apps/web`), so
+  the value sitting in those files authenticates nothing. Without it, a full admin session
+  would stay live for `SESSION_LIFETIME_MS` — twelve hours.
 - **The second matrix entry.** `.*/admin$`, disjoint from `.*/admin/.*`, carrying the same
   four assertions.
 

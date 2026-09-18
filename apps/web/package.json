@@ -13,7 +13,8 @@
     "db:migrate:down": "payload migrate:down",
     "db:seed": "payload run scripts/run-seed.ts",
     "media:rederive": "payload run scripts/run-rederive.ts",
-    "lighthouse:session": "payload run scripts/run-mint-lighthouse-session.ts"
+    "lighthouse:session": "payload run scripts/run-mint-lighthouse-session.ts",
+    "lighthouse:session:revoke": "payload run scripts/run-revoke-lighthouse-session.ts"
   },
   "dependencies": {
     "@next/env": "16.3.3",

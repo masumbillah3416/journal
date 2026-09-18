@@ -924,6 +924,16 @@ export default defineConfig({
           branches: 100,
           functions: 100,
         },
+        // `run-revoke-lighthouse-session.ts` is its twin, added by the Task 3
+        // review's finding 6: the runner calls it once a configuration's runs
+        // are done, so the cookie Lighthouse copies into `.lighthouseci/` and
+        // `lhci-reports/` authenticates nothing afterwards. Same whole-file
+        // `c8 ignore start`/`stop` and the same reason.
+        'apps/web/scripts/run-revoke-lighthouse-session.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
         // Two imports and an array literal, nothing else - `index.test.ts`
         // exercises the whole file, so 100% is the honest number, not a
         // rounded-up one.

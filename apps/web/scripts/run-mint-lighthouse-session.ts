@@ -10,9 +10,13 @@
  *
  * IT PRINTS THE COOKIE HEADER AND NOTHING ELSE. `scripts/run-lighthouse.mjs`
  * reads this off the pipe and passes it to lhci as a collect-settings
- * override. What it prints is a LIVE CREDENTIAL: it is never written to a file
- * in this repository and never committed (`CLAUDE.md` §0.6), and the one line
- * below is the only place it is ever rendered.
+ * override. What it prints is a LIVE CREDENTIAL, and the one line below is the
+ * only place THIS repository renders it — but not the only place it ends up.
+ * **Lighthouse copies `extraHeaders` into every report it writes**, so the
+ * header lands in `.lighthouseci/` and `lhci-reports/` twice per run. Both are
+ * gitignored and must stay so, and neither may be uploaded as a CI artifact.
+ * What makes those copies harmless is `run-revoke-lighthouse-session.ts`, which
+ * `run-lighthouse.mjs` calls once the runs are done.
  *
  * Invoked via `payload run scripts/run-mint-lighthouse-session.ts` so Payload's
  * own `tsx`-based loader resolves the relative imports — a plain `node` cannot

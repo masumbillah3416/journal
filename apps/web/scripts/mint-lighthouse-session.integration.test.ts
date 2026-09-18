@@ -19,7 +19,7 @@
 import { readBrowserSession } from '../lib/auth/browserSession'
 import { createSessionService } from '../lib/auth/sessions'
 import { getTestPayload } from '../lib/testPayload'
-import { LIGHTHOUSE_ACCOUNT_EMAIL, mintLighthouseSession } from './mint-lighthouse-session'
+import { LIGHTHOUSE_ACCOUNT_EMAIL, mintLighthouseSession, revokeLighthouseSessions } from './mint-lighthouse-session'
 import type { Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
@@ -109,6 +109,43 @@ describe('mintLighthouseSession', () => {
     })
 
     expect(accounts.docs).toHaveLength(1)
+  })
+
+  it('stops authenticating the cookie once the collector’s sessions are revoked', async () => {
+    // THE PROPERTY THIS EXISTS FOR. Lighthouse copies `extraHeaders` into every
+    // report it writes, so the cookie outlives the run in `.lighthouseci/` and
+    // `lhci-reports/` whatever the minting code does. What makes that copy
+    // harmless is this, not the gitignore — so the case authenticates the SAME
+    // header before and after, through the production authenticator.
+    const header = await mintLighthouseSession(payload)
+    const value = readBrowserSession(header)
+    if (value === null) throw new Error('the minted header carried no session')
+
+    const sessions = createSessionService({ payload, now: Date.now })
+    const before = await sessions.authenticate(value)
+    expect(before.ok).toBe(true)
+
+    await revokeLighthouseSessions(payload)
+    const after = await sessions.authenticate(value)
+
+    expect(after.ok).toBe(false)
+  })
+
+  it('reports how many it revoked, so a run that cleaned up nothing is not silent', async () => {
+    await mintLighthouseSession(payload)
+    await mintLighthouseSession(payload)
+
+    const revoked = await revokeLighthouseSessions(payload)
+
+    // Two live sessions were just minted, so this cannot pass by answering zero
+    // for an account it never found.
+    expect(revoked).toBeGreaterThanOrEqual(2)
+  })
+
+  it('answers zero rather than throwing when the collector has no account yet', async () => {
+    await clean()
+
+    expect(await revokeLighthouseSessions(payload)).toBe(0)
   })
 
   it('issues a different session each time, so one run cannot inherit another’s', async () => {
