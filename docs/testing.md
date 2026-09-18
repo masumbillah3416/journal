@@ -475,6 +475,16 @@ which is the shape of green this branch has spent four reviews removing.
   of them moved. **The `redirects` audit cannot do this job**, and that was measured rather
   than assumed: it scores 0 on all four admin URLs, including the three gated since Phase 2,
   because every admin address self-redirects once.
+
+  **It is scoped to the configurations that carry a session, deliberately.** The failure it
+  catches is a guard answering somewhere else, so it exists exactly where a cookie is sent.
+  Extending it to `lighthouserc.json` and `lighthouserc.book.json` is one line and is not
+  taken: nothing has measured whether `/p/1` or `/gallery/<slug>` ever self-redirect under
+  Lighthouse's phone emulation, and turning an unmeasured assumption into a gate on the
+  diary's LCP budget — the budget §7.0 above records as having been red for weeks at a
+  time — is a change that should follow a measurement rather than precede it. **Measure
+  those addresses first, then widen it.**
+
 - **Where the credential goes, which is not nowhere.** `mint-lighthouse-session.ts` writes
   it to no file, and `run-lighthouse.mjs` captures the child's stdout rather than inheriting
   it, so nothing is committed and nothing reaches a CI log. **Lighthouse writes it down

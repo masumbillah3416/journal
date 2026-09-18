@@ -6,9 +6,20 @@
  * loader in front of it — and collected by `vitest.config.ts`'s `unit` project
  * through its `scripts/**\/*.test.js` glob.
  *
- * TWO OF THE CASES READ THE REAL FILES rather than a fixture string: the
+ * SOME CASES READ THE REAL FILES rather than a fixture string: the
  * `lighthouserc*.json` configurations this repository actually ships, and the
  * domain's own cookie name. A fixture would prove the parser parses a fixture.
+ *
+ * AND ONE READS `run-lighthouse.mjs` ITSELF, which is not this module. The
+ * collector's session is revoked from a `finally` in that file's
+ * per-configuration loop, and `process.exit` is the one thing a `finally`
+ * cannot survive — the first version of the redirect check exited one line
+ * above the revoke, and the run that failed because the collector was answered
+ * somewhere else was the one run that left its twelve-hour session live
+ * (measured: `revoked 1 collector session(s)`). That file spawns `npx lhci`, so
+ * no Vitest project can execute it; reading it is the only check available, and
+ * the thing being protected is this module's session, which is why the case
+ * lives here.
  *
  * Depends on: node:fs, node:path, node:url, vitest,
  * ./lighthouseSession, `@travel-diary/domain/auth/session`.
@@ -158,6 +169,21 @@ describe('collectorLanded', () => {
     expect(collectorLanded([silent]).ok).toBe(false)
   })
 
+  it('accepts a report that carries only `finalUrl`, which is what proves the fallback is read', () => {
+    // WITHOUT THIS CASE THE FALLBACK IS UNPROVEN. Its twin below passes with
+    // `?? lhr.finalUrl` deleted, because a missing `finalDisplayedUrl` reads
+    // `'undefined'`, which differs from the requested URL and is refused for
+    // the wrong reason. Only the agreeing direction can tell the two apart —
+    // and the cost of getting it wrong is every run refused, which is a gate
+    // that is red forever rather than one that is green forever.
+    const older = JSON.stringify({
+      requestedUrl: 'http://localhost:3000/admin',
+      finalUrl: 'http://localhost:3000/admin',
+    })
+
+    expect(collectorLanded([older]).ok).toBe(true)
+  })
+
   it('reads `finalUrl` when a report carries no `finalDisplayedUrl`', () => {
     const older = JSON.stringify({
       requestedUrl: 'http://localhost:3000/admin',
@@ -165,6 +191,50 @@ describe('collectorLanded', () => {
     })
 
     expect(collectorLanded([older]).ok).toBe(false)
+  })
+})
+
+describe('the runner that carries the session', () => {
+  /** `scripts/run-lighthouse.mjs`, read off disk. */
+  const RUNNER = readFileSync(path.join(REPO_ROOT, 'scripts/run-lighthouse.mjs'), 'utf8')
+
+  /** Where the per-configuration loop opens. */
+  const LOOP_HEAD = 'const results = configs.map((config) => {'
+
+  /**
+   * The body of that loop, brace-counted.
+   *
+   * Counted rather than matched by regex: the body contains braces of its own,
+   * so a non-greedy match stops at the first inner one and a greedy match
+   * swallows the file.
+   * @returns {string} The loop body's own text.
+   */
+  const loopBody = () => {
+    const opens = RUNNER.indexOf(LOOP_HEAD) + LOOP_HEAD.length - 1
+    let depth = 0
+    for (let scan = opens; scan < RUNNER.length; scan += 1) {
+      if (RUNNER[scan] === '{') depth += 1
+      if (RUNNER[scan] === '}') depth -= 1
+      if (depth === 0) return RUNNER.slice(opens, scan)
+    }
+    throw new Error('run-lighthouse.mjs: the per-configuration loop does not close')
+  }
+
+  it('still has the loop this case reads, so a rename cannot make it vacuous', () => {
+    expect(RUNNER).toContain(LOOP_HEAD)
+    expect(loopBody().length).toBeGreaterThan(0)
+  })
+
+  it('revokes the collector’s session from a finally, so no return path can skip it', () => {
+    expect(loopBody()).toContain('finally')
+    expect(loopBody()).toContain('revokeCollectorSessions(config)')
+  })
+
+  it('exits the process nowhere inside that loop, because an exit is what a finally cannot survive', () => {
+    // It is also what this file's own header says the runner must not do for a
+    // second reason: every configuration runs whatever the ones before it did,
+    // and an exit in here silently reintroduces fail-fast across the gates.
+    expect(loopBody()).not.toContain('process.exit')
   })
 })
 

@@ -164,12 +164,19 @@ if (configs.length === 0) {
  * THIS FUNCTION DECIDES NOTHING, like `annotate` below: whether a
  * configuration needs a session, what counts as a cookie in the child's
  * output, and what lhci is handed are all `./lighthouseSession.mjs`'s, where a
- * test drives them. What is here is the process spawn and the exit.
+ * test drives them. What is here is the process spawn.
+ *
+ * IT DOES NOT EXIT, and nothing inside the per-configuration loop does — see
+ * that loop's own comment. It answers whether a session could be had, and the
+ * loop turns that into this configuration's outcome.
  * @param {string} config - The `lighthouserc*.json` about to be run.
- * @returns {readonly string[]} The extra arguments for `lhci autorun`.
+ * @returns {{ok: boolean, args: readonly string[]}} `ok` false when the
+ *   configuration needs a session and none could be minted, which must not be
+ *   run: without the cookie it would measure the sign-in screen under a guarded
+ *   address's name.
  */
 const sessionArgs = (config) => {
-  if (!collectsAdmin(readFileSync(config, 'utf8'))) return []
+  if (!collectsAdmin(readFileSync(config, 'utf8'))) return { ok: true, args: [] }
 
   const minted = spawnSync('npm', MINT_COMMAND, { encoding: 'utf8', shell: true })
   const cookie = sessionCookie(minted.stdout ?? '')
@@ -178,37 +185,50 @@ const sessionArgs = (config) => {
     console.error(`run-lighthouse: could not mint a session for ${config}`)
     console.error(minted.stderr ?? '')
     console.error('run-lighthouse: it collects a guarded admin address, so without one it would measure sign-in')
-    process.exit(2)
+    return { ok: false, args: [] }
   }
 
-  return sessionOverrideArgs(cookie)
+  return { ok: true, args: sessionOverrideArgs(cookie) }
 }
 
 /**
- * Refuses a run that was answered somewhere other than it asked.
+ * Whether a run was answered by the screens it asked for.
  *
  * THIS FUNCTION DECIDES NOTHING either: what counts as landing where it asked,
  * and what an empty set of reports means, are `./lighthouseSession.mjs`'s,
- * where cases drive them. The directory read and the exit are here. It is read
- * INSIDE the loop for the same reason `annotate` is — the next `autorun`
+ * where cases drive them. The directory read and the printing are here. It is
+ * read INSIDE the loop for the same reason `annotate` is — the next `autorun`
  * replaces these files.
+ *
+ * ═══ WHY ONLY THE CONFIGURATIONS THAT CARRY A SESSION ═══
+ *
+ * The failure this catches is a guard answering somewhere else, so it exists
+ * exactly where a cookie is sent. Extending it to the two diary configurations
+ * would be one line and is deliberately NOT taken: nothing here has measured
+ * whether `/p/1` or `/gallery/<slug>` ever self-redirect under Lighthouse's
+ * phone emulation, and turning an unmeasured assumption into a gate on the
+ * diary's LCP budget — the budget this repository has had red for weeks at a
+ * time (`docs/testing.md` §7.0) — is a change that should follow a measurement
+ * rather than precede it. Measure those addresses first, then widen this.
  * @param {string} config - The `lighthouserc*.json` that was just run.
+ * @returns {boolean} `true` when every run ended where it asked, or when this
+ *   configuration carries no session and is therefore out of scope.
  */
-const refuseARedirectedRun = (config) => {
-  if (!collectsAdmin(readFileSync(config, 'utf8'))) return
+const landedWhereItAsked = (config) => {
+  if (!collectsAdmin(readFileSync(config, 'utf8'))) return true
 
   const reports = readdirSync(REPORT_DIR)
     .filter((name) => /^lhr-.*\.json$/.test(name))
     .map((name) => readFileSync(`${REPORT_DIR}/${name}`, 'utf8'))
 
   const landed = collectorLanded(reports)
-  if (landed.ok) return
+  if (landed.ok) return true
 
   console.error(`run-lighthouse: ${config} did not measure the screens it named`)
   console.error(`run-lighthouse: ${landed.message}`)
   console.error('run-lighthouse: the collector carried a session and the guard did not accept it, so these numbers')
   console.error('run-lighthouse: describe the sign-in screen and not the screen they are named after')
-  process.exit(3)
+  return false
 }
 
 /**
@@ -220,6 +240,16 @@ const refuseARedirectedRun = (config) => {
  * gitignored. A failure here is reported and does not fail the gate: the
  * numbers are already collected, and turning a cleanup into a red performance
  * run would teach people to ignore a red performance run.
+ *
+ * IT IS CALLED FROM A `finally`, AND THAT IS THE WHOLE OF ITS RELIABILITY. The
+ * first version of the redirect check exited the process one line above this
+ * call, so the run that failed BECAUSE the collector was answered somewhere
+ * else was the one run that left its session live — measured at
+ * `revoked 1 collector session(s)` after a failed run, while five documents
+ * said the revoke was unconditional. A `finally` covers every return path in
+ * the loop body including ones nobody has written yet, and
+ * `lighthouseSession.test.js` refuses a `process.exit` inside that loop,
+ * because an exit is the one thing a `finally` cannot survive.
  * @param {string} config - The `lighthouserc*.json` that was just run.
  */
 const revokeCollectorSessions = (config) => {
@@ -252,22 +282,54 @@ const annotate = (config) => {
   for (const line of lines) console.log(line)
 }
 
-/** What each configuration exited with, in the order they were run. */
+/** What a configuration failed with when its session could not be minted. */
+const NO_SESSION = 2
+
+/** What it failed with when the runs did not measure the screens they named. */
+const WRONG_SCREEN = 3
+
+/**
+ * What each configuration exited with, in the order they were run.
+ *
+ * NOTHING IN THIS LOOP EXITS THE PROCESS, and that is load-bearing twice over.
+ * This file's header explains the first reason: every configuration runs
+ * whatever the ones before it did, because a gate that cannot report because an
+ * earlier gate failed is a gate nobody sees. The first version of the redirect
+ * check exited here and silently reintroduced exactly that. The second reason
+ * is the `finally` below: `process.exit` is the one thing a `finally` cannot
+ * survive, so an exit in here would take the session revocation with it.
+ * `lighthouseSession.test.js` reads this loop and refuses a `process.exit`
+ * inside it.
+ */
 const results = configs.map((config) => {
   console.log(`\n=== lhci autorun --config=${config} ===\n`)
-  // `shell: true` because `npx` is a shim on Windows; `stdio: 'inherit'` so
-  // lhci's own assertion output reaches the terminal unchanged, which is what
-  // anybody reading a red gate actually needs.
-  const run = spawnSync('npx', ['lhci', 'autorun', `--config=${config}`, ...CI_ONLY_ARGS, ...sessionArgs(config)], {
-    stdio: 'inherit',
-    shell: true,
-  })
-  annotate(config)
-  // BEFORE the revoke, because it reads the reports that carry the cookie, and
-  // BEFORE the next configuration, which replaces them.
-  refuseARedirectedRun(config)
-  revokeCollectorSessions(config)
-  return { config, code: run.status ?? 1 }
+
+  try {
+    const session = sessionArgs(config)
+    // Not run at all without the cookie it needs: twenty Lighthouse runs of the
+    // sign-in screen under a guarded address's name is worse than no numbers.
+    if (!session.ok) return { config, code: NO_SESSION }
+
+    // `shell: true` because `npx` is a shim on Windows; `stdio: 'inherit'` so
+    // lhci's own assertion output reaches the terminal unchanged, which is what
+    // anybody reading a red gate actually needs.
+    const run = spawnSync('npx', ['lhci', 'autorun', `--config=${config}`, ...CI_ONLY_ARGS, ...session.args], {
+      stdio: 'inherit',
+      shell: true,
+    })
+    annotate(config)
+
+    // Read BEFORE the next configuration, which replaces these files. A run lhci
+    // already failed keeps its own exit code: it is red either way, and its code
+    // is the one a reader is about to look up.
+    if (run.status !== 0) return { config, code: run.status ?? 1 }
+    return { config, code: landedWhereItAsked(config) ? 0 : WRONG_SCREEN }
+  } finally {
+    // EVERY path out, including the ones above and any a later task adds. The
+    // revoke touches no file, so nothing about reading the reports first
+    // requires it to come second.
+    revokeCollectorSessions(config)
+  }
 })
 
 console.log('\n=== performance gates ===')
