@@ -2,10 +2,29 @@
  * breakpoints — the five widths the admin surface changes shape at, and the
  * two answers every screen asks of them.
  *
- * Pure and in the domain because the header, the rail and every screen from
- * Task 4 onwards ask the same question, and a `@media` rule cannot answer it
- * for a Server Component that has to decide what to RENDER rather than what to
- * paint.
+ * ═══ NOTHING IN PRODUCTION CALLS THIS, AND THAT IS THE DESIGN ═══
+ *
+ * `shell.module.css` is what ACTS on these five numbers, in media queries,
+ * because a server render has never seen a viewport — `readingSurface.ts`'s
+ * header is this repository's own statement of that, and the diary pays for a
+ * client component to correct its guess. The admin shell does not pay it: it
+ * ships no client JavaScript at all, which is the whole of CLAUDE.md §6's
+ * headroom argument for the twelve screens.
+ *
+ * So the numbers are spelled twice, and this is the spelling that can be
+ * REVIEWED: a media query is not a value anything can assert about, and
+ * `ScreenHeader.test.tsx` and `AdminShell.test.tsx` read the stylesheet off
+ * disk and ask these functions what they say one pixel either side of each
+ * boundary. That is what stops the two drifting. The module header said this
+ * was for "a Server Component that has to decide what to RENDER" until the
+ * Task 3 review pointed out that no Server Component asks, and that a reader
+ * acting on that sentence would import `headerControls` into a screen, find it
+ * needs a width, and add `'use client'` to get one — buying exactly the
+ * client JavaScript this arrangement exists to avoid.
+ *
+ * A CALLER THAT GENUINELY NEEDS A WIDTH AT RENDER TIME needs a client component
+ * or a measured cookie, and must justify that against §6 first. It is not what
+ * these functions are here for.
  *
  * EVERY CONSTANT IS A LOWER BOUND, INCLUSIVE — `≥`, never `>`. SCREENS.md §2
  * writes "hidden below 1040px", so 1040 keeps the chip; the design spec writes

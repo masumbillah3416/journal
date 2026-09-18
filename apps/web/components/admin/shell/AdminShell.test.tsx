@@ -45,8 +45,18 @@ const JOURNEYS: NavEntry = ADMIN_NAV.find((entry) => entry.id === 'journeys') ??
  * The width at and below which the stylesheet puts the surface into one mode.
  *
  * Read off disk rather than written down — see this file's header. Each of the
- * two layout breakpoints carries a `data-width-mode` marker declaration naming
- * the mode it begins, so the pin reads a name rather than guessing from a rule.
+ * two layout breakpoints declares `--admin-width-mode` naming the mode it
+ * begins, so the pin reads a name rather than guessing from a rule.
+ *
+ * AND THE MARKER MUST BE THE ONLY THING THAT DECLARES IT. A marker is a value
+ * nothing paints with, so a pin bound to it alone binds `adminWidthMode` to a
+ * label rather than to the layout: a later task adding a second
+ * `grid-template-columns` block at a different width would leave both pins
+ * green while the rail stacked somewhere the domain says it does not (Task 3
+ * review, finding 8). {@link markerBlockCount} refuses that by requiring the
+ * marker to be declared exactly three times — the `wide` default on `.shell`
+ * and the two breakpoints — so a third breakpoint has to declare its own mode
+ * and be pinned here, or fail.
  * @param mode - The mode whose upper bound is wanted.
  * @returns The largest width the stylesheet draws that mode at.
  * @throws When the stylesheet marks no breakpoint for that mode, which is the
@@ -58,6 +68,36 @@ const widestAt = (mode: AdminWidthMode): number => {
   if (found?.[1] === undefined) throw new Error(`shell.module.css marks no breakpoint for the ${mode} surface`)
   return Number(found[1])
 }
+
+/**
+ * Every `@media` block in the stylesheet, as its own text.
+ *
+ * Brace-counted rather than matched by regex, because each block contains rule
+ * blocks of its own and `[^}]*` stops at the first one.
+ * @returns One string per `@media` block, excluding the `@media` line itself.
+ */
+const mediaBlocks = (): readonly string[] => {
+  const blocks: string[] = []
+
+  for (let at = STYLESHEET.indexOf('@media'); at !== -1; at = STYLESHEET.indexOf('@media', at + 1)) {
+    const opens = STYLESHEET.indexOf('{', at)
+    let depth = 0
+    for (let scan = opens; scan < STYLESHEET.length; scan += 1) {
+      if (STYLESHEET[scan] === '{') depth += 1
+      if (STYLESHEET[scan] === '}') depth -= 1
+      if (depth === 0) {
+        blocks.push(STYLESHEET.slice(opens, scan))
+        break
+      }
+    }
+  }
+
+  return blocks
+}
+
+/** The `@media` blocks that move the frame's tracks without naming a mode. */
+const unmarkedLayoutBlocks = (): readonly string[] =>
+  mediaBlocks().filter((block) => block.includes('grid-template-columns:') && !block.includes('--admin-width-mode:'))
 
 /**
  * Renders the shell around a marked child and hands back the host element.
@@ -127,6 +167,19 @@ describe('AdminShell', () => {
 
     expect(host.querySelector('[data-control="saved"]')).toBeNull()
     expect(host.querySelector('[data-control="preview-draft"]')).toBeNull()
+  })
+
+  it('changes the frame’s layout only at the widths it marks, so the pin below binds the layout', () => {
+    // The marker is a value nothing paints with, so on its own it pins a LABEL.
+    // What makes the pin below bind the LAYOUT is this: no media block may move
+    // the frame's tracks without also naming the mode it is moving them into.
+    // A later task that stacks the rail at 900px and leaves the marker at 859
+    // would otherwise leave both pins green while the rail stacked somewhere
+    // the domain says it does not — and the visual baselines sit at 1440, 1000
+    // and 390, so the 860-1000 band nobody photographs is exactly where it
+    // would hide (Task 3 review, finding 8).
+    expect(mediaBlocks().length, 'no @media blocks were parsed, so this case is vacuous').toBeGreaterThan(0)
+    expect(unmarkedLayoutBlocks()).toEqual([])
   })
 
   it('changes the surface’s mode at exactly the widths the domain does, and not one pixel early', () => {
