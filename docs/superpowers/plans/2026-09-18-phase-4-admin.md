@@ -583,7 +583,16 @@ This task is that decision, and it is a module rather than a convention so that 
   - `interface AdminScope { readonly user: TypedUser; readonly overrideAccess: false }`
   - `adminScope(session: AuthenticatedSession): Promise<AdminScope>` in `apps/web/lib/admin/adminScope.ts`
 
-  Every task from 4 onwards spreads `...(await adminScope(session))` into every `payload.find`, `findByID`, `create`, `update`, `delete`, `findGlobal` and `updateGlobal` it makes. That spread is the whole interface; no task writes `overrideAccess` itself.
+  Every task from 4 onwards spreads the scope into every `payload.find`, `findByID`, `create`, `update`, `delete`, `findGlobal` and `updateGlobal` it makes. That spread is the whole interface; no task writes `overrideAccess` itself.
+
+  **Await it once per request and spread the result — never inline the call into each operation:**
+
+  ```ts
+  const scope = await adminScope(session)
+  await payload.update({ collection: 'journeys', id, ...scope, data })
+  ```
+
+  `adminScope` reads the account's row, so `...(await adminScope(session))` written at each operation is **one `users` lookup per operation** — a screen writing forty rows in a loop would make forty of them, which is the N+1 `CLAUDE.md` §7 forbids and the one ADR 0023 says cannot happen. The hoisted form above is the module's own `@example`. This line was the inline form until Task 2's review found the documents teaching the N+1 they forbid; it is corrected here because twelve tasks are cut from it and had not yet been dispatched.
 
 - [ ] **Step 1: Write the failing test for the promoted guard**
 
