@@ -45,6 +45,26 @@ const MARKER = 'test-journeys-screen'
 const NOT_A_PASSWORD = 'not-a-real-password'
 
 /**
+ * When the two Edited cases' journeys last went out.
+ *
+ * A different DAY from today, because the cell prints a date: a publish and an
+ * edit in the same minute format identically, so a fixture that did not
+ * backdate would compare a string against itself and pass whatever the module
+ * read.
+ */
+const LONG_AGO = '2025-03-02T09:00:00.000Z'
+
+/**
+ * How the module formats the Edited cell, spelled once here.
+ *
+ * Restated rather than imported because it is not exported: what the cases
+ * compare is the module's OUTPUT against a timestamp read back out of Payload,
+ * so both sides have to be put through the same formatter. A drift between this
+ * and the module's own is a failure, which is the right direction.
+ */
+const EDITED_FORMAT = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+
+/**
  * How many questions the screen asks, whatever the row count.
  *
  * FOUR, NOT THREE. The plan said three — journeys, pages, media — and that
@@ -281,6 +301,74 @@ describe('readJourneysScreen', () => {
 
     expect(asPublished.find((row) => row.id === aJourneyId(edited))?.status).toBe('published')
     expect(asEdited.find((row) => row.id === aJourneyId(edited))?.status).toBe('edited')
+  })
+
+  it('dates the Edited cell from the newest draft, not from the last time the journey went out', async () => {
+    // REVIEW ROUND 1, FINDING 1. `editedAt` read the MAIN row's `updatedAt`,
+    // and a draft save does not move it — the same fact about Payload that the
+    // fourth query exists for. So a journey published eighteen months ago and
+    // edited this morning printed an EDITED pill beside the publish date: the
+    // pill and the column contradicted each other in exactly the state the
+    // screen was built to show.
+    //
+    // THE MAIN ROW IS BACKDATED IN SQL, which is the fixture rather than a
+    // trick: the defect is only visible when the publish and the edit fall on
+    // different DAYS, because the cell prints a date (docs/deviations.md §54).
+    // This is the failure scenario, made reproducible.
+    const scope = await adminScope({ user: author })
+    const journey = await aJourney({ label: 'stale', place: 'Andalusia', status: 'published', archived: false })
+    await payload.db.pool.query(`UPDATE journeys SET updated_at = $2 WHERE id = $1`, [journey, LONG_AGO])
+
+    const beforeEditing = await readJourneysScreen(payload, scope, { search: `${MARKER} stale`, filter: 'all' })
+    await payload.update({
+      collection: 'journeys',
+      id: journey,
+      ...scope,
+      draft: true,
+      data: { name: `${MARKER} stale again` },
+    })
+    const afterEditing = await readJourneysScreen(payload, scope, { search: `${MARKER} stale`, filter: 'all' })
+
+    // The right side is the VERSION's own timestamp, read back out of Payload
+    // rather than spelled here — two mechanisms, one fact. The left side is
+    // what the screen printed.
+    const newest = await payload.findVersions({
+      collection: 'journeys',
+      ...scope,
+      depth: 0,
+      pagination: false,
+      where: { and: [{ parent: { equals: journey } }, { latest: { equals: true } }] },
+    })
+    const versionAt = newest.docs[0]?.updatedAt
+
+    expect(beforeEditing[0]?.editedAt).toBe(EDITED_FORMAT.format(new Date(LONG_AGO)))
+    expect(afterEditing[0]?.status).toBe('edited')
+    expect(versionAt).toBeTruthy()
+    expect(afterEditing[0]?.editedAt).toBe(EDITED_FORMAT.format(new Date(String(versionAt))))
+    // Both halves. The equality above would hold for a cell that happened to
+    // print today whatever it read; this is the one that says it MOVED.
+    expect(afterEditing[0]?.editedAt).not.toBe(beforeEditing[0]?.editedAt)
+  })
+
+  it('dates a journey that has never been published from its newest draft too', async () => {
+    // The other half of the same defect: nothing rewrites the main row of a
+    // journey that has never gone out either, so its Edited cell printed its
+    // CREATION date forever, however often it was edited.
+    const scope = await adminScope({ user: author })
+    const journey = await aJourney({ label: 'nevergone', place: 'Wales', status: 'draft', archived: false })
+    await payload.db.pool.query(`UPDATE journeys SET updated_at = $2 WHERE id = $1`, [journey, LONG_AGO])
+
+    await payload.update({
+      collection: 'journeys',
+      id: journey,
+      ...scope,
+      draft: true,
+      data: { name: `${MARKER} nevergone again` },
+    })
+    const rows = await readJourneysScreen(payload, scope, { search: `${MARKER} nevergone`, filter: 'all' })
+
+    expect(rows[0]?.status).toBe('draft')
+    expect(rows[0]?.editedAt).not.toBe(EDITED_FORMAT.format(new Date(LONG_AGO)))
   })
 
   it('selects by the status chip the screen was given, including the one no column stores', async () => {

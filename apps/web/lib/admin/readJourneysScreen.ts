@@ -144,6 +144,20 @@ const LIVE = { deletedAt: { exists: false } } as const
 /**
  * How the `Edited` cell prints a timestamp.
  *
+ * ═══ AND WHICH TIMESTAMP, WHICH IS THE HALF THAT WAS WRONG ═══
+ *
+ * It was the MAIN row's `updatedAt`, and this module's own header says in the
+ * next block why that is the last PUBLISH rather than the last edit: Payload
+ * does not write the main row when it saves a draft. So a journey published
+ * eighteen months ago and edited this morning printed an `edited` pill beside
+ * the publish date — the pill and the column contradicting each other in
+ * exactly the state the fourth query was added to detect, and a journey that
+ * had never been published printed its creation date forever (review round 1,
+ * finding 1; measured against a real Postgres). The fourth query already
+ * fetches the right row, so it now carries `updatedAt` too and the cell reads
+ * that, falling back to the main row only for a journey with no newer draft —
+ * where the main row IS the last edit.
+ *
  * HANDOFF-DEVIATION (docs/deviations.md §54): the design prints a RELATIVE
  * time — "2 months ago", "just now". This prints the date. A relative string
  * is a function of the current instant, and this screen is rendered once on
@@ -270,7 +284,10 @@ export const readJourneysScreen = async (
       ...scope,
       depth: 0,
       pagination: false,
-      select: { parent: true },
+      // `updatedAt` as well as `parent`, because this query answers TWO
+      // questions about the same row: whether there is a newer draft, and WHEN
+      // it was saved. See the Edited note in this module's header.
+      select: { parent: true, updatedAt: true },
       where: {
         and: [{ parent: { in: ids } }, { latest: { equals: true } }, { 'version._status': { equals: 'draft' } }],
       },
@@ -280,7 +297,9 @@ export const readJourneysScreen = async (
   const pageTally = tallyByJourney(pages.docs)
   const mediaTally = tallyByJourney(media.docs)
   const covers = coversByJourney(media.docs)
-  const drafted = new Set(newerDrafts.docs.map((version) => version.parent))
+  // A MAP RATHER THAN A SET, because the same rows carry the Edited cell's date
+  // as well as the pill's word — see the Edited note in this module's header.
+  const draftedAt = new Map(newerDrafts.docs.map((version) => [version.parent, version.updatedAt]))
 
   const rows = journeys.docs.flatMap((journey): readonly JourneyRow[] => {
     const branded = journeyId(String(journey.id))
@@ -298,10 +317,12 @@ export const readJourneysScreen = async (
         dates: journey.dates,
         pages: pageTally.get(journey.id) ?? 0,
         media: mediaTally.get(journey.id) ?? 0,
-        editedAt: EDITED_FORMAT.format(new Date(journey.updatedAt)),
+        // The newest draft's timestamp when there is one, and the main row's
+        // otherwise. NOT the main row's alone: a draft save does not move it.
+        editedAt: EDITED_FORMAT.format(new Date(draftedAt.get(journey.id) ?? journey.updatedAt)),
         status: journeyStatus({
           status: journey._status === 'published' ? 'published' : 'draft',
-          hasNewerDraft: drafted.has(journey.id),
+          hasNewerDraft: draftedAt.has(journey.id),
           archived: journey.archived === true,
         }),
         coverSrc: covers.get(journey.id) ?? null,

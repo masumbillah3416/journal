@@ -2528,6 +2528,15 @@ repository whose signature the phase fixed. The date needs neither: it is a pure
 of the timestamp Postgres already holds, so it is the same string on every render and
 `readJourneysScreen.integration.test.ts` can assert it.
 
+**WHICH timestamp it formats, said here because the first version of this got it wrong.** It
+is the newest DRAFT version's `updatedAt` when a journey has one, and the main row's only
+when it does not. Payload does not write the main row when it saves a draft, so reading that
+row alone made the cell the last PUBLISH: a journey published eighteen months ago and edited
+this morning printed an `edited` pill beside the publish date, and a journey that had never
+been published printed its creation date forever (review round 1, finding 1).
+`readJourneysScreen.integration.test.ts` backdates the main row in SQL and asserts the cell
+moves, because a publish and an edit in the same minute format identically.
+
 **`en-GB`, not the reader's locale:** the diary's own dates are written that way
 throughout — the `journeys` collection's own `dates` field is free text in the shape
 "12 – 24 March 2025" — and a cell whose format depended on the machine rendering it would
