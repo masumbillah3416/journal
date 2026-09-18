@@ -500,6 +500,13 @@ export default defineConfig({
         // 100/100/100 by vitest.integration.config.ts instead, same
         // exclude-and-regate treatment as `readCodeScreen.ts` above.
         'apps/web/lib/admin/adminScope.ts',
+        // readNavCounts.ts (Phase 4 Task 3) is four `payload.count` calls over
+        // a real Postgres, and its whole subject is what those four queries
+        // return and what they cost. There is nothing in it a Docker-free pass
+        // could execute, so it gets the same exclude-and-regate treatment as
+        // its neighbour above and is gated at 100/100/100 by
+        // vitest.integration.config.ts.
+        'apps/web/lib/admin/readNavCounts.ts',
         // Phase 3 Task 6's MediaProcessor pipeline. Every one of these imports
         // `sharp` - a native module doing real I/O-shaped work - so every test
         // that exercises them is an `*.integration.test.ts`, which this

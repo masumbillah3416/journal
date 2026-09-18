@@ -189,6 +189,10 @@ export default defineConfig({
         // pass cannot do - and gated here instead, same reasoning as
         // readBookBundle.ts above.
         'apps/web/lib/admin/adminScope.ts',
+        // Phase 4 Task 3's rail counts, here for the reason stated in
+        // `vitest.config.ts`'s exclude: four `payload.count` calls, nothing to
+        // execute without a database.
+        'apps/web/lib/admin/readNavCounts.ts',
         // Phase 3 Task 6's MediaProcessor pipeline. Every one of these is
         // reachable only from an `*.integration.test.ts` file - each imports
         // `sharp`, which is a native module doing real I/O-shaped work, and
@@ -463,6 +467,11 @@ export default defineConfig({
         // names no row, and `adminScope.integration.test.ts` drives both arms
         // of it - a brand that names a row, and the literal 'nonsense'.
         'apps/web/lib/admin/adminScope.ts': { lines: 100, branches: 100, functions: 100 },
+        // readNavCounts.ts (Phase 4 Task 3): 100% on every axis, measured. It
+        // is four counts and one object literal with no branch of its own, and
+        // `readNavCounts.integration.test.ts` drives each of the four filters
+        // and the cost of all four together.
+        'apps/web/lib/admin/readNavCounts.ts': { lines: 100, branches: 100, functions: 100 },
         // seed-data.ts is a pure data literal - 100% by construction, every
         // call reads every field.
         'apps/web/scripts/seed-data.ts': { lines: 100, branches: 100, functions: 100 },
