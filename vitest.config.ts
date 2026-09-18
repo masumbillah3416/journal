@@ -493,6 +493,13 @@ export default defineConfig({
         // a claim about an `otpChallenges` row. Gated by
         // vitest.integration.config.ts instead.
         'apps/web/lib/auth/readCodeScreen.ts',
+        // adminScope.ts (Phase 4 Task 2) resolves an account ROW through a
+        // real Payload - that lookup is the module, not an incidental import -
+        // so its only test is an `*.integration.test.ts` and this Docker-free
+        // pass can never execute it. Excluded by exact path and gated at
+        // 100/100/100 by vitest.integration.config.ts instead, same
+        // exclude-and-regate treatment as `readCodeScreen.ts` above.
+        'apps/web/lib/admin/adminScope.ts',
         // Phase 3 Task 6's MediaProcessor pipeline. Every one of these imports
         // `sharp` - a native module doing real I/O-shaped work - so every test
         // that exercises them is an `*.integration.test.ts`, which this

@@ -183,6 +183,12 @@ export default defineConfig({
         'apps/web/lib/auth/signInEndpoints.ts',
         'apps/web/lib/auth/resetRequestEndpoint.ts',
         'apps/web/lib/auth/readCodeScreen.ts',
+        // Phase 4 Task 2's admin scope, excluded from `vitest.config.ts`'s
+        // coverage include by exact path for the reason stated there - it
+        // resolves an account ROW through a real Payload, which the Docker-free
+        // pass cannot do - and gated here instead, same reasoning as
+        // readBookBundle.ts above.
+        'apps/web/lib/admin/adminScope.ts',
         // Phase 3 Task 6's MediaProcessor pipeline. Every one of these is
         // reachable only from an `*.integration.test.ts` file - each imports
         // `sharp`, which is a native module doing real I/O-shaped work, and
@@ -451,6 +457,12 @@ export default defineConfig({
         'apps/web/lib/readGalleryBundle.ts': { lines: 100, branches: 78, functions: 100 },
         'apps/web/lib/readGalleryDownload.ts': { lines: 100, branches: 85, functions: 100 },
         'apps/web/lib/auth/readCodeScreen.ts': { lines: 100, branches: 100, functions: 100 },
+        // adminScope.ts (Phase 4 Task 2): 100% on every axis, and honestly so
+        // rather than aspirationally. The module is one guard, one lookup and
+        // one object literal; its only branch is the refusal of a brand that
+        // names no row, and `adminScope.integration.test.ts` drives both arms
+        // of it - a brand that names a row, and the literal 'nonsense'.
+        'apps/web/lib/admin/adminScope.ts': { lines: 100, branches: 100, functions: 100 },
         // seed-data.ts is a pure data literal - 100% by construction, every
         // call reads every field.
         'apps/web/scripts/seed-data.ts': { lines: 100, branches: 100, functions: 100 },

@@ -40,11 +40,22 @@
  * assertion is non-vacuous because the production set is asserted non-empty
  * two cases above it.
  *
- * WHY `overrideAccess: true` IS RIGHT AT THE ONE SITE, so this file is not
- * read as recording a defect: a reader holding a password-reset link is by
- * definition not signed in, so the token IS the authorisation and Payload has
- * no user to judge. The reasoning is at `setNewPassword.ts:203-205`, and the
- * document erasing it was the whole problem.
+ * WHY `overrideAccess: true` IS RIGHT AT THE ONE SITE THAT PASSES IT, so this
+ * file is not read as recording a defect: a reader holding a password-reset
+ * link is by definition not signed in, so the token IS the authorisation and
+ * Payload has no user to judge. The reasoning is at `setNewPassword.ts:203-205`,
+ * and the document erasing it was the whole problem.
+ *
+ * ═══ THE SECOND SITE PASSES THE OPPOSITE VALUE ═══
+ *
+ * Phase 4 Task 2's `apps/web/lib/admin/adminScope.ts` passes
+ * `overrideAccess: false`, which is the module every admin Server Action
+ * spreads so that Payload runs the rules Task 1 wrote. It is in the production
+ * set for the same reason the first one is — a reader greps the option and
+ * must be able to account for every hit — but it is there as the answer to the
+ * trap rather than as an instance of it, so the last case below reads what each
+ * of the two actually passes. Paths alone would let the two swap values
+ * silently.
  *
  * ═══ WHY IT IS A UNIT TEST AND NEEDS NO DATABASE ═══
  *
@@ -93,12 +104,20 @@ const OPTION = 'overrideAccess'
 /**
  * Every production module permitted to pass the option, by exact path.
  *
- * ONE ENTRY, and a second one is a decision rather than an omission: it means a
- * Local API call runs without the checks `docs/security.md`'s table describes as
- * what stops an unauthorized mutation. Adding a site here without naming it in
- * both documents fails the third case below.
+ * TWO ENTRIES, AND THEY PASS OPPOSITE VALUES — which is why the last case
+ * below reads what each one passes rather than trusting this list. Phase 4
+ * Task 2 added `adminScope.ts`, where the option is `false`: it is the module
+ * every admin Server Action spreads to switch access control ON, so the list
+ * is no longer "where the checks are skipped" but "where the decision is
+ * taken". `setNewPassword.ts` remains the only place it is skipped.
+ *
+ * A third entry is a decision rather than an omission, and adding one without
+ * naming it in both documents fails the third case below.
+ *
+ * SORTED, because {@link filesCarryingTheOption} sorts, and the first case
+ * compares the two sequences with `toEqual`.
  */
-const PRODUCTION_SITES: readonly string[] = ['apps/web/lib/auth/setNewPassword.ts']
+const PRODUCTION_SITES: readonly string[] = ['apps/web/lib/admin/adminScope.ts', 'apps/web/lib/auth/setNewPassword.ts']
 
 /** The §1.2 documents that make a claim about where the option appears. */
 const DOCUMENTS: readonly string[] = ['docs/security.md', 'docs/api.md']
@@ -179,7 +198,7 @@ const filesCarryingTheOption = (): readonly string[] =>
 const isTestFile = (file: string): boolean => file.endsWith('.test.ts') || file.endsWith('.test.tsx')
 
 describe('the overrideAccess call sites the security document hands to Phase 4', () => {
-  it('are one production module, and it is the password-reset spend', () => {
+  it('are the admin scope and the password-reset spend, and nothing else', () => {
     const production = filesCarryingTheOption().filter((file) => !isTestFile(file))
 
     expect(production).toEqual(PRODUCTION_SITES)
@@ -213,6 +232,21 @@ describe('the overrideAccess call sites the security document hands to Phase 4',
     )
 
     expect(claiming).toEqual([])
+  })
+
+  it('switches access control ON at the admin scope and OFF only at the reset spend', () => {
+    // The list above is a set of PATHS, and a set of paths cannot tell the two
+    // sites apart — one turns the checks on for every admin screen, the other
+    // turns them off for a reader who is not signed in. A list that hides that
+    // difference is a list that has stopped meaning anything, and the day
+    // `adminScope.ts` flips is the day every Phase 4 mutation runs unchecked
+    // with this file still green.
+    const scope = readFileSync(path.join(repositoryRoot, 'apps/web/lib/admin/adminScope.ts'), 'utf8')
+    const spend = readFileSync(path.join(repositoryRoot, 'apps/web/lib/auth/setNewPassword.ts'), 'utf8')
+
+    expect(scope).toContain(`${OPTION}: false`)
+    expect(scope).not.toContain(`${OPTION}: true`)
+    expect(spend).toContain(`${OPTION}: true`)
   })
 
   it('are found by a scan that can actually answer no', () => {

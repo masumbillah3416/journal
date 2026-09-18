@@ -1514,7 +1514,30 @@ by a rule written for an anonymous HTTP caller. **For Phase 4 it is a trap.** A 
 action that calls `payload.update()` on behalf of a request gets no access check from
 Payload unless it passes `overrideAccess: false` and a `user`, and `docs/api.md`'s "Planned
 server actions" section says Phase 4's mutations are server actions. Phase 4 must decide
-this once, for all ten screens, rather than per call site.
+this once, for every admin screen, rather than per call site.
+
+**AND PHASE 4 TASK 2 DID, WHICH IS WHY THE PRODUCTION SET NOW HOLDS TWO PATHS THAT PASS
+OPPOSITE VALUES.** `apps/web/lib/admin/adminScope.ts` is that decision:
+`adminScope(session)` resolves the account ROW the session's branded id names — Payload's
+access predicates read `req.user.id`, and an `AuthenticatedSession` carries a branded
+string — and answers `{ user, overrideAccess: false }`. Every admin read and write spreads
+it (`await payload.update({ collection, id, ...(await adminScope(session)), data })`), so
+no screen decides the option and no screen can forget it: the interface IS the spread, and
+the `false` is a literal type, so a call site that flips it does not compile. It is a
+module rather than a convention for the same reason `guardedAction` is — a decision every
+screen takes for itself is one chance per screen to take it wrong, and the screen that
+takes it wrong is silent. One `findByID` per action pays for it, by primary key, and that
+lookup necessarily runs under Payload's default because there is no `req.user` to judge it
+by until it has returned. `docs/adr/0023-admin-authorization-and-override-access.md`
+carries the decision, the alternatives rejected to reach it and what it does NOT cover.
+
+The two sites now say opposite things about access control, and the list of paths in
+`apps/web/lib/auth/overrideAccessSites.test.ts` cannot tell them apart by itself — so a
+case there reads the bytes of each and pins the split: `overrideAccess: false` present and
+`overrideAccess: true` absent in `adminScope.ts`, `overrideAccess: true` present in
+`setNewPassword.ts`. Without it the day `adminScope.ts` flips to `true` is a day every
+Phase 4 mutation runs unchecked with that test still green, which is this document's own
+recurring defect in its executable form.
 
 **This paragraph said something else for a day, and the correction is why it is now
 executable.** It asserted that `overrideAccess` was absent from this repository's

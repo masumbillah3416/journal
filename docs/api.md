@@ -1135,10 +1135,17 @@ calls `requireAdminSession()` and then the action, passing it the session:
 ```ts
 'use server'
 import { guardedAction } from '../../../../lib/auth/guard'
+import { adminScope } from '../../../../lib/admin/adminScope'
+import { getPayload } from '../../../../lib/payload'
 
 export const publishJourney = guardedAction(async (session, id: string) => {
   // `session.user` is the account the guard admitted. Nothing above this line
   // ran before it.
+  const payload = await getPayload()
+  // The spread is the whole interface: it carries the resolved account row and
+  // `overrideAccess: false`, so Payload runs the collection and field access
+  // rules. See `apps/web/lib/admin/adminScope.ts` and the paragraph below.
+  await payload.update({ collection: 'journeys', id, ...(await adminScope(session)), data: {} })
 })
 ```
 
@@ -1190,18 +1197,26 @@ through means knowing what gets through. `docs/adr/0018` records
 the nine text scans that preceded this rule and says why enumeration was the wrong
 mechanism.
 
-**Authorization does not stop at the guard, and Phase 4 owes the other half.** The guard
-answers "is this somebody"; Payload's collection and field access control answers "may
-this somebody do this". `docs/security.md`'s "What Phase 2 hands to Phase 4" section names
-what is missing: a Local API call runs with access control OFF unless it passes
-`overrideAccess: false` and a `user` — by Payload's own Local-API default, and explicitly at
-the one production site that passes the option, `apps/web/lib/auth/setNewPassword.ts:209`,
-where the token in a reset link is the authorisation and there is no signed-in user for
-Payload to judge; and `journeys`, `pages` and `users` declare no `access` block at all, so
-a Phase 4 server action calling `payload.update()` on any of the three gets no Payload-side
-check whatever it passes. Until round 7 this sentence asserted instead that `overrideAccess`
-was absent from production code altogether — false on the day a fix round copied it here,
-and `apps/web/lib/auth/overrideAccessSites.test.ts` now fails if those words come back.
+**Authorization does not stop at the guard, and Phase 4 owed the other half — Tasks 1 and
+2 paid it.** The guard answers "is this somebody"; Payload's collection and field access
+control answers "may this somebody do this". `docs/security.md`'s "What Phase 2 hands to
+Phase 4" section named what was missing: a Local API call runs with access control OFF
+unless it passes `overrideAccess: false` and a `user` — by Payload's own Local-API default,
+and explicitly at `apps/web/lib/auth/setNewPassword.ts:209`, where the token in a reset
+link is the authorisation and there is no signed-in user for Payload to judge; and
+`journeys`, `pages` and `users` declared no `access` block at all, so a server action
+calling `payload.update()` on any of the three would have got no Payload-side check
+whatever it passed. Task 1 wrote those blocks. Task 2 wrote
+`apps/web/lib/admin/adminScope.ts`, the second production site that passes the option and
+the only one that passes `false`: `adminScope(session)` resolves the account row
+the session's branded id names and answers `{ user, overrideAccess: false }`, which every
+admin action spreads into every `find`, `findByID`, `create`, `update`, `delete`,
+`findGlobal` and `updateGlobal` it makes. No action writes the option itself. Until round 7
+this sentence asserted instead that `overrideAccess` was absent from production code
+altogether — false on the day a fix round copied it here, and
+`apps/web/lib/auth/overrideAccessSites.test.ts` now fails if those words come back, pins
+the production set to those two paths, and reads the bytes of each so the `false`/`true`
+split between them cannot silently invert.
 
 Phase 2 Task 5's module, which the routes above call:
 `apps/web/lib/auth/signIn.ts` — `signIn({ email, password, browserSession, keepSignedIn,
