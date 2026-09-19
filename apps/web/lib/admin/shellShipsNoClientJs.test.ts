@@ -99,8 +99,10 @@ const DIRECTIVE = /^\s*['"]use client['"]/
 
 /**
  * Every source module in one of these directories, tests excluded.
- * @param directory - The directory's name under `components/admin/`.
- * @returns The file paths, relative to `components/admin/`.
+ * @param directory - The directory's path under `apps/web/`, as
+ *   {@link NO_CLIENT_JS} spells it — the base moved up two levels when the list
+ *   grew past `components/`.
+ * @returns The file paths, relative to `apps/web/`.
  */
 const modulesOf = (directory: string): readonly string[] =>
   readdirSync(path.join(APP, directory), { recursive: true })

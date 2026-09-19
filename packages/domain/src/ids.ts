@@ -153,6 +153,13 @@ export const rowId = (id: JourneyId | PageId | MediaId | SlotKey | UserId | Sess
  * not exist (`docs/qa/2026-09-19-journey-editor-sweep.md`, EDITOR-001). The
  * brand is not wrong; it is answering a different question.
  *
+ * WHEN TO REACH FOR IT, since this is where an author looking for the guard
+ * lands. **A `draft: true` read answers from the versions table whatever the
+ * collection** — `journeys` behaves exactly as `pages` does, measured. The one
+ * shape that needs no guard is a `where` keyed on `id`, because `id` resolves to
+ * the version's `parent` and a `parent` of `null` cannot equal a row id. **Any
+ * `draft: true` read keyed on anything else must pass its rows through this.**
+ *
  * @param value - Whatever the database put in the `id` field.
  * @returns Whether it is a positive safe integer, and so names a row.
  * @example

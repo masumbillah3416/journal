@@ -50,9 +50,31 @@
  * Zod then refused.
  *
  * `isRowId` is the guard, and the brand is not: a brand only promises a
- * non-empty string, and `String(null)` is one. THE JOURNEY READ NEEDS NO SUCH
- * GUARD and does not have one — its `where` is `id: { equals: row }`, which
- * `draft: true` still runs against the main table, so an orphan cannot match it.
+ * non-empty string, and `String(null)` is one.
+ *
+ * ═══ THE RULE, STATED CORRECTLY THIS TIME ═══
+ *
+ * **A `draft: true` read answers from the versions table whatever the
+ * collection.** It is the same API and the same `versions.drafts` config for
+ * `journeys` as for `pages`, and an orphaned JOURNEY version comes back with
+ * `id: null` exactly as a page's does — measured, with a journey created and its
+ * main row removed through `payload.db.deleteOne`:
+ *
+ * ```text
+ * PROBE journeys bySlug(draft)= [{"id":null,"name":"…"}]  byId(draft)= []  plain(no draft)= []
+ * ```
+ *
+ * So THE JOURNEY READ BELOW IS SAFE FOR A DIFFERENT REASON THAN THE ONE THIS
+ * HEADER GAVE FOR A ROUND. Its `where` is keyed on `id`, which resolves to the
+ * version's `parent`, and a `parent` of `null` cannot equal a positive row id —
+ * which is why `byId(draft)` above is empty while `bySlug(draft)` is not.
+ *
+ * **Any `draft: true` read keyed on a field other than `id` must guard with
+ * `isRowId`.** That is the sentence Tasks 6 and 7 need: a pages read filtered by
+ * `kind` for the editing pane, a journeys read by `slug` for a nicer address, a
+ * "recently edited" list — each of them meets the orphans, and the earlier
+ * wording would have told their author they could not.
+ *
  * `media` carries no `versions` block at all, and is guarded anyway, because two
  * spellings of "is this a row" in one function is how the next one gets missed.
  *
