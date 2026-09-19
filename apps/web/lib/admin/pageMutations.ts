@@ -34,7 +34,10 @@
  *   - `deletePageRow` DELETES. Nothing is merged.
  *   - `reorderPageRows` and `setPageLayoutRow` UPDATE, and both go through
  *     {@link writePageFields}, which is the two-write shape
- *     `journeyMutations.ts`'s `writeJourneyFlag` arrived at.
+ *     `journeyMutations.ts`'s `writeJourneyFlag` arrived at. So does
+ *     `slotMutations.ts`, which is why that function is exported: the slot
+ *     writes are on this same collection and a second copy of the shape would
+ *     be a second chance to get the second write wrong.
  *
  * {@link writePageFields} IS NOT SHARED WITH `writeJourneyFlag`, and that is a
  * decision rather than an oversight: Payload types `update`'s `data` per
@@ -274,6 +277,26 @@ const pagesOf = async (payload: Payload, scope: AdminScope, journey: number): Pr
 }
 
 /**
+ * One page's `slots` array, as the generated `Page` type spells it.
+ *
+ * `NonNullable`, because `exactOptionalPropertyTypes` (CLAUDE.md §3.1) refuses
+ * an explicit `undefined` where Payload's `data` says `Row[] | null` — so the
+ * shape a write may hand over is narrower than the shape a read hands back.
+ */
+export type SlotRows = NonNullable<Page['slots']>
+
+/**
+ * What {@link writePageFields} writes, computed from the document it is about
+ * to write.
+ *
+ * A FUNCTION RATHER THAN A LITERAL — see {@link writePageFields}'s header for
+ * why the slot writes cannot use one literal for both sides.
+ */
+type PageFieldsFor = (
+  doc: Page,
+) => { readonly order: number } | { readonly layout: PageLayout } | { readonly slots: SlotRows }
+
+/**
  * Writes columns to a page's LIVE row without publishing anything.
  *
  * ═══ WHY THIS IS TWO WRITES AND NOT ONE `payload.update` ═══
@@ -301,21 +324,33 @@ const pagesOf = async (payload: Payload, scope: AdminScope, journey: number): Pr
  *
  * THE COST, stated rather than hidden: one extra read per page written, and two
  * version rows instead of one where a draft is pending.
+ *
+ * ═══ `fields` IS A FUNCTION OF THE DOCUMENT, WHICH THE SECOND WRITE NEEDS ═══
+ *
+ * `order` and `layout` are one value written to both sides, so their callers
+ * hand over `() => ({ order })` and ignore the argument. `slots` is not: it is
+ * an ARRAY the write patches one cell of, and the live row's array and the
+ * pending draft's array can differ — the author may have placed a photograph in
+ * another cell and not published it. Handed one literal, the second write would
+ * put the LIVE row's slots into the draft and discard that placement. So each
+ * side is patched from its own document, and `slotMutations.ts` is the caller
+ * that needs it (`slotMutations.integration.test.ts` has the case).
  * @param payload - The Local API instance.
  * @param scope - The hoisted {@link AdminScope}.
  * @param live - The page's live row, already read.
- * @param fields - The columns being written.
+ * @param fields - What to write, computed from whichever document is being
+ *   written — see above.
  * @throws From Payload, when a write is refused by the access rules.
  */
-const writePageFields = async (
+export const writePageFields = async (
   payload: Payload,
   scope: AdminScope,
   live: Page,
-  fields: { readonly order: number } | { readonly layout: PageLayout },
+  fields: PageFieldsFor,
 ): Promise<void> => {
   const newest = await payload.findByID({ collection: 'pages', id: live.id, ...scope, depth: 0, draft: true })
 
-  await payload.update({ collection: 'pages', id: live.id, ...scope, data: { ...live, ...fields } })
+  await payload.update({ collection: 'pages', id: live.id, ...scope, data: { ...live, ...fields(live) } })
 
   if (newest._status === 'draft') {
     await payload.update({
@@ -323,7 +358,7 @@ const writePageFields = async (
       id: live.id,
       ...scope,
       draft: true,
-      data: { ...newest, ...fields },
+      data: { ...newest, ...fields(newest) },
     })
   }
 }
@@ -514,7 +549,7 @@ export const reorderPageRows = async (
     /* c8 ignore next */
     if (live === undefined) continue
     if (live.order === order) continue
-    await writePageFields(payload, scope, live, { order })
+    await writePageFields(payload, scope, live, () => ({ order }))
   }
 }
 
@@ -540,5 +575,5 @@ export const setPageLayoutRow = async (
   layout: PageLayout,
 ): Promise<void> => {
   const live = await payload.findByID({ collection: 'pages', id: page, ...scope, depth: 0 })
-  await writePageFields(payload, scope, live, { layout })
+  await writePageFields(payload, scope, live, () => ({ layout }))
 }

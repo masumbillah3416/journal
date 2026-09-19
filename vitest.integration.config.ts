@@ -207,6 +207,10 @@ export default defineConfig({
         // Phase 4 Task 6's Notes pane: one parse and one draft write, excluded
         // from the Docker-free pass by exact path for the reason stated there.
         'apps/web/lib/admin/notesMutations.ts',
+        // Phase 4 Task 7's photo slots: four parses and four live-row writes
+        // on a versioned collection, excluded from the Docker-free pass by
+        // exact path for the reason stated there.
+        'apps/web/lib/admin/slotMutations.ts',
         // Phase 4 Task 5's journey editor read, here for the reason stated in
         // `vitest.config.ts`'s exclude: three queries, nothing to execute
         // without a database.
@@ -527,6 +531,12 @@ export default defineConfig({
         // notesMutations.ts (Phase 4 Task 6), at the number it actually
         // achieves - measured from this pass's own report, not rounded up.
         'apps/web/lib/admin/notesMutations.ts': { lines: 100, branches: 100, functions: 100 },
+        // slotMutations.ts (Phase 4 Task 7): MEASURED. Its `c8 ignore`d lines
+        // are two arms `noUncheckedIndexedAccess` forces and the type system
+        // cannot see past — the two halves of a key the regex has already
+        // guaranteed, and the cell the padding loop has already created — both
+        // written rather than asserted because CLAUDE.md §0.8 bans the `!`.
+        'apps/web/lib/admin/slotMutations.ts': { lines: 100, branches: 100, functions: 100 },
         // readJourneyEditor.ts (Phase 4 Task 5): 100% on every axis, MEASURED.
         // Three of its arms took fixtures to reach rather than a lowered
         // number: a page with no title, a media row with no alt and no caption,

@@ -536,6 +536,13 @@ export default defineConfig({
         // because this path is excluded here and would otherwise be measured by
         // nobody. Same exclude-and-regate treatment as its neighbours above.
         'apps/web/lib/admin/notesMutations.ts',
+        // slotMutations.ts (Phase 4 Task 7) is the four parses and the four
+        // writes behind SCREENS.md §2.3's photo slots. The writes are the same
+        // question `pageMutations.ts` is excluded for, one level harder: what
+        // Payload's merge into the newest version does to an ARRAY the write
+        // patches one cell of. Same exclude-and-regate treatment as its
+        // neighbours above.
+        'apps/web/lib/admin/slotMutations.ts',
         // readJourneyEditor.ts (Phase 4 Task 5) is the journey editor's three
         // queries — and every question it answers is Payload's: what a read with
         // `draft: true` returns for a page with a pending draft, what a trashed
