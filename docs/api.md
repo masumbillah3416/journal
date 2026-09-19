@@ -620,9 +620,9 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
 
 - **Path:** `apps/web/app/(admin)/admin/journeys/[id]/page.tsx`; the frame is
   `apps/web/components/admin/shell/AdminShell.tsx`, and the screen inside it is
-  `apps/web/components/admin/editor/` - `PageRail.tsx`, `LayoutPicker.tsx` and
-  `JourneyPool.tsx`.
-- **Method:** `GET`. This route answers nothing else; the five mutations below are Server
+  `apps/web/components/admin/editor/` - `EditorGrid.tsx`, `PageRail.tsx`,
+  `LayoutPicker.tsx`, `JourneyPool.tsx`, and `NotesPane.tsx` with `Furniture.tsx`.
+- **Method:** `GET`. This route answers nothing else; the six mutations below are Server
   Actions with their own opaque `POST` addresses.
 - **Input:** the session cookie, the `<id>` path segment, and one optional query parameter
   - `page`, the page whose card is open. The segment is branded by `journeyId` and turned
@@ -636,16 +636,27 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   CONTAINER query rather than the viewport (`editor.module.css` says why). The left column
   is the page rail - a card per page, the selected one revealing ↑ ↓ · Copy · Delete - over
   the dashed layout box, whose four glyphs are real CSS grid cells drawn from
-  `packages/domain/src/admin/layoutGlyphs.ts`. The middle column prints the selected page's
-  name and says the fields arrive with Task 6. The right column is the journey pool.
-  `metadata` sets the document title and `robots: { index: false, follow: false }`.
+  `packages/domain/src/admin/layoutGlyphs.ts`. The middle column is §2.3's editing pane: for
+  a NOTES page that is `NotesPane`, a single `<form>` holding the field grid, Highlights,
+  The note, Tally and the Page furniture block, which reshapes at two more rungs of the same
+  container (856 and 960, which are §2.3's 900 and 1020 in the units a container query
+  measures in); for a FRAMES page it is still a placeholder, because the photo slots are
+  Task 7. **"Preview page" is not drawn** - `docs/deviations.md` §59 says why. The right
+  column is the journey pool. `metadata` sets the document title and
+  `robots: { index: false, follow: false }`.
 - **Reads:** three call sites, eight queries, under ONE hoisted `adminScope` -
   `readNavCounts` (four `payload.count` calls), one `findGlobal('site')` selecting `name`,
   and `readJourneyEditor` (three: the journey, then one read each of its `pages` and its
   `media`). Eight whatever the number of pages or photographs. The journey and its pages
   are read with `draft: true`, because the author's unpublished work exists only in the
   versions table and an editor that read the main rows would show a reader's copy of the
-  book. Plus the one `users` row `adminScope` itself resolves.
+  book. Plus the one `users` row `adminScope` itself resolves. **Still three after the Notes
+  pane landed:** its fields are journey-level columns, so they widened the journey read's
+  `select` rather than adding a read of their own.
+- **Notes pane fields:** Location (the journey's own `name`), Dates, Weather, Mood; the
+  highlight list, capped at `MAX_HIGHLIGHTS`; The note; the tally, always `TALLY_ROWS` cells
+  whose values are TEXT ("plenty", "uncounted"); and the furniture - sign-off, weather glyph,
+  postage stamp, accent and gallery address. Every control posts to `saveNotes` below.
 - **Errors:** `notFound()` - a real 404 - for an `<id>` that is not a row id, names no
   journey, or names one in the trash. A journey that has been thrown away must not be
   editable, which is the invariant `readJourneysScreen.ts` carries one screen along.
@@ -654,7 +665,10 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
 - **Notes:** **the screen ships no client JavaScript.** Selection is an address
   (`?page=<id>`), and every control is a `<form action={...}>`: the arrows carry the WHOLE
   new sequence of page ids, computed on the server by `movePage` while the rail renders, so
-  the browser posts an outcome rather than an instruction.
+  the browser posts an outcome rather than an instruction. The Notes pane is the same
+  argument one column along: its highlight controls are submit buttons in the pane's own
+  form, each carrying an `op` the save applies, so pressing one keeps every unsaved
+  keystroke on the page.
   `apps/web/lib/admin/shellShipsNoClientJs.test.ts` judges `components/admin/editor/` for
   that claim and fails on the commit that adds a `'use client'` there.
 

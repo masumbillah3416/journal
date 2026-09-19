@@ -2,14 +2,14 @@
  * page.tsx — the `/admin/journeys/<id>` route: SCREENS.md §2.3's journey
  * editor, the largest screen in the handoff.
  *
- * ═══ WHAT THIS TASK BUILDS, AND WHAT IT LEAVES A HOLE FOR ═══
+ * ═══ WHAT THIS SCREEN IS, AND WHAT IT STILL LEAVES A HOLE FOR ═══
  *
- * Task 5 is the FRAME: the three-column grid, the page rail with its tool row,
- * the layout picker, and the journey pool. The middle column's editing pane —
- * the notes fields, the highlights, the slots and the focal point — is Tasks 6
- * and 7. It prints the selected page's name here, which is §2.3's own "Editing"
- * eyebrow over the page name, so the grid it sits in is the real one rather
- * than a placeholder the next task has to unpick.
+ * Task 5 built the FRAME: the three-column grid, the page rail with its tool
+ * row, the layout picker, and the journey pool. Task 6 filled the middle column
+ * for a NOTES page — `NotesPane` is that whole pane, and it is a `<form>`, so it
+ * carries §2.3's "Editing" eyebrow and page name itself rather than having them
+ * rendered outside the element that posts. A FRAMES page still meets the
+ * placeholder below: its slots and their focal points are Task 7.
  *
  * ═══ IT IS GUARDED IN THIS FILE ═══
  *
@@ -47,7 +47,7 @@
  * elements here because the measured element and the shaped one must stay
  * different ones (see its header) — `ADMIN_NAV` (@travel-diary/domain/admin/navigation),
  * `activeLayout`/`selectedPage` (@travel-diary/domain/admin/pageRail),
- * `journeyId` (@travel-diary/domain/ids), and this screen's own five actions.
+ * `journeyId` (@travel-diary/domain/ids), and this screen's own actions.
  */
 /* c8 ignore start -- Framework passthrough with no authored logic: guard the
  * request, read the rail's data and the editor's, draw the shell around them.
@@ -55,7 +55,10 @@
  * `requireAdminSession`, `adminScope`, `readNavCounts` and `readJourneyEditor`
  * (integration-tested against a real Payload), `selectedPage` and
  * `activeLayout` (@travel-diary/domain, gated at 100%), and `PageRail`,
- * `LayoutPicker` and `JourneyPool` (jsdom). It cannot be measured by either
+ * `LayoutPicker`, `JourneyPool` and `NotesPane` (jsdom). Which pane a page gets
+ * is the one branch here, and it is a comparison against the `kind` column the
+ * rail already draws — `readJourneyEditor.integration.test.ts` is what says that
+ * column arrives. It cannot be measured by either
  * Vitest config, and it sits under a Next.js bracketed directory where
  * `@vitest/coverage-v8` does not read this hint at all — so `vitest.config.ts`
  * excludes it by exact path with that defect named, exactly as it does for
@@ -70,6 +73,7 @@ import type React from 'react'
 import { EditorGrid } from '../../../../../components/admin/editor/EditorGrid'
 import { JourneyPool } from '../../../../../components/admin/editor/JourneyPool'
 import { LayoutPicker } from '../../../../../components/admin/editor/LayoutPicker'
+import { NotesPane } from '../../../../../components/admin/editor/NotesPane'
 import { PageRail } from '../../../../../components/admin/editor/PageRail'
 import styles from '../../../../../components/admin/editor/editor.module.css'
 import { AdminShell } from '../../../../../components/admin/shell/AdminShell'
@@ -78,7 +82,7 @@ import { readJourneyEditor } from '../../../../../lib/admin/readJourneyEditor'
 import { readNavCounts } from '../../../../../lib/admin/readNavCounts'
 import { requireAdminSession } from '../../../../../lib/auth/guard'
 import { getPayload } from '../../../../../lib/payload'
-import { addPage, copyPage, deletePage, reorderPages, setPageLayout } from './actions'
+import { addPage, copyPage, deletePage, reorderPages, saveNotes, setPageLayout } from './actions'
 
 /**
  * The screen's title, and the one instruction it gives a crawler.
@@ -168,14 +172,18 @@ const JourneyEditorPage = async ({ params, searchParams }: JourneyEditorPageProp
           )}
         </div>
 
-        <div data-editing-pane className={styles.pane}>
-          <p className={styles.eyebrow}>Editing</p>
-          <h2 className={styles.paneName}>{page?.title ?? 'No pages yet'}</h2>
-          <p className={styles.paneNote}>
-            The fields for this page arrive with the next task. The rail beside it adds, copies, reorders and removes
-            pages now.
-          </p>
-        </div>
+        {page?.kind === 'notes' ? (
+          <NotesPane journey={view.id} title={page.title} notes={view.notes} save={saveNotes} />
+        ) : (
+          <div data-editing-pane className={styles.pane}>
+            <p className={styles.eyebrow}>Editing</p>
+            <h2 className={styles.paneName}>{page?.title ?? 'No pages yet'}</h2>
+            <p className={styles.paneNote}>
+              The photo slots for this page arrive with the next task. The rail beside it adds, copies, reorders and
+              removes pages now, and a notes page saves everything §2.3 puts on it.
+            </p>
+          </div>
+        )}
 
         <JourneyPool items={view.pool} inBook={view.inBook} browseHref="/admin/media" />
       </EditorGrid>

@@ -2704,3 +2704,56 @@ journey, or a data model that gives pages a trash of their own to be restored fr
 
 **Recorded as:** this entry, the `HANDOFF-DEVIATION` note in `PageRail.tsx`'s header, the
 one at the conditional itself, and the case named above.
+
+## 58 · The Notes pane's `::` grip is two buttons, not one inert drag handle
+
+**What changed:** `apps/web/components/admin/editor/NotesPane.tsx` draws each highlight
+row's grip as `SCREENS.md` §2.3 specifies it — a `::` in Courier 12px `#736247`, at the head
+of the row — but each of the two colons is a `<button type="submit">`: the left posts
+`up:<id>`, the right posts `down:<id>`, and each is disabled at its end of the list. The
+cursor is `pointer`, not §2.3's `grab`.
+
+**Rationale:** `grab` promises a drag, and the journey editor ships no client JavaScript at
+all — `apps/web/lib/admin/shellShipsNoClientJs.test.ts` judges
+`components/admin/editor/` and fails on the commit that adds a `'use client'` there. The
+prototype does not implement the drag either: `Travel Diary Admin.dc.html`'s grip element
+carries no handler of any kind, so the mark is decorative there too. A grab cursor over a
+control that can never move anything is a dead affordance, and Task 5's browser sweep is
+this repository's record of what one costs (`docs/qa/2026-09-19-journey-editor-sweep.md`,
+EDITOR-001: a rail drawing arrows that posted a sequence Zod then refused).
+
+**Two controls rather than one, because the reorder needs both directions.**
+`@travel-diary/domain/admin/highlights`'s `moveHighlight` takes `'up' | 'down'`, and a grip
+wired to one of them would leave the other unreachable — dead code behind a live interface.
+Splitting the two colons keeps the mark §2.3 draws, at its size and its colour, and makes it
+operable with no JavaScript. Disabling at the ends is the page rail's own treatment, for the
+reason written there: the row keeps its width as lines move through it.
+
+**What would reverse it:** a decision to ship a drag-and-drop island on this screen, which
+would be a client component and a change to the admin's JS budget claim, not a change to
+this file alone.
+
+**Recorded as:** this entry, the `HANDOFF-DEVIATION` note in `NotesPane.tsx`'s header, the
+note at `.gripPair` in `editor.module.css`, and the cases in `NotesPane.test.tsx` named
+"posts a move for the half of the grip that was pressed" and "disables the grip at each end
+of the list, so no control posts a move that cannot happen".
+
+## 59 · The Notes pane draws no "Preview page"
+
+**What changed:** `SCREENS.md` §2.3's editing-pane header lists "Preview page" beside "Save
+draft". `apps/web/components/admin/editor/NotesPane.tsx` draws Save draft and no Preview.
+
+**Rationale:** the address Preview would point at is `/p/<n>`, and `n` is the page's place in
+the book's DERIVED reading sequence — computed by `apps/web/lib/readBookBundle.ts` from every
+published journey in the book, and not one of the three queries this screen makes. There is
+no other address: a journey has no per-page permalink of its own, and `/gallery/<slug>` is a
+different surface. A link that 404s, or one that needs a fourth query and a full bundle
+derivation on every editor render, are both worse than no link while the sequence is not in
+hand.
+
+**What would reverse it:** the reading sequence becoming available to this screen — the
+publish work of Task 11 is the likely place, since it has to know what the book will look
+like — or a per-page preview address that does not depend on page numbers.
+
+**Recorded as:** this entry, the `HANDOFF-DEVIATION` note in `NotesPane.tsx`'s header, and
+`docs/api.md`'s `GET /admin/journeys/<id>` row.

@@ -17,7 +17,7 @@
  * comment early: the star-slash inside one closes a block comment. Measured —
  * the file silently collected zero tests until the glob came out.)
  *
- * ═══ WHAT IT PINS IS A DERIVATION, NOT A PAIR OF NUMBERS ═══
+ * ═══ WHAT IT PINS IS A DERIVATION, NOT A LIST OF NUMBERS ═══
  *
  * The numbers in the stylesheet are NOT §2.3's. They cannot be: the prototype
  * takes its width from `document.querySelector('[data-content]').clientWidth`
@@ -57,8 +57,16 @@
  *
  * Both land exactly on the prototype's own transitions — `1440 − 238 = 1202`
  * and `1098 − 238 = 860` — which is the arithmetic this file exists to hold.
+ *
  * The sweep's measured readings confirm the 22: `mid` 1000 → 718 = 1000 − 238 −
  * 44, and `mobile` 390 → 346 = 390 − 44. Neither works with 60.
+ *
+ * Task 6 adds two more rungs of the same container — the Notes pane's field grid
+ * at 856 and its body grid at 960 — and they do not fall on the same side: 856
+ * transitions at 1138, inside the media query, and 960 at 1258, above it. So
+ * WHICH gutter applies is DERIVED by `gutterAt` rather than paired by hand, from
+ * the rail's width and the media query's own `max-width`, both read off the same
+ * stylesheet. A hand-written pairing is what shipped 16px short the first time.
  *
  * Depends on: node:fs, node:path, node:url, vitest.
  */
@@ -76,15 +84,56 @@ const EDITOR = readFileSync(path.join(HERE, 'editor.module.css'), 'utf8')
 const SHELL = readFileSync(path.join(HERE, '../shell/shell.module.css'), 'utf8')
 
 /**
- * The two widths SCREENS.md §2.3 names, as the PROTOTYPE measures them.
+ * Every width SCREENS.md §2.3 names, as the PROTOTYPE measures them.
  *
- * "`184px | minmax(0,1fr) | 250px` above 1180px · `168px | minmax(0,1fr)` above
- * 860px with the pool spanning `1 / -1` · a single column below."
+ * The screen's own two: "`184px | minmax(0,1fr) | 250px` above 1180px ·
+ * `168px | minmax(0,1fr)` above 860px with the pool spanning `1 / -1` · a single
+ * column below."
+ *
+ * And Task 6's two, inside the Notes pane: the field grid's four tracks "above
+ * 900px" and the body grid's two columns "above 1020px". They are rungs of the
+ * SAME container, not of the pane, because the prototype keys every grid on this
+ * screen on one `w` — `[data-content]`'s `clientWidth`, read once
+ * (`Travel Diary Admin.dc.html:1469`).
  */
-const SPEC_RUNGS: readonly number[] = [860, 1180]
+const SPEC_RUNGS: readonly number[] = [860, 900, 1020, 1180]
 
 /** The tracks §2.3 gives each of its three shapes, narrowest first. */
 const SPEC_TRACKS: readonly string[] = ['minmax(0, 1fr)', '168px minmax(0, 1fr)', '184px minmax(0, 1fr) 250px']
+
+/**
+ * The `.content` rule's side padding inside some stretch of CSS, if it has one.
+ * @param css - The stylesheet, or one media block's body.
+ * @returns The padding in CSS pixels, or `undefined` where that stretch sets none.
+ */
+const sideGutterIn = (css: string): number | undefined => {
+  const found = /\.content\s*\{[^}]*?padding:\s*\d+px\s+(\d+)px/.exec(css)
+  return found?.[1] === undefined ? undefined : Number(found[1])
+}
+
+/**
+ * The shell's narrow surface: the widest `max-width` query that restates the
+ * content area's padding, and the padding it restates.
+ *
+ * FOUND BY WHAT THE BLOCK CONTAINS, NOT BY ITS NUMBER. Written first as one
+ * regular expression reaching from `@media (max-width: N px)` to the next
+ * `.content`, it matched across a block boundary and answered with a NARROWER
+ * query that sets no padding at all — 1039 rather than 1179. Each block's body
+ * is bounded first now, and the one that matters is chosen by having a padding
+ * in it.
+ * @returns That query's `max-width` and the gutter it declares.
+ * @throws When the shell no longer narrows the content area's padding at all.
+ */
+const narrowSurface = (): { readonly maxWidth: number; readonly gutter: number } => {
+  const found = [...SHELL.matchAll(/@media \(max-width: (\d+)px\) \{([\s\S]*?)\n\}/g)]
+    .flatMap((block) => {
+      const gutter = sideGutterIn(block[2] ?? '')
+      return gutter === undefined ? [] : [{ maxWidth: Number(block[1]), gutter }]
+    })
+    .sort((one, two) => two.maxWidth - one.maxWidth)[0]
+  if (found === undefined) throw new Error('the shell stylesheet no longer narrows the content area’s padding')
+  return found
+}
 
 /**
  * The content area's horizontal padding, on one of the shell's two surfaces.
@@ -98,11 +147,44 @@ const SPEC_TRACKS: readonly string[] = ['minmax(0, 1fr)', '168px minmax(0, 1fr)'
  * @returns One side's padding in CSS pixels.
  */
 const contentGutter = (narrow: boolean): number => {
-  const scope = narrow ? (/@media \(max-width: 1179px\) \{[\s\S]*?\n\}/.exec(SHELL)?.[0] ?? '') : SHELL
-  const found = /\.content\s*\{[^}]*?padding:\s*\d+px\s+(\d+)px/.exec(scope)
-  if (found?.[1] === undefined) throw new Error('the shell stylesheet no longer states the content area’s padding')
+  const gutter = narrow ? narrowSurface().gutter : sideGutterIn(SHELL)
+  if (gutter === undefined) throw new Error('the shell stylesheet no longer states the content area’s padding')
+  return gutter
+}
+
+/**
+ * The shell's nav rail, which the editor's container never gets.
+ *
+ * Read off `shell.module.css` rather than written here, so the derivation below
+ * cannot go on agreeing with a rail that has been resized.
+ * @returns The rail's width in CSS pixels.
+ */
+const railWidth = (): number => {
+  const found = /grid-template-columns:\s*(\d+)px minmax/.exec(SHELL)
+  if (found?.[1] === undefined) throw new Error('the shell stylesheet no longer states the rail’s width')
   return Number(found[1])
 }
+
+/**
+ * The viewport at or below which the shell tightens the content area's padding.
+ * @returns The `max-width` of that media query.
+ */
+const narrowAtOrBelow = (): number => narrowSurface().maxWidth
+
+/**
+ * The gutter in force where one rung transitions.
+ *
+ * DERIVED, NOT LISTED. A rung at `R` fires at a viewport of
+ * `R + rail + 2 × gutter`, and which gutter applies depends on whether that
+ * viewport is inside the shell's narrow media query — so the answer is worked
+ * out from the two numbers above rather than from a table this file would have
+ * to keep in step with the stylesheet. A hand-written pairing is how the first
+ * version of this case shipped one rung 16px short.
+ * @param rung - The container rung, in container pixels.
+ * @returns The gutter in force there.
+ */
+const gutterAt = (rung: number): number =>
+  contentGutter(rung + railWidth() + 2 * contentGutter(true) <= narrowAtOrBelow())
 
 /**
  * Every container rung the editor declares, ascending.
@@ -114,23 +196,31 @@ const rungs = (): readonly number[] =>
     .sort((one, two) => one - two)
 
 describe('the journey editor’s container rungs', () => {
-  it('finds two rungs and two different gutters, so the case below compares nothing with itself', () => {
+  it('finds a rung per SCREENS.md width and two different gutters, so nothing below compares with itself', () => {
     // THE SENTINEL. A `contentGutter` that matched nothing would throw, but one
     // that matched the SAME rule twice would leave the case below asserting
-    // `rung + 60` against both — which is the defect this file shipped with.
+    // `rung + 60` against every rung — which is the defect this file shipped
+    // with. The rung COUNT is here too: a rung added with no `SPEC_RUNGS` entry,
+    // or the other way round, fails here rather than as an off-by-one below.
     expect(rungs()).toHaveLength(SPEC_RUNGS.length)
     expect(contentGutter(false)).toBe(30)
     expect(contentGutter(true)).toBe(22)
+    expect(railWidth()).toBe(238)
+    expect(narrowAtOrBelow()).toBe(1179)
+  })
+
+  it('splits the rungs across BOTH gutters, so the derivation is exercised in both directions', () => {
+    // Without this, four rungs that all happened to fall on one side of the
+    // media query would let `gutterAt` return a constant and still pass below.
+    expect(new Set(rungs().map(gutterAt))).toEqual(new Set([contentGutter(true), contentGutter(false)]))
   })
 
   it('puts each rung at SCREENS.md’s width once the padding in force AT THAT RUNG is added back', () => {
-    // The widest rung's transition is at viewport 1418, above the shell's
-    // `max-width: 1179px` override, so the base 30px applies. The middle rung's
-    // is at 1098, inside it, so 22px does. See this file's header for the
-    // arithmetic, and for what reading one gutter for both cost.
-    const [middle, widest] = rungs()
-
-    expect([Number(middle) + 2 * contentGutter(true), Number(widest) + 2 * contentGutter(false)]).toEqual(SPEC_RUNGS)
+    // 816 + 44 = 860 and 856 + 44 = 900, both transitioning inside the shell's
+    // `max-width: 1179px` override; 960 + 60 = 1020 and 1120 + 60 = 1180, both
+    // above it. See this file's header for the arithmetic, and for what reading
+    // one gutter for all of them cost.
+    expect(rungs().map((rung) => rung + 2 * gutterAt(rung))).toEqual(SPEC_RUNGS)
   })
 
   it('draws the three shapes §2.3 names, in the order it names them', () => {
@@ -160,7 +250,7 @@ describe('the journey editor’s container rungs', () => {
     expect(measured, 'no rule declares container-type').toBeDefined()
 
     const rungBlocks = [...EDITOR.matchAll(/@container[^{]*\{([\s\S]*?)\n\}/g)].map((match) => match[1] ?? '')
-    expect(rungBlocks).toHaveLength(SPEC_RUNGS.length)
+    expect(rungBlocks).toHaveLength(rungs().length)
     // The measured selector must not be one the rungs reshape, and the shaped
     // one must not be the measured one.
     expect(rungBlocks.filter((block) => block.includes(`.${String(measured)} {`))).toEqual([])

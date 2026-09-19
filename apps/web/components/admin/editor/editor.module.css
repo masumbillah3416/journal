@@ -23,6 +23,10 @@
  * ═══ AND THE RUNGS ARE 816 AND 1120, WHICH IS 860 AND 1180 IN THE UNITS A
  *     CONTAINER QUERY MEASURES IN ═══
  *
+ * Task 6's Notes pane adds two more of the same container's rungs, 856 and 960,
+ * which are §2.3's 900 and 1020 converted the same way — see "The Notes pane"
+ * further down for that pair's own arithmetic.
+ *
  * `clientWidth` INCLUDES the measured element's own padding; a container
  * query's `inline-size` is the content box. So the prototype's number is always
  * this one plus both gutters — and THE SHELL HAS TWO GUTTERS, which is the
@@ -56,9 +60,10 @@
  *
  * So it is not an invented number, it is the handoff's number converted into
  * the coordinate system the query measures in — and the conversion is
- * executable rather than asserted: `editorGrid.test.tsx` reads the padding out
- * of `shell.module.css`, reads these rungs out of this file, and requires them
- * to add back up to 860 and 1180. Neither number is written in that test.
+ * executable rather than asserted: `editorRungs.test.tsx` reads the padding out
+ * of `shell.module.css`, reads every rung out of this file, works out WHICH
+ * gutter is in force at each one, and requires them to add back up to the four
+ * numbers §2.3 states. Only those four are written in that test.
  *
  * `journeys.module.css` transcribes its own ladder uncompensated and is left
  * alone — but NOT because the offset is harmless there, which is what this
@@ -482,14 +487,11 @@
   color: var(--td-accent);
 }
 
-/* ── The editing pane's placeholder ────────────────────────────────────── */
+/* ── The editing pane ──────────────────────────────────────────────────── */
 
-/* WHAT THIS IS AND WHY IT IS NOT THE PANE. SCREENS.md §2.3's middle column is
- * Tasks 6 and 7 — the notes fields, the slots and the focal point. This task
- * builds the frame around it, and an empty middle column would collapse the
- * three-column grid into something no baseline of the finished screen would
- * match. It prints the selected page's name, which is §2.3's own "Editing"
- * eyebrow over the page name, and nothing else. */
+/* THE CARD BOTH PANES SIT IN. For a Notes page the element carrying this class
+ * is the `<form>` itself (see `NotesPane.tsx`); for a Frames page it is still
+ * the placeholder `<div>` the route draws, because §2.3's slots are Task 7. */
 .pane {
   padding: 18px 20px 20px;
   border-radius: 3px;
@@ -514,4 +516,517 @@
   font-size: 15.5px;
   font-style: italic;
   color: var(--td-ink-muted);
+}
+
+/* ── The Notes pane ────────────────────────────────────────────────────── */
+
+/* ═══ THE PANE'S TWO RUNGS ARE THE SCREEN'S, NOT THE PANE'S OWN ═══
+ *
+ * SCREENS.md §2.3 gives the field grid its four-track shape "above 900px" and
+ * the body grid its two-column shape "above 1020px", and the prototype keys
+ * BOTH on the same `w` the editor's three columns use — `document.querySelector(
+ * '[data-content]').clientWidth` (`Travel Diary Admin.dc.html:1469`), read once
+ * and spent on every grid on the screen. So these are rungs of the SAME
+ * container as the two above, converted the same way and for the same reason:
+ * `clientWidth` includes the measured element's padding and a container query's
+ * `inline-size` does not.
+ *
+ *   - 900 transitions at viewport `900 + 238 = 1138`, at or below 1179, where
+ *     the content's padding is 22px — so the rung is `900 − 44 = 856`;
+ *   - 1020 transitions at viewport `1020 + 238 = 1258`, above 1179, where it is
+ *     30px — so the rung is `1020 − 60 = 960`.
+ *
+ * `editorRungs.test.tsx` derives which gutter is in force at each rung rather
+ * than being told, and adds it back to reach SCREENS.md's own four numbers. */
+
+.paneHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+/* §2.3's Save draft, which is the prototype's own terracotta button. */
+.saveDraft {
+  flex: none;
+  padding: 8px 17px;
+  border: 1.5px solid var(--td-accent);
+  border-radius: 2px;
+  background: var(--td-accent);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--td-cream-alt);
+  cursor: pointer;
+}
+
+.saveDraft:hover {
+  border-color: var(--td-accent-hover);
+  background: var(--td-accent-hover);
+}
+
+.saveDraft:focus-visible {
+  outline: 2px solid rgb(163 68 52 / 45%);
+  outline-offset: 2px;
+}
+
+/* Location · Dates · Weather · Mood. Two tracks until the screen has room for
+ * four; see the rung note above. */
+.fieldGrid {
+  display: grid;
+  margin-bottom: 20px;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 5px;
+}
+
+/* The boxed inputs: a mount with a hairline ring, as the prototype draws them. */
+.locationInput,
+.datesInput,
+.badgeInput,
+.noteInput {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 2px;
+  background: var(--td-paper-mount);
+  box-shadow: inset 0 0 0 1px rgb(120 98 60 / 30%);
+  color: var(--td-ink);
+}
+
+.locationInput {
+  padding: 9px 12px;
+  font-family: var(--td-font-caveat);
+  font-size: 26px;
+}
+
+.datesInput {
+  font-family: var(--td-font-courier);
+  font-size: 13px;
+}
+
+.badgeInput {
+  font-family: var(--td-font-courier);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.bodyGrid {
+  display: grid;
+  align-items: start;
+  gap: 26px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.notesColumn,
+.slotsColumn {
+  min-width: 0;
+}
+
+.slotsColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* An eyebrow with its instruction line beside it, on the same baseline. */
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 9px;
+  gap: 10px;
+}
+
+.instruction {
+  margin: 0;
+  font-family: var(--td-font-garamond);
+  font-size: 14px;
+  font-style: italic;
+  color: var(--td-ink-muted);
+}
+
+/* The eyebrows inside the column, which carry their own air above and below. */
+.eyebrowSpaced {
+  margin: 22px 0 6px;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+.highlights {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.highlightRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* §2.3's `::`. Two buttons rather than one inert mark — see `NotesPane.tsx`'s
+ * HANDOFF-DEVIATION: a `cursor: grab` that cannot drag is a dead affordance,
+ * and this screen ships no JavaScript to make one live. */
+.gripPair {
+  display: flex;
+  flex: none;
+  letter-spacing: -0.1em;
+}
+
+.grip {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--td-font-courier);
+  font-size: 12px;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+}
+
+.grip:hover:not(:disabled) {
+  color: var(--td-accent);
+}
+
+/* The ends of the list, kept in the DOM and disabled so the row does not change
+ * width as lines move — the page rail's own treatment. */
+.grip:disabled {
+  color: var(--td-hairline-border-max);
+  cursor: default;
+}
+
+.grip:focus-visible,
+.removeHighlight:focus-visible,
+.addHighlight:focus-visible {
+  outline: 2px solid rgb(163 68 52 / 45%);
+  outline-offset: 1px;
+}
+
+/* The underlined inputs: highlights, the tally, the sign-off, the stamp and the
+ * gallery address all sit on a hairline rather than in a box. */
+.highlightInput,
+.tallyKeyInput,
+.tallyValueInput,
+.signoffInput,
+.stampCountryInput,
+.stampValueInput,
+.addressInput {
+  min-width: 0;
+  padding: 4px 2px;
+  border: none;
+  border-bottom: 1px solid rgb(120 98 60 / 30%);
+  background: transparent;
+  color: var(--td-ink);
+}
+
+.highlightInput {
+  flex: 1;
+  font-family: var(--td-font-caveat);
+  font-size: 25px;
+}
+
+.removeHighlight {
+  flex: none;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+}
+
+.removeHighlight:hover {
+  color: var(--td-accent);
+}
+
+.addHighlight {
+  align-self: flex-start;
+  margin-top: 10px;
+  padding: 7px 14px;
+  border: 1.5px dashed rgb(120 98 60 / 40%);
+  border-radius: 2px;
+  background: transparent;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+}
+
+.addHighlight:hover {
+  border-color: var(--td-accent);
+  color: var(--td-accent);
+}
+
+.noteInput {
+  padding: 12px 13px;
+  font-family: var(--td-font-garamond);
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--td-ink-body);
+  resize: vertical;
+}
+
+/* Four cells, always: the collection sets `minRows` and `maxRows` to the same
+ * number and the read fills the grid whatever the journey stored. */
+.tally {
+  display: grid;
+  gap: 9px 14px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.tallyCell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.tallyKeyInput {
+  flex: 1;
+  padding: 3px 2px;
+  font-family: var(--td-font-garamond);
+  font-size: 16px;
+  color: var(--td-ink-body);
+}
+
+/* `value` is TEXT, deliberately: DATA_MODEL.md records that several journeys
+ * count in "plenty" and "uncounted". A number input here would be a defect. */
+.tallyValueInput {
+  flex: none;
+  width: 74px;
+  padding: 3px 2px;
+  font-family: var(--td-font-caveat);
+  font-size: 24px;
+  text-align: right;
+}
+
+.rule {
+  height: 1px;
+  margin: 22px 0 16px;
+  border: none;
+  background: rgb(120 98 60 / 22%);
+}
+
+/* ── Page furniture ────────────────────────────────────────────────────── */
+
+.furnitureGrid {
+  display: grid;
+  margin-bottom: 14px;
+  gap: 14px 18px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.signoffInput {
+  width: 100%;
+  font-family: var(--td-font-caveat);
+  font-size: 25px;
+  color: var(--td-ink-muted);
+}
+
+/* The radio behind a card or a swatch: kept in the DOM and focusable, and drawn
+ * by the label around it rather than by itself. */
+.choice {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.glyphCards {
+  display: flex;
+  gap: 7px;
+}
+
+/* Three 74px cards, each drawing its actual mark over a Courier 8.5px label. */
+.glyphCard {
+  display: flex;
+  position: relative;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 74px;
+  padding: 13px 6px;
+  border-radius: 2px;
+  background: var(--td-paper-mount);
+  box-shadow: inset 0 0 0 1px rgb(120 98 60 / 28%);
+  gap: 7px;
+  cursor: pointer;
+}
+
+.glyphCard:has(.choice:checked) {
+  background: rgb(163 68 52 / 7%);
+  box-shadow: inset 0 0 0 1.5px var(--td-accent);
+}
+
+.glyphCard:has(.choice:focus-visible),
+.swatch:has(.choice:focus-visible) {
+  outline: 2px solid rgb(163 68 52 / 45%);
+  outline-offset: 2px;
+}
+
+.glyphMark {
+  display: flex;
+  color: var(--td-accent);
+}
+
+.glyphCardLabel {
+  font-family: var(--td-font-courier);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+.glyphCard:has(.choice:checked) .glyphCardLabel {
+  color: var(--td-accent);
+}
+
+.stamp {
+  display: flex;
+  align-items: stretch;
+  gap: 9px;
+}
+
+/* A LIVE FACE, in the journey's own accent — §2.3's word, and the reason the
+ * gradient is an inline style rather than a class: the colour is data. */
+.stampFace {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 52px;
+  height: 64px;
+  padding: 6px 4px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 25%);
+}
+
+.stampCountry {
+  font-family: var(--td-font-courier);
+  font-size: 6.5px;
+  letter-spacing: 0.14em;
+  color: #f4ecd9;
+}
+
+.stampValue {
+  font-family: var(--td-font-courier);
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.stampFields {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 7px;
+}
+
+.stampCountryInput {
+  width: 100%;
+  padding: 3px 2px;
+  font-family: var(--td-font-courier);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+.stampValueInput {
+  width: 100%;
+  padding: 3px 2px;
+  font-family: var(--td-font-courier);
+  font-size: 14px;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.swatch {
+  display: block;
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgb(120 98 60 / 30%);
+  cursor: pointer;
+}
+
+.swatch:has(.choice:checked) {
+  box-shadow: 0 0 0 2.5px var(--td-accent);
+}
+
+/* The colour is the control; the name is for whoever cannot see it. */
+.swatchName {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.address {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.addressPrefix {
+  flex: none;
+  font-family: var(--td-font-courier);
+  font-size: 12px;
+  color: var(--td-ink-muted);
+}
+
+.addressInput {
+  flex: 1;
+  padding: 3px 2px;
+  font-family: var(--td-font-courier);
+  font-size: 12px;
+}
+
+/* §2.3's field grid takes its four tracks — 900 in the prototype's units. */
+@container td-journey-editor (min-width: 856px) {
+  .fieldGrid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 132px) minmax(0, 132px);
+  }
+}
+
+/* §2.3's body grid splits — 1020 in the prototype's units. The furniture's own
+ * two-column blocks split at the same width, which is the prototype's
+ * `furnitureGrid`. */
+@container td-journey-editor (min-width: 960px) {
+  .bodyGrid {
+    grid-template-columns: 1.15fr minmax(0, 0.85fr);
+  }
+
+  .furnitureGrid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
