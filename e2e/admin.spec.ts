@@ -478,6 +478,38 @@ test.describe('at the width where both admin screens take their middle shape', (
   })
 })
 
+test('keeps every field of the notes pane inside its card, at every surface', async ({ page }) => {
+  // NOTES-001 (`docs/qa/2026-09-19-notes-pane-sweep.md`). At 390px the tally's
+  // right-hand column was drawn 196px past the pane's right edge, and the shell
+  // clips rather than scrolls — so two of the four cells could not be seen and
+  // could not be typed into. §2.3 gives the tally no narrow variant: it is four
+  // cells in two columns, and a field an author cannot reach on a phone is a
+  // field that does not exist there.
+  //
+  // THE ASSERTION IS ABOUT REACHABILITY, NOT ABOUT A TRACK SIZING FUNCTION.
+  // `minmax(0, 1fr)` is how it is fixed today; "nothing is drawn outside the
+  // card" is what has to stay true, and it catches the next element that
+  // refuses to shrink as well as this one. The message names the offenders, so
+  // a failure says WHICH element rather than only that the number moved.
+  const notes = editorFixture.pages[0]
+  await page.goto(`/admin/journeys/${String(editorFixture.journey)}?page=${String(notes ?? 0)}`)
+  await expect(page.locator('[data-notes-pane]')).toBeVisible()
+
+  const escaped = await page.locator('[data-notes-pane]').evaluate((pane) => {
+    const edge = pane.getBoundingClientRect().right
+    return {
+      overflow: pane.scrollWidth - pane.clientWidth,
+      outside: [...pane.querySelectorAll('*')]
+        .filter((element) => element.getBoundingClientRect().right > edge + 1)
+        .map((element) => `${element.tagName.toLowerCase()} ${element.className}`)
+        .slice(0, 6),
+    }
+  })
+
+  expect(escaped.outside, 'these elements are drawn outside the pane').toEqual([])
+  expect(escaped.overflow).toBeLessThanOrEqual(0)
+})
+
 test('answers a journey address nobody owns with a not-found page rather than a stack trace', async ({ page }) => {
   const response = await page.goto('/admin/journeys/2000000000')
 

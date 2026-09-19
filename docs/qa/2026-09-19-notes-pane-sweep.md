@@ -73,6 +73,30 @@ failed first guards nothing.
 - **Evidence:** `docs/qa/assets/2026-09-19-notes-pane/tally-overflow-mobile.png` (the cut
   "Kilometr…" and "Bowls of…"), and `…/tally-clean-mid.png` for the same block at `mid`,
   where it fits.
+- **Fixed** in the commit after this one, against a case that failed first —
+  `e2e/admin.spec.ts`'s "keeps every field of the notes pane inside its card, at every
+  surface", which fails on ANYTHING drawn outside the pane rather than on a track's sizing
+  function. Re-checked in the same browser at the same three surfaces:
+
+  ```text
+  RECHECK[desktop] {"paneClient":672,"paneScroll":672,"tallyTracks":"167.219px 167.219px", …}
+  RECHECK[mid]     {"paneClient":718,"paneScroll":718,"tallyTracks":"332px 332px", …}
+  RECHECK[mobile]  {"paneClient":346,"paneScroll":346,"tallyTracks":"146px 146px",
+                    "keyWidth":63,"valueWidth":74,
+                    "keys":["Days","Kilometres walked","Rolls shot","Bowls of ramen"]}
+  RECHECK[mobile] typed=148
+  ```
+
+  All four cells are inside the card, all four values are legible, and the second column's
+  value input accepts typing. The key inputs truncate their own text at 63px
+  (`…/tally-fixed-mobile.png`) — that is the input's own overflow, scrollable and typeable,
+  not content leaving the card, and §2.3 gives the tally no narrower variant to fall back
+  to.
+
+- **The class has one instance here, measured rather than assumed.** The two other bare
+  `1fr` tracks in `editor.module.css` — `.glyphs` and `.poolGrid` — were walked at all
+  three surfaces with the same measurement and neither overflows at any width, because a
+  glyph button's and a pool tile's min-content are small. They are left as they are.
 
 ### NOTES-002 · S4 · Two rapid presses of a highlight control apply only one of them
 

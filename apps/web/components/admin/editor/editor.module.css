@@ -782,11 +782,22 @@
 }
 
 /* Four cells, always: the collection sets `minRows` and `maxRows` to the same
- * number and the read fills the grid whatever the journey stored. */
+ * number and the read fills the grid whatever the journey stored.
+ *
+ * `minmax(0, 1fr)`, NOT `1fr`, AND THAT IS THE WHOLE OF NOTES-001. A `1fr`
+ * track's automatic minimum is `min-content`, and a cell here is an input that
+ * refuses to go below its intrinsic width beside a fixed 74px one — 254px a
+ * side. At the 390px surface the pane has 306px, so the two tracks would not
+ * shrink and the grid was drawn 196px past the card, where the shell clips
+ * rather than scrolls: two of the four cells could not be seen or typed into
+ * (`docs/qa/2026-09-19-notes-pane-sweep.md`). Every other grid in this file
+ * already writes the floor; this one did not.
+ * `e2e/admin.spec.ts` walks the pane at all three surfaces and fails on
+ * ANYTHING drawn outside the card, not on this track's sizing function. */
 .tally {
   display: grid;
   gap: 9px 14px;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .tallyCell {
