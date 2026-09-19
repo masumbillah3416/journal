@@ -58,7 +58,16 @@ export const JourneyPool = ({ items, inBook, browseHref }: JourneyPoolProps): Re
     </p>
     <p className={styles.poolNote}>Everything uploaded to this journey. Ticked frames are in the book.</p>
 
-    <ul className={styles.poolGrid}>
+    {/* THE SCROLLER IS FOCUSABLE, AND THAT IS A FIX RATHER THAN A FLOURISH.
+     * §2.3 caps this grid at `max-height: 432px` and scrolls it, and axe
+     * found the consequence in a real browser: a scrollable region whose
+     * content holds nothing focusable cannot be reached, let alone scrolled,
+     * by a keyboard (`scrollable-region-focusable`, serious, WCAG 2.1.1). The
+     * tiles are not interactive until Task 7 puts a tick box on them, so
+     * until then the list itself takes the focus and says what it is. When
+     * the tiles become buttons this `tabIndex` should go: a focus stop that
+     * lands on a list whose children are all focusable is a stop nobody wants. */}
+    <ul tabIndex={0} aria-label="Frames uploaded to this journey" className={styles.poolGrid}>
       {items.map((item) => (
         <li
           key={item.id}

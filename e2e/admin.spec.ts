@@ -22,6 +22,15 @@
  * have to be edited by every screen task that adds an entry, and an assertion
  * a task has to edit is one it can edit to match what it broke.
  *
+ * SINCE PHASE 4 TASK 5 IT ALSO WALKS THE JOURNEY EDITOR, and the case that
+ * matters there is the one no Vitest project can write either: the rail's ↑ is
+ * a form, so moving a page is a `POST`, a write to Postgres and a re-render —
+ * and the assertion RELOADS THE PAGE before reading the order back, so what it
+ * compares came out of the database rather than out of React state. Its
+ * fixture is a journey of its own, created and deleted here, because
+ * reordering a SEEDED journey's pages would leave the developer's own `diary`
+ * database changed for every screenshot taken after it.
+ *
  * SINCE PHASE 4 TASK 4 IT ALSO WALKS THE JOURNEYS SCREEN, which is the first
  * admin screen with data in it. The create case is the one that cannot be
  * written anywhere else: a Server Action is dispatched by Next.js under an
@@ -57,6 +66,76 @@ const label = (testInfo: { readonly project: { readonly name: string }; readonly
  */
 const journeyName = (testInfo: { readonly project: { readonly name: string }; readonly workerIndex: number }): string =>
   `Kyoto ${label(testInfo)}`
+
+/**
+ * What the editor case's own journey is called.
+ *
+ * Its own journey, not a seeded one: the case REORDERS pages, and doing that to
+ * seeded data would leave the developer's `diary` database changed for every
+ * baseline taken afterwards.
+ * @param testInfo - Playwright's own per-test information.
+ * @returns The journey's name.
+ */
+const editorJourneyName = (testInfo: {
+  readonly project: { readonly name: string }
+  readonly workerIndex: number
+}): string => `Editor ${label(testInfo)}`
+
+/** The editor fixture's row ids, filled in by `beforeAll`. */
+const editorFixture: { journey: number; pages: number[] } = { journey: 0, pages: [] }
+
+test.beforeAll(async ({}, testInfo) => {
+  const payload = await getPayload()
+  const name = editorJourneyName(testInfo)
+  // A previous crashed run would otherwise collide with the unique `slug`.
+  const stale = await payload.find({ collection: 'journeys', where: { name: { like: name } }, pagination: false })
+  for (const journey of stale.docs) {
+    await payload.delete({ collection: 'pages', where: { journey: { equals: journey.id } } })
+  }
+  await payload.delete({ collection: 'journeys', where: { name: { like: name } } })
+
+  const journey = await payload.create({
+    collection: 'journeys',
+    data: {
+      name,
+      place: 'Norway',
+      slug: name.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-'),
+      dates: '2 - 9 May 2026',
+      _status: 'published',
+    },
+  })
+  editorFixture.journey = journey.id
+  editorFixture.pages = []
+  for (const [order, title] of ['Notes', 'Frames I', 'Frames II'].entries()) {
+    const created = await payload.create({
+      collection: 'pages',
+      data: {
+        journey: journey.id,
+        kind: title === 'Notes' ? 'notes' : 'frames',
+        title,
+        order,
+        layout: title === 'Notes' ? 'text-spread' : 'three-up',
+        _status: 'published',
+      },
+    })
+    editorFixture.pages.push(created.id)
+  }
+})
+
+test.afterAll(async ({}, testInfo) => {
+  const payload = await getPayload()
+  const editorName = editorJourneyName(testInfo)
+  const mine = await payload.find({
+    collection: 'journeys',
+    where: { name: { like: editorName } },
+    pagination: false,
+    depth: 0,
+  })
+  for (const journey of mine.docs) {
+    await payload.delete({ collection: 'pages', where: { journey: { equals: journey.id } } })
+  }
+  await payload.delete({ collection: 'journeys', where: { name: { like: editorName } } })
+})
 
 test.afterAll(async ({}, testInfo) => {
   await removeSignedInFixture(`${label(testInfo)}@${SESSION_FIXTURE_DOMAIN}`)
@@ -266,4 +345,60 @@ test('keeps every status chip reachable, at every width', async ({ page, viewpor
 
   expect(chip, 'the screen drew no Archived chip').not.toBeNull()
   expect((chip?.x ?? 0) + (chip?.width ?? 0)).toBeLessThanOrEqual(viewport?.width ?? 0)
+})
+
+test('draws the journey editor\u2019s three columns for a journey that exists', async ({ page }) => {
+  await page.goto(`/admin/journeys/${String(editorFixture.journey)}`)
+  await expect(page.locator('[data-journey-editor]')).toBeVisible()
+
+  await expect(page.locator('[data-page-rail]')).toBeVisible()
+  await expect(page.locator('[data-layout-picker]')).toBeVisible()
+  await expect(page.locator('[data-journey-pool]')).toBeVisible()
+  // The rail drew a card per page, which a screen whose queries never reached
+  // Postgres could not have done.
+  await expect(page.locator('[data-page-id]')).toHaveCount(3)
+})
+
+test('moves a page up and keeps it moved after a reload, so the order came from Postgres', async ({ page }) => {
+  // THE CASE NO VITEST PROJECT CAN WRITE. Everything between the arrow and the
+  // rail \u2014 Next's action id, the guard, Zod over the FormData, the
+  // version-safe write and the revalidate \u2014 runs only in a browser against
+  // a real server. The RELOAD is what makes the assertion about the database:
+  // without it the same markup could have come from the re-render alone.
+  const second = editorFixture.pages[1]
+  const address = `/admin/journeys/${String(editorFixture.journey)}?page=${String(second ?? 0)}`
+
+  await page.goto(address)
+  const before = await page
+    .locator('[data-page-id]')
+    .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-page-id')))
+  expect(before).toEqual([...before].sort((one, two) => Number(one) - Number(two)))
+
+  await page.locator('[data-page-tools] [data-move="up"]').click()
+  await expect(page.locator('[data-page-id]').first()).toHaveAttribute('data-page-id', String(second))
+
+  await page.goto(address)
+  const after = await page
+    .locator('[data-page-id]')
+    .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-page-id')))
+  expect(after).toEqual([before[1], before[0], before[2]])
+})
+
+test('writes the layout a glyph was pressed on, and still says so after a reload', async ({ page }) => {
+  const first = editorFixture.pages[0]
+  const address = `/admin/journeys/${String(editorFixture.journey)}?page=${String(first ?? 0)}`
+
+  await page.goto(address)
+  await page.locator('[data-layout="full-bleed"]').click()
+  await expect(page.locator('[data-layout="full-bleed"][aria-pressed="true"]')).toHaveCount(1)
+
+  await page.goto(address)
+  await expect(page.locator('[data-layout="full-bleed"][aria-pressed="true"]')).toHaveCount(1)
+})
+
+test('answers a journey address nobody owns with a not-found page rather than a stack trace', async ({ page }) => {
+  const response = await page.goto('/admin/journeys/2000000000')
+
+  expect(response?.status()).toBe(404)
+  await expect(page.locator('[data-journey-editor]')).toHaveCount(0)
 })

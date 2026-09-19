@@ -109,6 +109,18 @@ describe('JourneyPool', () => {
     expect([...host.querySelectorAll('img')].map((image) => image.getAttribute('alt'))).toEqual(['Frame 1', 'Frame 2'])
   })
 
+  it('lets a keyboard reach the scrolling grid, which axe found it could not', () => {
+    // MEASURED IN A REAL BROWSER, not reasoned about: `e2e/a11y.spec.ts`
+    // reported `scrollable-region-focusable` (serious, WCAG 2.1.1) on this
+    // list, because §2.3 scrolls it at `max-height: 432px` and nothing
+    // inside it is focusable until Task 7's tick boxes land.
+    const host = renderPool([anItem('1'), anItem('2')], 0)
+
+    const grid = host.querySelector('ul')
+    expect(grid?.getAttribute('tabindex')).toBe('0')
+    expect(grid?.getAttribute('aria-label')).not.toBeNull()
+  })
+
   it('draws an empty pool rather than throwing for a journey with no media', () => {
     const host = renderPool([], 0)
 

@@ -541,6 +541,36 @@ test('has no axe violations on /admin/journeys, the first screen with data on it
   await expectNoAxeViolations(page)
 })
 
+test('has no axe violations on the journey editor, the largest screen in the handoff', async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  // SCREENS.md \u00a72.3, reached the way an author reaches it: through the
+  // Edit link on a journeys row, which is also what proves that link resolves
+  // to a route rather than to Next's own not-found page.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`a11yeditor.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin/journeys')
+  await page.locator('[data-journey-id]').first().locator('[data-cell="actions"] a').first().click()
+
+  // All three columns are drawn before axe looks: a route that rendered an
+  // empty shell would have no violations either. The tool row in particular is
+  // markup axe cannot see unless a card is selected, and it holds four
+  // controls two of which print nothing but an arrow.
+  await expect(page.locator('[data-journey-editor]')).toBeVisible()
+  await expect(page.locator('[data-page-tools]')).toBeVisible()
+  await expect(page.locator('[data-layout-picker]')).toBeVisible()
+  await expect(page.locator('[data-journey-pool]')).toBeVisible()
+
+  await expectNoAxeViolations(page)
+})
+
 test('meets AA contrast on the sign-in cloth panel, which axe cannot judge', async ({ page, viewport }) => {
   test.skip((viewport?.width ?? 0) < 820, 'the cloth panel is drawn only above SCREENS.md §3’s breakpoint')
 
