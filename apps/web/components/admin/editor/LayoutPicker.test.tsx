@@ -158,15 +158,46 @@ describe('LayoutPicker', () => {
     expect(add?.querySelector<HTMLInputElement>('input[name="layout"]')?.value).toBe('four-up')
   })
 
+  it('draws a rule exactly where the domain says one, and nowhere else', () => {
+    // BOTH SIDES, WHICH IS THE HALF THAT WAS MISSING. The old case asserted only
+    // that `text-spread` HAS three rules, so `four-up` being drawn as two rules
+    // and two blocks passed it — and that is what shipped
+    // (docs/qa/2026-09-19-journey-editor-sweep.md, EDITOR-002). The left side is
+    // the DOM React produced; the right is the domain's own `kind`, counted over
+    // every layout including the three whose answer is zero.
+    const host = renderLayoutPicker({ active: 'three-up' })
+
+    const drawn = LAYOUTS.map(
+      (layout) =>
+        [...host.querySelectorAll<HTMLElement>(`[data-layout="${layout}"] [data-glyph-cell]`)].filter((cell) =>
+          cell.className.includes('glyphRule'),
+        ).length,
+    )
+    expect(drawn).toEqual(
+      LAYOUTS.map((layout) => layoutGlyph(layout).cells.filter((cell) => cell.kind === 'rule').length),
+    )
+  })
+
+  it('draws four up as four equal cells, which is what SCREENS.md §2.3’s table says', () => {
+    // The one the sweep photographed: a thin line, a block, a shorter thin line
+    // and a block. Kept beside the general case above because this layout is the
+    // one an author confuses with Text spread when it is drawn wrong.
+    const host = renderLayoutPicker({ active: 'three-up' })
+
+    const cells = [...host.querySelectorAll<HTMLElement>('[data-layout="four-up"] [data-glyph-cell]')]
+    expect(cells).toHaveLength(4)
+    expect(cells.filter((cell) => cell.className.includes('glyphRule'))).toHaveLength(0)
+  })
+
   it('draws the text spread’s three rules as rules and its block as a block', () => {
-    // The 3px height is this component's, because a height is not a grid line —
-    // so nothing in the domain can pin it. What is pinned here is that exactly
-    // the one-row cells of the first column get the rule treatment.
+    // The 3px height and the short last rule are this component's, because a
+    // height is not a grid line — so nothing in the domain can pin them.
     const host = renderLayoutPicker({ active: 'text-spread' })
 
     const cells = [...host.querySelectorAll<HTMLElement>('[data-layout="text-spread"] [data-glyph-cell]')]
     const rules = cells.filter((cell) => cell.className.includes('glyphRule'))
     expect(cells).toHaveLength(4)
     expect(rules).toHaveLength(3)
+    expect(rules.filter((cell) => cell.className.includes('glyphRuleShort'))).toHaveLength(1)
   })
 })

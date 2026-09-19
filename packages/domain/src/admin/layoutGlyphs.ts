@@ -22,6 +22,13 @@
  * zero-based would put the translation in the component, where nothing measures
  * it.
  *
+ * EACH CELL ALSO SAYS WHETHER IT IS A BLOCK OR ONE OF THE TEXT SPREAD'S LINES,
+ * for the same reason and at a cost this module paid once already: the picker
+ * used to infer it from the cell's shape, and `four-up`'s two left cells have
+ * the same shape as a line, so Four up shipped drawing two lines and two blocks
+ * (`docs/qa/2026-09-19-journey-editor-sweep.md`, EDITOR-002). See
+ * {@link GlyphCell.kind}.
+ *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. One frozen table and one
  * lookup; naming a pattern for that would be cargo cult.
  *
@@ -40,6 +47,22 @@ export interface GlyphCell {
   readonly column: readonly [number, number]
   /** `grid-row: start / end`, one-based. */
   readonly row: readonly [number, number]
+  /**
+   * Whether the cell is drawn filled, or as one of the text spread's lines.
+   *
+   * IT IS DATA AND NOT A SHAPE THE PICKER RECOGNISES, and that is a correction
+   * rather than a preference. `LayoutPicker` used to work it out from the cell's
+   * geometry — one row tall, in the first column — which is true of the text
+   * spread's three lines AND of `four-up`'s two left cells, so the Four up
+   * button drew two 3px lines and two blocks instead of four equal cells. It
+   * shipped, and a browser sweep is what found it
+   * (`docs/qa/2026-09-19-journey-editor-sweep.md`, EDITOR-002). A property a
+   * layout DECLARES cannot be true of a layout that did not declare it.
+   *
+   * The 3px height and the last line's 70% width stay in the stylesheet: a
+   * height is not a grid line, and this module carries grid lines.
+   */
+  readonly kind: 'block' | 'rule'
 }
 
 /** One layout's drawing: a grid, and the real cells inside it. */
@@ -95,34 +118,34 @@ const GLYPHS: Readonly<Record<PageLayout, LayoutGlyph>> = {
     columns: '1.45fr 1fr',
     rows: '1fr 1fr',
     cells: [
-      { column: [1, 2], row: [1, 3] },
-      { column: [2, 3], row: [1, 2] },
-      { column: [2, 3], row: [2, 3] },
+      { column: [1, 2], row: [1, 3], kind: 'block' },
+      { column: [2, 3], row: [1, 2], kind: 'block' },
+      { column: [2, 3], row: [2, 3], kind: 'block' },
     ],
   },
   'four-up': {
     columns: '1fr 1fr',
     rows: '1fr 1fr',
     cells: [
-      { column: [1, 2], row: [1, 2] },
-      { column: [2, 3], row: [1, 2] },
-      { column: [1, 2], row: [2, 3] },
-      { column: [2, 3], row: [2, 3] },
+      { column: [1, 2], row: [1, 2], kind: 'block' },
+      { column: [2, 3], row: [1, 2], kind: 'block' },
+      { column: [1, 2], row: [2, 3], kind: 'block' },
+      { column: [2, 3], row: [2, 3], kind: 'block' },
     ],
   },
   'full-bleed': {
     columns: '1fr',
     rows: '1fr',
-    cells: [{ column: [1, 2], row: [1, 2] }],
+    cells: [{ column: [1, 2], row: [1, 2], kind: 'block' }],
   },
   'text-spread': {
     columns: '1fr 1fr',
     rows: '1fr 1fr 1fr',
     cells: [
-      { column: [1, 2], row: [1, 2] },
-      { column: [1, 2], row: [2, 3] },
-      { column: [1, 2], row: [3, 4] },
-      { column: [2, 3], row: [1, 4] },
+      { column: [1, 2], row: [1, 2], kind: 'rule' },
+      { column: [1, 2], row: [2, 3], kind: 'rule' },
+      { column: [1, 2], row: [3, 4], kind: 'rule' },
+      { column: [2, 3], row: [1, 4], kind: 'block' },
     ],
   },
 }

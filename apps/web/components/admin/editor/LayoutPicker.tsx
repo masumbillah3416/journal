@@ -19,10 +19,10 @@
  * `LayoutPicker.test.tsx` counts the rendered cells against what that module
  * says. Neither half can pass alone on an empty grid.
  *
- * THE RULES OF THE TEXT SPREAD ARE THE ONE THING THIS FILE DECIDES about a
- * shape, and it is a height rather than a grid line: `layoutGlyphs.ts` carries
- * lines, and 3px is not one. A cell one row tall in the first column of
- * `text-spread` is a rule; the last of them is short, as the prototype draws it.
+ * THE RULES OF THE TEXT SPREAD ARE DRAWN WHERE THE DOMAIN SAYS, and what this
+ * file decides is only how tall: 3px, with the last one short, as the prototype
+ * draws it. It used to decide WHICH cells too, from their shape, and that put
+ * two 3px rules into the Four up button — see {@link glyphCells}.
  *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. Four forms and a lookup.
  *
@@ -33,13 +33,7 @@
  * (@travel-diary/domain/admin/layoutGlyphs), `JourneyId`/`PageId`
  * (@travel-diary/domain/ids), ./editor.module.css.
  */
-import {
-  LAYOUTS,
-  LAYOUT_LABELS,
-  layoutGlyph,
-  type GlyphCell,
-  type PageLayout,
-} from '@travel-diary/domain/admin/layoutGlyphs'
+import { LAYOUTS, LAYOUT_LABELS, layoutGlyph, type PageLayout } from '@travel-diary/domain/admin/layoutGlyphs'
 import type { JourneyId, PageId } from '@travel-diary/domain/ids'
 import type React from 'react'
 import styles from './editor.module.css'
@@ -59,27 +53,29 @@ export interface LayoutPickerProps {
 }
 
 /**
- * Whether a cell is one of the text spread's rules rather than a block.
- *
- * ONE ROW TALL AND IN THE FIRST COLUMN, asked of the cell rather than of the
- * layout's name: the shape is what decides how it is drawn, so a fifth layout
- * with rules in it needs nothing added here.
- * @param cell - The cell as `layoutGlyph` describes it.
- * @returns Whether to draw it as a 3px rule.
- */
-const isRule = (cell: GlyphCell): boolean => cell.row[1] - cell.row[0] === 1 && cell.column[0] === 1
-
-/**
  * One glyph's cells, drawn where the domain says.
+ *
+ * WHICH CELLS ARE RULES IS READ, NOT INFERRED. This function used to decide it
+ * from a cell's geometry — one row tall, in the first column — and `four-up`'s
+ * two left cells match that description, so the Four up button drew two 3px
+ * rules and two blocks where SCREENS.md §2.3's table says "four equal". It
+ * shipped and a browser sweep found it
+ * (`docs/qa/2026-09-19-journey-editor-sweep.md`, EDITOR-002). `GlyphCell.kind`
+ * is now the answer, and `LayoutPicker.test.tsx` compares the rules this
+ * function DRAWS against the rules the domain DECLARES, for every layout —
+ * including the three whose answer is none.
+ *
+ * The 3px height and the last rule's 70% width stay here, because a height is
+ * not a grid line and `layoutGlyphs.ts` carries grid lines.
  * @param layout - The layout whose drawing this is.
  * @returns One element per cell, each positioned by grid line.
  */
 const glyphCells = (layout: PageLayout): React.JSX.Element[] => {
   const glyph = layoutGlyph(layout)
-  const rules = glyph.cells.filter(isRule)
+  const rules = glyph.cells.filter((cell) => cell.kind === 'rule')
 
   return glyph.cells.map((cell, index) => {
-    const rule = isRule(cell) && rules.length > 1
+    const rule = cell.kind === 'rule'
     const last = rule && cell === rules.at(-1)
     return (
       <i

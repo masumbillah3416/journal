@@ -30,12 +30,26 @@ describe('layoutGlyph', () => {
     expect(glyph.columns).toBe('1.45fr 1fr')
     expect(glyph.rows).toBe('1fr 1fr')
     expect(glyph.cells).toHaveLength(3)
-    expect(glyph.cells[0]).toEqual({ column: [1, 2], row: [1, 3] })
+    expect(glyph.cells[0]).toEqual({ column: [1, 2], row: [1, 3], kind: 'block' })
   })
 
   it('draws full bleed as exactly one cell, so it cannot look like four up', () => {
     expect(layoutGlyph('full-bleed').cells).toHaveLength(1)
     expect(layoutGlyph('four-up').cells).toHaveLength(4)
+  })
+
+  it('says which cells are rules, so no other layout can be drawn as one by accident', () => {
+    // THE CASE THAT WAS MISSING, and the defect it lets through was drawn on
+    // screen: `LayoutPicker` used to INFER "this is a 3px rule" from a cell's
+    // shape — one row tall, first column — and `four-up`'s two left cells match
+    // that, so the Four up button drew two rules and two blocks instead of four
+    // equal cells (docs/qa/2026-09-19-journey-editor-sweep.md, EDITOR-002).
+    // The zero side is the half that was never asserted.
+    const rules = Object.fromEntries(
+      LAYOUTS.map((layout) => [layout, layoutGlyph(layout).cells.filter((cell) => cell.kind === 'rule').length]),
+    )
+
+    expect(rules).toEqual({ 'three-up': 0, 'four-up': 0, 'full-bleed': 0, 'text-spread': 3 })
   })
 
   it('draws text spread with three rules beside one block', () => {
