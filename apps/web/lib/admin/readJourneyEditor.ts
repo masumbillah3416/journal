@@ -11,6 +11,13 @@
  * about, in order, and takes the same reading again with two more pages in the
  * journey.
  *
+ * STILL THREE AFTER TASK 6. The Notes pane edits journey-level columns —
+ * `highlights`, `note`, `tally` and `furniture` are on `journeys`, not on
+ * `pages` (DATA_MODEL.md) — so they are SELECTED in the journey read rather than
+ * fetched by a read of their own. The `select` below is wider than the rail
+ * needs and the query count is unchanged, which is the trade CLAUDE.md §7 asks
+ * for in both directions: fetch narrowly, and never one query per screen part.
+ *
  * ═══ IT READS DRAFTS, AND THAT IS THE WHOLE POINT OF THE SCREEN ═══
  *
  * `journeys` and `pages` both carry `versions: { drafts: true }`, and Payload
@@ -93,7 +100,10 @@
  *
  * PATTERNS (CLAUDE.md §3.3): Repository — one module owns how this screen's
  * data is fetched and shaped, and no component sees a Payload document. DTO:
- * {@link JourneyEditorView} is the screen's shape, not three collections'.
+ * {@link JourneyEditorView} is the screen's shape, not three collections'. Its
+ * `notes` field is `notesMutations.ts`'s own {@link JourneyNotes} rather than a
+ * second interface, so the shape the pane RENDERS and the shape it SAVES cannot
+ * drift apart.
  *
  * INVARIANT — `pages` is ascending by `order` and never empty for a journey the
  * admin made, because `pageMutations.ts` refuses to delete the last page. It
@@ -101,15 +111,21 @@
  * as a rail with no cards rather than throwing.
  * Depends on: `clipDuration` (@travel-diary/domain/gallery), `PageLayout`
  * (@travel-diary/domain/admin/layoutGlyphs), `RailPage`
- * (@travel-diary/domain/admin/pageRail), the id brands (@travel-diary/domain/ids),
- * `payload` (types), `AdminScope` (./adminScope).
+ * (@travel-diary/domain/admin/pageRail), `Highlight`
+ * (@travel-diary/domain/admin/highlights), `TALLY_ROWS`/`TallyCell`/
+ * `WeatherGlyph` (@travel-diary/domain/bookBundle), the id brands
+ * (@travel-diary/domain/ids), `payload` (types), `AdminScope` (./adminScope),
+ * `JourneyNotes` (./notesMutations).
  */
+import type { Highlight } from '@travel-diary/domain/admin/highlights'
 import { type PageLayout } from '@travel-diary/domain/admin/layoutGlyphs'
 import type { RailPage } from '@travel-diary/domain/admin/pageRail'
+import { TALLY_ROWS, type TallyCell, type WeatherGlyph } from '@travel-diary/domain/bookBundle'
 import { clipDuration } from '@travel-diary/domain/gallery'
 import { isRowId, journeyId, mediaId, pageId, rowId, type JourneyId, type MediaId } from '@travel-diary/domain/ids'
 import type { Payload } from 'payload'
 import type { AdminScope } from './adminScope'
+import type { JourneyNotes } from './notesMutations'
 
 /**
  * One card in the rail, plus the layout the picker draws as active.
@@ -155,6 +171,19 @@ export interface JourneyEditorView {
   readonly name: string
   /** Where the journey went, which the screen's crumb prints. */
   readonly place: string
+  /**
+   * Everything SCREENS.md §2.3's Notes pane draws.
+   *
+   * THE SAME SHAPE THE SAVE TAKES — `notesMutations.ts`'s {@link JourneyNotes},
+   * not a second interface. A field the pane could render and not save, or save
+   * and not render, would need two shapes to exist; one shape means adding a
+   * field is one edit.
+   *
+   * It is JOURNEY-LEVEL and is carried whatever page is selected: `highlights`,
+   * `note`, `tally` and `furniture` are columns on `journeys`, not on `pages`
+   * (DATA_MODEL.md), and the read is the same read either way.
+   */
+  readonly notes: JourneyNotes
   /** The rail's cards, ascending by `order`. */
   readonly pages: readonly EditorPage[]
   /** The pool's tiles, in the library's own order. */
@@ -171,6 +200,87 @@ export interface JourneyEditorView {
  * say which side of the line it wants (`readJourneysScreen.ts` says the same).
  */
 const LIVE = { deletedAt: { exists: false } } as const
+
+/**
+ * A text column as the pane's input needs it.
+ *
+ * EVERY ONE OF THESE COLUMNS IS NULLABLE, and a `<input value={undefined}>` is
+ * an uncontrolled input rather than an empty one — so the read answers `''`
+ * here and the pane never has to.
+ * @param value - The column as Payload returned it.
+ * @returns Its text, or the empty string.
+ */
+const textOf = (value: string | null | undefined): string => value ?? ''
+
+/**
+ * An array field's rows.
+ *
+ * Payload answers `[]` for an array field with no rows rather than `null`, so
+ * the fallback is unreachable against today's collection — it is written rather
+ * than cast because the generated type allows `null` and a future `select` or
+ * `depth` could produce one. `pageMutations.ts` carries the same helper with
+ * the same reason.
+ * @param value - The array field as the row held it.
+ * @returns Its rows.
+ */
+const rowsOf = <Value>(value: readonly Value[] | null | undefined): readonly Value[] =>
+  /* c8 ignore next -- see above: Payload answers `[]`, never null or undefined */
+  value ?? []
+
+/**
+ * Which glyph the weather card draws as pressed.
+ *
+ * The column is a `select` with a `'sun'` default, so Payload fills it on every
+ * create and the fallback is for a row written before that default existed
+ * rather than for a value the pane can produce — and `'sun'` is what the schema
+ * would have given it.
+ * @param glyph - The column as Payload returned it.
+ * @returns The glyph.
+ */
+const glyphOf = (glyph: WeatherGlyph | null | undefined): WeatherGlyph =>
+  /* c8 ignore next -- see above: the schema default fills this on every create */
+  glyph ?? 'sun'
+
+/**
+ * The highlight rows, each carrying the id its `×` and its grip address.
+ *
+ * BY ID, NEVER BY POSITION (CLAUDE.md §0.9): Payload's own array-row id is what
+ * the pane posts back, so the control acts on the row the author pressed rather
+ * than on whichever row is now in that slot.
+ * @param rows - The `highlights` array as Payload returned it.
+ * @returns The rows, in the order they are stored.
+ */
+const highlightsOf = (
+  rows: readonly { readonly text: string; readonly id?: string | null }[] | null | undefined,
+): readonly Highlight[] =>
+  rowsOf(rows).flatMap((row, index): readonly Highlight[] => {
+    const id = row.id
+    // Payload's Postgres adapter mints an id for every array row, so this arm
+    // is unreachable; the generated type allows `null`, and the answer is a
+    // position rather than a dropped row, because dropping it would hide a
+    // line the author wrote.
+    /* c8 ignore next */
+    if (typeof id !== 'string' || id === '') return [{ id: `row-${String(index)}`, text: row.text }]
+    return [{ id, text: row.text }]
+  })
+
+/**
+ * The tally ticket, always `TALLY_ROWS` cells.
+ *
+ * A FIXED GRID, NOT A LIST. `apps/web/collections/journeys.ts` sets `minRows`
+ * AND `maxRows`, and SCREENS.md §2.3's pane draws four rows whatever the journey
+ * holds — so a journey stored before that rule, or one created by a path that
+ * wrote none, still gets four inputs rather than a pane the author cannot fill.
+ * @param rows - The `tally` array as Payload returned it.
+ * @returns Exactly `TALLY_ROWS` cells.
+ */
+const tallyOf = (
+  rows: readonly { readonly key?: string | null; readonly value?: string | null }[] | null | undefined,
+): readonly TallyCell[] =>
+  Array.from({ length: TALLY_ROWS }, (_unused, index) => {
+    const cell = rowsOf(rows)[index]
+    return { key: textOf(cell?.key), value: textOf(cell?.value) }
+  })
 
 /**
  * A page's layout, narrowed to one the picker offers.
@@ -232,7 +342,23 @@ export const readJourneyEditor = async (
     draft: true,
     limit: 1,
     pagination: false,
-    select: { name: true, place: true },
+    // WIDER THAN THE RAIL NEEDS, AND STILL ONE QUERY. Task 6's Notes pane edits
+    // journey-level columns, so they are selected here rather than read again:
+    // `readJourneyEditor.integration.test.ts` pins the query count at three,
+    // and a second read for the pane would fail it.
+    select: {
+      name: true,
+      place: true,
+      slug: true,
+      dates: true,
+      weather: true,
+      mood: true,
+      weatherGlyph: true,
+      highlights: true,
+      note: true,
+      tally: true,
+      furniture: true,
+    },
     where: { and: [{ id: { equals: row } }, LIVE] },
   })
   const journey = found.docs[0]
@@ -312,6 +438,21 @@ export const readJourneyEditor = async (
     id: branded.value,
     name: journey.name,
     place: journey.place,
+    notes: {
+      name: journey.name,
+      dates: journey.dates,
+      weather: textOf(journey.weather),
+      mood: textOf(journey.mood),
+      weatherGlyph: glyphOf(journey.weatherGlyph),
+      highlights: highlightsOf(journey.highlights),
+      note: textOf(journey.note),
+      tally: tallyOf(journey.tally),
+      signoff: textOf(journey.furniture?.signoff),
+      stampCountry: textOf(journey.furniture?.stampCountry),
+      stampValue: textOf(journey.furniture?.stampValue),
+      accent: textOf(journey.furniture?.accent),
+      slug: journey.slug,
+    },
     pages: railPages,
     pool,
     inBook: pool.filter((item) => item.inBook).length,

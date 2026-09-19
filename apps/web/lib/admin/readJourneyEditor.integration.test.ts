@@ -21,6 +21,7 @@
  * Depends on: vitest, payload (types), sharp (the pool fixture's bytes),
  * @travel-diary/domain/ids, ../testPayload, ./adminScope, ./readJourneyEditor.
  */
+import { TALLY_ROWS } from '@travel-diary/domain/bookBundle'
 import { journeyId, userId, type JourneyId, type UserId } from '@travel-diary/domain/ids'
 import type { Payload } from 'payload'
 import sharp from 'sharp'
@@ -237,6 +238,106 @@ describe('readJourneyEditor', () => {
     const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
 
     expect(view?.name).toBe(`${MARKER} journeydraft, renamed in a draft`)
+  })
+
+  it('carries every field the Notes pane edits, so the pane renders what the database holds', async () => {
+    const { journey } = await aJourneyWithPages('notes', ['Notes'])
+    await payload.update({
+      collection: 'journeys',
+      id: journey,
+      ...scope,
+      data: {
+        weather: 'CLEAR 14C',
+        mood: 'WIDE EYED',
+        weatherGlyph: 'haze',
+        highlights: [{ text: 'First train at 05:40' }],
+        note: 'Tokyo is loud in a way that never quite becomes noise.',
+        tally: [
+          { key: 'Days', value: '12' },
+          { key: 'Trains', value: 'plenty' },
+          { key: 'Tarts', value: '19' },
+          { key: 'Rain', value: 'uncounted' },
+        ],
+        furniture: {
+          signoff: 'twelve days, one corner of it',
+          stampCountry: 'NIPPON',
+          stampValue: '120',
+          accent: '#a06b3e',
+        },
+      },
+    })
+
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+
+    expect({ ...view?.notes, highlights: view?.notes.highlights.map((row) => row.text) }).toEqual({
+      name: `${MARKER} notes`,
+      dates: '12 – 24 March 2025',
+      weather: 'CLEAR 14C',
+      mood: 'WIDE EYED',
+      weatherGlyph: 'haze',
+      highlights: ['First train at 05:40'],
+      note: 'Tokyo is loud in a way that never quite becomes noise.',
+      tally: [
+        { key: 'Days', value: '12' },
+        { key: 'Trains', value: 'plenty' },
+        { key: 'Tarts', value: '19' },
+        { key: 'Rain', value: 'uncounted' },
+      ],
+      signoff: 'twelve days, one corner of it',
+      stampCountry: 'NIPPON',
+      stampValue: '120',
+      accent: '#a06b3e',
+      slug: `${MARKER}-notes`,
+    })
+  })
+
+  it('gives each highlight the id its × and its grip address, rather than a position', async () => {
+    const { journey } = await aJourneyWithPages('hlids', ['Notes'])
+    await payload.update({
+      collection: 'journeys',
+      id: journey,
+      ...scope,
+      data: { highlights: [{ text: 'one' }, { text: 'two' }] },
+    })
+
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+    const ids = (view?.notes.highlights ?? []).map((row) => row.id)
+
+    expect(new Set(ids).size === ids.length && ids.every((id) => id.length > 0)).toBe(true)
+  })
+
+  it('draws the tally as a fixed grid, so a journey that stored none still has its cells', async () => {
+    const { journey } = await aJourneyWithPages('notally', ['Notes'])
+
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+
+    expect(view?.notes.tally).toEqual(Array.from({ length: TALLY_ROWS }, () => ({ key: '', value: '' })))
+  })
+
+  it('answers a journey with nothing typed into it with empty strings, never with undefined', async () => {
+    const { journey } = await aJourneyWithPages('blank', ['Notes'])
+
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+
+    expect({
+      weather: view?.notes.weather,
+      mood: view?.notes.mood,
+      weatherGlyph: view?.notes.weatherGlyph,
+      note: view?.notes.note,
+      signoff: view?.notes.signoff,
+      stampCountry: view?.notes.stampCountry,
+      stampValue: view?.notes.stampValue,
+      highlights: view?.notes.highlights,
+    }).toEqual({
+      weather: '',
+      mood: '',
+      weatherGlyph: 'sun',
+      note: '',
+      signoff: '',
+      stampCountry: '',
+      stampValue: '',
+      highlights: [],
+    })
   })
 
   it('names the journey the rail’s eyebrow prints', async () => {
