@@ -64,12 +64,14 @@
  * `slotRolesFor(page.kind)`.
  * Depends on: zod, `payload` (types), `FocalPoint`
  * (@travel-diary/domain/admin/focalPoint), `HIGHEST_SLOT_CELL`/`slotRolesFor`
- * (@travel-diary/domain/admin/pageSlots), `isRowId` (@travel-diary/domain/ids),
+ * (@travel-diary/domain/admin/pageSlots), `SlotRole`
+ * (@travel-diary/domain/bookBundle), `isRowId` (@travel-diary/domain/ids),
  * `AdminScope` (./adminScope), `writePageFields`/`SlotRows`
  * (./pageMutations), `Page` (../../payload-types).
  */
 import type { FocalPoint } from '@travel-diary/domain/admin/focalPoint'
 import { HIGHEST_SLOT_CELL, slotRolesFor } from '@travel-diary/domain/admin/pageSlots'
+import type { SlotRole } from '@travel-diary/domain/bookBundle'
 import { isRowId } from '@travel-diary/domain/ids'
 import type { Payload } from 'payload'
 import { z } from 'zod'
@@ -220,8 +222,8 @@ export const readSlotRef = (form: FormData): SlotRef => {
  * @param role - What part the cell plays.
  * @returns An empty row, centred.
  */
-const emptyCell = (role: SlotRow['role']): SlotRow => ({
-  role: role ?? null,
+const emptyCell = (role: SlotRole): SlotRow => ({
+  role,
   media: null,
   caption: null,
   alt: null,
@@ -242,16 +244,25 @@ const emptyCell = (role: SlotRow['role']): SlotRow => ({
 const patchedSlots = (
   doc: Page,
   cell: number,
-  roles: readonly SlotRow['role'][],
+  roles: readonly SlotRole[],
+  role: SlotRole,
   patch: (row: SlotRow) => SlotRow,
 ): SlotRows => {
-  const rows: SlotRows = [...(doc.slots ?? [])]
-  while (rows.length <= cell) rows.push(emptyCell(roles[rows.length]))
-  // `noUncheckedIndexedAccess` cannot see that the loop above guarantees this,
-  // and CLAUDE.md §0.8 bans the `!` that would hide it.
+  // Payload answers `[]` for an array field with no rows, never null or
+  // undefined, so the fallback is unreachable — written rather than cast
+  // because the generated type allows one, exactly as `pageMutations.ts`'s
+  // `rowsOf` does. The directive is on its own line and NOT inside the block
+  // above, because the scanner reads `c8 ignore next` line by line and does
+  // not see it inside a comment that wraps (measured: it reported this line
+  // uncovered until the directive was moved out).
   /* c8 ignore next */
-  const current = rows[cell] ?? emptyCell(roles[cell])
-  rows[cell] = patch({ ...current, role: roles[cell] ?? current.role ?? null })
+  const rows: SlotRows = [...(doc.slots ?? [])]
+  // PADDED FROM THE TABLE'S OWN SLICE rather than by indexing it per step: the
+  // cells between what is stored and the one being written are all inside
+  // `roles` (the caller has already refused a cell past its end), and a slice
+  // says so to the type system where an index does not.
+  for (const padded of roles.slice(rows.length, cell)) rows.push(emptyCell(padded))
+  rows[cell] = patch({ ...(rows[cell] ?? emptyCell(role)), role })
   return rows
 }
 
@@ -278,11 +289,14 @@ const writeSlot = async (
   const roles = slotRolesFor(live.kind)
   // THE SECOND OF THE TWO CELL CHECKS — see this module's header. The parse
   // knows what any pane draws; only a read knows what THIS page's pane draws.
-  if (cell >= roles.length) {
+  // Asked as "what part does this cell play?" rather than as a length
+  // comparison, because the answer is what the write needs next.
+  const role = roles[cell]
+  if (role === undefined) {
     throw new Error(`a ${live.kind} page does not draw cell ${String(cell)}`)
   }
 
-  await writePageFields(payload, scope, live, (doc) => ({ slots: patchedSlots(doc, cell, roles, patch) }))
+  await writePageFields(payload, scope, live, (doc) => ({ slots: patchedSlots(doc, cell, roles, role, patch) }))
 }
 
 /**
@@ -381,5 +395,15 @@ export const setSlotTextRow = async (
  * await clearSlotRow(payload, scope, 7, 2)
  */
 export const clearSlotRow = async (payload: Payload, scope: AdminScope, page: number, cell: number): Promise<void> => {
-  await writeSlot(payload, scope, page, cell, (row) => ({ ...emptyCell(row.role), id: row.id ?? null }))
+  // EMPTIED FIELD BY FIELD RATHER THAN REPLACED BY AN EMPTY ROW: the row keeps
+  // its own Payload array-row id and its role, so Payload updates it in place
+  // instead of dropping one row and inserting another at the same position.
+  await writeSlot(payload, scope, page, cell, (row) => ({
+    ...row,
+    media: null,
+    caption: null,
+    alt: null,
+    focalX: 50,
+    focalY: 50,
+  }))
 }

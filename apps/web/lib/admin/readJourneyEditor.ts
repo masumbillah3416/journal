@@ -444,6 +444,22 @@ interface PoolRow {
 }
 
 /**
+ * The media row a slot names, as a row id.
+ *
+ * Every read in this module is `depth: 0`, so Payload hands back a bare id —
+ * but the generated type still allows the whole document, and a cast that
+ * guessed wrong would resolve every slot to nothing rather than fail.
+ * `pageMutations.ts`'s `journeyOf` is the same guard one collection along.
+ * @param media - The `slots[].media` field as Payload returned it.
+ * @returns The row id, or `undefined` for a cell with no photograph.
+ */
+const mediaRowOf = (media: number | { readonly id: number } | null | undefined): number | undefined => {
+  if (typeof media === 'number') return media
+  /* c8 ignore next -- unreachable at `depth: 0`; see above */
+  return media?.id
+}
+
+/**
  * Every cell of one page's editing pane, whether or not the row holds anything
  * in it.
  *
@@ -487,7 +503,7 @@ const slotsOf = (
 ): readonly EditorSlot[] =>
   slotRolesFor(kind).map((role, cell): EditorSlot => {
     const row = rows[cell]
-    const numeric = typeof row?.media === 'number' ? row.media : (row?.media?.id ?? undefined)
+    const numeric = mediaRowOf(row?.media)
     const item = numeric === undefined ? undefined : pool.get(numeric)
     const branded = numeric === undefined ? undefined : mediaId(String(numeric))
 
@@ -592,9 +608,14 @@ export const readJourneyEditor = async (
   // BUILT BEFORE THE RAIL, because the rail's cells read it. It is the same
   // `media.docs` the pool tiles below are built from — one query, two readers.
   const poolRows = new Map<number, PoolRow>(
-    media.docs.flatMap((item) =>
-      isRowId(item.id) ? [[item.id, { sizes: item.sizes, loops: item.kind === 'clip' }]] : [],
-    ),
+    media.docs.flatMap((item) => {
+      // The same guard, and the same unreachability, as the pool's own loop
+      // below: `media` carries no `versions` block, so it has no orphans to
+      // drop, and one function has one spelling of "is this a row".
+      /* c8 ignore next */
+      if (!isRowId(item.id)) return []
+      return [[item.id, { sizes: item.sizes, loops: item.kind === 'clip' }]]
+    }),
   )
 
   const railPages = pages.docs.flatMap((page): readonly EditorPage[] => {
