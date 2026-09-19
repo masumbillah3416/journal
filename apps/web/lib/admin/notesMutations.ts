@@ -59,15 +59,25 @@
  *
  * INVARIANT — {@link readNotes} never answers more than `MAX_HIGHLIGHTS`
  * highlights or other than `TALLY_ROWS` tally cells, which are the two numbers
- * `apps/web/collections/journeys.ts` enforces. A save that reached Payload
- * outside either would be refused there, with an error naming a row index
- * rather than a field.
+ * `apps/web/collections/journeys.ts` enforces. Both halves are refused by the
+ * schema below and both have a case on each side of them. The highlight half
+ * was NOT until a review found this sentence half true: `addHighlight` capped
+ * the `add` button and the collection capped the write, and a body carrying
+ * five pairs and no `op` went between them and came back as a Payload
+ * validation error naming a row index — on a pane that draws no error at all
+ * (`docs/deviations.md` §60).
  * Depends on: zod, `payload` (types), `Highlight`/`MAX_HIGHLIGHTS` and the three
  * list operations (@travel-diary/domain/admin/highlights), `TallyCell`/
  * `TALLY_ROWS`/`WeatherGlyph`/`WEATHER_GLYPHS` (@travel-diary/domain/bookBundle),
  * `isRowId` (@travel-diary/domain/ids), `AdminScope` (./adminScope).
  */
-import { addHighlight, moveHighlight, removeHighlight, type Highlight } from '@travel-diary/domain/admin/highlights'
+import {
+  addHighlight,
+  MAX_HIGHLIGHTS,
+  moveHighlight,
+  removeHighlight,
+  type Highlight,
+} from '@travel-diary/domain/admin/highlights'
 import { TALLY_ROWS, WEATHER_GLYPHS, type TallyCell, type WeatherGlyph } from '@travel-diary/domain/bookBundle'
 import { isRowId } from '@travel-diary/domain/ids'
 import type { Payload } from 'payload'
@@ -224,6 +234,16 @@ const NOTES = z
   })
   .refine((posted) => posted.highlightIds.length === posted.highlightTexts.length, {
     message: 'the highlight rows do not line up',
+  })
+  // CAPPED HERE TOO, NOT ONLY AT THE `add` BUTTON. `addHighlight` refuses the
+  // fifth row a button can produce, and `apps/web/collections/journeys.ts`
+  // refuses the fifth row a write can carry — but between them sat a body with
+  // five pairs and no `op`, which is what a crafted `POST` sends and what a
+  // second tab sends when another tab has added a line. It parsed, and Payload
+  // answered with a `maxRows` error naming a row index, on a pane that draws no
+  // error at all. `<=`, because this is the same cap and not a second one.
+  .refine((posted) => posted.highlightIds.length <= MAX_HIGHLIGHTS, {
+    message: `at most ${String(MAX_HIGHLIGHTS)} highlights`,
   })
   .refine((posted) => posted.tallyKeys.length === posted.tallyValues.length, {
     message: 'the tally cells do not line up',

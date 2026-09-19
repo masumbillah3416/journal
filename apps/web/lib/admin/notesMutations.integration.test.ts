@@ -328,6 +328,26 @@ describe('readNotes', () => {
     expect(notes.highlights.map((row) => row.id)).toEqual(['one', 'three', 'two'])
   })
 
+  it('refuses a highlight list longer than the cap, which the pane can never draw but a POST can send', () => {
+    // THE SYMMETRIC TWIN OF `refuses one cell more than the ticket has`. The
+    // `add` button cannot produce this — `addHighlight` refuses at the cap — but
+    // a crafted body can, and so can a second tab whose form was rendered before
+    // another tab added a line. Without this the five pairs parse cleanly, reach
+    // Payload, and come back as a `maxRows` validation error naming a row index,
+    // on a page that draws no error at all.
+    const five = ['a', 'b', 'c', 'd', 'e']
+
+    expect(() => readNotes(aNotesForm({ highlightId: five, highlightText: five }))).toThrow()
+  })
+
+  it('accepts a list exactly at the cap, so the refusal above is a cap and not a ceiling of its own', () => {
+    const atTheCap = Array.from({ length: MAX_HIGHLIGHTS }, (_unused, index) => String(index))
+
+    expect(readNotes(aNotesForm({ highlightId: atTheCap, highlightText: atTheCap })).notes.highlights).toHaveLength(
+      MAX_HIGHLIGHTS,
+    )
+  })
+
   it('accepts exactly the number of tally cells the ticket has', () => {
     const cells = Array.from({ length: TALLY_ROWS }, (_unused, index) => String(index))
 
