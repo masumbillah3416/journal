@@ -38,6 +38,7 @@
  * (the one placement in the diary with no slot to override it), and every
  * field degrading rather than throwing when an editor clears it.
  */
+import type { Slot } from '@travel-diary/domain/bookBundle'
 import { coverCloths } from '@travel-diary/tokens/colour'
 import sharp from 'sharp'
 import { aClip } from './adapters/contract/media-fixtures'
@@ -47,6 +48,8 @@ import { getTestPayload } from './testPayload'
 import { ephemeraMediaIds, galleryFrameWhere } from './galleryFrames'
 import { readBookBundle } from './readBookBundle'
 import { readGalleryBundle } from './readGalleryBundle'
+import { Media } from '../collections/media'
+import type { Media as MediaDoc } from '../payload-types'
 import { seed } from '../scripts/seed'
 import { aboutGlobalSeed, bookGlobalSeed, journeySeeds } from '../scripts/seed-data'
 
@@ -190,9 +193,17 @@ describe('readBookBundle', () => {
     const knownOriginalUrls = new Set([...derivativeUrlsById.values()].map((entry) => entry.original))
 
     for (const slot of slots) {
+      // A CELL WITH NOTHING IN IT IS NOT A LADDER'S ANSWER. `Slot.src` is
+      // `null` for an empty cell, a media row the pipeline has not finished
+      // and a hidden one (Phase 4 Task 7), and none of those is the question
+      // this case asks — which is whether a RESOLVED slot ever names an
+      // original. The seeded book has no such cell, which the count below
+      // keeps honest.
+      if (slot.src === null) continue
       expect(knownOriginalUrls.has(slot.src)).toBe(false)
       expect(knownDerivativeUrls.has(slot.src)).toBe(true)
     }
+    expect(slots.filter((slot) => slot.src !== null).length, 'every seeded slot resolved to nothing').toBeGreaterThan(0)
   })
 
   it('carries the focal point of each slot through, so a portrait is not cropped through the head', async () => {
@@ -871,7 +882,14 @@ describe('readBookBundle', () => {
       const clip = Buffer.from(await aClip())
       const media = await payload.create({
         collection: 'media',
-        data: { kind: 'clip', alt: 'a clip has no image derivative', order: 0 },
+        // `state: 'ready'` IS LOAD-BEARING SINCE PHASE 4 TASK 7. The column
+        // defaults to `'processing'`, and `slotsFor` now answers `src: null`
+        // for a row a reader is not served — so a fixture taking the default
+        // would draw an empty frame and never reach `derivativeUrlFor` at all.
+        // What this case is about is a READY row with no derivative, which is
+        // the one operational mistake the throw exists for: a deploy that
+        // changes `imageSizes` without running `npm run media:rederive`.
+        data: { kind: 'clip', alt: 'a clip has no image derivative', order: 0, state: 'ready' },
         file: { data: clip, mimetype: 'video/mp4', name: 'no-derivative.mp4', size: clip.length },
       })
       const journey = await payload.create({
@@ -898,14 +916,13 @@ describe('readBookBundle', () => {
       })
 
       // CLEANED UP IN A `finally`, AND THE RESTORE IS NOT OPTIONAL. This row
-      // belongs to no journey, so no `afterAll` in this file sweeps it, and it
-      // takes `state`'s `processing` default - which
-      // `../scripts/seed.integration.test.ts` reads as a failure, because that
-      // case counts the states of EVERY media row in the shared test database.
-      // A case that throws before an unconditional delete therefore fails a
-      // different file, in a later run, with a message about the seed. Measured
-      // rather than imagined: it happened during this fix's own mutation
-      // testing.
+      // belongs to no journey, so no `afterAll` in this file sweeps it, and
+      // `../scripts/seed.integration.test.ts` counts the states of EVERY media
+      // row in the shared test database. A case that throws before an
+      // unconditional delete therefore fails a different file, in a later run,
+      // with a message about the seed. Measured rather than imagined: it
+      // happened during an earlier fix's own mutation testing, when this row
+      // took `state`'s `processing` default.
       try {
         await expect(readBookBundle()).rejects.toThrow(/no derivative of any tier/)
       } finally {
@@ -930,7 +947,10 @@ describe('readBookBundle', () => {
         .toBuffer()
       const media = await payload.create({
         collection: 'media',
-        data: { kind: 'still', alt: 'a wide ticket stub', order: 0 },
+        // `state: 'ready'` for the reason the case above gives: an unserved
+        // row draws an empty frame, and this case is about which DERIVATIVE a
+        // served one resolves to.
+        data: { kind: 'still', alt: 'a wide ticket stub', order: 0, state: 'ready' },
         file: { data: wide, mimetype: 'image/png', name: 'wide-ephemera.png', size: wide.length },
       })
       const journey = await payload.create({
@@ -1320,6 +1340,221 @@ describe('readBookBundle', () => {
       const slot = notes?.kind === 'notes' ? notes.slots?.[0] : undefined
 
       expect(slot).toMatchObject({ focalX: 50, focalY: 50 })
+    })
+  })
+
+  describe('a slot whose photograph cannot be served — Phase 3’s withSlots residual', () => {
+    /** What every row this block writes carries, so `afterEach` can find them all. */
+    const RESIDUAL_SLUG = 'test-readbookbundle-unserved-slot'
+
+    /**
+     * The states `apps/web/collections/media.ts` configures, read off the
+     * collection rather than written down.
+     *
+     * AN INVERSION, NOT A LIST (standing orders, species 6). A fourth state
+     * added to the schema is covered by the case below on the commit that adds
+     * it, and what would then have to be thought about is whether the access
+     * rule and the bundle agree about it.
+     * @returns Every option `state` offers.
+     */
+    const configuredStates = (): readonly NonNullable<MediaDoc['state']>[] => {
+      const field = Media.fields.find((candidate) => 'name' in candidate && candidate.name === 'state')
+      if (field === undefined || field.type !== 'select') throw new Error('media has no `state` select any more')
+      return field.options.map((option) => (typeof option === 'string' ? asState(option) : asState(option.value)))
+    }
+
+    /**
+     * One of the schema's `state` options, as the generated type spells it.
+     *
+     * The collection's own options ARE that union — `payload-types.ts` is
+     * generated from this very field — but a `CollectionConfig`'s `options`
+     * are typed as plain strings, so the narrowing has to be asked for rather
+     * than assumed. It REFUSES rather than casts: an option the generated type
+     * does not know about means the two have drifted, which is the thing the
+     * case below exists to catch.
+     * @param option - One of the field's options.
+     * @returns The same value, narrowed.
+     * @throws {Error} When the option is not one the generated type knows.
+     */
+    const asState = (option: string): NonNullable<MediaDoc['state']> => {
+      if (option === 'processing' || option === 'ready' || option === 'failed') return option
+      throw new Error(`media.state offers '${option}', which payload-types.ts does not know about`)
+    }
+
+    /**
+     * Whether a signed-out reader can see a media row at all — which is whether
+     * Payload will serve its bytes at `/api/media/file/<name>` and every
+     * derivative of it.
+     *
+     * THE AUTHORITY, ASKED RATHER THAN RESTATED. `readBookBundle`'s own
+     * predicate is a second spelling of `collections/media.ts`'s `read` rule,
+     * and two spellings of one rule is how one of them drifts. This runs the
+     * real rule, with no user, so the case below compares the bundle against
+     * the thing the bundle is trying to agree with.
+     * @param media - The media row id.
+     * @returns Whether an anonymous read returns it.
+     */
+    const servedToAReader = async (media: number): Promise<boolean> => {
+      const found = await payload.find({
+        collection: 'media',
+        overrideAccess: false,
+        depth: 0,
+        where: { id: { equals: media } },
+      })
+      return found.docs.length === 1
+    }
+
+    /**
+     * A published journey with one published notes page carrying the slots given.
+     *
+     * THE SLOTS ARE WRITTEN DIRECTLY, and the shape is the one
+     * `apps/web/lib/admin/slotMutations.ts`'s `setSlotMediaRow` writes — one
+     * row per cell, padded, never spliced, which its own suite pins. What this
+     * block is about is what `readBookBundle` does with such a row, so the
+     * producer is cited rather than run.
+     * @param slots - The page's slots, in cell order.
+     */
+    const aPageWithSlots = async (
+      slots: readonly { readonly role: 'hero' | 'ephemera' | 'frame'; readonly media?: number }[],
+    ): Promise<void> => {
+      const journey = await payload.create({
+        collection: 'journeys',
+        data: {
+          name: 'Unserved Slot Trip',
+          place: 'Nowhere',
+          slug: RESIDUAL_SLUG,
+          dates: '1 - 2 January 2025',
+          startsOn: '2025-01-01T00:00:00.000Z',
+          _status: 'published',
+        },
+      })
+      await payload.create({
+        collection: 'pages',
+        data: {
+          journey: journey.id,
+          kind: 'notes',
+          title: 'Notes',
+          order: 0,
+          slots: slots.map((slot) => ({ role: slot.role, media: slot.media ?? null, focalX: 50, focalY: 50 })),
+          _status: 'published',
+        },
+      })
+    }
+
+    /**
+     * A media row in one particular state.
+     * @param state - The `state` column's value.
+     * @param label - What distinguishes this row from the others.
+     * @returns The media row id.
+     */
+    const aMediaRowAt = async (state: NonNullable<MediaDoc['state']>, label: string): Promise<number> => {
+      const png = await sharp({ create: { width: 1600, height: 1200, channels: 3, background: '#a34434' } })
+        .png()
+        .toBuffer()
+      const created = await payload.create({
+        collection: 'media',
+        data: { kind: 'still', alt: `${RESIDUAL_SLUG} ${label}`, order: 0, state },
+        file: { data: png, mimetype: 'image/png', name: `${RESIDUAL_SLUG}-${label}.png`, size: png.length },
+      })
+      return created.id
+    }
+
+    /** Removes this block's journey and its pages, between states and after each case. */
+    const removeTheFixture = async (): Promise<void> => {
+      const found = await payload.find({ collection: 'journeys', where: { slug: { equals: RESIDUAL_SLUG } } })
+      for (const doc of found.docs) {
+        const pages = await payload.find({ collection: 'pages', where: { journey: { equals: doc.id } } })
+        for (const page of pages.docs) await payload.delete({ collection: 'pages', id: page.id })
+        await payload.delete({ collection: 'journeys', id: doc.id })
+      }
+    }
+
+    /**
+     * The notes page this block's journey contributes to the book.
+     * @returns Its slots.
+     */
+    const slotsOfTheFixture = async (): Promise<readonly Slot[] | undefined> => {
+      const bundle = await readBookBundle()
+      const notes = bundle.pages.find((page) => page.kind === 'notes' && page.slug === RESIDUAL_SLUG)
+      return notes?.kind === 'notes' ? notes.slots : undefined
+    }
+
+    afterEach(async () => {
+      await removeTheFixture()
+      await payload.delete({ collection: 'media', where: { alt: { like: RESIDUAL_SLUG } } })
+    })
+
+    it('draws an empty frame for a slot whose media is not ready, rather than a src that 403s', async () => {
+      // Not `toBeUndefined()` on the whole slot: dropping the slot is what the
+      // comment in `readBookBundle.ts` says takes the WHOLE BOOK down. The slot
+      // survives with no source.
+      const processing = await aMediaRowAt('processing', 'processing')
+      await aPageWithSlots([{ role: 'hero', media: processing }])
+
+      expect((await slotsOfTheFixture())?.[0]?.src).toBeNull()
+    })
+
+    it('gives a slot a source exactly when a signed-out reader could fetch it', async () => {
+      // THE AGREEMENT, OVER EVERY STATE THE SCHEMA OFFERS. Each side is
+      // produced by a different thing: the left by `collections/media.ts`'s own
+      // `read` rule run with no user, the right by the production mapper. A
+      // fourth state, or a change to either rule, breaks this rather than
+      // leaving the book quietly serving an image that 403s.
+      const states = configuredStates()
+      expect(states.length, 'the media collection offers no states to compare').toBeGreaterThan(0)
+
+      for (const state of states) {
+        const media = await aMediaRowAt(state, state)
+        await aPageWithSlots([{ role: 'hero', media }])
+
+        const served = await servedToAReader(media)
+        const src = (await slotsOfTheFixture())?.[0]?.src
+
+        expect(src !== null, `state ${state}: served=${String(served)} but src=${String(src)}`).toBe(served)
+
+        await removeTheFixture()
+      }
+    })
+
+    it('serves a row whose state is NULL, which is every row written before the column existed', async () => {
+      // THE PERMITTED SIDE OF THE SAME GATE, and the one with the largest
+      // blast radius: `20260910_171154_add_media_state` deliberately did not
+      // backfill (docs/deviations.md §48), so NULL means "ingested before
+      // there was a state to record". A fallback that refused it would take
+      // the whole public diary dark, and every OTHER case in this block would
+      // still pass — the seeded rows are all `ready`.
+      const media = await aMediaRowAt('ready', 'null-state')
+      await payload.update({ collection: 'media', id: media, data: { state: null } })
+      const stored = await payload.findByID({ collection: 'media', id: media, depth: 0 })
+      expect(stored.state, 'the column would not take a NULL, so this case proves nothing').toBeNull()
+      await aPageWithSlots([{ role: 'hero', media }])
+
+      expect((await slotsOfTheFixture())?.[0]?.src).not.toBeNull()
+    })
+
+    it('draws an empty frame for a hidden photograph, which is the other half of the same rule', async () => {
+      const media = await aMediaRowAt('ready', 'hidden')
+      await payload.update({ collection: 'media', id: media, data: { hidden: true } })
+      await aPageWithSlots([{ role: 'hero', media }])
+
+      expect((await slotsOfTheFixture())?.[0]?.src).toBeNull()
+    })
+
+    it('keeps an empty cell, so the photograph after it is not drawn in the frame before', async () => {
+      // THE WHOLE-BOOK COST OF DROPPING THE ROW. `FramesI.tsx` reads
+      // `page.slots?.[position]`, and the admin's Clear empties a cell in place
+      // (`slotMutations.ts`). A `slotsFor` that skipped the empty row would
+      // hand this page's ONE photograph to cell 0 — the author cleared the hero
+      // and the scrap moved into it.
+      const scrap = await aMediaRowAt('ready', 'second-cell')
+      await aPageWithSlots([{ role: 'hero' }, { role: 'ephemera', media: scrap }])
+
+      const slots = await slotsOfTheFixture()
+
+      expect(slots).toHaveLength(2)
+      expect(slots?.[0]?.src).toBeNull()
+      expect(slots?.[1]?.role).toBe('ephemera')
+      expect(slots?.[1]?.src).not.toBeNull()
     })
   })
 })

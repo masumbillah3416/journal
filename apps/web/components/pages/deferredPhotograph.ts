@@ -21,6 +21,14 @@
  * React does exactly that the moment the leaf enters the window — one
  * attribute change, no remount, so the element keeps its box and its focal
  * point across the swap.
+ *
+ * IT STANDS IN FOR A SECOND THING SINCE PHASE 4 TASK 7, and for the same
+ * reason. `Slot.src` is `null` for a cell with nothing in it, for a media row
+ * the pipeline has not finished and for a hidden one — and all three want
+ * exactly what a deferred photograph wants: this element keeps its box, its
+ * shape and its place in the layout, and fetches nothing. The difference is
+ * that an empty cell never swaps back, which is why `Photograph.tsx` publishes
+ * a `data-empty` handle: the two states draw the same pixels.
  * Depends on nothing.
  */
 
@@ -28,6 +36,6 @@
  * A fully transparent 1x1 GIF, as a `data:` URL.
  *
  * @example
- * <img src={loadsImages ? slot.src : DEFERRED_PHOTOGRAPH_SRC} alt={slot.alt} />
+ * <img src={loadsImages && slot.src !== null ? slot.src : DEFERRED_PHOTOGRAPH_SRC} alt={slot.alt} />
  */
 export const DEFERRED_PHOTOGRAPH_SRC = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'

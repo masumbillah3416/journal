@@ -76,6 +76,7 @@ import type {
 import { fitMobileTitleSize } from '@travel-diary/domain/coverTitle'
 import { galleryPath, pagePath } from '@travel-diary/domain/pageAddress'
 import type React from 'react'
+import { DEFERRED_PHOTOGRAPH_SRC } from '../pages/deferredPhotograph'
 import styles from './mobile.module.css'
 
 /** What one mobile page needs to render itself. */
@@ -125,8 +126,15 @@ const Mount = ({ slot }: { readonly slot: Slot }): React.JSX.Element => (
     <img
       className={styles.photo}
       data-photo={slot.role}
-      src={slot.src}
-      alt={slot.alt}
+      // AN EMPTY CELL KEEPS ITS MOUNT — the reading mode's own copy of
+      // `Photograph.tsx`'s decision, and it has to be a copy: this file draws
+      // a plain `<img>` rather than that component, because the mobile route
+      // has no image window to look a leaf up in. `Slot.src` is `null` for a
+      // cell with nothing in it, for a media row the pipeline has not finished
+      // and for a hidden one; all three would otherwise be a `src` that 403s.
+      data-empty={slot.src === null ? '' : undefined}
+      src={slot.src ?? DEFERRED_PHOTOGRAPH_SRC}
+      alt={slot.src === null ? '' : slot.alt}
       decoding="async"
       // The slot's own focal point for THIS placement, which is the whole
       // point of the admin's picker (DATA_MODEL.md). Inline because it is
@@ -327,10 +335,16 @@ const MobileJourney = ({
 
       <div aria-hidden="true" className={styles.ruleWide} />
 
-      {photos.map((slot) => (
-        // Keyed by the derivative it shows: a slot has no id of its own on
-        // the bundle, and two mounts on one page never share a photograph.
-        <Mount key={slot.src} slot={slot} />
+      {photos.map((slot, cell) => (
+        // KEYED BY THE CELL, NOT BY THE DERIVATIVE. It was `slot.src`, on the
+        // reasoning that two mounts on one page never share a photograph —
+        // true of the photographs and false of the EMPTY cells, which all
+        // carry `src: null` since Phase 4 Task 7 gave a cleared slot a row of
+        // its own. Two of them on one page is two children under the key
+        // `null`. A slot has no id on the bundle; its cell is its identity
+        // here, which is the same reading `@travel-diary/domain/admin/pageSlots`
+        // states and `FramesI.tsx` already relies on.
+        <Mount key={cell} slot={slot} />
       ))}
 
       <a data-gallery-link="" className={styles.galleryButton} href={galleryPath(page.slug, leafIndex)}>

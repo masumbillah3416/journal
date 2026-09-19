@@ -1183,15 +1183,18 @@ by both, deliberately.** `20260910_171154_add_media_state` did not backfill
 to record — every such row was written by the seed or by hand, none by a pipeline, so none can
 be an un-stripped original a pipeline abandoned. Withholding them would take an existing store's
 whole diary dark to close a hole they cannot be in. The day a backfill lands, that arm goes with
-it. **(5) ONE RESIDUAL, NAMED WITH ITS OWNER RATHER THAN LEFT TO BE FOUND.** `readBookBundle`'s
-slot-resolution query filters neither `hidden` nor `state`, so a row an author has PLACED IN A
-BOOK SLOT still reaches the bundle with a `src`. It discloses no bytes — the file route is
-gated, so the image simply does not load — and it is the standing behaviour `hidden` has always
-had there rather than anything Phase 3 introduced. Filtering that query is the wrong fix: a slot
-resolving to nothing makes `withSlots` throw, so one unfinished upload would take the whole
-diary down rather than leave one frame empty. The right fix, if it is ever worth making, is a
-fallback in `withSlots` so an unreadable slot draws an empty frame — written at the query
-itself, and owned by no phase: whoever next needs a `failed` row to render gracefully owns it. `inline`
+it. **(5) THE RESIDUAL THIS ROW NAMED IS CLOSED (Phase 4 Task 7).** `readBookBundle`'s
+slot-resolution query still filters neither `hidden` nor `state`, and still should not: a slot
+resolving to nothing makes `withSlots` drop the cell, which moves every photograph after it one
+frame earlier and, before the cell was allowed to be empty, took the page's whole slot list with
+it. The fix this row asked for is the one that landed — a fallback in `withSlots`, written at the
+query itself. `slotsFor` now keeps the cell and answers `src: null` whenever the row's bytes are
+not served to a signed-out reader, which is the SAME predicate this collection's `read` access
+applies; `readBookBundle.integration.test.ts` compares the two directly, for every `state` the
+schema offers, rather than restating the rule. So a `hidden` or non-`ready` row in a book slot
+now reaches the reader as an empty frame rather than as a `src` that 403s. It became ownable
+because Phase 4 Task 7 built the control that CREATES the state: the journey editor's pool lets
+a still-processing upload be put into a frame. `inline`
 produces no unfinished row for either filter to cover: it creates the row in one `payload.create`
 at `state: 'ready'` and a refusal creates none, so `processing` and `failed` are `worker`'s alone.
 This paragraph claimed a crashed `inline` upload left a `processing` row, which the code cannot

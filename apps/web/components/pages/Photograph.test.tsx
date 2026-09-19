@@ -122,6 +122,35 @@ describe('Photograph', () => {
     expect(img.className).toBe('heroPhoto')
   })
 
+  it('draws an empty cell as a box that fetches nothing, keeping its place in the layout', () => {
+    // `Slot.src` is `null` for three states: a cell with nothing in it, a
+    // media row the pipeline has not finished, and a hidden one. Phase 3
+    // recorded the last two as an open residual — a `src` in the bundle that
+    // 403s — and this is the element that has to draw it. A 1x1 transparent
+    // GIF is a complete, valid image that provably costs no network request,
+    // because there is no network in it.
+    const host = renderPhotograph(aPhotograph({ src: null }))
+
+    const img = image(host)
+    expect(img.getAttribute('src')).toBe(DEFERRED_PHOTOGRAPH_SRC)
+    expect(img.hasAttribute('data-empty')).toBe(true)
+    expect(img.style.objectPosition).toBe('40% 70%')
+  })
+
+  it('announces nothing for an empty cell, so no reader is told about a photograph that is absent', () => {
+    const host = renderPhotograph(aPhotograph({ src: null }))
+
+    expect(image(host).getAttribute('alt')).toBe('')
+  })
+
+  it('does not mark a real photograph as empty, so the handle tells the two apart', () => {
+    // THE SENTINEL for the two cases above: an attribute set unconditionally
+    // would satisfy both while telling a browser gate nothing.
+    const host = renderPhotograph(aPhotograph())
+
+    expect(image(host).hasAttribute('data-empty')).toBe(false)
+  })
+
   it('publishes the hero handle that the browser suites and the visual gates select on', () => {
     const host = renderPhotograph(aPhotograph({ role: 'hero' }))
 

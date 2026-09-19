@@ -197,7 +197,10 @@ type SelectedAboutGlobal = Pick<PayloadAbout, 'portrait' | 'portraitCaption' | '
  * `focalY` are read for the About portrait alone - see this module's header
  * for why that one photograph has no slot to carry them.
  */
-type SelectedMediaDoc = Pick<PayloadMedia, 'id' | 'sizes' | 'alt' | 'caption' | 'focalX' | 'focalY'>
+type SelectedMediaDoc = Pick<
+  PayloadMedia,
+  'id' | 'sizes' | 'alt' | 'caption' | 'focalX' | 'focalY' | 'state' | 'hidden'
+>
 
 /**
  * The slice of Payload's own logger this module writes to - a minimal,
@@ -371,31 +374,76 @@ const galleryCountsByJourney = (census: readonly CensusMediaDoc[]): ReadonlyMap<
 const NO_GALLERY: GalleryCounts = { photographs: 0, clips: 0 }
 
 /**
+ * Whether a signed-out reader is served this media row's bytes.
+ *
+ * ═══ THE SAME RULE `collections/media.ts` APPLIES, ASKED OF A DOCUMENT ═══
+ *
+ * That collection's `read` access withholds a `hidden` row and a row whose
+ * `state` is neither `ready` nor NULL from an anonymous request - and Payload
+ * applies it to `/api/media/file/<name>` and every derivative, which is the URL
+ * the diary's own `<img>` tags resolve to. So a slot resolving to such a row
+ * puts a `src` in the bundle that 403s.
+ *
+ * **NULL IS SERVED, AND THAT IS NOT AN OVERSIGHT** - it is the access rule's
+ * own clause, for the reason written there: `20260910_171154_add_media_state`
+ * deliberately did not backfill, so NULL means "ingested before there was a
+ * state to record", which is every row the seed wrote. Refusing them here would
+ * take the whole diary dark.
+ *
+ * TWO SPELLINGS OF ONE RULE IS HOW ONE OF THEM DRIFTS, and the access rule is a
+ * Payload `where` while this is a predicate over a document, so they cannot be
+ * one expression. `readBookBundle.integration.test.ts` compares them instead:
+ * for every `state` the collection offers, a slot gets a `src` exactly when an
+ * anonymous read returns the row.
+ * @param media - The media row, as this module's own query selected it.
+ * @returns Whether its bytes are served.
+ */
+const bytesAreServed = (media: SelectedMediaDoc): boolean =>
+  media.hidden !== true && (media.state === 'ready' || media.state === null || media.state === undefined)
+
+/**
  * Resolves one `pages` row's slots into the domain {@link Slot} shape.
+ *
+ * ═══ EVERY STORED CELL SURVIVES, AND AN UNDRAWABLE ONE GETS `src: null` ═══
+ *
+ * PHASE 3'S NAMED RESIDUAL, CLOSED HERE. The comment on this module's media
+ * query recorded that a row which is not `ready` reaches the bundle with a
+ * `src` that does not load, and that "IF THAT IS EVER WORTH CLOSING, THE FIX IS
+ * A FALLBACK IN `withSlots`, NOT A FILTER HERE". This is that fallback. It
+ * became ownable when Phase 4 Task 7 gave an author a control that CREATES the
+ * state: the journey editor's pool lets a still-processing upload be put into a
+ * frame.
+ *
+ * THE CELL IS KEPT, NOT DROPPED, and that half matters as much. A slot's index
+ * is its cell of the page - `FramesI.tsx` reads `page.slots?.[position]` - and
+ * the editor's Clear empties a cell IN PLACE (`lib/admin/slotMutations.ts`) for
+ * exactly that reason. A `flatMap` that returned `[]` for a cell with no
+ * photograph would move every photograph after it one frame earlier, which is a
+ * change to a page the author did not touch.
+ *
+ * Three states arrive as `src: null`: the cell holds no media at all, the row
+ * is not found (which cannot happen today - every slot's media id came from
+ * this same query's `where` - and is an empty frame rather than a throw), and
+ * the row's bytes are not served ({@link bytesAreServed}).
  * @param page - A `pages` document (raw, `depth: 0` - `slots[].media` is a numeric id).
  * @param mediaById - Every media item any slot in the whole book references, keyed by id.
- * @returns The page's slots, in stored order. A slot whose media id is not
- *   found in `mediaById` (should never happen - every slot's media id came
- *   from this same query's `where`) is skipped rather than thrown, since a
- *   missing photo is not a reason to fail the whole book.
+ * @returns The page's slots, one per stored cell, in stored order.
  */
 const slotsFor = (page: SelectedPageDoc, mediaById: ReadonlyMap<number, SelectedMediaDoc>): readonly Slot[] =>
-  (page.slots ?? []).flatMap((slot): Slot[] => {
+  (page.slots ?? []).map((slot): Slot => {
     const role = slot.role ?? 'frame'
     const mediaId = typeof slot.media === 'number' ? slot.media : (slot.media?.id ?? undefined)
     const media = mediaId === undefined ? undefined : mediaById.get(mediaId)
-    if (media === undefined) return []
+    const drawable = media !== undefined && bytesAreServed(media)
 
-    return [
-      {
-        role,
-        src: derivativeUrlFor(media, role),
-        alt: slot.alt ?? media.alt ?? '',
-        caption: slot.caption ?? media.caption ?? '',
-        focalX: slot.focalX ?? 50,
-        focalY: slot.focalY ?? 50,
-      },
-    ]
+    return {
+      role,
+      src: drawable ? derivativeUrlFor(media, role) : null,
+      alt: slot.alt ?? media?.alt ?? '',
+      caption: slot.caption ?? media?.caption ?? '',
+      focalX: slot.focalX ?? 50,
+      focalY: slot.focalY ?? 50,
+    }
   })
 
 /**
@@ -715,18 +763,24 @@ export const readBookBundle = cache(async (): Promise<BookBundle> => {
   // gets is an image that does not load, which is what `hidden` has always
   // done here and for the same reason (Task 8 fix review, N1).
   //
-  // **IF THAT IS EVER WORTH CLOSING, THE FIX IS A FALLBACK IN `withSlots`, NOT
-  // A FILTER HERE** - a slot whose media is unreadable should draw an empty
-  // frame rather than resolve to nothing, and then this query could drop the
-  // row safely. Written down so the next reader does not re-derive the filter,
-  // try it, and take the whole book down with one unfinished upload.
+  // **THE FALLBACK THIS PARAGRAPH ASKED FOR NOW EXISTS** (Phase 4 Task 7):
+  // `slotsFor` keeps the cell and answers `src: null` when the row's bytes are
+  // not served, so a reader gets an empty frame rather than an image that
+  // 403s. THIS QUERY STILL FILTERS NEITHER, and it still should not: dropping
+  // the row here would resolve the slot to nothing, and the paragraph above is
+  // why that is worse than what it fixes. What the fallback bought is that the
+  // `src` is honest, not that this `where` can now be narrowed.
   const mediaResult = await payload.find({
     collection: 'media',
     depth: 0,
     pagination: false,
     limit: 5000,
     where: { id: { in: mediaIds } },
-    select: { sizes: true, alt: true, caption: true, focalX: true, focalY: true },
+    // `state` and `hidden` are selected because `slotsFor` has to know
+    // whether a reader is served this row's bytes at all - see
+    // {@link bytesAreServed}. They are two boolean-shaped columns on a query
+    // that already fetches a derivative map, so the cost is nil.
+    select: { sizes: true, alt: true, caption: true, focalX: true, focalY: true, state: true, hidden: true },
   })
   const mediaById = new Map(mediaResult.docs.map((doc) => [doc.id, doc]))
 

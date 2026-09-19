@@ -149,10 +149,33 @@ export type SlotRole = 'hero' | 'ephemera' | 'frame'
  * DATA_MODEL.md: "Focal point lives on the slot, not the media item" - the
  * same photograph in a tall frame and a wide frame wants different focus, so
  * `focalX`/`focalY` here are the slot's own override, not the media item's default.
+ *
+ * A SLOT IS A CELL OF THE PAGE, NOT A PHOTOGRAPH. Phase 4 Task 7: an empty
+ * cell is an ordinary state - the admin's Clear empties one in place, and a
+ * page created by the editor is padded up to the cell being written - and the
+ * cell's INDEX is what `FramesI.tsx` draws it at, so dropping an empty one
+ * moves every photograph after it into the frame before. That is why `src` is
+ * nullable rather than the slot being absent; see {@link Slot.src}.
  */
 export interface Slot {
   readonly role: SlotRole
-  readonly src: string
+  /**
+   * The derivative to draw, or `null` for a cell with nothing to draw.
+   *
+   * `null` MEANS "THE BYTES ARE NOT SERVED TO A READER", which is three
+   * states: the cell holds no photograph at all, the media row is not `ready`
+   * (`apps/web/collections/media.ts` withholds it, so its URL 403s), or it is
+   * `hidden`. Phase 3 recorded the last two as an open residual in
+   * `apps/web/lib/readBookBundle.ts` - a `src` in the bundle that does not
+   * load - and named this as the fix: "a slot whose media is unreadable should
+   * draw an empty frame rather than resolve to nothing".
+   *
+   * EVERY CONSUMER MUST HANDLE IT. `Photograph.tsx` is where the diary does,
+   * once, by standing the source in for the same transparent GIF it already
+   * uses outside the image window; the mobile reading mode has its own copy of
+   * that decision in `MobilePage.tsx`.
+   */
+  readonly src: string | null
   readonly alt: string
   readonly caption: string
   readonly focalX: number

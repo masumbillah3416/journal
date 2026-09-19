@@ -32,7 +32,7 @@ import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
 import { aBookChrome, anAboutContent, aJourney, aPortrait } from '@travel-diary/domain/testing/factories'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MobilePage } from './MobilePage'
 
 /** Brands a test journey id, so two fixtures in one book are never the same journey (CLAUDE.md §7). */
@@ -327,6 +327,43 @@ describe('MobilePage', () => {
       '/media/tokyo-a.jpg',
       '/media/tokyo-b.jpg',
     ])
+  })
+
+  it('draws two empty cells as two mounts, which one key per photograph could not', () => {
+    // KEYED BY THE CELL, NOT BY THE SOURCE. This file's mounts used to be
+    // keyed on `slot.src`, on the reasoning that two mounts on one page never
+    // share a photograph — true of photographs and false of EMPTY cells, which
+    // all carry `src: null` since a cleared slot keeps its row. Two of them is
+    // two React children under the key `null`.
+    //
+    // THE ASSERTION IS ON WHAT REACT SAYS, because of what it does NOT do:
+    // React WARNS about a duplicate key and renders both children anyway, so
+    // counting the mounts passes either way — measured, with the old key
+    // restored. The warning is the only observable difference in jsdom, so
+    // that is what this watches.
+    const complaints: unknown[][] = []
+    const console_ = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      complaints.push(args)
+    })
+    const empty: Slot = { ...frameOne, src: null, caption: '' }
+    const container = render(journeyPageOf('frames-i', { slots: [empty, { ...empty, caption: 'the second cell' }] }))
+    console_.mockRestore()
+
+    expect(complaints.map((args) => String(args[0])).filter((line) => line.includes('same key'))).toEqual([])
+    const photos = [...container.querySelectorAll('[data-photo]')]
+    expect(photos).toHaveLength(2)
+    expect(photos.every((photo) => photo.hasAttribute('data-empty'))).toBe(true)
+    expect([...container.querySelectorAll('figcaption')].map((caption) => caption.textContent)).toEqual([
+      'the second cell',
+    ])
+  })
+
+  it('announces nothing for an empty cell, and fetches nothing for it either', () => {
+    const container = render(journeyPageOf('frames-i', { slots: [{ ...frameOne, src: null }] }))
+
+    const photo = one(container, '[data-photo]')
+    expect(photo.getAttribute('alt')).toBe('')
+    expect(photo.getAttribute('src')?.startsWith('data:image/gif')).toBe(true)
   })
 
   it('carries each slot’s focal point through to the crop, which is the whole point of the picker', () => {

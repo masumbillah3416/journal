@@ -73,8 +73,16 @@ export interface PhotographProps {
   readonly leafIndex: number
   /** Which role the slot plays; only the hero publishes a `data-hero` handle. */
   readonly role: SlotRole
-  /** The photograph's real source, fetched only inside the window. */
-  readonly src: string
+  /**
+   * The photograph's real source, fetched only inside the window, or `null`
+   * for a cell with nothing to draw.
+   *
+   * `null` IS AN ORDINARY STATE, not an error — see `Slot.src`
+   * (@travel-diary/domain/bookBundle): an empty cell, a media row the pipeline
+   * has not finished, and a hidden one all arrive here as `null`, and this is
+   * the ONE place the diary decides what an empty frame looks like.
+   */
+  readonly src: string | null
   /** The slot's alt text, or `''` for a decorative scrap. */
   readonly alt: string
   /** The editor's focal point, as `object-position` percentages. */
@@ -110,6 +118,13 @@ export const Photograph = ({
 }: PhotographProps): React.JSX.Element => {
   const openLeaves = useContext(ImageWindow)
   const inWindow = openLeaves === null || (openLeaves[leafIndex] ?? false)
+  // AN EMPTY CELL IS THE DEFERRED PHOTOGRAPH'S OWN TREATMENT, and that is a
+  // reuse rather than a coincidence: both are "this element keeps its box, its
+  // shape and its place in the layout, and fetches nothing". The 1x1
+  // transparent GIF costs no request, `object-fit: cover` renders it as
+  // nothing, and the mount, its tape and its caption are drawn around it
+  // exactly as they are around a photograph that has not loaded yet.
+  const empty = src === null
 
   return (
     <img
@@ -119,8 +134,15 @@ export const Photograph = ({
       // ambiguous.
       data-hero={role === 'hero' ? '' : undefined}
       className={className}
-      src={inWindow ? src : DEFERRED_PHOTOGRAPH_SRC}
-      alt={alt}
+      // A HANDLE FOR THE ONE STATE A SCREENSHOT CANNOT TELL APART. An empty
+      // cell and a photograph outside the image window draw the same pixels,
+      // so the browser gates need something in the DOM that says which.
+      data-empty={empty ? '' : undefined}
+      src={empty || !inWindow ? DEFERRED_PHOTOGRAPH_SRC : src}
+      // AN EMPTY CELL ANNOUNCES NOTHING. The slot's alt text describes a
+      // photograph that is not there, so reading it out would tell a screen
+      // reader about content the page does not have.
+      alt={empty ? '' : alt}
       // Low priority deliberately: every leaf of the book is in the document
       // at once and the window still admits the reader's two neighbours, so a
       // photograph here is usually one the reader is not looking at. None of
