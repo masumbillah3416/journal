@@ -112,8 +112,30 @@ const aSlotForm = (fields: Readonly<Record<string, string>> = {}): FormData => {
   return form
 }
 
-/** Removes every row this file has ever written. */
+/**
+ * Removes every row this file has ever written.
+ *
+ * THE PAGES GO FIRST, AND BY JOURNEY. Deleting a journey does not cascade to
+ * its `pages`, so a clean that removed only the journeys would leave every page
+ * this file created behind with a relationship to nothing — and
+ * `../../scripts/seed.integration.test.ts` counts the pages of the WHOLE shared
+ * test database and would fail, in a later run, with a message about the seed.
+ * Measured rather than imagined: it happened, at 218 pages against an expected
+ * 30, and the leftovers had to be swept out of `diary_test` by hand. Deleting
+ * a journey does not take its pages with it — Payload's relationship sets the
+ * column to NULL — so the pages have to be found through their journey BEFORE
+ * it goes.
+ */
 const clean = async (): Promise<void> => {
+  const journeys = await payload.find({
+    collection: 'journeys',
+    where: { slug: { like: MARKER } },
+    pagination: false,
+    depth: 0,
+  })
+  for (const journey of journeys.docs) {
+    await payload.delete({ collection: 'pages', where: { journey: { equals: journey.id } } })
+  }
   await payload.delete({ collection: 'journeys', where: { slug: { like: MARKER } } })
   await payload.delete({ collection: 'media', where: { alt: { like: MARKER } } })
   await payload.delete({ collection: 'users', where: { email: { like: MARKER } } })
