@@ -422,6 +422,37 @@ describe('readJourneyEditor', () => {
 
     expect(view?.pages.map((page) => page.title)).toEqual(['Notes'])
     expect(view?.pages.map((page) => String(page.id))).toEqual([String(pages.docs[0]?.id)])
+
+    // AND THE ORPHAN IS REMOVED HERE, because nothing else in this file can
+    // reach it. `clean()` deletes pages by their `journey`, and this version's
+    // parent page no longer exists — so left behind it stays in `_pages_v` for
+    // the rest of the run, and `payload.find({ collection: 'pages' })` keeps
+    // answering with it as a document. That is not hypothetical: it turned
+    // `apps/web/scripts/seed.integration.test.ts`'s "thirty pages" into
+    // thirty-one, in whichever runs happened to order this file after
+    // `collections.integration.test.ts`'s migrate-down-and-up. The developer's
+    // own `diary` keeps its three orphans deliberately (`docs/runbook.md`);
+    // `diary_test` is shared by forty-three files and must not.
+    //
+    // BY "HAS NO PARENT", NOT BY THE PAGE'S ID, and that is not a convenience:
+    // `_pages_v.parent_id` is `ON DELETE SET NULL`, so by the time this line
+    // runs the row no longer remembers which page it belonged to. Asking for
+    // `parent: { equals: doomed.id }` matches nothing — measured, the row was
+    // still there afterwards. "Every page version whose page is gone" is both
+    // the reachable predicate and the exact set that must not survive this file.
+    await payload.db.deleteVersions({ collection: 'pages', where: { parent: { exists: false } } })
+
+    // Asserted rather than assumed: a cleanup nothing checks is a cleanup that
+    // can stop working silently, and the way this one fails is another file's
+    // count being one too high three minutes later.
+    const left = await payload.findVersions({
+      collection: 'pages',
+      ...scope,
+      depth: 0,
+      pagination: false,
+      where: { parent: { exists: false } },
+    })
+    expect(left.docs).toEqual([])
   })
 
   it('still shows every page whose row is really there, so the guard above drops nothing real', async () => {
