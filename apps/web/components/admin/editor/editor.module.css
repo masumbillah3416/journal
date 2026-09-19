@@ -20,13 +20,30 @@
  * the measurement the prototype itself takes (`document.querySelector(
  * '[data-content]').clientWidth`), expressed in CSS.
  *
- * ═══ AND THE RUNGS ARE 800 AND 1120, WHICH IS 860 AND 1180 IN THE UNITS A
+ * ═══ AND THE RUNGS ARE 816 AND 1120, WHICH IS 860 AND 1180 IN THE UNITS A
  *     CONTAINER QUERY MEASURES IN ═══
  *
  * `clientWidth` INCLUDES the measured element's own padding; a container
- * query's `inline-size` is the content box. The content area is
- * `padding: 24px 30px 44px`, so the prototype's number is always this one plus
- * 60.
+ * query's `inline-size` is the content box. So the prototype's number is always
+ * this one plus both gutters — and THE SHELL HAS TWO GUTTERS, which is the
+ * correction this paragraph is on its second version for. `.content` is
+ * `padding: 24px 30px 44px` at the top of `shell.module.css` and
+ * `22px 22px 40px` under `@media (max-width: 1179px)`.
+ *
+ * Which one applies to which rung is decided by where that rung TRANSITIONS.
+ * The container is `viewport − 238 (the rail) − 2 × gutter`, so:
+ *
+ *   - 1120 transitions at viewport `1120 + 238 + 60 = 1418`, above 1179, where
+ *     the base 30px is in force — and `1418 − 238 = 1180`, the prototype's own
+ *     number, exactly;
+ *   - 816 transitions at viewport `816 + 238 + 44 = 1098`, at or below 1179,
+ *     where the override's 22px is — and `1098 − 238 = 860`, likewise exactly.
+ *
+ * It shipped as 800 for one round, converted with the desktop gutter it never
+ * sees, so the two-column shape began 16px early: at viewport 1082 rather than
+ * 1098. Nothing photographed it, because `mid` is 718 and `desktop` is 1142 —
+ * the band is inside the shape no project walked, which is why
+ * `e2e/admin.spec.ts` now walks it at 1200.
  *
  * THIS FILE FIRST TRANSCRIBED 860 AND 1180 STRAIGHT IN, and said the ~60px
  * difference was "written down rather than compensated for" on the grounds that
@@ -44,8 +61,14 @@
  * to add back up to 860 and 1180. Neither number is written in that test.
  *
  * `journeys.module.css` transcribes its own ladder uncompensated and is left
- * alone: its rungs are 720/800/880/1000, where 1142 and 1202 give the same
- * answer, so the offset there changes nothing that can be seen.
+ * alone — but NOT because the offset is harmless there, which is what this
+ * sentence claimed for one round and could not support. At the `mid` project
+ * its container is 718 against the prototype's `clientWidth` of 762, so the
+ * Pages column at that ladder's 720 rung is hidden where the prototype shows
+ * it. `docs/deviations.md` §55 already records `mid` "2px UNDER the first
+ * rung" and an earlier review cleared it; the substance is Task 4's and is left
+ * where it is rather than changed from inside this screen. What is corrected
+ * here is only the claim.
  *
  * ═══ AND THE GRID IS A CHILD OF THE CONTAINER, NOT THE CONTAINER ═══
  *
@@ -96,8 +119,9 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-/* §2.3's middle rung — 860 in the prototype's units; see this file's header. */
-@container td-journey-editor (min-width: 800px) {
+/* §2.3's middle rung — 860 in the prototype's units, converted with the 22px
+ * gutter that is in force where it transitions; see this file's header. */
+@container td-journey-editor (min-width: 816px) {
   .grid {
     grid-template-columns: 168px minmax(0, 1fr);
   }
