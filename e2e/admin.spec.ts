@@ -22,6 +22,13 @@
  * have to be edited by every screen task that adds an entry, and an assertion
  * a task has to edit is one it can edit to match what it broke.
  *
+ * IT ALSO WALKS THE ONE WIDTH NO PROJECT CONFIGURES. Both admin screens have a
+ * middle shape that none of `desktop`, `mid` or `mobile` renders, and the
+ * editor's middle rung shipped 16px wrong for a fix round because of it. The
+ * `test.describe` block near the end resizes to 1200 rather than adding a fourth
+ * project — see its own comment for what that would have cost in baselines, and
+ * why a photograph is the wrong instrument for a threshold.
+ *
  * SINCE PHASE 4 TASK 5 IT ALSO WALKS THE JOURNEY EDITOR, and the case that
  * matters there is the one no Vitest project can write either: the rail's ↑ is
  * a form, so moving a page is a `POST`, a write to Postgres and a re-render —
@@ -394,6 +401,81 @@ test('writes the layout a glyph was pressed on, and still says so after a reload
 
   await page.goto(address)
   await expect(page.locator('[data-layout="full-bleed"][aria-pressed="true"]')).toHaveCount(1)
+})
+
+/**
+ * The viewport at which both admin screens take their MIDDLE shape.
+ *
+ * ═══ WHY A RESIZE AND NOT A FOURTH PLAYWRIGHT PROJECT ═══
+ *
+ * Neither the editor's two-column shape nor the journeys table's middle set of
+ * columns is drawn at any of the three configured viewports: the editor's
+ * container is 1142 at `desktop` (three columns) and 718 at `mid` (one), and the
+ * table's is the same pair. `docs/deviations.md` §55 records that gap for the
+ * table and the journey editor's sweep records it for the editor — and the
+ * middle rung shipped 16px wrong for a whole fix round precisely because no
+ * surface renders it.
+ *
+ * A fourth project at 1200 was the obvious closer and costs more than it looks:
+ * `e2e/visual.spec.ts` holds 21 screenshot cases and 59 committed baselines, and
+ * a fourth project adds a baseline per case — each needing a container run with
+ * the developer's `diary` database locked to it, which Task 4 paid seven
+ * baselines to learn. And the thing a baseline would add is the thing this class
+ * of defect is known not to show: Task 4 measured that baselines do not catch a
+ * threshold moving, and the editor's own sweep found the shape missing entirely
+ * while every screenshot of it looked like what it was supposed to be.
+ *
+ * So the shape is WALKED rather than photographed, with assertions about the
+ * tracks themselves, which is stronger than a picture and costs one case.
+ */
+const MIDDLE_VIEWPORT = { width: 1200, height: 900 }
+
+test.describe('at the width where both admin screens take their middle shape', () => {
+  // ONE PROJECT, because each case sets its own viewport: running the identical
+  // assertion three times would measure the same thing three times. The skip is
+  // inside each case rather than on the block, because a describe-level
+  // `test.skip` callback is handed the fixtures and not the test info.
+  test('draws the journey editor in two columns, with the pool spanning both', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'each case here fixes its own viewport')
+    // At 1200 the editor's container is `1200 − 238 (the rail) − 60 (the content
+    // area's padding above 1179) = 902`, which is between the 816 and 1120 rungs
+    // — SCREENS.md §2.3's middle shape, `168px | minmax(0,1fr)` with the pool at
+    // `1 / -1`. The prototype agrees: its own `clientWidth` is 962, between 860
+    // and 1180.
+    await page.setViewportSize(MIDDLE_VIEWPORT)
+    await page.goto(`/admin/journeys/${String(editorFixture.journey)}`)
+    await expect(page.locator('[data-editor-grid]')).toBeVisible()
+
+    const tracks = await page.locator('[data-editor-grid]').evaluate((node) => {
+      const style = getComputedStyle(node)
+      return { columns: style.gridTemplateColumns.split(' ').length, first: style.gridTemplateColumns.split(' ')[0] }
+    })
+    expect(tracks.columns).toBe(2)
+    expect(tracks.first).toBe('168px')
+
+    // The pool spans both tracks here and takes its own at the widest rung.
+    const spans = await page
+      .locator('[data-journey-pool]')
+      .evaluate((node) => getComputedStyle(node).gridColumnStart + ' / ' + getComputedStyle(node).gridColumnEnd)
+    expect(spans).toBe('1 / -1')
+  })
+
+  test('drops the journeys table to its middle set of columns', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'each case here fixes its own viewport')
+    // The same width for the table next door: at a container of 902 the ladder
+    // shows `pages` (720), `edited` (800) and `media` (880) and still hides
+    // `dates` (1000). `desktop` shows all four and `mid` shows none of them, so
+    // this is the only surface that walks the middle.
+    await page.setViewportSize(MIDDLE_VIEWPORT)
+    await page.goto('/admin/journeys')
+    const row = page.locator('[data-journey-id]').first()
+    await expect(row).toBeVisible()
+
+    await expect(row.locator('[data-cell="pages"]')).toBeVisible()
+    await expect(row.locator('[data-cell="edited"]')).toBeVisible()
+    await expect(row.locator('[data-cell="media"]')).toBeVisible()
+    await expect(row.locator('[data-cell="dates"]')).toBeHidden()
+  })
 })
 
 test('answers a journey address nobody owns with a not-found page rather than a stack trace', async ({ page }) => {
