@@ -77,6 +77,7 @@
 import { ADMIN_NAV, type NavEntry } from '@travel-diary/domain/admin/navigation'
 import { activeLayout, selectedPage } from '@travel-diary/domain/admin/pageRail'
 import { heldMedia, selectedSlot } from '@travel-diary/domain/admin/pageSlots'
+import { showsClipAffordances } from '@travel-diary/domain/media/ingestPolicy'
 import { journeyId } from '@travel-diary/domain/ids'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
@@ -90,6 +91,7 @@ import { PageRail } from '../../../../../components/admin/editor/PageRail'
 import styles from '../../../../../components/admin/editor/editor.module.css'
 import { AdminShell } from '../../../../../components/admin/shell/AdminShell'
 import { adminScope } from '../../../../../lib/admin/adminScope'
+import { env } from '../../../../../lib/env'
 import { readJourneyEditor } from '../../../../../lib/admin/readJourneyEditor'
 import { readNavCounts } from '../../../../../lib/admin/readNavCounts'
 import { requireAdminSession } from '../../../../../lib/auth/guard'
@@ -244,6 +246,11 @@ const JourneyEditorPage = async ({ params, searchParams }: JourneyEditorPageProp
           ticked={heldMedia(slots)}
           target={targeted}
           place={setSlotMedia}
+          // READ ON THE SERVER AND PASSED DOWN, never `process.env` in a
+          // component: design spec §9.3 puts the clip affordances behind
+          // `MEDIA_PIPELINE`, and `showsClipAffordances` is the one place that
+          // flag becomes a yes or a no.
+          showsClips={showsClipAffordances(env.MEDIA_PIPELINE)}
           browseHref="/admin/media"
         />
       </EditorGrid>

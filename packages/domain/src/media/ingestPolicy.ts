@@ -119,6 +119,32 @@ export const acceptedIngestTypes = (mode: PipelineMode): readonly AcceptedType[]
   mode === 'worker' ? [...STILL_TYPES, ...CLIP_TYPES] : [...STILL_TYPES]
 
 /**
+ * Whether the admin draws its clip-specific affordances.
+ *
+ * Design spec §9.3 puts "whether the admin shows clip-specific affordances
+ * (video upload picker, poster field, duration display)" behind
+ * `MEDIA_PIPELINE`, and this is the one place that question is answered. A
+ * duration chip on a deployment that cannot accept a video is a promise
+ * nothing can keep.
+ *
+ * DERIVED FROM {@link acceptedIngestTypes}, never a second `mode === 'worker'`.
+ * Two spellings of one rule is how one of them drifts — and the interesting
+ * direction is the one nobody plans for, a mode that gains or loses clips
+ * without this file being edited.
+ *
+ * IT DOES NOT HIDE A CLIP THAT ALREADY EXISTS. A row ingested before the flag
+ * moved is content, and withholding it would make the admin lie about what the
+ * library holds; what this gates is the AFFORDANCE — the chip, the picker, the
+ * poster field.
+ * @param mode - The configured pipeline.
+ * @returns Whether clip affordances are drawn.
+ * @example
+ * showsClipAffordances('inline') // false
+ */
+export const showsClipAffordances = (mode: PipelineMode): boolean =>
+  acceptedIngestTypes(mode).some((type) => type.startsWith('video/'))
+
+/**
  * Every spelling of "the client declared nothing".
  *
  * `'application/octet-stream'` is what a browser sends for a file whose

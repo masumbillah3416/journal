@@ -81,7 +81,11 @@ const anItem = (id: string, overrides: Partial<PoolItem> = {}): PoolItem => ({
 const poolOf = (
   items: readonly PoolItem[],
   inBook: number,
-  extras: { readonly ticked?: ReadonlySet<MediaId>; readonly target?: SlotKey | null } = {},
+  extras: {
+    readonly ticked?: ReadonlySet<MediaId>
+    readonly target?: SlotKey | null
+    readonly showsClips?: boolean
+  } = {},
 ): React.JSX.Element => (
   <JourneyPool
     journey={aJourney('42')}
@@ -90,6 +94,7 @@ const poolOf = (
     ticked={extras.ticked ?? new Set()}
     target={extras.target === undefined ? aSlot('7:0') : extras.target}
     place={noAction}
+    showsClips={extras.showsClips ?? true}
     browseHref="/admin/media"
   />
 )
@@ -104,7 +109,11 @@ const poolOf = (
 const renderPool = (
   items: readonly PoolItem[],
   inBook: number,
-  extras: { readonly ticked?: ReadonlySet<MediaId>; readonly target?: SlotKey | null } = {},
+  extras: {
+    readonly ticked?: ReadonlySet<MediaId>
+    readonly target?: SlotKey | null
+    readonly showsClips?: boolean
+  } = {},
 ): HTMLElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
@@ -207,12 +216,23 @@ describe('JourneyPool', () => {
     expect(host.querySelector('input[name="media"]')?.getAttribute('value')).toBe('1')
   })
 
-  it('puts a duration chip on a clip and none on a still', () => {
-    const host = renderPool([anItem('1', { duration: '0:24' }), anItem('2')], 0)
+  it('puts a duration chip on a clip and none on a still, where this deployment takes clips', () => {
+    const host = renderPool([anItem('1', { duration: '0:24' }), anItem('2')], 0, { showsClips: true })
 
     const chips = [...host.querySelectorAll('[data-pool-duration]')]
     expect(chips).toHaveLength(1)
     expect(chips[0]?.textContent).toBe('0:24')
+  })
+
+  it('draws no duration chip where this deployment cannot take a clip at all', () => {
+    // Design spec §9.3 puts clip-specific affordances behind `MEDIA_PIPELINE`,
+    // and `showsClipAffordances` is where that question is answered. The ROW is
+    // still drawn — a clip ingested before the flag moved is content, and
+    // hiding it would make the admin lie about what the library holds.
+    const host = renderPool([anItem('1', { duration: '0:24' })], 0, { showsClips: false })
+
+    expect(host.querySelectorAll('[data-pool-duration]')).toHaveLength(0)
+    expect(host.querySelectorAll('[data-pool-item]')).toHaveLength(1)
   })
 
   it('draws an empty square for an upload with no derivative, rather than a broken image', () => {

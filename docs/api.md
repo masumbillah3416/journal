@@ -688,6 +688,13 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   that claim, admits that one file by name, and fails on the commit that adds a SECOND
   `'use client'` there - or that leaves the allowlist naming a file which no longer carries
   the directive.
+  **The pool's duration chip is behind `MEDIA_PIPELINE`**, which is design spec §9.3's
+  "whether the admin shows clip-specific affordances": the flag is read on the server, turned
+  into a yes or a no by `showsClipAffordances`
+  (`packages/domain/src/media/ingestPolicy.ts`, derived from `acceptedIngestTypes` rather
+  than from the mode's name) and passed down. The TILE is still drawn either way — a clip
+  ingested before the flag moved is content, and hiding it would make the screen lie about
+  what the library holds.
 
 ### `GET /admin/sign-in`
 

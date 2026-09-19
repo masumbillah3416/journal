@@ -33,6 +33,13 @@
  * do. The eyebrow's count still reads the `inBook` column, so it still answers
  * the question the prototype's label asks. See docs/deviations.md.
  *
+ * THE DURATION CHIP IS BEHIND `MEDIA_PIPELINE`. Design spec §9.3: "whether the
+ * admin shows clip-specific affordances (video upload picker, poster field,
+ * duration display)" is what that flag decides, and a chip on a deployment that
+ * cannot accept a video is a promise nothing can keep. The question is answered
+ * once, by `showsClipAffordances`, on the server; the tile itself is still
+ * drawn, because a clip ingested before the flag moved is content.
+ *
  * A TILE WITH NO DERIVATIVE DRAWS AN EMPTY SQUARE. `readJourneyEditor` answers
  * `null` for an upload too small to have a `thumb`, rather than falling back to
  * the original — a 2-column sidebar of 4000px uploads is the whole library on
@@ -62,6 +69,14 @@ export interface JourneyPoolProps {
   readonly target: SlotKey | null
   /** Puts a photograph into that cell. */
   readonly place: (form: FormData) => Promise<void>
+  /**
+   * Whether this deployment draws clip-specific affordances.
+   *
+   * `@travel-diary/domain/media/ingestPolicy`'s `showsClipAffordances`, read
+   * on the SERVER from `MEDIA_PIPELINE` and passed down — never
+   * `process.env` in a component. Design spec §9.3 puts the question there.
+   */
+  readonly showsClips: boolean
   /** Where "Drop files or browse" goes — the media screen. */
   readonly browseHref: string
 }
@@ -81,6 +96,7 @@ export const JourneyPool = ({
   ticked,
   target,
   place,
+  showsClips,
   browseHref,
 }: JourneyPoolProps): React.JSX.Element => (
   <section data-journey-pool aria-label="Journey pool" className={styles.pool}>
@@ -137,7 +153,7 @@ export const JourneyPool = ({
               <span data-pool-tick aria-hidden="true" className={styles.tick}>
                 {ticked.has(item.id) ? '✓' : ''}
               </span>
-              {item.duration === null ? null : (
+              {!showsClips || item.duration === null ? null : (
                 <span data-pool-duration className={styles.duration}>
                   {item.duration}
                 </span>

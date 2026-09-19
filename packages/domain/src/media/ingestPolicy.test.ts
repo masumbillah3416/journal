@@ -27,7 +27,7 @@
  * Depends on: vitest, ./ingestPolicy, ./sniff, ../testing/bytes.
  */
 import { describe, expect, it } from 'vitest'
-import { acceptedIngestTypes, ingestDecision } from './ingestPolicy'
+import { acceptedIngestTypes, ingestDecision, showsClipAffordances } from './ingestPolicy'
 import { sniffMediaType } from './sniff'
 import { aJpegHeader, anAvifHeader, anSvgDocument } from '../testing/bytes'
 
@@ -45,6 +45,29 @@ describe('acceptedIngestTypes', () => {
     // CLAUDE.md §3.3 rejects by name - and the thing it would be mutating is
     // an allowlist.
     expect(acceptedIngestTypes('inline')).not.toBe(acceptedIngestTypes('inline'))
+  })
+})
+
+describe('showsClipAffordances', () => {
+  it('hides them under inline, where no clip can be uploaded at all', () => {
+    // Design spec §9.3 puts "whether the admin shows clip-specific affordances
+    // (video upload picker, poster field, duration display)" behind this flag.
+    // A duration chip on a deployment that cannot accept a video is a promise
+    // nothing can keep.
+    expect(showsClipAffordances('inline')).toBe(false)
+  })
+
+  it('shows them under worker, which is the whole config switch', () => {
+    expect(showsClipAffordances('worker')).toBe(true)
+  })
+
+  it('answers from the accepted list rather than from the mode’s name', () => {
+    // DERIVED, NOT A SECOND `mode === 'worker'`. A mode that gained clips, or
+    // an `inline` that lost them, moves this with it — two spellings of one
+    // rule is how one of them drifts.
+    for (const mode of ['inline', 'worker'] as const) {
+      expect(showsClipAffordances(mode)).toBe(acceptedIngestTypes(mode).some((type) => type.startsWith('video/')))
+    }
   })
 })
 
