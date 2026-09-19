@@ -12,8 +12,8 @@
  * fails the case below rather than being found by whichever later task finally
  * exceeded 320KB.
  *
- * The task's phase-shaping claim is that nothing under
- * `apps/web/components/admin/shell/` is a client component, which is why
+ * The task's phase-shaping claim is that nothing in the shell's own directory
+ * is a client component, which is why
  * `/admin` ships one script request fewer than any sign-in pane and why the
  * report reads 189,694 bytes of headroom for the eleven screens to come.
  *
@@ -63,21 +63,35 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-/** Where the directories below are resolved from. */
-const COMPONENTS = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../components/admin')
+/** Where the directories below are resolved from — `apps/web`. */
+const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 /**
  * The directories whose whole point is that nothing in them reaches the browser.
  *
  * A LIST RATHER THAN ONE PATH, because the claim is now made by two screens'
- * worth of components and a second copy of this file would be a second chance
- * for one of them to drift. `components/admin/journeys/` is deliberately NOT
- * here: that screen buys two client islands on purpose — the create panel's
+ * worth of files and a second copy of this file would be a second chance for
+ * one of them to drift. The journeys screen's own components are deliberately
+ * NOT here: that screen buys two client islands on purpose — the create panel's
  * open state and the `⋯` disclosure — and each says why in its own header.
+ *
+ * THE LIST REACHES OUTSIDE `components/`, and it has to. The journey editor's
+ * claim is made by five files and two of them are the route's own, so a later
+ * task reaching for a `useState` in its `page.tsx` would leave `docs/api.md`'s
+ * "the screen ships no client JavaScript" false with nothing failing — the only
+ * other instrument is a Lighthouse run on a URL that config cannot name (see
+ * `scripts/route-client-js.mjs`). Tasks 6 and 7 both edit that route.
+ *
+ * The route's `actions.ts` is inside the scan and is not a problem: its line 1
+ * is `'use server'`, which the pattern below does not match.
  */
 const NO_CLIENT_JS: readonly { readonly directory: string; readonly why: string }[] = [
-  { directory: 'shell', why: 'the frame every admin screen hangs in' },
-  { directory: 'editor', why: "SCREENS.md §2.3's rail, layout picker and pool, which are forms and links" },
+  { directory: 'components/admin/shell', why: 'the frame every admin screen hangs in' },
+  {
+    directory: 'components/admin/editor',
+    why: "SCREENS.md §2.3's rail, layout picker and pool, which are forms and links",
+  },
+  { directory: 'app/(admin)/admin/journeys/[id]', why: 'the editor route itself, and the actions its forms post to' },
 ]
 
 /** The directive that turns a module into a client entry point. */
@@ -89,7 +103,7 @@ const DIRECTIVE = /^\s*['"]use client['"]/
  * @returns The file paths, relative to `components/admin/`.
  */
 const modulesOf = (directory: string): readonly string[] =>
-  readdirSync(path.join(COMPONENTS, directory), { recursive: true })
+  readdirSync(path.join(APP, directory), { recursive: true })
     .map(String)
     .filter((name) => /\.tsx?$/.test(name) && !name.includes('.test.'))
     .map((name) => path.join(directory, name))
@@ -100,9 +114,7 @@ describe.each(NO_CLIENT_JS)('$directory — $why', ({ directory }) => {
   })
 
   it('carries no client directive in any module, which is the whole of its budget claim', () => {
-    const client = modulesOf(directory).filter((name) =>
-      DIRECTIVE.test(readFileSync(path.join(COMPONENTS, name), 'utf8')),
-    )
+    const client = modulesOf(directory).filter((name) => DIRECTIVE.test(readFileSync(path.join(APP, name), 'utf8')))
 
     expect(client).toEqual([])
   })

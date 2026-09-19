@@ -176,6 +176,15 @@ export default tseslint.config(
     rules: { 'no-console': 'off' },
   },
   {
+    // The route script budget reporter, for the same reason one line up:
+    // printing what each route sends a browser IS its output. It exists
+    // because a bracketed route cannot be named in a static Lighthouse URL
+    // list, so the number it prints is the only measurement of CLAUDE.md §6's
+    // cap for that route (see its own header). Named by exact path.
+    files: ['scripts/route-client-js.mjs'],
+    rules: { 'no-console': 'off' },
+  },
+  {
     // The clip toolchain's ONE `console.warn`: the UNRESOLVED notice that says
     // the worker MediaProcessor's clip arm is running against a recorded
     // stand-in because `ffmpeg` is not installed. CLAUDE.md §7.1 requires an
