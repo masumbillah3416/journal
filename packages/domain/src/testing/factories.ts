@@ -8,7 +8,8 @@
  * sensible defaults, so a test's `aJourney({ slug: 'tokyo' })` names only the
  * field it cares about. Depends on: Journey and BookChrome, from ../bookBundle;
  * GalleryBundle and GalleryFrame, from ../gallery; ChallengeRecord, from
- * ../auth/otpChallenge; RailPage, from ../admin/pageRail.
+ * ../auth/otpChallenge; RailPage, from ../admin/pageRail; Highlight, from
+ * ../admin/highlights.
  *
  * THE SIX BYTE-LEVEL FIXTURES USED TO LIVE AT THE END OF THIS FILE, AND NOW
  * LIVE IN `./bytes.ts`. They were a different kind of fixture — a domain
@@ -21,6 +22,7 @@
  * does not re-export them: a re-export would leave two import paths for one
  * symbol, and the next reader would not know which is the home.
  */
+import type { Highlight } from '../admin/highlights'
 import type { RailPage } from '../admin/pageRail'
 import type { ChallengeRecord } from '../auth/otpChallenge'
 import type { AboutContent, BookChrome, Journey, Slot } from '../bookBundle'
@@ -215,5 +217,26 @@ export const aRailPage = (id: string, order: number, overrides: Partial<RailPage
   title: `Page ${id}`,
   kind: 'frames',
   order,
+  ...overrides,
+})
+
+/**
+ * Builds a {@link Highlight} for SCREENS.md §2.3's highlight list.
+ *
+ * `id` is a PARAMETER rather than an override, for the reason
+ * {@link aGalleryFrame} gives about its own: every case about the list is about
+ * WHICH row moved or went, and naming that row at the call site is what makes
+ * those cases readable — `aHighlight('b')` rather than an anonymous row whose
+ * id has to be looked up.
+ *
+ * The default `text` carries the id too, so a case that compares text rather
+ * than ids still tells the four rows apart.
+ * @param id - The row's id, e.g. `'b'`.
+ * @param overrides - Fields to override on the default row.
+ * @returns A fresh highlight, shared with no other call's result.
+ */
+export const aHighlight = (id: string, overrides: Partial<Highlight> = {}): Highlight => ({
+  id,
+  text: `Highlight ${id}`,
   ...overrides,
 })
