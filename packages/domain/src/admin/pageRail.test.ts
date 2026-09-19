@@ -23,7 +23,7 @@
 import { describe, expect, it } from 'vitest'
 import { pageId, type PageId } from '../ids'
 import { aRailPage } from '../testing/factories'
-import { movePage } from './pageRail'
+import { activeLayout, movePage, selectedPage } from './pageRail'
 
 /**
  * A branded page id.
@@ -89,5 +89,48 @@ describe('movePage', () => {
       { id: anId('b'), title: 'Frames I', kind: 'frames', order: 0 },
       { id: anId('a'), title: 'Notes', kind: 'notes', order: 1 },
     ])
+  })
+})
+
+describe('selectedPage', () => {
+  it('selects the page the address names', () => {
+    const pages = [aRailPage('a', 0), aRailPage('b', 1)]
+
+    expect(selectedPage(pages, 'b')).toBe(anId('b'))
+  })
+
+  it('opens on the first page when the address names none', () => {
+    const pages = [aRailPage('a', 0), aRailPage('b', 1)]
+
+    expect(selectedPage(pages, undefined)).toBe(anId('a'))
+  })
+
+  it('ignores an id the journey does not hold, rather than selecting nothing', () => {
+    // `?page=999` is an address anybody can type, and a rail with no card open
+    // would draw a tool row pointing at a row this journey does not have.
+    const pages = [aRailPage('a', 0), aRailPage('b', 1)]
+
+    expect(selectedPage(pages, '999')).toBe(anId('a'))
+  })
+
+  it('takes the first value of a parameter a browser sent twice', () => {
+    const pages = [aRailPage('a', 0), aRailPage('b', 1)]
+
+    expect(selectedPage(pages, ['b', 'a'])).toBe(anId('b'))
+  })
+
+  it('answers null for a journey with no pages, rather than an id nothing draws', () => {
+    expect(selectedPage([], 'a')).toBeNull()
+  })
+})
+
+describe('activeLayout', () => {
+  it('draws the page’s own layout as pressed', () => {
+    expect(activeLayout({ kind: 'frames', layout: 'full-bleed' })).toBe('full-bleed')
+  })
+
+  it('falls back to the prototype’s own default per kind, so no button reads as unchosen', () => {
+    expect(activeLayout({ kind: 'notes', layout: null })).toBe('text-spread')
+    expect(activeLayout({ kind: 'frames', layout: null })).toBe('three-up')
   })
 })

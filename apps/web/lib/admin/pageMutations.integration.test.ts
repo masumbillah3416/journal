@@ -587,16 +587,24 @@ describe('the parses', () => {
     }
   })
 
-  it('reads the page and the layout the picker sends', () => {
-    expect(readPageLayoutRef(aForm({ page: '7', layout: 'full-bleed' }))).toEqual({ page: 7, layout: 'full-bleed' })
+  it('reads the journey, the page and the layout the picker sends', () => {
+    expect(readPageLayoutRef(aForm({ journey: '3', page: '7', layout: 'full-bleed' }))).toEqual({
+      journey: 3,
+      page: 7,
+      layout: 'full-bleed',
+    })
   })
 
-  it('reads the page a tool-row button names', () => {
-    expect(readPageRef(aForm({ page: '7' }))).toBe(7)
+  it('reads the page a tool-row button names, and the journey to revalidate', () => {
+    expect(readPageRef(aForm({ journey: '3', page: '7' }))).toEqual({ journey: 3, page: 7 })
   })
 
   it('refuses a page reference that is not a row id, rather than sending NaN to the driver', () => {
-    expect(() => readPageRef(aForm({ page: 'nonsense' }))).toThrow()
+    expect(() => readPageRef(aForm({ journey: '3', page: 'nonsense' }))).toThrow()
+  })
+
+  it('refuses a tool-row body with no journey on it, rather than revalidating nothing', () => {
+    expect(() => readPageRef(aForm({ page: '7' }))).toThrow()
   })
 
   it('reads the whole ordered list the arrows send', () => {

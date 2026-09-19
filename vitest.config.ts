@@ -700,6 +700,34 @@ export default defineConfig({
         // static segment, so its own `c8 ignore` is read and holds. Runtime
         // behaviour: e2e/reset.spec.ts, e2e/a11y.spec.ts, e2e/visual.spec.ts.
         'apps/web/app/(admin)/admin/reset/\\[token\\]/page.tsx',
+        // Phase 4 Task 5 adds the journey editor's route, the second bracketed
+        // one outside the diary. It qualifies on the same three counts
+        // CLAUDE.md §2.1's carve-out requires, and the control is the one named
+        // above rather than a claim inherited from it. (1) It was read and holds
+        // zero authored logic: guard the request, brand the `[id]` segment, read
+        // the rail's counts and the editor's view, 404 when there is none, and
+        // render three components - with WHICH PAGE the address selects
+        // delegated to `@travel-diary/domain/admin/pageRail`'s `selectedPage`,
+        // WHICH LAYOUT the picker presses to its `activeLayout`, and everything
+        // the screen draws to `readJourneyEditor` (integration-tested against a
+        // real Payload and gated at 100/100/100 by
+        // vitest.integration.config.ts). Its sibling `actions.ts` is here for the
+        // same reason and NOT because a `'use server'` module is special: it
+        // carries the same whole-file `c8 ignore` that
+        // `app/(admin)/admin/journeys/actions.ts` carries, and under a bracketed
+        // directory that hint is not read. MEASURED IN THE SAME RUN, which is the
+        // control this entry rests on: the unbracketed `journeys/actions.ts`
+        // reported 0 of 0 with no uncovered lines, while `journeys/[id]/actions.ts`,
+        // wrapped identically, reported its whole body (lines 1-50) uncovered. The
+        // bracket is the only difference between them. (2) The tooling
+        // defect is the one named above and is a property of the path shape,
+        // which this file shares (`[id]`); `(diary)/layout.tsx` remains the
+        // control that is correctly ignored without a config entry. (3) It names
+        // its exact path, so a file a later task places beside it is not swept
+        // into the same hole - Tasks 6 and 7 add to `actions.ts`, not here.
+        // Runtime behaviour: e2e/admin.spec.ts.
+        'apps/web/app/(admin)/admin/journeys/\\[id\\]/page.tsx',
+        'apps/web/app/(admin)/admin/journeys/\\[id\\]/actions.ts',
         'apps/web/app/(diary)/gallery/\\[slug\\]/page.tsx',
         'apps/web/app/(diary)/gallery/\\[slug\\]/download/\\[id\\]/route.ts',
         'apps/web/app/(payload)/api/\\[...slug\\]/route.ts',

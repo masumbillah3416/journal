@@ -62,6 +62,26 @@ export interface LayoutGlyph {
 export const LAYOUTS: readonly PageLayout[] = ['three-up', 'four-up', 'full-bleed', 'text-spread']
 
 /**
+ * What each layout is called on screen.
+ *
+ * HERE RATHER THAN IN A COMPONENT, which is where `JourneyTable.tsx`'s own
+ * `PILL_LABEL` lives, because this one has two readers: the picker prints it
+ * under each glyph and beside the "Layout" eyebrow, and the page rail's meta
+ * line prints it under the page's name. Two components spelling four names is
+ * two chances for one of them to drift.
+ *
+ * `Travel Diary Admin.dc.html`'s own strings, which is why they are sentence
+ * case: the stylesheet upper-cases them, so what a screen reader announces
+ * stays "Three up" rather than "THREE UP".
+ */
+export const LAYOUT_LABELS: Readonly<Record<PageLayout, string>> = {
+  'three-up': 'Three up',
+  'four-up': 'Four up',
+  'full-bleed': 'Full bleed',
+  'text-spread': 'Text spread',
+}
+
+/**
  * SCREENS.md §2.3's table, transcribed.
  *
  * Three up is "tall spanning rows 1–3, then two": the tall cell takes the wider

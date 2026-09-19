@@ -30,10 +30,11 @@
  * unconditionally: the end of the list is not an error state, and a throw would
  * reach a screen with no way to draw it.
  *
- * PATTERNS (CLAUDE.md §3.3): none of the seven. One pure list transform.
- * Depends on: PageId, from ../ids.
+ * PATTERNS (CLAUDE.md §3.3): none of the seven. Pure functions over one list.
+ * Depends on: PageId, from ../ids; PageLayout, from ./layoutGlyphs.
  */
 import type { PageId } from '../ids'
+import type { PageLayout } from './layoutGlyphs'
 
 /** One card in SCREENS.md §2.3's page rail. */
 export interface RailPage {
@@ -96,3 +97,51 @@ export const movePage = (pages: readonly RailPage[], id: PageId, direction: Move
 
   return moved.map((page, order) => ({ ...page, order }))
 }
+
+/**
+ * The page a `?page=` address selects, or the one the rail opens on.
+ *
+ * AN INVERSION, NOT AN ENUMERATION (CLAUDE.md §3.3's rejected anti-pattern, and
+ * `readJourneysScreen.ts`'s chip parse next door): `?page=999` and
+ * `?page=<a page of another journey>` are addresses anybody can type, and
+ * trusting either would open a rail with no card selected and a tool row
+ * pointing at a row this journey does not hold. The requested value has to BE
+ * one of the pages given, or it is ignored.
+ *
+ * A REPEATED PARAMETER ARRIVES AS AN ARRAY — `?page=a&page=b`, and a form
+ * posted twice — which is a shape a browser really does produce, so the first
+ * value is taken rather than the whole thing coerced to a string.
+ * @param pages - The journey's pages, in the order the rail draws them.
+ * @param requested - The `page` search parameter, exactly as Next.js hands it over.
+ * @returns The selected page's id, the first page's when the request names
+ *   none of them, or `null` for a journey with no pages at all.
+ * @example
+ * selectedPage(pages, '7') // the page whose id is '7', if the journey holds it
+ */
+export const selectedPage = (
+  pages: readonly RailPage[],
+  requested: string | readonly string[] | undefined,
+): PageId | null => {
+  const asked = typeof requested === 'string' ? requested : requested?.[0]
+  const held = pages.find((page) => page.id === asked)
+  return held?.id ?? pages[0]?.id ?? null
+}
+
+/**
+ * Which layout the picker draws as pressed for a page.
+ *
+ * A PAGE CAN HAVE NO LAYOUT — the column is optional on the collection, and a
+ * page created outside `pageMutations.ts` has none — and the picker has to
+ * press something, or all four buttons read as unchosen. The fallbacks are the
+ * prototype's own (`Travel Diary Admin.dc.html`: `curPage.type === 'notes' ?
+ * 'Text spread' : 'Three up'`), which are also the layouts a new journey's
+ * three pages are created with.
+ * @param page - The page, with whatever its `layout` column holds.
+ * @returns The layout to draw as active.
+ * @example
+ * activeLayout({ kind: 'notes', layout: null }) // 'text-spread'
+ */
+export const activeLayout = (page: {
+  readonly kind: 'notes' | 'frames'
+  readonly layout: PageLayout | null
+}): PageLayout => page.layout ?? (page.kind === 'notes' ? 'text-spread' : 'three-up')

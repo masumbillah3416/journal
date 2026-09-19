@@ -1,0 +1,434 @@
+/**
+ * editor.module.css — SCREENS.md §2.3's journey editor: its three columns, the
+ * page rail's cards, the dashed layout box and the journey pool.
+ *
+ * A CSS MODULE, NOT A RULE IN `admin.css`, for the reason `shell.module.css`,
+ * `panel.module.css` and `journeys.module.css` already give: `admin.css` is
+ * loaded by the route group's root layout, so every byte in it is a byte
+ * `/admin/sign-in` fetches before it can paint, and that route carries a
+ * Lighthouse LCP gate. A module is loaded only by the route that imports it.
+ *
+ * ═══ THE TWO WIDTHS ARE CONTAINER QUERIES, NOT MEDIA QUERIES ═══
+ *
+ * §2.3 gives the editor `184px | minmax(0,1fr) | 250px` above 1180px,
+ * `168px | minmax(0,1fr)` above 860px with the pool spanning `1 / -1`, and a
+ * single column below. Those thresholds are about the room the EDITOR has, not
+ * about the viewport: the shell's 238px rail is beside it at every width, and
+ * `journeys.module.css` records what keying the same kind of ladder on the
+ * viewport did to the screen next door — at a 1000px viewport the table drew
+ * all eight columns into the ~700px the rail leaves it. A container query is
+ * the measurement the prototype itself takes (`document.querySelector(
+ * '[data-content]').clientWidth`), expressed in CSS.
+ *
+ * WHAT IS MEASURED IS THE CONTENT BOX, which is about 60px narrower than the
+ * prototype's `clientWidth` because that includes the content area's own
+ * `24px 30px` padding. The difference is one padding, it is in the same
+ * direction at both rungs, and it is written down rather than compensated for —
+ * compensating would put a number here that `SCREENS.md` does not have.
+ *
+ * ═══ THE GLYPHS ARE REAL CELLS, AND THIS FILE ONLY COLOURS THEM ═══
+ *
+ * Every `grid-template-*` and every cell's `grid-area` comes from
+ * `@travel-diary/domain/admin/layoutGlyphs` through inline `style`, because
+ * they are DATA — four drawings that must differ, which is the defect §2.3
+ * names in parentheses. What is here is the ink: `rgba(120,98,60,.34)`, and
+ * `rgba(163,68,52,.5)` on the active button. A stylesheet that drew the shapes
+ * too would be a second spelling of the same four layouts.
+ *
+ * Depends on: packages/tokens/src/tokens.css, loaded by the admin layout.
+ */
+
+/* ── The three columns ─────────────────────────────────────────────────── */
+
+.screen {
+  display: grid;
+  max-width: 1320px;
+  gap: 18px;
+  container-name: td-journey-editor;
+  container-type: inline-size;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* §2.3's middle rung: two columns, with the pool spanning both beneath them. */
+@container td-journey-editor (min-width: 860px) {
+  .screen {
+    grid-template-columns: 168px minmax(0, 1fr);
+  }
+
+  .pool {
+    grid-column: 1 / -1;
+  }
+}
+
+/* §2.3's widest rung: the pool takes its own column beside the editing pane. */
+@container td-journey-editor (min-width: 1180px) {
+  .screen {
+    grid-template-columns: 184px minmax(0, 1fr) 250px;
+  }
+
+  .pool {
+    grid-column: auto;
+  }
+}
+
+/* The left column holds the rail and the layout box, one above the other. */
+.leftColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── The page rail ─────────────────────────────────────────────────────── */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  gap: 8px;
+  list-style: none;
+}
+
+/* The unselected card: a half-opaque mount and a hairline ring. */
+.card {
+  border-radius: 3px;
+  background: rgb(255 253 246 / 50%);
+  box-shadow: inset 0 0 0 1px var(--td-hairline-border-max);
+}
+
+.cardSelected {
+  background: var(--td-paper-mount);
+  box-shadow:
+    inset 0 0 0 1.5px var(--td-accent),
+    0 3px 12px -6px rgb(0 0 0 / 40%);
+}
+
+/* THE WHOLE CARD IS A LINK, so selecting a page is an ADDRESS rather than
+ * state: it survives a reload, it can be sent to somebody, and it ships no
+ * JavaScript — the same argument the journeys screen's status chips carry. */
+.cardLink {
+  display: flex;
+  align-items: center;
+  padding: 8px 9px;
+  gap: 9px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.cardLink:focus-visible {
+  outline: 2px solid rgb(163 68 52 / 45%);
+  outline-offset: 1px;
+}
+
+/* §2.3's 30x38px paper preview. */
+.preview {
+  width: 30px;
+  height: 38px;
+  flex: none;
+  border-radius: 1px;
+  background: var(--td-paper);
+  box-shadow: inset 0 0 0 1px var(--td-hairline-border-max);
+}
+
+.cardText {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.cardName {
+  overflow: hidden;
+  font-family: var(--td-font-caveat);
+  font-size: 24px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--td-ink);
+}
+
+.cardMeta {
+  overflow: hidden;
+  font-family: var(--td-font-courier);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--td-ink-muted);
+}
+
+/* The tool row the selected card reveals: ↑ ↓ · spacer · Copy · Delete. */
+.tools {
+  display: flex;
+  align-items: center;
+  padding: 5px 7px 0;
+  gap: 6px;
+}
+
+.toolSpacer {
+  flex: 1;
+}
+
+.tool {
+  padding: 4px 2px 7px;
+  border: none;
+  background: none;
+  font-family: var(--td-font-courier);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+}
+
+.tool:hover:not(:disabled) {
+  color: var(--td-accent);
+}
+
+/* The ends of the rail. Kept in the DOM and disabled rather than removed, so
+ * the row does not change width as the selection moves down it. */
+.tool:disabled {
+  color: var(--td-hairline-border-max);
+  cursor: default;
+}
+
+.tool:focus-visible {
+  outline: 2px solid rgb(163 68 52 / 45%);
+  outline-offset: 1px;
+}
+
+/* ── The layout box ────────────────────────────────────────────────────── */
+
+.layoutBox {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border: 1.5px dashed var(--td-hairline-border-max);
+  border-radius: 3px;
+  gap: 8px;
+}
+
+.layoutName {
+  color: var(--td-accent);
+}
+
+.glyphs {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.glyphButton {
+  display: flex;
+  flex-direction: column;
+  padding: 7px;
+  border: none;
+  border-radius: 2px;
+  background: var(--td-paper-mount);
+  box-shadow: inset 0 0 0 1px rgb(120 98 60 / 24%);
+  gap: 5px;
+  cursor: pointer;
+}
+
+.glyphButtonActive {
+  background: rgb(163 68 52 / 7%);
+  box-shadow: inset 0 0 0 1.5px var(--td-accent);
+}
+
+.glyphButton:focus-visible {
+  outline: 2px solid rgb(163 68 52 / 45%);
+  outline-offset: 1px;
+}
+
+/* The 30px-tall grid. Its tracks are an inline `style` from `layoutGlyph`. */
+.glyph {
+  display: grid;
+  height: 30px;
+  gap: 3px;
+}
+
+.glyphCell {
+  border-radius: 1px;
+  background: rgb(120 98 60 / 34%);
+}
+
+.glyphButtonActive .glyphCell {
+  background: rgb(163 68 52 / 50%);
+}
+
+/* The three rules of the text spread are rules, not blocks — a height, which
+ * is not a grid line and so is not `layoutGlyphs.ts`'s to carry. The last one
+ * is short, as the prototype's own `width: 70%` draws it. */
+.glyphRule {
+  height: 3px;
+  align-self: center;
+}
+
+.glyphRuleShort {
+  width: 70%;
+}
+
+.glyphLabel {
+  font-family: var(--td-font-courier);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-align: left;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+.glyphButtonActive .glyphLabel {
+  color: var(--td-accent);
+}
+
+.addPage {
+  padding: 7px 0 0;
+  border: none;
+  background: none;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-align: left;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+}
+
+.addPage:hover {
+  color: var(--td-accent);
+}
+
+.addPage:focus-visible {
+  outline: 2px solid rgb(163 68 52 / 45%);
+  outline-offset: 1px;
+}
+
+/* ── The journey pool ──────────────────────────────────────────────────── */
+
+.pool {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.poolCount {
+  color: var(--td-accent);
+}
+
+.poolNote {
+  margin: 0;
+  font-family: var(--td-font-garamond);
+  font-size: 14.5px;
+  font-style: italic;
+  line-height: 1.35;
+  color: var(--td-ink-muted);
+}
+
+.poolGrid {
+  display: grid;
+  overflow-y: auto;
+  max-height: 432px;
+  margin: 0;
+  padding: 0;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  list-style: none;
+}
+
+.tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2px;
+  aspect-ratio: 1 / 1;
+  background: var(--td-paper);
+  box-shadow: inset 0 0 0 1px var(--td-hairline-border-max);
+}
+
+.tileInBook {
+  box-shadow: inset 0 0 0 2px var(--td-accent);
+}
+
+.tileImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.duration {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: rgb(0 0 0 / 55%);
+  font-family: var(--td-font-courier);
+  font-size: 9px;
+  color: var(--td-cream-alt);
+}
+
+.poolFooter {
+  padding: 10px;
+  border: 1.5px dashed var(--td-hairline-border-max);
+  border-radius: 3px;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-align: center;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--td-ink-muted);
+}
+
+.poolFooter:hover {
+  color: var(--td-accent);
+}
+
+/* ── The editing pane's placeholder ────────────────────────────────────── */
+
+/* WHAT THIS IS AND WHY IT IS NOT THE PANE. SCREENS.md §2.3's middle column is
+ * Tasks 6 and 7 — the notes fields, the slots and the focal point. This task
+ * builds the frame around it, and an empty middle column would collapse the
+ * three-column grid into something no baseline of the finished screen would
+ * match. It prints the selected page's name, which is §2.3's own "Editing"
+ * eyebrow over the page name, and nothing else. */
+.pane {
+  padding: 18px 20px 20px;
+  border-radius: 3px;
+  background: var(--td-paper-mount);
+  box-shadow:
+    0 1px 2px rgb(60 48 30 / 6%),
+    0 8px 24px -14px rgb(60 48 30 / 40%);
+}
+
+.paneName {
+  margin: 4px 0 0;
+  font-family: var(--td-font-caveat);
+  font-size: 40px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--td-ink);
+}
+
+.paneNote {
+  margin: 12px 0 0;
+  font-family: var(--td-font-garamond);
+  font-size: 15.5px;
+  font-style: italic;
+  color: var(--td-ink-muted);
+}

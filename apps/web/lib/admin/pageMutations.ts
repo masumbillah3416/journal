@@ -83,17 +83,30 @@ const LAYOUT = z.enum(LAYOUTS)
 const NEW_PAGE = z.object({ journey: z.coerce.number().int().positive(), layout: LAYOUT })
 
 /** What a glyph button's form carries. */
-const PAGE_LAYOUT_REF = z.object({ page: z.coerce.number().int().positive(), layout: LAYOUT })
+const PAGE_LAYOUT_REF = z.object({
+  journey: z.coerce.number().int().positive(),
+  page: z.coerce.number().int().positive(),
+  layout: LAYOUT,
+})
 
 /**
  * What the tool row's Copy and Delete carry.
+ *
+ * THE JOURNEY IS IN THE FORM AND IS TRUSTED FOR NOTHING BUT A CACHE ADDRESS.
+ * `copyPageRow` and `deletePageRow` derive the journey from the PAGE ROW, so a
+ * form naming the wrong one changes nothing they write; it is here because the
+ * action has to know which editor address to revalidate, and reading the row a
+ * second time to find out would be a query for a cache key.
  *
  * `z.coerce.number()` and then `int().positive()`, for `journeyMutations.ts`'s
  * reason: a row id is a positive integer, and `'nonsense'` coerces to `NaN`,
  * which `int()` refuses. Without this the value reaches Postgres as `NaN` and
  * escapes as a raw `Failed query`.
  */
-const PAGE_REF = z.object({ page: z.coerce.number().int().positive() })
+const PAGE_REF = z.object({
+  journey: z.coerce.number().int().positive(),
+  page: z.coerce.number().int().positive(),
+})
 
 /**
  * What ↑ and ↓ carry: the journey, and the whole new sequence of page ids.
@@ -136,23 +149,26 @@ export const readNewPage = (form: FormData): { readonly journey: number; readonl
 /**
  * The page and layout a glyph button sends.
  * @param form - The body the browser posted.
- * @returns The page's row id and the layout pressed.
- * @throws {z.ZodError} When either field is absent or outside its type.
+ * @returns The journey, the page's row id and the layout pressed.
+ * @throws {z.ZodError} When any field is absent or outside its type.
  * @example
- * readPageLayoutRef(form) // { page: 7, layout: 'full-bleed' }
+ * readPageLayoutRef(form) // { journey: 3, page: 7, layout: 'full-bleed' }
  */
-export const readPageLayoutRef = (form: FormData): { readonly page: number; readonly layout: PageLayout } =>
+export const readPageLayoutRef = (
+  form: FormData,
+): { readonly journey: number; readonly page: number; readonly layout: PageLayout } =>
   PAGE_LAYOUT_REF.parse(Object.fromEntries(form))
 
 /**
  * The page a tool-row button was pressed on.
  * @param form - The body the browser posted.
- * @returns The page's row id.
- * @throws {z.ZodError} When the field is absent or is not a positive integer.
+ * @returns The page's row id, and the journey whose editor to revalidate.
+ * @throws {z.ZodError} When either field is absent or is not a positive integer.
  * @example
- * readPageRef(form) // 7
+ * readPageRef(form) // { journey: 3, page: 7 }
  */
-export const readPageRef = (form: FormData): number => PAGE_REF.parse(Object.fromEntries(form)).page
+export const readPageRef = (form: FormData): { readonly journey: number; readonly page: number } =>
+  PAGE_REF.parse(Object.fromEntries(form))
 
 /**
  * The journey and the whole new page sequence an arrow sends.

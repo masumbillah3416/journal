@@ -15,7 +15,7 @@
  * Depends on: vitest, ./layoutGlyphs.
  */
 import { describe, expect, it } from 'vitest'
-import { LAYOUTS, layoutGlyph } from './layoutGlyphs'
+import { LAYOUTS, LAYOUT_LABELS, layoutGlyph } from './layoutGlyphs'
 
 describe('layoutGlyph', () => {
   it('gives no two layouts the same drawing, which is the whole reason it exists', () => {
@@ -43,5 +43,20 @@ describe('layoutGlyph', () => {
 
     expect(glyph.rows).toBe('1fr 1fr 1fr')
     expect(glyph.cells.filter((cell) => cell.row[1] - cell.row[0] === 3)).toHaveLength(1)
+  })
+})
+
+describe('LAYOUT_LABELS', () => {
+  it('names every layout the picker offers, and names no two of them the same', () => {
+    const named = LAYOUTS.map((layout) => LAYOUT_LABELS[layout])
+
+    expect(named.filter((label) => label.trim() !== '')).toHaveLength(LAYOUTS.length)
+    expect(new Set(named).size).toBe(LAYOUTS.length)
+  })
+
+  it('keeps the design’s own sentence case, so a screen reader is not shouted at', () => {
+    // The stylesheet upper-cases these; upper-casing them here as well would
+    // make the accessible name "THREE UP".
+    expect(LAYOUT_LABELS['three-up']).toBe('Three up')
   })
 })
