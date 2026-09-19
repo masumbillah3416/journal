@@ -125,6 +125,9 @@ failed first guards nothing.
   and that is a different question from "is there a row behind this". Re-checked in the same
   browser: `ids=["533","534","535"] selected=1 consoleErrors=[]` at all three surfaces, and
   `desktop-editor-fixed.png` shows three cards and no dev-overlay badge.
+- **The three rows are still in the dev database, on purpose**, as the only naturally
+  occurring instance of this defect class. `docs/runbook.md` carries the standing note, which
+  is where a later reader of `_pages_v` will meet them rather than in this per-screen sweep.
 
 ---
 

@@ -49,6 +49,40 @@ duplicates, and leaves anything else (new journeys, new pages) untouched. It wri
 whatever `DATABASE_URL` names — the real dev/production database, never the isolated
 `diary_test` database the integration test suite uses (see `docs/testing.md`).
 
+## The dev database holds three orphaned `_pages_v` rows, and they are kept on purpose
+
+**What is there.** The seeded `Tokyo` journey in the developer's own `diary` database has
+three rows in `_pages_v` — the `pages` collection's versions table — titled **Cover**,
+**Contents** and **About**, whose `parent` is `NULL`. They are version rows whose page was
+removed without them, left behind by a Phase 1 iteration. Nothing in the admin creates this
+state: `payload.delete`, which `deletePageRow` calls, takes a page's versions with it
+(measured). Only a main-row delete that bypasses the collection — the adapter's own
+`deleteOne`, a migration, a manual `DELETE` — produces it.
+
+**Why you will meet them.** A read with `draft: true` answers from the versions table, and
+these rows still carry `journey`, so **any `draft: true` read keyed on a field other than
+`id` returns them** — with `id: null`, because `id` resolves to `parent`. That is not a
+`pages` quirk: `journeys` behaves identically, measured. A read keyed on `id` is the one
+shape that cannot see them, because `NULL` cannot equal a row id.
+
+They already cost this project one S1. The journey editor's page rail drew six cards for a
+three-page journey, three of them sharing the id `'null'` and all three rendered as selected,
+with every reorder arrow posting a value Zod refused — because a brand only promises a
+non-empty string and `String(null)` is one. See
+`docs/qa/2026-09-19-journey-editor-sweep.md`, EDITOR-001.
+
+**What to do about them: nothing.** They are kept deliberately, as the only naturally
+occurring instance of that defect class in any database this project has — a free regression
+fixture for a defect that reached a screen once and would otherwise need manufacturing. The
+guard is `isRowId` in `packages/domain/src/ids.ts`, whose TSDoc carries the rule; pass any
+`draft: true` read's rows through it unless the `where` is keyed on `id`.
+
+**If a screen reports something odd about unpublished pages, look here first.** The likeliest
+next reader is `SCREENS.md` §2.8's publish screen, which will count what is unpublished —
+`readNavCounts` counts journeys today, and pages are the obvious next thing. On this database
+it will find three unpublished pages on Tokyo that no screen can show and no author created.
+That is these rows, and the answer is the guard rather than a `DELETE`.
+
 ## Re-deriving derivatives after a tier is added
 
 `npm run media:rederive` gives every stored `media` row the derivative tiers

@@ -159,6 +159,8 @@ export const rowId = (id: JourneyId | PageId | MediaId | SlotKey | UserId | Sess
  * shape that needs no guard is a `where` keyed on `id`, because `id` resolves to
  * the version's `parent` and a `parent` of `null` cannot equal a row id. **Any
  * `draft: true` read keyed on anything else must pass its rows through this.**
+ * The developer's own database holds three such orphans, kept deliberately —
+ * `docs/runbook.md` has the standing note.
  *
  * @param value - Whatever the database put in the `id` field.
  * @returns Whether it is a positive safe integer, and so names a row.
