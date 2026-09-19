@@ -20,11 +20,47 @@
  * the measurement the prototype itself takes (`document.querySelector(
  * '[data-content]').clientWidth`), expressed in CSS.
  *
- * WHAT IS MEASURED IS THE CONTENT BOX, which is about 60px narrower than the
- * prototype's `clientWidth` because that includes the content area's own
- * `24px 30px` padding. The difference is one padding, it is in the same
- * direction at both rungs, and it is written down rather than compensated for —
- * compensating would put a number here that `SCREENS.md` does not have.
+ * ═══ AND THE RUNGS ARE 800 AND 1120, WHICH IS 860 AND 1180 IN THE UNITS A
+ *     CONTAINER QUERY MEASURES IN ═══
+ *
+ * `clientWidth` INCLUDES the measured element's own padding; a container
+ * query's `inline-size` is the content box. The content area is
+ * `padding: 24px 30px 44px`, so the prototype's number is always this one plus
+ * 60.
+ *
+ * THIS FILE FIRST TRANSCRIBED 860 AND 1180 STRAIGHT IN, and said the ~60px
+ * difference was "written down rather than compensated for" on the grounds that
+ * compensating would invent a number `SCREENS.md` does not have. A browser
+ * sweep then measured what that cost: at the design's own 1440 reference the
+ * editor's container is 1142px, so it drew ONE column where the prototype draws
+ * three — and §2.3's two- and three-column shapes were unreachable at every
+ * viewport this project tests
+ * (`docs/qa/2026-09-19-journey-editor-sweep.md`, EDITOR-003).
+ *
+ * So it is not an invented number, it is the handoff's number converted into
+ * the coordinate system the query measures in — and the conversion is
+ * executable rather than asserted: `editorGrid.test.tsx` reads the padding out
+ * of `shell.module.css`, reads these rungs out of this file, and requires them
+ * to add back up to 860 and 1180. Neither number is written in that test.
+ *
+ * `journeys.module.css` transcribes its own ladder uncompensated and is left
+ * alone: its rungs are 720/800/880/1000, where 1142 and 1202 give the same
+ * answer, so the offset there changes nothing that can be seen.
+ *
+ * ═══ AND THE GRID IS A CHILD OF THE CONTAINER, NOT THE CONTAINER ═══
+ *
+ * The second half of EDITOR-003, and the half that was doing all the damage.
+ * `container-type: inline-size` was on the grid itself, and **an element is not
+ * matched by its own container query** — only its descendants are. So the
+ * `.grid` rules inside both rungs had never applied at any width, while the
+ * `.pool` rules inside them had (the pool IS a descendant). Correcting the
+ * thresholds alone changed nothing, which is how this was found: the browser
+ * re-check after that fix still read `1142px`, one column.
+ *
+ * `.screen` is now the container and holds nothing but the measurement;
+ * `.grid` inside it is what changes shape. `journeys.module.css` never met this
+ * because everything its rungs move — the table's rows and cells — is a
+ * descendant of the element it measures.
  *
  * ═══ THE GLYPHS ARE REAL CELLS, AND THIS FILE ONLY COLOURS THEM ═══
  *
@@ -40,18 +76,29 @@
 
 /* ── The three columns ─────────────────────────────────────────────────── */
 
+/* THE MEASUREMENT, AND NOTHING ELSE. See this file's header: an element is not
+ * matched by its own container query, so the thing that changes shape has to be
+ * inside the thing that is measured. */
 .screen {
-  display: grid;
-  max-width: 1320px;
-  gap: 18px;
+  max-width: 1440px;
   container-name: td-journey-editor;
   container-type: inline-size;
+}
+
+/* `max-width` and `align-items` are the prototype's own `editorGrid` (`Travel
+ * Diary Admin.dc.html:1932`), not the journeys screen's: without
+ * `align-items: start` every column stretches to the tallest, which at the
+ * widest rung gives the 184px rail the height of the pool. */
+.grid {
+  display: grid;
+  align-items: start;
+  gap: 18px;
   grid-template-columns: minmax(0, 1fr);
 }
 
-/* §2.3's middle rung: two columns, with the pool spanning both beneath them. */
-@container td-journey-editor (min-width: 860px) {
-  .screen {
+/* §2.3's middle rung — 860 in the prototype's units; see this file's header. */
+@container td-journey-editor (min-width: 800px) {
+  .grid {
     grid-template-columns: 168px minmax(0, 1fr);
   }
 
@@ -60,9 +107,10 @@
   }
 }
 
-/* §2.3's widest rung: the pool takes its own column beside the editing pane. */
-@container td-journey-editor (min-width: 1180px) {
-  .screen {
+/* §2.3's widest rung — 1180 in the prototype's units. The pool takes its own
+ * column beside the editing pane. */
+@container td-journey-editor (min-width: 1120px) {
+  .grid {
     grid-template-columns: 184px minmax(0, 1fr) 250px;
   }
 
@@ -321,10 +369,21 @@
 
 /* ── The journey pool ──────────────────────────────────────────────────── */
 
+/* THE POOL IS A CARD, which SCREENS.md §2's preamble says of every panel on an
+ * admin screen and the prototype's `poolStyle` gives exact values for. It went
+ * unnoticed while EDITOR-003 kept the column full-width, where a band with no
+ * card behind it reads as part of the page. */
 .pool {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  gap: 8px;
+  padding: 16px 16px 18px;
+  border-radius: 3px;
+  background: var(--td-paper-mount);
+  box-shadow:
+    0 0 0 1px rgb(120 98 60 / 16%),
+    0 12px 26px -22px rgb(60 44 20 / 55%);
+  gap: 10px;
 }
 
 .poolCount {

@@ -144,37 +144,43 @@ const JourneyEditorPage = async ({ params, searchParams }: JourneyEditorPageProp
       accountName={scope.user.email}
     >
       <section data-journey-editor className={styles.screen}>
-        <div className={styles.leftColumn}>
-          <PageRail
-            journey={view.id}
-            journeyName={view.name}
-            pages={view.pages}
-            selected={selected}
-            reorder={reorderPages}
-            copy={copyPage}
-            remove={deletePage}
-          />
-          {page === null ? null : (
-            <LayoutPicker
+        {/* The grid is a CHILD of the measured element, because an element is
+         * not matched by its own container query — `editor.module.css` says so
+         * at length, and `docs/qa/2026-09-19-journey-editor-sweep.md`'s
+         * EDITOR-003 is what a screen looks like when it is not. */}
+        <div data-editor-grid className={styles.grid}>
+          <div className={styles.leftColumn}>
+            <PageRail
               journey={view.id}
-              page={page.id}
-              active={activeLayout(page)}
-              setLayout={setPageLayout}
-              addPage={addPage}
+              journeyName={view.name}
+              pages={view.pages}
+              selected={selected}
+              reorder={reorderPages}
+              copy={copyPage}
+              remove={deletePage}
             />
-          )}
-        </div>
+            {page === null ? null : (
+              <LayoutPicker
+                journey={view.id}
+                page={page.id}
+                active={activeLayout(page)}
+                setLayout={setPageLayout}
+                addPage={addPage}
+              />
+            )}
+          </div>
 
-        <div data-editing-pane className={styles.pane}>
-          <p className={styles.eyebrow}>Editing</p>
-          <h2 className={styles.paneName}>{page?.title ?? 'No pages yet'}</h2>
-          <p className={styles.paneNote}>
-            The fields for this page arrive with the next task. The rail beside it adds, copies, reorders and removes
-            pages now.
-          </p>
-        </div>
+          <div data-editing-pane className={styles.pane}>
+            <p className={styles.eyebrow}>Editing</p>
+            <h2 className={styles.paneName}>{page?.title ?? 'No pages yet'}</h2>
+            <p className={styles.paneNote}>
+              The fields for this page arrive with the next task. The rail beside it adds, copies, reorders and removes
+              pages now.
+            </p>
+          </div>
 
-        <JourneyPool items={view.pool} inBook={view.inBook} browseHref="/admin/media" />
+          <JourneyPool items={view.pool} inBook={view.inBook} browseHref="/admin/media" />
+        </div>
       </section>
     </AdminShell>
   )

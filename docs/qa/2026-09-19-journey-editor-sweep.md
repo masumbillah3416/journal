@@ -8,7 +8,10 @@ list the rail's hidden form values — deleted after the walk, findings here
 (a journey nobody owns)
 **Surfaces:** the three configured projects — `desktop` 1440x900 · `mid` 1000x800 ·
 `mobile` 390x844 (iPhone UA, touch)
-**Result:** 5 defects — S1:1 S2:2 S3:0 S4:2
+**Result:** 5 defects — S1:1 S2:2 S3:0 S4:2. **EDITOR-001, EDITOR-002, EDITOR-003 and
+EDITOR-005 were fixed in the round that followed this sweep** — each carries its own
+re-check below, measured in the same browser at the same three surfaces. EDITOR-004 is
+unfixed and is not this screen's.
 
 **Instrumentation, attached before the first navigation on every context:** `console`
 (**all levels**), `pageerror`, every `response` with a status ≥ 400, and every
@@ -118,6 +121,10 @@ failed first guards nothing.
 - **Evidence:** `docs/qa/assets/2026-09-19-journey-editor/desktop-editor.png` (six cards,
   the "2 Issues" badge) · the four `SWEEP[…]` lines above, reproduced identically at `mid`
   and `mobile`.
+- **Fixed** in `ac882f1`, by `isRowId` in the domain — a brand promises a non-empty string,
+  and that is a different question from "is there a row behind this". Re-checked in the same
+  browser: `ids=["533","534","535"] selected=1 consoleErrors=[]` at all three surfaces, and
+  `desktop-editor-fixed.png` shows three cards and no dev-overlay badge.
 
 ---
 
@@ -157,6 +164,10 @@ failed first guards nothing.
   measurements at `mid` and `mobile`.
 - **Also found by:** `task-5-review.md` H2, from a jsdom probe. This sweep confirms it in a
   real browser, at three widths, with the pixel heights.
+- **Fixed** in the round that followed, by moving `kind: 'block' | 'rule'` into `GlyphCell`
+  so a layout that did not declare a rule cannot be drawn with one. Re-checked:
+  `fourUp=["18.1x13.5","18.1x13.5","18.1x13.5","18.1x13.5"]` — four equal cells — at all
+  three surfaces, and `desktop-layout-picker-fixed.png` shows it.
 
 ---
 
@@ -198,6 +209,18 @@ failed first guards nothing.
 - **Evidence:** `docs/qa/assets/2026-09-19-journey-editor/desktop-editor.png` (the whole
   screen in one column) and `desktop-layout-picker.png` (the picker stretched across the
   full width) · the three `cols=` readings above.
+- **Fixed, and the cause was two things rather than one.** Compensating the rungs (800 and
+  1120, which are §2.3's 860 and 1180 in the units a container query measures in) changed
+  NOTHING on its own: the re-check still read `1142px`. The second cause is that
+  `container-type: inline-size` was on the grid itself, and **an element is not matched by
+  its own container query** — only its descendants are, which is why the `.pool` rules
+  inside the rungs had always worked and the grid rules had never fired at any width. The
+  grid is now a child of the measured element. Re-checked: `cols="184px 672px 250px"` at
+  desktop — §2.3's three columns, the pool at its 250px — and one column at `mid` (718px
+  container, correctly below the 800 rung) and `mobile`. `desktop-editor-fixed.png`.
+- **Still not exercised:** the two-column middle shape. `mid`'s container is 718px and the
+  rung is 800, so no project photographs it — the same gap `docs/deviations.md` §55 records
+  for the journeys ladder, where `mid` sits under the first rung.
 
 ---
 
@@ -236,6 +259,9 @@ start` changes nothing and the pool's full-width band reads as part of the page.
   become visible the moment the three-column shape appears.
 - **Evidence:** `desktop-editor.png` — the pool sits directly on the desk with no card
   behind it, unlike every other panel on the screen.
+- **Fixed** alongside EDITOR-003, because both become visible in the same shape: the grid
+  takes the prototype's `max-width: 1440px` and `align-items: start`, and the pool takes its
+  `#fffdf6`, `3px` radius, `16px 16px 18px` padding, ring and shadow. `desktop-editor-fixed.png`.
 
 ---
 
