@@ -11,12 +11,38 @@
  * @travel-diary/domain/ids, `PoolItem` (../../../lib/admin/readJourneyEditor),
  * ./JourneyPool.
  */
-import { mediaId, type MediaId } from '@travel-diary/domain/ids'
+import { journeyId, mediaId, slotKey, type JourneyId, type MediaId, type SlotKey } from '@travel-diary/domain/ids'
+import type React from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { PoolItem } from '../../../lib/admin/readJourneyEditor'
 import { JourneyPool } from './JourneyPool'
+
+/**
+ * A branded journey id.
+ * @param raw - The id as Postgres would spell it.
+ * @returns The branded id.
+ */
+const aJourney = (raw: string): JourneyId => {
+  const built = journeyId(raw)
+  if (!built.ok) throw new Error(built.error)
+  return built.value
+}
+
+/**
+ * A branded cell key.
+ * @param raw - The key as the pane spells it.
+ * @returns The branded key.
+ */
+const aSlot = (raw: string): SlotKey => {
+  const built = slotKey(raw)
+  if (!built.ok) throw new Error(built.error)
+  return built.value
+}
+
+/** What nothing in these cases does: no tile here is ever submitted. */
+const noAction = (): Promise<void> => Promise.resolve()
 
 const roots: Root[] = []
 
@@ -52,15 +78,72 @@ const anItem = (id: string, overrides: Partial<PoolItem> = {}): PoolItem => ({
  * @param inBook - How many are in the book.
  * @returns The host element.
  */
-const renderPool = (items: readonly PoolItem[], inBook: number): HTMLElement => {
+const poolOf = (
+  items: readonly PoolItem[],
+  inBook: number,
+  extras: { readonly ticked?: ReadonlySet<MediaId>; readonly target?: SlotKey | null } = {},
+): React.JSX.Element => (
+  <JourneyPool
+    journey={aJourney('42')}
+    items={items}
+    inBook={inBook}
+    ticked={extras.ticked ?? new Set()}
+    target={extras.target === undefined ? aSlot('7:0') : extras.target}
+    place={noAction}
+    browseHref="/admin/media"
+  />
+)
+
+/**
+ * Renders the pool once and hands back the host element.
+ * @param items - The tiles.
+ * @param inBook - How many are in the book.
+ * @param extras - The selection and the chosen frame, where a case cares.
+ * @returns The host element.
+ */
+const renderPool = (
+  items: readonly PoolItem[],
+  inBook: number,
+  extras: { readonly ticked?: ReadonlySet<MediaId>; readonly target?: SlotKey | null } = {},
+): HTMLElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
   roots.push(root)
   act(() => {
-    root.render(<JourneyPool items={items} inBook={inBook} browseHref="/admin/media" />)
+    root.render(poolOf(items, inBook, extras))
   })
   return host
+}
+
+/**
+ * Renders the pool twice into ONE root, which is what a re-sort really is: the
+ * same component handed a different order, not a second mount.
+ * @param first - The tiles as they arrive.
+ * @param second - The tiles after the library was re-sorted.
+ * @param ticked - The selection, unchanged across both.
+ * @returns The ticked tile ids after each render.
+ */
+const renderTwice = (
+  first: readonly PoolItem[],
+  second: readonly PoolItem[],
+  ticked: ReadonlySet<MediaId>,
+): readonly (readonly (string | null)[])[] => {
+  const host = document.createElement('div')
+  document.body.appendChild(host)
+  const root = createRoot(host)
+  roots.push(root)
+  const tickedIds = (): readonly (string | null)[] =>
+    [...host.querySelectorAll('[data-ticked]')].map((tile) => tile.getAttribute('data-pool-item'))
+
+  act(() => {
+    root.render(poolOf(first, 0, { ticked }))
+  })
+  const before = tickedIds()
+  act(() => {
+    root.render(poolOf(second, 0, { ticked }))
+  })
+  return [before, tickedIds()]
 }
 
 afterEach(() => {
@@ -79,12 +162,49 @@ describe('JourneyPool', () => {
     expect(host.querySelector('[data-pool-count]')?.textContent).toBe('1 of 3 in the book')
   })
 
-  it('rings exactly the tiles that are in the book', () => {
-    const host = renderPool([anItem('1', { inBook: true }), anItem('2')], 1)
+  it('ticks exactly the photographs the page being edited holds', () => {
+    const host = renderPool([anItem('1'), anItem('2')], 1, { ticked: new Set([anId('1')]) })
 
-    const ringed = [...host.querySelectorAll('[data-in-book]')]
-    expect(ringed).toHaveLength(1)
-    expect(ringed[0]?.getAttribute('data-pool-item')).toBe('1')
+    const ticked = [...host.querySelectorAll('[data-ticked]')]
+    expect(ticked).toHaveLength(1)
+    expect(ticked[0]?.getAttribute('data-pool-item')).toBe('1')
+  })
+
+  it('keeps the same photograph ticked when the pool is re-sorted under it', () => {
+    // BY ID, NEVER BY POSITION (CLAUDE.md 0.9). The pool is sorted by the
+    // library's own `order`, which an author can change from the Media screen
+    // while this page is open - so a tick chosen by index would follow the
+    // PLACE rather than the photograph. The two renders below are the same
+    // three tiles in two orders, against one selection.
+    const ticked = new Set([anId('2')])
+
+    const [before, after] = renderTwice(
+      [anItem('1'), anItem('2'), anItem('3')],
+      [anItem('3'), anItem('2'), anItem('1')],
+      ticked,
+    )
+
+    expect(before).toEqual(['2'])
+    expect(after).toEqual(['2'])
+  })
+
+  it('disables every tile while no frame is chosen, and says so', () => {
+    // A tick with no frame chosen has nowhere to put the photograph, and "the
+    // first empty cell" is a guess nobody asked for. The instruction line is
+    // what turns a disabled control into an instruction.
+    const host = renderPool([anItem('1')], 0, { target: null })
+
+    expect([...host.querySelectorAll('[data-pool-place]')].every((tile) => tile.hasAttribute('disabled'))).toBe(true)
+    expect(host.querySelector('[data-pool-instruction]')?.textContent).toContain('Replace')
+  })
+
+  it('enables the tiles once a frame is chosen, and posts that frame with the photograph', () => {
+    const host = renderPool([anItem('1')], 0, { target: aSlot('7:2') })
+
+    const tile = host.querySelector('[data-pool-place]')
+    expect(tile?.hasAttribute('disabled')).toBe(false)
+    expect(host.querySelector('input[name="slot"]')?.getAttribute('value')).toBe('7:2')
+    expect(host.querySelector('input[name="media"]')?.getAttribute('value')).toBe('1')
   })
 
   it('puts a duration chip on a clip and none on a still', () => {
@@ -102,22 +222,32 @@ describe('JourneyPool', () => {
     expect(host.querySelectorAll('img')).toHaveLength(0)
   })
 
-  it('gives every image the row’s own alt text, so the grid is not a wall of unnamed squares', () => {
+  it('names every tile by the row own alt text, so the grid is not a wall of unnamed squares', () => {
+    // THE NAME IS ON THE BUTTON, NOT ON THE `<img>` INSIDE IT. The tile is the
+    // control now, and an image with its own alt inside a labelled button is
+    // announced twice; the image is decorative and the button says what
+    // pressing it does.
     const host = renderPool([anItem('1'), anItem('2')], 0)
 
-    expect([...host.querySelectorAll('img')].map((image) => image.getAttribute('alt'))).toEqual(['Frame 1', 'Frame 2'])
+    expect([...host.querySelectorAll('[data-pool-place]')].map((tile) => tile.getAttribute('aria-label'))).toEqual([
+      'Place Frame 1 in the chosen frame',
+      'Place Frame 2 in the chosen frame',
+    ])
+    expect([...host.querySelectorAll('img')].map((image) => image.getAttribute('alt'))).toEqual(['', ''])
   })
 
-  it('lets a keyboard reach the scrolling grid, which axe found it could not', () => {
+  it('lets a keyboard reach the scrolling grid through its own contents', () => {
     // MEASURED IN A REAL BROWSER, not reasoned about: `e2e/a11y.spec.ts`
     // reported `scrollable-region-focusable` (serious, WCAG 2.1.1) on this
-    // list, because §2.3 scrolls it at `max-height: 432px` and nothing
-    // inside it is focusable until Task 7's tick boxes land.
+    // list while the tiles were inert, and Task 5 answered it with a
+    // `tabIndex` on the `<ul>`. Every tile is a button now, so the region is
+    // reachable through its contents - and the stop that lands on a list whose
+    // children are all focusable is a stop nobody wants.
     const host = renderPool([anItem('1'), anItem('2')], 0)
 
     const grid = host.querySelector('ul')
-    expect(grid?.getAttribute('tabindex')).toBe('0')
-    expect(grid?.getAttribute('aria-label')).not.toBeNull()
+    expect(grid?.getAttribute('tabindex')).toBeNull()
+    expect(host.querySelectorAll('[data-pool-place]')).toHaveLength(2)
   })
 
   it('draws an empty pool rather than throwing for a journey with no media', () => {

@@ -63,6 +63,10 @@ const aPage = (raw: string): PageId => {
 const anEditorPage = (id: string, order: number, overrides: Partial<EditorPage> = {}): EditorPage => ({
   ...aRailPage(id, order),
   layout: 'three-up',
+  // The rail draws a card's name, its meta line and its tool row and reads
+  // nothing else; an empty cell list is what a page with no photographs in it
+  // really has, and a case that cares sets its own.
+  slots: [],
   ...overrides,
 })
 

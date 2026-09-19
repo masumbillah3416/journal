@@ -3,40 +3,66 @@
  * "{n} of {total} in the book", the instruction line, and the 2-column tile grid
  * beneath them.
  *
- * ═══ WHAT IT DRAWS, AND WHAT IT DELIBERATELY DOES NOT ═══
+ * ═══ A TILE PLACES ITS PHOTOGRAPH IN THE FRAME THE ADDRESS NAMES ═══
  *
- * §2.3 gives each tile a tick box and a ringed selected state, and those act on
- * the SELECTED PAGE'S SLOTS — putting a photograph into a frame is
- * `setSlotMedia`, which is Task 7's. This task builds the editor's frame, and
- * the pool is the third of its three columns: a column left empty would collapse
- * the grid `editor.module.css` describes into a shape no later baseline would
- * match, and the data is already read (`readJourneyEditor` fetches it in the
- * same three queries). So the tiles are drawn, with their in-book ring and their
- * duration chips, and NOTHING here is clickable yet.
+ * Task 5 drew these tiles inert, because putting a photograph into a frame is
+ * `setSlotMedia` and that is Task 7's. It is Task 7. A tile is now a `<form>`
+ * posting the media row and the cell `?slot=` names — so the pool ships no
+ * JavaScript, exactly as the rail's arrows do not, and the choice of frame is an
+ * ADDRESS rather than state (a Replace link in `SlotPanel.tsx` sets it).
  *
- * The ring is the row's own `inBook` column rather than a selection: it says
- * "this photograph is in the book", which is what the eyebrow's count is over.
+ * WITH NO FRAME CHOSEN THE TILES ARE DISABLED AND THE LINE SAYS SO. A tick that
+ * had to guess which cell it meant would be the dead affordance Task 5's sweep
+ * is this repository's record of — and "the first empty cell" is a rule nobody
+ * asked for, which is the abstraction CLAUDE.md §4 refuses.
+ *
+ * ═══ TICKED IS A SET OF MEDIA IDS, NEVER A POSITION ═══
+ *
+ * A tile is ticked when the page being edited already holds that photograph, and
+ * the question is asked of a `ReadonlySet<MediaId>` (CLAUDE.md §0.9). The pool
+ * is sorted by the library's own `order`, which an author can change from the
+ * Media screen while this page is open; a ticked-by-index pool would then tick
+ * whichever photograph had moved into that place. `JourneyPool.test.tsx`
+ * re-sorts the list between two renders and asserts the same tile stays ticked.
+ *
+ * // HANDOFF-DEVIATION: the prototype's tick toggles the media row's own
+ * `inBook` column ("Tick a frame to place it in the book"), which is a write
+ * `SCREENS.md` gives no other control and which says nothing about WHERE in the
+ * book. The tick here places the photograph in a frame, which is the thing an
+ * author on this screen is trying to do and the thing this task's four actions
+ * do. The eyebrow's count still reads the `inBook` column, so it still answers
+ * the question the prototype's label asks. See docs/deviations.md.
  *
  * A TILE WITH NO DERIVATIVE DRAWS AN EMPTY SQUARE. `readJourneyEditor` answers
  * `null` for an upload too small to have a `thumb`, rather than falling back to
  * the original — a 2-column sidebar of 4000px uploads is the whole library on
  * the wire (CLAUDE.md §6).
  *
- * PATTERNS (CLAUDE.md §3.3): none of the seven. A list rendered.
- * Depends on: react, `PoolItem` (../../../lib/admin/readJourneyEditor),
- * ./editor.module.css.
+ * PATTERNS (CLAUDE.md §3.3): none of the seven. A list rendered, one form per
+ * row.
+ * Depends on: react, `JourneyId`/`MediaId`/`SlotKey` (@travel-diary/domain/ids),
+ * `PoolItem` (../../../lib/admin/readJourneyEditor), ./editor.module.css.
  */
+import type { JourneyId, MediaId, SlotKey } from '@travel-diary/domain/ids'
 import type React from 'react'
 import type { PoolItem } from '../../../lib/admin/readJourneyEditor'
 import styles from './editor.module.css'
 
 /** What the pool column needs to draw itself. */
 export interface JourneyPoolProps {
+  /** The journey being edited — the cache address every tile posts. */
+  readonly journey: JourneyId
   /** The journey's media, in the library's own order. */
   readonly items: readonly PoolItem[]
-  /** How many of them are in the book. */
+  /** How many of them are in the book — the eyebrow's count. */
   readonly inBook: number
-  /** Where "Drop files or browse" goes — the media screen, scoped to nothing yet. */
+  /** Which photographs the page being edited already holds, by id. */
+  readonly ticked: ReadonlySet<MediaId>
+  /** The cell `?slot=` names, which a tile fills, or `null` when none is chosen. */
+  readonly target: SlotKey | null
+  /** Puts a photograph into that cell. */
+  readonly place: (form: FormData) => Promise<void>
+  /** Where "Drop files or browse" goes — the media screen. */
   readonly browseHref: string
 }
 
@@ -46,9 +72,17 @@ export interface JourneyPoolProps {
  * @param props - See {@link JourneyPoolProps}.
  * @returns The eyebrow, the tile grid and the footer.
  * @example
- * <JourneyPool items={view.pool} inBook={view.inBook} browseHref="/admin/media" />
+ * <JourneyPool journey={view.id} items={view.pool} inBook={view.inBook} ticked={held} target={slot} … />
  */
-export const JourneyPool = ({ items, inBook, browseHref }: JourneyPoolProps): React.JSX.Element => (
+export const JourneyPool = ({
+  journey,
+  items,
+  inBook,
+  ticked,
+  target,
+  place,
+  browseHref,
+}: JourneyPoolProps): React.JSX.Element => (
   <section data-journey-pool aria-label="Journey pool" className={styles.pool}>
     <p className={styles.eyebrow}>
       Journey pool —{' '}
@@ -56,39 +90,53 @@ export const JourneyPool = ({ items, inBook, browseHref }: JourneyPoolProps): Re
         {inBook} of {items.length} in the book
       </span>
     </p>
-    <p className={styles.poolNote}>Everything uploaded to this journey. Ticked frames are in the book.</p>
+    <p data-pool-instruction className={styles.poolNote}>
+      {target === null
+        ? 'Choose a frame with Replace, then tick a photograph to place it.'
+        : 'Tick a photograph to place it in the frame you chose.'}
+    </p>
 
-    {/* THE SCROLLER IS FOCUSABLE, AND THAT IS A FIX RATHER THAN A FLOURISH.
-     * §2.3 caps this grid at `max-height: 432px` and scrolls it, and axe
-     * found the consequence in a real browser: a scrollable region whose
-     * content holds nothing focusable cannot be reached, let alone scrolled,
-     * by a keyboard (`scrollable-region-focusable`, serious, WCAG 2.1.1). The
-     * tiles are not interactive until Task 7 puts a tick box on them, so
-     * until then the list itself takes the focus and says what it is. When
-     * the tiles become buttons this `tabIndex` should go: a focus stop that
-     * lands on a list whose children are all focusable is a stop nobody wants. */}
-    <ul tabIndex={0} aria-label="Frames uploaded to this journey" className={styles.poolGrid}>
+    {/* THE SCROLLER'S OWN FOCUS STOP IS GONE, AND THAT IS THE FIX COMPLETING
+     * ITSELF. Task 5 gave this list `tabIndex={0}` because axe found
+     * `scrollable-region-focusable` (serious, WCAG 2.1.1): §2.3 caps the grid
+     * at `max-height: 432px` and scrolls it, and nothing inside it was
+     * focusable while the tiles were inert. Every tile is a button now, so a
+     * keyboard reaches the region through its contents — and the stop that
+     * lands on a list whose children are all focusable is the stop Task 5's
+     * own comment said should go when this happened. */}
+    <ul aria-label="Frames uploaded to this journey" className={styles.poolGrid}>
       {items.map((item) => (
-        <li
-          key={item.id}
-          data-pool-item={item.id}
-          data-in-book={item.inBook ? '' : undefined}
-          className={[styles.tile, item.inBook ? styles.tileInBook : ''].join(' ')}
-        >
-          {item.thumbSrc === null ? null : (
-            // A plain `<img>` on a Payload derivative already sized for this
-            // tile, as `components/gallery/Tile.tsx` serves its own: `thumb` is
-            // 400px square and the tile is about 120px, so a second optimiser
-            // in front of it would buy nothing. `loading="lazy"` because the
-            // grid scrolls at `max-height: 432px` and most of it is below the
-            // fold of its own scroller.
-            <img src={item.thumbSrc} alt={item.alt} loading="lazy" decoding="async" className={styles.tileImage} />
-          )}
-          {item.duration === null ? null : (
-            <span data-pool-duration className={styles.duration}>
-              {item.duration}
-            </span>
-          )}
+        <li key={item.id} data-pool-item={item.id} data-ticked={ticked.has(item.id) ? '' : undefined}>
+          <form action={place}>
+            <input type="hidden" name="journey" value={journey} />
+            <input type="hidden" name="slot" value={target ?? ''} />
+            <input type="hidden" name="media" value={item.id} />
+            <button
+              type="submit"
+              data-pool-place
+              disabled={target === null}
+              aria-label={`Place ${item.alt} in the chosen frame`}
+              className={[styles.tile, ticked.has(item.id) ? styles.tileTicked : ''].join(' ')}
+            >
+              {item.thumbSrc === null ? null : (
+                // A plain `<img>` on a Payload derivative already sized for this
+                // tile, as `components/gallery/Tile.tsx` serves its own: `thumb` is
+                // 400px square and the tile is about 120px, so a second optimiser
+                // in front of it would buy nothing. `loading="lazy"` because the
+                // grid scrolls at `max-height: 432px` and most of it is below the
+                // fold of its own scroller.
+                <img src={item.thumbSrc} alt="" loading="lazy" decoding="async" className={styles.tileImage} />
+              )}
+              <span data-pool-tick aria-hidden="true" className={styles.tick}>
+                {ticked.has(item.id) ? '✓' : ''}
+              </span>
+              {item.duration === null ? null : (
+                <span data-pool-duration className={styles.duration}>
+                  {item.duration}
+                </span>
+              )}
+            </button>
+          </form>
         </li>
       ))}
     </ul>

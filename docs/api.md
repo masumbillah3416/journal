@@ -629,6 +629,10 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
     into a row id by `rowId`, which refuses anything that is not a positive safe integer;
     `page` is resolved by `selectedPage` in `packages/domain/src/admin/pageRail.ts`, which
     takes a repeated parameter's first value and ignores an id this journey does not hold.
+    `slot` names the CELL the journey pool fills next, as `<page>:<cell>`, and is resolved by
+    `selectedSlot` in `packages/domain/src/admin/pageSlots.ts` - which takes a repeated
+    parameter's first value, ignores a cell the selected page does not draw, and defaults to
+    NOTHING rather than to a first cell.
 - **Output:** an HTML document: `SCREENS.md` §2's shell - with the journey's own name as
   the screen title and a crumb naming its place and page count - around §2.3's editor. Its
   three columns are `184px | minmax(0,1fr) | 250px` above 1180px, `168px | minmax(0,1fr)`
@@ -640,9 +644,14 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   a NOTES page that is `NotesPane`, a single `<form>` holding the field grid, Highlights,
   The note, Tally and the Page furniture block, which reshapes at two more rungs of the same
   container (856 and 960, which are §2.3's 900 and 1020 in the units a container query
-  measures in); for a FRAMES page it is still a placeholder, because the photo slots are
-  Task 7. **"Preview page" is not drawn** - `docs/deviations.md` §59 says why. The right
-  column is the journey pool. `metadata` sets the document title and
+  measures in); for a FRAMES page it is `FramesPane`, which is NOT a form and draws its cells
+  in `repeat(auto-fit, minmax(196px, 1fr))`. Both hand their cells to `SlotPanel` - the hero
+  and the ephemera scrap in the Notes pane's right-hand column, four frames in the Frames
+  pane - and each cell draws its label, its motion badge, the photograph with
+  `cursor: crosshair`, Replace / Clear, the focal pill and the caption and alt fields.
+  **"Preview page" is not drawn** - `docs/deviations.md` §59 says why, and §64 says why a
+  Frames pane draws no "Save draft" either. The right column is the journey pool, whose tiles
+  place a photograph into the cell `?slot=` names and are disabled while it names none. `metadata` sets the document title and
   `robots: { index: false, follow: false }`.
 - **Reads:** three call sites, eight queries, under ONE hoisted `adminScope` -
   `readNavCounts` (four `payload.count` calls), one `findGlobal('site')` selecting `name`,
@@ -652,7 +661,10 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   versions table and an editor that read the main rows would show a reader's copy of the
   book. Plus the one `users` row `adminScope` itself resolves. **Still three after the Notes
   pane landed:** its fields are journey-level columns, so they widened the journey read's
-  `select` rather than adding a read of their own.
+  `select` rather than adding a read of their own. **And still three after the slots landed:**
+  every page's cells come from `slots`, one more column on the `pages` read, and each cell's
+  preview is resolved against the media rows the pool read already fetched - a fourth query, or
+  a read keyed on which page is selected, would have made the count depend on the address.
 - **Notes pane fields:** Location (the journey's own `name`), Dates, Weather, Mood; the
   highlight list, capped at `MAX_HIGHLIGHTS`; The note; the tally, always `TALLY_ROWS` cells
   whose values are TEXT ("plenty", "uncounted"); and the furniture - sign-off, weather glyph,
@@ -662,15 +674,20 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   editable, which is the invariant `readJourneysScreen.ts` carries one screen along.
 - **Auth requirement:** **signed in.** `requireAdminSession()` runs in this file before
   anything is drawn; an anonymous request is redirected to `/admin/sign-in`.
-- **Notes:** **the screen ships no client JavaScript.** Selection is an address
-  (`?page=<id>`), and every control is a `<form action={...}>`: the arrows carry the WHOLE
-  new sequence of page ids, computed on the server by `movePage` while the rail renders, so
-  the browser posts an outcome rather than an instruction. The Notes pane is the same
-  argument one column along: its highlight controls are submit buttons in the pane's own
-  form, each carrying an `op` the save applies, so pressing one keeps every unsaved
-  keystroke on the page.
+- **Notes:** **the screen ships ONE client entry, and everything else is a form.** Selection
+  is an address (`?page=<id>`, `?slot=<page>:<cell>`), and every control but the slot panel's
+  is a `<form action={...}>`: the arrows carry the WHOLE new sequence of page ids, computed on
+  the server by `movePage` while the rail renders, so the browser posts an outcome rather than
+  an instruction. The Notes pane is the same argument one column along: its highlight controls
+  are submit buttons in the pane's own form, each carrying an `op` the save applies, so
+  pressing one keeps every unsaved keystroke on the page. The one exception is
+  `components/admin/editor/SlotPanel.tsx`: §2.3's focal point is
+  `clamp(0, ((clientX - rect.left) / rect.width) x 100, 100)`, which needs the clicked
+  element's measured width, and no server has it (`docs/deviations.md` §62).
   `apps/web/lib/admin/shellShipsNoClientJs.test.ts` judges `components/admin/editor/` for
-  that claim and fails on the commit that adds a `'use client'` there.
+  that claim, admits that one file by name, and fails on the commit that adds a SECOND
+  `'use client'` there - or that leaves the allowlist naming a file which no longer carries
+  the directive.
 
 ### `GET /admin/sign-in`
 
@@ -1425,7 +1442,7 @@ Found` when the id names no journey, and a refused write.
   keeps seeing the published notes until Publish. That is also why it is ONE write where
   `setPageLayout` above is two: `order` and `layout` are structural and apply with no Save,
   and notes are content behind a button called Save draft.
-  **The four highlight controls are submit buttons in the SAME form**, because the editor
+  **The four highlight controls are submit buttons in the SAME form**, because this pane
   ships no client JavaScript: each posts an `op`, and `readNotes` applies it to the list
   the author has in front of them, so pressing one keeps everything they had typed and not
   yet saved. The cap is enforced there, on the server, which is why the pane can draw "Add
@@ -1436,6 +1453,52 @@ Found` when the id names no journey, and a refused write.
   and grips do nothing - the same staleness the page rail's arrows have.
   `notesMutations.integration.test.ts` asserts the property that matters end to end: what
   the pane posted is what `readBookBundle` reads back once the journey is published.
+
+### `setSlotMedia(form)` · `setSlotFocalPoint(form)` · `setSlotText(form)` · `clearSlot(form)`
+
+- **Path:** `apps/web/app/(admin)/admin/journeys/[id]/actions.ts`; every decision is
+  `apps/web/lib/admin/slotMutations.ts`'s, executed by its own integration suite.
+- **Method:** server actions, all four `(form: FormData) => Promise<void>`.
+- **Input:** `journey`, and ONE field naming the target: `slot`, the branded
+  `<page>:<cell>` key the pane holds its pending focal points under
+  (`@travel-diary/domain/admin/focalPoint`'s `slotKeyFor`). A form carrying `page` and
+  `cell` as two fields can be posted with a cell from one slot and a page from another;
+  one field cannot. Then `media` (a row id) for `setSlotMedia`, `focalX`/`focalY` (each in
+  `[0, 100]`) for `setSlotFocalPoint`, `caption` and `alt` for `setSlotText`, and nothing
+  more for `clearSlot`. **The key is refused by SHAPE first** - two runs of digits and a
+  colon - so a minus sign, a decimal, an empty half and a second colon are all refused
+  without the parse having listed them.
+- **Output:** `void`, then `revalidatePath` on the editor's address and on
+  `/admin/journeys`.
+- **Errors:** a `ZodError` for a malformed key, a cell past the last one ANY pane draws, a
+  focal component outside the frame, or a media id that is not a row id; an `Error` naming
+  the page's kind when THIS page's pane does not draw that cell; and from Payload, `Not
+Found` and a refused write. **The editing pane surfaces none of them** -
+  `docs/deviations.md` §60, which also records that none of these refusals is reachable by
+  clicking.
+- **Auth requirement:** **signed in**, through `guardedAction`.
+- **Notes:** **the cell is checked twice, and the two checks are different questions.** The
+  parse refuses a cell no pane draws at all (`HIGHEST_SLOT_CELL`, derived from
+  `@travel-diary/domain/admin/pageSlots`, so a fifth frame added there widens it with no
+  edit to the parse); the WRITE then refuses a cell this page's own pane does not draw,
+  because a notes page has two cells and a frames page four and the key carries no kind.
+  **All four are LIVE-ROW writes through `pageMutations.ts`'s `writePageFields`**, the
+  two-write shape Task 4 paid two review rounds for: §2.3's slot controls have no Save of
+  their own and the public book reads `pages.slots` off the `pages` table, so a slot write
+  is structural exactly as `order` and `layout` are. What is new is that `slots` is an
+  ARRAY the write patches one cell of, and the live row's and the pending draft's can
+  differ - so `writePageFields` takes a FUNCTION of the document being written, and each
+  side is patched from its own array. **The array is padded, never spliced:** a cell's index
+  is its cell of the layout (`FramesI.tsx` reads `page.slots?.[position]`), so `clearSlot`
+  empties a row in place and a write to cell 2 creates three. **Placing a photograph
+  re-centres the cell**, because a crop chosen for one photograph frames a different one
+  arbitrarily and the pill reads a number either way.
+  **Three of the four are called from a client island, not a form.** `SlotPanel.tsx` builds
+  the `FormData` itself, because §2.3's focal formula needs the clicked element's measured
+  width (`docs/deviations.md` §62); `setSlotMedia` is posted by the journey pool's real
+  `<form>`. The shape is the same so one parse serves both.
+  `slotMutations.integration.test.ts` asserts the property the phase's second exit criterion
+  rests on: a focal point set here moves the crop `readBookBundle` hands the diary.
 
 ## Planned routes (Phase 1)
 

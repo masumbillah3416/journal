@@ -117,12 +117,25 @@
  * (@travel-diary/domain/ids), `payload` (types), `AdminScope` (./adminScope),
  * `JourneyNotes` (./notesMutations).
  */
+import type { FocalPoint } from '@travel-diary/domain/admin/focalPoint'
+import { slotKeyFor } from '@travel-diary/domain/admin/focalPoint'
 import type { Highlight } from '@travel-diary/domain/admin/highlights'
 import { type PageLayout } from '@travel-diary/domain/admin/layoutGlyphs'
 import type { RailPage } from '@travel-diary/domain/admin/pageRail'
-import { TALLY_ROWS, type TallyCell, type WeatherGlyph } from '@travel-diary/domain/bookBundle'
+import { slotLabel, slotRolesFor } from '@travel-diary/domain/admin/pageSlots'
+import { TALLY_ROWS, type SlotRole, type TallyCell, type WeatherGlyph } from '@travel-diary/domain/bookBundle'
 import { clipDuration } from '@travel-diary/domain/gallery'
-import { isRowId, journeyId, mediaId, pageId, rowId, type JourneyId, type MediaId } from '@travel-diary/domain/ids'
+import {
+  isRowId,
+  journeyId,
+  mediaId,
+  pageId,
+  rowId,
+  type JourneyId,
+  type MediaId,
+  type PageId,
+  type SlotKey,
+} from '@travel-diary/domain/ids'
 import type { Payload } from 'payload'
 import type { AdminScope } from './adminScope'
 import type { JourneyNotes } from './notesMutations'
@@ -138,6 +151,45 @@ import type { JourneyNotes } from './notesMutations'
 export interface EditorPage extends RailPage {
   /** The layout this page is laid out with, or `null` where none was chosen. */
   readonly layout: PageLayout | null
+  /**
+   * Every cell of this page's editing pane, in cell order — ALWAYS
+   * `slotRolesFor(kind).length` of them, whatever the row holds.
+   *
+   * A CELL IS DRAWN WHETHER OR NOT ANYTHING IS STORED IN IT, which is the
+   * difference between this and the `pages.slots` array: a page created by an
+   * earlier task, or by Copy from a page with fewer photographs, has fewer
+   * stored rows than its pane has cells, and an author cannot fill a cell that
+   * is not drawn. `apps/web/lib/admin/slotMutations.ts` pads the stored array
+   * on the first write to a cell, so the two agree from then on.
+   */
+  readonly slots: readonly EditorSlot[]
+}
+
+/** One cell of SCREENS.md §2.3's editing pane. */
+export interface EditorSlot {
+  /**
+   * The cell's identity, `${page}:${cell}` — what every slot control posts and
+   * what the pane holds its pending focal point under (CLAUDE.md §0.9).
+   */
+  readonly key: SlotKey
+  /** Which cell of the pane this is, from zero. */
+  readonly cell: number
+  /** What part it plays: the hero, the ephemera scrap, or one of the frames. */
+  readonly role: SlotRole
+  /** What §2.3 prints above it — `'Hero'`, `'Ephemera'`, `'Frame 3'`. */
+  readonly label: string
+  /** The photograph in it, branded, or `null` for an empty cell. */
+  readonly media: MediaId | null
+  /** The preview to draw, or `null` when there is nothing to draw — see {@link slotPreviewOf}. */
+  readonly previewSrc: string | null
+  /** The slot's own caption, as the field holds it. */
+  readonly caption: string
+  /** The slot's own alt text, as the field holds it. */
+  readonly alt: string
+  /** Where the crop is anchored — the control this screen exists for. */
+  readonly focal: FocalPoint
+  /** Whether §2.3's motion badge reads "Loops" (a clip) or "Still". */
+  readonly loops: boolean
 }
 
 /** One tile in SCREENS.md §2.3's journey pool. */
@@ -330,6 +382,130 @@ const thumbOf = (sizes: { readonly thumb?: { readonly url?: string | null } } | 
 }
 
 /**
+ * Which derivative tiers a SLOT PREVIEW walks, in preference order.
+ *
+ * ═══ UNCROPPED, AND THE FOCAL POINT IS THE WHOLE REASON ═══
+ *
+ * `readBookBundle.ts`'s `DERIVATIVE_PREFERENCE` gives its own reasoning and
+ * this is the admin's half of it: a focal point can only choose between pixels
+ * the derivative still has, so a preview drawn from `thumb` — a 400x400 CENTRE
+ * CROP — would let an author aim at a part of the photograph the book will
+ * print, and see the aim land somewhere else. That is MED-001's shape with the
+ * editor on the other side of it.
+ *
+ * `frame` first: it is the one uncropped rung every original yields
+ * (`withoutEnlargement: true`), and it is the SAME FILE the book serves for a
+ * frame or an ephemera slot, so a preview is usually a cache hit rather than a
+ * download. The pool's tiles keep `thumb` — they are 120px squares and there
+ * is nothing to aim at (see {@link thumbOf}).
+ */
+const PREVIEW_TIERS = ['frame', 'hero'] as const
+
+/**
+ * The preview one slot draws, or `null`.
+ *
+ * `null` HAS THE SAME THREE MEANINGS IT HAS IN THE BOOK (`Slot.src`): the cell
+ * holds no photograph, the row is not in this journey's pool, or it has no
+ * derivative of any tier. The pane draws an empty cell in each case, rather
+ * than reaching for the original — a 4000px upload behind a 186px box is the
+ * whole library on the wire (CLAUDE.md §6).
+ *
+ * IT DOES NOT THROW WHERE `readBookBundle` DOES. The book fails loudly on a row
+ * with no derivative because a missing photograph there is a deploy mistake
+ * (`npm run media:rederive` not run); here the author is LOOKING AT the media
+ * library and needs the screen to load so they can replace the row.
+ * @param sizes - The derivative map as Payload returned it.
+ * @returns The first available tier's URL, or `null`.
+ */
+const slotPreviewOf = (
+  sizes: Readonly<Partial<Record<(typeof PREVIEW_TIERS)[number], { readonly url?: string | null }>>> | undefined,
+): string | null => {
+  for (const tier of PREVIEW_TIERS) {
+    const url = sizes?.[tier]?.url
+    if (typeof url === 'string') return url
+  }
+  return null
+}
+
+/**
+ * What a slot's preview needs from the journey's media pool.
+ *
+ * A SLICE OF THE POOL QUERY, NOT A QUERY OF ITS OWN. The three-query budget
+ * this module's header pins is what makes that necessary and the `select`
+ * already fetched is what makes it possible: the pool read carries every media
+ * row of this journey with its whole `sizes` map, so a slot's preview is a
+ * lookup rather than a fourth read.
+ */
+interface PoolRow {
+  /** The derivative map, for {@link slotPreviewOf} and {@link thumbOf}. */
+  readonly sizes: Parameters<typeof slotPreviewOf>[0]
+  /** Whether the row is a clip, for §2.3's motion badge. */
+  readonly loops: boolean
+}
+
+/**
+ * Every cell of one page's editing pane, whether or not the row holds anything
+ * in it.
+ *
+ * ═══ THE PANE'S CELLS, NOT THE ROW'S ARRAY ═══
+ *
+ * The count comes from `@travel-diary/domain/admin/pageSlots` — two for a Notes
+ * page, four for a Frames page, which is SCREENS.md §2.3's own arithmetic — and
+ * never from `slots.length`. A page created before Task 7, or copied from one
+ * with fewer photographs, has fewer stored rows than its pane has cells, and a
+ * cell the pane does not draw is a cell the author cannot fill. The stored
+ * array catches up on the first write: `slotMutations.ts` pads it.
+ *
+ * A STORED ROW PAST THE LAST CELL IS NOT DRAWN, and that is deliberate rather
+ * than an oversight: the public `FramesI.tsx` has three cells and `FramesII`
+ * four, so a fifth row was never rendered by anything. Drawing it here would
+ * offer an author a frame the book does not print.
+ *
+ * THE MEDIA MUST BE IN THIS JOURNEY'S POOL. A slot pointing at another
+ * journey's photograph resolves to `previewSrc: null` and draws an empty cell,
+ * because the pool read is scoped to this journey — the alternative is a fourth
+ * query for a state no control on this screen can create (the pool is the only
+ * way in, and it holds this journey's media).
+ * @param page - The page's row id, for the cell keys.
+ * @param kind - Which pane the page gets.
+ * @param rows - The `slots` array as Payload returned it.
+ * @param pool - This journey's media, keyed by row id.
+ * @returns One {@link EditorSlot} per cell, in cell order.
+ */
+const slotsOf = (
+  page: PageId,
+  kind: 'notes' | 'frames',
+  rows: readonly {
+    readonly role?: SlotRole | null
+    readonly media?: number | { readonly id: number } | null
+    readonly caption?: string | null
+    readonly alt?: string | null
+    readonly focalX?: number | null
+    readonly focalY?: number | null
+  }[],
+  pool: ReadonlyMap<number, PoolRow>,
+): readonly EditorSlot[] =>
+  slotRolesFor(kind).map((role, cell): EditorSlot => {
+    const row = rows[cell]
+    const numeric = typeof row?.media === 'number' ? row.media : (row?.media?.id ?? undefined)
+    const item = numeric === undefined ? undefined : pool.get(numeric)
+    const branded = numeric === undefined ? undefined : mediaId(String(numeric))
+
+    return {
+      key: slotKeyFor(page, cell),
+      cell,
+      role,
+      label: slotLabel(role, cell),
+      media: branded !== undefined && branded.ok ? branded.value : null,
+      previewSrc: item === undefined ? null : slotPreviewOf(item.sizes),
+      caption: textOf(row?.caption),
+      alt: textOf(row?.alt),
+      focal: { x: row?.focalX ?? 50, y: row?.focalY ?? 50 },
+      loops: item?.loops === true,
+    }
+  })
+
+/**
  * Everything SCREENS.md §2.3's editor draws for one journey.
  *
  * @param payload - The Local API instance the rows live behind. A parameter so
@@ -393,7 +569,13 @@ export const readJourneyEditor = async (
       draft: true,
       pagination: false,
       sort: 'order',
-      select: { title: true, kind: true, order: true, layout: true },
+      // `slots` joins the rail's four columns rather than being fetched by a
+      // read of its own: the editing pane needs the selected page's cells, and
+      // WHICH page is selected is the route's question (`?page=`), not this
+      // module's. Every page's cells cost one column on a query that already
+      // runs — a fourth query, or a read keyed on the selection, would cost a
+      // round trip and make the count depend on the address.
+      select: { title: true, kind: true, order: true, layout: true, slots: true },
       where: { journey: { equals: row } },
     }),
     payload.find({
@@ -406,6 +588,14 @@ export const readJourneyEditor = async (
       where: { journey: { equals: row } },
     }),
   ])
+
+  // BUILT BEFORE THE RAIL, because the rail's cells read it. It is the same
+  // `media.docs` the pool tiles below are built from — one query, two readers.
+  const poolRows = new Map<number, PoolRow>(
+    media.docs.flatMap((item) =>
+      isRowId(item.id) ? [[item.id, { sizes: item.sizes, loops: item.kind === 'clip' }]] : [],
+    ),
+  )
 
   const railPages = pages.docs.flatMap((page): readonly EditorPage[] => {
     // A VERSION WHOSE PAGE ROW IS GONE. See this module's header: the brand
@@ -424,6 +614,7 @@ export const readJourneyEditor = async (
         kind: page.kind,
         order: page.order,
         layout: layoutOf(page.layout),
+        slots: slotsOf(branded.value, page.kind, rowsOf(page.slots), poolRows),
       },
     ]
   })

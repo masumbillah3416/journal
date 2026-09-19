@@ -76,6 +76,18 @@ const UNCROPPED_LADDERS: readonly { readonly file: string; readonly declaration:
   // slot's own focal point - which can only choose between pixels the
   // derivative still has.
   { file: 'apps/web/lib/readBookBundle.ts', declaration: /const DERIVATIVE_PREFERENCE: [^=]*= \{([\s\S]*?)\n\}/ },
+  // THE ADMIN'S HALF OF THE SAME ARGUMENT (Phase 4 Task 7). The journey
+  // editor's slot preview is the surface an author AIMS the focal point on, so
+  // it has to be the same photograph the book will crop. Drawn from a square
+  // tier, the pane would let them aim at a part of the frame the book prints
+  // and see the aim land somewhere else - MED-001 with the editor on the other
+  // side of it. The same file also keeps a square ladder for its pool tiles,
+  // which is why it appears in both lists; the census dedupes by name and each
+  // declaration is checked on its own.
+  {
+    file: 'apps/web/lib/admin/readJourneyEditor.ts',
+    declaration: /const PREVIEW_TIERS = \[([^\]]*)\] as const/,
+  },
 ]
 
 /**

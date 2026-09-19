@@ -8,11 +8,19 @@
  * JavaScript for its chrome" — and a claim in prose that nothing checks is the
  * species these standing orders exist to stop. `components/admin/editor/` is
  * therefore inside this guard from the commit that created it: every one of its
- * forms is a `POST` and a re-render, and the first `'use client'` added there
- * fails the case below rather than being found by whichever later task finally
- * exceeded 320KB.
+ * forms is a `POST` and a re-render, and a `'use client'` added there fails the
+ * case below rather than being found by whichever later task finally exceeded
+ * 320KB.
  *
- * The task's phase-shaping claim is that nothing in the shell's own directory
+ * SINCE TASK 7 THE EDITOR HAS EXACTLY ONE ISLAND, AND IT IS NAMED. §2.3's focal
+ * point cannot be computed without the clicked element's measured width, so
+ * `SlotPanel.tsx` carries the directive — and it is admitted by an ALLOWLIST OF
+ * ONE FILE ({@link ISLANDS}) rather than by dropping the directory, so the
+ * other modules there are judged exactly as before and a SECOND island fails
+ * this file by name. Two further cases keep the allowlist honest: each entry
+ * must still carry the directive, and there must still be one of them.
+ *
+ * The task's phase-shaping claim is that nothing in the SHELL's own directory
  * is a client component, which is why
  * `/admin` ships one script request fewer than any sign-in pane and why the
  * report reads 189,694 bytes of headroom for the eleven screens to come.
@@ -67,6 +75,31 @@ import { describe, expect, it } from 'vitest'
 const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 /**
+ * The files that carry the directive on purpose, each with the reason it could
+ * not be written any other way.
+ *
+ * AN ALLOWLIST OF FILES, NOT AN EXCLUDED DIRECTORY, and that distinction is the
+ * whole value of it. Dropping `components/admin/editor` from the scan would
+ * make the next `useState` in that directory invisible; naming one file leaves
+ * the other nine judged, and a SECOND island fails the case below by name.
+ *
+ * `SlotPanel.tsx` is the only entry. SCREENS.md §2.3's focal point is
+ * `clamp(0, ((clientX − rect.left) / rect.width) × 100, 100)` — the pointer's
+ * position and the element's MEASURED width in one expression. A server has
+ * neither; `<input type="image">` posts a click's coordinates but not the box
+ * they were measured against; and a slot's width is a `1fr` track, so there is
+ * no constant to divide by. The cost is one small client entry against the
+ * headroom below, and it is recorded in `docs/deviations.md` rather than only
+ * here.
+ */
+const ISLANDS: readonly { readonly file: string; readonly why: string }[] = [
+  {
+    file: 'components/admin/editor/SlotPanel.tsx',
+    why: "SCREENS.md §2.3's focal point needs the clicked element's measured width",
+  },
+]
+
+/**
  * The directories whose whole point is that nothing in them reaches the browser.
  *
  * A LIST RATHER THAN ONE PATH, because the claim is now made by two screens'
@@ -115,9 +148,30 @@ describe.each(NO_CLIENT_JS)('$directory — $why', ({ directory }) => {
     expect(modulesOf(directory).length).toBeGreaterThan(0)
   })
 
-  it('carries no client directive in any module, which is the whole of its budget claim', () => {
+  it('carries no client directive in any module but the islands declared here, which is the whole of its budget claim', () => {
+    const allowed = new Set(ISLANDS.map((island) => island.file.split('/').join(path.sep)))
     const client = modulesOf(directory).filter((name) => DIRECTIVE.test(readFileSync(path.join(APP, name), 'utf8')))
 
-    expect(client).toEqual([])
+    expect(client.filter((name) => !allowed.has(name))).toEqual([])
+  })
+})
+
+describe('the declared client islands', () => {
+  it('has each of them still carrying the directive, so the allowlist cannot outlive its reason', () => {
+    // WITHOUT THIS, the allowlist is a free pass keyed on a filename: an island
+    // refactored back into a server component would leave an entry admitting a
+    // directive nobody writes any more, and the next one to need it would find
+    // the door already open.
+    const withoutOne = ISLANDS.filter((island) => !DIRECTIVE.test(readFileSync(path.join(APP, island.file), 'utf8')))
+
+    expect(withoutOne.map((island) => island.file)).toEqual([])
+  })
+
+  it('keeps the list to the one file the budget argument was made about', () => {
+    // A NUMBER IN PROSE IS A FLOOR OR IT IS DELETED (standing orders, species
+    // 5) — so this is the number itself, asserted, rather than a sentence in a
+    // header claiming it. `docs/api.md` says the editor ships ONE client entry;
+    // a second island has to change that sentence, and this is what makes it.
+    expect(ISLANDS).toHaveLength(1)
   })
 })

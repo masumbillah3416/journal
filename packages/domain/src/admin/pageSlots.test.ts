@@ -11,7 +11,30 @@
  * Depends on: vitest, ./pageSlots.
  */
 import { describe, expect, it } from 'vitest'
-import { HIGHEST_SLOT_CELL, slotLabel, slotRolesFor } from './pageSlots'
+import { mediaId, slotKey, type MediaId, type SlotKey } from '../ids'
+import { HIGHEST_SLOT_CELL, heldMedia, selectedSlot, slotLabel, slotRolesFor } from './pageSlots'
+
+/**
+ * A branded cell key.
+ * @param raw - The key as the pane spells it.
+ * @returns The branded key.
+ */
+const aKey = (raw: string): SlotKey => {
+  const built = slotKey(raw)
+  if (!built.ok) throw new Error(built.error)
+  return built.value
+}
+
+/**
+ * A branded media id.
+ * @param raw - The id as Postgres would spell it.
+ * @returns The branded id.
+ */
+const aMedia = (raw: string): MediaId => {
+  const built = mediaId(raw)
+  if (!built.ok) throw new Error(built.error)
+  return built.value
+}
 
 describe('slotRolesFor', () => {
   it('gives a Notes page the hero and the ephemera scrap, in that order', () => {
@@ -55,5 +78,37 @@ describe('slotLabel', () => {
   it('numbers the frames from one, because the author counts from one', () => {
     expect(slotLabel('frame', 0)).toBe('Frame 1')
     expect(slotLabel('frame', 3)).toBe('Frame 4')
+  })
+})
+
+describe('selectedSlot', () => {
+  it('takes a cell this page really draws', () => {
+    expect(selectedSlot([{ key: aKey('7:0') }, { key: aKey('7:1') }], '7:1')).toBe('7:1')
+  })
+
+  it('refuses a cell of another page, which is an address anybody can type', () => {
+    // THE INVERSION. `?slot=9:0` is a cell of a page this pane is not drawing,
+    // so trusting it would point the pool at a frame the author cannot see.
+    expect(selectedSlot([{ key: aKey('7:0') }], '9:0')).toBeNull()
+  })
+
+  it('chooses nothing when nothing is asked for, rather than the first cell', () => {
+    // NO DEFAULT, deliberately: a tick with no frame chosen would put a
+    // photograph somewhere nobody pointed at.
+    expect(selectedSlot([{ key: aKey('7:0') }], undefined)).toBeNull()
+  })
+
+  it('takes the first of a repeated parameter, which is a shape a browser produces', () => {
+    expect(selectedSlot([{ key: aKey('7:0') }, { key: aKey('7:1') }], ['7:1', '7:0'])).toBe('7:1')
+  })
+})
+
+describe('heldMedia', () => {
+  it('answers the ids the cells hold, and leaves an empty cell out', () => {
+    expect([...heldMedia([{ media: aMedia('11') }, { media: null }, { media: aMedia('14') }])]).toEqual(['11', '14'])
+  })
+
+  it('counts one photograph placed in two cells once', () => {
+    expect(heldMedia([{ media: aMedia('11') }, { media: aMedia('11') }]).size).toBe(1)
   })
 })

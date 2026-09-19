@@ -2760,9 +2760,28 @@ like — or a per-page preview address that does not depend on page numbers.
 
 ## 60 · The journey editor's editing pane surfaces no write error, because §2.3 gives it none
 
-**What changed:** nothing was built. `saveNotes` can refuse — and so will Task 7's four slot
+**What changed:** nothing was built. `saveNotes` can refuse — and so can Task 7's four slot
 actions — and the pane draws no message when it does. The author meets an unhandled Server
 Action error: in development Next.js's overlay, in production its generic error boundary.
+
+**TASK 7 WIDENED THE SURFACE AND NARROWED THE EXPOSURE, and both halves are worth stating.**
+Four more writes reach the same form, and every one of them can refuse: a `${page}:${cell}` key
+that is not two numbers, a cell no pane draws, a focal component outside `[0, 100]`, a media id
+that is not a row id, and — from the write rather than the parse — a cell THIS page's pane does
+not draw. None of those is reachable from the controls as drawn: the key comes from
+`slotKeyFor`, the cell from the pane's own list, the point from `focalPointFrom`'s clamp, the
+media id from the pool's own rows, and the per-page cell check can only be hit by a `POST` no
+browser sent (a hand-built request, or a tab whose page changed kind underneath it — which
+nothing in this repository can do). So the four new actions add refusals that are unreachable
+by clicking, where `saveNotes`'s are reachable by typing: a duplicate gallery address is one
+keystroke away. The gap is unchanged in kind and no wider in practice.
+
+**THREE OF THE FOUR HAVE A DIFFERENT FAILURE SHAPE, because their caller is not a form.**
+`SlotPanel.tsx` calls `setSlotFocalPoint`, `setSlotText` and `clearSlot` from a client island
+inside `startTransition`, so a rejection surfaces as an unhandled promise rejection in the
+browser rather than as Next.js's error boundary — quieter again, and with the optimistic crop
+already drawn. The pool's `setSlotMedia` is a real `<form action>` and behaves exactly as
+`saveNotes` does. Neither is a surface this task invented; both are the same missing one.
 
 **Where it is reachable from,** because "a slug collision" understates it. Every one of these
 throws before or at the write, on a pane whose Save draft looks like it worked:
@@ -2796,3 +2815,119 @@ this pane does when a save is refused.
 
 **Recorded as:** this entry, the sweep's "Not covered" section, and the note at
 `notesMutations.ts`'s `NOTES` schema, which is where the refusals are.
+
+## 61 · The focal point is stored as two numbers, not as the string `"x y"`
+
+**What changed:** `SCREENS.md` §2.3 says a slot's focal point is "stored as `"x y"`, applied as
+`background-position: x% y%`". It is stored as `pages.slots[].focalX` and `focalY`, two `number`
+columns, and the string is composed where it is rendered.
+
+**Rationale:** `DATA_MODEL.md` is the field-list authority and gives exactly those two columns,
+with `defaultValue: 50` on each, and `apps/web/collections/pages.ts` has held them since the
+first migration — so §2.3's sentence describes the PROTOTYPE's own in-memory representation
+(`Travel Diary Admin.dc.html` keeps `fb.pos` as a string because it has no database under it),
+not a column. Reading it as a storage instruction now would mean a migration, a parse on every
+read in `readBookBundle`, and "is this centred?" becoming a text comparison. The two readings
+agree on everything observable: `packages/domain/src/admin/focalPoint.ts` composes the string
+for the pill and `background-position` gets the same two percentages either way.
+
+**Written down because the sentence invites a fix.** A reader who meets `focalX`/`focalY` with
+§2.3 open will see a mismatch and can close it in the wrong direction. This entry is the record
+that it was read, checked against `DATA_MODEL.md`, and decided.
+
+**What would reverse it:** a `DATA_MODEL.md` revision that replaces the two columns with one
+text field — which would also have to say what the diary does with a malformed one.
+
+**Recorded as:** this entry, and `packages/domain/src/admin/focalPoint.ts`'s header.
+
+## 62 · The journey editor ships ONE client island, for the focal point
+
+**What changed:** every other part of `SCREENS.md` §2.3 is a `<form>` and a re-render, and
+`apps/web/lib/admin/shellShipsNoClientJs.test.ts` fails on any `'use client'` in the editor's
+directory. `apps/web/components/admin/editor/SlotPanel.tsx` carries the directive, admitted by
+an allowlist of one file in that same test.
+
+**Why it could not be written any other way.** §2.3's formula is
+
+```text
+x = clamp(0, ((clientX − rect.left) / rect.width) × 100, 100)
+```
+
+— the pointer's position AND the clicked element's measured width, in one expression. A server
+has neither. `<input type="image">` was the no-JavaScript candidate and does not work: it posts
+the click's coordinates in pixels but not the box they were measured against, and a slot's width
+is a `1fr` track inside `repeat(auto-fit, minmax(196px, 1fr))`, so there is no constant to
+divide by. The only alternative that keeps the screen script-free is a focal control that is not
+a click on the photograph, which is not the control §2.3 specifies.
+
+**What it costs, measured rather than assumed:** one client entry for the editor route. The
+admin budget is 320KB gzipped (`CLAUDE.md` §6) and Task 5's report recorded 189,694 bytes of
+headroom before this island.
+
+**The guard was narrowed, not dropped.** `shellShipsNoClientJs.test.ts` still judges every other
+module in `components/admin/editor` and in the route's own directory; a SECOND island fails it
+by name. Two further cases keep the allowlist honest: each entry must still carry the directive
+(so an entry cannot outlive its reason), and there must still be exactly one entry.
+
+**What would reverse it:** an HTML control that reports a click's position AS A FRACTION of the
+element — there is none — or a `SCREENS.md` revision that sets the focal point from something
+other than a click on the photograph.
+
+**Recorded as:** this entry, `SlotPanel.tsx`'s header, and the `ISLANDS` allowlist and its two
+cases in `apps/web/lib/admin/shellShipsNoClientJs.test.ts`.
+
+## 63 · The slot's Replace is a link, the pool's tick places, and two controls §2.3 does not draw
+
+**What changed:** four small departures in the same surface, listed together because they are one
+decision — §2.3 draws the slot's affordances and `Travel Diary Admin.dc.html` wires almost none
+of them, so each had to be given a behaviour or left dead.
+
+- **Replace is an `<a>`, not a button.** It addresses the cell: `?page=<id>&slot=<page>:<cell>`.
+  The prototype's Replace has no handler at all. A dead affordance is what Task 5's browser
+  sweep is this repository's record of, and "selection is an address, not state" is the page
+  rail's own idiom one column away.
+- **The pool's tick places a photograph in that cell** rather than toggling the media row's
+  `inBook` column, which is what the prototype's own tick handler does. `inBook` says the photograph
+  is in the book and nothing about WHERE, and the four actions this task specifies are all about
+  where. The eyebrow's "{n} of {total} in the book" still counts the `inBook` column, so the
+  number the prototype's label describes is unchanged.
+- **Clear is drawn on a frames cell too.** §2.3 lists Clear on the Notes page's two slots and
+  not on the Frames page's four. `clearSlot` is one of this task's four actions and a frames
+  page holds most of a journey's cells, so omitting it would leave the action uncallable where
+  it is most needed.
+- **The caption and alt fields have a "Save words" control.** §2.3 draws the two fields and no
+  control that commits them; in a prototype nothing persists, so nothing had to. A field with
+  no save is a field that silently discards what the author typed.
+
+**What would reverse it:** a `SCREENS.md` revision that says what Replace does, or a screen
+elsewhere in the handoff that commits a text field without a button — which would give these
+fields a shape to copy rather than invent.
+
+**Recorded as:** this entry, and `SlotPanel.tsx`'s and `JourneyPool.tsx`'s headers.
+
+## 64 · The Frames pane draws four cells and no "Save draft"
+
+**What changed:** `SCREENS.md` §2.3's Frames pane draws "four slots at 152px" for ANY frames
+page, and this implementation does the same — while the public §1.4 Frames I prints three cells
+and §1.5 Frames II prints four. The pane also draws no "Save draft", which §2.3's pane header
+lists.
+
+**Four cells, rationale:** §2.3 is the authority on the admin screen and states the number
+without qualification. The alternative is deriving the count from WHICH frames page this is —
+and which one it is comes from `order`, so an author who reordered the rail would find a
+photograph they had placed silently unreachable. A fourth cell on a Frames I page is editable
+and unprinted, which is recoverable; a cell that disappears is not.
+
+**No "Save draft", rationale:** the Notes pane draws it because that whole pane IS one form of
+journey-level fields. A frames page has no journey-level field on it at all: its content is four
+cells, and each cell's controls write on their own — the focal point applies at once, exactly as
+the layout picker's glyphs do, and the caption and alt text have a Save of their own inside the
+cell. A "Save draft" here would be a button with nothing to save. "Preview page" is left out for
+Task 6's reason unchanged (§59): the address is `/p/<n>`, and `n` is a number only
+`readBookBundle` computes.
+
+**What would reverse it:** a `SCREENS.md` revision that ties the pane's cell count to the page's
+own layout, or a Frames pane that gains a page-level field.
+
+**Recorded as:** this entry, `packages/domain/src/admin/pageSlots.ts`'s header, and
+`FramesPane.tsx`'s header.

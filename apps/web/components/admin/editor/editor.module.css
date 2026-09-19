@@ -441,14 +441,31 @@
 
 .tile {
   position: relative;
+  display: block;
   overflow: hidden;
+  width: 100%;
+  padding: 0;
+  border: none;
   border-radius: 2px;
   aspect-ratio: 1 / 1;
   background: var(--td-paper);
   box-shadow: inset 0 0 0 1px var(--td-hairline-border-max);
+  cursor: pointer;
 }
 
-.tileInBook {
+/* No frame chosen: there is nowhere for a tick to put the photograph, so the
+ * tile says so rather than guessing a cell. */
+.tile:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.tile:focus-visible {
+  outline: 2px solid rgb(163 68 52 / 45%);
+  outline-offset: 1px;
+}
+
+.tileTicked {
   box-shadow: inset 0 0 0 2px var(--td-accent);
 }
 
@@ -1040,4 +1057,248 @@
   .furnitureGrid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
+}
+
+/* ── The photo slots ───────────────────────────────────────────────────── */
+
+/* §2.3's Frames pane: `repeat(auto-fit, minmax(196px, 1fr))`, gap 18px. NOT a
+ * container query and not a media query — `auto-fit` is the rule the design
+ * states, and it reflows against whatever width the pane has without anything
+ * having to measure it. */
+.framesGrid {
+  display: grid;
+  margin-top: 14px;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+}
+
+/* The Notes pane's right column: the hero over the ephemera scrap. */
+.slotStack {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.slot {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The cell the journey pool is currently filling, so an author can see which
+ * Replace they pressed once the page has reloaded under them. */
+.slot[data-targeted] {
+  padding: 6px;
+  margin: -6px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1.5px var(--td-accent);
+}
+
+.slotHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* §2.3's motion badge: "Loops" terracotta, "Still" muted. */
+.motionLoops,
+.motionStill {
+  font-family: var(--td-font-courier);
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.motionLoops {
+  color: var(--td-accent);
+}
+
+.motionStill {
+  color: var(--td-ink-muted);
+}
+
+/* THE IMAGE IS A BUTTON, because clicking it is what sets the focal point —
+ * and a click target that is not a control is one a keyboard cannot reach.
+ * `cursor: crosshair` is §2.3's, and it is the affordance for the aiming this
+ * element does. The photograph is a BACKGROUND rather than an `<img>` so that
+ * `background-position` can carry the focal point straight through, which is
+ * what §2.3 specifies and what the book's own `object-position` mirrors. */
+.slotImage {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background-color: var(--td-paper);
+  background-repeat: no-repeat;
+  background-size: cover;
+  box-shadow: inset 0 0 0 1px var(--td-hairline-border-max);
+  cursor: crosshair;
+}
+
+/* §2.3's three heights: hero 186px, ephemera 124px, a frame 152px. */
+.slotImage[data-role='hero'] {
+  height: 186px;
+}
+
+.slotImage[data-role='ephemera'] {
+  height: 124px;
+}
+
+.slotImage[data-role='frame'] {
+  height: 152px;
+}
+
+/* An empty cell has nothing to aim at, so it is disabled and says so rather
+ * than drawing a crosshair over a box that would answer no click. */
+.slotImage[data-empty] {
+  border: 1.5px dashed var(--td-hairline-border-max);
+  box-shadow: none;
+  cursor: default;
+}
+
+.slotImage:focus-visible {
+  outline: 2px solid rgb(163 68 52 / 45%);
+  outline-offset: 1px;
+}
+
+.slotEmpty {
+  font-family: var(--td-font-garamond);
+  font-size: 14.5px;
+  font-style: italic;
+  color: var(--td-ink-muted);
+}
+
+/* §2.3's reticle: 26px, centred on the point. `left`/`top` place its top-left
+ * at the point and the translate takes it back by half its own size, so the
+ * ring marks the pixel the author clicked rather than starting there. */
+.reticle {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1.5px #fdf8ec,
+    0 0 0 3px rgb(163 68 52 / 85%),
+    0 1px 4px rgb(0 0 0 / 40%);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.slotTools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* §2.3's secondary button, at the size the slot's own row uses. */
+.slotTool {
+  padding: 5px 10px;
+  border: 1.5px solid var(--td-hairline-border-max);
+  border-radius: 2px;
+  background: transparent;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-decoration: none;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+}
+
+.slotTool:hover:not(:disabled) {
+  border-color: var(--td-accent);
+  color: var(--td-accent);
+}
+
+/* Kept in the DOM and disabled rather than removed, so the row does not change
+ * shape when a cell is emptied — the page rail's arrows do the same. */
+.slotTool:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.slotTool:focus-visible {
+  outline: 2px solid rgb(163 68 52 / 45%);
+  outline-offset: 1px;
+}
+
+/* §2.3's focal pill: muted while the crop is centred, `#2f6b68` once it is not
+ * — the same published-teal the shell's "Saved just now" chip uses. */
+.pillCentred,
+.pillSet {
+  margin: 0;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+}
+
+.pillCentred {
+  color: var(--td-ink-muted);
+}
+
+.pillSet {
+  color: var(--td-status-published);
+}
+
+.slotWords {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* §2.3: caption in Caveat 23px, alt text in Garamond 14.5px. Both are the
+ * borderless inline field the pane's other text inputs use. */
+.slotCaption,
+.slotAlt {
+  min-width: 0;
+  padding: 3px 0;
+  border: none;
+  border-bottom: 1px solid var(--td-hairline-border-max);
+  background: transparent;
+  color: var(--td-ink);
+}
+
+.slotCaption {
+  font-family: var(--td-font-caveat);
+  font-size: 23px;
+}
+
+.slotAlt {
+  font-family: var(--td-font-garamond);
+  font-size: 14.5px;
+}
+
+.slotCaption:focus-visible,
+.slotAlt:focus-visible {
+  outline: 2px solid rgb(163 68 52 / 45%);
+  outline-offset: 1px;
+}
+
+/* §2.3's 17px tick box, top-left of a pool tile. */
+.tick {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: flex;
+  width: 17px;
+  height: 17px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  background: rgb(255 253 246 / 86%);
+  box-shadow: inset 0 0 0 1px rgb(120 98 60 / 30%);
+  font-size: 11px;
+  line-height: 1;
+  color: transparent;
+}
+
+.tileTicked .tick {
+  background: var(--td-accent);
+  color: var(--td-cream-alt);
 }

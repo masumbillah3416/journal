@@ -21,11 +21,12 @@
  * Depends on: react, react-dom/client, vitest (jsdom), @travel-diary/domain/ids,
  * ../../../lib/admin/notesMutations, ./NotesPane.
  */
-import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
+import { journeyId, slotKey, type JourneyId, type SlotKey } from '@travel-diary/domain/ids'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 import { readNotes, type JourneyNotes } from '../../../lib/admin/notesMutations'
+import type { EditorSlot } from '../../../lib/admin/readJourneyEditor'
 import { NotesPane } from './NotesPane'
 
 const roots: Root[] = []
@@ -66,21 +67,80 @@ const TOKYO: JourneyNotes = {
   slug: 'tokyo',
 }
 
+/**
+ * A branded cell key.
+ * @param raw - The key as the pane spells it.
+ * @returns The branded key.
+ */
+const aSlotKey = (raw: string): SlotKey => {
+  const built = slotKey(raw)
+  if (!built.ok) throw new Error(built.error)
+  return built.value
+}
+
 /** What nothing in these cases does: no form here is ever submitted. */
 const noAction = (): Promise<void> => Promise.resolve()
+
+/**
+ * The Notes page's two cells, as `readJourneyEditor` answers them.
+ *
+ * THE PANE DRAWS THEM INSIDE ITS OWN `<form>`, which is the reason this fixture
+ * is here at all rather than in `SlotPanel.test.tsx` alone: the cases below ask
+ * what the pane POSTS, and a cell whose controls were forms of their own would
+ * have been dropped by the parser and taken the fields with them.
+ */
+const TOKYO_SLOTS: readonly EditorSlot[] = [
+  {
+    key: aSlotKey('7:0'),
+    cell: 0,
+    role: 'hero',
+    label: 'Hero',
+    media: null,
+    previewSrc: null,
+    caption: '',
+    alt: '',
+    focal: { x: 50, y: 50 },
+    loops: false,
+  },
+  {
+    key: aSlotKey('7:1'),
+    cell: 1,
+    role: 'ephemera',
+    label: 'Ephemera',
+    media: null,
+    previewSrc: null,
+    caption: '',
+    alt: '',
+    focal: { x: 50, y: 50 },
+    loops: false,
+  },
+]
 
 /**
  * Renders the pane and hands back its form element.
  * @param notes - Fields to override on the Tokyo fixture.
  * @returns The rendered `<form>`.
  */
-const renderPane = (notes: Partial<JourneyNotes> = {}): HTMLFormElement => {
+const renderPane = (notes: Partial<JourneyNotes> = {}, slots: readonly EditorSlot[] = TOKYO_SLOTS): HTMLFormElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
   roots.push(root)
   act(() => {
-    root.render(<NotesPane journey={aJourney('42')} title="Notes" notes={{ ...TOKYO, ...notes }} save={noAction} />)
+    root.render(
+      <NotesPane
+        journey={aJourney('42')}
+        title="Notes"
+        notes={{ ...TOKYO, ...notes }}
+        slots={slots}
+        editorHref="/admin/journeys/42?page=7"
+        targeted={null}
+        save={noAction}
+        setFocal={noAction}
+        setText={noAction}
+        clear={noAction}
+      />,
+    )
   })
   const form = host.querySelector('form')
   if (form === null) throw new Error('the pane rendered no form')

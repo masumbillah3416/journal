@@ -38,9 +38,10 @@
  *
  * INVARIANT — {@link HIGHEST_SLOT_CELL} is DERIVED from the table below and
  * never written down. Widening a pane widens the refusal with it.
- * Depends on: `SlotRole` (../bookBundle).
+ * Depends on: `SlotRole` (../bookBundle), `MediaId`/`SlotKey` (../ids).
  */
 import type { SlotRole } from '../bookBundle'
+import type { MediaId, SlotKey } from '../ids'
 
 /** Which of SCREENS.md §2.3's two editing panes a page gets. */
 export type PageKind = 'notes' | 'frames'
@@ -95,3 +96,62 @@ export const slotLabel = (role: SlotRole, cell: number): string => {
   if (role === 'ephemera') return 'Ephemera'
   return `Frame ${String(cell + 1)}`
 }
+
+/** The least a cell has to say for {@link selectedSlot} to recognise it. */
+interface KeyedSlot {
+  /** The cell's `${page}:${cell}` identity. */
+  readonly key: SlotKey
+}
+
+/**
+ * The cell a `?slot=` address names, or `null`.
+ *
+ * AN INVERSION, NOT AN ENUMERATION, and it is `./pageRail.ts`'s `selectedPage`
+ * one column along: `?slot=999:4` and `?slot=<a cell of another page>` are
+ * addresses anybody can type, and trusting either would point the journey pool
+ * at a cell the pane is not drawing — a tile whose tick writes somewhere the
+ * author cannot see. The requested value has to BE one of the cells given.
+ *
+ * NO DEFAULT, unlike `selectedPage`'s first card. A page always has a selected
+ * page; it does NOT always have a chosen frame, and "the first cell" is a guess
+ * that would put a photograph somewhere nobody pointed at. With no frame chosen
+ * the pool says so and its tiles are disabled.
+ *
+ * A REPEATED PARAMETER ARRIVES AS AN ARRAY — `?slot=a&slot=b` — which is a
+ * shape a browser really does produce, so the first value is taken rather than
+ * the whole thing coerced to a string.
+ * @param slots - The selected page's cells.
+ * @param requested - The `slot` search parameter, exactly as Next.js hands it over.
+ * @returns The cell's key, or `null` when the address names none of them.
+ * @example
+ * selectedSlot(page.slots, '7:2') // the key '7:2', if this page draws that cell
+ */
+export const selectedSlot = (
+  slots: readonly KeyedSlot[],
+  requested: string | readonly string[] | undefined,
+): SlotKey | null => {
+  const asked = typeof requested === 'string' ? requested : requested?.[0]
+  return slots.find((slot) => slot.key === asked)?.key ?? null
+}
+
+/** The least a cell has to say for {@link heldMedia} to count it. */
+interface FilledSlot {
+  /** The photograph in the cell, or `null` for an empty one. */
+  readonly media: MediaId | null
+}
+
+/**
+ * Which photographs a page's cells already hold.
+ *
+ * A SET OF IDS, NEVER A SET OF POSITIONS (CLAUDE.md §0.9). SCREENS.md §2.3's
+ * pool ticks the tiles this page holds, and the pool is sorted by the library's
+ * own `order` — which an author can change from the Media screen while this
+ * page is open. A pool ticked by position would then tick whichever photograph
+ * had moved into that place.
+ * @param slots - The page's cells.
+ * @returns Every media id the cells hold, once each.
+ * @example
+ * heldMedia(page.slots) // Set { '11', '14' }
+ */
+export const heldMedia = (slots: readonly FilledSlot[]): ReadonlySet<MediaId> =>
+  new Set(slots.flatMap((slot) => (slot.media === null ? [] : [slot.media])))

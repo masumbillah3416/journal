@@ -8,8 +8,18 @@
  * row, the layout picker, and the journey pool. Task 6 filled the middle column
  * for a NOTES page — `NotesPane` is that whole pane, and it is a `<form>`, so it
  * carries §2.3's "Editing" eyebrow and page name itself rather than having them
- * rendered outside the element that posts. A FRAMES page still meets the
- * placeholder below: its slots and their focal points are Task 7.
+ * rendered outside the element that posts. Task 7 filled the slots: `FramesPane`
+ * is a frames page's whole pane, `SlotPanel` is the Notes pane's right-hand
+ * column, and the journey pool's tiles place a photograph into the cell chosen
+ * below. A journey with NO pages at all still meets the placeholder — there is
+ * nothing to edit, and the rail's own "+ Add page" is the way out of it.
+ *
+ * THE CHOSEN FRAME IS AN ADDRESS TOO. `?slot=<page>:<cell>` names the cell the
+ * pool fills next, set by a slot's own Replace link, and — like `?page=` — WHICH
+ * cell that resolves to is `@travel-diary/domain/admin/pageSlots`'s
+ * `selectedSlot` rather than this file's: it refuses a cell the selected page
+ * does not draw, and a decision taken behind this file's `c8 ignore` is a
+ * decision nothing measures.
  *
  * ═══ IT IS GUARDED IN THIS FILE ═══
  *
@@ -66,11 +76,13 @@
  * is. Its runtime behaviour is covered in the browser by e2e/admin.spec.ts. */
 import { ADMIN_NAV, type NavEntry } from '@travel-diary/domain/admin/navigation'
 import { activeLayout, selectedPage } from '@travel-diary/domain/admin/pageRail'
+import { heldMedia, selectedSlot } from '@travel-diary/domain/admin/pageSlots'
 import { journeyId } from '@travel-diary/domain/ids'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import type React from 'react'
 import { EditorGrid } from '../../../../../components/admin/editor/EditorGrid'
+import { FramesPane } from '../../../../../components/admin/editor/FramesPane'
 import { JourneyPool } from '../../../../../components/admin/editor/JourneyPool'
 import { LayoutPicker } from '../../../../../components/admin/editor/LayoutPicker'
 import { NotesPane } from '../../../../../components/admin/editor/NotesPane'
@@ -82,7 +94,18 @@ import { readJourneyEditor } from '../../../../../lib/admin/readJourneyEditor'
 import { readNavCounts } from '../../../../../lib/admin/readNavCounts'
 import { requireAdminSession } from '../../../../../lib/auth/guard'
 import { getPayload } from '../../../../../lib/payload'
-import { addPage, copyPage, deletePage, reorderPages, saveNotes, setPageLayout } from './actions'
+import {
+  addPage,
+  clearSlot,
+  copyPage,
+  deletePage,
+  reorderPages,
+  saveNotes,
+  setPageLayout,
+  setSlotFocalPoint,
+  setSlotMedia,
+  setSlotText,
+} from './actions'
 
 /**
  * The screen's title, and the one instruction it gives a crawler.
@@ -138,8 +161,16 @@ const JourneyEditorPage = async ({ params, searchParams }: JourneyEditorPageProp
   ])
   if (view === null) notFound()
 
-  const selected = selectedPage(view.pages, (await searchParams)['page'])
+  const query = await searchParams
+  const selected = selectedPage(view.pages, query['page'])
   const page = view.pages.find((candidate) => candidate.id === selected) ?? null
+  const slots = page?.slots ?? []
+  const targeted = selectedSlot(slots, query['slot'])
+  // The address every Replace link builds on. `?page=` is repeated rather than
+  // preserved from the request because `selectedPage` may have IGNORED what the
+  // request asked for — a link built from the raw query would carry an address
+  // this screen already refused.
+  const editorHref = `/admin/journeys/${view.id}?page=${selected ?? ''}`
 
   return (
     <AdminShell
@@ -172,20 +203,49 @@ const JourneyEditorPage = async ({ params, searchParams }: JourneyEditorPageProp
           )}
         </div>
 
-        {page?.kind === 'notes' ? (
-          <NotesPane journey={view.id} title={page.title} notes={view.notes} save={saveNotes} />
-        ) : (
+        {page === null ? (
           <div data-editing-pane className={styles.pane}>
             <p className={styles.eyebrow}>Editing</p>
-            <h2 className={styles.paneName}>{page?.title ?? 'No pages yet'}</h2>
+            <h2 className={styles.paneName}>No pages yet</h2>
             <p className={styles.paneNote}>
-              The photo slots for this page arrive with the next task. The rail beside it adds, copies, reorders and
-              removes pages now, and a notes page saves everything §2.3 puts on it.
+              This journey holds no pages. Add one with the layout picker beside this pane.
             </p>
           </div>
+        ) : page.kind === 'notes' ? (
+          <NotesPane
+            journey={view.id}
+            title={page.title}
+            notes={view.notes}
+            slots={page.slots}
+            editorHref={editorHref}
+            targeted={targeted}
+            save={saveNotes}
+            setFocal={setSlotFocalPoint}
+            setText={setSlotText}
+            clear={clearSlot}
+          />
+        ) : (
+          <FramesPane
+            journey={view.id}
+            title={page.title}
+            slots={page.slots}
+            editorHref={editorHref}
+            targeted={targeted}
+            setFocal={setSlotFocalPoint}
+            setText={setSlotText}
+            clear={clearSlot}
+          />
         )}
 
-        <JourneyPool items={view.pool} inBook={view.inBook} browseHref="/admin/media" />
+        <JourneyPool
+          journey={view.id}
+          items={view.pool}
+          inBook={view.inBook}
+          ticked={heldMedia(slots)}
+          target={targeted}
+          place={setSlotMedia}
+          browseHref="/admin/media"
+        />
       </EditorGrid>
     </AdminShell>
   )

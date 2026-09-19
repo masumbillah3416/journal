@@ -4,8 +4,10 @@
  *
  * ═══ THE WHOLE PANE IS ONE `<form>`, AND EVERY CONTROL IN IT IS A SUBMIT ═══
  *
- * The editor ships no client JavaScript — `lib/admin/shellShipsNoClientJs.test.ts`
- * judges this directory and fails on the commit that adds a `'use client'` — so
+ * THIS PANE ships no client JavaScript — `lib/admin/shellShipsNoClientJs.test.ts`
+ * judges this directory and fails on the commit that adds a `'use client'`
+ * outside its allowlist, which since Task 7 holds exactly one file, `SlotPanel`
+ * (§2.3's focal formula needs a measured element). So
  * "Add highlight", each `×` and each half of a `::` grip is a `<button
  * type="submit" name="op">` in the SAME form as the fields. Pressing one posts
  * everything the author has typed along with the instruction, and
@@ -46,20 +48,35 @@
  * uncontrolled inputs in a server-rendered form, which is what a form that
  * round-trips through a `POST` needs: the browser owns the text until Save.
  *
- * PATTERNS (CLAUDE.md §3.3): none of the seven. One form, three lists and a
- * child component.
+ * ═══ THE RIGHT-HAND COLUMN IS INSIDE THE FORM, AND CARRIES NO FORM OF ITS OWN ═══
+ *
+ * §2.3 puts the hero and the ephemera scrap in the second column of the pane's
+ * body grid, which is inside the element that posts — and a `<form>` inside a
+ * `<form>` is invalid HTML that browsers resolve by dropping the inner one, so
+ * a Clear button there would have posted this whole pane instead. `SlotPanel`
+ * carries no form element for exactly that reason: every one of its controls is
+ * a `type="button"` that calls its action with a `FormData` it builds. That
+ * also means none of them submits this pane by accident, which an unadorned
+ * `<button>` inside a form would.
+ *
+ * PATTERNS (CLAUDE.md §3.3): none of the seven. One form, three lists and two
+ * child components.
  *
  * INVARIANT — the pane draws `notes.tally.length` tally rows and posts exactly
  * that many `tallyKey`/`tallyValue` pairs, which `readJourneyEditor.ts`
  * guarantees to be `TALLY_ROWS`. The parse refuses any other count, so a change
  * to either side fails rather than silently storing a short ticket.
- * Depends on: react, `JourneyId` (@travel-diary/domain/ids), `JourneyNotes`
- * (../../../lib/admin/notesMutations), ./Furniture, ./editor.module.css.
+ * Depends on: react, `JourneyId`/`SlotKey` (@travel-diary/domain/ids),
+ * `JourneyNotes` (../../../lib/admin/notesMutations), `EditorSlot`
+ * (../../../lib/admin/readJourneyEditor), ./Furniture, ./SlotPanel,
+ * ./editor.module.css.
  */
-import type { JourneyId } from '@travel-diary/domain/ids'
+import type { JourneyId, SlotKey } from '@travel-diary/domain/ids'
 import type React from 'react'
 import type { JourneyNotes } from '../../../lib/admin/notesMutations'
+import type { EditorSlot } from '../../../lib/admin/readJourneyEditor'
 import { Furniture } from './Furniture'
+import { SlotPanel } from './SlotPanel'
 import styles from './editor.module.css'
 
 /** What SCREENS.md §2.3's Notes pane needs to draw itself and to save. */
@@ -70,8 +87,20 @@ export interface NotesPaneProps {
   readonly title: string
   /** Everything the pane edits, as the database holds it. */
   readonly notes: JourneyNotes
+  /** The page's two cells — the hero and the ephemera scrap — in cell order. */
+  readonly slots: readonly EditorSlot[]
+  /** Where a Replace link points before its own `&slot=` — see {@link SlotPanel}. */
+  readonly editorHref: string
+  /** The cell `?slot=` names, which the pool is currently filling, or `null`. */
+  readonly targeted: SlotKey | null
   /** Saves the pane as an unpublished draft, and applies any `op` posted with it. */
   readonly save: (form: FormData) => Promise<void>
+  /** Writes a cell's focal point. */
+  readonly setFocal: (form: FormData) => Promise<void>
+  /** Writes a cell's caption and alt text. */
+  readonly setText: (form: FormData) => Promise<void>
+  /** Empties a cell, keeping it. */
+  readonly clear: (form: FormData) => Promise<void>
 }
 
 /**
@@ -112,7 +141,18 @@ const Grip = ({
  * @example
  * <NotesPane journey={view.id} title="Notes" notes={view.notes} save={saveNotes} />
  */
-export const NotesPane = ({ journey, title, notes, save }: NotesPaneProps): React.JSX.Element => (
+export const NotesPane = ({
+  journey,
+  title,
+  notes,
+  slots,
+  editorHref,
+  targeted,
+  save,
+  setFocal,
+  setText,
+  clear,
+}: NotesPaneProps): React.JSX.Element => (
   <form data-editing-pane data-notes-pane className={styles.pane} action={save}>
     <input type="hidden" name="journey" value={journey} />
 
@@ -230,9 +270,16 @@ export const NotesPane = ({ journey, title, notes, save }: NotesPaneProps): Reac
 
       <div data-slots-column className={styles.slotsColumn}>
         <p className={styles.eyebrow}>Photographs</p>
-        <p className={styles.paneNote}>
-          The hero and ephemera slots arrive with the next task. Everything else on this page saves now.
-        </p>
+        <SlotPanel
+          journey={journey}
+          slots={slots}
+          editorHref={editorHref}
+          targeted={targeted}
+          shape="column"
+          setFocal={setFocal}
+          setText={setText}
+          clear={clear}
+        />
       </div>
     </div>
   </form>

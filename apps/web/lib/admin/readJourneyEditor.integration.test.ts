@@ -25,6 +25,8 @@ import { TALLY_ROWS } from '@travel-diary/domain/bookBundle'
 import { isRowId, journeyId, userId, type JourneyId, type UserId } from '@travel-diary/domain/ids'
 import type { Payload } from 'payload'
 import sharp from 'sharp'
+import { slotRolesFor } from '@travel-diary/domain/admin/pageSlots'
+import { aClip } from '../adapters/contract/media-fixtures'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { Journeys } from '../../collections/journeys'
 import { getTestPayload } from '../testPayload'
@@ -732,5 +734,179 @@ describe('readJourneyEditor', () => {
     expect(find.mock.calls).toHaveLength(QUERIES_PER_READ)
     expect(find.mock.calls.every(([options]) => options.user === scope.user)).toBe(true)
     find.mockRestore()
+  })
+})
+
+describe('readJourneyEditor’s slot cells', () => {
+  it('draws two cells for a Notes page and four for a Frames page, whatever the row holds', async () => {
+    // THE PANE'S ARITHMETIC, NOT THE ARRAY'S. Both pages here were created
+    // with no `slots` at all, which is what `addPageRow` writes — so a read
+    // that answered `slots.length` would give the author no cells to fill.
+    const { journey } = await aJourneyWithPages('cellcount', ['Notes', 'Frames I'])
+
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+
+    expect(view?.pages.map((page) => page.slots.length)).toEqual([
+      slotRolesFor('notes').length,
+      slotRolesFor('frames').length,
+    ])
+  })
+
+  it('keys every cell by its page and its cell, which is the defect §2.3 names', async () => {
+    // "Tokyo/Frames I must not share Tokyo/Frames II" — so no two cells in one
+    // journey may carry the same key, and a key built from the cell alone
+    // would give the two frames pages four collisions.
+    const { journey } = await aJourneyWithPages('cellkeys', ['Frames I', 'Frames II'])
+
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+    const keys = (view?.pages ?? []).flatMap((page) => page.slots.map((slot) => slot.key))
+
+    expect(keys.length).toBe(slotRolesFor('frames').length * 2)
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  it('carries a stored cell’s photograph, words and focal point', async () => {
+    const { journey, pages } = await aJourneyWithPages('cellcontent', ['Frames I'])
+    const media = await aPoolItem(journey, 'cellcontent', false, 1600)
+    await payload.update({
+      collection: 'pages',
+      id: Number(pages[0]),
+      ...scope,
+      data: {
+        slots: [{ role: 'frame', media, caption: 'Alfama, from a step', alt: 'A tiled stair', focalX: 12, focalY: 87 }],
+      },
+    })
+
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+    const slot = view?.pages[0]?.slots[0]
+
+    expect({ caption: slot?.caption, alt: slot?.alt, focal: slot?.focal, media: slot?.media }).toEqual({
+      caption: 'Alfama, from a step',
+      alt: 'A tiled stair',
+      focal: { x: 12, y: 87 },
+      media: String(media),
+    })
+  })
+
+  it('previews a cell from an UNCROPPED derivative, because that is what the focal point aims at', async () => {
+    // WHAT PRODUCED THE RIGHT SIDE: the media row's own `sizes` map, read back
+    // from the database. A preview drawn from `thumb` — a 400x400 centre crop
+    // — would let an author aim at pixels the book's own ladder never sees.
+    const { journey, pages } = await aJourneyWithPages('cellpreview', ['Frames I'])
+    const media = await aPoolItem(journey, 'cellpreview', false, 1600)
+    await payload.update({
+      collection: 'pages',
+      id: Number(pages[0]),
+      ...scope,
+      data: { slots: [{ role: 'frame', media }] },
+    })
+
+    const row = await payload.findByID({ collection: 'media', id: media, depth: 0 })
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+
+    expect(row.sizes?.frame?.url, 'the fixture generated no frame tier, so this case proves nothing').toBeTruthy()
+    expect(view?.pages[0]?.slots[0]?.previewSrc).toBe(row.sizes?.frame?.url)
+  })
+
+  it('draws an empty cell for a slot with no photograph in it', async () => {
+    const { journey } = await aJourneyWithPages('cellempty', ['Frames I'])
+
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+    const slot = view?.pages[0]?.slots[0]
+
+    expect({ media: slot?.media, previewSrc: slot?.previewSrc, caption: slot?.caption, alt: slot?.alt }).toEqual({
+      media: null,
+      previewSrc: null,
+      caption: '',
+      alt: '',
+    })
+  })
+
+  it('centres a cell the author has never clicked, which is the column’s own default', async () => {
+    const { journey } = await aJourneyWithPages('cellcentre', ['Frames I'])
+
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+
+    expect(view?.pages[0]?.slots[0]?.focal).toEqual({ x: 50, y: 50 })
+  })
+
+  it('draws an empty cell for a row with no uncropped derivative at all', async () => {
+    // NO RASTER UPLOAD CAN BE THIS FIXTURE, and the first version of this case
+    // tried to be one: a 100x100 PNG, "too small for any uncropped tier". That
+    // was true before MED-001's fix and false since — `frame` carries
+    // `withoutEnlargement: true` precisely so no original is too small for an
+    // uncropped derivative, and the sentinel below is what said so. A CLIP is
+    // what is left: Payload's `canResizeImage` refuses a video mime type, so
+    // the row carries no `sizes` at all, and `pages.slots[].media` relates to
+    // the whole `media` collection. `readBookBundle.integration.test.ts` uses
+    // the same fixture for the same reason.
+    const { journey, pages } = await aJourneyWithPages('cellnotier', ['Frames I'])
+    const clip = Buffer.from(await aClip())
+    const media = await payload.create({
+      collection: 'media',
+      data: { journey, kind: 'clip', alt: `${MARKER} cellnotier`, state: 'ready' },
+      file: { data: clip, mimetype: 'video/mp4', name: `${MARKER}-cellnotier.mp4`, size: clip.length },
+    })
+    await payload.update({
+      collection: 'pages',
+      id: Number(pages[0]),
+      ...scope,
+      data: { slots: [{ role: 'frame', media: media.id }] },
+    })
+
+    const row = await payload.findByID({ collection: 'media', id: media.id, depth: 0 })
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+
+    expect(row.sizes?.frame?.url, 'the fixture DID generate a frame tier, so this case proves nothing').toBeFalsy()
+    expect(view?.pages[0]?.slots[0]?.previewSrc).toBeNull()
+    // AND THE CELL IS STILL THERE, with its photograph named: the author has
+    // to be able to see which row will not draw, and Clear it.
+    expect(view?.pages[0]?.slots[0]?.media).toBe(String(media.id))
+  })
+
+  it('says a clip loops and a still does not, which is §2.3’s motion badge', async () => {
+    const { journey, pages } = await aJourneyWithPages('cellmotion', ['Frames I'])
+    const still = await aPoolItem(journey, 'cellmotion-still', false, 1600)
+    const clip = await aPoolItem(journey, 'cellmotion-clip', false, 1600)
+    await payload.update({ collection: 'media', id: clip, ...scope, data: { kind: 'clip' } })
+    await payload.update({
+      collection: 'pages',
+      id: Number(pages[0]),
+      ...scope,
+      data: {
+        slots: [
+          { role: 'frame', media: still },
+          { role: 'frame', media: clip },
+        ],
+      },
+    })
+
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+
+    expect(view?.pages[0]?.slots.map((slot) => slot.loops)).toEqual([false, true, false, false])
+  })
+
+  it('does not draw a stored row past the last cell its pane has', async () => {
+    // A notes page has two cells. A third stored row — which Copy from a
+    // frames page can produce — is a row the public book never renders, so
+    // offering it here would be a frame that saves and never prints.
+    const { journey, pages } = await aJourneyWithPages('cellextra', ['Notes'])
+    const media = await aPoolItem(journey, 'cellextra', false, 1600)
+    await payload.update({
+      collection: 'pages',
+      id: Number(pages[0]),
+      ...scope,
+      data: {
+        slots: [
+          { role: 'hero', media },
+          { role: 'ephemera', media },
+          { role: 'frame', media },
+        ],
+      },
+    })
+
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+
+    expect(view?.pages[0]?.slots.map((slot) => slot.role)).toEqual(slotRolesFor('notes'))
   })
 })
