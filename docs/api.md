@@ -610,9 +610,53 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   §54, because a relative string is a function of the current instant and this screen is
   rendered once on a server that never re-renders it.
 
-  **Edit and Gallery point at addresses Tasks 5 and 7 mount**, so until they land both
-  answer Next's own not-found page - the same intermediate state `GET /admin` records for
-  eight of the nine rail buttons, behind the same session guard.
+  **Edit now points at a route.** Phase 4 Task 5 mounts `GET /admin/journeys/<id>`,
+  documented immediately below, and `e2e/a11y.spec.ts` reaches the editor by clicking that
+  very link rather than by typing the address. **Gallery still points at an address Task 7
+  mounts**, so it answers Next's own not-found page until then - the same intermediate
+  state `GET /admin` records for the rail buttons, behind the same session guard.
+
+### `GET /admin/journeys/<id>`
+
+- **Path:** `apps/web/app/(admin)/admin/journeys/[id]/page.tsx`; the frame is
+  `apps/web/components/admin/shell/AdminShell.tsx`, and the screen inside it is
+  `apps/web/components/admin/editor/` - `PageRail.tsx`, `LayoutPicker.tsx` and
+  `JourneyPool.tsx`.
+- **Method:** `GET`. This route answers nothing else; the five mutations below are Server
+  Actions with their own opaque `POST` addresses.
+- **Input:** the session cookie, the `<id>` path segment, and one optional query parameter
+  - `page`, the page whose card is open. The segment is branded by `journeyId` and turned
+    into a row id by `rowId`, which refuses anything that is not a positive safe integer;
+    `page` is resolved by `selectedPage` in `packages/domain/src/admin/pageRail.ts`, which
+    takes a repeated parameter's first value and ignores an id this journey does not hold.
+- **Output:** an HTML document: `SCREENS.md` §2's shell - with the journey's own name as
+  the screen title and a crumb naming its place and page count - around §2.3's editor. Its
+  three columns are `184px | minmax(0,1fr) | 250px` above 1180px, `168px | minmax(0,1fr)`
+  above 860px with the pool spanning `1 / -1`, and a single column below, keyed on a
+  CONTAINER query rather than the viewport (`editor.module.css` says why). The left column
+  is the page rail - a card per page, the selected one revealing ↑ ↓ · Copy · Delete - over
+  the dashed layout box, whose four glyphs are real CSS grid cells drawn from
+  `packages/domain/src/admin/layoutGlyphs.ts`. The middle column prints the selected page's
+  name and says the fields arrive with Task 6. The right column is the journey pool.
+  `metadata` sets the document title and `robots: { index: false, follow: false }`.
+- **Reads:** three call sites, eight queries, under ONE hoisted `adminScope` -
+  `readNavCounts` (four `payload.count` calls), one `findGlobal('site')` selecting `name`,
+  and `readJourneyEditor` (three: the journey, then one read each of its `pages` and its
+  `media`). Eight whatever the number of pages or photographs. The journey and its pages
+  are read with `draft: true`, because the author's unpublished work exists only in the
+  versions table and an editor that read the main rows would show a reader's copy of the
+  book. Plus the one `users` row `adminScope` itself resolves.
+- **Errors:** `notFound()` - a real 404 - for an `<id>` that is not a row id, names no
+  journey, or names one in the trash. A journey that has been thrown away must not be
+  editable, which is the invariant `readJourneysScreen.ts` carries one screen along.
+- **Auth requirement:** **signed in.** `requireAdminSession()` runs in this file before
+  anything is drawn; an anonymous request is redirected to `/admin/sign-in`.
+- **Notes:** **the screen ships no client JavaScript.** Selection is an address
+  (`?page=<id>`), and every control is a `<form action={...}>`: the arrows carry the WHOLE
+  new sequence of page ids, computed on the server by `movePage` while the rail renders, so
+  the browser posts an outcome rather than an instruction.
+  `apps/web/lib/admin/shellShipsNoClientJs.test.ts` judges `components/admin/editor/` for
+  that claim and fails on the commit that adds a `'use client'` there.
 
 ### `GET /admin/sign-in`
 
@@ -1242,6 +1286,101 @@ Found` when the id names no journey, and a refused write.
   journey's pages are left exactly where they are, because a restore returns a journey
   whole rather than an empty one. `journeyMutations.integration.test.ts` asserts both
   halves: the list stops showing it AND the row is still there with a `deletedAt` on it.
+
+### `addPage(form: FormData): Promise<void>`
+
+- **Path:** `apps/web/app/(admin)/admin/journeys/[id]/actions.ts`; the decisions are
+  `apps/web/lib/admin/pageMutations.ts`'s `readNewPage` and `addPageRow`.
+- **Method:** server action.
+- **Input:** the layout box's `FormData` - `journey` and `layout` - parsed by `readNewPage`:
+  a positive integer row id, and a layout that must be one
+  `@travel-diary/domain/admin/layoutGlyphs`'s own `LAYOUTS` names. That check is an
+  inversion, so a fifth layout added there is admitted without editing the parse and a
+  sixth invented by a `POST` is refused without the parse having predicted it.
+- **Output:** `void`, then `revalidatePath` on the editor's address and on
+  `/admin/journeys`.
+- **Errors:** a `ZodError` for a journey that is not a row id or a layout no picker offers;
+  from Payload, a refused write.
+- **Auth requirement:** **signed in**, through `guardedAction`.
+- **Notes:** the page is added at the END of the rail and is always a `frames` page named
+  `Frames <n>`, which is `Travel Diary Admin.dc.html`'s own `addPage`. **It is created as a
+  draft** - see `docs/deviations.md` §56 for what today's public book does with one.
+
+### `copyPage(form: FormData): Promise<void>`
+
+- **Path:** `apps/web/app/(admin)/admin/journeys/[id]/actions.ts`; the decisions are
+  `apps/web/lib/admin/pageMutations.ts`'s `readPageRef` and `copyPageRow`.
+- **Method:** server action.
+- **Input:** the tool row's `FormData` - `journey` and `page`, both positive integer row
+  ids. The journey decides only which address to revalidate; the copy derives everything
+  it writes from the page row.
+- **Output:** `void`, then `revalidatePath` on both addresses.
+- **Errors:** a `ZodError` for a field that is not a row id; from Payload, `Not Found` and
+  a refused write.
+- **Auth requirement:** **signed in**, through `guardedAction`.
+- **Notes:** the copy lands immediately AFTER its source, which is the prototype's
+  `dupePage`, and the pages after it are renumbered through the same write path as the
+  arrows. **The source is read with `draft: true`**, so what is copied is what the editor
+  was showing; a copy of the published row would discard the author's pending edits at the
+  moment they asked for a duplicate of them. Slot array row ids are stripped, because
+  handing a create the source's ids asks Payload to insert rows that already exist.
+
+### `deletePage(form: FormData): Promise<void>`
+
+- **Path:** `apps/web/app/(admin)/admin/journeys/[id]/actions.ts`; the decision is
+  `apps/web/lib/admin/pageMutations.ts`'s `deletePageRow`.
+- **Method:** server action.
+- **Input:** the tool row's `FormData` - `journey` and `page`, as above.
+- **Output:** `void`, then `revalidatePath` on both addresses.
+- **Errors:** a `ZodError` for a field that is not a row id; a thrown refusal when it is
+  the journey's ONLY page; from Payload, `Not Found` and a refused delete.
+- **Auth requirement:** **signed in**, through `guardedAction`.
+- **Notes:** **a hard delete, and that is the data model's own answer** rather than an
+  omission of CLAUDE.md §7's soft delete: `DATA_MODEL.md` scopes the 30-day trash to
+  journeys ("`deletedAt` on journeys") and declares no such column on `pages`, whose own
+  line is "Pages are rows, not a fixed triple - the admin can add, duplicate, reorder and
+  delete them". The rail hides Delete on a one-page journey, so reaching the refusal is a
+  `POST` nobody's browser sent.
+
+### `reorderPages(form: FormData): Promise<void>`
+
+- **Path:** `apps/web/app/(admin)/admin/journeys/[id]/actions.ts`; the decisions are
+  `apps/web/lib/admin/pageMutations.ts`'s `readPageOrder` and `reorderPageRows`.
+- **Method:** server action.
+- **Input:** an arrow's `FormData` - `journey`, and `pages`: the WHOLE new sequence of page
+  row ids, comma-separated. The sequence is computed on the server by
+  `packages/domain/src/admin/pageRail.ts`'s `movePage` while the rail renders, so the
+  browser posts an outcome rather than an instruction and the screen ships no JavaScript
+  for it. The parse refuses an empty list and a list naming one page twice.
+- **Output:** `void`, then `revalidatePath` on both addresses.
+- **Errors:** a `ZodError` for an empty, repeated or non-numeric list; a thrown refusal
+  when the submitted ids are not EXACTLY this journey's pages - a stale form from a second
+  tab would otherwise leave two pages sharing one `order`; from Payload, a refused write.
+- **Auth requirement:** **signed in**, through `guardedAction`.
+- **Notes:** one write per page whose place actually changed, not one per page: every write
+  on a versioned collection mints a version row, and a swap moves two. Each of those writes
+  is the TWO-WRITE shape described under `setPageLayout` below, which is the same mechanism.
+
+### `setPageLayout(form: FormData): Promise<void>`
+
+- **Path:** `apps/web/app/(admin)/admin/journeys/[id]/actions.ts`; the decisions are
+  `apps/web/lib/admin/pageMutations.ts`'s `readPageLayoutRef` and `setPageLayoutRow`.
+- **Method:** server action.
+- **Input:** a glyph button's `FormData` - `journey`, `page` and `layout`.
+- **Output:** `void`, then `revalidatePath` on both addresses.
+- **Errors:** a `ZodError` for a field that is absent or outside its type; from Payload,
+  `Not Found` and a refused write.
+- **Auth requirement:** **signed in**, through `guardedAction`.
+- **Notes:** **it applies at once, with no Save** - the prototype's picker sets the current
+  page's layout and stamps "saved just now" in the same breath. **The write is TWO writes,
+  not one `payload.update`**, and that is the trap Phase 4 Task 4 paid two review rounds
+  for on `journeys`: `pages` carries `versions: { drafts: true }`, and Payload's
+  `updateByID` merges into whatever `getLatestCollectionVersion` returns - which is passed
+  no `published` key, so it is the NEWEST VERSION whatever `draft` says. A one-line update
+  would write the author's unpublished text into the live row and stamp it `draft`. So the
+  live row is written from its OWN content plus the field, and then the pending draft is
+  saved again with the same field on it, because the first write made a non-draft version
+  the latest one. `pageMutations.integration.test.ts` asserts both halves, from both sides.
 
 ## Planned routes (Phase 1)
 
