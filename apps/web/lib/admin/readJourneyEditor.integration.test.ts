@@ -22,7 +22,7 @@
  * @travel-diary/domain/ids, ../testPayload, ./adminScope, ./readJourneyEditor.
  */
 import { TALLY_ROWS } from '@travel-diary/domain/bookBundle'
-import { journeyId, userId, type JourneyId, type UserId } from '@travel-diary/domain/ids'
+import { isRowId, journeyId, userId, type JourneyId, type UserId } from '@travel-diary/domain/ids'
 import type { Payload } from 'payload'
 import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -89,6 +89,14 @@ const clean = async (): Promise<void> => {
   }
   await payload.delete({ collection: 'journeys', where: { slug: { like: MARKER } } })
   await payload.delete({ collection: 'users', where: { email: { like: MARKER } } })
+  // THE SAFETY NET FOR THE ORPHANS THIS FILE MAKES ON PURPOSE. Four cases below
+  // remove a page's main row through the adapter, which leaves a `_pages_v` row
+  // no `where` over `journey` can reach, and each sweeps up after itself. This
+  // is what covers the case that FAILS before reaching its own sweep — which is
+  // not hypothetical: one mutation run left an orphan behind and the two cases
+  // after it failed on a count that was not theirs. `diary_test` is shared by
+  // every integration file, and nothing else in the repository creates one.
+  await payload.db.deleteVersions({ collection: 'pages', where: { parent: { exists: false } } })
 }
 
 /**
@@ -397,9 +405,11 @@ describe('readJourneyEditor', () => {
     // `draft: true` makes Payload answer from `_pages_v`, and a version row
     // whose parent page is gone comes back as a document with `id: null` — which
     // `pageId(String(null))` brands happily, because `'null'` is a non-empty
-    // string. The developer's own `diary` holds three such rows and the rail
-    // drew three phantom cards, all of them "selected" at once because they
-    // shared the id.
+    // string. The developer's own `diary` holds THREE SUCH PAGES — Cover,
+    // Contents and About — and eighteen version rows between them, six each:
+    // measured, because `docs/runbook.md` says "three orphaned `_pages_v` rows"
+    // and means three pages. The rail drew three phantom cards, all of them
+    // "selected" at once because they shared the id.
     //
     // THE FIXTURE IS THE REAL SHAPE, not an invented one: the main row is
     // removed through the adapter's own `deleteOne`, which is what leaves
@@ -424,27 +434,39 @@ describe('readJourneyEditor', () => {
     expect(view?.pages.map((page) => String(page.id))).toEqual([String(pages.docs[0]?.id)])
 
     // AND THE ORPHAN IS REMOVED HERE, because nothing else in this file can
-    // reach it. `clean()` deletes pages by their `journey`, and this version's
-    // parent page no longer exists — so left behind it stays in `_pages_v` for
-    // the rest of the run, and `payload.find({ collection: 'pages' })` keeps
-    // answering with it as a document. That is not hypothetical: it turned
-    // `apps/web/scripts/seed.integration.test.ts`'s "thirty pages" into
-    // thirty-one, in whichever runs happened to order this file after
-    // `collections.integration.test.ts`'s migrate-down-and-up. The developer's
-    // own `diary` keeps its three orphans deliberately (`docs/runbook.md`);
-    // `diary_test` is shared by forty-three files and must not.
+    // reach it: `clean()` deletes pages by their `journey`, and this version's
+    // parent page no longer exists. `diary_test` is shared by every integration
+    // file in the run, and a row this file invents on purpose is this file's to
+    // take away. The developer's own `diary` keeps its orphans deliberately
+    // (`docs/runbook.md`); that is the only place they belong.
+    //
+    // WHAT A LEFTOVER WOULD AND WOULD NOT HAVE DONE, because this comment got it
+    // wrong once and the wrong version shipped. Every `draft: true` read of
+    // `pages` in the rest of the run WOULD have seen it, as a document with
+    // `id: null` — that is this file's own subject, and the two cases below pin
+    // it. A PLAIN read would NOT, which is the rule `docs/runbook.md` states and
+    // the rule `readJourneyEditor.ts`'s header turns on. An earlier version of
+    // these lines claimed the opposite and blamed a `seed.integration.test.ts`
+    // page-count failure on it. The review measured that claim and it is false:
+    // with an orphan deliberately left in place, `creates thirty pages` passes.
+    // **That count failure is UNATTRIBUTED**, and saying so is the point — the
+    // shape still to look for is a real extra `pages` MAIN row surviving
+    // somebody's cleanup, and a plausible mechanism would close the question
+    // wrongly.
     //
     // BY "HAS NO PARENT", NOT BY THE PAGE'S ID, and that is not a convenience:
-    // `_pages_v.parent_id` is `ON DELETE SET NULL`, so by the time this line
-    // runs the row no longer remembers which page it belonged to. Asking for
-    // `parent: { equals: doomed.id }` matches nothing — measured, the row was
-    // still there afterwards. "Every page version whose page is gone" is both
-    // the reachable predicate and the exact set that must not survive this file.
+    // `_pages_v.parent_id` is `ON DELETE set null`
+    // (`apps/web/migrations/20260831_154311_initial.ts`), so by the time this
+    // line runs the row no longer remembers which page it belonged to. Asking
+    // for `parent: { equals: doomed.id }` matches nothing — pinned by the last
+    // case below rather than asserted here. "Every page version whose page is
+    // gone" is both the reachable predicate and the exact set that must not
+    // survive this file.
     await payload.db.deleteVersions({ collection: 'pages', where: { parent: { exists: false } } })
 
     // Asserted rather than assumed: a cleanup nothing checks is a cleanup that
-    // can stop working silently, and the way this one fails is another file's
-    // count being one too high three minutes later.
+    // can stop working silently, and the way this one fails is in another file,
+    // minutes later, as a number nobody can attribute.
     const left = await payload.findVersions({
       collection: 'pages',
       ...scope,
@@ -453,6 +475,71 @@ describe('readJourneyEditor', () => {
       where: { parent: { exists: false } },
     })
     expect(left.docs).toEqual([])
+  })
+
+  it('is invisible to a plain read, which is why the rule is about draft reads and not about orphans', async () => {
+    // THE CORRECTION, MADE EXECUTABLE. The comment above this pair used to say a
+    // plain `payload.find({ collection: 'pages' })` answers with an orphaned
+    // version as a document, and blamed another file's page count on it. It does
+    // not. This case and the next are the review's probe landed, so the rule
+    // `readJourneyEditor.ts`'s header turns on -- "a `draft: true` read answers
+    // from the versions table whatever the collection" -- is pinned from BOTH
+    // sides rather than restated. An edit that inverts them fails here.
+    const { journey } = await aJourneyWithPages('plain-read', ['Notes'])
+    const held = await payload.find({ collection: 'pages', ...scope, depth: 0, limit: 500 })
+
+    await payload.db.deleteOne({ collection: 'pages', where: { journey: { equals: journey } } })
+
+    const after = await payload.find({ collection: 'pages', ...scope, depth: 0, limit: 500 })
+
+    expect(after.totalDocs).toBe(held.totalDocs - 1)
+    expect(after.docs.filter((page) => !isRowId(page.id))).toEqual([])
+
+    await payload.db.deleteVersions({ collection: 'pages', where: { parent: { exists: false } } })
+  })
+
+  it('is visible to a draft read, as a document with no row behind it', async () => {
+    // The other side, and the one that makes `isRowId` necessary at all: the
+    // same fixture, the same removal, read the way this module reads.
+    const { journey } = await aJourneyWithPages('draft-read', ['Notes'])
+    await payload.db.deleteOne({ collection: 'pages', where: { journey: { equals: journey } } })
+
+    const drafted = await payload.find({ collection: 'pages', ...scope, depth: 0, limit: 500, draft: true })
+
+    expect(drafted.docs.filter((page) => !isRowId(page.id))).toHaveLength(1)
+
+    await payload.db.deleteVersions({ collection: 'pages', where: { parent: { exists: false } } })
+  })
+
+  it('cannot be addressed by the page it belonged to, because the version lost its parent', async () => {
+    // WHY THE CLEANUP'S KEY IS WHAT IT IS, measured rather than argued.
+    // `_pages_v.parent_id` is `ON DELETE set null`, so the predicate the obvious
+    // spelling would use matches nothing -- which is how the first attempt at
+    // that cleanup passed its own run and left the row behind.
+    const { pages } = await aJourneyWithPages('orphan-key', ['Notes'])
+    const doomed = pages[0]
+    if (doomed === undefined) throw new Error('the fixture made no page')
+    await payload.db.deleteOne({ collection: 'pages', where: { id: { equals: doomed } } })
+
+    const byId = await payload.findVersions({
+      collection: 'pages',
+      ...scope,
+      depth: 0,
+      pagination: false,
+      where: { parent: { equals: doomed } },
+    })
+    const byNoParent = await payload.findVersions({
+      collection: 'pages',
+      ...scope,
+      depth: 0,
+      pagination: false,
+      where: { parent: { exists: false } },
+    })
+
+    expect(byId.docs).toEqual([])
+    expect(byNoParent.docs.map((version) => version.parent)).toEqual([null])
+
+    await payload.db.deleteVersions({ collection: 'pages', where: { parent: { exists: false } } })
   })
 
   it('still shows every page whose row is really there, so the guard above drops nothing real', async () => {
