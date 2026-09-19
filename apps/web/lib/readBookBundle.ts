@@ -607,14 +607,41 @@ export const readBookBundle = cache(async (): Promise<BookBundle> => {
   // exclude them (`lib/galleryFrames.ts`, and PH1-002). This query already
   // selected `slots` for the faces, so asking for it first turns a second
   // `pages` read into a reordering.
+  //
+  // ═══ ONE QUERY, TWO CONSUMERS, AND THEY WANT DIFFERENT ROWS ═══
+  //
+  // `_status` is selected and the rows are partitioned in memory, because a
+  // `where` clause cannot express "filter one consumer and not the other" and a
+  // second read would cost the round trip the paragraph above just saved.
+  //
+  // THE FACES TAKE PUBLISHED ROWS ONLY. The journeys query above already
+  // refuses an unpublished JOURNEY; pages had no such filter until Phase 4's
+  // journey editor made unpublished pages reachable, and what that cost was not
+  // a blank page — it was a published page losing its place. The reading
+  // sequence is derived from journeys, so a fourth row adds no face; but
+  // `groupPagesByJourneyAndKind` hands `frames-i` and `frames-ii` to the first
+  // two `kind: 'frames'` rows BY `order`, so a drafted page ordered between them
+  // becomes `frames-ii` and the published Frames II stops being drawn. Measured
+  // against a real Postgres: Lisbon's Frames II went from four slots to none,
+  // and Copy in the editor's page rail reaches that state in one click.
+  //
+  // THE CENSUS TAKES ALL OF THEM, and that is not an oversight of the line
+  // above. `ephemeraMediaIds` answers "which media are decorative scraps rather
+  // than gallery frames", and a scrap does not stop being a scrap because the
+  // page holding it is unpublished — `galleryFrames.ts`'s header states it: a
+  // scrap that reappeared in the gallery whenever an editor unpublished a page
+  // would be the same defect with a harder reproduction. Both halves have a
+  // case in `readBookBundle.integration.test.ts`, and the second one fails if
+  // this filter is ever widened into the `where`.
   const pagesResult = await payload.find({
     collection: 'pages',
     depth: 0,
     pagination: false,
     limit: 5000,
     where: { journey: { in: journeyNumericIds } },
-    select: { journey: true, kind: true, order: true, slots: true },
+    select: { journey: true, kind: true, order: true, slots: true, _status: true },
   })
+  const publishedPages = pagesResult.docs.filter((page) => page._status === 'published')
 
   // The gallery census: one query for the whole book, two columns wide. It
   // is deliberately NOT folded into the slot-media query below - that one is
@@ -656,7 +683,10 @@ export const readBookBundle = cache(async (): Promise<BookBundle> => {
   // own, and it wants exactly the columns this query already selects.
   const mediaIds = [
     ...new Set([
-      ...pagesResult.docs.flatMap((page) =>
+      // The PUBLISHED rows: this batch exists to fill the faces, and a drafted
+      // page fills none of them, so resolving its slots would be a derivative
+      // map fetched for a page nobody can see.
+      ...publishedPages.flatMap((page) =>
         (page.slots ?? []).flatMap((slot) => (typeof slot.media === 'number' ? [slot.media] : [])),
       ),
       ...(portraitId === undefined ? [] : [portraitId]),
@@ -700,7 +730,7 @@ export const readBookBundle = cache(async (): Promise<BookBundle> => {
   })
   const mediaById = new Map(mediaResult.docs.map((doc) => [doc.id, doc]))
 
-  const pagesByJourneyAndKind = groupPagesByJourneyAndKind(pagesResult.docs)
+  const pagesByJourneyAndKind = groupPagesByJourneyAndKind(publishedPages)
 
   const pages = withSlots(derivePages(journeys), pagesByJourneyAndKind, mediaById)
 

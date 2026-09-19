@@ -97,11 +97,13 @@
  * NO N+1 (CLAUDE.md §6). The `pages` read is one query over a journey's three
  * rows - or, for the book, the one query it already made over all thirty -
  * with `depth: 0` and `slots` the only column selected. Nothing here grows
- * with the sixty-one frames it filters. The pages query matches
- * `readBookBundle`'s in shape, including the absence of a `_status` filter: a
- * slot on a drafted page still names a scrap, and a scrap that reappeared in
- * the gallery whenever an editor unpublished a page would be the same defect
- * with a harder reproduction.
+ * with the sixty-one frames it filters. The pages query carries no `_status`
+ * filter, and since Phase 4 that is this module's OWN reason rather than a
+ * borrowed one: `readBookBundle`'s pages read now selects `_status` and
+ * partitions, because the book's FACES must take published rows only. This
+ * consumer still takes all of them — a slot on a drafted page still names a
+ * scrap, and a scrap that reappeared in the gallery whenever an editor
+ * unpublished a page would be the same defect with a harder reproduction.
  * Depends on: the `Where` type from `payload`. Nothing else - see above.
  */
 import type { Where } from 'payload'
@@ -184,10 +186,10 @@ export const galleryFrameWhere = (
  * and composes {@link ephemeraMediaIds} and {@link galleryFrameWhere} from
  * the result at no extra query.
  *
- * `depth: 0` and `slots` alone (CLAUDE.md §7). No `_status` filter, matching
- * `readBookBundle`'s own pages query: a slot on a drafted page still names a
- * scrap, and a scrap that reappeared in the gallery whenever an editor
- * unpublished a page would be the same defect with a harder reproduction.
+ * `depth: 0` and `slots` alone (CLAUDE.md §7). No `_status` filter — see this
+ * module's header: `readBookBundle` now partitions its own pages read by
+ * `_status` for the book's faces, and this consumer still wants every row,
+ * because a slot on a drafted page still names a scrap.
  *
  * @param journeyNumericId - The owning journey's Payload id.
  * @returns Arguments for `payload.find`, ready to spread or pass whole.

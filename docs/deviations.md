@@ -2643,7 +2643,7 @@ controls inside their own column, at every width" and "leaves the journey's name
 can be read in, at every width" — both of which failed before the change, at every viewport
 project, and pass after it.
 
-## 56 · A page added from the journey editor is a draft — and today's public book shows it anyway
+## 56 · A page added from the journey editor is a draft, and the book now says so
 
 **What changed:** `apps/web/lib/admin/pageMutations.ts`'s `addPageRow` and `copyPageRow`
 create their rows with `draft: true`, so a page nobody has put anything on is not born
@@ -2653,34 +2653,28 @@ is what makes "a new page starts as a draft" the reading taken, and it is the sa
 the create panel already states out loud one screen along — "Starts as a draft — no bookmark
 until you publish."
 
-**The consequence, measured rather than reasoned about, and it points the other way.**
-`apps/web/lib/readBookBundle.ts`'s `pages` query carries no `_status` filter, where its
-`journeys` query immediately above carries one with a comment explaining why ("Without this
-filter, an unpublished draft would appear in the public book"). Pages have the same property
-and no such filter, so a draft page IS in the public book. Measured against a real Postgres
-in `diary_test`: a published journey with one published page, plus one page added by
-`addPageRow`, returns BOTH pages from the query `readBookBundle` runs, and only the published
-one from the same query with `_status: { equals: 'published' }` added.
+**What this cost when it landed, and what it cost to close.** `apps/web/lib/readBookBundle.ts`
+read every page of every journey with no `_status` filter, where its `journeys` query one
+block above carries one. The first version of this entry said the consequence was a blank
+page appearing in the live book; measured against a real Postgres, it is worse and more
+specific than that. The reading sequence is derived from JOURNEYS, so a fourth page row adds
+no face — but `groupPagesByJourneyAndKind` hands `frames-i` and `frames-ii` to the first two
+`kind: 'frames'` rows BY `order`, so a drafted page ordered between them TAKES the published
+page's place. Lisbon's Frames II went from four slots to none, and Copy in the editor's page
+rail reaches that state in one click.
 
-So on today's code, pressing Add on a published journey puts an empty page into the live
-book at once. Nothing could reach that state before this task, because nothing in the admin
-created a page on a journey that was already out: `createJourneyRow` and
-`duplicateJourneyRow` only ever make pages for a journey that is itself a draft, which the
-`journeys` filter already excludes.
+The fix is not the one clause it looks like, because that query's rows are read twice for two
+different purposes. It now selects `_status` and partitions in memory: the book's faces and
+their slot media take the published rows, and `ephemeraMediaIds` — the gallery census's
+exclusion list — still takes all of them, because a slot on a drafted page still names a
+scrap and `galleryFrames.ts` was written to stop exactly that scrap reappearing in the
+gallery. Both halves have a case in `readBookBundle.integration.test.ts`, and the second one
+fails if the filter is ever widened into the `where`. The three Phase 1 page fixtures this
+entry once said would have to change did not: all 81 of their cases passed unaltered, which
+was measured by the review rather than assumed.
 
-**Why it is recorded rather than fixed here.** The fix is one clause in a Phase 1 read that
-the whole public diary runs through, and it changes what that read returns: every page
-fixture in `readBookBundle.integration.test.ts`, `readGalleryBundle.integration.test.ts` and
-`readGalleryDownload.integration.test.ts` creates pages without a status and would have to
-say `_status: 'published'` for those suites to still describe the book. That is a change to
-the public surface, made from inside a screen task, and it is worth someone deciding on
-rather than someone noticing. It is also not merely cosmetic in the other direction: with
-the filter and no page-level Publish yet built (`SCREENS.md` §2.8 is a later task), an added
-page would be invisible in the book until that screen exists.
+**What would reverse it:** a `SCREENS.md` revision saying that Add publishes.
 
-**What would reverse it:** adding `_status: { equals: 'published' }` to the `pages` query in
-`readBookBundle.ts`, with the three fixture files above updated in the same commit — after
-which this entry reduces to its first paragraph.
-
-**Recorded as:** this entry, and the `addPageRow` note in
-`apps/web/lib/admin/pageMutations.ts` that cites it.
+**Recorded as:** this entry, the `addPageRow` note in `apps/web/lib/admin/pageMutations.ts`
+that cites it, the partition's own comment block in `readBookBundle.ts`, and
+`docs/qa/2026-09-19-journey-editor-sweep.md`, whose sweep of the same screen found two more.

@@ -326,7 +326,8 @@ const writePageFields = async (
  *
  * A DRAFT, for the reason the create panel's line gives one screen along: a
  * page nobody has put anything on is not something to publish. See
- * `docs/deviations.md` §56 for what the public book currently does with one.
+ * `docs/deviations.md` §56 for what it took to make the public book agree, which
+ * was not the one clause it looked like.
  * @param payload - The Local API instance.
  * @param scope - The hoisted {@link AdminScope}.
  * @param journey - The journey's row id.

@@ -342,6 +342,115 @@ describe('readBookBundle', () => {
     }
   })
 
+  it('gives a drafted page no place in the book, so an unpublished page cannot take a published one’s', async () => {
+    // ═══ WHAT THIS IS ACTUALLY ABOUT, WHICH IS NOT "A BLANK PAGE APPEARS" ═══
+    //
+    // The reading sequence is derived from JOURNEYS, so a fourth page row adds
+    // no face. What a fourth row CAN do is take a face away from the row that
+    // had it: `groupPagesByJourneyAndKind` gives `frames-i` and `frames-ii` to
+    // the first two `kind: 'frames'` rows BY `order`. So a drafted frames page
+    // ordered between the two published ones becomes `frames-ii`, and the
+    // published Frames II stops being drawn at all.
+    //
+    // Reachable in one click from the journey editor (Phase 4 Task 5): Copy on
+    // Frames I lands its duplicate at Frames II's place, as a draft.
+    // `docs/deviations.md` §56 described the consequence as a blank page being
+    // added; this is the measurement that says what it really is.
+    const journeys = await payload.find({ collection: 'journeys', where: { slug: { equals: 'lisbon' } }, limit: 1 })
+    const journeyNumericId = journeys.docs[0]?.id
+    expect(journeyNumericId).toBeDefined()
+    const framesOf = (source: Awaited<ReturnType<typeof readBookBundle>>): number => {
+      const page = source.pages.find((candidate) => candidate.kind === 'frames-ii' && candidate.slug === 'lisbon')
+      return page?.kind === 'frames-ii' ? (page.slots?.length ?? 0) : -1
+    }
+    const before = await readBookBundle()
+    expect(framesOf(before)).toBeGreaterThan(0)
+
+    // The published Frames II's own place, so the intruder sits between the two.
+    const published = await payload.find({
+      collection: 'pages',
+      depth: 0,
+      pagination: false,
+      sort: 'order',
+      where: { and: [{ journey: { equals: journeyNumericId } }, { kind: { equals: 'frames' } }] },
+      select: { order: true },
+    })
+    const second = published.docs[1]
+    expect(second).toBeDefined()
+
+    const intruder = await payload.create({
+      collection: 'pages',
+      draft: true,
+      data: {
+        journey: Number(journeyNumericId),
+        kind: 'frames',
+        title: 'Frames I (copy)',
+        order: Number(second?.order) - 0.5,
+        layout: 'three-up',
+      },
+    })
+    try {
+      const after = await readBookBundle()
+      expect(framesOf(after)).toBe(framesOf(before))
+    } finally {
+      await payload.delete({ collection: 'pages', id: intruder.id })
+    }
+  })
+
+  it('still excludes a drafted page’s ephemera scrap from the census, which the page filter must not undo', async () => {
+    // THE OTHER HALF OF THE SAME QUERY, and the reason the fix above is a
+    // partition rather than a `where` clause. `pagesResult.docs` is read twice:
+    // once for the book's faces, which must see published rows only, and once
+    // by `ephemeraMediaIds` for the gallery census, which must see ALL of them.
+    // `galleryFrames.ts` says so in its own header: a scrap that reappeared in
+    // the gallery whenever an editor unpublished a page would be the same defect
+    // with a harder reproduction.
+    //
+    // So this case fails if the filter is ever applied to the whole query
+    // instead of to the consumers that need it.
+    const journeys = await payload.find({ collection: 'journeys', where: { slug: { equals: 'lisbon' } }, limit: 1 })
+    const journeyNumericId = journeys.docs[0]?.id
+    expect(journeyNumericId).toBeDefined()
+    const censusOf = (source: Awaited<ReturnType<typeof readBookBundle>>): number => {
+      const notes = source.pages.find((page) => page.kind === 'notes' && page.slug === 'lisbon')
+      const gallery = notes?.kind === 'notes' ? notes.gallery : undefined
+      return (gallery?.photographs ?? 0) + (gallery?.clips ?? 0)
+    }
+    const before = await readBookBundle()
+
+    // A frame the census counts today, about to be named as ephemera by a page
+    // nobody has published.
+    const frames = await payload.find({
+      collection: 'media',
+      depth: 0,
+      limit: 1,
+      sort: ['-order'],
+      where: { and: [{ journey: { equals: journeyNumericId } }, { hidden: { not_equals: true } }] },
+      select: { order: true },
+    })
+    const scrap = frames.docs[0]?.id
+    expect(scrap).toBeDefined()
+
+    const drafted = await payload.create({
+      collection: 'pages',
+      draft: true,
+      data: {
+        journey: Number(journeyNumericId),
+        kind: 'notes',
+        title: 'An unpublished page holding a scrap',
+        order: 900,
+        layout: 'text-spread',
+        slots: [{ role: 'ephemera', media: Number(scrap) }],
+      },
+    })
+    try {
+      const after = await readBookBundle()
+      expect(censusOf(after)).toBe(censusOf(before) - 1)
+    } finally {
+      await payload.delete({ collection: 'pages', id: drafted.id })
+    }
+  })
+
   it('sets depth explicitly rather than letting Payload walk the graph', async () => {
     // CLAUDE.md §7: select only the fields needed, set depth explicitly. A
     // default depth here pulls every relationship on every page load.
