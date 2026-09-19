@@ -381,7 +381,7 @@ describe('readJourneyEditor', () => {
     expect(view?.pool.find((item) => item.alt.endsWith('stillone'))?.duration).toBeNull()
   })
 
-  it('reads a media row with no alt and no caption as empty text, never as undefined', async () => {
+  it('reads a media row with no alt as empty text, never as undefined', async () => {
     const { journey } = await aJourneyWithPages('bare', [])
     const png = await sharp({ create: { width: 400, height: 400, channels: 3, background: { r: 2, g: 2, b: 2 } } })
       .png()
@@ -394,7 +394,7 @@ describe('readJourneyEditor', () => {
 
     const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
 
-    expect(view?.pool[0]).toMatchObject({ alt: '', caption: '' })
+    expect(view?.pool[0]).toMatchObject({ alt: '' })
   })
 
   it('draws no thumbnail for an upload too small to have one, rather than reaching for the original', async () => {
@@ -416,7 +416,7 @@ describe('readJourneyEditor', () => {
 
     const view = await readJourneyEditor(payload, scope, aJourneyId(mine.journey))
 
-    expect(view?.pool.map((item) => item.caption)).toEqual(['mineone caption'])
+    expect(view?.pool.map((item) => item.alt)).toEqual([`${MARKER} mineone`])
   })
 
   it('asks the database a fixed number of questions however many pages there are', async () => {

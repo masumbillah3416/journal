@@ -202,12 +202,16 @@ describe('PageRail', () => {
     expect(remove?.querySelector<HTMLInputElement>('input[name="page"]')?.value).toBe('7')
   })
 
-  it('hides Delete on a journey with one page, because that delete is refused', () => {
-    const only = THREE.slice(0, 1)
-    const host = renderRail(only, aPage('5'))
+  it('disables Delete on a journey with one page, because that delete is refused', () => {
+    // BOTH SIDES OF THE SAME BOUNDARY, in one case: one page refuses, two
+    // permit. Disabled rather than absent, so the tool row keeps its width as
+    // the selection moves — the treatment the arrows already get.
+    const one = renderRail(THREE.slice(0, 1), aPage('5'))
+    const two = renderRail(THREE.slice(0, 2), aPage('5'))
 
-    expect(host.querySelector('[data-page-delete]')).toBeNull()
-    expect(host.querySelector('[data-page-copy]')).not.toBeNull()
+    expect(one.querySelector<HTMLButtonElement>('[data-page-delete]')?.disabled).toBe(true)
+    expect(two.querySelector<HTMLButtonElement>('[data-page-delete]')?.disabled).toBe(false)
+    expect(one.querySelector('[data-page-copy]')).not.toBeNull()
   })
 
   it('prints each page’s kind and layout in the meta line, in the design’s own words', () => {

@@ -64,6 +64,7 @@
  * `Page` (../../payload-types).
  */
 import { LAYOUTS, type PageLayout } from '@travel-diary/domain/admin/layoutGlyphs'
+import { isRowId } from '@travel-diary/domain/ids'
 import type { Payload } from 'payload'
 import { z } from 'zod'
 import type { Page } from '../../payload-types'
@@ -79,15 +80,32 @@ import type { AdminScope } from './adminScope'
  */
 const LAYOUT = z.enum(LAYOUTS)
 
+/**
+ * A row id, as a form sends one.
+ *
+ * ONE SPELLING, AND IT IS THE DOMAIN'S. These parses used to be
+ * `z.coerce.number().int().positive()`, which admits `1e21`:
+ * `Number.isInteger(1e21)` is `true`, and past 2^53 `Number` stops telling one
+ * integer from the next — so a crafted `page=9007199254740993` would ask
+ * Postgres about whichever row `9007199254740992` is. `isRowId` is the same
+ * check `readJourneyEditor` applies on the read path and `rowId` applies to an
+ * address, so a row id now means one thing across this feature.
+ *
+ * `z.coerce.number()` first, because a form body is text: `'nonsense'` coerces
+ * to `NaN` and `''` to `0`, and `isRowId` refuses both rather than letting them
+ * reach the driver.
+ *
+ * `journeyMutations.ts` still spells it the old way. That is inherited and left
+ * alone deliberately — changing a neighbouring screen's four parses from inside
+ * this one is a change nobody asked for and nothing here tests.
+ */
+const ROW_ID = z.coerce.number().refine(isRowId, { message: 'not a row id' })
+
 /** What the "+ Add page with this layout" form carries. */
-const NEW_PAGE = z.object({ journey: z.coerce.number().int().positive(), layout: LAYOUT })
+const NEW_PAGE = z.object({ journey: ROW_ID, layout: LAYOUT })
 
 /** What a glyph button's form carries. */
-const PAGE_LAYOUT_REF = z.object({
-  journey: z.coerce.number().int().positive(),
-  page: z.coerce.number().int().positive(),
-  layout: LAYOUT,
-})
+const PAGE_LAYOUT_REF = z.object({ journey: ROW_ID, page: ROW_ID, layout: LAYOUT })
 
 /**
  * What the tool row's Copy and Delete carry.
@@ -98,15 +116,9 @@ const PAGE_LAYOUT_REF = z.object({
  * action has to know which editor address to revalidate, and reading the row a
  * second time to find out would be a query for a cache key.
  *
- * `z.coerce.number()` and then `int().positive()`, for `journeyMutations.ts`'s
- * reason: a row id is a positive integer, and `'nonsense'` coerces to `NaN`,
- * which `int()` refuses. Without this the value reaches Postgres as `NaN` and
- * escapes as a raw `Failed query`.
+ * Both are {@link ROW_ID}, which is where the reasoning lives.
  */
-const PAGE_REF = z.object({
-  journey: z.coerce.number().int().positive(),
-  page: z.coerce.number().int().positive(),
-})
+const PAGE_REF = z.object({ journey: ROW_ID, page: ROW_ID })
 
 /**
  * What ↑ and ↓ carry: the journey, and the whole new sequence of page ids.
@@ -122,13 +134,13 @@ const PAGE_REF = z.object({
  * as an error.
  */
 const PAGE_ORDER = z.object({
-  journey: z.coerce.number().int().positive(),
+  journey: ROW_ID,
   pages: z
     .string()
     .transform((raw) => raw.split(',').map(Number))
     .pipe(
       z
-        .array(z.number().int().positive())
+        .array(z.number().refine(isRowId, { message: 'not a row id' }))
         .min(1)
         .refine((ids) => new Set(ids).size === ids.length, { message: 'a page is named twice' }),
     ),

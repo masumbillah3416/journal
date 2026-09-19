@@ -533,6 +533,78 @@ describe('reorderPageRows', () => {
   })
 })
 
+describe('the five operations on a page that has never been published', () => {
+  // ═══ THE STATE `aJourneyWithPages` NEVER BUILDS ═══
+  //
+  // Every other fixture here publishes its pages and then saves a draft over
+  // them. The page `addPageRow` actually creates has NEVER been published — its
+  // live row is `_status: 'draft'` — and the first ↑ or layout press after Add
+  // runs `writePageFields` over exactly that row, whose first write carries no
+  // `draft` argument. If that write published it, the page would go into the
+  // live book even after `readBookBundle`'s filter (`docs/deviations.md` §56),
+  // so this is the state that matters most once that fix is in.
+  //
+  // These four were written by the task's review, verified to pass, and landed
+  // here rather than thrown away: the gap they close is a coverage gap and not
+  // a defect. `writePageFields`'s first write passes `{ ...live, ...fields }`,
+  // which carries `live._status` forward.
+
+  it('keeps an added page a draft through the arrow that renumbers it', async () => {
+    const { journey, pages } = await aJourneyWithPages('neverpub-order', ['Notes'])
+    const first = pages[0]
+    if (first === undefined) throw new Error('the fixture made no page')
+    const added = await addPageRow(payload, scope, journey, 'four-up')
+    expect((await liveRow(added))._status).toBe('draft')
+
+    await reorderPageRows(payload, scope, journey, [added, first])
+
+    expect((await liveRow(added))._status).toBe('draft')
+    expect((await liveRow(first))._status).toBe('published')
+    expect((await liveRow(added)).order).toBe(0)
+  })
+
+  it('keeps an added page a draft through a layout press', async () => {
+    const { journey } = await aJourneyWithPages('neverpub-layout', ['Notes'])
+    const added = await addPageRow(payload, scope, journey, 'four-up')
+
+    await setPageLayoutRow(payload, scope, added, 'full-bleed')
+
+    expect((await liveRow(added))._status).toBe('draft')
+    expect((await liveRow(added)).layout).toBe('full-bleed')
+  })
+
+  it('leaves the source and the neighbour published when it copies one of them', async () => {
+    const { pages } = await aJourneyWithPages('neverpub-copy', ['Notes', 'Frames I'])
+    const [first, second] = pages
+    if (first === undefined || second === undefined) throw new Error('short fixture')
+
+    const copy = await copyPageRow(payload, scope, first)
+
+    expect((await liveRow(copy))._status).toBe('draft')
+    expect((await liveRow(first))._status).toBe('published')
+    expect((await liveRow(second))._status).toBe('published')
+  })
+
+  it('deletes a page that has pending draft edits without touching its neighbour', async () => {
+    const { journey, pages } = await aJourneyWithPages('neverpub-delete', ['Notes', 'Frames I'])
+    const [first, second] = pages
+    if (first === undefined || second === undefined) throw new Error('short fixture')
+    await aPendingDraft(second, 'pending')
+
+    await deletePageRow(payload, scope, second)
+
+    const left = await payload.find({
+      collection: 'pages',
+      ...scope,
+      depth: 0,
+      pagination: false,
+      where: { journey: { equals: journey } },
+    })
+    expect(left.docs.map((page) => page.id)).toEqual([first])
+    expect((await liveRow(first))._status).toBe('published')
+  })
+})
+
 describe('setPageLayoutRow', () => {
   it('writes the layout the picker was pressed on', async () => {
     const { pages } = await aJourneyWithPages('layout-write', ['Frames I'])
@@ -601,6 +673,17 @@ describe('the parses', () => {
 
   it('refuses a page reference that is not a row id, rather than sending NaN to the driver', () => {
     expect(() => readPageRef(aForm({ journey: '3', page: 'nonsense' }))).toThrow()
+  })
+
+  it('refuses an id past the safe integer range, which `int().positive()` admits', () => {
+    // `Number.isInteger(1e21)` is `true`, and past 2^53 `Number` stops telling
+    // one integer from the next — so the old spelling would have asked Postgres
+    // about whichever row `9007199254740992` is. Both sides of the bound:
+    // 9007199254740991 is the last one admitted.
+    expect(readPageRef(aForm({ journey: '3', page: '9007199254740991' })).page).toBe(9007199254740991)
+    expect(() => readPageRef(aForm({ journey: '3', page: '9007199254740993' }))).toThrow()
+    expect(() => readPageRef(aForm({ journey: '3', page: '1e21' }))).toThrow()
+    expect(() => readPageOrder(aForm({ journey: '3', pages: '7,1e21' }))).toThrow()
   })
 
   it('refuses a tool-row body with no journey on it, rather than revalidating nothing', () => {

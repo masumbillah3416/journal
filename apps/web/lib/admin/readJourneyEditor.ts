@@ -108,10 +108,17 @@ export interface PoolItem {
   readonly id: MediaId
   /** The `thumb` derivative's URL, or `null` for an original with no tier. */
   readonly thumbSrc: string | null
-  /** What the tile's alt text says. */
+  /**
+   * What the tile's alt text says.
+   *
+   * THE ONLY TEXT A POOL TILE CARRIES. `caption` was selected, mapped and
+   * documented here and read by nothing: §2.3's pool tiles have no caption —
+   * that is §2.4's media grid — so it was a column fetched for no reader
+   * (CLAUDE.md §3.2, §4, §7). Removed rather than kept "for Task 7", which
+   * would have had the next author build a tick box around a field that was
+   * never drawn.
+   */
   readonly alt: string
-  /** The caption beneath it, as the author wrote it. */
-  readonly caption: string
   /** `'0:24'` for a clip, `null` for a still — the duration chip. */
   readonly duration: string | null
   /** Whether the tile is ticked: this photograph is in the book. */
@@ -226,7 +233,7 @@ export const readJourneyEditor = async (
       depth: 0,
       pagination: false,
       sort: 'order',
-      select: { alt: true, caption: true, kind: true, durationSec: true, inBook: true, sizes: true },
+      select: { alt: true, kind: true, durationSec: true, inBook: true, sizes: true },
       where: { journey: { equals: row } },
     }),
   ])
@@ -269,7 +276,6 @@ export const readJourneyEditor = async (
         id: branded.value,
         thumbSrc: thumbOf(item.sizes),
         alt: item.alt ?? '',
-        caption: item.caption ?? '',
         duration: item.kind === 'clip' ? clipDuration(item.durationSec ?? undefined) : null,
         inBook: item.inBook === true,
       },

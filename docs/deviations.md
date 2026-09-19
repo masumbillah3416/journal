@@ -2678,3 +2678,29 @@ was measured by the review rather than assumed.
 **Recorded as:** this entry, the `addPageRow` note in `apps/web/lib/admin/pageMutations.ts`
 that cites it, the partition's own comment block in `readBookBundle.ts`, and
 `docs/qa/2026-09-19-journey-editor-sweep.md`, whose sweep of the same screen found two more.
+
+## 57 · The journey editor's Delete is disabled on a journey with one page
+
+**What changed:** `apps/web/components/admin/editor/PageRail.tsx` renders the selected card's
+tool row as `SCREENS.md` §2.3 gives it — "↑ ↓ · spacer · Copy · Delete" — and sets Delete's
+`disabled` when the journey holds one page.
+
+**Rationale:** `apps/web/lib/admin/pageMutations.ts`'s `deletePageRow` refuses to remove a
+journey's only page, which is `Travel Diary Admin.dc.html`'s own `delPage`
+(`if (list.length <= 1) return`) and which `DATA_MODEL.md` implies by giving pages no
+`deletedAt` to be restored from: a journey left with no pages is an entry in the book's
+contents with nothing behind it. A button whose only possible outcome is a thrown error is
+worse than one that says it cannot act.
+
+**Disabled rather than hidden, and that is the second version of this.** It was hidden
+first. Disabling is the treatment the two arrows already get at the ends of the rail — for
+the reason that is written there, that the row keeps its width as the selection moves down
+it — and a tool row that changes its shape between cards is a worse departure from §2.3 than
+a greyed button. `PageRail.test.tsx` pins both sides in one case: one page refuses, two
+permit.
+
+**What would reverse it:** a `SCREENS.md` revision that says what Delete does on a one-page
+journey, or a data model that gives pages a trash of their own to be restored from.
+
+**Recorded as:** this entry, the `HANDOFF-DEVIATION` note in `PageRail.tsx`'s header, the
+one at the conditional itself, and the case named above.

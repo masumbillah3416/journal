@@ -41,7 +41,6 @@ const anItem = (id: string, overrides: Partial<PoolItem> = {}): PoolItem => ({
   id: anId(id),
   thumbSrc: `/api/media/file/frame-${id}-400x400.png`,
   alt: `Frame ${id}`,
-  caption: `A doorway, ${id}`,
   duration: null,
   inBook: false,
   ...overrides,

@@ -22,9 +22,13 @@
  * could quietly reintroduce positions. Keeping them in the DOM keeps the tool
  * row the same width as the selection moves down it.
  *
- * DELETE IS HIDDEN ON A ONE-PAGE JOURNEY, because `pageMutations.ts` refuses
- * that delete: a button whose only outcome is an error is worse than no button,
- * and the prototype's own `delPage` returns early on the same condition.
+ * HANDOFF-DEVIATION: DELETE IS DISABLED ON A ONE-PAGE JOURNEY. §2.3's tool row
+ * is "↑ ↓ · spacer · Copy · Delete" unconditionally. `pageMutations.ts` refuses
+ * that delete — the prototype's own `delPage` returns early on the same
+ * condition — and a button whose only outcome is a thrown error is worse than
+ * one that says it cannot act. DISABLED rather than absent, which is the
+ * treatment the arrows already get at the ends of the rail and for the same
+ * reason: the row keeps its width. Recorded in `docs/deviations.md` §57.
  *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. A list rendered, with the
  * shaping done by `readJourneyEditor` and the ordering by `movePage`.
@@ -176,15 +180,16 @@ export const PageRail = ({
                   Copy
                 </button>
               </form>
-              {pages.length > 1 ? (
-                <form action={remove}>
-                  <input type="hidden" name="journey" value={journey} />
-                  <input type="hidden" name="page" value={page.id} />
-                  <button type="submit" data-page-delete className={styles.tool}>
-                    Delete
-                  </button>
-                </form>
-              ) : null}
+              {/* HANDOFF-DEVIATION (docs/deviations.md §57): disabled on a
+               * journey with one page, because `deletePageRow` refuses that
+               * delete. See this module's header. */}
+              <form action={remove}>
+                <input type="hidden" name="journey" value={journey} />
+                <input type="hidden" name="page" value={page.id} />
+                <button type="submit" data-page-delete disabled={pages.length <= 1} className={styles.tool}>
+                  Delete
+                </button>
+              </form>
             </div>
           ) : null}
         </li>
