@@ -43,7 +43,14 @@
  * including the cap: the pane can draw "Add highlight" unconditionally because
  * a fifth is refused here, on the server, where a `POST` cannot walk past it.
  *
- * ═══ EVERY PARSE IS AN INVERSION ═══
+ * ═══ EVERY PARSE IS AN INVERSION, AND EVERY REFUSAL IS A DEAD END ═══
+ *
+ * Said first, because it is the thing an author meets. This pane draws no error
+ * when a save is refused — `SCREENS.md` §2.3 gives it none and the prototype has
+ * none — so every refusal below arrives as an unhandled Server Action error.
+ * `docs/deviations.md` §60 records the gap, what it is reachable from, and what
+ * would close it; the refusals themselves stay, because the alternative is
+ * storing a value the book cannot print.
  *
  * Not one of the refusals below lists what is bad. The glyph must BE one of
  * `WEATHER_GLYPHS`, the operation must BE one of four verbs, the accent must BE

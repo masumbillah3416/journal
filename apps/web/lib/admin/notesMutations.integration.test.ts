@@ -52,7 +52,7 @@
  */
 import { MAX_HIGHLIGHTS } from '@travel-diary/domain/admin/highlights'
 import { TALLY_ROWS, type JourneyPage } from '@travel-diary/domain/bookBundle'
-import { userId, type UserId } from '@travel-diary/domain/ids'
+import { journeyId, userId, type UserId } from '@travel-diary/domain/ids'
 import type { Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Journey } from '../../payload-types'
@@ -193,16 +193,27 @@ const publishJourney = async (journey: number): Promise<void> => {
 /**
  * The Notes page one journey contributes to the public book.
  *
- * The bundle's pages are a union — Cover and Contents carry no journey — so
- * this narrows on `kind` rather than reaching for a field the union does not
- * have. The slug is the key because it is the one field the pane writes that
- * this file also chooses.
- * @param slug - The journey's gallery address.
+ * KEYED ON THE JOURNEY'S ID, NOT ON ITS SLUG, and that is the second version of
+ * this helper. `BookPage` is a union — Cover, Contents and About carry no
+ * journey at all — so the lookup has to narrow on `kind` first; what it must not
+ * do is then reach for the slug, because **the pane under test lets the author
+ * rewrite the slug**, and a case that rewrote it would silently find nothing and
+ * pass its `?.` all the way to an `undefined`. `JourneyPageInfo` declares
+ * `journeyId` as its first field, so once `kind === 'notes'` has narrowed the
+ * union the id is right there.
+ *
+ * (The brief's own snippet had this right and would not have compiled anyway:
+ * `journeyId()` is a fallible constructor answering a `Result`, so comparing its
+ * return value with a `JourneyId` compares a branded string with `{ ok, value }`.
+ * The first version of this helper mistook that for the field being absent.)
+ * @param journey - The journey's row id.
  * @returns Its Notes page, or `undefined` when the book does not hold it.
  */
-const notesPageFor = async (slug: string): Promise<JourneyPage | undefined> => {
+const notesPageFor = async (journey: number): Promise<JourneyPage | undefined> => {
   const bundle = await readBookBundle()
-  return bundle.pages.find((page): page is JourneyPage => page.kind === 'notes' && page.slug === slug)
+  const branded = journeyId(String(journey))
+  if (!branded.ok) throw new Error(branded.error)
+  return bundle.pages.find((page): page is JourneyPage => page.kind === 'notes' && page.journeyId === branded.value)
 }
 
 beforeAll(async () => {
@@ -427,7 +438,7 @@ describe('writeNotesDraft', () => {
     )
     await writeNotesDraft(payload, scope, journey, notes)
 
-    const notesPage = await notesPageFor(`${MARKER}-unpublished`)
+    const notesPage = await notesPageFor(journey)
 
     expect(notesPage?.highlights).toEqual(['the published highlight'])
   })
@@ -446,17 +457,21 @@ describe('writeNotesDraft', () => {
     await writeNotesDraft(payload, scope, journey, notes)
     await publishJourney(journey)
 
-    const notesPage = await notesPageFor(`${MARKER}-bundle`)
+    const notesPage = await notesPageFor(journey)
 
     expect(notesPage?.highlights).toContain('nineteen tarts, no regrets')
   })
 
-  it('puts every other field the pane saved where the book reads it too', async () => {
+  it('puts every other field the pane saved where the book reads it too, gallery address included', async () => {
+    // THE SLUG IS REWRITTEN HERE ON PURPOSE. It is a field this pane lets the
+    // author change, and `notesPageFor` keys on the journey's id precisely so a
+    // case like this one still finds its page afterwards — a slug-keyed lookup
+    // would find nothing and pass every `?.` in the assertion below.
     const journey = await aPublishedJourney('whole')
     const { notes } = readNotes(
       aNotesForm({
         journey: String(journey),
-        slug: `${MARKER}-whole`,
+        slug: `${MARKER}-whole-renamed`,
         location: 'Kyoto',
         weatherGlyph: 'haze',
         accent: '#a06b3e',
@@ -467,7 +482,7 @@ describe('writeNotesDraft', () => {
     await writeNotesDraft(payload, scope, journey, notes)
     await publishJourney(journey)
 
-    const notesPage = await notesPageFor(`${MARKER}-whole`)
+    const notesPage = await notesPageFor(journey)
 
     expect({
       name: notesPage?.name,
@@ -497,5 +512,6 @@ describe('writeNotesDraft', () => {
       stampValue: '120',
       accent: '#a06b3e',
     })
+    expect(notesPage?.slug).toBe(`${MARKER}-whole-renamed`)
   })
 })

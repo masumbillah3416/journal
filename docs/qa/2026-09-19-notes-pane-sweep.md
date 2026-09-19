@@ -177,11 +177,12 @@ Everything below was measured, not glanced at. `desktop`/`mid`/`mobile` unless s
 - **The photo slots**, which §2.3 puts in the pane's right column. They are Task 7; the
   column currently carries a placeholder line and was walked only to confirm it draws.
 - **"Preview page"**, which is not built — `docs/deviations.md` §59.
-- **A slug collision.** `journeys.slug` is `unique`, so saving the gallery address of one
-  journey onto another is refused by Postgres and reaches the author as an unhandled action
-  error. The pane has no error surface of its own and the handoff gives it none; this is
-  noted rather than filed, because deciding what an author should see is a design question
-  this task has no answer from the handoff for.
+- **Every refusal the pane cannot draw.** A slug collision is the one this sweep met, but the
+  same dead end is reachable from a blanked Location or Dates, a tally of the wrong length, a
+  highlight list past the cap and an accent that is not six hex digits — all of which throw
+  before or at the write, on a pane that draws no error. The pane has no error surface and
+  the handoff gives it none, so nothing was invented; the gap is recorded in
+  `docs/deviations.md` §60, where the next task to add writes to this form will meet it.
 - **Every other admin screen.** This sweep is scoped to the Notes pane; the rail, the layout
   picker and the pool were re-checked only incidentally by loading the screen they sit on.
 - **Firefox and WebKit** — `playwright.config.ts`'s three projects are all Chromium, for the

@@ -2757,3 +2757,42 @@ like — or a per-page preview address that does not depend on page numbers.
 
 **Recorded as:** this entry, the `HANDOFF-DEVIATION` note in `NotesPane.tsx`'s header, and
 `docs/api.md`'s `GET /admin/journeys/<id>` row.
+
+## 60 · The journey editor's editing pane surfaces no write error, because §2.3 gives it none
+
+**What changed:** nothing was built. `saveNotes` can refuse — and so will Task 7's four slot
+actions — and the pane draws no message when it does. The author meets an unhandled Server
+Action error: in development Next.js's overlay, in production its generic error boundary.
+
+**Where it is reachable from,** because "a slug collision" understates it. Every one of these
+throws before or at the write, on a pane whose Save draft looks like it worked:
+
+- a blanked **Location** or **Dates** (`z.string().trim().min(1)`);
+- a tally that is not `TALLY_ROWS` cells, or a highlight list past `MAX_HIGHLIGHTS`, or
+  either repeated list arriving unpaired — all reachable from a second tab whose form was
+  rendered before the other tab changed the list;
+- an **accent** that is not six hex digits, or a **gallery address** that is not a slug;
+- a **gallery address another journey already has** — `journeys.slug` is `unique`, so
+  Postgres refuses it and the refusal arrives as a driver error, not as a field message.
+
+**Rationale:** `SCREENS.md` §2.3 specifies no error surface for the editing pane, and
+`Travel Diary Admin.dc.html` has none — its Save draft stamps "saved just now"
+unconditionally, because nothing in a prototype can fail. Designing one means choosing where
+it sits, what it says for each refusal, and whether the pane keeps what the author typed
+across it; all three are design decisions, and inventing them is the abstraction
+CLAUDE.md §4 forbids. The refusals themselves are deliberate and are not the gap — each is an
+inversion with a case on both sides, and the alternative to refusing is storing a value the
+book cannot print.
+
+**Recorded here rather than only in a sweep, deliberately.** It was first written down in
+`docs/qa/2026-09-19-notes-pane-sweep.md`'s "Not covered" and in Task 6's report. Neither is a
+document the next screen task reads: Task 7 adds four more writes to this same form and would
+inherit the gap without ever meeting the note. A deviation entry is where a gap that spans
+tasks belongs.
+
+**What would reverse it:** the first handoff screen that draws a write error — which would
+give the pane a shape to copy rather than invent — or a `SCREENS.md` revision that says what
+this pane does when a save is refused.
+
+**Recorded as:** this entry, the sweep's "Not covered" section, and the note at
+`notesMutations.ts`'s `NOTES` schema, which is where the refusals are.

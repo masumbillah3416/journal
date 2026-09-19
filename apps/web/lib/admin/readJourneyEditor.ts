@@ -242,6 +242,27 @@ const glyphOf = (glyph: WeatherGlyph | null | undefined): WeatherGlyph =>
   glyph ?? 'sun'
 
 /**
+ * The journey's accent, never the empty string.
+ *
+ * {@link glyphOf}'s treatment, one field along and for a sharper reason. The
+ * column carries `defaultValue: '#3d817e'`, so this is for a row whose
+ * `furniture` was explicitly cleared rather than one that never had it — and
+ * `textOf`'s `''` is not a colour. Handed one, `Furniture.tsx`'s `swatchesFor`
+ * draws the exact broken swatch it exists to prevent: an invalid
+ * `linear-gradient(160deg, , …)` the browser drops, with its radio checked
+ * because `'' === ''`, and a form that then posts an accent `notesMutations.ts`
+ * refuses.
+ *
+ * THE LITERAL IS THE SCHEMA'S, and `readJourneyEditor.integration.test.ts`
+ * reads the collection's own `defaultValue` rather than writing `#3d817e` a
+ * second time, so the two cannot drift.
+ * @param accent - The column as Payload returned it.
+ * @returns The accent, or the schema's default where there is none.
+ */
+const accentOf = (accent: string | null | undefined): string =>
+  accent === null || accent === undefined || accent === '' ? '#3d817e' : accent
+
+/**
  * The highlight rows, each carrying the id its `×` and its grip address.
  *
  * BY ID, NEVER BY POSITION (CLAUDE.md §0.9): Payload's own array-row id is what
@@ -450,7 +471,7 @@ export const readJourneyEditor = async (
       signoff: textOf(journey.furniture?.signoff),
       stampCountry: textOf(journey.furniture?.stampCountry),
       stampValue: textOf(journey.furniture?.stampValue),
-      accent: textOf(journey.furniture?.accent),
+      accent: accentOf(journey.furniture?.accent),
       slug: journey.slug,
     },
     pages: railPages,

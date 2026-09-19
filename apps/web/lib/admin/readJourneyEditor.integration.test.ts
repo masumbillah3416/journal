@@ -26,9 +26,29 @@ import { isRowId, journeyId, userId, type JourneyId, type UserId } from '@travel
 import type { Payload } from 'payload'
 import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { Journeys } from '../../collections/journeys'
 import { getTestPayload } from '../testPayload'
 import { adminScope, type AdminScope } from './adminScope'
 import { readJourneyEditor } from './readJourneyEditor'
+
+/**
+ * The accent `apps/web/collections/journeys.ts` gives a journey that names none.
+ *
+ * READ OFF THE COLLECTION, not written down: the point of the case that uses it
+ * is that the read answers what the SCHEMA would have, so a literal here would
+ * let the two drift and still pass.
+ */
+const SCHEMA_ACCENT = ((): string => {
+  const furniture = Journeys.fields.find((field) => 'name' in field && field.name === 'furniture')
+  const accent =
+    furniture && 'fields' in furniture
+      ? furniture.fields.find((field) => 'name' in field && field.name === 'accent')
+      : undefined
+  if (accent === undefined || !('defaultValue' in accent) || typeof accent.defaultValue !== 'string') {
+    throw new Error('the journeys collection no longer defaults the accent')
+  }
+  return accent.defaultValue
+})()
 
 /** What every row this file writes carries, so cleanup can find them all. */
 const MARKER = 'test-journey-editor'
@@ -346,6 +366,30 @@ describe('readJourneyEditor', () => {
       stampValue: '',
       highlights: [],
     })
+  })
+
+  it('answers the schema’s own accent for a journey whose furniture was never written', async () => {
+    // WHAT AN EMPTY ONE COSTS, which is why this is a read-side fallback and not
+    // a component-side one. `Furniture.tsx` draws a swatch for any accent the
+    // five do not offer, so that a stored colour is not silently dropped by a
+    // save about something else — and handed `''` it drew exactly the broken
+    // swatch it exists to prevent: `linear-gradient(160deg, , …)` is an invalid
+    // declaration a browser drops, its radio checked because `'' === ''`, and
+    // the form then posts `accent=''` which `notesMutations.ts` refuses.
+    //
+    // `glyphOf` already falls back to the schema's own default for the same
+    // reason one field along, so this is that treatment, not a new one.
+    const { journey } = await aJourneyWithPages('noaccent', ['Notes'])
+    await payload.update({
+      collection: 'journeys',
+      id: journey,
+      ...scope,
+      data: { furniture: { accent: null } },
+    })
+
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+
+    expect(view?.notes.accent).toBe(SCHEMA_ACCENT)
   })
 
   it('names the journey the rail’s eyebrow prints', async () => {
