@@ -133,8 +133,34 @@ export const sessionId = brandedId('SessionId')
  */
 export const rowId = (id: JourneyId | PageId | MediaId | SlotKey | UserId | SessionId): number | undefined => {
   const parsed = Number(id)
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined
+  return isRowId(parsed) ? parsed : undefined
 }
+
+/**
+ * Whether a value a database handed back really is a row id.
+ *
+ * THE SAME ARITHMETIC AS {@link rowId}, ASKED FROM THE OTHER DIRECTION.
+ * `rowId` takes a brand that came in from an address and answers what row it
+ * names. This takes a value that came OUT of Payload and answers whether there
+ * is a row behind it at all — which is not a question anybody thought to ask
+ * until a browser sweep found the answer being `no` three times on one screen.
+ *
+ * WHAT MAKES IT NECESSARY, because a brand looks like it should be enough: a
+ * brand only promises a NON-EMPTY STRING. Payload reading a collection with
+ * `draft: true` answers from the versions table, and a version whose parent row
+ * has been removed comes back with `id: null` — so `pageId(String(null))` is
+ * `ok` with the value `'null'`, and a screen draws a card for a page that does
+ * not exist (`docs/qa/2026-09-19-journey-editor-sweep.md`, EDITOR-001). The
+ * brand is not wrong; it is answering a different question.
+ *
+ * @param value - Whatever the database put in the `id` field.
+ * @returns Whether it is a positive safe integer, and so names a row.
+ * @example
+ * isRowId(42) // true
+ * isRowId(null) // false — a version whose parent is gone
+ */
+export const isRowId = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value > 0
 
 /**
  * The numeric row id a branded account id names, or `undefined`.

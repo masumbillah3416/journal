@@ -290,6 +290,52 @@ describe('readJourneyEditor', () => {
     expect(view?.pool).toHaveLength(3)
   })
 
+  it('leaves out a version whose page row is gone, rather than drawing a card nothing can act on', async () => {
+    // THE DEFECT A BROWSER SWEEP FOUND AND NO FIXTURE HERE COULD
+    // (`docs/qa/2026-09-19-journey-editor-sweep.md`, EDITOR-001). Reading with
+    // `draft: true` makes Payload answer from `_pages_v`, and a version row
+    // whose parent page is gone comes back as a document with `id: null` — which
+    // `pageId(String(null))` brands happily, because `'null'` is a non-empty
+    // string. The developer's own `diary` holds three such rows and the rail
+    // drew three phantom cards, all of them "selected" at once because they
+    // shared the id.
+    //
+    // THE FIXTURE IS THE REAL SHAPE, not an invented one: the main row is
+    // removed through the adapter's own `deleteOne`, which is what leaves
+    // versions behind. `payload.delete` — what `deletePageRow` calls — takes the
+    // versions with it, which is measured by the case after this one.
+    const { journey } = await aJourneyWithPages('orphan', ['Notes', 'Frames I'])
+    const pages = await payload.find({
+      collection: 'pages',
+      ...scope,
+      depth: 0,
+      pagination: false,
+      sort: 'order',
+      where: { journey: { equals: journey } },
+    })
+    const doomed = pages.docs[1]
+    if (doomed === undefined) throw new Error('the fixture made no second page')
+    await payload.db.deleteOne({ collection: 'pages', where: { id: { equals: doomed.id } } })
+
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+
+    expect(view?.pages.map((page) => page.title)).toEqual(['Notes'])
+    expect(view?.pages.map((page) => String(page.id))).toEqual([String(pages.docs[0]?.id)])
+  })
+
+  it('still shows every page whose row is really there, so the guard above drops nothing real', async () => {
+    // The permitted side of the same boundary: a page deleted the way the editor
+    // deletes one leaves no version behind, and the pages that remain are drawn.
+    const { journey, pages } = await aJourneyWithPages('orphan-control', ['Notes', 'Frames I'])
+    const doomed = pages[1]
+    if (doomed === undefined) throw new Error('the fixture made no second page')
+    await payload.delete({ collection: 'pages', id: doomed, ...scope })
+
+    const view = await readJourneyEditor(payload, scope, aJourneyId(journey))
+
+    expect(view?.pages.map((page) => page.title)).toEqual(['Notes'])
+  })
+
   it('names an untitled page rather than drawing a card with no name on it', async () => {
     // `title` is optional on the collection, and a page created outside
     // `pageMutations.ts` can have none — the card would otherwise be a blank

@@ -38,6 +38,24 @@
  * it was a line no case could fail on, and an unfailable line is the species
  * these standing orders exist to stop.
  *
+ * ═══ AND A VERSION WHOSE PAGE IS GONE IS NOT A PAGE ═══
+ *
+ * The cost of reading drafts, found by a browser sweep and not by anything here
+ * (`docs/qa/2026-09-19-journey-editor-sweep.md`, EDITOR-001). `draft: true`
+ * answers from `_pages_v`, and the `where` below matches a VERSION's `journey`
+ * field — so a version row whose parent page has been removed still matches,
+ * and comes back as a document with `id: null`. On the developer's own database
+ * that was three phantom cards on the seeded Tokyo journey, all three drawn as
+ * selected because they shared the id `'null'`, with arrows posting a sequence
+ * Zod then refused.
+ *
+ * `isRowId` is the guard, and the brand is not: a brand only promises a
+ * non-empty string, and `String(null)` is one. THE JOURNEY READ NEEDS NO SUCH
+ * GUARD and does not have one — its `where` is `id: { equals: row }`, which
+ * `draft: true` still runs against the main table, so an orphan cannot match it.
+ * `media` carries no `versions` block at all, and is guarded anyway, because two
+ * spellings of "is this a row" in one function is how the next one gets missed.
+ *
  * ═══ A MISSING OR TRASHED JOURNEY IS `null`, NOT A THROW ═══
  *
  * `/admin/journeys/999` is an address anybody can type, and a trashed journey
@@ -67,7 +85,7 @@
 import { type PageLayout } from '@travel-diary/domain/admin/layoutGlyphs'
 import type { RailPage } from '@travel-diary/domain/admin/pageRail'
 import { clipDuration } from '@travel-diary/domain/gallery'
-import { journeyId, mediaId, pageId, rowId, type JourneyId, type MediaId } from '@travel-diary/domain/ids'
+import { isRowId, journeyId, mediaId, pageId, rowId, type JourneyId, type MediaId } from '@travel-diary/domain/ids'
 import type { Payload } from 'payload'
 import type { AdminScope } from './adminScope'
 
@@ -214,8 +232,11 @@ export const readJourneyEditor = async (
   ])
 
   const railPages = pages.docs.flatMap((page): readonly EditorPage[] => {
+    // A VERSION WHOSE PAGE ROW IS GONE. See this module's header: the brand
+    // cannot refuse it, because `String(null)` is a non-empty string.
+    if (!isRowId(page.id)) return []
     const branded = pageId(String(page.id))
-    // Unreachable while Postgres mints integer ids — `pageId` refuses only an
+    // Unreachable once the line above has held — a positive integer is never an
     // empty string — and a `flatMap` rather than a `!` because CLAUDE.md §0.8
     // bans the assertion that would hide it.
     /* c8 ignore next */
@@ -232,8 +253,16 @@ export const readJourneyEditor = async (
   })
 
   const pool = media.docs.flatMap((item): readonly PoolItem[] => {
+    // `media` carries no `versions` block, so it has no orphans to drop. The
+    // guard is here so one function has one spelling of "is this a row", not
+    // because this arm is reachable today — hence the ignore, on its own line
+    // because the scanner reads `c8 ignore next` line by line and does not see
+    // it inside a block comment that wraps (measured: it reported this line
+    // uncovered until the directive was moved out).
+    /* c8 ignore next */
+    if (!isRowId(item.id)) return []
     const branded = mediaId(String(item.id))
-    /* c8 ignore next -- as above: Postgres mints integer ids */
+    /* c8 ignore next -- as above: a positive integer is never an empty string */
     if (!branded.ok) return []
     return [
       {

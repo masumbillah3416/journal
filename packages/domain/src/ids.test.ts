@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { accountRowId, journeyId, mediaId, pageId, rowId, sessionId, slotKey, userId } from './ids'
+import { accountRowId, isRowId, journeyId, mediaId, pageId, rowId, sessionId, slotKey, userId } from './ids'
 import type { JourneyId, PageId, SessionId, UserId } from './ids'
 
 describe('branded identifiers', () => {
@@ -121,5 +121,30 @@ describe('accountRowId', () => {
     // which is why the guard is `isSafeInteger` and not `isInteger`.
     expect(accountRowId(anAccount('9007199254740991'))).toBe(9007199254740991)
     expect(accountRowId(anAccount('9007199254740993'))).toBeUndefined()
+  })
+})
+
+describe('isRowId', () => {
+  it('admits a positive safe integer, which is what a row id is', () => {
+    expect(isRowId(42)).toBe(true)
+    expect(isRowId(1)).toBe(true)
+    expect(isRowId(9007199254740991)).toBe(true)
+  })
+
+  it('refuses the hole Payload leaves where a version has no page behind it', () => {
+    // `docs/qa/2026-09-19-journey-editor-sweep.md`, EDITOR-001: a version row
+    // whose parent is gone comes back as `id: null`, and the brand cannot refuse
+    // it because `String(null)` is a non-empty string.
+    expect(isRowId(null)).toBe(false)
+    expect(isRowId(undefined)).toBe(false)
+    expect(isRowId('42')).toBe(false)
+  })
+
+  it('refuses a number that is not a row id, on both sides of every bound', () => {
+    expect(isRowId(0)).toBe(false)
+    expect(isRowId(-3)).toBe(false)
+    expect(isRowId(1.5)).toBe(false)
+    expect(isRowId(Number.NaN)).toBe(false)
+    expect(isRowId(9007199254740993)).toBe(false)
   })
 })
