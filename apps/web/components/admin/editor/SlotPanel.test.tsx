@@ -282,6 +282,26 @@ describe('SlotPanel', () => {
     ])
   })
 
+  it('saves the number the pill printed, not the raw division behind it', () => {
+    // SLOT-002 (`docs/qa/2026-09-20-journey-slots-sweep.md`). A click that
+    // divides unevenly gave the column `24.836806920959496` while the pill read
+    // "focus 25% 80%" — the same pixel on screen, and a number the author was
+    // never shown. 199 is a width a `1fr` track really produced in that sweep.
+    const { host, setFocal } = renderPanel([aSlot('7:0')])
+
+    clickAt(cellOf(host, '7:0', { left: 0, top: 0, width: 199, height: 152 }), { clientX: 49, clientY: 121 })
+
+    // A `FormDataEntryValue` is `string | File`, and `File` has no useful
+    // stringification — so each half is narrowed rather than interpolated.
+    const posted = setFocal.mock.calls[0]?.[0] ?? new FormData()
+    const said = (field: string): string => {
+      const value = posted.get(field)
+      return typeof value === 'string' ? value : 'not a string'
+    }
+
+    expect(host.querySelector('[data-focal-pill]')?.textContent).toBe(`focus ${said('focalX')}% ${said('focalY')}%`)
+  })
+
   it('draws the reticle where the point is, so the author can see what they aimed at', () => {
     const { host } = renderPanel([aSlot('7:0', { focal: { x: 25, y: 30 } })])
 

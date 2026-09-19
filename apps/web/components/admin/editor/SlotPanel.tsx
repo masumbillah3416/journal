@@ -155,7 +155,16 @@ export const SlotPanel = ({
    * @param event - The pointer event.
    */
   const focus = (slot: SlotKey, event: React.MouseEvent<HTMLButtonElement>): void => {
-    const point = focalPointFrom(event, event.currentTarget.getBoundingClientRect())
+    const measured = focalPointFrom(event, event.currentTarget.getBoundingClientRect())
+    // ROUNDED HERE, AND NOT IN THE FORMULA. §2.3's expression is the division
+    // and `focalPointFrom` is exactly that; what is rounded is the value this
+    // screen COMMITS. The pill prints whole percentages, so an unrounded write
+    // saved a number the author was never shown — `24.836806920959496` behind
+    // "focus 25% 80%" (`docs/qa/2026-09-20-journey-slots-sweep.md`, SLOT-002).
+    // One percent of a frame is finer than any crop can show, and rounding
+    // before the state as well as before the write keeps the reticle, the pill
+    // and the column on the same number across a reload.
+    const point = { x: Math.round(measured.x), y: Math.round(measured.y) }
     setPoints((held) => ({ ...held, [slot]: point }))
 
     const form = targetOf(slot)
