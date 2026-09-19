@@ -23,13 +23,38 @@
  * Depends on: vitest, @travel-diary/domain/admin/highlights, ./journeys.
  */
 import { MAX_HIGHLIGHTS } from '@travel-diary/domain/admin/highlights'
+import { TALLY_ROWS, WEATHER_GLYPHS } from '@travel-diary/domain/bookBundle'
+import type { Field } from 'payload'
 import { describe, expect, it } from 'vitest'
 import { Journeys } from './journeys'
 
+/**
+ * The field the collection declares under a name.
+ * @param name - The column's name.
+ * @returns The field config, or `undefined` when the collection has no such field.
+ */
+const field = (name: string): Field | undefined =>
+  Journeys.fields.find((candidate) => 'name' in candidate && candidate.name === name)
+
 describe('the journeys schema', () => {
   it('caps highlights at the number the admin’s own editor caps them at', () => {
-    const highlights = Journeys.fields.find((field) => 'name' in field && field.name === 'highlights')
+    const highlights = field('highlights')
 
     expect(highlights && 'maxRows' in highlights ? highlights.maxRows : undefined).toBe(MAX_HIGHLIGHTS)
+  })
+
+  it('fixes the tally at the number of cells the pane draws and the ticket prints', () => {
+    const tally = field('tally')
+
+    expect(tally && 'minRows' in tally && 'maxRows' in tally ? [tally.minRows, tally.maxRows] : undefined).toEqual([
+      TALLY_ROWS,
+      TALLY_ROWS,
+    ])
+  })
+
+  it('offers the three weather glyphs the book knows how to draw, and no fourth', () => {
+    const glyph = field('weatherGlyph')
+
+    expect(glyph && 'options' in glyph ? glyph.options : undefined).toEqual([...WEATHER_GLYPHS])
   })
 })

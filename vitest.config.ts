@@ -528,6 +528,14 @@ export default defineConfig({
         // which is the defect Task 4 paid two rounds for. Same
         // exclude-and-regate treatment as its neighbours above.
         'apps/web/lib/admin/pageMutations.ts',
+        // notesMutations.ts (Phase 4 Task 6) is the parse and the single write
+        // behind SCREENS.md §2.3's Notes pane. The write is the question only a
+        // real Payload answers - what `draft: true` does to a published
+        // journey's live row, and what the merge into the newest version does
+        // to an author's pending edits - and the parse is tested beside it
+        // because this path is excluded here and would otherwise be measured by
+        // nobody. Same exclude-and-regate treatment as its neighbours above.
+        'apps/web/lib/admin/notesMutations.ts',
         // readJourneyEditor.ts (Phase 4 Task 5) is the journey editor's three
         // queries — and every question it answers is Payload's: what a read with
         // `draft: true` returns for a page with a pending draft, what a trashed

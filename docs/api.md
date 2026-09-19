@@ -1382,6 +1382,47 @@ Found` when the id names no journey, and a refused write.
   saved again with the same field on it, because the first write made a non-draft version
   the latest one. `pageMutations.integration.test.ts` asserts both halves, from both sides.
 
+### `saveNotes(form: FormData): Promise<void>`
+
+- **Path:** `apps/web/app/(admin)/admin/journeys/[id]/actions.ts`; the decisions are
+  `apps/web/lib/admin/notesMutations.ts`'s `readNotes` and `writeNotesDraft`.
+- **Method:** server action.
+- **Input:** the whole Notes pane, as one `FormData` - `journey`, `location`, `dates`,
+  `weather`, `mood`, `weatherGlyph`, `note`, `signoff`, `stampCountry`, `stampValue`,
+  `accent`, `slug`, a `highlightId`/`highlightText` pair per highlight row, a
+  `tallyKey`/`tallyValue` pair per tally cell, and an optional `op`. **Every refusal is an
+  inversion:** the glyph must BE one of `@travel-diary/domain/bookBundle`'s
+  `WEATHER_GLYPHS`, the accent must BE a six-digit hex colour (it is interpolated into a
+  CSS declaration on two screens), the gallery address must BE a slug, and `op` must BE
+  `add`, `up:<id>`, `down:<id>` or `remove:<id>`. The two repeated lists are zipped by
+  position, so each pair's lengths must agree; the tally must be exactly `TALLY_ROWS`
+  cells, which is what `apps/web/collections/journeys.ts` sets `minRows` and `maxRows` to.
+- **Output:** `void`, then `revalidatePath` on the editor's address and on
+  `/admin/journeys`. **Not on the public book**, deliberately - see the note below.
+- **Errors:** a `ZodError` for any of the refusals above; from Payload, `Not Found`, a
+  refused write, and a unique-index violation when the gallery address is another
+  journey's.
+- **Auth requirement:** **signed in**, through `guardedAction`.
+- **Notes:** **it is a DRAFT write, which is the whole answer to the versioned-collection
+  trap.** `journeys` carries `versions: { drafts: true }` and `updateByID` merges into the
+  newest version whatever `draft` says - the defect Task 4 paid two rounds for. Writing
+  with `draft: true` makes that merge the desired behaviour (the author's earlier
+  unpublished edits are carried through) and leaves the live row untouched, so a reader
+  keeps seeing the published notes until Publish. That is also why it is ONE write where
+  `setPageLayout` above is two: `order` and `layout` are structural and apply with no Save,
+  and notes are content behind a button called Save draft.
+  **The four highlight controls are submit buttons in the SAME form**, because the editor
+  ships no client JavaScript: each posts an `op`, and `readNotes` applies it to the list
+  the author has in front of them, so pressing one keeps everything they had typed and not
+  yet saved. The cap is enforced there, on the server, which is why the pane can draw "Add
+  highlight" unconditionally. A line the author emptied is dropped rather than refused -
+  `highlights.text` is `required` on the collection, and refusing the save over it would
+  strand them on a page they cannot leave. **Array row ids are not sent**, so a highlight's
+  id changes on every save and a form left open in a second tab posts stale ids whose `×`
+  and grips do nothing - the same staleness the page rail's arrows have.
+  `notesMutations.integration.test.ts` asserts the property that matters end to end: what
+  the pane posted is what `readBookBundle` reads back once the journey is published.
+
 ## Planned routes (Phase 1)
 
 None. Task 14 built the last of them (`/gallery/<slug>` and its download handler, both

@@ -50,8 +50,23 @@
  */
 import type { JourneyId } from './ids'
 
+/**
+ * Every weather glyph there is, in the order SCREENS.md §2.3's three cards draw
+ * them.
+ *
+ * THE RUNTIME HALF OF {@link WeatherGlyph}, ADDED RATHER THAN A SECOND LIST.
+ * Phase 4 Task 6's editor has to ITERATE the glyphs — three cards, three radio
+ * inputs, one parse that refuses a fourth — and a type alone cannot be
+ * iterated, so the choice was between writing the three values down a second
+ * time in `apps/` and deriving the type from a tuple here. A second list is the
+ * drift CLAUDE.md §2.1 keeps finding; this is one list, and
+ * `apps/web/collections/journeys.schema.test.ts` compares the collection's own
+ * `options` against it.
+ */
+export const WEATHER_GLYPHS = ['sun', 'haze', 'wind'] as const
+
 /** Which of the three CSS-drawn weather glyphs a journey's Notes page prints (SCREENS.md §1.3). */
-export type WeatherGlyph = 'sun' | 'haze' | 'wind'
+export type WeatherGlyph = (typeof WEATHER_GLYPHS)[number]
 
 /**
  * One of the four cells on the Notes page's tally ticket (SCREENS.md §1.3).
@@ -62,6 +77,17 @@ export interface TallyCell {
   readonly key: string
   readonly value: string
 }
+
+/**
+ * How many cells the tally ticket has: four, always.
+ *
+ * NOT A MAXIMUM AND NOT A MINIMUM — `apps/web/collections/journeys.ts` sets
+ * `minRows` AND `maxRows` to this, so the ticket is a fixed grid rather than a
+ * list that grows. SCREENS.md §2.3's pane draws four rows whatever the journey
+ * holds, and `journeys.schema.test.ts` compares both of the schema's numbers
+ * against this one.
+ */
+export const TALLY_ROWS = 4
 
 /**
  * How much a journey's gallery holds, for the "{n} photographs and {m} clips

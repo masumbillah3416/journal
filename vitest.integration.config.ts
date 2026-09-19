@@ -204,6 +204,9 @@ export default defineConfig({
         // Phase 4 Task 5's five page-rail writes, here for the reason stated in
         // `vitest.config.ts`'s exclude: nothing to execute without a database.
         'apps/web/lib/admin/pageMutations.ts',
+        // Phase 4 Task 6's Notes pane: one parse and one draft write, excluded
+        // from the Docker-free pass by exact path for the reason stated there.
+        'apps/web/lib/admin/notesMutations.ts',
         // Phase 4 Task 5's journey editor read, here for the reason stated in
         // `vitest.config.ts`'s exclude: three queries, nothing to execute
         // without a database.
@@ -521,6 +524,9 @@ export default defineConfig({
         // never take. Not a §46 entry: §46 registers the gates BELOW
         // CLAUDE.md §2.1's 95%, and this is above it.
         'apps/web/lib/admin/pageMutations.ts': { lines: 100, branches: 97, functions: 100 },
+        // notesMutations.ts (Phase 4 Task 6), at the number it actually
+        // achieves - measured from this pass's own report, not rounded up.
+        'apps/web/lib/admin/notesMutations.ts': { lines: 100, branches: 100, functions: 100 },
         // readJourneyEditor.ts (Phase 4 Task 5): 100% on every axis, MEASURED.
         // Three of its arms took fixtures to reach rather than a lowered
         // number: a page with no title, a media row with no alt and no caption,
