@@ -528,6 +528,12 @@ export default defineConfig({
         // which is the defect Task 4 paid two rounds for. Same
         // exclude-and-regate treatment as its neighbours above.
         'apps/web/lib/admin/pageMutations.ts',
+        // readJourneyEditor.ts (Phase 4 Task 5) is the journey editor's three
+        // queries — and every question it answers is Payload's: what a read with
+        // `draft: true` returns for a page with a pending draft, what a trashed
+        // journey does to a `where`, and whether a small upload has a `thumb` at
+        // all. Same exclude-and-regate treatment as its neighbours above.
+        'apps/web/lib/admin/readJourneyEditor.ts',
         // `mint-lighthouse-session.ts` (Phase 4 Task 3) creates an account and
         // issues a session through this repository's own session service, both
         // of which are rows in a real Postgres, so its only test is an

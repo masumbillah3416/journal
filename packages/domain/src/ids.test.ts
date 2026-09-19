@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { accountRowId, journeyId, mediaId, pageId, sessionId, slotKey, userId } from './ids'
+import { accountRowId, journeyId, mediaId, pageId, rowId, sessionId, slotKey, userId } from './ids'
 import type { JourneyId, PageId, SessionId, UserId } from './ids'
 
 describe('branded identifiers', () => {
@@ -74,6 +74,24 @@ const anAccount = (raw: string): UserId => {
   if (!built.ok) throw new Error(built.error)
   return built.value
 }
+
+describe('rowId', () => {
+  it('takes any brand, not only an account’s — which is why it stopped being `accountRowId`', () => {
+    const journey = journeyId('42')
+    const page = pageId('7')
+    if (!journey.ok || !page.ok) throw new Error('a non-empty literal was refused')
+
+    expect(rowId(journey.value)).toBe(42)
+    expect(rowId(page.value)).toBe(7)
+  })
+
+  it('answers undefined for a brand that names no row, whatever the brand', () => {
+    const journey = journeyId('nonsense')
+    if (!journey.ok) throw new Error('a non-empty literal was refused')
+
+    expect(rowId(journey.value)).toBeUndefined()
+  })
+})
 
 describe('accountRowId', () => {
   it('returns the row id for a branded id that names one', () => {

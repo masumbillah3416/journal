@@ -103,6 +103,15 @@ const SQUARE_BY_DESIGN: readonly { readonly file: string; readonly declaration: 
     file: 'apps/web/lib/admin/readJourneysScreen.ts',
     declaration: /const thumb = row\.sizes\?\.thumb\?\.url/,
   },
+  // The journey editor's pool tiles (SCREENS.md §2.3): a 2-column grid in a
+  // 250px column, every tile `aspect-ratio: 1/1`. Square on purpose, and one
+  // rung rather than a ladder for `readJourneysScreen.ts`'s reason — a sidebar
+  // that reached for an uncropped tier would put the journey's whole media
+  // library on the wire at full size (CLAUDE.md §6).
+  {
+    file: 'apps/web/lib/admin/readJourneyEditor.ts',
+    declaration: /const url = sizes\?\.thumb\?\.url/,
+  },
 ]
 
 /**

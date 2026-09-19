@@ -109,24 +109,42 @@ export const userId = brandedId('UserId')
 export const sessionId = brandedId('SessionId')
 
 /**
+ * The numeric row id any branded id names, or `undefined`.
+ *
+ * A brand only promises a non-empty string, so a caller can hand over something
+ * that is not a Payload id; answering `undefined` keeps `Number('nonsense')`
+ * from reaching the driver as `NaN` and escaping as a raw `Failed query` past
+ * whatever `Result` contract is above it.
+ *
+ * `isSafeInteger` rather than `isInteger`: past 2^53 `Number` stops telling one
+ * integer from the next, so a larger id would name a DIFFERENT row rather than
+ * fail.
+ *
+ * ONE GUARD, NOT ONE PER BRAND. {@link accountRowId} was this function under a
+ * narrower name, and Phase 4's journey editor needs the same conversion for a
+ * {@link JourneyId} — three copies of a guard are three chances for one of them
+ * to drift, which is the reason that header gave for it living here at all.
+ *
+ * @param id - Any branded identifier.
+ * @returns The row id, or `undefined` when the brand does not name one.
+ * @example
+ * const built = journeyId('42')
+ * if (built.ok) rowId(built.value) // 42
+ */
+export const rowId = (id: JourneyId | PageId | MediaId | SlotKey | UserId | SessionId): number | undefined => {
+  const parsed = Number(id)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
+/**
  * The numeric row id a branded account id names, or `undefined`.
  *
- * The brand only promises a non-empty string, so a caller can hand over
- * something that is not a Payload id; answering `undefined` keeps
- * `Number('nonsense')` from reaching the driver as `NaN` and escaping as a raw
- * `Failed query` past whatever `Result` contract is above it.
- *
- * `isSafeInteger` rather than `isInteger`: past 2^53 `Number` stops telling
- * one integer from the next, so a larger id would name a DIFFERENT row rather
- * than fail.
- *
+ * The account-shaped name of {@link rowId}, kept because `adminScope` and the
+ * session seam read as what they are with it.
  * @param user - The branded account id.
  * @returns The row id, or `undefined` when the brand does not name one.
  * @example
  * const built = userId('104')
  * if (built.ok) accountRowId(built.value) // 104
  */
-export const accountRowId = (user: UserId): number | undefined => {
-  const parsed = Number(user)
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined
-}
+export const accountRowId = (user: UserId): number | undefined => rowId(user)
