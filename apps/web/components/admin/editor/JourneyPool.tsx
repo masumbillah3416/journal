@@ -96,15 +96,22 @@ export const JourneyPool = ({
         : 'Tick a photograph to place it in the frame you chose.'}
     </p>
 
-    {/* THE SCROLLER'S OWN FOCUS STOP IS GONE, AND THAT IS THE FIX COMPLETING
-     * ITSELF. Task 5 gave this list `tabIndex={0}` because axe found
-     * `scrollable-region-focusable` (serious, WCAG 2.1.1): §2.3 caps the grid
-     * at `max-height: 432px` and scrolls it, and nothing inside it was
-     * focusable while the tiles were inert. Every tile is a button now, so a
-     * keyboard reaches the region through its contents — and the stop that
-     * lands on a list whose children are all focusable is the stop Task 5's
-     * own comment said should go when this happened. */}
-    <ul aria-label="Frames uploaded to this journey" className={styles.poolGrid}>
+    {/* THE SCROLLER TAKES A FOCUS STOP EXACTLY WHEN NOTHING INSIDE IT CAN.
+     * §2.3 caps this grid at `max-height: 432px` and scrolls it, and WCAG
+     * 2.1.1 wants a scrollable region reachable — through a focusable
+     * descendant or by taking the focus itself. Task 5 gave the list
+     * `tabIndex={0}` because its tiles were inert, with a comment saying the
+     * stop should go "when the tiles become buttons". Task 7 made them buttons
+     * and removed it, and axe reported the violation AGAIN
+     * (`docs/qa/2026-09-20-journey-slots-sweep.md`, SLOT-001): with no frame
+     * chosen every tile is `disabled`, and a disabled button is not focusable.
+     * The real condition was never "are they buttons" but "can a keyboard
+     * reach one", which is what this ternary asks. */}
+    <ul
+      tabIndex={target === null ? 0 : undefined}
+      aria-label="Frames uploaded to this journey"
+      className={styles.poolGrid}
+    >
       {items.map((item) => (
         <li key={item.id} data-pool-item={item.id} data-ticked={ticked.has(item.id) ? '' : undefined}>
           <form action={place}>

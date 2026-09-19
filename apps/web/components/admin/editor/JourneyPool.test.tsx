@@ -236,18 +236,37 @@ describe('JourneyPool', () => {
     expect([...host.querySelectorAll('img')].map((image) => image.getAttribute('alt'))).toEqual(['', ''])
   })
 
-  it('lets a keyboard reach the scrolling grid through its own contents', () => {
-    // MEASURED IN A REAL BROWSER, not reasoned about: `e2e/a11y.spec.ts`
-    // reported `scrollable-region-focusable` (serious, WCAG 2.1.1) on this
-    // list while the tiles were inert, and Task 5 answered it with a
-    // `tabIndex` on the `<ul>`. Every tile is a button now, so the region is
-    // reachable through its contents - and the stop that lands on a list whose
-    // children are all focusable is a stop nobody wants.
-    const host = renderPool([anItem('1'), anItem('2')], 0)
+  it('lets a keyboard reach the scrolling grid, whether or not a frame has been chosen', () => {
+    // MEASURED IN A REAL BROWSER TWICE. `e2e/a11y.spec.ts` reported
+    // `scrollable-region-focusable` (serious, WCAG 2.1.1) on this list when
+    // Task 5's tiles were inert, and reported it AGAIN when Task 7 removed the
+    // stop on the reasoning that the tiles are buttons now
+    // (`docs/qa/2026-09-20-journey-slots-sweep.md`, SLOT-001): with no frame
+    // chosen every tile is `disabled`, and a disabled button is not focusable.
+    //
+    // THE ASSERTION IS THE WCAG CONDITION, NOT THE FIX. A scrollable region has
+    // to be reachable — through a focusable descendant OR by taking the focus
+    // itself — and this asks exactly that, in both states, so the next shape
+    // that satisfies it stays green.
+    const reachable = (host: HTMLElement): boolean => {
+      const grid = host.querySelector('ul')
+      const stop = Number(grid?.getAttribute('tabindex') ?? '-1') >= 0
+      const inside = [...host.querySelectorAll('button')].some((tile) => !tile.hasAttribute('disabled'))
+      return stop || inside
+    }
 
-    const grid = host.querySelector('ul')
-    expect(grid?.getAttribute('tabindex')).toBeNull()
-    expect(host.querySelectorAll('[data-pool-place]')).toHaveLength(2)
+    expect(reachable(renderPool([anItem('1'), anItem('2')], 0, { target: null }))).toBe(true)
+    expect(reachable(renderPool([anItem('1'), anItem('2')], 0, { target: aSlot('7:0') }))).toBe(true)
+  })
+
+  it('does not stop the focus on the list once its own tiles can take it', () => {
+    // The other half, and the reason the stop is conditional rather than
+    // permanent: a focus stop that lands on a list whose children are all
+    // focusable is a stop nobody wants, and it is what Task 5's own comment
+    // said should go.
+    const host = renderPool([anItem('1'), anItem('2')], 0, { target: aSlot('7:0') })
+
+    expect(host.querySelector('ul')?.getAttribute('tabindex')).toBeNull()
   })
 
   it('draws an empty pool rather than throwing for a journey with no media', () => {
