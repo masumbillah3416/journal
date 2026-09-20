@@ -103,12 +103,6 @@ interface Spies {
  */
 const anAction = (): ActionSpy => vi.fn<(form: FormData) => Promise<void>>(() => Promise.resolve())
 
-/**
- * Renders the panel and hands back the host element and the spies.
- * @param slots - The cells to draw.
- * @param targeted - The cell `?slot=` names, where a case cares.
- * @returns The host element and the three action spies.
- */
 const renderPanel = (
   slots: readonly EditorSlot[],
   targeted: SlotKey | null = null,
@@ -179,7 +173,40 @@ const cellOf = (
  */
 const clickAt = (cell: HTMLElement, at: { clientX: number; clientY: number }): void => {
   act(() => {
-    cell.dispatchEvent(new MouseEvent('click', { bubbles: true, ...at }))
+    // `detail: 1` IS PART OF THE FIXTURE, not decoration. A click from a
+    // POINTER carries its click count; a click synthesised by Enter or Space
+    // on a `<button>` carries `detail: 0` and no coordinates at all. Every
+    // case here meant the first, and `MouseEvent`'s default for `detail` is
+    // 0 — so before this was written down, every focal case in this file was
+    // dispatching the keyboard's shape while describing the mouse's.
+    cell.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, ...at }))
+  })
+}
+
+/**
+ * Activates a cell the way a keyboard does: a click with no pointer behind it.
+ *
+ * WHAT A BROWSER REALLY SENDS. Enter or Space on a focused `<button>`
+ * dispatches a `click` whose `clientX`/`clientY` are 0 — the element is not
+ * where the pointer is, because there is no pointer — and whose `detail` is 0,
+ * which is the signal that says so.
+ * @param cell - The element, already given its box.
+ */
+const pressEnterOn = (cell: HTMLElement): void => {
+  act(() => {
+    cell.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }))
+  })
+}
+
+/**
+ * Presses a key on a cell.
+ * @param cell - The element.
+ * @param key - The `KeyboardEvent.key` value.
+ * @param phase - Which half of the press.
+ */
+const pressKey = (cell: HTMLElement, key: string, phase: 'keydown' | 'keyup' = 'keydown'): void => {
+  act(() => {
+    cell.dispatchEvent(new KeyboardEvent(phase, { bubbles: true, cancelable: true, key }))
   })
 }
 
@@ -219,6 +246,20 @@ const type = (field: HTMLInputElement, value: string): void => {
     write(value)
     field.dispatchEvent(new Event('input', { bubbles: true }))
   })
+}
+
+/**
+ * What a spy was handed for one field of the first call it took.
+ *
+ * A `FormDataEntryValue` is `string | File`, and `File` has no useful
+ * stringification — so the value is narrowed rather than interpolated.
+ * @param spy - The action spy.
+ * @param field - The field name.
+ * @returns The posted value.
+ */
+const said = (spy: ActionSpy, field: string): string => {
+  const value = (spy.mock.calls[0]?.[0] ?? new FormData()).get(field)
+  return typeof value === 'string' ? value : 'not a string'
 }
 
 afterEach(() => {
@@ -291,15 +332,73 @@ describe('SlotPanel', () => {
 
     clickAt(cellOf(host, '7:0', { left: 0, top: 0, width: 199, height: 152 }), { clientX: 49, clientY: 121 })
 
-    // A `FormDataEntryValue` is `string | File`, and `File` has no useful
-    // stringification — so each half is narrowed rather than interpolated.
-    const posted = setFocal.mock.calls[0]?.[0] ?? new FormData()
-    const said = (field: string): string => {
-      const value = posted.get(field)
-      return typeof value === 'string' ? value : 'not a string'
-    }
+    expect(host.querySelector('[data-focal-pill]')?.textContent).toBe(
+      `focus ${said(setFocal, 'focalX')}% ${said(setFocal, 'focalY')}%`,
+    )
+  })
 
-    expect(host.querySelector('[data-focal-pill]')?.textContent).toBe(`focus ${said('focalX')}% ${said('focalY')}%`)
+  it('does not throw the crop to the top-left corner when the button is reached by a keyboard', () => {
+    // LANDED FROM THE TASK 7 REVIEW'S PROBE (H1), wording kept. Enter or Space
+    // on a `<button>` fires a click whose `clientX`/`clientY` are 0 — the
+    // element is not where the pointer is, because there is no pointer.
+    // `focalPointFrom` read `0 − rect.left` as a drag that left the box and
+    // clamped it to `{0, 0}`, so the cell was re-cropped to its own top-left
+    // corner and the write was posted. Nothing refused it: `0` is inside the
+    // parse's `[0, 100]`.
+    //
+    // OBSERVED BEFORE THE FIX: POSTED [["journey","42"],["slot","7:0"],
+    // ["focalX","0"],["focalY","0"]] CROP 0% 0%
+    const { host, setFocal } = renderPanel([aSlot('7:0', { focal: { x: 22, y: 78 } })])
+
+    pressEnterOn(cellOf(host, '7:0'))
+
+    expect(setFocal).not.toHaveBeenCalled()
+    expect(cropOf(host, '7:0')).toBe('22% 78%')
+  })
+
+  it('moves the crop by one percent per arrow press, so the control is reachable without a mouse', () => {
+    // THE OTHER HALF OF H1. Ignoring the keyboard activation stops the
+    // destruction and leaves the control keyboard-INERT, which is a smaller
+    // defect and still one: §2.3's control has to be operable. The arrows nudge
+    // through the same clamp the click uses.
+    const { host } = renderPanel([aSlot('7:0', { focal: { x: 22, y: 78 } })])
+    const cell = cellOf(host, '7:0')
+
+    pressKey(cell, 'ArrowRight')
+    pressKey(cell, 'ArrowUp')
+
+    expect(cropOf(host, '7:0')).toBe('23% 77%')
+    expect(host.querySelector('[data-focal-pill]')?.textContent).toBe('focus 23% 77%')
+  })
+
+  it('writes the nudged point once the key is released, not once per repeat', () => {
+    // AUTO-REPEAT IS WHY THE WRITE IS ON `keyup`. A held arrow fires `keydown`
+    // as fast as the platform repeats it, and every write here mints a version
+    // row on a versioned collection (`pageMutations.ts`'s header). One physical
+    // press is one write, whatever the repeat rate.
+    const { host, setFocal } = renderPanel([aSlot('7:0', { focal: { x: 22, y: 78 } })])
+    const cell = cellOf(host, '7:0')
+
+    pressKey(cell, 'ArrowRight')
+    pressKey(cell, 'ArrowRight')
+    pressKey(cell, 'ArrowRight')
+    expect(setFocal).not.toHaveBeenCalled()
+
+    pressKey(cell, 'ArrowRight', 'keyup')
+
+    expect(setFocal).toHaveBeenCalledTimes(1)
+    expect(said(setFocal, 'focalX')).toBe('25')
+  })
+
+  it('ignores a key that is not an arrow, and releases nothing it never moved', () => {
+    const { host, setFocal } = renderPanel([aSlot('7:0', { focal: { x: 22, y: 78 } })])
+    const cell = cellOf(host, '7:0')
+
+    pressKey(cell, 'a')
+    pressKey(cell, 'ArrowRight', 'keyup')
+
+    expect(setFocal).not.toHaveBeenCalled()
+    expect(cropOf(host, '7:0')).toBe('22% 78%')
   })
 
   it('draws the reticle where the point is, so the author can see what they aimed at', () => {

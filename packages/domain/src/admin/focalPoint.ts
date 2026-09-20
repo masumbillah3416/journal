@@ -28,8 +28,9 @@
  * nothing outside this module builds one from arithmetic.
  *
  * INVARIANT — every {@link FocalPoint} this module returns has both components
- * in `[0, 100]` and neither is `NaN`. {@link focalPointFrom} is the only
- * constructor, and both guards are in it.
+ * in `[0, 100]` and neither is `NaN`. {@link focalPointFrom} and
+ * {@link nudgeFocalPoint} are the only two constructors, they share one clamp,
+ * and the zero-size guard is in the one that divides.
  * Depends on: `slotKey`, `PageId`, `SlotKey` (../ids).
  */
 import { slotKey, type PageId, type SlotKey } from '../ids'
@@ -75,8 +76,20 @@ interface FrameRect {
  * @param extent - The frame's size along this axis.
  * @returns The percentage, clamped to `[0, 100]`.
  */
-const axis = (offset: number, extent: number): number =>
-  extent <= 0 ? 0 : Math.min(100, Math.max(0, (offset / extent) * 100))
+const axis = (offset: number, extent: number): number => (extent <= 0 ? 0 : clamped((offset / extent) * 100))
+
+/**
+ * One percentage, inside the frame.
+ *
+ * THE CLAMP, IN ONE PLACE, because two callers now need it and a second
+ * spelling is how one of them stops agreeing about where the frame ends:
+ * {@link focalPointFrom} clamps a pointer that left the box, and
+ * {@link nudgeFocalPoint} clamps a keyboard that walked off the edge.
+ * `focalPoint.test.ts` compares the two directly for that reason.
+ * @param percentage - Any number.
+ * @returns It, held inside `[0, 100]`.
+ */
+const clamped = (percentage: number): number => Math.min(100, Math.max(0, percentage))
 
 /**
  * The focal point a click on a slot names.
@@ -107,6 +120,45 @@ export const focalPointFrom = (click: ClickPoint, rect: FrameRect): FocalPoint =
  * isCentred({ x: 50, y: 50 }) // true
  */
 export const isCentred = (point: FocalPoint): boolean => point.x === CENTRE && point.y === CENTRE
+
+/**
+ * How far one arrow press moves the focal point, as a percentage of the frame.
+ *
+ * ONE PERCENT, WHICH IS THE PILL'S OWN RESOLUTION. {@link focalPointLabel}
+ * prints whole percentages and the editor stores what it printed
+ * (`docs/qa/2026-09-20-journey-slots-sweep.md`, SLOT-002), so a finer step
+ * would move a value the author cannot see and a coarser one would put points
+ * out of reach that a click can hit.
+ */
+export const FOCAL_NUDGE = 1
+
+/**
+ * The point an arrow key moves to.
+ *
+ * ═══ WHY THE KEYBOARD NEEDS ITS OWN CONSTRUCTOR ═══
+ *
+ * // HANDOFF-DEVIATION: §2.3's focal control is "click anywhere on a slot" and
+ * says nothing about a keyboard. The element that takes the click is a
+ * `<button>`, so it is in the tab order — and Enter or Space on a `<button>`
+ * dispatches a click carrying NO pointer position, which
+ * {@link focalPointFrom} reads as a drag that left the box and clamps to the
+ * top-left corner. Writing that would destroy the author's crop with no
+ * refusal and no surface (Task 7 review, H1). So the activation is ignored and
+ * the arrows aim instead. See docs/deviations.md §65.
+ *
+ * IT SHARES THE CLICK'S CLAMP rather than restating it: a keyboard that walked
+ * off the edge and a pointer that left the box are the same question about the
+ * same frame.
+ * @param point - Where the crop is anchored now.
+ * @param by - How far to move, in percentage points.
+ * @returns The new point, both components in `[0, 100]`.
+ * @example
+ * nudgeFocalPoint({ x: 22, y: 78 }, { x: FOCAL_NUDGE, y: 0 }) // { x: 23, y: 78 }
+ */
+export const nudgeFocalPoint = (point: FocalPoint, by: FocalPoint): FocalPoint => ({
+  x: clamped(point.x + by.x),
+  y: clamped(point.y + by.y),
+})
 
 /**
  * What §2.3's focal-point pill prints.

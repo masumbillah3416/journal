@@ -70,7 +70,14 @@
  * (@travel-diary/domain/ids), `EditorSlot` (../../../lib/admin/readJourneyEditor),
  * ./editor.module.css.
  */
-import { focalPointFrom, focalPointLabel, isCentred, type FocalPoint } from '@travel-diary/domain/admin/focalPoint'
+import {
+  FOCAL_NUDGE,
+  focalPointFrom,
+  focalPointLabel,
+  isCentred,
+  nudgeFocalPoint,
+  type FocalPoint,
+} from '@travel-diary/domain/admin/focalPoint'
 import type { JourneyId, SlotKey } from '@travel-diary/domain/ids'
 import type React from 'react'
 import { startTransition, useState } from 'react'
@@ -83,6 +90,20 @@ interface SlotWords {
   readonly caption: string
   /** What a screen reader is told the photograph shows. */
   readonly alt: string
+}
+
+/**
+ * How far each arrow moves the focal point.
+ *
+ * A TABLE RATHER THAN FOUR COMPARISONS, so the four keys are one list a reader
+ * can see at once — and so an unrecognised key falls out as `undefined` rather
+ * than through an `else` nobody wrote.
+ */
+const NUDGE_BY: Readonly<Record<string, FocalPoint | undefined>> = {
+  ArrowLeft: { x: -FOCAL_NUDGE, y: 0 },
+  ArrowRight: { x: FOCAL_NUDGE, y: 0 },
+  ArrowUp: { x: 0, y: -FOCAL_NUDGE },
+  ArrowDown: { x: 0, y: FOCAL_NUDGE },
 }
 
 /** What SCREENS.md §2.3's slots need to draw themselves and to save. */
@@ -127,8 +148,8 @@ export const SlotPanel = ({
   setText,
   clear,
 }: SlotPanelProps): React.JSX.Element => {
-  const [points, setPoints] = useState<Readonly<Record<string, FocalPoint>>>({})
-  const [words, setWords] = useState<Readonly<Record<string, SlotWords>>>({})
+  const [points, setPoints] = useState<Readonly<Partial<Record<SlotKey, FocalPoint>>>>({})
+  const [words, setWords] = useState<Readonly<Partial<Record<SlotKey, SlotWords>>>>({})
 
   /**
    * The body every control posts: the journey, for the cache address, and the
@@ -144,6 +165,20 @@ export const SlotPanel = ({
   }
 
   /**
+   * Writes a cell's focal point, whatever moved it.
+   * @param slot - The cell.
+   * @param point - Where its crop is now anchored.
+   */
+  const commit = (slot: SlotKey, point: FocalPoint): void => {
+    const form = targetOf(slot)
+    form.append('focalX', String(point.x))
+    form.append('focalY', String(point.y))
+    startTransition(() => {
+      void setFocal(form)
+    })
+  }
+
+  /**
    * Turns a click on a cell into its focal point, shows it at once and writes
    * it.
    *
@@ -151,10 +186,24 @@ export const SlotPanel = ({
    * slot's width is a `1fr` track, so there is no constant a server could have
    * divided by. `focalPointFrom` clamps to the frame and guards the zero-size
    * box an undisplayed element measures as.
+   *
+   * ═══ AN ACTIVATION WITH NO POINTER BEHIND IT IS REFUSED ═══
+   *
+   * This element is a `<button>`, so it is in the tab order — and Enter or
+   * Space on a `<button>` dispatches a `click` whose `clientX`/`clientY` are
+   * 0, because there is no pointer. `focalPointFrom` reads that as a drag that
+   * left the box and clamps it to the top-left corner, which the parse then
+   * accepts (`0` is inside `[0, 100]`) and the write stores — destroying the
+   * author's crop with no refusal and no surface (Task 7 review, H1).
+   * `MouseEvent.detail` is the standard signal: a pointer carries its click
+   * count, a synthesised activation carries 0. The arrows below are the
+   * keyboard's way to a real value.
    * @param slot - The cell clicked.
    * @param event - The pointer event.
    */
   const focus = (slot: SlotKey, event: React.MouseEvent<HTMLButtonElement>): void => {
+    if (event.detail === 0) return
+
     const measured = focalPointFrom(event, event.currentTarget.getBoundingClientRect())
     // ROUNDED HERE, AND NOT IN THE FORMULA. §2.3's expression is the division
     // and `focalPointFrom` is exactly that; what is rounded is the value this
@@ -166,13 +215,22 @@ export const SlotPanel = ({
     // and the column on the same number across a reload.
     const point = { x: Math.round(measured.x), y: Math.round(measured.y) }
     setPoints((held) => ({ ...held, [slot]: point }))
+    commit(slot, point)
+  }
 
-    const form = targetOf(slot)
-    form.append('focalX', String(point.x))
-    form.append('focalY', String(point.y))
-    startTransition(() => {
-      void setFocal(form)
-    })
+  /**
+   * Moves a cell's focal point by one step, without writing it.
+   *
+   * THE WRITE IS ON RELEASE, NOT ON EACH PRESS. A held arrow fires `keydown` as
+   * fast as the platform repeats it, and every write here mints a version row
+   * on a versioned collection (`pageMutations.ts`'s header says why that is not
+   * free). One physical press is one write, whatever the repeat rate.
+   * @param slot - The cell focused.
+   * @param from - Where its crop is anchored now.
+   * @param by - How far to move.
+   */
+  const nudge = (slot: SlotKey, from: FocalPoint, by: FocalPoint): void => {
+    setPoints((held) => ({ ...held, [slot]: nudgeFocalPoint(from, by) }))
   }
 
   return (
@@ -202,10 +260,27 @@ export const SlotPanel = ({
               data-role={slot.role}
               data-empty={empty ? '' : undefined}
               disabled={empty}
-              aria-label={`Set the focal point of ${slot.label}`}
+              aria-label={`Set the focal point of ${slot.label} — click it, or move it with the arrow keys`}
               className={styles.slotImage}
               onClick={(event) => {
                 focus(slot.key, event)
+              }}
+              onKeyDown={(event) => {
+                const by = NUDGE_BY[event.key]
+                if (by === undefined) return
+                // The arrows scroll the page by default, and this element is
+                // inside a pane that scrolls.
+                event.preventDefault()
+                nudge(slot.key, point, by)
+              }}
+              onKeyUp={(event) => {
+                // ONLY WHAT WAS MOVED IS WRITTEN. A release with no nudge
+                // behind it — a key held down before this cell took the focus,
+                // or an arrow released after the page scrolled — would
+                // otherwise post the value that is already stored.
+                const moved = points[slot.key]
+                if (NUDGE_BY[event.key] === undefined || moved === undefined) return
+                commit(slot.key, moved)
               }}
               style={
                 empty

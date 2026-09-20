@@ -13,7 +13,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { pageId, slotKey, type PageId } from '../ids'
-import { focalPointFrom, focalPointLabel, isCentred, slotKeyFor } from './focalPoint'
+import { FOCAL_NUDGE, focalPointFrom, focalPointLabel, isCentred, nudgeFocalPoint, slotKeyFor } from './focalPoint'
 
 /**
  * A branded page id.
@@ -77,6 +77,43 @@ describe('focalPointLabel', () => {
 
   it('reads back the point, rounded, in the form SCREENS.md prints', () => {
     expect(focalPointLabel({ x: 25.4, y: 29.6 })).toBe('focus 25% 30%')
+  })
+})
+
+describe('nudgeFocalPoint', () => {
+  it('moves the point by what it is given, which is how a keyboard aims', () => {
+    // WHY IT EXISTS AT ALL. The focal control is a `<button>`, so it is in the
+    // tab order — and a click synthesised by Enter carries no pointer position.
+    // The arrows are the keyboard's way to a real value
+    // (docs/deviations.md §65).
+    expect(nudgeFocalPoint({ x: 22, y: 78 }, { x: FOCAL_NUDGE, y: -FOCAL_NUDGE })).toEqual({ x: 23, y: 77 })
+  })
+
+  it('stops at the frame’s far edge rather than walking past it', () => {
+    expect(nudgeFocalPoint({ x: 100, y: 100 }, { x: FOCAL_NUDGE, y: FOCAL_NUDGE })).toEqual({ x: 100, y: 100 })
+  })
+
+  it('stops at the frame’s near edge, which is the other side of the same gate', () => {
+    expect(nudgeFocalPoint({ x: 0, y: 0 }, { x: -FOCAL_NUDGE, y: -FOCAL_NUDGE })).toEqual({ x: 0, y: 0 })
+  })
+
+  it('reaches each edge exactly from one step inside it', () => {
+    // THE PERMITTED SIDE. A clamp that refused the last step would leave the
+    // edges unreachable by keyboard, which is the defect one move along.
+    expect(nudgeFocalPoint({ x: 100 - FOCAL_NUDGE, y: FOCAL_NUDGE }, { x: FOCAL_NUDGE, y: -FOCAL_NUDGE })).toEqual({
+      x: 100,
+      y: 0,
+    })
+  })
+
+  it('shares the click’s own clamp, so the two cannot disagree about the frame', () => {
+    // Both sides are computed: the left by the nudge, the right by the formula
+    // §2.3 states, asked for a point far outside the box.
+    const rect = { left: 0, top: 0, width: 100, height: 100 }
+
+    expect(nudgeFocalPoint({ x: 100, y: 0 }, { x: 40, y: -40 })).toEqual(
+      focalPointFrom({ clientX: 9000, clientY: -9000 }, rect),
+    )
   })
 })
 
