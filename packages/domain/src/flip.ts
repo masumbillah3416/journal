@@ -81,9 +81,30 @@ export type FlipEvent =
   | { readonly type: 'jump'; readonly to: number; readonly now: number }
   | { readonly type: 'tick'; readonly now: number }
 
+/**
+ * The range the `book` global's `flipDurationMs` admits, in milliseconds.
+ *
+ * SCREENS.md §1.7 and §2.6 both give it: "range 400-1600". It is a constant
+ * rather than three literals because SCREENS.md §2.6's slider, the parse behind
+ * that slider (`apps/web/lib/admin/bookMutations.ts`) and the column's own
+ * `min`/`max` (`apps/web/globals/book.ts`) are three places one range would
+ * otherwise be written — and `apps/web/globals/book.schema.test.ts` is what
+ * compares the last of those against this.
+ *
+ * NO `default` HERE, deliberately, and the reason is a live disagreement rather
+ * than an omission: `apps/web/components/book/useFlip.ts` takes the handoff's
+ * "Duration default 900ms" and `apps/web/globals/book.ts` declares
+ * `defaultValue: 800`. Nothing reads `book.flipDurationMs` yet — the diary
+ * still turns at `DEFAULT_FLIP_DURATION_MS` — so the two have never had to
+ * agree, and inventing a winner here would settle a question this constant is
+ * not being added to answer. The task that wires the column into the book
+ * settles it; see docs/deviations.md §82.
+ */
+export const FLIP_DURATION_MS = Object.freeze({ min: 400, max: 1600 } as const)
+
 /** Reader-configurable behaviour. */
 export interface FlipConfig {
-  /** 400-1600, default 900, from the `book` global. */
+  /** Inside {@link FLIP_DURATION_MS}, from the `book` global. */
   readonly durationMs: number
   /** When true, the page changes instantly with no rotation and no shade. */
   readonly reducedMotion: boolean

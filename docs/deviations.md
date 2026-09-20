@@ -3453,3 +3453,34 @@ colour, a weight or a spacing that is declared correctly and drawn wrongly.
 **Recorded as:** this entry, the `c8 ignore` header of
 `apps/web/app/(admin)/admin/galleries/page.tsx` — which claimed the coverage before it
 existed, and now names what is real and what is owed — and Task 9's report §8.
+
+## 82 · `flipDurationMs` has two defaults and no reader, so this task settled neither
+
+**What changed:** nothing, and that is the entry. `packages/domain/src/flip.ts` gained
+`FLIP_DURATION_MS` — the `{ min: 400, max: 1600 }` range `SCREENS.md` §1.7 and §2.6 both
+print — because SCREENS.md §2.6's slider, the parse behind it and the column's own `min`/`max`
+were about to be three places one range was written. The constant carries **no `default`**.
+
+**Why.** The two defaults in this repository disagree.
+`apps/web/components/book/useFlip.ts` declares `DEFAULT_FLIP_DURATION_MS = 900`, from the
+handoff's "Duration default 900ms"; `apps/web/globals/book.ts` declares
+`defaultValue: 800` on the column. Nothing reads `book.flipDurationMs` — the diary still
+turns at the component's constant, and `useFlip.ts`'s own comment says the column "reaches the
+diary in a later task" — so the two have never had to agree, and no behaviour today depends on
+which wins.
+
+Putting a `default` on `FLIP_DURATION_MS` would have picked one, silently, inside a task whose
+subject is an admin screen. `GALLERY_THUMB_SIZE` next door does carry a `default`, and can:
+`readGalleryBundle` reads that column, so its default is exercised by the public gallery on
+every request.
+
+**What IS true meanwhile:** `apps/web/globals/book.schema.test.ts` compares the column's
+`min`/`max` against the constant and the constant against SCREENS.md's own two numbers, so the
+range cannot drift in one file; and it deliberately asserts nothing about
+`flipDurationMs.defaultValue`, where the same case would have been a guess dressed as a gate.
+
+**What would close it:** the task that makes the diary read `book.flipDurationMs`. It picks
+one number, deletes the other, and adds the `defaultValue` case this file's sibling cases
+already have for `galleryThumbPx`.
+
+**Recorded as:** this entry and `FLIP_DURATION_MS`'s own doc comment.

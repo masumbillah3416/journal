@@ -38,8 +38,10 @@
  * same length, with the SAME kinds at the first two and last positions. The
  * only edit this module makes is a swap of two adjacent journeys; an edit that
  * spliced instead would have to re-establish that.
- * Depends on nothing.
+ * Depends on: `JOURNEY_PAGE_KINDS` (../bookBundle), for the one fact behind
+ * the "p. {n}" this screen prints — how many pages a journey is.
  */
+import { JOURNEY_PAGE_KINDS } from '../bookBundle'
 
 /** Which of the four kinds of row in SCREENS.md §2.6's list this is. */
 export type BookmarkRowKind = 'cover' | 'contents' | 'journey' | 'about'
@@ -108,5 +110,53 @@ export const moveBookmark = <T extends BookmarkRow>(
     if (index === at) return neighbour
     if (index === to) return subject
     return row
+  })
+}
+
+/**
+ * How many pages of the book each kind of row covers.
+ *
+ * THE JOURNEY'S SPAN IS READ OFF {@link JOURNEY_PAGE_KINDS}, not typed here:
+ * "a journey is three pages" is `derivePages`'s decision, and a fourth kind
+ * added there would otherwise leave every "p. {n}" on this screen one page out
+ * from the book it describes. The three fixed rows are one page each because
+ * `derivePages` emits exactly one `{ kind: 'cover' }`, one `'contents'` and
+ * one `'about'`.
+ */
+export const BOOKMARK_PAGE_SPANS: Readonly<Record<BookmarkRowKind, number>> = Object.freeze({
+  cover: 1,
+  contents: 1,
+  journey: JOURNEY_PAGE_KINDS.length,
+  about: 1,
+})
+
+/** One row of the list, with the 1-based page the book opens it at. */
+export type NumberedBookmarkRow<T extends BookmarkRow> = T & {
+  /** The page a reader turns to, the number SCREENS.md §2.6 prints as "p. {n}". */
+  readonly pageNumber: number
+}
+
+/**
+ * The same rows, each carrying the page the book opens it at.
+ *
+ * DERIVED, NEVER STORED (DATA_MODEL.md, "Derived, not stored"): nothing in the
+ * database holds a page number, because a journey moved one place up changes
+ * the page of every journey after it. This walks the list the way `derivePages`
+ * walks its own, so the number printed beside a row is the number a reader
+ * turns to — `bookmarkOrder.test.ts` compares it against `deriveContents`'s own
+ * entries for the same journeys, which is what the book's Contents page prints.
+ *
+ * @param rows - The list in the order the book reads it, fixed rows included.
+ * @returns The same rows, in the same order, each with its `pageNumber`.
+ * @example
+ * numberBookmarkPages(rows)[2]?.pageNumber // 3 — the first journey's notes page
+ */
+export const numberBookmarkPages = <T extends BookmarkRow>(rows: readonly T[]): readonly NumberedBookmarkRow<T>[] => {
+  let page = 1
+
+  return rows.map((row) => {
+    const numbered = { ...row, pageNumber: page }
+    page += BOOKMARK_PAGE_SPANS[row.kind]
+    return numbered
   })
 }

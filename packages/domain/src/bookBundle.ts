@@ -69,6 +69,26 @@ export const WEATHER_GLYPHS = ['sun', 'haze', 'wind'] as const
 export type WeatherGlyph = (typeof WEATHER_GLYPHS)[number]
 
 /**
+ * Every order the journeys of the book can be put in, in the order
+ * SCREENS.md §2.6's three chips draw them: "As arranged / Newest first /
+ * Oldest first".
+ *
+ * THE RUNTIME HALF OF {@link JourneyOrderMode}, for {@link WEATHER_GLYPHS}'s
+ * reason: §2.6's chips ITERATE the modes and the parse behind them refuses a
+ * fourth, and a type alone cannot be iterated. `apps/web/globals/book.ts`
+ * declares the same three as its `select` options and
+ * `apps/web/globals/book.schema.test.ts` compares the two lists.
+ *
+ * `'manual'` is first because it is the schema's `defaultValue` and the only
+ * mode the bookmark screen's arrows mean anything under — `readBookBundle`
+ * sorts by `order` for it and by `startsOn` for the other two.
+ */
+export const JOURNEY_ORDER_MODES = ['manual', 'newest', 'oldest'] as const
+
+/** How the journeys of the book are sequenced — the `book` global's own column. */
+export type JourneyOrderMode = (typeof JOURNEY_ORDER_MODES)[number]
+
+/**
  * One of the four cells on the Notes page's tally ticket (SCREENS.md §1.3).
  * `value` is text, never a number: the seeded journeys use "plenty" and
  * "uncounted" as freely as they use "19".
@@ -346,8 +366,16 @@ export interface BookBundle {
   readonly about: AboutContent
 }
 
-/** The three page kinds every journey contributes, in reading order. */
-const JOURNEY_PAGE_KINDS = ['notes', 'frames-i', 'frames-ii'] as const
+/**
+ * The three page kinds every journey contributes, in reading order.
+ *
+ * EXPORTED because "a journey is three pages" is the arithmetic behind the
+ * "p. {n}" SCREENS.md §2.6 prints beside every bookmark row, and
+ * `admin/bookmarkOrder.ts` derives that number without the journey rows a
+ * {@link derivePages} call would need. One list, so a fourth journey page kind
+ * moves both.
+ */
+export const JOURNEY_PAGE_KINDS = ['notes', 'frames-i', 'frames-ii'] as const
 
 /**
  * Assembles the book's reading sequence: Cover, Contents, then each

@@ -10,7 +10,7 @@ numbers are `docs/testing.md`'s and do not change.
   - `unit` — every glob it declares, in the order the config declares them:
     `packages/*/src/**/*.test.ts`, `apps/web/lib/**/*.test.ts`,
     `apps/web/scripts/**/*.test.ts`, `apps/web/collections/**/*.test.ts`,
-    `eslint-rules/**/*.test.js`, `scripts/**/*.test.js`, `apps/web/*.test.ts` and
+    `apps/web/globals/**/*.test.ts`, `eslint-rules/**/*.test.js`, `scripts/**/*.test.js`, `apps/web/*.test.ts` and
     `e2e/**/*.test.ts`, all of them excluding `*.integration.test.ts`. Node environment; these files are pure. **This
     list is the whole of it and is meant to be diffable against the config** — CLAUDE.md
     §2.1 names the config comment and this document as the two homes an include fact has
@@ -24,6 +24,13 @@ numbers are `docs/testing.md`'s and do not change.
       is written against (`users.lockout.test.ts`, the lockout window against
       `rateWindow.ts`'s) belongs in the pre-commit gate. `*.integration.test.ts` under the
       same directory stays with the integration project; the two patterns are disjoint.
+    - `apps/web/globals/**/*.test.ts` — the same argument one directory over, added with
+      SCREENS.md §2.6's two sliders. A global config is a plain object too, and
+      `book.schema.test.ts` compares `flipDurationMs`'s and `galleryThumbPx`'s `min`/`max`
+      against the domain constants those sliders are drawn from, so the slider's track and
+      the column's bounds cannot drift apart. Written before the glob existed, the file ran
+      and reported "No test files found" — the collected-by-nobody failure this list exists
+      to make visible.
     - `eslint-rules/**/*.test.js` — the rule that makes an unguarded Server Action a lint
       error, and its `RuleTester` cases. Plain JavaScript because ESLint loads a config
       and its plugins through Node rather than a bundler (§1a).

@@ -139,6 +139,15 @@ export default defineConfig({
             // integration project's own glob below still owns
             // `*.integration.test.ts`, and the two patterns are disjoint.
             'apps/web/collections/**/*.test.ts',
+            // `apps/web/globals/**/*.test.ts` — the same argument one
+            // directory over. A global config is a plain object too, and
+            // `book.schema.test.ts` is what compares its two numeric columns'
+            // `min`/`max` against the domain constants SCREENS.md §2.6's
+            // sliders are drawn from. Without this glob that file would be
+            // collected by NOBODY, which is the failure this config's header
+            // exists to prevent — and it was: the file was written, run, and
+            // reported "No test files found".
+            'apps/web/globals/**/*.test.ts',
             // `eslint-rules/**/*.test.js` — the ESLint rule that makes an
             // unguarded Server Action a lint error, and its RuleTester cases.
             // Both are plain JavaScript because ESLint loads a config and its

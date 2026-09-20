@@ -122,6 +122,7 @@ import type {
   BookPage,
   GalleryCounts,
   Journey,
+  JourneyOrderMode,
   Slot,
   SlotRole,
 } from '@travel-diary/domain/bookBundle'
@@ -137,9 +138,6 @@ import type {
 } from '../payload-types'
 import { ephemeraMediaIds, galleryFrameWhere } from './galleryFrames'
 import { getPayload } from './payload'
-
-/** `book.journeyOrderMode`'s three values, transcribed from DATA_MODEL.md's globals section. */
-type JourneyOrderMode = 'manual' | 'newest' | 'oldest'
 
 /**
  * The exact shape `find('journeys')`'s own `select` below returns - a
