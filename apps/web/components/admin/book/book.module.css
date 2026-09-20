@@ -36,27 +36,25 @@
 
 /* ── The two screens ───────────────────────────────────────────────────── */
 
-/* `.screenBook` and `.screenCover` COMPOSE this rather than the routes joining
- * two class names: a CSS Module's generated type is `string | undefined` for
- * every key, so `${styles.screen} ${styles.screenBook}` is a template over two
- * possibly-undefined values and the lint gate refuses it — and a page that
- * silently rendered `class="undefined screenBook"` would lose the container
- * query these rungs hang off. */
+/* THE QUERY CONTAINER IS A WRAPPER, AND THE GRID IS A CHILD OF IT. An element
+ * cannot be its own query container, which `journeys.module.css` learned the
+ * hard way and which this file then re-learned in a browser: the first draft
+ * declared `container-type` on `.screen` and put the grid on `.screenBook`
+ * COMPOSED from it, so both landed on the same element and neither `@container`
+ * block ever matched. At the design's own 1440 reference the settings column
+ * measured 1142px rather than 340px and the cover screen drew one column rather
+ * than two — green in jsdom, which performs no layout, and caught by
+ * `e2e/admin.spec.ts` (BOOK-001, `docs/qa/2026-09-20-book-and-cover-sweep.md`). */
 .screen {
-  display: grid;
   max-width: 1440px;
-  gap: 16px;
   container-name: td-book;
   container-type: inline-size;
+}
+
+.columns {
+  display: grid;
+  gap: 16px;
   grid-template-columns: minmax(0, 1fr);
-}
-
-.screenBook {
-  composes: screen;
-}
-
-.screenCover {
-  composes: screen;
 }
 
 /* SCREENS.md §2.6: `minmax(0,1fr) 340px` above 1180px, stacked below.
@@ -64,14 +62,19 @@
  * its content, and a bookmark row whose journey name is one long word would
  * otherwise push the settings card off the screen. */
 @container td-book (min-width: 1120px) {
-  .screenBook {
+  .columnsBook {
     grid-template-columns: minmax(0, 1fr) 340px;
   }
 
   /* SCREENS.md §2.7: two equal columns above 1180px. */
-  .screenCover {
+  .columnsCover {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
+}
+
+.columnsBook,
+.columnsCover {
+  composes: columns;
 }
 
 /* ── Cards ─────────────────────────────────────────────────────────────── */
@@ -333,8 +336,17 @@
   box-shadow: 0 0 0 2.5px var(--td-accent);
 }
 
+/* `margin: 0` IS NOT COSMETIC. Chromium gives `input[type=range]` a 2px UA
+ * margin on each side, so a track declared `width: 100%` is four pixels wider
+ * than the column it sits in — which made the two sliders the only controls on
+ * this card not lining up with its padding, at every width, with nothing
+ * scrolling and nothing clipped (BOOK-003,
+ * `docs/qa/2026-09-20-book-and-cover-sweep.md`). The prototype's inline
+ * `width:100%` has the same UA margin behind it; this is the one place the
+ * transcription has to say more than the prototype does. */
 .range {
   width: 100%;
+  margin: 0;
   accent-color: var(--td-accent);
 }
 

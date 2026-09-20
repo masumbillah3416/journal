@@ -108,7 +108,9 @@ export const BookmarkOrder = ({ rows, arrangeable, setOrder }: BookmarkOrderProp
             className={styles.tint}
             style={{ '--td-bookmark-tint': row.tint } as React.CSSProperties}
           />
-          <span className={styles.rowName}>{row.name}</span>
+          <span data-bookmark-name className={styles.rowName}>
+            {row.name}
+          </span>
           <span className={styles.rowPlace}>{row.place}</span>
           <span className={styles.rowPage}>p. {row.pageNumber}</span>
           <span className={styles.rowArrows}>

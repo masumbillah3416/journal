@@ -83,6 +83,18 @@
  * because every rearranging control on that screen persists to the developer's
  * own database.
  *
+ * PHASE 4 TASK 10 ADDS `/admin/book` (SCREENS.md §2.6) and `/admin/cover`
+ * (§2.7), and between them they carry three shapes no admin screen before them
+ * had. §2.6's list is a dozen-plus rows each holding TWO buttons whose only
+ * visible content is an arrow glyph — twelve identical accessible names would
+ * pass `button-name` and be useless, so the names carry the row. The cover
+ * cloths on both screens are coloured squares with no text at all. And §2.7's
+ * preview is decorative text over a cloth gradient, which is the surface axe
+ * reports `color-contrast` INCOMPLETE over rather than judging (see the cover
+ * page's own case above and the two contrast cases at the foot of this file).
+ * Neither case presses a control that writes: every save on either screen
+ * persists to the developer's own database.
+ *
  * TASK 8 ADDS THE SECOND SIGN-IN STATE, `/admin/sign-in/code`, with no
  * exclusions either. It is the first view in the product where `label` has six
  * unlabelled-looking boxes to judge - the code cells carry `aria-label`s
@@ -618,6 +630,70 @@ test('has no axe violations on /admin/galleries, with its bulk caption panel ope
   await expect(page.locator('[data-selected-frame]')).toBeVisible()
   await page.locator('[data-caption-all]').click()
   await expect(page.locator('[data-bulk-panel]')).toBeVisible()
+
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /admin/book, with both of §2.6’s cards drawn', async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  // SCREENS.md §2.6, and a guarded screen like its neighbours above.
+  //
+  // IT READS AND DOES NOT WRITE. Every arrow on this screen persists to the
+  // developer's own `diary` database, so this case presses none of them — it
+  // only requires that they are DRAWN before axe looks, because a screen whose
+  // list rendered empty would have no violations either.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`a11ybook.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin/book')
+  // Both cards, and the controls inside them: twelve-plus rows each carrying two
+  // buttons whose only visible label is an arrow glyph, three chips, four
+  // swatches that are coloured squares with no text at all, two range inputs and
+  // three checkboxes. Every one of those is a shape axe has a rule for.
+  await expect(page.locator('[data-admin-book]')).toBeVisible()
+  await expect(page.locator('[data-bookmark-order]')).toBeVisible()
+  await expect(page.locator('[data-bookmark-kind="journey"]').first()).toBeVisible()
+  await expect(page.locator('[data-book-settings]')).toBeVisible()
+  await expect(page.locator('[data-flip-slider]')).toBeVisible()
+  await expect(page.locator('[data-cloth]').first()).toBeVisible()
+
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /admin/cover, with its preview and its About form drawn', async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  // SCREENS.md §2.7. IT READS AND DOES NOT WRITE: neither save button is
+  // pressed, and the portrait select is left at its "keep the current portrait"
+  // default.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`a11ycover.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin/cover')
+  // The preview is decorative text on a cloth gradient, which is where a
+  // contrast rule bites; the four fields, the two textareas, the kit inputs and
+  // the reply-to line are labelled controls; the four swatches are coloured
+  // squares with no text; and the portrait select is the one control on either
+  // screen whose options come from the database.
+  await expect(page.locator('[data-admin-cover]')).toBeVisible()
+  await expect(page.locator('[data-cover-preview]')).toBeVisible()
+  await expect(page.locator('[data-cover-field="title"]')).toBeVisible()
+  await expect(page.locator('[data-about-card]')).toBeVisible()
+  await expect(page.locator('[data-portrait-choices]')).toBeVisible()
+  await expect(page.locator('[data-kit-line="0"]')).toBeVisible()
 
   await expectNoAxeViolations(page)
 })

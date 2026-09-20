@@ -102,9 +102,11 @@ const CoverPage = async (): Promise<React.JSX.Element> => {
       siteName={site.name ?? ''}
       accountName={scope.user.email}
     >
-      <section data-admin-cover className={styles.screenCover}>
-        <CoverPreview cover={view.cover} save={saveCover} />
-        <AboutCard about={view.about} save={saveAbout} />
+      <section data-admin-cover className={styles.screen}>
+        <div data-cover-columns className={styles.columnsCover}>
+          <CoverPreview cover={view.cover} save={saveCover} />
+          <AboutCard about={view.about} save={saveAbout} />
+        </div>
       </section>
     </AdminShell>
   )

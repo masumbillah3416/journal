@@ -109,9 +109,11 @@ const BookPage = async (): Promise<React.JSX.Element> => {
       siteName={site.name ?? ''}
       accountName={scope.user.email}
     >
-      <section data-admin-book className={styles.screenBook}>
-        <BookmarkOrder rows={view.rows} arrangeable={view.arrangeable} setOrder={saveBookmarkOrder} />
-        <BookSettings settings={view.settings} save={saveBookSettings} />
+      <section data-admin-book className={styles.screen}>
+        <div data-book-columns className={styles.columnsBook}>
+          <BookmarkOrder rows={view.rows} arrangeable={view.arrangeable} setOrder={saveBookmarkOrder} />
+          <BookSettings settings={view.settings} save={saveBookSettings} />
+        </div>
       </section>
     </AdminShell>
   )

@@ -775,3 +775,267 @@ test.describe('the galleries screen (SCREENS.md §2.5)', () => {
     ).toHaveCount(1)
   })
 })
+
+test.describe('the book and cover screens', () => {
+  // SCREENS.md §2.6 and §2.7. Everything here writes GLOBALS or `journeys.order`,
+  // which are one row each for the whole diary — so every case that writes
+  // records what it found and puts it back, in the case itself rather than in an
+  // `afterAll` that a failure would skip. Standing orders §9: a sweep once wrote
+  // a real value to the developer's own database by pressing an arrow.
+
+  test('draws §2.6’s list with a row per page-group of the book, fixed rows included', async ({ page }) => {
+    await page.goto('/admin/book')
+
+    await expect(page.locator('[data-admin-book]')).toBeVisible()
+    await expect(page.locator('[data-bookmark-kind="cover"]')).toHaveCount(1)
+    await expect(page.locator('[data-bookmark-kind="contents"]')).toHaveCount(1)
+    await expect(page.locator('[data-bookmark-kind="about"]')).toHaveCount(1)
+    await expect(page.locator('[data-bookmark-kind="journey"]').first()).toBeVisible()
+  })
+
+  test('refuses to move Cover, Contents and About, in a real browser and not only in jsdom', async ({ page }) => {
+    await page.goto('/admin/book')
+    await expect(page.locator('[data-bookmark-order]')).toBeVisible()
+
+    for (const kind of ['cover', 'contents', 'about']) {
+      for (const direction of ['up', 'down']) {
+        await expect(
+          page.locator(`[data-bookmark-kind="${kind}"] [data-bookmark-move="${direction}"]`),
+          `${kind}'s ${direction} arrow is fixed`,
+        ).toBeDisabled()
+      }
+    }
+  })
+
+  test('moves a journey up and keeps it moved after a reload, so the order came from Postgres', async ({ page }) => {
+    // IT WRITES THE DEVELOPER'S OWN DATABASE, so it reads every journey's
+    // `order` first and writes them all back at the end.
+    const payload = await getPayload()
+    const before = await payload.find({
+      collection: 'journeys',
+      depth: 0,
+      pagination: false,
+      limit: 1000,
+      sort: 'order',
+      select: { order: true },
+    })
+
+    // THE ACTION'S OWN RESPONSE IS WAITED FOR, not the re-render. A Server
+    // Action is a `POST` to the screen's own address, and reloading before it
+    // answers reads the order back BEFORE the write — which is how this case
+    // first failed, green product and all.
+    const posts: string[] = []
+    page.on('response', (answer) => {
+      if (answer.request().method() === 'POST' && answer.url().includes('/admin/book')) posts.push(answer.url())
+    })
+
+    try {
+      await page.goto('/admin/book')
+      const rows = page.locator('[data-bookmark-kind="journey"]')
+      await expect(rows.first()).toBeVisible()
+      // THE NAME, not the row's whole text: the row prints its own "p. {n}",
+      // and a journey that moves changes the page it opens at — so comparing
+      // the rendered text against itself would fail on a move that worked.
+      const names = await page.locator('[data-bookmark-kind="journey"] [data-bookmark-name]').allInnerTexts()
+      test.skip(names.length < 2, 'this case needs two journeys in the book')
+
+      await rows.nth(1).locator('[data-bookmark-move="up"]').click()
+      await expect.poll(() => posts.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1)
+      await page.reload()
+
+      const after = await page.locator('[data-bookmark-kind="journey"] [data-bookmark-name]').allInnerTexts()
+      expect(after[0], 'the second journey is now the first, and the reload proves the write landed').toBe(names[1])
+    } finally {
+      for (const journey of before.docs) {
+        await payload.update({
+          collection: 'journeys',
+          id: journey.id,
+          depth: 0,
+          data: { order: journey.order ?? null },
+        })
+      }
+
+      // THE RESTORE IS VERIFIED, NOT ASSUMED. Standing orders §9: the dev
+      // database is not a scratchpad, and a restore loop that silently put back
+      // nine rows of ten would leave the tenth for somebody to find weeks later.
+      // Half this diary's journeys have never been arranged, so their `order` is
+      // `null` — the state a write is most likely to fail to reproduce, and the
+      // one this check exists for.
+      const put = await payload.find({
+        collection: 'journeys',
+        depth: 0,
+        pagination: false,
+        sort: 'id',
+        select: { order: true },
+      })
+      const wanted = new Map(before.docs.map((journey) => [journey.id, journey.order ?? null]))
+      const wrong = put.docs.filter((journey) => (journey.order ?? null) !== wanted.get(journey.id))
+      expect(
+        wrong.map((journey) => journey.id),
+        'every journey was put back the way this case found it',
+      ).toEqual([])
+    }
+  })
+
+  test('follows both sliders with their own readouts, which is §2.6 stated outright', async ({ page }) => {
+    // THE ISLAND, IN A REAL ENGINE. jsdom asserts the same property, and jsdom
+    // also renders a component the same whether or not Next.js emitted a client
+    // entry for it — so this is the case that fails if the directive is dropped
+    // and the bundle never reaches the browser. It presses a key rather than
+    // dragging, and it SAVES NOTHING.
+    await page.goto('/admin/book')
+    const slider = page.locator('[data-flip-slider]')
+    await expect(slider).toBeVisible()
+    const before = await page.locator('[data-flip-readout]').innerText()
+
+    await slider.focus()
+    await page.keyboard.press('ArrowRight')
+
+    await expect(page.locator('[data-flip-readout]')).not.toHaveText(before)
+    await expect(page.locator('[data-flip-readout]')).toHaveText(/^\d+ ms$/)
+  })
+
+  test('takes §2.6’s and §2.7’s column shapes at the widths the shell puts them at', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'this case fixes its own viewports')
+    // §2.6 gives `minmax(0,1fr) 340px` above 1180 and §2.7 two equal columns
+    // above the same — the prototype's own VIEWPORT numbers. A container query
+    // measures the content box, so that becomes 1120 here
+    // (`book.module.css`'s header carries the arithmetic, and
+    // `galleries.module.css`'s carries what transcribing it straight in cost).
+    //
+    // MEASURED IN THE BROWSER, because the conversion is only right if the shape
+    // actually appears at the design's own 1440 reference.
+    const tracksAt = async (path: string, marker: string, width: number): Promise<string> => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto(path)
+      await expect(page.locator(marker)).toBeVisible()
+      return page.evaluate((selector) => {
+        const screen = document.querySelector(selector)
+        return screen === null ? 'none' : getComputedStyle(screen).gridTemplateColumns
+      }, marker)
+    }
+
+    const bookWide = await tracksAt('/admin/book', '[data-book-columns]', 1440)
+    const bookStacked = await tracksAt('/admin/book', '[data-book-columns]', 700)
+    const coverWide = await tracksAt('/admin/cover', '[data-cover-columns]', 1440)
+    const coverStacked = await tracksAt('/admin/cover', '[data-cover-columns]', 700)
+
+    expect({
+      bookSettingsColumn: bookWide.split(' ').at(-1),
+      bookStackedTracks: bookStacked.split(' ').length,
+      coverColumns: coverWide.split(' ').length,
+      coverEqual: coverWide.split(' ')[0] === coverWide.split(' ')[1],
+      coverStackedTracks: coverStacked.split(' ').length,
+    }).toEqual({
+      bookSettingsColumn: '340px',
+      bookStackedTracks: 1,
+      coverColumns: 2,
+      coverEqual: true,
+      coverStackedTracks: 1,
+    })
+  })
+
+  test('keeps every control of §2.6’s settings card inside the card, at every width', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'this case fixes its own viewports')
+    // BOOK-003 (`docs/qa/2026-09-20-book-and-cover-sweep.md`). Chromium gives
+    // `input[type=range]` a 2px UA margin on each side, so a track declared
+    // `width: 100%` is four pixels wider than the column it sits in — which
+    // makes the two sliders the only controls on the card that do not line up
+    // with its padding. Nothing scrolls and nothing is clipped, which is why a
+    // screenshot threshold would never have found it.
+    for (const width of [1440, 900, 412]) {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/admin/book')
+      await expect(page.locator('[data-book-settings]')).toBeVisible()
+
+      const escaped = await page.evaluate(() =>
+        [...document.querySelectorAll('[data-book-settings] *')]
+          .filter((element) => element.scrollWidth > element.clientWidth + 1 && element.clientWidth > 0)
+          .map((element) => `${element.tagName}: ${element.textContent.trim().slice(0, 30)}`),
+      )
+
+      expect(escaped, `these controls are wider than their column at ${String(width)}px`).toEqual([])
+    }
+  })
+
+  test('draws §2.7’s preview at its own 172x224 box, with the title inside it', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'this case fixes its own viewport')
+    // THE ONE PLACE "Title must fit, not truncate" CAN BE MEASURED on this
+    // screen. jsdom performs no layout, so nothing there compares the drawn
+    // title against the box it sits in; this does, in a real engine with the
+    // real font.
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/admin/cover')
+    const preview = page.locator('[data-cover-preview]')
+    await expect(preview).toBeVisible()
+
+    const box = await preview.boundingBox()
+    const title = await page.locator('[data-preview-title]').boundingBox()
+
+    expect({
+      width: Math.round(box?.width ?? 0),
+      height: Math.round(box?.height ?? 0),
+      titleInside: (title?.width ?? 0) <= (box?.width ?? 0),
+    }).toEqual({ width: 172, height: 224, titleInside: true })
+  })
+
+  test('changes the cover cloth and the diary’s own cover follows, which is what this screen is for', async ({
+    page,
+  }) => {
+    // THE BRIEF'S OWN CASE, at `/p/1` rather than `/p/0`: `addressedPageIndex`
+    // refuses `0` outright (`/p/<n>` is 1-based, and a leading zero would be a
+    // second address for the same page), so `/p/0` is a 404 and the assertion
+    // would have been made against a not-found page.
+    //
+    // IT WRITES THE DEVELOPER'S OWN GLOBAL, so it puts the cloth back.
+    const payload = await getPayload()
+    const before = await payload.findGlobal({ slug: 'book', depth: 0, select: { coverCloth: true } })
+    const wanted = before.coverCloth === '#7a3b32' ? '#3d4257' : '#7a3b32'
+
+    const posts: string[] = []
+    page.on('response', (answer) => {
+      if (answer.request().method() === 'POST' && answer.url().includes('/admin/cover')) posts.push(answer.url())
+    })
+
+    // READ OFF `--cover-cloth`, WHICH IS THE VALUE THE GRADIENT IS BUILT FROM,
+    // rather than off the computed `background-image`. Two reasons, and the
+    // second was measured: the custom property is the thing this screen writes,
+    // so comparing it says WHICH cloth arrived rather than only that something
+    // moved; and `/p/<n>` is served by TWO surfaces — below 860px the
+    // middleware rewrites it to the mobile reading mode, which draws its own
+    // cover from the same property on a different element. A case written
+    // against `[data-page="cover"]` fell back to `document.body` there and
+    // compared "none" with "none" (BOOK-002).
+    const clothDrawn = async (): Promise<string> =>
+      page.evaluate(() => {
+        const cover = document.querySelector('[style*="--cover-cloth"]')
+        return cover === null
+          ? 'no cover on this surface'
+          : getComputedStyle(cover).getPropertyValue('--cover-cloth').trim()
+      })
+
+    try {
+      await page.goto('/p/1')
+      const wasDrawn = await clothDrawn()
+
+      await page.goto('/admin/cover')
+      await expect(page.locator('[data-cover-preview]')).toBeVisible()
+      await page.locator(`[data-cover-cloth="${wanted}"]`).click()
+      await expect(page.locator(`[data-cover-cloth="${wanted}"]`)).toHaveAttribute('aria-pressed', 'true')
+      await page.locator('[data-save-cover]').click()
+      // THE ACTION'S OWN RESPONSE, for the reason the bookmark case gives: the
+      // island's pressed state changes the instant the swatch is clicked, so
+      // asserting THAT and navigating would read the diary before the write.
+      await expect.poll(() => posts.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1)
+
+      await page.goto('/p/1')
+
+      expect(
+        { before: wasDrawn, after: await clothDrawn() },
+        'the cover the reader sees is painted in the cloth the admin saved, on whichever surface serves it',
+      ).toEqual({ before: before.coverCloth, after: wanted })
+    } finally {
+      await payload.updateGlobal({ slug: 'book', data: { coverCloth: before.coverCloth ?? '#2f4a47' } })
+    }
+  })
+})
