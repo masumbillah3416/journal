@@ -3,15 +3,19 @@
  * calls required, the note that must not promise what the pipeline refuses,
  * and the four seams one upload actually crosses.
  *
- * ═══ THE `min-width` IS READ OUT OF THE STYLESHEET ═══
+ * ═══ THE `min-width` CASE ASSERTS A DECLARATION, AND NOTHING MORE ═══
  *
  * §2.4: "The `min-width` floor is required. Without it the text block absorbs
  * all shrink, the headline wraps to two lines and the zone grows to 300px
- * tall." jsdom applies no CSS module, so asserting a COMPUTED width here would
- * assert nothing; what this file can do honestly is read the declaration out
- * of `media.module.css` and require it to be there, at the value §2.4 gives.
- * The shrink itself is a visual baseline at the `mid` viewport, where it
- * happens.
+ * tall." jsdom applies no CSS module, so a COMPUTED width here would be `''`
+ * whatever the file said; what this file can do honestly is read the
+ * declaration out of `media.module.css` and require it to be there, at the
+ * value §2.4 gives. **It does not and cannot say the floor changes the
+ * layout** — and a browser was asked that separately, with the declaration
+ * removed, at ten widths from 700px to 1440px: every measurement was identical
+ * either way (`docs/qa/2026-09-20-media-screen-sweep.md`, MEDIA-003). Saying so
+ * here is the point: the case below would otherwise read as proof of a
+ * behaviour nobody has observed.
  *
  * ═══ THE UPLOAD IS DRIVEN WITH STUBS OF THE TWO SERVER ACTIONS ═══
  *
@@ -137,7 +141,8 @@ describe('the dropzone’s shape', () => {
   it('declares the 300px min-width §2.4 calls required', () => {
     // READ OUT OF THE STYLESHEET, because jsdom applies no CSS module and a
     // computed value here would be `''` whatever the file said. §2.4's own
-    // sentence is why this has a case at all.
+    // sentence is why this has a case at all — and what the case says is that
+    // the declaration IS THERE, not that it does anything. See the header.
     const declared = /\.dropzoneText\s*\{[^}]*min-width:\s*300px/.test(readFileSync(STYLESHEET, 'utf8'))
 
     expect(declared).toBe(true)

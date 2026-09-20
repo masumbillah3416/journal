@@ -7,12 +7,24 @@
  * group's root layout, so every byte in it is a byte `/admin/sign-in` fetches
  * before it can paint, and that route carries a Lighthouse LCP gate.
  *
- * ═══ THE DROPZONE'S `min-width` IS LOAD-BEARING, AND §2.4 SAYS WHY ═══
+ * ═══ THE DROPZONE'S `min-width` IS DECLARED BECAUSE §2.4 REQUIRES IT, AND IT
+ *     CHANGES NOTHING HERE — MEASURED ═══
  *
- * "The `min-width` floor is required. Without it the text block absorbs all
- * shrink, the headline wraps to two lines and the zone grows to 300px tall."
- * `Dropzone.test.tsx` asserts the declared value by reading THIS file, and a
- * visual baseline at the `mid` viewport is where the shrink actually happens.
+ * §2.4: "The `min-width` floor is required. Without it the text block absorbs
+ * all shrink, the headline wraps to two lines and the zone grows to 300px
+ * tall." **That consequence does not reproduce in this implementation.** The
+ * declaration was removed and the zone re-measured in a real Chromium at ten
+ * viewport widths from 700px to 1440px: every zone height and every text-block
+ * width was IDENTICAL with the floor and without it, and the headline stayed on
+ * one line throughout (`docs/qa/2026-09-20-media-screen-sweep.md`, MEDIA-003).
+ * The row wraps before the basis shrinks, so the text block never goes below
+ * 325px and the floor is never reached.
+ *
+ * It stays because §2.4 asks for it in words, and because a later layout change
+ * — a control added to the row, a narrower gap — is exactly what would make it
+ * bite. What must NOT be said is that it is doing work today.
+ * `Dropzone.test.tsx` asserts the DECLARATION is present, which is what §2.4
+ * asks for, and says in its own header that a declaration is all it asserts.
  *
  * ═══ THE GRID'S TRACK MINIMUM IS A CUSTOM PROPERTY THE SERVER SETS ═══
  *
@@ -84,8 +96,9 @@
   transform: rotate(45deg);
 }
 
-/* THE FLOOR §2.4 CALLS REQUIRED. Without `min-width` this block absorbs all
- * the shrink, the Caveat headline wraps and the zone grows to 300px tall. */
+/* THE FLOOR §2.4 CALLS REQUIRED. It is inert at every width this app draws —
+ * see the header for the measurement — and it is declared because §2.4 asks
+ * for it and because a later control in this row would make it bite. */
 .dropzoneText {
   flex: 1 1 300px;
   min-width: 300px;
