@@ -159,6 +159,88 @@ export const storageContract = (
       expect(await storage.exists('../escape.jpg')).toBe(false)
       expect((await storage.signedUrl('../escape.jpg', 60)).ok).toBe(false)
       expect((await storage.uploadUrl('../escape.jpg', anUploadOffer())).ok).toBe(false)
+      expect((await storage.list('../escape')).ok).toBe(false)
+    })
+
+    // ═══ THE FOUR LISTING CASES ═══
+    //
+    // `list` exists for one caller and it DELETES what it is told about
+    // (`apps/web/lib/media/sweepStagedUploads.ts`), so each of these pins a
+    // property that caller rests on rather than a convenience: the prefix is a
+    // BOUNDARY and not a string comparison, the walk is recursive because a
+    // staging key has two segments under the namespace, the size and the time
+    // are real readings off the object, and an empty namespace is an answer
+    // rather than a refusal. See `docs/adr/0024-the-staged-upload-sweep.md`.
+
+    it('lists the objects under a prefix and nothing outside it', async () => {
+      const storage = await makeAdapter()
+      const inside = 'staging/j1/one.bin'
+      // `staging/j1` IS A PREFIX OF `staging/j10` as a raw string, and these
+      // are two different journeys' staging directories. The prefix has to be
+      // a path boundary; a `key.startsWith(prefix)` would hand this
+      // neighbour's un-stripped original to a sweep asked about j1.
+      const outside = 'staging/j10/two.bin'
+      await storage.put(inside, new Uint8Array([1]), 'application/octet-stream')
+      await storage.put(outside, new Uint8Array([2]), 'application/octet-stream')
+
+      // NO TRAILING SEPARATOR, deliberately: with one, `startsWith` answers
+      // this case correctly and the case guards nothing. The caller does not
+      // add one either - it passes the domain's own `STAGING_PREFIX`.
+      const listed = await storage.list('staging/j1')
+
+      // The left side is whatever the adapter walked; the right side is the
+      // one key this case wrote inside the prefix.
+      expect(listed.ok ? listed.value.map((object) => object.key) : []).toEqual([inside])
+    })
+
+    it('walks the whole tree under the prefix, because a staging key has a journey segment of its own', async () => {
+      // What the sweep actually calls: one `list('staging')` for every
+      // journey's abandoned objects. An adapter reading only the prefix's own
+      // directory entries finds nothing at all here.
+      const storage = await makeAdapter()
+      const first = 'staging/j1/one.bin'
+      const second = 'staging/j10/two.bin'
+      await storage.put(first, new Uint8Array([1]), 'application/octet-stream')
+      await storage.put(second, new Uint8Array([2]), 'application/octet-stream')
+
+      const listed = await storage.list('staging')
+
+      // Sorted on BOTH sides: the contract states which objects are listed and
+      // deliberately not in which order, because a directory walk's order is
+      // the filesystem's and an R2 listing's is the bucket's.
+      expect((listed.ok ? listed.value.map((object) => object.key) : []).toSorted()).toEqual([first, second].toSorted())
+    })
+
+    it("reports each object's size and modification time, which is what a sweep decides on", async () => {
+      const storage = await makeAdapter()
+      const key = 'staging/j1/sized.bin'
+      const body = new Uint8Array([1, 2, 3, 4, 5])
+      const before = Date.now()
+      await storage.put(key, body, 'application/octet-stream')
+
+      const listed = await storage.list('staging/j1')
+      const found = listed.ok ? listed.value.find((object) => object.key === key) : undefined
+      const after = Date.now()
+
+      // `bytes` is compared to the length this case wrote; `modifiedAt` is
+      // BRACKETED by two clock readings taken around the write, which is both
+      // sides of it - a stored second rather than a millisecond falls out of
+      // the lower bound, and anything minted from a different epoch out of the
+      // upper. The second of slack either way is filesystem mtime granularity.
+      expect(found?.bytes).toBe(body.length)
+      expect(found?.modifiedAt).toBeGreaterThanOrEqual(before - 1_000)
+      expect(found?.modifiedAt).toBeLessThanOrEqual(after + 1_000)
+    })
+
+    it('answers with no objects, rather than a refusal, for a prefix nothing has been written under', async () => {
+      // The sweep's first run on a fresh deployment. An `err` here would make
+      // the scheduled job report a failure every night until somebody uploaded
+      // something, which is an alert that means nothing.
+      const storage = await makeAdapter()
+
+      const listed = await storage.list('staging')
+
+      expect(listed).toEqual({ ok: true, value: [] })
     })
 
     it('produces an upload URL for a key nothing has been written to yet', async () => {

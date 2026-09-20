@@ -91,6 +91,42 @@ export interface StoragePort {
    * @returns `ok` with the URL, or `err` naming why one could not be produced.
    */
   uploadUrl(key: string, options: UploadUrlOptions): Promise<Result<string, string>>
+  /**
+   * Enumerates the objects stored under `prefix`.
+   *
+   * THE PREFIX IS A PATH BOUNDARY, NOT A STRING COMPARISON, and every adapter
+   * owes that: `staging/j1` is a raw-string prefix of `staging/j10`, and those
+   * are two journeys' staging directories. The shared contract suite's
+   * `lists the objects under a prefix and nothing outside it` is what holds it.
+   *
+   * KEYS COME BACK AS {@link StoragePort.get} AND {@link StoragePort.put} TAKE
+   * THEM — namespace-relative, separated by `/` on every platform — because
+   * the one caller lists objects in order to delete them, and a key it could
+   * not hand back to `delete` would be a listing of things it cannot act on.
+   * @param prefix - The namespace-relative prefix to enumerate under, with or
+   *   without a trailing separator. Rejected if it escapes the namespace.
+   * @returns `ok` with one {@link StoredObject} per object found — empty when
+   *   nothing has been written there, which is not an error — or `err` naming
+   *   why the store could not be walked.
+   */
+  list(prefix: string): Promise<Result<readonly StoredObject[], string>>
+}
+
+/**
+ * One object a {@link StoragePort.list} found.
+ *
+ * THE THREE FIELDS A SWEEP DECIDES ON, and no more: which object it is, how
+ * big it is, and when it was last written. There is deliberately no content
+ * type — the local adapter has nowhere to keep one (see its `put`), so a field
+ * here would be a promise one adapter cannot keep.
+ */
+export interface StoredObject {
+  /** The object's key, exactly as `get`, `put` and `delete` take it. */
+  readonly key: string
+  /** How many bytes the object holds. */
+  readonly bytes: number
+  /** When the object was last written, as epoch milliseconds. */
+  readonly modifiedAt: number
 }
 
 /**

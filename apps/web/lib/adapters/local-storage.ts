@@ -36,18 +36,29 @@
  * `apps/web/lib/auth/passwordReset.ts` gives at length: a URL built from a
  * header is a URL an attacker points at their own machine. This adapter is
  * handed no request and must not be.
+ * ═══ `list` WALKS THE DIRECTORY, IT DOES NOT COMPARE STRINGS ═══
+ *
+ * The prefix is resolved to a directory and that directory's tree is walked,
+ * so the boundary between `staging/j1` and `staging/j10` is the filesystem's
+ * own rather than a `startsWith` this adapter would have to get right. Keys
+ * come back POSIX-separated whatever `path.sep` is here, because they are the
+ * same strings `put` and `get` take — and the sweep hands each one straight
+ * back to `delete`.
  * Depends on: node:fs/promises, node:path, the StoragePort contract, `env`
  * (../env) for the admin origin and the signing secret, and `mintUploadToken`
  * (../media/uploadToken).
  */
-import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { Result } from '@travel-diary/domain/result'
 import { ok } from '@travel-diary/domain/result'
 import { env } from '../env'
 import { mintUploadToken } from '../media/uploadToken'
-import type { StoragePort } from '../ports/storage'
+import type { StoragePort, StoredObject } from '../ports/storage'
 import { validateStorageKey } from '../ports/storage'
+
+/** The separators a caller may end a `list` prefix with. See {@link createLocalStorage}'s `list`. */
+const TRAILING_SEPARATORS = /[/\\]+$/
 
 /** Where this adapter's `uploadUrl` sends a browser. See the module header. */
 export const LOCAL_UPLOAD_PATH = '/admin/media/upload'
@@ -123,6 +134,49 @@ export const createLocalStorage = (root: string): StoragePort => {
       // the same shape they will get from the R2 adapter's real signed URL.
       const expiresAt = Date.now() + expiresInSeconds * 1000
       return Promise.resolve(ok(`file://${resolved.value}?expiresAt=${String(expiresAt)}`))
+    },
+
+    async list(prefix) {
+      // A TRAILING SEPARATOR IS TRIMMED BEFORE VALIDATION, not after: the
+      // port's `validateStorageKey` splits on separators and `'staging/'` ends
+      // in an empty segment. A caller that writes one means the same directory
+      // as a caller that does not.
+      const root_ = prefix.replace(TRAILING_SEPARATORS, '')
+      const resolved = resolvePath(root_)
+      if (!resolved.ok) return resolved
+
+      const found: StoredObject[] = []
+      // An explicit stack rather than recursion: the depth is the store's, not
+      // this module's, and a staging tree is two levels deep today.
+      const pending = [{ directory: resolved.value, key: root_ }]
+      while (pending.length > 0) {
+        const here = pending.pop()
+        /* c8 ignore next -- unreachable: the loop condition is the very length this pop reads. */
+        if (here === undefined) break
+
+        // `withFileTypes` so a subdirectory is recognised without a second
+        // `stat` per entry (CLAUDE.md §6: this runs over every staged object).
+        const entries = await readdir(here.directory, { withFileTypes: true }).catch(() => undefined)
+        // A prefix nothing has been written under is an empty listing rather
+        // than a refusal - the sweep's first run on a fresh deployment reads
+        // exactly this, and an `err` there would alert every night until
+        // somebody uploaded something.
+        if (entries === undefined) continue
+
+        for (const entry of entries) {
+          // BUILT FROM THE KEY, NEVER FROM `path.relative`: the key a caller
+          // hands back to `delete` has to be `/`-separated on Windows too.
+          const key = `${here.key}/${entry.name}`
+          if (entry.isDirectory()) {
+            pending.push({ directory: path.join(here.directory, entry.name), key })
+            continue
+          }
+          const stats = await stat(path.join(here.directory, entry.name))
+          found.push({ key, bytes: stats.size, modifiedAt: stats.mtimeMs })
+        }
+      }
+
+      return ok(found)
     },
 
     uploadUrl(key, options) {
