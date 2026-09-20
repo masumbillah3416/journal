@@ -277,6 +277,53 @@ describe('saveBookSettings', () => {
   })
 })
 
+describe('a bare `order` write, which is the shape this module exists to avoid', () => {
+  it('publishes the pending draft into the live row and unpublishes the journey', async () => {
+    // THE NEGATIVE HALF OF `writeJourneyPlace`'S PROPERTY, and the reason that
+    // function is not cargo cult. `saveBookmarkOrder`'s own case asserts that
+    // the two-write shape leaves a pending draft alone; this asserts that the
+    // ONE-line shape does not, so a future reader can see the trap rather than
+    // take the comment's word for it — and so a Payload release that changed
+    // `updateByID`'s merge source would fail here rather than quietly making
+    // the dance pointless.
+    //
+    // IT IS HERE BECAUSE IT WAS NEEDED. `e2e/admin.spec.ts`'s bookmark-restore
+    // loop made exactly this call, for every one of the developer's journeys,
+    // on every run — and its own self-verification compared `order` and nothing
+    // else, so an unpublished journey was reported as a clean restore
+    // (task-10-review.md HIGH-2).
+    const created = await payload.create({
+      collection: 'journeys',
+      ...scope,
+      data: {
+        name: `${MARKER} live name`,
+        place: 'Nowhere',
+        slug: `${MARKER}-bare-write`,
+        dates: '1 March 2026',
+        _status: 'published',
+      },
+    })
+    await payload.update({
+      collection: 'journeys',
+      ...scope,
+      id: created.id,
+      draft: true,
+      data: { name: `${MARKER} unpublished draft name`, _status: 'draft' },
+    })
+
+    await payload.update({ collection: 'journeys', ...scope, id: created.id, data: { order: 4 } })
+
+    const live = await payload.findByID({ collection: 'journeys', ...scope, depth: 0, id: created.id })
+
+    expect({ name: live.name, status: live._status }).toEqual({
+      name: `${MARKER} unpublished draft name`,
+      status: 'draft',
+    })
+
+    await payload.delete({ collection: 'journeys', ...scope, id: created.id })
+  })
+})
+
 describe('readBookmarkOrder', () => {
   it('keeps every journey the arrow posted, in the order the browser sent them', () => {
     const form = new FormData()

@@ -64,8 +64,11 @@
  * fixtures this file has to clean up itself.
  */
 import { ADMIN_NAV, activeNavId } from '@travel-diary/domain/admin/navigation'
+import { userId } from '@travel-diary/domain/ids'
 import { expect, test } from '@playwright/test'
 import sharp from 'sharp'
+import { adminScope, type AdminScope } from '../apps/web/lib/admin/adminScope'
+import { writeJourneyPlace } from '../apps/web/lib/admin/bookMutations'
 import { getPayload } from '../apps/web/lib/payload'
 import { aSignedInSession, fixtureLabel, removeSignedInFixture, SESSION_FIXTURE_DOMAIN } from './support/adminSession'
 
@@ -98,6 +101,47 @@ const editorJourneyName = (testInfo: {
   readonly project: { readonly name: string }
   readonly workerIndex: number
 }): string => `Editor ${label(testInfo)}`
+
+/**
+ * The journey SCREENS.md §2.6's own case makes, and unmakes.
+ * @param testInfo - The running test, for the worker's own label.
+ * @returns A name no other worker's fixture can collide with.
+ */
+const bookJourneyName = (testInfo: {
+  readonly project: { readonly name: string }
+  readonly workerIndex: number
+}): string => `Bookmark ${label(testInfo)}`
+
+/**
+ * A real {@link AdminScope} for this worker's own fixture account.
+ *
+ * NOT A HAND-BUILT OBJECT. `writeJourneyPlace` spreads a scope into every call
+ * it makes, and the point of borrowing the product's write rather than copying
+ * it is that the spec exercises what the screen exercises — including
+ * `overrideAccess: false`. The account is the one `beforeEach` already minted a
+ * session for, found by the address that helper composes.
+ * @param testInfo - The running test.
+ * @returns The scope to spread.
+ * @throws When the fixture account is not there, which means `beforeEach` did
+ *   not run and every other case in this file is about to fail differently.
+ */
+const fixtureScope = async (testInfo: {
+  readonly project: { readonly name: string }
+  readonly workerIndex: number
+}): Promise<AdminScope> => {
+  const payload = await getPayload()
+  const found = await payload.find({
+    collection: 'users',
+    where: { email: { equals: `${label(testInfo)}@${SESSION_FIXTURE_DOMAIN}` } },
+    limit: 1,
+    depth: 0,
+  })
+  const account = found.docs[0]
+  if (account === undefined) throw new Error('the fixture account this worker signs in as is not there')
+  const branded = userId(String(account.id))
+  if (!branded.ok) throw new Error(branded.error)
+  return adminScope({ user: branded.value })
+}
 
 /** The editor fixture's row ids, filled in by `beforeAll`. */
 const editorFixture: { journey: number; pages: number[] } = { journey: 0, pages: [] }
@@ -807,17 +851,49 @@ test.describe('the book and cover screens', () => {
     }
   })
 
-  test('moves a journey up and keeps it moved after a reload, so the order came from Postgres', async ({ page }) => {
+  test('moves a journey up and keeps it moved after a reload, so the order came from Postgres', async ({
+    page,
+  }, testInfo) => {
     // IT WRITES THE DEVELOPER'S OWN DATABASE, so it reads every journey's
-    // `order` first and writes them all back at the end.
+    // `order` AND `_status` first and writes them all back at the end.
     const payload = await getPayload()
+    const scope = await fixtureScope(testInfo)
+
+    // A JOURNEY CARRYING A PENDING DRAFT, MADE ON PURPOSE. `journeys` is
+    // versioned, so a one-line `payload.update({ data: { order } })` merges from
+    // the NEWEST VERSION and writes an author's unpublished text into the live
+    // row — the Task 4 trap `bookMutations.ts`'s `writeJourneyPlace` exists to
+    // avoid, and the one this case's own restore loop sprang on every run while
+    // reporting a clean restore (task-10-review.md HIGH-2). The fixture is what
+    // makes the restore's self-check able to see it: a diary whose journeys all
+    // happen to be published cannot.
+    const drafted = await payload.create({
+      collection: 'journeys',
+      depth: 0,
+      data: {
+        name: `${bookJourneyName(testInfo)} live`,
+        place: 'Nowhere',
+        slug: bookJourneyName(testInfo)
+          .toLowerCase()
+          .replaceAll(/[^a-z0-9]+/gu, '-'),
+        dates: '1 - 2 March 2026',
+        _status: 'published',
+      },
+    })
+    await payload.update({
+      collection: 'journeys',
+      depth: 0,
+      id: drafted.id,
+      draft: true,
+      data: { name: `${bookJourneyName(testInfo)} unpublished rewrite`, _status: 'draft' },
+    })
+
     const before = await payload.find({
       collection: 'journeys',
       depth: 0,
       pagination: false,
       limit: 1000,
       sort: 'order',
-      select: { order: true },
     })
 
     // THE ACTION'S OWN RESPONSE IS WAITED FOR, not the re-render. A Server
@@ -846,34 +922,37 @@ test.describe('the book and cover screens', () => {
       const after = await page.locator('[data-bookmark-kind="journey"] [data-bookmark-name]').allInnerTexts()
       expect(after[0], 'the second journey is now the first, and the reload proves the write landed').toBe(names[1])
     } finally {
+      // RESTORED THROUGH THE PRODUCT'S OWN WRITE, not through a bare
+      // `payload.update`. `writeJourneyPlace` is exported for exactly this: a
+      // second copy of the two-write shape in a spec file is a second place for
+      // the trap to be re-made, which is how it got here.
       for (const journey of before.docs) {
-        await payload.update({
-          collection: 'journeys',
-          id: journey.id,
-          depth: 0,
-          data: { order: journey.order ?? null },
-        })
+        await writeJourneyPlace(payload, scope, journey.id, journey.order ?? null)
       }
 
-      // THE RESTORE IS VERIFIED, NOT ASSUMED. Standing orders §9: the dev
-      // database is not a scratchpad, and a restore loop that silently put back
-      // nine rows of ten would leave the tenth for somebody to find weeks later.
-      // Half this diary's journeys have never been arranged, so their `order` is
-      // `null` — the state a write is most likely to fail to reproduce, and the
-      // one this check exists for.
-      const put = await payload.find({
-        collection: 'journeys',
-        depth: 0,
-        pagination: false,
-        sort: 'id',
-        select: { order: true },
-      })
-      const wanted = new Map(before.docs.map((journey) => [journey.id, journey.order ?? null]))
-      const wrong = put.docs.filter((journey) => (journey.order ?? null) !== wanted.get(journey.id))
-      expect(
-        wrong.map((journey) => journey.id),
-        'every journey was put back the way this case found it',
-      ).toEqual([])
+      // THE RESTORE IS VERIFIED, NOT ASSUMED, AND ON BOTH COLUMNS. Standing
+      // orders §9: the dev database is not a scratchpad, and a restore loop that
+      // silently put back nine rows of ten would leave the tenth for somebody to
+      // find weeks later. Half this diary's journeys have never been arranged,
+      // so their `order` is `null` — the state a write is most likely to fail to
+      // reproduce. `_status` is here because checking `order` alone is what let
+      // an UNPUBLISHED journey be reported as a clean restore: the column the
+      // trap moves is not the column this case is about.
+      const put = await payload.find({ collection: 'journeys', depth: 0, pagination: false, sort: 'id' })
+      const wanted = new Map(
+        before.docs.map((journey) => [journey.id, `${String(journey.order ?? null)}/${String(journey._status)}`]),
+      )
+      const wrong = put.docs.filter(
+        (journey) => `${String(journey.order ?? null)}/${String(journey._status)}` !== wanted.get(journey.id),
+      )
+      const detail = wrong.map(
+        (journey) =>
+          `${String(journey.id)}: ${String(journey.order ?? null)}/${String(journey._status)} (wanted ${String(wanted.get(journey.id))})`,
+      )
+
+      await payload.delete({ collection: 'journeys', where: { name: { like: bookJourneyName(testInfo) } } })
+
+      expect(detail, 'every journey was put back the way this case found it, order AND status').toEqual([])
     }
   })
 
@@ -958,25 +1037,51 @@ test.describe('the book and cover screens', () => {
     }
   })
 
-  test('draws §2.7’s preview at its own 172x224 box, with the title inside it', async ({ page }, testInfo) => {
+  test('draws §2.7’s preview at its own 172x224 box, and fits the title rather than truncating it', async ({
+    page,
+  }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'this case fixes its own viewport')
-    // THE ONE PLACE "Title must fit, not truncate" CAN BE MEASURED on this
-    // screen. jsdom performs no layout, so nothing there compares the drawn
-    // title against the box it sits in; this does, in a real engine with the
-    // real font.
+    // THE ONE PLACE `SCREENS.md` §1.1's "Title must fit, not truncate" CAN BE
+    // MEASURED on this screen. jsdom performs no layout, so nothing there
+    // compares a drawn title against the box it sits in.
+    //
+    // IT COMPARES `scrollWidth` WITH `clientWidth`, NOT THE TWO RECTS, and that
+    // is the whole finding. `.previewTitle` carries `max-width: 100%`,
+    // `overflow-x: hidden`, `white-space: nowrap` and an ellipsis, so its BORDER
+    // BOX is clamped to the preview's 144px content box at any font size
+    // whatever — the rect comparison this case first made was true by
+    // construction and stayed green with the size hard-coded to 90px, where the
+    // title is ellipsised and `scrollWidth` is 362 (task-10-review.md HIGH-1).
+    // The ellipsis is precisely the mechanism that hides a truncation from a
+    // rect, and `scrollWidth > clientWidth` is what it cannot hide.
+    //
+    // THE TITLE IS TYPED, NOT SAVED. The preview is live, so a long title can be
+    // measured without writing the developer's own `book` global — and a title
+    // long enough to need shrinking is the only input that distinguishes a
+    // fitter from a constant. 25 characters, comfortably inside the 32 the
+    // clamp's floor can still hold (`coverTitle.test.ts` pins that boundary).
+    const A_LONG_TITLE = 'Every Doorway I Have Pho'
+
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/admin/cover')
     const preview = page.locator('[data-cover-preview]')
     await expect(preview).toBeVisible()
+    await page.locator('[data-cover-field="title"]').fill(A_LONG_TITLE)
+    await expect(page.locator('[data-preview-title]')).toHaveText(A_LONG_TITLE)
 
     const box = await preview.boundingBox()
-    const title = await page.locator('[data-preview-title]').boundingBox()
+    const title = await page.locator('[data-preview-title]').evaluate((element) => ({
+      scroll: element.scrollWidth,
+      client: element.clientWidth,
+      size: getComputedStyle(element).fontSize,
+    }))
 
     expect({
       width: Math.round(box?.width ?? 0),
       height: Math.round(box?.height ?? 0),
-      titleInside: (title?.width ?? 0) <= (box?.width ?? 0),
-    }).toEqual({ width: 172, height: 224, titleInside: true })
+      truncated: title.scroll > title.client,
+      sized: title.size !== '',
+    }).toEqual({ width: 172, height: 224, truncated: false, sized: true })
   })
 
   test('changes the cover cloth and the diary’s own cover follows, which is what this screen is for', async ({

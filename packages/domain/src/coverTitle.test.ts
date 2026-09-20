@@ -110,6 +110,19 @@ describe('MOBILE_COVER_TITLE_SIZE', () => {
   })
 })
 
+/**
+ * The longest title `fitPreviewTitleSize` can still fit inside the admin
+ * preview's box, in characters.
+ *
+ * A MEASURED BOUNDARY, not a design figure: the answer is already
+ * {@link PREVIEW_COVER_TITLE_SIZE}.min at 30 characters and cannot go lower, so
+ * the width model crosses {@link PREVIEW_COVER_TITLE_AVAILABLE_PX} at 33
+ * (33 x 0.4 x 11 = 145.2 against 144). Written here as a literal so the two
+ * cases either side of it move together and neither can be satisfied by reading
+ * the function it is guarding (CLAUDE.md §2.3).
+ */
+const LONGEST_FITTING_TITLE = 32
+
 describe('fitPreviewTitleSize', () => {
   it('renders the handoff default title at the size the admin prototype draws it', () => {
     // The prototype's own preview call, `fitTitle(144, 36, …)`:
@@ -148,19 +161,42 @@ describe('fitPreviewTitleSize', () => {
     expect(fitPreviewTitleSize('')).toBe(36)
   })
 
-  it('shrinks a title that needs shrinking to something the box can hold', () => {
+  it('keeps every title up to the length the floor can still hold inside the box', () => {
     // THE FITTING PROPERTY ITSELF, which no jsdom case can assert: jsdom
     // performs no layout, so nothing there measures text against a boundary.
-    // Here it is a property of the function — for a title long enough to need
-    // shrinking, the answer is strictly smaller than the preview's designed
-    // maximum AND the module's own width model puts the string inside the box.
-    const long = 'a'.repeat(18)
-    const fitted = fitPreviewTitleSize(long)
+    // Here it is a property of the function — the module's own width model
+    // (`length x CAVEAT_EM_PER_CHARACTER x fitted`) against the box the title
+    // has — DRIVEN OVER THE WHOLE RANGE rather than sampled at one length,
+    // because a single input proves nothing about a clamped formula.
+    const escaped = Array.from({ length: LONGEST_FITTING_TITLE }, (_, index) => index + 1).filter((length) => {
+      const fitted = fitPreviewTitleSize('a'.repeat(length))
+      return length * CAVEAT_EM_PER_CHARACTER * fitted > PREVIEW_COVER_TITLE_AVAILABLE_PX
+    })
+
+    expect(escaped).toEqual([])
+  })
+
+  it('shrinks a title that needs shrinking, rather than holding it at the designed size', () => {
+    // The other half of "fits": a title the box cannot hold at the maximum comes
+    // back SMALLER than the maximum. Without this, a function that returned the
+    // floor for everything would satisfy the case above.
+    expect(fitPreviewTitleSize('a'.repeat(LONGEST_FITTING_TITLE))).toBeLessThan(PREVIEW_COVER_TITLE_SIZE.max)
+  })
+
+  it('stops fitting one character past the floor’s reach, which the stylesheet’s ellipsis then catches', () => {
+    // THE HONEST END OF THE PROPERTY, and it is not a defect. SCREENS.md §1.1
+    // says the clamp's floor is where fitting stops and calls the ellipsis "a
+    // last-resort floor only": past this length the answer is already
+    // `PREVIEW_COVER_TITLE_SIZE.min` and cannot go lower, so the width model
+    // leaves the box. Pinned so that nobody reads the case above as a promise
+    // the module does not make.
+    const past = LONGEST_FITTING_TITLE + 1
+    const fitted = fitPreviewTitleSize('a'.repeat(past))
 
     expect({
-      shrunk: fitted < PREVIEW_COVER_TITLE_SIZE.max,
-      insideTheBox: long.length * CAVEAT_EM_PER_CHARACTER * fitted <= PREVIEW_COVER_TITLE_AVAILABLE_PX,
-    }).toEqual({ shrunk: true, insideTheBox: true })
+      atTheFloor: fitted === PREVIEW_COVER_TITLE_SIZE.min,
+      insideTheBox: past * CAVEAT_EM_PER_CHARACTER * fitted <= PREVIEW_COVER_TITLE_AVAILABLE_PX,
+    }).toEqual({ atTheFloor: true, insideTheBox: false })
   })
 })
 

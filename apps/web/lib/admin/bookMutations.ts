@@ -238,8 +238,13 @@ export const saveBookSettings = async (payload: Payload, scope: AdminScope, sett
  * the pending draft is then saved again with the same `order` on it, so the
  * author's unpublished edits stay reachable through `draft: true`.
  *
- * ONLY WHAT MOVED. A journey nudged one place changes two rows, not the book:
- * on a versioned collection every write mints a version row.
+ * ONLY WHAT MOVED — ONCE THE BOOK HAS BEEN ARRANGED. A journey nudged one place
+ * changes two rows, not the book: on a versioned collection every write mints a
+ * version row. The FIRST arrangement is the exception and is not a defect: every
+ * journey starts with `order` unset, so the skip below matches nothing and all
+ * of them are written. Said out loud because the seeded diary is in that state,
+ * and a reader measuring there would find the skip never taken
+ * (task-10-review.md, observation).
  * @param payload - The Local API instance.
  * @param scope - The hoisted {@link AdminScope}, spread into every call.
  * @param order - Every journey in the book, in the new order, as the list sent them.
@@ -286,13 +291,30 @@ export const saveBookmarkOrder = async (
  * Extracted rather than inlined so {@link saveBookmarkOrder}'s loop reads as
  * the arrangement it is; the two-write shape and the reason for it are in that
  * function's own notes and in `journeyMutations.ts`'s `writeJourneyFlag`.
+ *
+ * EXPORTED FOR `e2e/admin.spec.ts`, which is a narrow exception with a measured
+ * reason. That spec's bookmark case rearranges the developer's own diary and
+ * puts it back, and its restore loop was a bare
+ * `payload.update({ data: { order } })` — this module's own trap, in the file
+ * written to protect the database from it, overwriting a live row with an
+ * author's unpublished draft and unpublishing the journey while the case's
+ * self-check compared `order` and reported success (task-10-review.md HIGH-2).
+ * A second copy of the two-write shape in a spec file is a second place for the
+ * trap to be re-made; one exported function is not.
  * @param payload - The Local API instance.
  * @param scope - The hoisted {@link AdminScope}.
  * @param id - The journey's row id.
- * @param place - Its new `order`.
+ * @param place - Its new `order`, or `null` for a journey that has never been
+ *   arranged. `null` is what a restore needs and what {@link saveBookmarkOrder}
+ *   never passes; Payload clears the column for it (measured).
  * @throws From Payload, when the write is refused by the access rules.
  */
-const writeJourneyPlace = async (payload: Payload, scope: AdminScope, id: number, place: number): Promise<void> => {
+export const writeJourneyPlace = async (
+  payload: Payload,
+  scope: AdminScope,
+  id: number,
+  place: number | null,
+): Promise<void> => {
   const [live, newest] = await Promise.all([
     payload.findByID({ collection: 'journeys', id, ...scope, depth: 0 }),
     payload.findByID({ collection: 'journeys', id, ...scope, depth: 0, draft: true }),
