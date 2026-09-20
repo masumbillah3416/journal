@@ -661,6 +661,75 @@ test.describe('the galleries screen (SCREENS.md §2.5)', () => {
     await expect(page.locator('[data-cover-chip]')).toHaveCount(1)
   })
 
+  test('draws each tile’s grip inside that tile, at every width §2.5 names', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'this case fixes its own viewports')
+    // GAL-003 (`docs/qa/2026-09-20-galleries-screen-sweep.md`). §2.5: "Tiles
+    // carry an index badge, a three-bar grip top-right". The grip belongs to
+    // the tile, and an absolutely positioned child is only where it looks like
+    // it is when something above it is positioned.
+    //
+    // THE ASSERTION IS ABOUT THE BOX, NOT ABOUT A CSS PROPERTY. `position:
+    // relative` on the cell is how it is fixed today; "the grip is inside its
+    // own tile" is what has to stay true, and it catches the next element that
+    // escapes as well as this one.
+    for (const width of [1440, 1200, 1000, 390]) {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto(`/admin/galleries?journey=${String(galleryFixture.journey)}`)
+      await expect(page.locator('[data-frame-grid]')).toBeVisible()
+
+      const escaped = await page.evaluate(() =>
+        [...document.querySelectorAll('[data-frame-grip]')].flatMap((grip) => {
+          const tile = grip.parentElement?.querySelector('button[data-frame-id]')
+          if (tile === null || tile === undefined) return ['a grip with no tile beside it']
+          const g = grip.getBoundingClientRect()
+          const t = tile.getBoundingClientRect()
+          const inside =
+            g.left >= t.left - 1 && g.right <= t.right + 1 && g.top >= t.top - 1 && g.bottom <= t.bottom + 1
+          return inside
+            ? []
+            : [
+                `${tile.getAttribute('data-frame-id') ?? '?'}: grip at ${String(Math.round(g.left))},${String(Math.round(g.top))} tile at ${String(Math.round(t.left))},${String(Math.round(t.top))}`,
+              ]
+        }),
+      )
+
+      expect(escaped, `these grips are drawn outside their tiles at ${String(width)}px`).toEqual([])
+    }
+  })
+
+  test('takes §2.5’s two column shapes at the widths the shell puts them at', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'this case fixes its own viewports')
+    // GAL-004 (`docs/qa/2026-09-20-galleries-screen-sweep.md`). §2.5 gives the
+    // panel 286px above 1180 and 258px above 860 — the prototype's own VIEWPORT
+    // numbers. A container query measures the content box, so those become 1120
+    // and 816 here, converted with the gutter in force where each transitions;
+    // `editor.module.css`'s header carries the same arithmetic for §2.3, and
+    // EDITOR-003 is what transcribing them straight in cost there.
+    //
+    // MEASURED IN THE BROWSER, because the conversion is only right if the
+    // shape actually appears at the design's own 1440 reference — which is
+    // exactly what a stylesheet cannot tell you.
+    const panelAt = async (width: number): Promise<string> => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto(`/admin/galleries?journey=${String(galleryFixture.journey)}`)
+      await expect(page.locator('[data-frame-grid]')).toBeVisible()
+      return page.evaluate(() => {
+        const columns = document.querySelector('[data-frame-grid]')?.parentElement?.parentElement
+        return columns === null || columns === undefined ? 'none' : getComputedStyle(columns).gridTemplateColumns
+      })
+    }
+
+    const widest = await panelAt(1440)
+    const middle = await panelAt(1200)
+    const stacked = await panelAt(700)
+
+    expect({
+      widest: widest.split(' ').at(-1),
+      middle: middle.split(' ').at(-1),
+      stackedTracks: stacked.split(' ').length,
+    }).toEqual({ widest: '286px', middle: '258px', stackedTracks: 1 })
+  })
+
   test('lets a keyboard rearrange the gallery, which a drag alone would not', async ({ page }) => {
     // A GRID THAT IS ONLY DRAGGABLE IS NOT OPERABLE. The grip is a real button
     // and its arrow keys move the frame one place; this is the case that says

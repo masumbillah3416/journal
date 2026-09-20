@@ -7,12 +7,29 @@
  * group's root layout, so every byte in it is a byte `/admin/sign-in` fetches
  * before it can paint, and that route carries a Lighthouse LCP gate.
  *
- * ═══ THE TWO COLUMN WIDTHS ARE §2.5'S OWN NUMBERS ═══
+ * ═══ THE TWO COLUMN WIDTHS ARE §2.5'S OWN NUMBERS, AND THE RUNGS ARE 816 AND
+ *     1120, WHICH IS 860 AND 1180 IN THE UNITS A CONTAINER QUERY MEASURES IN ═══
  *
  * `minmax(0,1fr) 286px` above 1180px, `minmax(0,1fr) 258px` above 860px,
  * stacked below. `minmax(0,1fr)` rather than `1fr` because a grid track's
  * automatic minimum is its content, and a tile grid whose widest tile is a
  * 4032px filename would push the panel off the screen.
+ *
+ * `editor.module.css`'s header carries the arithmetic in full and this is the
+ * same conversion: the shell's content column is
+ * `viewport − 238 (the rail) − 2 × gutter`, `.content` is `padding: 24px 30px
+ * 44px` and `22px 22px 40px` under `@media (max-width: 1179px)`, and which
+ * gutter applies is decided by where the rung TRANSITIONS —
+ * 1120 at viewport `1120 + 238 + 60 = 1418`, above 1179, so `1418 − 238 = 1180`;
+ * 816 at viewport `816 + 238 + 44 = 1098`, at or below 1179, so `1098 − 238 = 860`.
+ *
+ * THIS FILE FIRST TRANSCRIBED 1180 AND 860 STRAIGHT IN, and a browser sweep
+ * measured what that cost: at the design's own 1440 reference the container is
+ * 1142px, so the panel was 258px and §2.5's widest shape was unreachable at
+ * every viewport this project tests (GAL-004,
+ * `docs/qa/2026-09-20-galleries-screen-sweep.md`). It is EDITOR-003 one screen
+ * along, which is why the fix is the conversion that file already worked out
+ * rather than a number invented here.
  *
  * ═══ THE CONTAINER QUERY GOES ON A WRAPPER ═══
  *
@@ -49,13 +66,15 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-@container td-galleries (min-width: 860px) {
+/* §2.5's middle rung — 860 in the prototype's units. See this file's header. */
+@container td-galleries (min-width: 816px) {
   .columns {
     grid-template-columns: minmax(0, 1fr) 258px;
   }
 }
 
-@container td-galleries (min-width: 1180px) {
+/* §2.5's widest rung — 1180 in the prototype's units. */
+@container td-galleries (min-width: 1120px) {
   .columns {
     grid-template-columns: minmax(0, 1fr) 286px;
   }
@@ -202,6 +221,15 @@
 }
 
 /* ── Tile grid (§2.5) ──────────────────────────────────────────────────── */
+
+/* THE CELL IS POSITIONED, and that is load-bearing rather than tidy: the grip
+ * is `position: absolute`, and an absolutely positioned element is laid out
+ * against its nearest POSITIONED ancestor. Without this the three grips of a
+ * grid all piled up at the top right of the shell (GAL-003,
+ * `docs/qa/2026-09-20-galleries-screen-sweep.md`). */
+.cell {
+  position: relative;
+}
 
 .card {
   padding: 14px;

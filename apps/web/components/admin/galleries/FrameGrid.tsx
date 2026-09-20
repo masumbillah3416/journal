@@ -322,6 +322,7 @@ export const FrameGrid = ({
                   key={frame.id}
                   draggable
                   data-frame-cell={frame.id}
+                  className={styles.cell}
                   onDragStart={(event) => {
                     event.dataTransfer.setData('text/plain', frame.id)
                   }}
