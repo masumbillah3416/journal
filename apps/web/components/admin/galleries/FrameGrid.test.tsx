@@ -325,6 +325,24 @@ describe('FrameGrid — the tiles', () => {
     }).toEqual({ count: 1, on: 'b' })
   })
 
+  it('asks for no bytes at all for a hidden frame, because the store refuses them', () => {
+    // GAL-002 (`docs/qa/2026-09-20-galleries-screen-sweep.md`).
+    // `collections/media.ts` withholds a `hidden` row from an unauthenticated
+    // reader, and `/api/media/file/<name>` is Payload's own route: it
+    // authenticates with Payload's cookie, which this application never issues.
+    // So the admin browser is anonymous to it BY CONSTRUCTION, the request
+    // answers 403, and the tile drew a broken-image box under the scrim with an
+    // error in the console. The scrim and the chip say what the tile is; asking
+    // for bytes that are refused says nothing and costs a failed request per
+    // hidden frame.
+    const host = renderGalleries({ frames: [aFrame('a', { hidden: true }), aFrame('b')] })
+
+    expect({
+      hidden: host.querySelector('button[data-frame-id="a"] img'),
+      visible: host.querySelector('button[data-frame-id="b"] img')?.getAttribute('src'),
+    }).toEqual({ hidden: null, visible: '/api/media/file/tokyo-b-400x400.jpg' })
+  })
+
   it('draws no image for an upload too small for the thumbnail tier', () => {
     const host = renderGalleries({ frames: [aFrame('a', { thumbSrc: null })] })
 

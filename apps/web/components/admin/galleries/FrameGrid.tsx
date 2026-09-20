@@ -58,6 +58,22 @@
  * The report for this task states that plainly rather than leaving it to a
  * sweep.
  *
+ * ═══ A HIDDEN FRAME IS DRAWN WITHOUT ITS PHOTOGRAPH ═══
+ *
+ * §2.5 puts a `rgba(44,37,30,.5)` scrim and a solid "Hidden" chip on a withheld
+ * frame, and this is the only screen from which one can be un-hidden — so it
+ * lists them (`readGalleriesScreen.ts` asks `galleryFrameWhere` for
+ * `includeHidden`). What it cannot do is SHOW one: `collections/media.ts`
+ * withholds a `hidden` row from an unauthenticated reader, and
+ * `/api/media/file/<name>` is Payload's own route, authenticating with
+ * Payload's cookie — which this application never issues, because the admin's
+ * session is `td-session` and the guard is ours. The admin browser is anonymous
+ * to that route by construction. Asking anyway drew a broken-image box under
+ * the scrim and an error in every console (GAL-002,
+ * `docs/qa/2026-09-20-galleries-screen-sweep.md`), so the tile asks for
+ * nothing and the scrim and the chip carry it. `docs/deviations.md` records
+ * what that costs an author.
+ *
  * ═══ WHAT A FAILED WRITE DOES ═══
  *
  * Nothing visible. Every action is dispatched inside `startTransition`, so a
@@ -331,9 +347,22 @@ export const FrameGrid = ({
                       setSelected(frame.id)
                     }}
                   >
-                    {frame.thumbSrc === null ? (
+                    {frame.thumbSrc === null || frame.hidden ? (
                       <span aria-hidden="true" className={styles.thumb} />
                     ) : (
+                      // A HIDDEN FRAME IS DRAWN WITHOUT ONE, and that is the
+                      // store's decision rather than this screen's:
+                      // `collections/media.ts` withholds a `hidden` row from an
+                      // unauthenticated reader, and `/api/media/file/<name>` is
+                      // Payload's own route — it authenticates with Payload's
+                      // cookie, which this application never issues, so the
+                      // admin browser is anonymous to it by construction. The
+                      // request answered 403 and the tile drew a broken-image
+                      // box under the scrim (GAL-002,
+                      // `docs/qa/2026-09-20-galleries-screen-sweep.md`). The
+                      // scrim and the "Hidden" chip say what the tile is; a
+                      // refused request says nothing.
+                      //
                       // A plain `<img>` on a derivative already sized for this
                       // tile, lazily: `thumb` is 400px square against a 136px
                       // track. `docs/deviations.md` §73 records that eager
