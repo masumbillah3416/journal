@@ -591,6 +591,12 @@ export default defineConfig({
         // whole subject is whether a global MERGES, which is Payload's answer
         // rather than this file's. Same treatment.
         'apps/web/lib/admin/coverMutations.ts',
+        // Phase 4 Task 10's two screen reads: a global, a sorted collection read
+        // whose sort is the public book's own, and a capped media read whose
+        // whole subject is what falls outside the cap. Nothing this Docker-free
+        // pass can execute. Same exclude-and-regate treatment as the reads above.
+        'apps/web/lib/admin/readBookScreen.ts',
+        'apps/web/lib/admin/readCoverScreen.ts',
         // `mint-lighthouse-session.ts` (Phase 4 Task 3) creates an account and
         // issues a session through this repository's own session service, both
         // of which are rows in a real Postgres, so its only test is an

@@ -3513,3 +3513,29 @@ the cap are pinned by cases built from the constant, which the screen's read mod
 
 **Recorded as:** this entry, `coverMutations.ts`'s header and `docs/api.md`'s `/admin/cover`
 section.
+
+## 84 · The bookmark arrows are withheld unless the book is arranged by hand
+
+**What changed:** `SCREENS.md` §2.6 draws the ↑ ↓ buttons on every bookmark row unconditionally,
+and `Travel Diary Admin.dc.html`'s own `move(i, d)` has no guard beyond the ends of the list.
+`/admin/book` draws them disabled — with one line saying why — whenever `book.journeyOrderMode`
+is anything but **As arranged**.
+
+**Why.** The arrows write `journeys.order`, and that column is read by exactly one thing:
+`readBookBundle`'s sort, and only under `journeyOrderMode: 'manual'` (`'newest'` and `'oldest'`
+sort by `startsOn` instead). Under either date mode a press would therefore write a real value
+to a real column, redraw the list in exactly the order it already had, and leave the author
+pressing a control that appears broken. The same screen owns both controls — the three chips
+are eighty pixels from the arrows — so the state is visible and recoverable in one click.
+
+**What it is NOT.** It is not a claim that the order is lost: `journeys.order` keeps whatever it
+held, and choosing **As arranged** again brings the hand-made sequence straight back. Nothing is
+written and nothing is cleared.
+
+**What IS pinned:** `readBookScreen.integration.test.ts` takes both sides of the rule — the
+arrows offered under `manual`, withheld under `newest` AND withheld under `oldest`, which are
+two different code paths through the same column — and the bookmark list's own jsdom suite
+asserts the disabled attribute and the line beside it.
+
+**Recorded as:** this entry, `readBookScreen.ts`'s header and `docs/api.md`'s `/admin/book`
+section.

@@ -1,11 +1,15 @@
 import { typeScale } from '@travel-diary/tokens/type'
 import { describe, expect, it } from 'vitest'
 import {
+  CAVEAT_EM_PER_CHARACTER,
   COVER_TITLE_AVAILABLE_PX,
   COVER_TITLE_SIZE,
   fitMobileTitleSize,
+  fitPreviewTitleSize,
   fitTitleSize,
   MOBILE_COVER_TITLE_SIZE,
+  PREVIEW_COVER_TITLE_AVAILABLE_PX,
+  PREVIEW_COVER_TITLE_SIZE,
 } from './coverTitle'
 
 describe('fitTitleSize', () => {
@@ -103,5 +107,71 @@ describe('fitMobileTitleSize', () => {
 describe('MOBILE_COVER_TITLE_SIZE', () => {
   it('clamps between the prototype’s 38px floor and its 74px mobile maximum', () => {
     expect(MOBILE_COVER_TITLE_SIZE).toEqual({ min: 38, max: 74 })
+  })
+})
+
+describe('fitPreviewTitleSize', () => {
+  it('renders the handoff default title at the size the admin prototype draws it', () => {
+    // The prototype's own preview call, `fitTitle(144, 36, …)`:
+    // floor(0.9 x 144 / (10 x 0.4)) = 32.
+    expect(fitPreviewTitleSize('Wanderings')).toBe(32)
+  })
+
+  it('holds a short title at the preview maximum, not the cover’s 124px', () => {
+    // floor(0.9 x 144 / (3 x 0.4)) = 108, clamped to 36 — a 124px title would
+    // be four fifths of the height of a 224px preview.
+    expect(fitPreviewTitleSize('Rio')).toBe(36)
+  })
+
+  it('still returns the maximum at the exact length the upper clamp last engages', () => {
+    // 9 characters: floor(36) = 36, which is the maximum itself.
+    expect(fitPreviewTitleSize('a'.repeat(9))).toBe(36)
+  })
+
+  it('drops below the maximum at the first length past the upper clamp boundary', () => {
+    // 10 characters: floor(32.4) = 32, the first value the clamp lets through.
+    expect(fitPreviewTitleSize('a'.repeat(10))).toBe(32)
+  })
+
+  it('still returns the formula result at the exact length the lower clamp last allows', () => {
+    // 29 characters: floor(11.17) = 11, which is the minimum itself.
+    expect(fitPreviewTitleSize('a'.repeat(29))).toBe(11)
+  })
+
+  it('floors a very long title at the minimum rather than truncating it', () => {
+    // 30 characters would compute 10; the clamp holds it at 11. Pinned as a
+    // literal rather than as the constant it guards (CLAUDE.md §2.3).
+    expect(fitPreviewTitleSize('a'.repeat(30))).toBe(11)
+  })
+
+  it('returns the maximum for an empty title rather than a division-by-zero result', () => {
+    expect(fitPreviewTitleSize('')).toBe(36)
+  })
+
+  it('shrinks a title that needs shrinking to something the box can hold', () => {
+    // THE FITTING PROPERTY ITSELF, which no jsdom case can assert: jsdom
+    // performs no layout, so nothing there measures text against a boundary.
+    // Here it is a property of the function — for a title long enough to need
+    // shrinking, the answer is strictly smaller than the preview's designed
+    // maximum AND the module's own width model puts the string inside the box.
+    const long = 'a'.repeat(18)
+    const fitted = fitPreviewTitleSize(long)
+
+    expect({
+      shrunk: fitted < PREVIEW_COVER_TITLE_SIZE.max,
+      insideTheBox: long.length * CAVEAT_EM_PER_CHARACTER * fitted <= PREVIEW_COVER_TITLE_AVAILABLE_PX,
+    }).toEqual({ shrunk: true, insideTheBox: true })
+  })
+})
+
+describe('PREVIEW_COVER_TITLE_SIZE', () => {
+  it('clamps between the admin prototype’s own 11px floor and its 36px maximum', () => {
+    expect(PREVIEW_COVER_TITLE_SIZE).toEqual({ min: 11, max: 36 })
+  })
+})
+
+describe('PREVIEW_COVER_TITLE_AVAILABLE_PX', () => {
+  it('is the 172px preview less its own 14px side padding, which is what the prototype passes', () => {
+    expect(PREVIEW_COVER_TITLE_AVAILABLE_PX).toBe(144)
   })
 })

@@ -91,16 +91,19 @@ export type FlipEvent =
  * otherwise be written — and `apps/web/globals/book.schema.test.ts` is what
  * compares the last of those against this.
  *
- * NO `default` HERE, deliberately, and the reason is a live disagreement rather
- * than an omission: `apps/web/components/book/useFlip.ts` takes the handoff's
- * "Duration default 900ms" and `apps/web/globals/book.ts` declares
- * `defaultValue: 800`. Nothing reads `book.flipDurationMs` yet — the diary
- * still turns at `DEFAULT_FLIP_DURATION_MS` — so the two have never had to
- * agree, and inventing a winner here would settle a question this constant is
- * not being added to answer. The task that wires the column into the book
- * settles it; see docs/deviations.md §82.
+ * `default` IS THE COLUMN'S OWN DEFAULT AND NOTHING MORE, and the distinction
+ * is load-bearing. This repository holds two disagreeing page-turn defaults:
+ * `apps/web/components/book/useFlip.ts` declares
+ * `DEFAULT_FLIP_DURATION_MS = 900` from the handoff's "Duration default 900ms",
+ * and `apps/web/globals/book.ts` declares `defaultValue: 800` on the column.
+ * Nothing reads `book.flipDurationMs` yet, so the two have never had to agree.
+ * The number here is the COLUMN's, which is what SCREENS.md §2.6's slider shows
+ * an author who has never moved it — it does not claim to be the duration the
+ * diary turns at, and `apps/web/globals/book.schema.test.ts` compares it only
+ * against the column. The task that wires the column into the book settles the
+ * disagreement; see docs/deviations.md §82.
  */
-export const FLIP_DURATION_MS = Object.freeze({ min: 400, max: 1600 } as const)
+export const FLIP_DURATION_MS = Object.freeze({ min: 400, max: 1600, default: 800 } as const)
 
 /** Reader-configurable behaviour. */
 export interface FlipConfig {

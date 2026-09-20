@@ -73,6 +73,16 @@ describe('the book global’s schema', () => {
     expect(bounds('galleryThumbPx')).toEqual({ min: GALLERY_THUMB_SIZE.min, max: GALLERY_THUMB_SIZE.max })
   })
 
+  it('defaults the page turn to the duration §2.6’s slider shows a book that has never set one', () => {
+    // AGAINST THE COLUMN ONLY. `FLIP_DURATION_MS.default` is a transcription of
+    // this `defaultValue` and makes no claim about the duration the diary turns
+    // at — `useFlip.ts` still says 900, which is the disagreement
+    // docs/deviations.md §82 records and deliberately does not settle.
+    const found = field('flipDurationMs')
+
+    expect(found?.type === 'number' ? found.defaultValue : undefined).toBe(FLIP_DURATION_MS.default)
+  })
+
   it('defaults the gallery thumbnail to the size a book that has never set one gets', () => {
     const found = field('galleryThumbPx')
 
@@ -93,7 +103,7 @@ describe('the two ranges themselves', () => {
     // is the handoff's own text, written down once: "range 400–1600" and
     // "140–300".
     expect({ flip: FLIP_DURATION_MS, thumb: { min: GALLERY_THUMB_SIZE.min, max: GALLERY_THUMB_SIZE.max } }).toEqual({
-      flip: { min: 400, max: 1600 },
+      flip: { min: 400, max: 1600, default: 800 },
       thumb: { min: 140, max: 300 },
     })
   })

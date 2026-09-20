@@ -138,3 +138,58 @@ export const fitMobileTitleSize = (text: string): number => {
 
   return Math.max(MOBILE_COVER_TITLE_SIZE.min, Math.min(MOBILE_COVER_TITLE_SIZE.max, fitted))
 }
+
+/**
+ * The admin cover preview's own clamp on the cover title (SCREENS.md §2.7).
+ *
+ * BOTH BOUNDS ARE THE HANDOFF PROTOTYPE'S, taken rather than derived, exactly as
+ * {@link MOBILE_COVER_TITLE_SIZE}'s are. `Travel Diary Admin.dc.html` sizes the
+ * preview's title with `fitTitle(144, 36, …)`, whose body is
+ * `Math.max(11, Math.min(36, Math.floor(0.9 x avail / (len x 0.4))))`.
+ *
+ * IT IS NOT {@link COVER_TITLE_SIZE} SCALED, and that was checked rather than
+ * assumed: the preview's width is 13% of the cover's while its bounds are 29%
+ * of them, so the preview is its own fit and not a photograph of the page. Using
+ * the cover's bounds here would floor a long title at 38px inside a 144px box —
+ * the module's own width model puts a thirty-character title at 456px wide,
+ * three times the room there is.
+ */
+export const PREVIEW_COVER_TITLE_SIZE = Object.freeze({ min: 11, max: 36 } as const)
+
+/**
+ * The horizontal room the admin preview's title has, in CSS pixels.
+ *
+ * SCREENS.md §2.7's preview is 172px wide with `20px 14px` padding, so the
+ * content box is 172 - 2 x 14 = 144 - which is the number the prototype passes
+ * its own fitter. Written as the arithmetic so the two cannot drift if the
+ * preview's padding ever changes.
+ */
+export const PREVIEW_COVER_TITLE_AVAILABLE_PX = 172 - 14 * 2
+
+/**
+ * The font size, in px, at which a cover title fits the admin's 172x224px live
+ * preview (SCREENS.md §2.7).
+ *
+ * The same estimate-and-clamp shape as {@link fitTitleSize} - see that
+ * function for why the width is estimated rather than measured - against the
+ * preview's bounds and the preview's width instead of the design box's.
+ *
+ * WHY THE PREVIEW HAS A FITTER AT ALL: §2.7's preview exists so an author can
+ * see what a title does to the cover before publishing it, and a preview that
+ * drew every title at one size would flatter exactly the titles the cover
+ * cannot hold. It lives beside the page's own fitter, in the module SCREENS.md
+ * §1.1's "Title must fit, not truncate" is implemented in, so the two can only
+ * be changed together.
+ *
+ * @param text - The cover title, as the `book` global supplies it.
+ * @returns A font size in px, between {@link PREVIEW_COVER_TITLE_SIZE}.min and
+ *   its `.max` inclusive.
+ * @example
+ * fitPreviewTitleSize('Wanderings') // 32
+ * fitPreviewTitleSize('Rio') // 36 - the preview maximum, not the cover's 124
+ */
+export const fitPreviewTitleSize = (text: string): number => {
+  const fitted = Math.floor((FIT_MARGIN * PREVIEW_COVER_TITLE_AVAILABLE_PX) / (text.length * CAVEAT_EM_PER_CHARACTER))
+
+  return Math.max(PREVIEW_COVER_TITLE_SIZE.min, Math.min(PREVIEW_COVER_TITLE_SIZE.max, fitted))
+}

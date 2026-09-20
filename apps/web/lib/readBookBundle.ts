@@ -210,6 +210,14 @@ interface StructuredLogger {
 }
 
 /**
+ * EXPORTED for `lib/admin/readBookScreen.ts`, and that is the narrow exception
+ * to this module being the diary's own boundary. SCREENS.md §2.6's list is
+ * "also the order of the book", so the admin has to sort by exactly what the
+ * book sorts by — and a second copy of this function was WRITTEN, with
+ * `'order'` where this has `['order', 'createdAt']`, and caught by the one
+ * integration case that compares the two lists. A second copy of a sort is a
+ * second book order.
+ *
  * The Payload `sort` value for a given {@link JourneyOrderMode}. `'order'` is
  * the admin's manual drag order (secondary `createdAt` for journeys that
  * share no explicit order, so the sort is still deterministic); `'newest'`/
@@ -218,7 +226,7 @@ interface StructuredLogger {
  * @param mode - The book global's configured order mode.
  * @returns A Payload `sort` value for `find('journeys')`.
  */
-const sortForJourneyOrderMode = (mode: JourneyOrderMode): string[] => {
+export const sortForJourneyOrderMode = (mode: JourneyOrderMode): string[] => {
   switch (mode) {
     case 'newest':
       return ['-startsOn']

@@ -238,6 +238,11 @@ export default defineConfig({
         // Phase 4 Task 10's cover-screen writes, here for the same reason: what
         // they assert is that `updateGlobal` merges, which needs a real global.
         'apps/web/lib/admin/coverMutations.ts',
+        // Phase 4 Task 10's two screen reads, here for the reason stated in
+        // `vitest.config.ts`'s exclude: a global read, a sorted collection read
+        // and a capped media read.
+        'apps/web/lib/admin/readBookScreen.ts',
+        'apps/web/lib/admin/readCoverScreen.ts',
         // Phase 4 Task 3's minting script, here for the reason stated in
         // `vitest.config.ts`'s exclude: it writes a `users` row and a
         // `sessions` row, so nothing without a database can execute it.
@@ -606,6 +611,16 @@ export default defineConfig({
         // are reached by a case that builds that body deliberately, because it
         // is the shape a crafted `POST` sends.
         'apps/web/lib/admin/coverMutations.ts': { lines: 100, branches: 100, functions: 100 },
+        // Phase 4 Task 10's two screen reads, at 100 across: MEASURED. The arms
+        // a case takes both sides of include every cleared column on both
+        // globals, a journey whose accent was cleared, a portrait too small to
+        // have a derivative and a portrait older than the choice cap. The three
+        // that nothing can reach carry a `c8 ignore next` with the reason at the
+        // line — a `depth: 0` relationship answering as a document, an upload
+        // row with no filename, and an array field holding `null`, which Payload
+        // refuses to write at all (measured, and the message is in the comment).
+        'apps/web/lib/admin/readBookScreen.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/admin/readCoverScreen.ts': { lines: 100, branches: 100, functions: 100 },
         // mint-lighthouse-session.ts (Phase 4 Task 3): 100% on every axis. Its
         // two branches are the account that already exists and the account that
         // does not, and `mint-lighthouse-session.integration.test.ts` drives

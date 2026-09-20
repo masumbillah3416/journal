@@ -154,6 +154,19 @@ const SQUARE_BY_DESIGN: readonly { readonly file: string; readonly declaration: 
     file: 'apps/web/lib/admin/readGalleriesScreen.ts',
     declaration: /const url = sizes\?\.thumb\?\.url/,
   },
+  // The Cover & About screen's 140px portrait (SCREENS.md §2.7) and the rows of
+  // the select that replaces it. Square on purpose: the portrait mount is a
+  // fixed 140px box drawn at `object-fit: cover`, and it is a PREVIEW of a
+  // photograph whose uncropped `hero` derivative the About page itself draws
+  // (`readBookBundle.ts`'s `PORTRAIT` ladder) — so the crop stops at this
+  // screen and never reaches a reader. One rung rather than a ladder for the
+  // reasons above: `thumb` is 400px square, which serves a 140px mount with
+  // room to spare, and an uncropped tier here would put a full-size photograph
+  // on the wire for a thumbnail.
+  {
+    file: 'apps/web/lib/admin/readCoverScreen.ts',
+    declaration: /const url = sizes\?\.thumb\?\.url/,
+  },
 ]
 
 /**
