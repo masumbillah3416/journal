@@ -22,6 +22,21 @@
  * `pageMutations.ts`'s `PAGE_REF` says: every write below derives what it needs
  * from the PAGE ROW.
  *
+ * THE MEDIA ROW IS THE ONE THING NOT DERIVED FROM THE PAGE, and it is trusted
+ * rather than checked. `setSlotMediaRow` gates the SHAPE of the id and asks
+ * nothing about whose journey it belongs to, because the only control that can
+ * name one is the journey pool, which lists this journey's media. A hand-built
+ * `POST` by an already-signed-in admin can place another journey's photograph,
+ * and the two readers then DISAGREE about it: `readJourneyEditor` resolves a
+ * preview only from this journey's pool, so the editor draws the cell empty,
+ * while `readBookBundle`'s media query is keyed on id alone and the published
+ * book draws the photograph. Closing it is one read of the media row against
+ * `live.journey`, in the shape the cell gate already has; it is not taken
+ * because no control can reach the state and CLAUDE.md §4 refuses the
+ * abstraction. Written down so the editor's "a state no control on this screen
+ * can create" is read as being about the CONTROL rather than about the action
+ * (Task 7 review, L3).
+ *
  * ═══ THE CELL IS CHECKED TWICE, AND THE TWO CHECKS ARE DIFFERENT QUESTIONS ═══
  *
  * The parse refuses a cell no pane draws AT ALL — `HIGHEST_SLOT_CELL`, derived

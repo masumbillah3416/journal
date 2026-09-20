@@ -40,6 +40,20 @@
  * once, by `showsClipAffordances`, on the server; the tile itself is still
  * drawn, because a clip ingested before the flag moved is content.
  *
+ * ═══ AND `inBook` HAS LOST ITS ONLY PER-TILE SURFACE ═══
+ *
+ * Stated because the consequence is easy to miss and expensive to rediscover.
+ * §2.3 gives a pool tile ONE piece of state — the ring and the tick — and the
+ * prototype's meaning for it is `media.inBook`. This screen spends that state
+ * on "the page being edited holds this photograph", so the `inBook` column now
+ * has no tile-level display at all: the eyebrow still counts it ("{n} of
+ * {total} in the book") and nothing says WHICH n. Nothing is lost today,
+ * because nothing writes `inBook` yet (`docs/qa/2026-09-19-journey-editor-sweep.md`,
+ * EDITOR-004, which names SCREENS.md §2.4 as the owner). The screen that makes
+ * the count non-zero is the one that has to decide whether this pool needs a
+ * second indicator — §2.4's own media grid already specifies an "In book" chip
+ * — and it is not this task's to build. See docs/deviations.md §63.
+ *
  * A TILE WITH NO DERIVATIVE DRAWS AN EMPTY SQUARE. `readJourneyEditor` answers
  * `null` for an upload too small to have a `thumb`, rather than falling back to
  * the original — a 2-column sidebar of 4000px uploads is the whole library on

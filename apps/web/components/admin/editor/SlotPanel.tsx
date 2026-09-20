@@ -71,6 +71,23 @@
  * PATTERNS (CLAUDE.md §3.3): none of the seven. One list, two overlays and
  * three server actions.
  *
+ * ═══ "SAVE WORDS" POSTS BOTH FIELDS, AND THAT IS NOTES-002's STALENESS ═══
+ *
+ * The button posts the caption AND the alt text, and whichever the author did
+ * not touch goes out as the props held it when the page was rendered. Two tabs
+ * on one cell: tab B fixes the alt text and saves; tab A, rendered before that,
+ * tidies the caption and presses Save words — and tab B's correction is
+ * reverted. It is the shape `NOTES-002` records for the highlight controls, a
+ * control posting a value rendered earlier.
+ *
+ * IT IS NARROWER THAN NOTES-002 IN ONE WAY AND NOT IN THE OTHER. The target is
+ * a {@link SlotKey}, so nothing can write to the WRONG CELL — but the value can
+ * be stale, which is the half that loses work. The answer, if it is ever worth
+ * code, is `notesMutations`': post an instruction (`caption` only, `alt` only)
+ * rather than both fields. It is not taken here because §2.3 specifies no such
+ * control and the pending-edit overlay already keeps an UNSAVED keystroke
+ * across a re-render, which is the case an author actually meets.
+ *
  * INVARIANT — every control posts the cell's own {@link SlotKey} and nothing
  * else identifying it, so no control can name one page's cell while another
  * page is open.

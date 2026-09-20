@@ -674,7 +674,9 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   editable, which is the invariant `readJourneysScreen.ts` carries one screen along.
 - **Auth requirement:** **signed in.** `requireAdminSession()` runs in this file before
   anything is drawn; an anonymous request is redirected to `/admin/sign-in`.
-- **Notes:** **the screen ships ONE client entry, and everything else is a form.** Selection
+- **Notes:** **the screen ships ONE client entry — 2,295 bytes gzipped — and everything else is
+  a form.** (`/admin/journeys/[id]` totals 136,975 against `/admin`'s 134,680; the route was
+  byte-identical to the shell until this task.) Selection
   is an address (`?page=<id>`, `?slot=<page>:<cell>`), and every control but the slot panel's
   is a `<form action={...}>`: the arrows carry the WHOLE new sequence of page ids, computed on
   the server by `movePage` while the rail renders, so the browser posts an outcome rather than

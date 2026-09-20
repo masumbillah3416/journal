@@ -154,9 +154,13 @@ because "clean" with no measurement is the claim these sweeps exist to stop.
   chip unconditionally, where the design spec §9.3 puts clip-specific affordances behind
   `MEDIA_PIPELINE`. That is a specification gap in Task 7's own scope, fixed in the commit that
   follows this sweep rather than recorded as a defect here.
-- **Two authors at once.** The staleness NOTES-002 records for the highlight controls applies to
-  the pool's `?slot=` target as well — a tile posts the cell the address named when the page was
-  rendered — and nothing here exercised two tabs.
+- **Two authors at once.** The staleness NOTES-002 records for the highlight controls applies
+  twice here, and nothing in this walk exercised two tabs. The pool's `?slot=` target is the
+  first: a tile posts the cell the address named when the page was rendered. **"Save words" is
+  the second, and it is the one that loses work** — the button posts the caption AND the alt
+  text, so whichever field the author did not touch goes out as the props held it, and a
+  correction made in another tab is reverted. Narrower than NOTES-002 in that the target is a
+  cell key, so nothing writes to the wrong cell; not narrower in what it overwrites.
 - **A slot whose media is not `ready`.** There is no such row in the developer's database and
   creating one would have meant a write this sweep could not cleanly undo. The behaviour has
   integration coverage (`readBookBundle.integration.test.ts`) and no browser walk.

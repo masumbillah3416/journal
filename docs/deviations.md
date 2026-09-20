@@ -2860,9 +2860,22 @@ is a `1fr` track inside `repeat(auto-fit, minmax(196px, 1fr))`, so there is no c
 divide by. The only alternative that keeps the screen script-free is a focal control that is not
 a click on the photograph, which is not the control §2.3 specifies.
 
-**What it costs, measured rather than assumed:** one client entry for the editor route. The
-admin budget is 320KB gzipped (`CLAUDE.md` §6) and Task 5's report recorded 189,694 bytes of
-headroom before this island.
+**What it costs, measured** — `scripts/route-client-js.mjs` after a production build at
+`8143c5e`:
+
+```text
+shared root chunks: raw=440665 gzip=130991
+/admin:                clientModules=8  total(raw=455099 gzip=134680)   our client components: none
+/admin/journeys:       clientModules=10 total(raw=461573 gzip=136309)   CreatePanel.tsx, RowActions.tsx
+/admin/journeys/[id]:  clientModules=9  total(raw=463266 gzip=136975)   components/admin/editor/SlotPanel.tsx
+```
+
+The editor route is **136,975 bytes gzipped** against the shell's **134,680** — **+2,295**,
+which is what the island costs. The admin budget is 320KB gzipped (`CLAUDE.md` §6), and Task 3's
+recorded headroom of **189,694** becomes **187,399**: the island spends **1.2%** of what the
+remaining screens are planned on, and the editor still sits below `/admin/journeys`, which
+already ships two islands. The route is no longer byte-identical to `/admin`, which was Task 5's
+reading and is the sentence this number replaces.
 
 **The guard was narrowed, not dropped.** `shellShipsNoClientJs.test.ts` still judges every other
 module in `components/admin/editor` and in the route's own directory; a SECOND island fails it
@@ -2898,6 +2911,17 @@ of them, so each had to be given a behaviour or left dead.
 - **The caption and alt fields have a "Save words" control.** §2.3 draws the two fields and no
   control that commits them; in a prototype nothing persists, so nothing had to. A field with
   no save is a field that silently discards what the author typed.
+
+**One consequence of the second bullet, recorded because it outlives this task.** §2.3 gives a
+pool tile ONE piece of per-tile state, and the tick now spends it on "this page holds this
+photograph" — so **`inBook` has lost its only per-tile display.** The eyebrow still counts it
+("{n} of {total} in the book") and no tile says which. Nothing is lost today, because nothing
+writes `inBook` yet (`docs/qa/2026-09-19-journey-editor-sweep.md`, EDITOR-004 names §2.4 as the
+owner). The screen that makes the count non-zero is the one that has to decide whether this pool
+needs a second indicator — §2.4's own media grid already specifies an "In book" chip — and it is
+not this task's to build. The sentence above that the count "still answers the question the
+prototype's label asks" is true of the NUMBER and should not be read as saying the tiles still
+show it.
 
 **What would reverse it:** a `SCREENS.md` revision that says what Replace does, or a screen
 elsewhere in the handoff that commits a text field without a button — which would give these
