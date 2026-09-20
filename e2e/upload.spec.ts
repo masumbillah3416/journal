@@ -68,14 +68,24 @@
  * 'manual'` is what a browser reports the redirect itself under, and the
  * substantive claim — that no bytes were written — is answered by the store.
  *
- * ═══ NEITHER CASE UPLOADS A PHOTOGRAPH ═══
+ * ═══ THE FIRST TWO CASES UPLOAD NO PHOTOGRAPH, AND THE THIRD DOES ═══
  *
- * There is no admin picker to drive yet (Phase 4), so the bytes are a filled
- * `Uint8Array` inside a `File`. What is under test here is the REQUEST a
- * browser makes and the guard that answers it; what happens to real
- * photograph bytes afterwards is
- * `apps/web/lib/media/roundTrip.integration.test.ts`'s, against a real
- * Postgres and a real store.
+ * The first two send a filled `Uint8Array` inside a `File`, because what is
+ * under test there is the REQUEST a browser makes and the guard that answers
+ * it. **Phase 4 Task 8 built the picker, so the third case drives the screen**
+ * — `/admin/media`'s own file input, its own Server Actions, its own PUT — and
+ * asserts what the grid then draws. That is the one chain no Vitest project
+ * can run: a Server Action is dispatched by Next.js under an opaque action id,
+ * so `requestUploadSlots` and `finaliseUpload` are only ever really called
+ * from a browser.
+ *
+ * WHAT THE THIRD CASE ASSERTS ABOUT THE TILE IS THE POINT: the `src` is the
+ * `thumb` DERIVATIVE, not the original. `readMediaScreen` answers `null`
+ * rather than falling back, and a grid that served originals would put the
+ * whole library on the wire at full size (CLAUDE.md §6, MED-001's shape one
+ * screen along). Both sides come off the row Payload wrote — the tile's `src`
+ * from the DOM, the two filenames from the database — so neither is a literal
+ * typed here.
  *
  * THE SLOT IS A FIXTURE WITH TEARDOWN, not a value a case remembers to clean
  * up. `removeOfferedUpload` used to be the last statement of the happy path,
@@ -83,14 +93,24 @@
  * the review found one after re-running a mutation. Fixture teardown runs on
  * a red case too, which is the only version that holds.
  *
+ * THE THIRD CASE WRITES TO THE DEVELOPER'S OWN `diary`, like every case in
+ * `admin.spec.ts`, and removes its journey, its media row and every file
+ * Payload derived from it in `afterAll` — the fixture-teardown discipline the
+ * rest of this file already has, for the same reason.
+ *
  * Depends on: @playwright/test; `aSignedInSession`, `fixtureLabel`,
  * `anUploadUrlFor`, `storedUploadLength`, `removeOfferedUpload`,
  * `removeSignedInFixture` and the `OfferedUpload` shape
  * (./support/adminSession); `EXPECTED_UPLOAD_REQUEST`
  * (apps/web/lib/media/uploadContract).
  */
+import { VIRTUAL_THRESHOLD, VIRTUAL_WINDOW } from '@travel-diary/domain/admin/gridColumns'
 import { expect, test as base } from '@playwright/test'
+import { MEDIA_DIR } from '../apps/web/collections/media'
+import { createLocalStorage } from '../apps/web/lib/adapters/local-storage'
+import { aPhotograph } from '../apps/web/lib/adapters/contract/media-fixtures'
 import { EXPECTED_UPLOAD_REQUEST } from '../apps/web/lib/media/uploadContract'
+import { getPayload } from '../apps/web/lib/payload'
 import type { OfferedUpload } from './support/adminSession'
 import {
   SESSION_FIXTURE_DOMAIN,
@@ -196,4 +216,139 @@ test('the receiver refuses the same PUT with no session, so an upload URL is not
   // unwraps `guarded` has to die under.
   expect(await storedUploadLength(upload.stagingKey)).toBeNull()
   expect(observed).toEqual({ status: 0, type: 'opaqueredirect' })
+})
+
+/** The slug prefix the Media-screen case's own journey carries. */
+const MEDIA_FIXTURE_SLUG = 'e2e-media-screen'
+
+test.afterAll(async () => {
+  // EVERY FILE, NOT ONLY THE ROW. Payload derives six tiers from one upload
+  // and `payload.delete` removes none of them (`docs/runbook.md`), so the
+  // names are read off the row BEFORE it goes and unlinked through the port.
+  const payload = await getPayload()
+  const journeys = await payload.find({
+    collection: 'journeys',
+    where: { slug: { like: MEDIA_FIXTURE_SLUG } },
+    pagination: false,
+    depth: 0,
+  })
+  const store = createLocalStorage(MEDIA_DIR)
+  for (const journey of journeys.docs) {
+    const media = await payload.find({
+      collection: 'media',
+      where: { journey: { equals: journey.id } },
+      pagination: false,
+      depth: 0,
+      select: { filename: true, sizes: true },
+    })
+    for (const row of media.docs) {
+      const derivatives: Record<string, { readonly filename?: string | null } | undefined> = row.sizes ?? {}
+      const names = [row.filename, ...Object.values(derivatives).map((size) => size?.filename)]
+      for (const name of names) {
+        if (typeof name === 'string') await store.delete(name)
+      }
+    }
+    await payload.delete({ collection: 'media', where: { journey: { equals: journey.id } } })
+  }
+  await payload.delete({ collection: 'journeys', where: { slug: { like: MEDIA_FIXTURE_SLUG } } })
+})
+
+test('the Media screen uploads a real photograph, and the tile it draws carries the derivative', async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  const label = fixtureLabel(testInfo)
+  const session = await aSignedInSession(`media.${label}`)
+  await context.addCookies([{ name: 'td-session', value: session, url: `${baseURL ?? ''}/admin` }])
+
+  // A journey of this case's own: uploading into a SEEDED one would leave the
+  // developer's `diary` changed for every screenshot taken afterwards.
+  const payload = await getPayload()
+  const journey = await payload.create({
+    collection: 'journeys',
+    data: {
+      name: `${MEDIA_FIXTURE_SLUG} ${label}`,
+      place: 'Japan',
+      slug: `${MEDIA_FIXTURE_SLUG}-${label}`,
+      dates: '3 – 14 April 2025',
+      _status: 'published',
+    },
+  })
+
+  // A REAL `sharp`-ENCODED PHOTOGRAPH, the same fixture family the ingest
+  // suite uses, so what crosses the wire is bytes a pipeline can actually
+  // re-encode rather than a filled array.
+  const bytes = await aPhotograph({ width: 900, height: 900 })
+  const filename = `${MEDIA_FIXTURE_SLUG}-${label}.jpg`
+
+  await page.goto('/admin/media')
+  await page.locator('[data-dropzone-journey]').selectOption(String(journey.id))
+  await page
+    .locator('#td-media-picker')
+    .setInputFiles({ name: filename, mimeType: 'image/jpeg', buffer: Buffer.from(bytes) })
+
+  // THE SCREEN'S OWN STATEMENT THAT THE FINALISE ANSWERED. The card counts a
+  // file done when its finalise has returned, never when its PUT has
+  // (`Dropzone.tsx`'s invariant), so this is the upload having become a row.
+  await expect(page.locator('[data-upload-count]')).toHaveText('Uploading — 1 of 1', { timeout: 30_000 })
+
+  // AND THEN THE GRID, THROUGH THE SEARCH. The unfiltered grid is the whole
+  // library sorted by `order`, a new row sorts last, and past a hundred tiles
+  // the grid WINDOWS — so on a seeded database the new tile is outside the
+  // drawn window, which is the virtualization working rather than a defect.
+  // Searching for it is the screen's own way to reach it, and it exercises the
+  // `like` narrowing at the same time.
+  await page.goto(`/admin/media?q=${encodeURIComponent(MEDIA_FIXTURE_SLUG)}`)
+  const tile = page.locator('[data-media-cell]', { hasText: filename }).locator('img')
+  await expect(tile).toHaveCount(1, { timeout: 30_000 })
+  const drawn = await tile.getAttribute('src')
+
+  // BOTH FILENAMES COME OFF THE ROW PAYLOAD WROTE. The left side is what the
+  // browser was served; the right sides are the store's own naming.
+  const created = await payload.find({
+    collection: 'media',
+    where: { journey: { equals: journey.id } },
+    pagination: false,
+    depth: 0,
+    select: { filename: true, sizes: true },
+  })
+  const row = created.docs[0]
+  expect(row).toBeDefined()
+  expect(row?.sizes?.thumb?.filename).toBeDefined()
+  expect(drawn).toContain(row?.sizes?.thumb?.filename ?? 'no-thumb')
+  // AND NOT THE ORIGINAL: a grid of originals is the whole library at full
+  // size on one page.
+  expect(drawn).not.toContain(`/${row?.filename ?? 'no-original'}`)
+
+  await removeSignedInFixture(`media.${label}@${SESSION_FIXTURE_DOMAIN}`)
+})
+
+test('the grid draws fewer tiles than the library holds, which jsdom cannot say', async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  // THE MEASUREMENT jsdom CANNOT TAKE. `MediaGrid.test.tsx` asks
+  // `virtualWindow` in its UNMEASURED arm, because jsdom lays nothing out;
+  // this is a real Chromium with a real grid, and what it reports is the
+  // element count against the row count the screen itself prints.
+  const label = fixtureLabel(testInfo)
+  const session = await aSignedInSession(`window.${label}`)
+  await context.addCookies([{ name: 'td-session', value: session, url: `${baseURL ?? ''}/admin` }])
+  await page.goto('/admin/media')
+
+  // The crumb is "{drawn} of {total}" — the SCREEN's own count of the rows it
+  // was handed, which is the number the DOM is held against.
+  const crumb = (await page.locator('[data-crumb]').textContent()) ?? ''
+  const rows = Number(crumb.split(' of ')[0] ?? '0')
+  test.skip(
+    rows <= VIRTUAL_THRESHOLD,
+    `this database holds ${String(rows)} media rows, at or below the ${String(VIRTUAL_THRESHOLD)} the grid starts windowing past — seed more to exercise it`,
+  )
+
+  await expect(page.locator('[data-media-tile]')).toHaveCount(VIRTUAL_WINDOW)
+  expect(VIRTUAL_WINDOW).toBeLessThan(rows)
+
+  await removeSignedInFixture(`window.${label}@${SESSION_FIXTURE_DOMAIN}`)
 })

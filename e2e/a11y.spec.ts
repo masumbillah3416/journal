@@ -67,6 +67,14 @@
  * four: each has a `<main>`, one level-one heading, a labelled control per
  * input and a named control per button.
  *
+ * PHASE 4 TASK 8 ADDS `/admin/media` (SCREENS.md §2.4), and it is walked with
+ * its BULK BAR OPEN. The bar is markup axe cannot see until a tile is
+ * selected, and both of the fields it reveals — the caption input and the
+ * journey select — are markup axe cannot see until their control is pressed.
+ * A case that only loaded the route would report a clean screen while three
+ * controls nobody had looked at sat behind a click, which is exactly what the
+ * journeys case's `⋯` strip exists to prevent one screen along.
+ *
  * TASK 8 ADDS THE SECOND SIGN-IN STATE, `/admin/sign-in/code`, with no
  * exclusions either. It is the first view in the product where `label` has six
  * unlabelled-looking boxes to judge - the code cells carry `aria-label`s
@@ -537,6 +545,33 @@ test('has no axe violations on /admin/journeys, the first screen with data on it
   await expect(page.locator('[data-journey-strip]').first()).toBeVisible()
   await page.locator('[data-create-open]').click()
   await expect(page.locator('[data-create-panel]')).toBeVisible()
+
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /admin/media, with its bulk bar open', async ({ page, context, baseURL }, testInfo) => {
+  // SCREENS.md §2.4, and a guarded screen like its neighbours above.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`a11ymedia.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin/media')
+  // The grid is drawn AND its tiles are there before axe looks: a screen that
+  // rendered an empty card would have no violations either. A tile is then
+  // SELECTED, because the bulk bar is markup axe cannot see until there is a
+  // selection — and both of its revealed fields are opened after it, for the
+  // same reason the journeys case opens the `⋯` strip.
+  await expect(page.locator('[data-admin-media]')).toBeVisible()
+  await expect(page.locator('[data-media-tile]').first()).toBeVisible()
+  await page.locator('[data-media-tile]').first().click()
+  await expect(page.locator('[data-bulk-bar]')).toBeVisible()
+  await page.locator('[data-bulk="caption"]').click()
+  await expect(page.locator('[data-bulk-entry="caption"]')).toBeVisible()
+  await page.locator('[data-bulk="move"]').click()
+  await expect(page.locator('[data-bulk-entry="move"]')).toBeVisible()
 
   await expectNoAxeViolations(page)
 })
