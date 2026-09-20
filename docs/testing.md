@@ -571,6 +571,30 @@ revised LCP budget for admin screens that draw images. Neither is Task 8's, and 
 otherwise by leaving a red URL in the config would have blocked the gate for every later task.
 The shortfall is `docs/deviations.md` §73.
 
+### `/admin/galleries` IS MEASURED THE SAME WAY, AND ITS OVERAGE HAS A DIFFERENT SHAPE
+
+Phase 4 Task 9 measured `http://localhost:3000/admin/galleries` against the same matrix, with
+the same five runs, the same production build and the same 1440x900 desktop emulation, and
+did not add the URL to `lighthouserc.admin.json` — for the reason the section above gives.
+
+| `/admin/galleries` as collected | script transfer | image requests | image transfer | LCP median  | CLS   |
+| ------------------------------- | --------------- | -------------- | -------------- | ----------- | ----- |
+| as built                        | 142,824         | 9              | 194,346        | **4,162ms** | 0.000 |
+
+All five runs: 4,215.7 / 4,152.2 / 4,000.8 / 4,173.1 / 4,162.0. The script-size and CLS
+assertions passed; LCP is over by 1,077ms.
+
+**Read the two tables together, because they do not say the same thing.** `/admin/media`
+carries 1.26MB of thumbnails and spends 2,553ms of its LCP in _Load Delay_ — its number is
+bytes. This screen carries 194KB, a seventh as much, and is still over: its LCP element is
+the selected-frame panel's preview and its phases are TTFB 456ms, Load Delay 709ms, Load Time
+92ms and **Render Delay 2,905ms**. Seventy per cent of the number is main-thread work after
+the bytes have arrived. So the two image-bearing admin screens miss the same gate for
+different reasons, and a fix aimed at either one alone would move only one of them.
+`docs/deviations.md` §80 carries the decision; the eager-loading experiment §73 measured
+worse was NOT repeated, because this screen's own phase breakdown says discovery is not its
+constraint either.
+
 Every URL **in `lighthouserc.admin.json`** is JUDGED and not merely collected, which was
 once a manual `lhci assert --includePassedAssertions` reading of the saved runs and is now
 `scripts/lighthouseJudged.test.js` — landed from the Task 3 review, run in the pre-commit

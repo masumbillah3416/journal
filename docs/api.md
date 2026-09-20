@@ -764,6 +764,63 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   displays it per tile - `docs/deviations.md` §63 records the column having had an eyebrow
   counting it and no tile showing it.
 
+### `GET /admin/galleries`
+
+- **Path:** `apps/web/app/(admin)/admin/galleries/page.tsx`; the frame is
+  `apps/web/components/admin/shell/AdminShell.tsx`, and the screen inside it is
+  `apps/web/components/admin/galleries/` — `FrameGrid.tsx`, with `SelectedFrame.tsx` and
+  `CaptionAll.tsx` drawn by it.
+- **Method:** `GET`. This route answers nothing else; its five mutations are Server Actions
+  with their own opaque `POST` addresses.
+- **Input:** the session cookie, plus one optional query parameter — `journey`, the row id of
+  the gallery being arranged. A repeated parameter takes its first value, and a journey that
+  is not there (a typo, a trashed journey somebody bookmarked) falls back to the first
+  offered rather than drawing a grid with nothing in it and no way out.
+- **Output:** an HTML document: `SCREENS.md` §2's shell — with the screen title "Galleries"
+  and a crumb reading "{n} frames" — around §2.5's screen: the journey select with its
+  "{name} — {n} frames" labels, the line "Drag to reorder. The first frame is the gallery
+  cover.", "Sort by date" and "Caption all", the bulk caption panel when it is open, the tile
+  grid, and the selected-frame panel beside it. `metadata` sets the document title and
+  `robots: { index: false, follow: false }`.
+- **Reads:** three call sites, eight queries, under ONE hoisted `adminScope` —
+  `readNavCounts` (four `payload.count` calls), one `findGlobal('site')` selecting `name`,
+  and `readGalleriesScreen` (three: the journeys the select offers, the pages that name the
+  decorative scraps, and every gallery frame in the diary). Eight whatever the size of the
+  diary: the "{n} frames" beside each option is a fold over the one media read, not a count
+  per journey (CLAUDE.md §6). Plus the one `users` row `adminScope` itself resolves.
+- **Errors:** none observable from the screen's own content. A refused read would throw
+  before anything is drawn. A journey with no frames draws "Nothing in this gallery yet." in
+  place of the grid, and a diary with no journeys at all draws "There are no journeys to
+  arrange yet."
+- **Auth requirement:** **signed in.** `requireAdminSession` runs in this file before
+  anything is drawn, with the same five refusals `GET /admin` lists.
+- **Notes:** **the arrangement is the diary's own.** `readGalleriesScreen` asks
+  `apps/web/lib/galleryFrames.ts` for both the `where` and the sort rather than writing its
+  own, so "first" means the same thing here as it does under `/gallery/<slug>` — which is
+  what makes §2.5's line, "The first frame is the gallery cover", one sentence about two
+  screens. It asks for ONE CLAUSE LESS: §2.5 draws a "Hidden" chip and the toggle that
+  clears it, so this is the one reader that passes `includeHidden`
+  (`docs/deviations.md` §79).
+
+  **Selection is a frame id, never a position** (CLAUDE.md §0.9, and §2.5 states it in bold).
+  The id is resolved against the list on screen on every render and falls back to the first
+  frame when it names nothing there, which is what happens the moment the select pushes
+  another address — Next.js re-renders the Server Component in place and the island keeps its
+  state (GAL-001, `docs/qa/2026-09-20-galleries-screen-sweep.md`).
+
+  **The screen ships ONE client entry**, and it is the whole screen
+  (`docs/deviations.md` §76). A drag is a pointer gesture no form post carries, and the
+  selection, the arrangement and the bulk panel are one screen's state.
+  `apps/web/lib/admin/shellShipsNoClientJs.test.ts` names the file and asserts the count.
+
+  **It is operable without a pointer.** Each tile's grip is a real button whose arrow keys
+  move the frame one place, and whose `Home` and `End` send it to either end
+  (`docs/deviations.md` §78). §2.5 specifies `cursor: grab` and nothing about a keyboard.
+
+  **A hidden frame is listed without its photograph** (`docs/deviations.md` §77), and **this
+  screen is not judged by the Lighthouse gate** (`docs/deviations.md` §80), measured at
+  4,162ms against 3,085ms with 70% of that in Render Delay rather than in bytes.
+
 ### `GET /admin/sign-in`
 
 - **Method:** `GET`. This route answers nothing else; see the note below.
@@ -1618,6 +1675,62 @@ Found` and a refused write. **The editing pane surfaces none of them** -
   **All three take arrays rather than `FormData`**, because §2.4's bulk bar is a client island
   holding a `ReadonlySet<MediaId>` and not a form - the one place in this repository where
   that is true.
+
+### `setFrameOrder(journey, order)` · `setFrameText(id, caption, alt)` · `setFrameFlags(id, flags)` · `setPosterAt(id, seconds)` · `applyBulkCaptions(rows)`
+
+- **Path:** `apps/web/app/(admin)/admin/galleries/actions.ts`; every decision is in
+  `apps/web/lib/admin/galleryMutations.ts`, which an integration test executes against a
+  real Payload.
+- **Method:** `POST`, to the opaque action ids Next.js mints. Dispatched by
+  `apps/web/components/admin/galleries/FrameGrid.tsx` inside `startTransition`, not by a
+  form.
+- **Input:** arrays and plain values rather than `FormData`, for §2.4's reason one screen
+  along — the whole screen is a client island and none of its controls is a form. A journey
+  row id and every one of its frames in the new order; a frame row id with a caption and an
+  alt text, either of which may be empty; a frame row id with `{ hidden, inBook }`; a frame
+  row id with a second or `null`; and one `{ id, caption }` per row the bulk panel drew.
+  Parsed at the boundary: ids are `z.coerce.number().int().positive()`, so
+  `Number('nonsense')` never reaches the driver as `NaN`; a list is `.min(1)` and
+  `.max(MAX_GALLERY_FRAMES)`; a poster second is `z.number().nonnegative().nullable()`.
+- **Output:** nothing, and a different set of invalidated addresses each. All five call
+  `revalidatePath('/admin/galleries')`. The three that change a column another admin screen
+  reads — `setFrameOrder` (`media.order`, which both other media readers SORT by),
+  `setFrameText` (`alt`, on both their tiles) and `setFrameFlags` (`inBook`, §2.4's chip and
+  the editor's eyebrow) — also call `revalidatePath('/admin/media')` and
+  `revalidatePath('/admin/journeys/[id]', 'page')`. `setPosterAt` and `applyBulkCaptions`
+  call only the first, and that is checked rather than assumed: nothing outside this screen
+  reads `media.posterAt` or `media.caption`. `/admin/journeys` is invalidated by none of
+  them, because §2.5 writes neither `media.journey` nor `media.isCover`
+  (`docs/deviations.md` §75). The table is pinned by
+  `apps/web/lib/admin/galleriesRevalidationRegistration.test.ts`, which COUNTS the
+  `'page'`-typed editor invalidations rather than searching for one.
+- **Errors:** a `ZodError` for anything the screen's own controls cannot produce; an `Error`
+  from `setFrameOrder` when the list does not name that journey's frames one for one — a
+  repeat, a stranger, or a frame that has since gone; and Payload's own for a refused write.
+  **None is drawn**: §2.5 has no error surface, and a rejection inside `startTransition`
+  surfaces as an unhandled promise rejection (`docs/deviations.md` §60, which this screen
+  inherits unchanged).
+- **Auth requirement:** **signed in.** All five are `guardedAction`s, so the guard runs
+  inside the action rather than being inherited from the page around it.
+- **Notes:** **a reorder touches only the rows that moved.** Every row takes a DIFFERENT
+  `order`, so this is the one write here that cannot be a single `where`-scoped update:
+  `setFrameOrder` reads the column first and writes only what changed, which after a drag of
+  one tile is the span it crossed. The property is observable —
+  `apps/web/lib/admin/galleryMutations.integration.test.ts` reads `updatedAt` off a frame
+  that did not move and finds it untouched.
+
+  **An arrangement that does not match the journey refuses whole.** Skipping the strangers
+  would write a partial arrangement and say nothing; the standing orders call that the
+  enumeration-where-inversion-was-needed species.
+
+  **None of this needs the versioned-write dance.** `media` carries no `versions` block, so
+  there is no newest version for a plain update to merge from — unlike `pages`, where
+  `pageMutations.ts`, `notesMutations.ts` and `slotMutations.ts` each write the live row and
+  the pending draft in the same call.
+
+  **A blank bulk caption is left alone**, which is §2.5's own line — "Anything left empty
+  keeps its file name for now." The panel submits every row it drew, blanks included, and
+  the rule about which of them is written is in one place.
 
 ## Planned routes (Phase 1)
 

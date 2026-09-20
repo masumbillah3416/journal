@@ -3265,3 +3265,167 @@ is new is that this one is measured and written down rather than left unnoticed.
 
 **Recorded as:** this entry, `docs/testing.md`'s `/admin/media` section, the comment at
 `MediaGrid.tsx`'s `<img>`, and Task 8's report, which names it first among its concerns.
+
+## 74 · "Sort by date" writes the arrangement, and its tick is derived rather than held
+
+**What changed:** `SCREENS.md` §2.5 describes the control as one that "toggles, reads
+'By date ✓' and turns terracotta when active". It is implemented as a control that WRITES
+`media.order` for the whole gallery, and its active state is computed on every render from
+the arrangement on screen — active exactly when that arrangement already is the date order
+— rather than held as a flag a press sets.
+
+**Rationale.** A view-only sort would put §2.5's "Cover" chip on a frame the public gallery
+does not lead with: the gallery is drawn from `media.order` through
+`apps/web/lib/galleryFrames.ts`'s `GALLERY_FRAME_SORT`, and the same §2.5 says in its own
+line that "The first frame is the gallery cover". Either the sort reaches that column or the
+chip is a lie. And once the sort writes, a HELD flag is the wrong shape too: dragging a tile
+afterwards breaks the date order, and a flag would still be lit. A derived tick turns itself
+off, which is what the word "toggles" has to mean once the sort is a write.
+
+**Recorded as:** this entry, `apps/web/components/admin/galleries/FrameGrid.tsx`'s header,
+and `apps/web/components/admin/galleries/FrameGrid.test.tsx`'s three "sort by date" cases —
+one of which renders an arrangement that arrives already sorted and asserts the tick without
+anything being pressed.
+
+## 75 · "Use as gallery cover" moves the frame to the front; it does not write `media.isCover`
+
+**What changed:** `SCREENS.md` §2.5's panel draws three toggles, and the middle one is "Use
+as gallery cover". It is dispatched as a reorder that puts the frame first, and
+`media.isCover` is not written by this screen at all. A frame that IS the cover shows the
+box ticked and disabled.
+
+**Rationale.** §2.5 says "The first frame is the gallery cover" one paragraph above the
+toggle. Those are two sentences about one thing, and the POSITION is the one the diary
+reads. Writing `media.isCover` as well would mint a second answer that the first tile can
+contradict; `apps/web/lib/admin/readJourneysScreen.ts` reads that column for §2.2's 44px
+cover square and keeps it. Unticking is refused rather than ignored because something has to
+be first: there is no state "this gallery has no cover" for the box to return to.
+
+**Recorded as:** this entry,
+`apps/web/components/admin/galleries/SelectedFrame.tsx`'s header,
+`apps/web/lib/admin/galleryMutations.ts`'s `setFrameFlags` TSDoc — which says why it writes
+two toggles and not three — and
+`apps/web/lib/admin/galleriesRevalidationRegistration.test.ts`, whose third case asserts
+that `/admin/journeys` is deliberately NOT invalidated, because nothing here writes a column
+it reads.
+
+## 76 · The Galleries screen ships a fourth client island, and it is the whole screen
+
+**What changed:** `apps/web/components/admin/galleries/FrameGrid.tsx` carries `'use client'`.
+The admin's island count goes from three to four. Its two panels —
+`apps/web/components/admin/galleries/SelectedFrame.tsx` and
+`apps/web/components/admin/galleries/CaptionAll.tsx` — carry no directive.
+
+**Rationale.** §2.5's grid is "Drag to reorder", and a drag is a pointer gesture: no form
+post carries "this tile now sits before that one". The selection, the arrangement and the
+bulk panel are one screen's state, so drawing the controls on the server and the grid in the
+browser would split that state across a boundary and put §2.5's one control row on two
+lines. The journey is still an ADDRESS — the select pushes `?journey=<id>` — so the screen
+survives a reload and can be sent to somebody. The panels are not islands because a module
+imported by a client entry is already part of that entry, and
+`apps/web/lib/admin/shellShipsNoClientJs.test.ts` counts ENTRIES: its `ISLANDS` allowlist
+names the one file and asserts the count, so a fifth fails by name.
+
+**Recorded as:** this entry, that allowlist, and `docs/api.md`'s `GET /admin/galleries`.
+
+## 77 · A hidden frame is listed without its photograph
+
+**What changed:** `SCREENS.md` §2.5 draws a withheld frame as the photograph under an
+`rgba(44,37,30,.5)` scrim with a solid "Hidden" chip. The tile draws the scrim and the chip
+over an EMPTY square: it requests no derivative at all.
+
+**Rationale.** `apps/web/collections/media.ts`'s reader rule withholds a `hidden` row from an
+unauthenticated reader, and `/api/media/file/<name>` is Payload's own route — it
+authenticates with Payload's cookie, which this application never issues, because the
+admin's session is `td-session` and the guard is ours. The admin browser is anonymous to
+that route by construction. Asking anyway is what the screen did for one commit: the request
+answered 403, the browser drew its broken-image box under the scrim, and every console
+carried an error (GAL-002, `docs/qa/2026-09-20-galleries-screen-sweep.md`).
+
+**What it costs an author**, said plainly rather than implied: they can see WHICH frame is
+withheld and put it back — this is the only screen that lists one at all — and they cannot
+see the photograph until it is back.
+
+**What would reverse it:** a byte route of ours that reads our own session, which is a
+`SECURITY.md` decision rather than a screen's, and which the same route would have to make
+for the journey editor's pool the day that screen shows a hidden row.
+
+**Recorded as:** this entry, the comment at
+`apps/web/components/admin/galleries/FrameGrid.tsx`'s `<img>`, and that component's test's
+"asks for no bytes at all for a hidden frame" case.
+
+## 78 · The grid is rearranged by arrow keys on a grip, which §2.5 does not draw
+
+**What changed:** each tile carries a three-bar grip §2.5 does draw, and that grip is a real
+`<button>`: `ArrowLeft`/`ArrowUp` move the frame one place towards the front,
+`ArrowRight`/`ArrowDown` one place towards the back, `Home` sends it to the front and `End`
+to the end. §2.5 specifies `cursor: grab` and nothing about a keyboard.
+
+**Rationale.** `cursor: grab` and HTML drag events say nothing to a keyboard, and a grid that
+can only be rearranged by dragging cannot be rearranged at all by somebody who does not use
+a pointer — on the screen whose whole subject is the arrangement. The keys are on the GRIP
+rather than on the tile so that arrowing between tiles to look at them cannot write anything,
+which is the hazard `docs/qa/2026-09-21-slots-keyboard-sweep.md` records one screen along.
+
+**Recorded as:** this entry, `apps/web/components/admin/galleries/FrameGrid.tsx`'s header,
+five cases in that component's test, and one in `e2e/admin.spec.ts` that presses the key in a
+real browser and reads the order back after a reload.
+
+## 79 · `galleryFrameWhere` gains one option, for the one reader allowed past the `hidden` clause
+
+**What changed:** `apps/web/lib/galleryFrames.ts`'s `galleryFrameWhere` takes a third
+parameter, `GalleryFrameScope`, whose single `includeHidden` option drops the
+`{ hidden: { not_equals: true } }` term. Every existing caller passes nothing and gets the
+answer it always got.
+
+**Rationale.** §2.5's grid draws a "Hidden" chip and the toggle that clears it, so the one
+screen that can un-hide a frame is the one screen that has to list one — and its question is
+this module's question minus exactly one clause. The alternative is a second spelling of
+"what is a gallery frame" in `apps/web/lib/admin/readGalleriesScreen.ts`, which is precisely
+the drift that module's header exists to stop: the rule was written three times once already
+(`docs/qa/2026-09-03-phase-1-closing-sweep.md`, PH1-002). The default is the
+security-relevant side, because all three public callers override access control.
+
+**Recorded as:** this entry, that module's header (exclusion 1), and two cases in
+`apps/web/lib/galleryFrames.test.ts` — one for each side of the switch.
+
+## 80 · The Galleries screen is not in the Lighthouse config either, and its overage is a different one
+
+**What changed:** `CLAUDE.md` §6 makes LCP ≤ 3,085ms a hard gate for every admin screen, and
+`lighthouserc.admin.json` is where a screen is judged. `/admin/galleries` was measured against
+that gate and is **not added to it** — the second admin screen in that position, after
+`/admin/media` (entry 73) and the journey editor.
+
+**What was measured**, five runs, production build, desktop form factor, 1440×900, DPR 1, on
+this machine, against the developer database's Bergen gallery (eight frames):
+
+| `/admin/galleries` | script transfer | image requests | image transfer | CLS   | LCP median  |
+| ------------------ | --------------- | -------------- | -------------- | ----- | ----------- |
+| as built           | 142,824         | 9              | 194,346        | 0.000 | **4,162ms** |
+
+All five runs: 4,215.7 / 4,152.2 / 4,000.8 / 4,173.1 / 4,162.0. The script and CLS assertions
+passed; LCP is the one that did not, by 1,077ms.
+
+**The overage is NOT the one entry 73 diagnosed, and that is the point of writing it down.**
+`/admin/media` is 1.26MB of thumbnails and its LCP element spent 2,553ms in _Load Delay_. This
+screen carries 194KB of images — a seventh of that — and is still over. Its LCP element is the
+selected-frame panel's preview, and its phases are TTFB 456ms, Load Delay 709ms, Load Time
+92ms and **Render Delay 2,905ms**. Seventy per cent of the number is main-thread work after
+the bytes have arrived, which is this screen being one client island (entry 76) rather than
+its photographs being heavy.
+
+**Entry 73's experiment was NOT repeated.** Eager-loading the first screenful was measured
+worse there by 732ms; this screen's own phase breakdown says discovery is not the constraint
+here either, so there is nothing for it to buy.
+
+**Why the URL is out rather than in and red:** entry 73's reason, unchanged — a gate that
+fails for a reason no change in this task can reach blocks `npm run test:perf` for every later
+task, and the numbers stop being read.
+
+**What would reverse it:** less script before the first paint. The drag §2.5 asks for is what
+makes the screen an island, so this is a budget decision about image-bearing admin screens
+rather than a defect in the screen — the decision entry 73 already puts at the phase review,
+now with a second and differently-shaped data point.
+
+**Recorded as:** this entry, `docs/testing.md`'s `/admin/galleries` section, and Task 9's
+report.
