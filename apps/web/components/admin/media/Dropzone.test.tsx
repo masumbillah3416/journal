@@ -367,10 +367,29 @@ describe('the upload one picked file drives', () => {
     // A table that answered one sentence for everything would pass the case
     // above and tell the author nothing. Every member of the union is spelled,
     // and `tsc` refuses the table if one is missing.
+    //
+    // ONE DISTINCT SENTENCE PER REFUSAL, which is what the name says. This
+    // asserted `> UPLOAD_REFUSALS.length / 2` and so passed against a table
+    // answering the same sentence for nine of sixteen — a case whose name
+    // promised more than it checked. The sixteen are in fact all distinct, so
+    // the honest assertion was available all along.
     const spelled = new Set(UPLOAD_REFUSALS.map((refusal) => refusalSentence(refusal)))
 
-    expect(spelled.size).toBeGreaterThan(UPLOAD_REFUSALS.length / 2)
+    expect(spelled.size).toBe(UPLOAD_REFUSALS.length)
     expect([...spelled].filter((sentence) => sentence === '')).toEqual([])
+  })
+
+  it('walks every refusal the table answers, rather than a list somebody kept beside it', () => {
+    // The other half of the same finding: `UPLOAD_REFUSALS` was a hand-written
+    // enumeration of a union `REFUSAL_SENTENCE` covers structurally, so a
+    // member added to both and forgotten here was type-checked and silently
+    // untested. It is now read off the table's own keys — this pins that it
+    // still is, by requiring a sentence for each and a count that cannot
+    // quietly shrink.
+    expect(UPLOAD_REFUSALS).toHaveLength(16)
+    // Both unions, so the list cannot have collapsed onto one of them.
+    expect(UPLOAD_REFUSALS).toContain('too-many-files')
+    expect(UPLOAD_REFUSALS).toContain('staged-bytes-missing')
   })
 
   it('tells the author why a finalise refused, not only a slot request', async () => {

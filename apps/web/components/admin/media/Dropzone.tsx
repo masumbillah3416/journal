@@ -109,40 +109,6 @@ export const acceptedFormatsNote = (accepted: readonly string[]): string => {
 }
 
 /**
- * Every way an upload can be refused, in one list.
- *
- * ═══ EXHAUSTIVE BY TYPE, NOT BY SOMEBODY REMEMBERING ═══
- *
- * {@link refusalSentence}'s table is a `Record` over this union, so a member
- * added to `SlotFailure` or `FinaliseFailure` fails `tsc` here rather than
- * reaching an author as its own name. That is the inversion
- * `eslint-rules/guarded-server-actions.js` is this repository's worked example
- * of, applied to copy: recognise what to say, do not enumerate what to hide.
- *
- * The list itself is here so `Dropzone.test.tsx` can walk it and require the
- * sentences to differ — a table with one sentence repeated sixteen times would
- * satisfy the type and tell the author nothing.
- */
-export const UPLOAD_REFUSALS: readonly (SlotFailure | FinaliseFailure)[] = [
-  'empty-request',
-  'too-many-files',
-  'too-large',
-  'type-not-offered',
-  'unnamed-file',
-  'invalid-journey',
-  'no-upload-url',
-  'svg-rejected',
-  'video-deferred',
-  'heic-unsupported',
-  'type-not-allowed',
-  'declared-mismatch',
-  'unreadable',
-  'key-not-staged',
-  'staged-bytes-missing',
-  'not-queued',
-]
-
-/**
  * What the author is told, per refusal.
  *
  * MEDIA-002: the row used to print the refusal's own member name —
@@ -171,6 +137,27 @@ const REFUSAL_SENTENCE: Readonly<Record<SlotFailure | FinaliseFailure, string>> 
   'staged-bytes-missing': 'the bytes never reached the store',
   'not-queued': 'it could not be handed on for processing',
 }
+
+/**
+ * Every way an upload can be refused, in one list.
+ *
+ * ═══ READ OFF THE TABLE, NOT WRITTEN OUT BESIDE IT ═══
+ *
+ * {@link REFUSAL_SENTENCE} is a `Record` over the whole
+ * `SlotFailure | FinaliseFailure` union, so a member added to either fails
+ * `tsc` there rather than reaching an author as its own name — the inversion
+ * `eslint-rules/guarded-server-actions.js` is this repository's worked example
+ * of, applied to copy: recognise what to say, do not enumerate what to hide.
+ *
+ * This WAS a second, hand-written enumeration of the same union sitting above
+ * that table, which `tsc` type-checked and nothing kept complete: a member
+ * added to the union and to the table, and forgotten here, was covered by the
+ * type and tested by nobody. Reading the table's own keys removes the second
+ * list, so the walk in `Dropzone.test.tsx` covers exactly what ships.
+ */
+export const UPLOAD_REFUSALS: readonly (SlotFailure | FinaliseFailure)[] = Object.keys(
+  REFUSAL_SENTENCE,
+) as readonly (keyof typeof REFUSAL_SENTENCE)[]
 
 /** What the row says when the PUT itself never landed. Not a refusal of ours. */
 const PUT_FAILED = 'the upload did not reach the store'

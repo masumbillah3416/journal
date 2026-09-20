@@ -49,12 +49,18 @@ import type { AdminScope } from './adminScope'
 /**
  * The most rows one bulk action may touch.
  *
- * Chosen against the screen rather than against a round number: the grid draws
- * at most a windowful of tiles at a time (`VIRTUAL_WINDOW` in
- * `@travel-diary/domain/admin/gridColumns`) and a selection is made by
- * clicking them, so a request naming more than a windowful is not one the
- * controls can produce. It is a ceiling on what one unattended `POST` can
- * rewrite, not a limit the author will meet.
+ * A CHOSEN CEILING, AND NOTHING DERIVES IT. `SCREENS.md` §2.4 specifies no cap
+ * at all, so this number is this implementation's: it bounds what one
+ * unattended `POST` can rewrite in a single statement, and it sits far enough
+ * above any selection an author builds by clicking that meeting it means
+ * something other than an author is calling.
+ *
+ * IT IS NOT ARGUED FROM `VIRTUAL_WINDOW`, which is what this said before and
+ * which was wrong twice over: the window is 120 and this is 500, so the
+ * arithmetic never reached the number; and the selection is island state that
+ * SURVIVES SCROLLING, so a selection larger than one windowful is exactly what
+ * the controls produce. Both sides of the cap are pinned by cases built from
+ * this constant, so the boundary follows it wherever it is moved.
  */
 export const MAX_BULK_MEDIA = 500
 

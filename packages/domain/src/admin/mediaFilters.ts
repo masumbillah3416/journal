@@ -91,9 +91,12 @@ export const matchesMediaFilter = (row: MediaTile, filter: MediaFilter): boolean
       return row.inBook
     case 'unused':
       return !row.inBook && row.placements === 0
-    // `everything` is the default arm rather than a case of its own, so a
-    // sixth chip added to the union without a case here fails `tsc` on the
-    // `switch`'s exhaustiveness rather than silently matching everything.
+    // THERE IS NO `default` ARM, and that is what makes the exhaustiveness
+    // hold: `everything` is a case like the other four, so a sixth chip added
+    // to the union without a case here leaves a path with no `return` and
+    // fails `tsc` (TS2366) rather than falling into a `default` that silently
+    // matched everything. Measured: adding a sixth member reports at this
+    // function's signature.
     case 'everything':
       return true
   }

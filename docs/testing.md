@@ -571,11 +571,14 @@ revised LCP budget for admin screens that draw images. Neither is Task 8's, and 
 otherwise by leaving a red URL in the config would have blocked the gate for every later task.
 The shortfall is `docs/deviations.md` §73.
 
-Every URL above is JUDGED and not merely collected, which was once a manual
-`lhci assert --includePassedAssertions` reading of the saved runs and is now
+Every URL **in `lighthouserc.admin.json`** is JUDGED and not merely collected, which was
+once a manual `lhci assert --includePassedAssertions` reading of the saved runs and is now
 `scripts/lighthouseJudged.test.js` — landed from the Task 3 review, run in the pre-commit
 gate, and the thing to read when a future task adds a URL to this config. `/admin/journeys`
-is matched by the `.*/admin/.*` matrix entry.
+is matched by the `.*/admin/.*` matrix entry. **`/admin/media` is the one section above that
+this sentence does not cover, and deliberately:** it is measured and NOT in the config, which
+is that section's whole subject — so there is no collected run of it to judge, and the
+numbers there are this document's record rather than a gate's.
 
 **`/admin/sign-in/code` is collected with no cookie**, so what it measures is the
 no-challenge placeholder rather than the pane a signing-in reader sees. Said rather than left
