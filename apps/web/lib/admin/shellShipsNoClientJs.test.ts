@@ -38,6 +38,17 @@
  * fails by name instead of being found by whichever task finally exceeded
  * 320KB.
  *
+ * ═══ TASK 9 ADDED A FOURTH, AND IT IS THE WHOLE OF ITS SCREEN ═══
+ *
+ * `components/admin/galleries/FrameGrid.tsx`. SCREENS.md §2.5's grid is "Drag
+ * to reorder", and there is no form post that carries "this tile now sits
+ * before that one" — every other control on that screen hangs off the same
+ * state, so drawing them apart would split one screen's state across a
+ * boundary. Its two panels, `SelectedFrame.tsx` and `CaptionAll.tsx`, carry NO
+ * directive and are not in the allowlist: a module imported by a client entry
+ * is part of that entry, and the allowlist counts entries. **The count is now
+ * four**, and `docs/api.md` says the same number.
+ *
  * The task's phase-shaping claim is that nothing in the SHELL's own directory
  * is a client component, which is why
  * `/admin` ships one script request fewer than any sign-in pane and why the
@@ -119,7 +130,11 @@ const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..')
  * the chips, which is why they are drawn there too (still a `GET` form and
  * five links).
  *
- * The cost is three small client entries against the headroom below, and each
+ * `FrameGrid.tsx` — SCREENS.md §2.5 is "Drag to reorder", which is a pointer
+ * gesture no form post carries, and the selection, the arrangement and the
+ * bulk panel are one screen's state.
+ *
+ * The cost is four small client entries against the headroom below, and each
  * is recorded in `docs/deviations.md` rather than only here.
  */
 const ISLANDS: readonly { readonly file: string; readonly why: string }[] = [
@@ -134,6 +149,10 @@ const ISLANDS: readonly { readonly file: string; readonly why: string }[] = [
   {
     file: 'components/admin/media/MediaGrid.tsx',
     why: "SCREENS.md §2.4's bulk bar appears with a selection, which is a set of ids",
+  },
+  {
+    file: 'components/admin/galleries/FrameGrid.tsx',
+    why: "SCREENS.md §2.5's grid is 'Drag to reorder', which no form post carries",
   },
 ]
 
@@ -168,6 +187,11 @@ const NO_CLIENT_JS: readonly { readonly directory: string; readonly why: string 
     why: "SCREENS.md §2.4's two islands are declared above, and a third is not",
   },
   { directory: 'app/(admin)/admin/media', why: 'the media route itself, and the actions its bulk bar dispatches' },
+  {
+    directory: 'components/admin/galleries',
+    why: "SCREENS.md §2.5's one island is declared above, and its two panels are not",
+  },
+  { directory: 'app/(admin)/admin/galleries', why: 'the galleries route itself, and the five actions it dispatches' },
 ]
 
 /** The directive that turns a module into a client entry point. */
@@ -216,6 +240,6 @@ describe('the declared client islands', () => {
     // header claiming it. `docs/api.md` says the editor ships ONE client entry
     // and the media screen two; a further island has to change those
     // sentences, and this is what makes it.
-    expect(ISLANDS).toHaveLength(3)
+    expect(ISLANDS).toHaveLength(4)
   })
 })
