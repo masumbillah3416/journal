@@ -103,6 +103,41 @@ interface Spies {
  */
 const anAction = (): ActionSpy => vi.fn<(form: FormData) => Promise<void>>(() => Promise.resolve())
 
+/**
+ * Mounts the panel into ONE root and hands back a re-render, so a case can
+ * give the SAME component instance the server's next answer — which is what
+ * `revalidatePath` does to this island: same route, same position, new props.
+ * @param slots - The cells to draw.
+ * @returns The host, the spies, and a re-render.
+ */
+const mountPanel = (
+  slots: readonly EditorSlot[],
+): { readonly host: HTMLElement; readonly again: (next: readonly EditorSlot[]) => void } & Spies => {
+  const spies: Spies = { setFocal: anAction(), setText: anAction(), clear: anAction() }
+  const host = document.createElement('div')
+  document.body.appendChild(host)
+  const root = createRoot(host)
+  roots.push(root)
+  const draw = (next: readonly EditorSlot[]): void => {
+    act(() => {
+      root.render(
+        <SlotPanel
+          journey={aJourney('42')}
+          slots={next}
+          editorHref="/admin/journeys/42?page=7"
+          targeted={null}
+          shape="grid"
+          setFocal={spies.setFocal}
+          setText={spies.setText}
+          clear={spies.clear}
+        />,
+      )
+    })
+  }
+  draw(slots)
+  return { host, again: draw, ...spies }
+}
+
 const renderPanel = (
   slots: readonly EditorSlot[],
   targeted: SlotKey | null = null,
@@ -399,6 +434,54 @@ describe('SlotPanel', () => {
 
     expect(setFocal).not.toHaveBeenCalled()
     expect(cropOf(host, '7:0')).toBe('22% 78%')
+  })
+
+  it('shows the cell the server’s own focal point after the server re-centred it', () => {
+    // LANDED FROM THE TASK 7 REVIEW'S PROBE (M1), wording kept. Two of this
+    // task's own writes re-centre the cell ON THE SERVER — `setSlotMediaRow`
+    // ("a crop chosen for the last photograph is not kept for this one") and
+    // `clearSlotRow` — and both then `revalidatePath`, which re-renders this
+    // island IN PLACE. An overlay that is never invalidated keeps drawing the
+    // point the author last clicked while the database, `readBookBundle` and
+    // the reader all hold the centre.
+    const { host, again } = mountPanel([aSlot('7:0', { focal: { x: 50, y: 50 } })])
+
+    clickAt(cellOf(host, '7:0'), { clientX: 150, clientY: 126 })
+    expect(cropOf(host, '7:0')).toBe('25% 50%')
+
+    again([aSlot('7:0', { focal: { x: 50, y: 50 }, media: aMedia('12'), previewSrc: '/api/media/file/another.png' })])
+
+    expect(cropOf(host, '7:0')).toBe('50% 50%')
+    expect(host.querySelector('[data-focal-pill]')?.textContent).toBe('centred — click to focus')
+  })
+
+  it('keeps a pending edit across a re-render the server did not change the cell in', () => {
+    // THE OTHER SIDE, and the reason the overlay exists at all: a re-render
+    // that carries the SAME stored point must not throw away what the author
+    // just aimed at while the write is still in flight. An overlay dropped on
+    // every render would make the crop jump back under the pointer.
+    const { host, again } = mountPanel([aSlot('7:0', { focal: { x: 50, y: 50 } })])
+
+    clickAt(cellOf(host, '7:0'), { clientX: 150, clientY: 126 })
+    again([aSlot('7:0', { focal: { x: 50, y: 50 }, caption: 'a caption the author saved meanwhile' })])
+
+    expect(cropOf(host, '7:0')).toBe('25% 50%')
+  })
+
+  it('drops a half-typed caption once the server has emptied the cell under it', () => {
+    // THE SAME CLASS AS THE FOCAL OVERLAY, one field along: `clearSlotRow`
+    // blanks the caption and the alt text as well as re-centring, so a words
+    // overlay that only ever grew would keep offering the author text the
+    // database no longer holds — and "Save words" would write it back.
+    const { host, again } = mountPanel([aSlot('7:0', { caption: 'Alfama, from a step' })])
+
+    const field = host.querySelector<HTMLInputElement>('[data-slot-caption]')
+    if (field === null) throw new Error('no caption field')
+    type(field, 'Alfama, from a step I sat on')
+
+    again([aSlot('7:0', { media: null, previewSrc: null, caption: '', alt: '' })])
+
+    expect(host.querySelector<HTMLInputElement>('[data-slot-caption]')?.value).toBe('')
   })
 
   it('draws the reticle where the point is, so the author can see what they aimed at', () => {

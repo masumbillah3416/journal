@@ -133,6 +133,22 @@ export const isCentred = (point: FocalPoint): boolean => point.x === CENTRE && p
 export const FOCAL_NUDGE = 1
 
 /**
+ * Whether two points name the same anchor.
+ *
+ * A VALUE OBJECT IS COMPARED BY ITS VALUES, and here that is not pedantry: the
+ * editor's pane holds a pending edit against the point it was made over and
+ * drops it once the server's point for that cell has moved (Task 7 review,
+ * M1). Two renders never hand over the same object, so identity answers "has
+ * it moved?" with `yes` every time.
+ * @param one - A point.
+ * @param other - Another.
+ * @returns Whether both components agree.
+ * @example
+ * sameFocalPoint({ x: 22, y: 78 }, { x: 22, y: 78 }) // true
+ */
+export const sameFocalPoint = (one: FocalPoint, other: FocalPoint): boolean => one.x === other.x && one.y === other.y
+
+/**
  * The point an arrow key moves to.
  *
  * ═══ WHY THE KEYBOARD NEEDS ITS OWN CONSTRUCTOR ═══

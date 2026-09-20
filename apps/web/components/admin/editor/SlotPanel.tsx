@@ -36,11 +36,20 @@
  * and never keyed on the cell alone — which is CLAUDE.md §0.9 and the five
  * defects `DATA_MODEL.md` attributes to exactly that.
  *
- * It is an OVERLAY over the server's own values rather than a copy of them: a
- * lookup that misses falls back to the slot's stored value. That is what makes
- * selecting another page correct with no reset — the new page's cells have keys
- * this map has never held, so every one of them reads the database's value. The
- * caption and alt text are held the same way, for the same reason.
+ * It is a PENDING EDIT over the server's own values, not a cache of them, and
+ * the difference is the whole of Task 7 review M1. Each entry carries the value
+ * it was made over (`against`), and is ignored the moment the server's value
+ * for that cell has moved — because two of this screen's own writes move it:
+ * `setSlotMediaRow` and `clearSlotRow` both re-centre the cell, and
+ * `revalidatePath` then re-renders this island IN PLACE, same component, new
+ * props. An overlay that only ever grew kept drawing the author's last click
+ * while the database and the reader held the centre: a crop that does not
+ * exist, on the one screen whose exit criterion is that its control is not
+ * decorative. A lookup that misses still falls back to the stored value, which
+ * is what makes selecting another page correct with no reset — the new page's
+ * cells have keys this map has never held. The caption and alt text are held
+ * the same way, and for the second reason too: Clear blanks them on the
+ * server.
  *
  * ═══ REPLACE IS A LINK, WHICH IS A DEVIATION AND A DELIBERATE ONE ═══
  *
@@ -66,7 +75,7 @@
  * else identifying it, so no control can name one page's cell while another
  * page is open.
  * Depends on: react, `focalPointFrom`/`focalPointLabel`/`isCentred`/`FocalPoint`
- * (@travel-diary/domain/admin/focalPoint), `JourneyId`/`SlotKey`
+ * (@travel-diary/domain/admin/focalPoint), `JourneyId`/`MediaId`/`SlotKey`
  * (@travel-diary/domain/ids), `EditorSlot` (../../../lib/admin/readJourneyEditor),
  * ./editor.module.css.
  */
@@ -76,13 +85,38 @@ import {
   focalPointLabel,
   isCentred,
   nudgeFocalPoint,
+  sameFocalPoint,
   type FocalPoint,
 } from '@travel-diary/domain/admin/focalPoint'
-import type { JourneyId, SlotKey } from '@travel-diary/domain/ids'
+import type { JourneyId, MediaId, SlotKey } from '@travel-diary/domain/ids'
 import type React from 'react'
 import { startTransition, useState } from 'react'
 import type { EditorSlot } from '../../../lib/admin/readJourneyEditor'
 import styles from './editor.module.css'
+
+/**
+ * An edit the author has made and the server has not answered for yet.
+ *
+ * `against` is what the server said when the edit was made. The edit is drawn
+ * while that still matches, and dropped the moment it does not — see this
+ * module's header.
+ */
+interface Pending<Value> {
+  /** What the author changed it to. */
+  readonly value: Value
+  /** What the server held when they changed it. */
+  readonly against: Value
+  /**
+   * Which photograph was in the cell when they changed it.
+   *
+   * WITHOUT THIS THE COMPARISON CANNOT SEE THE CASE IT EXISTS FOR. Both writes
+   * that invalidate an edit re-centre the cell to 50/50 — which is very often
+   * the value it already had, so "has the stored point moved?" answers NO
+   * while everything else about the cell has changed. The photograph is what
+   * moved, and a focal point belongs to a placement rather than to a cell.
+   */
+  readonly media: MediaId | null
+}
 
 /** A cell's words, as the two fields hold them. */
 interface SlotWords {
@@ -148,8 +182,8 @@ export const SlotPanel = ({
   setText,
   clear,
 }: SlotPanelProps): React.JSX.Element => {
-  const [points, setPoints] = useState<Readonly<Partial<Record<SlotKey, FocalPoint>>>>({})
-  const [words, setWords] = useState<Readonly<Partial<Record<SlotKey, SlotWords>>>>({})
+  const [points, setPoints] = useState<Readonly<Partial<Record<SlotKey, Pending<FocalPoint>>>>>({})
+  const [words, setWords] = useState<Readonly<Partial<Record<SlotKey, Pending<SlotWords>>>>>({})
 
   /**
    * The body every control posts: the journey, for the cache address, and the
@@ -199,9 +233,16 @@ export const SlotPanel = ({
    * count, a synthesised activation carries 0. The arrows below are the
    * keyboard's way to a real value.
    * @param slot - The cell clicked.
+   * @param stored - What the server holds for it, which the edit is made over.
+   * @param media - The photograph in the cell, which the edit also belongs to.
    * @param event - The pointer event.
    */
-  const focus = (slot: SlotKey, event: React.MouseEvent<HTMLButtonElement>): void => {
+  const focus = (
+    slot: SlotKey,
+    stored: FocalPoint,
+    media: MediaId | null,
+    event: React.MouseEvent<HTMLButtonElement>,
+  ): void => {
     if (event.detail === 0) return
 
     const measured = focalPointFrom(event, event.currentTarget.getBoundingClientRect())
@@ -214,7 +255,7 @@ export const SlotPanel = ({
     // before the state as well as before the write keeps the reticle, the pill
     // and the column on the same number across a reload.
     const point = { x: Math.round(measured.x), y: Math.round(measured.y) }
-    setPoints((held) => ({ ...held, [slot]: point }))
+    setPoints((held) => ({ ...held, [slot]: { value: point, against: stored, media } }))
     commit(slot, point)
   }
 
@@ -226,18 +267,36 @@ export const SlotPanel = ({
    * on a versioned collection (`pageMutations.ts`'s header says why that is not
    * free). One physical press is one write, whatever the repeat rate.
    * @param slot - The cell focused.
+   * @param stored - What the server holds for it, which the edit is made over.
+   * @param media - The photograph in the cell, which the edit also belongs to.
    * @param from - Where its crop is anchored now.
    * @param by - How far to move.
    */
-  const nudge = (slot: SlotKey, from: FocalPoint, by: FocalPoint): void => {
-    setPoints((held) => ({ ...held, [slot]: nudgeFocalPoint(from, by) }))
+  const nudge = (slot: SlotKey, stored: FocalPoint, media: MediaId | null, from: FocalPoint, by: FocalPoint): void => {
+    setPoints((held) => ({ ...held, [slot]: { value: nudgeFocalPoint(from, by), against: stored, media } }))
   }
 
   return (
     <div data-slot-panel={shape} className={shape === 'grid' ? styles.framesGrid : styles.slotStack}>
       {slots.map((slot) => {
-        const point = points[slot.key] ?? slot.focal
-        const said = words[slot.key] ?? { caption: slot.caption, alt: slot.alt }
+        const stored = { caption: slot.caption, alt: slot.alt }
+        const pendingPoint = points[slot.key]
+        const pendingWords = words[slot.key]
+        // A PENDING EDIT IS DRAWN ONLY WHILE THE SERVER STILL HOLDS WHAT IT WAS
+        // MADE OVER — see this module's header, and Task 7 review M1.
+        const point =
+          pendingPoint !== undefined &&
+          pendingPoint.media === slot.media &&
+          sameFocalPoint(pendingPoint.against, slot.focal)
+            ? pendingPoint.value
+            : slot.focal
+        const said =
+          pendingWords !== undefined &&
+          pendingWords.media === slot.media &&
+          pendingWords.against.caption === stored.caption &&
+          pendingWords.against.alt === stored.alt
+            ? pendingWords.value
+            : stored
         const empty = slot.previewSrc === null
 
         return (
@@ -263,7 +322,7 @@ export const SlotPanel = ({
               aria-label={`Set the focal point of ${slot.label} — click it, or move it with the arrow keys`}
               className={styles.slotImage}
               onClick={(event) => {
-                focus(slot.key, event)
+                focus(slot.key, slot.focal, slot.media, event)
               }}
               onKeyDown={(event) => {
                 const by = NUDGE_BY[event.key]
@@ -271,16 +330,17 @@ export const SlotPanel = ({
                 // The arrows scroll the page by default, and this element is
                 // inside a pane that scrolls.
                 event.preventDefault()
-                nudge(slot.key, point, by)
+                nudge(slot.key, slot.focal, slot.media, point, by)
               }}
               onKeyUp={(event) => {
                 // ONLY WHAT WAS MOVED IS WRITTEN. A release with no nudge
                 // behind it — a key held down before this cell took the focus,
                 // or an arrow released after the page scrolled — would
                 // otherwise post the value that is already stored.
-                const moved = points[slot.key]
-                if (NUDGE_BY[event.key] === undefined || moved === undefined) return
-                commit(slot.key, moved)
+                // The pending edit itself, not the effective point: a
+                // release with no nudge behind it must post nothing.
+                if (NUDGE_BY[event.key] === undefined || pendingPoint === undefined) return
+                commit(slot.key, point)
               }}
               style={
                 empty
@@ -345,7 +405,10 @@ export const SlotPanel = ({
                 className={styles.slotCaption}
                 onChange={(event) => {
                   const caption = event.target.value
-                  setWords((held) => ({ ...held, [slot.key]: { ...said, caption } }))
+                  setWords((held) => ({
+                    ...held,
+                    [slot.key]: { value: { ...said, caption }, against: stored, media: slot.media },
+                  }))
                 }}
               />
               <input
@@ -357,7 +420,10 @@ export const SlotPanel = ({
                 className={styles.slotAlt}
                 onChange={(event) => {
                   const alt = event.target.value
-                  setWords((held) => ({ ...held, [slot.key]: { ...said, alt } }))
+                  setWords((held) => ({
+                    ...held,
+                    [slot.key]: { value: { ...said, alt }, against: stored, media: slot.media },
+                  }))
                 }}
               />
               <button

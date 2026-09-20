@@ -13,7 +13,15 @@
  */
 import { describe, expect, it } from 'vitest'
 import { pageId, slotKey, type PageId } from '../ids'
-import { FOCAL_NUDGE, focalPointFrom, focalPointLabel, isCentred, nudgeFocalPoint, slotKeyFor } from './focalPoint'
+import {
+  FOCAL_NUDGE,
+  focalPointFrom,
+  focalPointLabel,
+  isCentred,
+  nudgeFocalPoint,
+  sameFocalPoint,
+  slotKeyFor,
+} from './focalPoint'
 
 /**
  * A branded page id.
@@ -128,6 +136,21 @@ describe('isCentred', () => {
   it('calls a point one percent off centre not centred', () => {
     expect(isCentred({ x: 50, y: 51 })).toBe(false)
     expect(isCentred({ x: 49, y: 50 })).toBe(false)
+  })
+})
+
+describe('sameFocalPoint', () => {
+  it('calls two readings of one stored point the same', () => {
+    // WHY IT EXISTS. `SlotPanel` holds a pending edit against the value it was
+    // made over, and drops it once the server's value for that cell has moved
+    // — so "has it moved?" has to be asked of a pair, not of an identity: two
+    // renders never hand over the same object.
+    expect(sameFocalPoint({ x: 22, y: 78 }, { x: 22, y: 78 })).toBe(true)
+  })
+
+  it('notices a move in either component, not just the first', () => {
+    expect(sameFocalPoint({ x: 22, y: 78 }, { x: 23, y: 78 })).toBe(false)
+    expect(sameFocalPoint({ x: 22, y: 78 }, { x: 22, y: 79 })).toBe(false)
   })
 })
 
