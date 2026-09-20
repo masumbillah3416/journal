@@ -8,9 +8,14 @@
  * control is decorative. It is a Phase 4 exit criterion for exactly that
  * reason." The last case in this file is the DATA half of that — two reads of
  * `readBookBundle`, the production mapper, around one call — and Task 15 is the
- * pixel half. Nothing in it asserts a literal that the action was also given:
- * the two sides of `expect(beforeSlot).not.toEqual(afterSlot)` are the same
- * mapper against the same database, before and after.
+ * pixel half. WHAT CARRIES IT is `expect(beforeSlot).not.toEqual(afterSlot)`,
+ * whose two sides are the same mapper against the same database before and
+ * after one write — `beforeSlot` was never told `12, 87`, and mutation N
+ * (`setSlotFocalRow` writes nothing) fails on that line. The two `toBe` lines
+ * after it DO assert literals the write was also given, and are there to say
+ * WHICH way it moved rather than to prove that it did; an earlier version of
+ * this header claimed the case asserted no such literal, which was overstated
+ * (Task 7 review).
  *
  * ═══ AND IT IS A LIVE-ROW WRITE ON A VERSIONED COLLECTION ═══
  *
