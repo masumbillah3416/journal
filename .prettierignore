@@ -66,6 +66,19 @@ node_modules/
 # generate:types`.
 apps/web/payload-types.ts
 
+# A SWEEP'S ASSETS ARE EVIDENCE, NOT SOURCE — the same argument this file opens
+# with for `handoff/`. Every file under here was written by a browser walk and
+# is cited, byte for byte, by a report in `docs/qa/`; reformatting one would
+# rewrite a measurement, and a later reader could not tell our wrapping from
+# what the walk recorded. Until Phase 4 Task 7 the directory held only `.png`,
+# which the block below already covered, so nothing had to say this out loud.
+#
+# NOT a directory entry: a line ending in `/` becomes a probe in
+# `adminGuardRegistration.test.ts` and has to be matched in `eslint.config.js`.
+# This one is a glob, like the binaries below, so it adds no probe — and needs
+# none, because nothing in `eslint.config.js` lints a sweep's readings.
+docs/qa/assets/**
+
 # Binary and lockfiles Prettier would either mangle or churn.
 *.png
 *.woff2

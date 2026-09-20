@@ -1,0 +1,40 @@
+{
+  "shape": {
+    "paneScroll": 718,
+    "paneClient": 718,
+    "docScroll": 1000,
+    "docClient": 1000,
+    "wide": [],
+    "cells": [
+      {
+        "key": "533:0",
+        "label": "Hero",
+        "height": 186,
+        "width": 678,
+        "captionFont": "23px",
+        "altFont": "14.5px"
+      },
+      {
+        "key": "533:1",
+        "label": "Ephemera",
+        "height": 124,
+        "width": 678,
+        "captionFont": "23px",
+        "altFont": "14.5px"
+      }
+    ]
+  },
+  "violations": [
+    {
+      "id": "scrollable-region-focusable",
+      "impact": "serious",
+      "nodes": [
+        ".editor-module__Ihypcq__poolGrid"
+      ]
+    }
+  ],
+  "noise": [
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected"
+  ]
+}

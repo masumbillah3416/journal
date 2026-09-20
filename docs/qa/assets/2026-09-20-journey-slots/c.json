@@ -1,0 +1,123 @@
+{
+  "before": [
+    {
+      "role": "frame",
+      "media": 1503,
+      "caption": "Vending machine at 6am, Nakameguro",
+      "alt": null,
+      "focalX": 22,
+      "focalY": 78
+    },
+    {
+      "role": "frame",
+      "media": 1504,
+      "caption": "The cat that runs the bookshop",
+      "alt": null,
+      "focalX": 50,
+      "focalY": 50
+    },
+    {
+      "role": "frame",
+      "media": 1505,
+      "caption": "Train seats, upholstered like a sofa",
+      "alt": null,
+      "focalX": 50,
+      "focalY": 50
+    }
+  ],
+  "chosen": {
+    "url": "?page=534&slot=534:3",
+    "instruction": "Tick a photograph to place it in the frame you chose.",
+    "anyDisabled": false,
+    "slotField": "534:3"
+  },
+  "placed": [
+    {
+      "role": "frame",
+      "media": 1503,
+      "caption": "Vending machine at 6am, Nakameguro",
+      "alt": null,
+      "focalX": 22,
+      "focalY": 78
+    },
+    {
+      "role": "frame",
+      "media": 1504,
+      "caption": "The cat that runs the bookshop",
+      "alt": null,
+      "focalX": 50,
+      "focalY": 50
+    },
+    {
+      "role": "frame",
+      "media": 1505,
+      "caption": "Train seats, upholstered like a sofa",
+      "alt": null,
+      "focalX": 50,
+      "focalY": 50
+    },
+    {
+      "role": "frame",
+      "media": 1501,
+      "caption": null,
+      "alt": null,
+      "focalX": 50,
+      "focalY": 50
+    }
+  ],
+  "afterPlace": {
+    "ticked": [
+      "1501",
+      "1503",
+      "1504",
+      "1505"
+    ],
+    "cellEmpty": false
+  },
+  "cleared": [
+    {
+      "role": "frame",
+      "media": 1503,
+      "caption": "Vending machine at 6am, Nakameguro",
+      "alt": null,
+      "focalX": 22,
+      "focalY": 78
+    },
+    {
+      "role": "frame",
+      "media": 1504,
+      "caption": "The cat that runs the bookshop",
+      "alt": null,
+      "focalX": 50,
+      "focalY": 50
+    },
+    {
+      "role": "frame",
+      "media": 1505,
+      "caption": "Train seats, upholstered like a sofa",
+      "alt": null,
+      "focalX": 50,
+      "focalY": 50
+    },
+    {
+      "role": "frame",
+      "media": null,
+      "caption": null,
+      "alt": null,
+      "focalX": 50,
+      "focalY": 50
+    }
+  ],
+  "noise": [
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected"
+  ]
+}

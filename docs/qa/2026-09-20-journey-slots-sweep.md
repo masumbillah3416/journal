@@ -31,6 +31,14 @@ have something to be wrong about.
 back afterwards; `select focal_x, focal_y, media_id from pages_slots where _parent_id in
 (533,534)` reads the same nine rows before and after the sweep.
 
+**Where the evidence is.** Every measurement below was written to a file by the walk and those
+files are in `docs/qa/assets/2026-09-20-journey-slots/` — eight JSON readings (`a-*.json` for
+the frames page at each surface, `b`–`e` for the writing walks, `f-*.json` for the notes page)
+and the eight full-page screenshots beside them. A citation like `(b.json)` means that file.
+They are committed for the reason every earlier sweep's assets are: the report is prose, and a
+reader checking the exit criterion's number should not have to rebuild the walk to see it. (The
+first version of this file shipped the prose and none of the readings — Task 7 review, M2.)
+
 **Nothing here is patched in this commit.** `CLAUDE.md` §10: a fix without a test that failed
 first guards nothing.
 
@@ -63,8 +71,9 @@ first guards nothing.
   a-mid.json, a-mobile.json, f-desktop.json, f-mid.json, f-mobile.json: the same violation.
   ```
 
-- **Evidence:** `t7-a-desktop.json`, `t7-a-mid.json`, `t7-a-mobile.json`, `t7-f-*.json`
-  (the axe run is in each).
+- **Evidence:** `a-desktop.json`, `a-mid.json`, `a-mobile.json`, `f-desktop.json`, `f-mid.json`,
+  `f-mobile.json` — the axe run is in each, under `violations` — and the six screenshots beside
+  them.
 
 ### SLOT-002 · S4 · A focal point is stored to fifteen significant digits, and the pill says something else
 
@@ -87,7 +96,8 @@ first guards nothing.
           "after": [ …, { "focalX": 24.836806920959496, "focalY": 79.60526315789474 }, … ]
   ```
 
-- **Evidence:** `t7-b.json`.
+- **Evidence:** `b.json`, whose `after` array is the `pages` row read back through Payload and
+  whose `published` array is the computed `object-position` of every mount on `/p/4`.
 
 ## Clean
 
@@ -98,14 +108,14 @@ because "clean" with no measurement is the claim these sweeps exist to stop.
   was centred (`50% 50%` in the column and in the editor). One click in the editor, then
   `/p/4` — the published face — was loaded fresh, and its second mount's computed
   `object-position` read `24.8368% 79.6053%`. The other six mounts on that leaf were unchanged.
-  **The control is not decorative** (`t7-b.json`, `published`).
+  **The control is not decorative** (`b.json`, `published`).
 - **The Frames pane draws four cells against three stored rows.** Frame 4 is drawn `data-empty`,
   `disabled`, with `cursor: default`, no reticle and a disabled Clear — and its Replace still
-  addresses it, which is how a photograph gets into it (`t7-a-*.json`).
+  addresses it, which is how a photograph gets into it (`a-*.json`).
 - **The three heights are §2.3's.** Hero 186px, ephemera 124px, a frame 152px, at all three
-  surfaces (`t7-a-*.json`, `t7-f-*.json`).
+  surfaces (`a-*.json`, `f-*.json`).
 - **The preview is an UNCROPPED derivative**, not the square `thumb`:
-  `tokyo-a1-128-1000x800.png` (`t7-a-desktop.json`).
+  `tokyo-a1-128-1000x800.png` (`a-desktop.json`).
 - **The pill's two states and their colours.** `focus 22% 78%` in `rgb(47, 107, 104)` —
   `#2f6b68`, §2.3's — for a cell with a crop; `centred — click to focus` in
   `rgb(115, 98, 71)` for one without.
@@ -113,21 +123,21 @@ because "clean" with no measurement is the claim these sweeps exist to stop.
 - **Replace addresses the cell and the pool follows.** Pressing Frame 4's Replace put
   `?page=534&slot=534:3` in the address, marked that cell, changed the instruction line to
   "Tick a photograph to place it in the frame you chose", enabled all nine tiles and set every
-  tile's hidden `slot` field to `534:3` (`t7-c.json`).
+  tile's hidden `slot` field to `534:3` (`c.json`).
 - **A tick places the photograph in that cell, padding nothing it should not.** The stored array
   went from three rows to four, the new row carried `role: 'frame'` and the media id, and the
-  three rows before it were untouched. The tile then drew ticked (`t7-c.json`).
+  three rows before it were untouched. The tile then drew ticked (`c.json`).
 - **Clear empties the cell IN PLACE.** After Clear the array still had four rows; row 3's
-  `media` was `null` and rows 0–2 were byte-identical to before (`t7-c.json`).
+  `media` was `null` and rows 0–2 were byte-identical to before (`c.json`).
 - **The Notes pane holds two cells and no nested form.** `document.querySelectorAll(
 '[data-notes-pane] form').length` is **0**, and every button in the slots column is
-  `type="button"` (`t7-d.json`).
+  `type="button"` (`d.json`).
 - **A slot control inside the Notes pane does not post the Notes pane.** With
   `Tokyo EDITED IN SWEEP` typed into Location and not saved, pressing the hero's Clear left
-  `journeys.name` as `Tokyo` and left the typed text in the field (`t7-d.json`).
+  `journeys.name` as `Tokyo` and left the typed text in the field (`d.json`).
 - **No crop leaks between pages.** Frame 2 of Frames I was moved to `focus 90% 10%`; Frames II's
   cell 1 then read `centred — click to focus` and `50% 50%` — which is what its row holds
-  (`t7-e.json`). This is the defect §2.3 names by journey and page.
+  (`e.json`). This is the defect §2.3 names by journey and page.
 - **No overflow at any surface.** On both panes and all three viewports, `pane.scrollWidth`
   equals `pane.clientWidth`, `document.documentElement.scrollWidth` equals its `clientWidth`,
   and no descendant of the pane has a right edge past the pane's. (The Notes pane's own

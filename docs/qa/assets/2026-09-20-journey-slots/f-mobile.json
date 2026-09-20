@@ -1,0 +1,39 @@
+{
+  "shape": {
+    "paneScroll": 346,
+    "paneClient": 346,
+    "docScroll": 390,
+    "docClient": 390,
+    "wide": [],
+    "cells": [
+      {
+        "key": "533:0",
+        "label": "Hero",
+        "height": 186,
+        "width": 306,
+        "captionFont": "23px",
+        "altFont": "14.5px"
+      },
+      {
+        "key": "533:1",
+        "label": "Ephemera",
+        "height": 124,
+        "width": 306,
+        "captionFont": "23px",
+        "altFont": "14.5px"
+      }
+    ]
+  },
+  "violations": [
+    {
+      "id": "scrollable-region-focusable",
+      "impact": "serious",
+      "nodes": [
+        ".editor-module__Ihypcq__poolGrid"
+      ]
+    }
+  ],
+  "noise": [
+    "console[log] [HMR] connected"
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "cells": [
+    {
+      "key": "534:0",
+      "label": "Frame 1",
+      "motion": "Still",
+      "empty": false,
+      "disabled": false,
+      "background": "url(\"http://localhost:3000/api/media/file/tokyo-a1-128-1000x800.png\")",
+      "position": "22% 78%",
+      "cursor": "crosshair",
+      "height": 152,
+      "width": 306,
+      "pill": "focus 22% 78%",
+      "pillColour": "rgb(47, 107, 104)",
+      "reticle": "left:22%;top:78%",
+      "clear": false,
+      "replace": "/admin/journeys/276?page=534&slot=534:0"
+    },
+    {
+      "key": "534:1",
+      "label": "Frame 2",
+      "motion": "Still",
+      "empty": false,
+      "disabled": false,
+      "background": "url(\"http://localhost:3000/api/media/file/tokyo-a2-128-1000x800.png\")",
+      "position": "50% 50%",
+      "cursor": "crosshair",
+      "height": 152,
+      "width": 306,
+      "pill": "centred — click to focus",
+      "pillColour": "rgb(115, 98, 71)",
+      "reticle": "left:50%;top:50%",
+      "clear": false,
+      "replace": "/admin/journeys/276?page=534&slot=534:1"
+    },
+    {
+      "key": "534:2",
+      "label": "Frame 3",
+      "motion": "Still",
+      "empty": false,
+      "disabled": false,
+      "background": "url(\"http://localhost:3000/api/media/file/tokyo-a3-128-1000x800.png\")",
+      "position": "50% 50%",
+      "cursor": "crosshair",
+      "height": 152,
+      "width": 306,
+      "pill": "centred — click to focus",
+      "pillColour": "rgb(115, 98, 71)",
+      "reticle": "left:50%;top:50%",
+      "clear": false,
+      "replace": "/admin/journeys/276?page=534&slot=534:2"
+    },
+    {
+      "key": "534:3",
+      "label": "Frame 4",
+      "motion": "Still",
+      "empty": true,
+      "disabled": true,
+      "background": "none",
+      "position": "0% 0%",
+      "cursor": "default",
+      "height": 152,
+      "width": 306,
+      "pill": "centred — click to focus",
+      "pillColour": "rgb(115, 98, 71)",
+      "reticle": null,
+      "clear": true,
+      "replace": "/admin/journeys/276?page=534&slot=534:3"
+    }
+  ],
+  "overflow": {
+    "paneScroll": 346,
+    "paneClient": 346,
+    "docScroll": 390,
+    "docClient": 390,
+    "wide": []
+  },
+  "pool": {
+    "instruction": "Choose a frame with Replace, then tick a photograph to place it.",
+    "count": "0 of 9 in the book",
+    "tiles": 9,
+    "disabled": true,
+    "ticked": [
+      "1503",
+      "1504",
+      "1505"
+    ],
+    "gridTabIndex": null
+  },
+  "violations": [
+    {
+      "id": "scrollable-region-focusable",
+      "impact": "serious",
+      "nodes": [
+        ".editor-module__Ihypcq__poolGrid"
+      ]
+    }
+  ],
+  "noise": [
+    "console[log] [HMR] connected"
+  ]
+}

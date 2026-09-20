@@ -1,0 +1,73 @@
+{
+  "shape": {
+    "formsInsidePane": 0,
+    "cells": [
+      {
+        "key": "533:0",
+        "label": "Hero",
+        "height": 186,
+        "pill": "focus 18% 82%"
+      },
+      {
+        "key": "533:1",
+        "label": "Ephemera",
+        "height": 124,
+        "pill": "centred — click to focus"
+      }
+    ],
+    "nonButtonButtons": []
+  },
+  "nameBefore": "Tokyo",
+  "nameAfter": "Tokyo",
+  "before": [
+    {
+      "role": "hero",
+      "media": 1501,
+      "caption": "Crossing at Shibuya, second attempt, still blurred",
+      "alt": null,
+      "focalX": 18,
+      "focalY": 82
+    },
+    {
+      "role": "ephemera",
+      "media": 1502,
+      "caption": "",
+      "alt": null,
+      "focalX": 50,
+      "focalY": 50
+    }
+  ],
+  "afterClear": [
+    {
+      "role": "hero",
+      "media": null,
+      "caption": null,
+      "alt": null,
+      "focalX": 50,
+      "focalY": 50
+    },
+    {
+      "role": "ephemera",
+      "media": 1502,
+      "caption": "",
+      "alt": null,
+      "focalX": 50,
+      "focalY": 50
+    }
+  ],
+  "stillTyped": "Tokyo EDITED IN SWEEP",
+  "noise": [
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected"
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "before": [
+    {
+      "role": "frame",
+      "media": 1503,
+      "caption": "Vending machine at 6am, Nakameguro",
+      "alt": null,
+      "focalX": 22,
+      "focalY": 78
+    },
+    {
+      "role": "frame",
+      "media": 1504,
+      "caption": "The cat that runs the bookshop",
+      "alt": null,
+      "focalX": 50,
+      "focalY": 50
+    },
+    {
+      "role": "frame",
+      "media": 1505,
+      "caption": "Train seats, upholstered like a sofa",
+      "alt": null,
+      "focalX": 50,
+      "focalY": 50
+    }
+  ],
+  "pill": "focus 25% 80%",
+  "position": "24.8368% 79.6053%",
+  "after": [
+    {
+      "role": "frame",
+      "media": 1503,
+      "caption": "Vending machine at 6am, Nakameguro",
+      "alt": null,
+      "focalX": 22,
+      "focalY": 78
+    },
+    {
+      "role": "frame",
+      "media": 1504,
+      "caption": "The cat that runs the bookshop",
+      "alt": null,
+      "focalX": 24.836806920959496,
+      "focalY": 79.60526315789474
+    },
+    {
+      "role": "frame",
+      "media": 1505,
+      "caption": "Train seats, upholstered like a sofa",
+      "alt": null,
+      "focalX": 50,
+      "focalY": 50
+    }
+  ],
+  "published": [
+    {
+      "src": "api/media/file/tokyo-a1-128-1000x800.png",
+      "objectPosition": "22% 78%",
+      "empty": false
+    },
+    {
+      "src": "api/media/file/tokyo-a2-128-1000x800.png",
+      "objectPosition": "24.8368% 79.6053%",
+      "empty": false
+    },
+    {
+      "src": "api/media/file/tokyo-a3-128-1000x800.png",
+      "objectPosition": "50% 50%",
+      "empty": false
+    },
+    {
+      "src": "api/media/file/tokyo-b1-128-1000x800.png",
+      "objectPosition": "50% 50%",
+      "empty": false
+    },
+    {
+      "src": "api/media/file/tokyo-b2-128-1000x800.png",
+      "objectPosition": "50% 50%",
+      "empty": false
+    },
+    {
+      "src": "api/media/file/tokyo-b3-128-1000x800.png",
+      "objectPosition": "80% 24%",
+      "empty": false
+    },
+    {
+      "src": "api/media/file/tokyo-b4-128-1000x800.png",
+      "objectPosition": "50% 50%",
+      "empty": false
+    },
+    {
+      "src": "AAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+      "objectPosition": "50% 50%",
+      "empty": false
+    },
+    {
+      "src": "AAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+      "objectPosition": "50% 50%",
+      "empty": false
+    },
+    {
+      "src": "AAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+      "objectPosition": "50% 50%",
+      "empty": false
+    }
+  ],
+  "noise": [
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected"
+  ]
+}
