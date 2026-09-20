@@ -27,20 +27,35 @@
  * that cannot be a single `where`-scoped `update`. {@link setFrameOrder} reads
  * the column first and writes only the rows whose position actually changed —
  * after a drag of one tile that is the span between where it left and where it
- * landed, not the whole gallery. The read is one query, and the writes are
+ * landed, not the whole gallery. The read is TWO queries since MEDIUM-2 — the
+ * journey's pages, for the scrap its gallery rule excludes, and its frames —
+ * over one journey's rows rather than the library's, and the writes are
  * bounded by the number of frames in ONE journey (design spec §12: ~100), not
  * by the size of the library. The property is observable:
  * `galleryMutations.integration.test.ts` reads `updatedAt` off a frame that
  * did not move and finds it untouched.
  *
- * ═══ AN ID THAT IS NOT IN THE JOURNEY REFUSES THE WHOLE WRITE ═══
+ * ═══ AN ARRANGEMENT THAT IS NOT A BIJECTION REFUSES THE WHOLE WRITE ═══
  *
  * Standing orders, species 6: refuse what you do not recognise rather than
  * recognising what to refuse. {@link setFrameOrder} is handed a journey and a
- * list, and a list that does not match the journey's frames one for one is not
- * an arrangement of that journey — it is a request to renumber somebody
- * else's gallery, or the same frame twice. Skipping the strangers would write
- * a partial arrangement and say nothing; the whole call refuses instead.
+ * list, and a list that does not name that journey's frames ONE FOR ONE is not
+ * an arrangement of it — it is a request to renumber somebody else's gallery,
+ * the same frame twice, or only half of one. Skipping the strangers would
+ * write a partial arrangement and say nothing; the whole call refuses instead.
+ *
+ * THE FIRST VERSION OF THIS CHECK TESTED ONE DIRECTION OF THE BIJECTION and
+ * said in this paragraph that it tested both. `current.docs.length !==
+ * ids.length` against a `{ id: { in: ids } }` read catches a stranger and a
+ * repeat — and a SUBSET finds exactly as many rows as it names, so a partial
+ * arrangement was accepted and left two frames sharing `order: 0`
+ * (MEDIUM-2, task-9-review.md). The read is now of the journey's frames
+ * themselves, by `../galleryFrames`'s own rule, and both directions are
+ * compared.
+ *
+ * `docs/deviations.md` §1.1's rule about prose applies to this header: the
+ * sentence above it was true of the intent and false of the code, which is the
+ * species this paragraph now exists to record.
  *
  * PATTERNS (CLAUDE.md §3.3): Repository — the collection's shape stops here,
  * and the screen's actions speak in frame ids, journeys and captions.
@@ -48,10 +63,12 @@
  * INVARIANT — nothing here deletes a media row, and nothing here writes
  * `media.journey`. §2.5 arranges a gallery; moving a photograph between
  * galleries is §2.4's "Move" (`mediaMutations.ts`).
- * Depends on: zod, `payload` (types), `AdminScope` (./adminScope).
+ * Depends on: zod, `payload` (types), `ephemeraMediaIds`/`galleryFrameWhere`/
+ * `journeyPagesQuery` (../galleryFrames), `AdminScope` (./adminScope).
  */
 import type { Payload } from 'payload'
 import { z } from 'zod'
+import { ephemeraMediaIds, galleryFrameWhere, journeyPagesQuery } from '../galleryFrames'
 import type { AdminScope } from './adminScope'
 
 /**
@@ -144,9 +161,9 @@ export interface BulkCaption {
  * @param journey - The journey being arranged, as the client sent it.
  * @param order - Every one of that journey's frames, in the new order.
  * @throws {z.ZodError} From the parses.
- * @throws {Error} When the list does not name that journey's frames one for
- *   one — a repeat, a stranger, or a frame that has since gone. See this
- *   module's header for why the whole call refuses.
+ * @throws {Error} When the list is not a bijection onto that journey's gallery
+ *   frames — a repeat, a stranger, an omission, or a frame that has since gone.
+ *   See this module's header for why the whole call refuses.
  * @example
  * await setFrameOrder(payload, scope, '7', ['9', '4', '11'])
  */
@@ -159,23 +176,42 @@ export const setFrameOrder = async (
   const ids = FRAME_IDS.parse(order)
   const owner = JOURNEY_REF.parse(journey)
 
+  // THE JOURNEY'S OWN FRAMES, BY THE SAME RULE THE SCREEN DREW THEM WITH, and
+  // not the rows the list happens to name. Reading `{ id: { in: ids } }` finds
+  // exactly as many rows as a SUBSET names, so a partial arrangement was
+  // accepted and left two frames sharing `order: 0` — after which
+  // `GALLERY_FRAME_SORT`'s `id` tiebreak decided the public cover
+  // (MEDIUM-2, task-9-review.md). It has to be the gallery-frame rule rather
+  // than every `media` row of the journey, because a Notes page's decorative
+  // scrap is a row of the journey and is not one of its frames; that is one
+  // extra `pages` read per write, over one journey's three pages.
+  const pages = await payload.find(journeyPagesQuery(owner))
   const current = await payload.find({
     collection: 'media',
     ...scope,
     depth: 0,
     pagination: false,
-    where: { and: [{ journey: { equals: owner } }, { id: { in: [...ids] } }] },
+    where: galleryFrameWhere([owner], ephemeraMediaIds(pages.docs), { includeHidden: true }),
     // The only column this write compares against.
     select: { order: true },
   })
 
-  if (current.docs.length !== ids.length) {
+  const held = new Map(current.docs.map((row) => [row.id, row.order]))
+  const named = new Set(ids)
+
+  // A BIJECTION, ASSERTED IN BOTH DIRECTIONS. A repeat makes the list longer
+  // than the set it names; a stranger or an omission makes the set a different
+  // size from the gallery, or a member of it absent from the gallery.
+  if (named.size !== ids.length) {
     throw new Error(
-      `setFrameOrder: ${String(ids.length)} frames named, ${String(current.docs.length)} of them in journey ${String(owner)}`,
+      `setFrameOrder: the arrangement lists ${String(ids.length)} ids but only ${String(named.size)} distinct frames`,
     )
   }
-
-  const held = new Map(current.docs.map((row) => [row.id, row.order]))
+  if (named.size !== held.size || [...named].some((id) => !held.has(id))) {
+    throw new Error(
+      `setFrameOrder: the arrangement names ${String(named.size)} of the ${String(held.size)} frames in journey ${String(owner)}, and must name each of them exactly once`,
+    )
+  }
   for (const [index, id] of ids.entries()) {
     // ONLY WHAT MOVED. A drag of one tile changes the span it crossed and
     // nothing else; rewriting every row would touch `updatedAt` on a whole

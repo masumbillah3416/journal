@@ -1714,14 +1714,18 @@ Found` and a refused write. **The editing pane surfaces none of them** -
   inside the action rather than being inherited from the page around it.
 - **Notes:** **a reorder touches only the rows that moved.** Every row takes a DIFFERENT
   `order`, so this is the one write here that cannot be a single `where`-scoped update:
-  `setFrameOrder` reads the column first and writes only what changed, which after a drag of
-  one tile is the span it crossed. The property is observable —
+  `setFrameOrder` reads first and writes only what changed, which after a drag of one tile
+  is the span it crossed. The property is observable —
   `apps/web/lib/admin/galleryMutations.integration.test.ts` reads `updatedAt` off a frame
-  that did not move and finds it untouched.
+  that did not move and finds it untouched. The read is two queries over ONE journey's rows:
+  its pages, for the decorative scrap the gallery rule excludes, and its frames.
 
-  **An arrangement that does not match the journey refuses whole.** Skipping the strangers
-  would write a partial arrangement and say nothing; the standing orders call that the
-  enumeration-where-inversion-was-needed species.
+  **An arrangement that is not a BIJECTION onto the journey's gallery frames refuses whole** —
+  a repeat, a stranger, an omission, or a swap at the same count. Skipping the strangers would
+  write a partial arrangement and say nothing; the standing orders call that the
+  enumeration-where-inversion-was-needed species. The first version of this check tested one
+  direction and claimed both, and a subset was accepted, leaving two frames sharing
+  `order: 0` with the public cover then decided by `GALLERY_FRAME_SORT`'s id tiebreak.
 
   **None of this needs the versioned-write dance.** `media` carries no `versions` block, so
   there is no newest version for a plain update to merge from — unlike `pages`, where

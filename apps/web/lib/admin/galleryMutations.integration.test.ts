@@ -236,10 +236,78 @@ describe('setFrameOrder', () => {
     const orderBefore = (await readBack(seeded.frames[0] ?? 0))['order']
 
     await expect(setFrameOrder(payload, scope, String(seeded.id), [String(strangerId), ...mine])).rejects.toThrow(
-      /not in the journey|of them in journey/u,
+      /names 4 of the 3 frames/u,
     )
 
     expect((await readBack(seeded.frames[0] ?? 0))['order']).toBe(orderBefore)
+  })
+
+  it('refuses an arrangement that swaps one of the journey’s frames for a stranger, at the same count', async () => {
+    // THE DIRECTION THE TWO COUNTS ALONE CANNOT SEE. A list of the right LENGTH
+    // that names a frame from another gallery has the same size as the journey's
+    // own set, so only membership catches it — which is what the `some` clause
+    // is for, and what the other stranger case (a list one too long) does not
+    // reach.
+    const seeded = await aGallery('swapped')
+    const other = await aGallery('swapped-other')
+    const [, second, third] = seeded.frames
+    const strangerId = other.frames[0]
+    if (second === undefined || third === undefined || strangerId === undefined) throw new Error('fixture')
+
+    await expect(
+      setFrameOrder(payload, scope, String(seeded.id), [String(strangerId), String(second), String(third)]),
+    ).rejects.toThrow(/names 3 of the 3 frames/u)
+
+    const orders = await Promise.all(seeded.frames.map(async (id) => (await readBack(id))['order']))
+    expect(orders).toEqual([0, 1, 2])
+  })
+
+  it('refuses an arrangement that names only SOME of the journey’s frames', async () => {
+    // MEDIUM-2 (task-9-review.md). "One for one" is a bijection and the check
+    // tested one direction of it: a subset finds exactly as many rows as it
+    // names, so a three-frame gallery given two ids was ACCEPTED and left
+    // `orders [0, 1, 0]` — two frames sharing zero, and `GALLERY_FRAME_SORT`
+    // then deciding the public cover by an id tiebreak. Not reachable from the
+    // grid, which always sends the whole arrangement; reachable from the Server
+    // Action, which is the `POST` endpoint this module parses for.
+    const seeded = await aGallery('partial')
+    const [first, second, third] = seeded.frames
+    if (first === undefined || second === undefined || third === undefined) throw new Error('fixture')
+
+    await expect(setFrameOrder(payload, scope, String(seeded.id), [String(third), String(second)])).rejects.toThrow(
+      /names 2 of the 3 frames/u,
+    )
+
+    const orders = await Promise.all(seeded.frames.map(async (id) => (await readBack(id))['order']))
+    expect(orders).toEqual([0, 1, 2])
+  })
+
+  it('arranges a gallery whose journey also holds a decorative scrap, which is not one of its frames', async () => {
+    // THE OTHER SIDE OF THE SAME COUNT. The arrangement is checked against the
+    // journey's GALLERY FRAMES, not against its `media` rows — so a Notes page's
+    // ephemera scrap must not make every arrangement of that journey refuse.
+    // This is the case that fails if the count is taken from the wrong set.
+    const seeded = await aGallery('with-scrap')
+    const scrap = await aFrame(seeded.id, 'scrap', 9)
+    await payload.create({
+      collection: 'pages',
+      ...scope,
+      data: {
+        journey: seeded.id,
+        kind: 'notes',
+        title: `${MARKER} with-scrap notes`,
+        order: 0,
+        layout: 'text-spread',
+        slots: [{ role: 'ephemera' as const, media: scrap }],
+        _status: 'published',
+      },
+    })
+    const reversed = [...seeded.frames].reverse().map(String)
+
+    await setFrameOrder(payload, scope, String(seeded.id), reversed)
+
+    const orders = await Promise.all(seeded.frames.map(async (id) => (await readBack(id))['order']))
+    expect(orders).toEqual([2, 1, 0])
   })
 
   it('refuses an arrangement that names the same frame twice', async () => {
@@ -248,7 +316,7 @@ describe('setFrameOrder', () => {
     if (first === undefined) throw new Error('fixture')
 
     await expect(setFrameOrder(payload, scope, String(seeded.id), [String(first), String(first)])).rejects.toThrow(
-      /of them in journey/u,
+      /lists 2 ids but only 1 distinct frames/u,
     )
   })
 
