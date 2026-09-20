@@ -45,14 +45,19 @@
  * Stated because the consequence is easy to miss and expensive to rediscover.
  * §2.3 gives a pool tile ONE piece of state — the ring and the tick — and the
  * prototype's meaning for it is `media.inBook`. This screen spends that state
- * on "the page being edited holds this photograph", so the `inBook` column now
- * has no tile-level display at all: the eyebrow still counts it ("{n} of
- * {total} in the book") and nothing says WHICH n. Nothing is lost today,
- * because nothing writes `inBook` yet (`docs/qa/2026-09-19-journey-editor-sweep.md`,
- * EDITOR-004, which names SCREENS.md §2.4 as the owner). The screen that makes
- * the count non-zero is the one that has to decide whether this pool needs a
- * second indicator — §2.4's own media grid already specifies an "In book" chip
- * — and it is not this task's to build. See docs/deviations.md §63.
+ * on "the page being edited holds this photograph", so the `inBook` column has
+ * no tile-level display at all: the eyebrow counts it ("{n} of {total} in the
+ * book") and nothing here says WHICH n.
+ *
+ * **THE COUNT IS LIVE.** This header said "nothing writes `inBook` yet" until
+ * Phase 4 Task 8's fix round; §2.4's `Add to book`
+ * (`lib/admin/mediaMutations.ts`'s `addMediaToBook`) is the column's writer, so
+ * the eyebrow above this pool moves when an author works on the Media screen.
+ * A second per-tile mark HERE is still not built, and deliberately: §2.3 allots
+ * a pool tile one piece of per-tile state and §2.4 has no authority to spend
+ * §2.3's (CLAUDE.md §4). "Which ones" is answered by §2.4's own grid, which
+ * draws the "In book" chip per tile and filters on it. See
+ * docs/deviations.md §63.
  *
  * A TILE WITH NO DERIVATIVE DRAWS AN EMPTY SQUARE. `readJourneyEditor` answers
  * `null` for an upload too small to have a `thumb`, rather than falling back to

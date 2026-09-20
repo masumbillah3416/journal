@@ -2915,13 +2915,24 @@ of them, so each had to be given a behaviour or left dead.
 **One consequence of the second bullet, recorded because it outlives this task.** §2.3 gives a
 pool tile ONE piece of per-tile state, and the tick now spends it on "this page holds this
 photograph" — so **`inBook` has lost its only per-tile display.** The eyebrow still counts it
-("{n} of {total} in the book") and no tile says which. Nothing is lost today, because nothing
-writes `inBook` yet (`docs/qa/2026-09-19-journey-editor-sweep.md`, EDITOR-004 names §2.4 as the
-owner). The screen that makes the count non-zero is the one that has to decide whether this pool
-needs a second indicator — §2.4's own media grid already specifies an "In book" chip — and it is
-not this task's to build. The sentence above that the count "still answers the question the
-prototype's label asks" is true of the NUMBER and should not be read as saying the tiles still
-show it.
+("{n} of {total} in the book") and no tile says which. The sentence above that the count "still
+answers the question the prototype's label asks" is true of the NUMBER and should not be read as
+saying the tiles still show it.
+
+**THE COLUMN NOW HAS A WRITER, AND THIS ENTRY SAID FOR ELEVEN COMMITS THAT IT DID NOT.** When
+this was written nothing anywhere wrote `inBook`, so the missing per-tile mark cost nothing;
+Phase 4 Task 8 gave it its first writer — §2.4's `Add to book`, in
+`apps/web/lib/admin/mediaMutations.ts`'s `addMediaToBook` — in the same commit range that left
+this paragraph saying "nothing writes `inBook` yet". An author who adds forty photographs to the
+book from `/admin/media` now sees a non-zero eyebrow over a pool where no tile says which forty,
+and a reader who took this entry at its word would conclude the eyebrow must read 0 and stop
+looking. **So the count is live, and the pool tile still shows placement rather than `inBook`.**
+
+That second half is a decision and not an omission: §2.3 gives a pool tile one piece of per-tile
+state, Task 7 spent it on "this page holds this photograph", and giving the tile a SECOND mark is
+a §2.3 design decision that §2.4 has no authority to invent (CLAUDE.md §4). §2.4's own media grid
+draws the "In book" chip per tile and offers an `In the book` filter, so the question "which
+ones" is answerable — on that screen. **What stays open is only §2.3's pool tile.**
 
 **What would reverse it:** a `SCREENS.md` revision that says what Replace does, or a screen
 elsewhere in the handoff that commits a text field without a button — which would give these
