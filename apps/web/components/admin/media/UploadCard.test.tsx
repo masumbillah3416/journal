@@ -63,7 +63,7 @@ describe('UploadCard', () => {
       total: 34,
       stored: 2,
       duplicates: 0,
-      files: [{ name: 'MARRAKECH_0118.jpg', percent: 100 }],
+      files: [{ name: 'MARRAKECH_0118.jpg', percent: 100, refusal: null }],
     })
 
     expect(host.querySelector('[data-upload-count]')?.textContent).toBe('Uploading — 2 of 34')
@@ -80,8 +80,8 @@ describe('UploadCard', () => {
       stored: 2,
       duplicates: 0,
       files: [
-        { name: 'a.jpg', percent: 100 },
-        { name: 'b.jpg', percent: 100 },
+        { name: 'a.jpg', percent: 100, refusal: null },
+        { name: 'b.jpg', percent: 100, refusal: null },
       ],
     })
 
@@ -96,8 +96,8 @@ describe('UploadCard', () => {
       stored: 1,
       duplicates: 0,
       files: [
-        { name: 'a.jpg', percent: 100 },
-        { name: 'b.jpg', percent: 0 },
+        { name: 'a.jpg', percent: 100, refusal: null },
+        { name: 'b.jpg', percent: 0, refusal: null },
       ],
     })
 
@@ -113,20 +113,32 @@ describe('UploadCard', () => {
       total: 1,
       stored: 0,
       duplicates: 1,
-      files: [{ name: 'a.jpg', percent: 100 }],
+      files: [{ name: 'a.jpg', percent: 100, refusal: null }],
     })
 
     expect(host.querySelector('[data-upload-count]')?.textContent).toBe('Uploaded — 0 of 1')
   })
 
   it('draws no duplicate notice when nothing was a duplicate', () => {
-    const host = renderCard({ done: 1, total: 1, stored: 1, duplicates: 0, files: [{ name: 'a.jpg', percent: 100 }] })
+    const host = renderCard({
+      done: 1,
+      total: 1,
+      stored: 1,
+      duplicates: 0,
+      files: [{ name: 'a.jpg', percent: 100, refusal: null }],
+    })
 
     expect(host.querySelector('[data-upload-duplicates]')).toBeNull()
   })
 
   it('draws the duplicate notice when the pipeline reported some', () => {
-    const host = renderCard({ done: 3, total: 3, stored: 0, duplicates: 3, files: [{ name: 'a.jpg', percent: 100 }] })
+    const host = renderCard({
+      done: 3,
+      total: 3,
+      stored: 0,
+      duplicates: 3,
+      files: [{ name: 'a.jpg', percent: 100, refusal: null }],
+    })
 
     expect(host.querySelector('[data-upload-duplicates]')?.textContent).toContain('3 look like duplicates — skipped')
   })
@@ -143,8 +155,8 @@ describe('UploadCard', () => {
       stored: 1,
       duplicates: 0,
       files: [
-        { name: 'MARRAKECH_0118.jpg', percent: 100 },
-        { name: 'MARRAKECH_0119.mov', percent: 0 },
+        { name: 'MARRAKECH_0118.jpg', percent: 100, refusal: null },
+        { name: 'MARRAKECH_0119.mov', percent: 0, refusal: null },
       ],
     })
 
@@ -157,7 +169,13 @@ describe('UploadCard', () => {
   it('fills the track to the percentage the row carries', () => {
     // The one inline style on this screen, and it is a measurement: no
     // stylesheet can know how far one upload has got.
-    const host = renderCard({ done: 0, total: 1, stored: 0, duplicates: 0, files: [{ name: 'a.jpg', percent: 64 }] })
+    const host = renderCard({
+      done: 0,
+      total: 1,
+      stored: 0,
+      duplicates: 0,
+      files: [{ name: 'a.jpg', percent: 64, refusal: null }],
+    })
     const fill = host.querySelector('[data-upload-fill]')
 
     expect(fill instanceof HTMLElement ? fill.style.width : '').toBe('64%')

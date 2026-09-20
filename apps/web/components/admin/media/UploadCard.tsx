@@ -43,6 +43,16 @@ export interface UploadProgress {
   readonly name: string
   /** How far along, 0 to 100. See this module's header for what it can say. */
   readonly percent: number
+  /**
+   * Why this file was refused, as a sentence, or `null` when it was not.
+   *
+   * A REFUSED ROW DRAWS THE SENTENCE WHERE THE TRACK WOULD BE. §2.4 draws no
+   * refused row at all, and the track's neighbours are a 230px name cell that
+   * truncates and a 78px right cell — neither of which a sentence fits in. The
+   * reason went into the NAME before this, which truncated it out of sight and
+   * mangled the filename with it (MEDIA-002).
+   */
+  readonly refusal: string | null
 }
 
 /** What the card needs. */
@@ -151,20 +161,26 @@ export const UploadCard = ({ done, total, stored, duplicates, files }: UploadCar
           // finished one is dropped from the list.
           <li key={file.name} data-upload-row className={styles.uploadRow}>
             <span className={styles.uploadName}>{file.name}</span>
-            <span className={styles.uploadTrack}>
-              {/* The one inline style on this screen, and it is a MEASUREMENT
-               * rather than a design value: the fill's width is this file's
-               * own percentage, which no stylesheet can know. Everything that
-               * is a design value is in `media.module.css`. */}
-              <span
-                data-upload-fill
-                aria-hidden="true"
-                className={styles.uploadFill}
-                style={{ width: `${String(file.percent)}%` }}
-              />
-            </span>
+            {file.refusal === null ? (
+              <span className={styles.uploadTrack}>
+                {/* The one inline style on this screen, and it is a MEASUREMENT
+                 * rather than a design value: the fill's width is this file's
+                 * own percentage, which no stylesheet can know. Everything that
+                 * is a design value is in `media.module.css`. */}
+                <span
+                  data-upload-fill
+                  aria-hidden="true"
+                  className={styles.uploadFill}
+                  style={{ width: `${String(file.percent)}%` }}
+                />
+              </span>
+            ) : (
+              <span data-upload-refusal className={styles.uploadRefusal}>
+                {file.refusal}
+              </span>
+            )}
             <span data-upload-state className={styles.uploadState}>
-              {file.percent}%
+              {file.refusal === null ? `${String(file.percent)}%` : 'refused'}
             </span>
           </li>
         ))}

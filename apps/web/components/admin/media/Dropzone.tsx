@@ -63,9 +63,12 @@
 import type React from 'react'
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { MAX_FILES_PER_REQUEST, MAX_UPLOAD_BYTES } from '@travel-diary/domain/media/uploadSlot'
 import type {
+  FinaliseFailure,
   FinaliseRequest,
   FinaliseResponse,
+  SlotFailure,
   UploadSlotRequest,
   UploadSlotResponse,
 } from '../../../lib/media/uploadContract'
@@ -105,6 +108,83 @@ export const acceptedFormatsNote = (accepted: readonly string[]): string => {
   return clips ? `${list}. Clips loop silently wherever they land — no extra step.` : `${list}.`
 }
 
+/**
+ * Every way an upload can be refused, in one list.
+ *
+ * ═══ EXHAUSTIVE BY TYPE, NOT BY SOMEBODY REMEMBERING ═══
+ *
+ * {@link refusalSentence}'s table is a `Record` over this union, so a member
+ * added to `SlotFailure` or `FinaliseFailure` fails `tsc` here rather than
+ * reaching an author as its own name. That is the inversion
+ * `eslint-rules/guarded-server-actions.js` is this repository's worked example
+ * of, applied to copy: recognise what to say, do not enumerate what to hide.
+ *
+ * The list itself is here so `Dropzone.test.tsx` can walk it and require the
+ * sentences to differ — a table with one sentence repeated sixteen times would
+ * satisfy the type and tell the author nothing.
+ */
+export const UPLOAD_REFUSALS: readonly (SlotFailure | FinaliseFailure)[] = [
+  'empty-request',
+  'too-many-files',
+  'too-large',
+  'type-not-offered',
+  'unnamed-file',
+  'invalid-journey',
+  'no-upload-url',
+  'svg-rejected',
+  'video-deferred',
+  'heic-unsupported',
+  'type-not-allowed',
+  'declared-mismatch',
+  'unreadable',
+  'key-not-staged',
+  'staged-bytes-missing',
+  'not-queued',
+]
+
+/**
+ * What the author is told, per refusal.
+ *
+ * MEDIA-002: the row used to print the refusal's own member name —
+ * `tokyo.jpg — type-not-offered` — which is the domain's vocabulary in an
+ * author's screen. `SCREENS.md` §2.4 specifies no error surface at all, so
+ * every sentence here is this implementation's (`docs/deviations.md`).
+ *
+ * The two caps are read off the domain's own constants rather than typed as
+ * numbers, so a cap that moves moves the sentence with it.
+ */
+const REFUSAL_SENTENCE: Readonly<Record<SlotFailure | FinaliseFailure, string>> = {
+  'empty-request': 'nothing was selected',
+  'too-many-files': `more than ${String(MAX_FILES_PER_REQUEST)} files at once`,
+  'too-large': `larger than ${String(Math.round(MAX_UPLOAD_BYTES / 1_048_576))}MB`,
+  'type-not-offered': 'not a kind of file this diary takes',
+  'unnamed-file': 'the name has nothing usable in it',
+  'invalid-journey': 'that journey is not one it can be filed under',
+  'no-upload-url': 'the store would not offer somewhere to put it',
+  'svg-rejected': 'an SVG, which is a document rather than a photograph',
+  'video-deferred': 'a clip, and clips are not enabled on this deployment',
+  'heic-unsupported': 'a HEIC, which this diary cannot read',
+  'type-not-allowed': 'the bytes are not a kind of file this diary takes',
+  'declared-mismatch': 'the bytes are not what the name says they are',
+  unreadable: 'the bytes could not be read as a photograph',
+  'key-not-staged': 'the upload could not be matched to the slot it was offered',
+  'staged-bytes-missing': 'the bytes never reached the store',
+  'not-queued': 'it could not be handed on for processing',
+}
+
+/** What the row says when the PUT itself never landed. Not a refusal of ours. */
+const PUT_FAILED = 'the upload did not reach the store'
+
+/**
+ * The sentence one refusal is told to the author as.
+ *
+ * @param refusal - What `requestUploadSlots` or `finaliseUpload` answered.
+ * @returns The sentence. Never the member's own name.
+ * @example
+ * refusalSentence('type-not-offered') // 'not a kind of file this diary takes'
+ */
+export const refusalSentence = (refusal: SlotFailure | FinaliseFailure): string => REFUSAL_SENTENCE[refusal]
+
 /** What the zone needs to draw itself and to upload what it is given. */
 export interface DropzoneProps {
   /** Every journey an upload can be added to — the "Add to — {journey}" select. */
@@ -130,6 +210,8 @@ interface UploadRow extends UploadProgress {
    * the distinction the finished card's count rests on (MEDIA-001).
    */
   readonly stored: boolean
+  /** Why it was refused, as a sentence, or `null` when it was not. */
+  readonly refusal: string | null
 }
 
 /**
@@ -154,7 +236,16 @@ export const Dropzone = ({ journeys, accepted, requestSlots, finalise }: Dropzon
   const upload = async (files: readonly File[]): Promise<void> => {
     if (files.length === 0 || journey === '') return
 
-    setRows(files.map((file) => ({ name: file.name, percent: 0, settled: false, duplicate: false, stored: false })))
+    setRows(
+      files.map((file) => ({
+        name: file.name,
+        percent: 0,
+        settled: false,
+        duplicate: false,
+        stored: false,
+        refusal: null,
+      })),
+    )
 
     const offered = await requestSlots({
       journey,
@@ -167,7 +258,9 @@ export const Dropzone = ({ journeys, accepted, requestSlots, finalise }: Dropzon
     if (!offered.ok) {
       // THE WHOLE REQUEST IS REFUSED WHEN ONE FILE IS (`planUploadSlots`'s own
       // invariant), so the refusal is drawn against every row rather than one.
-      setRows((current) => current.map((row) => ({ ...row, settled: true, name: `${row.name} — ${offered.error}` })))
+      // THE NAME IS LEFT ALONE: the author needs to see which file it was, and
+      // the reason goes in a cell wide enough to hold a sentence (MEDIA-002).
+      setRows((current) => current.map((row) => ({ ...row, settled: true, refusal: refusalSentence(offered.error) })))
       return
     }
 
@@ -183,7 +276,9 @@ export const Dropzone = ({ journeys, accepted, requestSlots, finalise }: Dropzon
 
       if (put === undefined || !put.ok) {
         setRows((current) =>
-          current.map((row) => (row.name === file.name ? { ...row, settled: true, percent: 0 } : row)),
+          current.map((row) =>
+            row.name === file.name ? { ...row, settled: true, percent: 0, refusal: PUT_FAILED } : row,
+          ),
         )
         continue
       }
@@ -204,6 +299,7 @@ export const Dropzone = ({ journeys, accepted, requestSlots, finalise }: Dropzon
                 percent: finalised.ok ? 100 : 0,
                 duplicate: finalised.ok && finalised.value.kind === 'duplicate',
                 stored: finalised.ok && finalised.value.kind !== 'duplicate',
+                refusal: finalised.ok ? null : refusalSentence(finalised.error),
               }
             : row,
         ),

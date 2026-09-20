@@ -36,7 +36,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FinaliseResponse, UploadSlotResponse } from '../../../lib/media/uploadContract'
-import { DROPZONE_HEADLINE, Dropzone, acceptedFormatsNote } from './Dropzone'
+import { DROPZONE_HEADLINE, Dropzone, UPLOAD_REFUSALS, acceptedFormatsNote, refusalSentence } from './Dropzone'
 
 vi.mock('next/navigation', () => ({
   // THE FRAMEWORK BOUNDARY, not one of ours (CLAUDE.md §2.3). `router.refresh`
@@ -322,7 +322,57 @@ describe('the upload one picked file drives', () => {
 
     await pick(host, new File([new Uint8Array([1])], 'tokyo.jpg', { type: 'image/jpeg' }))
 
-    expect(host.querySelector('[data-upload-row]')?.textContent).toContain('too-large')
+    expect(host.querySelector('[data-upload-refusal]')).not.toBeNull()
+  })
+
+  it('tells the author why in words, never in the refusal’s own member name', async () => {
+    // MEDIA-002: the row read `tokyo.jpg — type-not-offered`, which is
+    // `SlotRefusal`'s own member out of the domain. The filename must survive
+    // intact and the reason must be a sentence.
+    const host = renderZone({
+      requestSlots: (): Promise<UploadSlotResponse> => Promise.resolve({ ok: false, error: 'type-not-offered' }),
+    })
+
+    await pick(host, new File([new Uint8Array([1])], 'tokyo.jpg', { type: 'image/jpeg' }))
+
+    expect(host.querySelector('[data-upload-row]')?.textContent).not.toContain('type-not-offered')
+    expect(host.querySelector('[data-upload-refusal]')?.textContent).toBe(refusalSentence('type-not-offered'))
+    expect(host.querySelector('[data-upload-row]')?.textContent).toContain('tokyo.jpg')
+  })
+
+  it('says something different for each refusal, so the sentence carries the reason', () => {
+    // A table that answered one sentence for everything would pass the case
+    // above and tell the author nothing. Every member of the union is spelled,
+    // and `tsc` refuses the table if one is missing.
+    const spelled = new Set(UPLOAD_REFUSALS.map((refusal) => refusalSentence(refusal)))
+
+    expect(spelled.size).toBeGreaterThan(UPLOAD_REFUSALS.length / 2)
+    expect([...spelled].filter((sentence) => sentence === '')).toEqual([])
+  })
+
+  it('tells the author why a finalise refused, not only a slot request', async () => {
+    // The second half of the same leak: `finaliseUpload` has its own refusal
+    // union, and its members were reaching the row the same way.
+    vi.stubGlobal('fetch', () => Promise.resolve(new Response(null, { status: 200 })))
+    const host = renderZone({
+      requestSlots: (): Promise<UploadSlotResponse> =>
+        Promise.resolve({
+          ok: true,
+          value: [
+            {
+              stagingKey: 'staging/7/abc-tokyo.jpg',
+              declaredType: 'image/jpeg',
+              filename: 'tokyo.jpg',
+              uploadUrl: 'http://localhost/put',
+            },
+          ],
+        }),
+      finalise: (): Promise<FinaliseResponse> => Promise.resolve({ ok: false, error: 'svg-rejected' }),
+    })
+
+    await pick(host, new File([new Uint8Array([1])], 'tokyo.jpg', { type: 'image/jpeg' }))
+
+    expect(host.querySelector('[data-upload-refusal]')?.textContent).toBe(refusalSentence('svg-rejected'))
   })
 
   it('does not finalise a PUT the store refused', async () => {

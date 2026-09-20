@@ -2,7 +2,8 @@
 
 **Build:** `875e877` **Engine:** playwright (chromium, headless) **Routes walked:** 1 route, 3
 viewports, 10 widths
-**Result:** 3 defects — S1:0 S2:0 S3:2 S4:1
+**Result:** 3 defects — S1:0 S2:0 S3:2 S4:1 · **both S3s fixed**, each with a watched failure
+first; the S4 is a correction to prose and is applied
 
 ## What this sweep could write, and what it did to the database
 
@@ -51,7 +52,7 @@ the empty directories it does hold).
   `expected 'Uploading — 1 of 1' to be 'Uploaded — 0 of 1'`; re-verified in Chromium through
   `e2e/upload.spec.ts`, which now waits on the past tense.
 
-### MEDIA-002 · S3 · A refused file's row prints the pipeline's internal refusal name
+### MEDIA-002 · S3 · A refused file's row prints the pipeline's internal refusal name — FIXED
 
 - **Route:** `/admin/media`, desktop 1440×900
 - **Steps:**
@@ -67,6 +68,15 @@ the empty directories it does hold).
   it is the only place the refusal appears.
 - **Evidence:** `assets/2026-09-20-media/10-refused.png`; sweep reading
   `refused-row=sweep-media-fixture-refused.txt — type-not-offered0%`.
+- **Fixed in `fix(admin): tell the author why an upload was refused, in words`.** Every one of the
+  sixteen members of `SlotFailure | FinaliseFailure` now has a sentence, in a `Record` over that
+  union so a member added later fails `tsc` rather than reaching an author as its own name. The
+  filename is left alone and the sentence goes in the flexible middle where the track would be —
+  the 230px name cell truncates and the 78px right cell is one word wide, which is why putting the
+  reason in the name hid it. Watched failing first at
+  `expected 'tokyo.jpg — type-not-offered0%' not to contain 'type-not-offered'`. Re-verified in
+  Chromium: the row now reads `reverify.txt` · _not a kind of file this diary takes_ · `refused`
+  (`assets/2026-09-20-media/13-refusal-fixed.png`).
 
 ### MEDIA-003 · S4 · The `min-width` §2.4 calls required changes nothing at any width this app draws
 

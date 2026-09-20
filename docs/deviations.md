@@ -3173,3 +3173,38 @@ notice saying the one file was skipped.
 
 **Recorded as:** this entry, `uploadEyebrow`'s TSDoc in `UploadCard.tsx`, and the sweep's
 MEDIA-001.
+
+## 72 · A refused upload has a row shape and a sentence, neither of which §2.4 draws
+
+**What changed:** `SCREENS.md` §2.4's upload row is "a 230px filename, a 3px track with a
+terracotta fill, and a right-aligned percentage", and there is no refused row in the design at
+all — nothing in a prototype is refused. A refused file here draws the filename unchanged, **the
+reason in italic Garamond where the track would be**, and the word `refused` in the right cell.
+
+**Rationale for the shape.** The reason has to go somewhere a sentence fits. The name cell is
+230px with `text-overflow: ellipsis` and the right cell is 78px, so the only cell that can hold
+one is the flexible middle — and a refused file has no progress for a track to show. Putting it
+in the NAME was the first attempt and is what the browser sweep found: the sentence was truncated
+out of sight and the filename was mangled with it
+(`docs/qa/2026-09-20-media-screen-sweep.md`, MEDIA-002).
+
+**Rationale for the sentences.** Before the fix the row printed the refusal's own member name —
+`tokyo.jpg — type-not-offered` — which is `SlotRefusal` out of
+`packages/domain/src/media/uploadSlot.ts`, in an author's screen. Every one of the sixteen
+members of `SlotFailure | FinaliseFailure` now has a sentence, and the table is a `Record` over
+that union, so a member added later fails `tsc` rather than reaching an author as its own name —
+the inversion `eslint-rules/guarded-server-actions.js` is this repository's worked example of,
+applied to copy. The two caps in those sentences are read off `MAX_FILES_PER_REQUEST` and
+`MAX_UPLOAD_BYTES`, so a cap that moves moves the sentence.
+
+**What this is NOT.** It is not the write-error surface `docs/deviations.md` §60 records as
+missing, and it does not close it. These are REFUSALS — values the two actions return in a
+`Result` — and every one of them belongs to a file the author picked. A THROW still reaches the
+author as an unhandled rejection, exactly as §60 describes, because §2.4 gives this screen
+nowhere to put one.
+
+**What would reverse it:** a `SCREENS.md` revision that draws a refused row, or a handoff screen
+that shows a write error and gives this one a shape to copy.
+
+**Recorded as:** this entry, `UPLOAD_REFUSALS` and `refusalSentence` in `Dropzone.tsx`,
+`UploadProgress.refusal`'s TSDoc in `UploadCard.tsx`, and the sweep's MEDIA-002.

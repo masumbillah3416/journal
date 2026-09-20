@@ -259,6 +259,19 @@
   background: var(--td-accent);
 }
 
+/* A refused file's reason, in the flexible middle where the track would be:
+ * the 230px name cell truncates and the 78px state cell is one word wide, so
+ * neither can hold a sentence (MEDIA-002). Italic Garamond, because it is
+ * prose rather than a measurement, and the amber the duplicate notice already
+ * uses for "this file did not become a photograph". */
+.uploadRefusal {
+  flex: 1;
+  font-family: var(--td-font-garamond);
+  font-size: 14.5px;
+  font-style: italic;
+  color: #845825;
+}
+
 .uploadState {
   width: 78px;
   flex: none;
