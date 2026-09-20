@@ -66,7 +66,7 @@ import { offerUploadSlots } from '../../../../lib/media/uploadSlots'
 import { getPayload } from '../../../../lib/payload'
 
 /**
- * The address the three bulk writes invalidate.
+ * This screen's own address, which every bulk write invalidates.
  *
  * `revalidatePath` AFTER EVERY ONE, which is what
  * `app/(admin)/admin/journeys/actions.ts` does and for the same reason: the
@@ -77,6 +77,30 @@ import { getPayload } from '../../../../lib/payload'
  * asks for the page itself once its batch has finished.
  */
 const MEDIA_PATH = '/admin/media'
+
+/**
+ * The journeys list, which counts this library by journey.
+ *
+ * `readJourneysScreen.ts` selects `{ journey, isCover, sizes }` off `media` for
+ * the per-journey tally and the cover thumbnail, so a Move changes two of its
+ * rows. It is a cached admin route exactly as the editor is.
+ */
+const JOURNEYS_PATH = '/admin/journeys'
+
+/**
+ * EVERY journey editor, named by its route pattern rather than by an id.
+ *
+ * `readJourneyEditor.ts` draws the pool from `media` SCOPED BY JOURNEY and
+ * counts `inBook` for the "{n} of {total} in the book" eyebrow, so both bulk
+ * writes below move something it reads. A Move knows the DESTINATION journey
+ * and not the sources — the selection is media ids, and which journeys they
+ * were filed under is whatever the rows said before the write — so naming the
+ * two affected editors would mean reading the rows back for a cache hint.
+ * Next.js invalidates every page of a dynamic route when the pattern is passed
+ * with the `page` type, which reaches the source and the destination without
+ * knowing either.
+ */
+const EDITOR_PATTERN = '/admin/journeys/[id]'
 
 /**
  * Offers the admin somewhere to PUT each file it is about to upload.
@@ -128,6 +152,10 @@ export const finaliseUpload = guardedAction(async (_session, request: FinaliseRe
 export const addToBook = guardedAction(async (session, ids: readonly string[]): Promise<void> => {
   await addMediaToBook(await getPayload(), await adminScope(session), ids)
   revalidatePath(MEDIA_PATH)
+  // AND THE EDITOR'S EYEBROW, which counts this column. NOT the journeys list:
+  // its media cell is a row COUNT, and marking a photograph for the book does
+  // not change how many a journey holds.
+  revalidatePath(EDITOR_PATTERN, 'page')
 })
 
 /**
@@ -140,6 +168,10 @@ export const addToBook = guardedAction(async (session, ids: readonly string[]): 
  */
 export const captionMedia = guardedAction(async (session, ids: readonly string[], caption: string): Promise<void> => {
   await captionMediaRows(await getPayload(), await adminScope(session), ids, caption)
+  // ONE ADDRESS, and it is checked rather than assumed: `media.caption` is
+  // drawn by this grid and by nothing else in the admin. `PoolItem`'s own
+  // TSDoc records that the editor selected the column once and rendered it
+  // nowhere, and removed it for that reason.
   revalidatePath(MEDIA_PATH)
 })
 
@@ -153,11 +185,19 @@ export const captionMedia = guardedAction(async (session, ids: readonly string[]
  */
 export const moveMedia = guardedAction(async (session, ids: readonly string[], journey: string): Promise<void> => {
   await moveMediaRows(await getPayload(), await adminScope(session), ids, journey)
-  // BOTH GALLERIES CHANGED, and only this screen is revalidated. The public
-  // diary is rendered per request from `readGalleryBundle` and carries no
-  // route cache of its own, so there is nothing else here to invalidate;
-  // `app/(admin)/admin/journeys/[id]/actions.ts` revalidates two addresses
-  // because both of ITS readers are cached admin routes.
+  // THREE CACHED ADMIN READERS, not one. This comment used to name only the
+  // public diary - which is rendered per request from `readGalleryBundle` and
+  // carries no route cache, so it genuinely needs nothing - and concluded from
+  // that alone that there was "nothing else here to invalidate". There is:
+  // `/admin/journeys` tallies `media` by journey, and EVERY journey editor
+  // draws its pool scoped by the column this write re-points. The source
+  // journey's editor and the destination's are both wrong afterwards, which is
+  // why the pattern rather than an id.
+  //
+  // `app/(admin)/admin/journeys/[id]/actions.ts`'s `revalidateEditor` is this
+  // repository's own precedent for the same pair of readers.
   revalidatePath(MEDIA_PATH)
+  revalidatePath(JOURNEYS_PATH)
+  revalidatePath(EDITOR_PATTERN, 'page')
 })
 /* c8 ignore stop */

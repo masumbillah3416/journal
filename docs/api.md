@@ -1587,8 +1587,17 @@ Found` and a refused write. **The editing pane surfaces none of them** -
   `readMediaIds` - `z.array(z.coerce.number().int().positive()).min(1).max(MAX_BULK_MEDIA)`,
   so an empty selection is refused rather than answered as a silent no-op, and
   `Number('nonsense')` never reaches the driver as `NaN`.
-- **Output:** nothing. Each calls `revalidatePath('/admin/media')` and the grid redraws from
-  the server's own read.
+- **Output:** nothing, and a different set of invalidated addresses each. All three call
+  `revalidatePath('/admin/media')`, so the grid redraws from the server's own read.
+  `addToBook` ALSO calls `revalidatePath('/admin/journeys/[id]', 'page')`, because
+  `readJourneyEditor` counts `media.inBook` for the pool's "{n} of {total} in the book"
+  eyebrow. `moveMedia` calls that one AND `revalidatePath('/admin/journeys')`, because
+  `readJourneysScreen` tallies `media` by journey and every editor's pool is scoped by the
+  column a Move re-points — the ROUTE PATTERN rather than an id, because the action knows
+  the destination journey and not the sources. `captionMedia` calls only the first, and
+  that is checked rather than assumed: nothing outside this grid draws `media.caption`.
+  The table is pinned by `apps/web/lib/admin/mediaRevalidationRegistration.test.ts`, which
+  fails on a fourth bulk write landing with no decision recorded about its readers.
 - **Errors:** a `ZodError` for a selection or a destination the grid's own controls cannot
   produce, and Payload's own for a refused write. **Neither is drawn**: the bar has no error
   surface, and a rejection inside `startTransition` surfaces as an unhandled promise
