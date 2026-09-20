@@ -231,6 +231,13 @@ export default defineConfig({
         // `vitest.config.ts`'s exclude: the arrangement write reads the column
         // back before it writes it.
         'apps/web/lib/admin/galleryMutations.ts',
+        // Phase 4 Task 10's book-screen writes, here for the reason stated in
+        // `vitest.config.ts`'s exclude: a global write and a read-compare-write
+        // over a versioned collection.
+        'apps/web/lib/admin/bookMutations.ts',
+        // Phase 4 Task 10's cover-screen writes, here for the same reason: what
+        // they assert is that `updateGlobal` merges, which needs a real global.
+        'apps/web/lib/admin/coverMutations.ts',
         // Phase 4 Task 3's minting script, here for the reason stated in
         // `vitest.config.ts`'s exclude: it writes a `users` row and a
         // `sessions` row, so nothing without a database can execute it.
@@ -587,6 +594,18 @@ export default defineConfig({
         // Phase 4 Task 8's bulk media writes, at the same 100 across: three
         // parses and three updates, every branch of which a case takes.
         'apps/web/lib/admin/mediaMutations.ts': { lines: 100, branches: 100, functions: 100 },
+        // Phase 4 Task 10's two book-screen writes, at 100 across: MEASURED,
+        // not rounded. Two branches took a fixture rather than a lowered
+        // number — a journey with a pending draft, for the second of the two
+        // writes `journeys`' versioning forces, and a re-save of the order the
+        // book already has, for the "only what moved" skip.
+        'apps/web/lib/admin/bookMutations.ts': { lines: 100, branches: 100, functions: 100 },
+        // Phase 4 Task 10's two cover-screen writes, at the same 100 across.
+        // The arms a `<form>` of this repository's own never produces — a
+        // `FormData` entry that arrived as a `File` rather than as a string —
+        // are reached by a case that builds that body deliberately, because it
+        // is the shape a crafted `POST` sends.
+        'apps/web/lib/admin/coverMutations.ts': { lines: 100, branches: 100, functions: 100 },
         // mint-lighthouse-session.ts (Phase 4 Task 3): 100% on every axis. Its
         // two branches are the account that already exists and the account that
         // does not, and `mint-lighthouse-session.integration.test.ts` drives

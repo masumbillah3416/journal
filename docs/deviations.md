@@ -3484,3 +3484,32 @@ one number, deletes the other, and adds the `defaultValue` case this file's sibl
 already have for `galleryThumbPx`.
 
 **Recorded as:** this entry and `FLIP_DURATION_MS`'s own doc comment.
+
+## 83 · "Replace" under the About portrait is a select, because the prototype's button opens nothing
+
+**What changed:** `SCREENS.md` §2.7 asks for "a 140px portrait with Replace". In
+`Travel Diary Admin.dc.html` that button carries **no handler at all** — it is drawn and does
+nothing, because the prototype has no media library behind it. This repository does, so
+`/admin/cover` draws a `<select>` of the library's photographs beside the portrait and makes
+Replace the submit that applies the choice.
+
+**Why not a picker overlay.** The one upload path this repository has (`§9.1`, `Dropzone.tsx`)
+is four round trips and a client island, and §2.7 is not an upload screen: the portrait is
+chosen from photographs that are already in the library. A `<select>` plus a submit is the
+whole of that, ships no client JavaScript, and is reachable by keyboard without anything
+being written for it.
+
+**Why the select can leave the portrait alone.** Its first option is valued `''`, which
+`coverMutations.ts` reads as "do not write the portrait at all" rather than as "clear it" —
+so a save that was about the two paragraphs cannot empty the portrait mount. That is
+asserted, not assumed: `coverMutations.integration.test.ts` saves a changed reply-to address
+and reads the portrait's own derivative URL back through `readBookBundle`.
+
+**What it bounds.** The screen offers the most recent ready photographs, newest first, up to
+a cap this implementation chose and nothing derives — §2.7 names none. A portrait older than
+the cap is still DRAWN, because it is read by its own id rather than found in the list; it is
+simply not re-selectable from this screen until it is again among the newest. Both sides of
+the cap are pinned by cases built from the constant, which the screen's read module holds.
+
+**Recorded as:** this entry, `coverMutations.ts`'s header and `docs/api.md`'s `/admin/cover`
+section.

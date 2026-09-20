@@ -581,6 +581,16 @@ export default defineConfig({
         // decision needs a real row. Same exclude-and-regate treatment as the
         // five mutation modules above.
         'apps/web/lib/admin/galleryMutations.ts',
+        // Phase 4 Task 10's book-screen writes: one `updateGlobal` and a
+        // read-compare-write over `journeys.order` that reads the column back
+        // and then writes each moved row twice, because the collection is
+        // versioned. Nothing this Docker-free pass can execute. Same
+        // exclude-and-regate treatment as the six mutation modules above.
+        'apps/web/lib/admin/bookMutations.ts',
+        // Phase 4 Task 10's cover-screen writes: two `updateGlobal`s whose
+        // whole subject is whether a global MERGES, which is Payload's answer
+        // rather than this file's. Same treatment.
+        'apps/web/lib/admin/coverMutations.ts',
         // `mint-lighthouse-session.ts` (Phase 4 Task 3) creates an account and
         // issues a session through this repository's own session service, both
         // of which are rows in a real Postgres, so its only test is an
