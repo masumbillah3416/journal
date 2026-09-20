@@ -264,6 +264,25 @@ describe('FrameGrid — the selection', () => {
     expect(host.querySelector('[data-frame-id="c"][data-highlighted="true"]')).not.toBeNull()
   })
 
+  it('moves the panel to the new journey’s first frame when the journey changes, rather than emptying it', () => {
+    // GAL-001 (`docs/qa/2026-09-20-galleries-screen-sweep.md`). The journey
+    // select pushes an ADDRESS, so Next.js re-renders the Server Component in
+    // place and this component keeps its state — and the selected id belongs to
+    // a journey that is no longer on screen. Per-journey state surviving a
+    // journey switch is the handoff's most-repeated defect, five separate times
+    // (README, "State" > "Admin").
+    const host = renderGalleries({ frames: [aFrame('a'), aFrame('b'), aFrame('c')], selected: anId('c') })
+
+    rerenderGalleries(host, { frames: [aFrame('x')] })
+
+    expect({
+      panel: host.querySelector('[data-selected-frame]')?.getAttribute('data-frame-id'),
+      highlighted: [...host.querySelectorAll('[data-highlighted="true"]')].map((tile) =>
+        tile.getAttribute('data-frame-id'),
+      ),
+    }).toEqual({ panel: 'x', highlighted: ['x'] })
+  })
+
   it('selects the first frame before anything is pressed, so the panel is never empty', () => {
     const host = renderGalleries({ frames: [aFrame('a'), aFrame('b')] })
 

@@ -17,7 +17,8 @@
  * `shellShipsNoClientJs.test.ts`'s `ISLANDS` allowlist, so a SECOND directive
  * in this directory fails by name.
  *
- * ═══ SELECTION IS A FRAME ID, NEVER A POSITION ═══
+ * ═══ SELECTION IS A FRAME ID, NEVER A POSITION — AND IT IS RESOLVED, NOT
+ *     REMEMBERED ═══
  *
  * §2.5 states it in bold — "Select frames by id, not index — sorting reorders
  * the grid and a positional index desyncs the panel from the highlight" — and
@@ -26,6 +27,15 @@
  * would move the panel onto whichever frame had taken that place.
  * `FrameGrid.test.tsx` re-renders the grid with the frames shuffled and
  * asserts the same FRAME is still on the panel and still highlighted.
+ *
+ * The id is RESOLVED against the list on screen on every render, and falls back
+ * to the first frame when it names nothing there. That is not defensive: the
+ * journey select pushes an address, so Next.js re-renders the Server Component
+ * IN PLACE and this component keeps its state — leaving it holding a frame of
+ * a gallery that is no longer drawn, and the panel empty over a grid with
+ * tiles in it (GAL-001, `docs/qa/2026-09-20-galleries-screen-sweep.md`).
+ * Per-journey state surviving a journey switch is the handoff's most-repeated
+ * defect, five separate times.
  *
  * ═══ "SORT BY DATE" WRITES, AND ITS TICK IS DERIVED RATHER THAN HELD ═══
  *
@@ -158,7 +168,17 @@ export const FrameGrid = ({
   const byDate = sortFramesByDate(arrangement)
   const sortedByDate = arrangement.length > 0 && sameArrangement(arrangement, byDate)
   const cover = coverFrame(arrangement)
-  const shown = arrangement.find((frame) => frame.id === selected) ?? null
+  // THE SELECTED ID IS RESOLVED AGAINST THE LIST ON SCREEN, and falls back to
+  // the first frame when it names nothing there — which is what happens the
+  // moment the journey select pushes another address: Next.js re-renders the
+  // Server Component in place, this component keeps its state, and the id it
+  // is holding belongs to a gallery that is no longer drawn (GAL-001,
+  // `docs/qa/2026-09-20-galleries-screen-sweep.md`). Resolving rather than
+  // resetting is what keeps the §2.5 invariant intact: a frame that is still in
+  // the list after a re-sort is still the selected one, wherever it has moved
+  // to. `shown` is what the panel and the highlight both read, so the two
+  // cannot disagree about which frame that is.
+  const shown = arrangement.find((frame) => frame.id === selected) ?? arrangement[0] ?? null
   const blank = arrangement.filter((frame) => frame.caption === '')
 
   /**
@@ -304,9 +324,9 @@ export const FrameGrid = ({
                   <button
                     type="button"
                     data-frame-id={frame.id}
-                    data-highlighted={frame.id === selected}
-                    aria-pressed={frame.id === selected}
-                    className={[styles.tile, frame.id === selected ? styles.tileOn : ''].join(' ')}
+                    data-highlighted={frame.id === shown?.id}
+                    aria-pressed={frame.id === shown?.id}
+                    className={[styles.tile, frame.id === shown?.id ? styles.tileOn : ''].join(' ')}
                     onClick={() => {
                       setSelected(frame.id)
                     }}
