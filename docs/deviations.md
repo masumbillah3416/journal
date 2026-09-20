@@ -3454,36 +3454,43 @@ colour, a weight or a spacing that is declared correctly and drawn wrongly.
 `apps/web/app/(admin)/admin/galleries/page.tsx` — which claimed the coverage before it
 existed, and now names what is real and what is owed — and Task 9's report §8.
 
-## 82 · `flipDurationMs` has two defaults and no reader, so this task settled neither
+## 82 · `flipDurationMs` has two disagreeing defaults, and this task settled neither
 
-**What changed:** nothing, and that is the entry. `packages/domain/src/flip.ts` gained
-`FLIP_DURATION_MS` — the `{ min: 400, max: 1600 }` range `SCREENS.md` §1.7 and §2.6 both
-print — because SCREENS.md §2.6's slider, the parse behind it and the column's own `min`/`max`
-were about to be three places one range was written. The constant carries **no `default`**.
+**What changed:** `packages/domain/src/flip.ts` gained
+`FLIP_DURATION_MS = { min: 400, max: 1600, default: 800 }`, because SCREENS.md §2.6's slider,
+the parse behind it and the column's own `min`/`max`/`defaultValue` were about to be three
+places one range was written. `apps/web/globals/book.schema.test.ts` compares all four numbers
+against it.
 
-**Why.** The two defaults in this repository disagree.
-`apps/web/components/book/useFlip.ts` declares `DEFAULT_FLIP_DURATION_MS = 900`, from the
-handoff's "Duration default 900ms"; `apps/web/globals/book.ts` declares
-`defaultValue: 800` on the column. Nothing reads `book.flipDurationMs` — the diary still
+**The `default` is the COLUMN's, and nothing more.** That distinction is the whole of this
+entry. `apps/web/components/book/useFlip.ts` declares `DEFAULT_FLIP_DURATION_MS = 900`, from
+the handoff's "Duration default 900ms"; `apps/web/globals/book.ts` declares
+`defaultValue: 800` on the column. **Nothing reads `book.flipDurationMs`** — the diary still
 turns at the component's constant, and `useFlip.ts`'s own comment says the column "reaches the
 diary in a later task" — so the two have never had to agree, and no behaviour today depends on
 which wins.
 
-Putting a `default` on `FLIP_DURATION_MS` would have picked one, silently, inside a task whose
-subject is an admin screen. `GALLERY_THUMB_SIZE` next door does carry a `default`, and can:
-`readGalleryBundle` reads that column, so its default is exercised by the public gallery on
-every request.
+`FLIP_DURATION_MS.default` is a transcription of the column, for the one job it has: it is what
+§2.6's slider shows an author who has never moved it, and what `readBookScreen.ts` falls back to
+for a global that has never been written. It makes **no claim** about the duration the diary
+turns at, and `book.schema.test.ts` compares it against the column and against nothing else.
 
-**What IS true meanwhile:** `apps/web/globals/book.schema.test.ts` compares the column's
-`min`/`max` against the constant and the constant against SCREENS.md's own two numbers, so the
-range cannot drift in one file; and it deliberately asserts nothing about
-`flipDurationMs.defaultValue`, where the same case would have been a guess dressed as a gate.
+**This entry said the opposite for two commits, and that is worth recording.** It was written in
+`4e18e4e`, where the constant genuinely carried no `default` and the case genuinely asserted
+nothing about `defaultValue` — on the reasoning that naming a number would settle the
+900-vs-800 question by accident. `c89705a` then added `default: 800` and the case, because
+`readBookScreen.ts` needed a fallback and reading the column's own `defaultValue` off the
+Payload config at module load was worse: two unreachable branches and a Payload union type to
+narrow past. The rationale changed and the entry did not, so `flip.ts` cited §82 for a position §82
+denied (task-10-review.md MEDIUM-1). A deviation entry is load-bearing documentation and ships
+in the commit that makes it true (CLAUDE.md §1.3); this one did not, and the correction is
+here rather than quietly in place.
 
-**What would close it:** the task that makes the diary read `book.flipDurationMs`. It picks
-one number, deletes the other, and adds the `defaultValue` case this file's sibling cases
-already have for `galleryThumbPx`.
+**What would close the disagreement:** the task that makes the diary read
+`book.flipDurationMs`. It picks one number, deletes the other, and this entry goes.
 
-**Recorded as:** this entry and `FLIP_DURATION_MS`'s own doc comment.
+**Recorded as:** this entry and `FLIP_DURATION_MS`'s own doc comment, which has said "the
+COLUMN's own default and nothing more" since `c89705a`.
 
 ## 83 · "Replace" under the About portrait is a select, because the prototype's button opens nothing
 

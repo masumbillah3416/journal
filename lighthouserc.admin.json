@@ -6,7 +6,9 @@
         "http://localhost:3000/admin/sign-in/code",
         "http://localhost:3000/admin/reset",
         "http://localhost:3000/admin",
-        "http://localhost:3000/admin/journeys"
+        "http://localhost:3000/admin/journeys",
+        "http://localhost:3000/admin/book",
+        "http://localhost:3000/admin/cover"
       ],
       "numberOfRuns": 5,
       "startServerCommand": "npm run build -w apps/web && npm run start -w apps/web -- --port 3000",
