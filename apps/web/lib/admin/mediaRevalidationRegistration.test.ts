@@ -148,10 +148,24 @@ describe('the media screen’s writes and the caches they invalidate', () => {
     expect(revalidatedAddresses()).toEqual(REVALIDATED)
   })
 
-  it('names the editor by its route pattern, which is what reaches a journey it was not told about', () => {
+  it('names the editor by its route pattern with the page type, at EVERY call and not merely at one', () => {
     // `moveMedia` knows the destination and not the sources. Next.js
     // invalidates every page of a dynamic route when the pattern is passed
     // with the `page` type, and silently does nothing useful without it.
-    expect(actionsSource()).toContain("revalidatePath(EDITOR_PATTERN, 'page')")
+    //
+    // COUNTED RATHER THAN SEARCHED FOR, and that is the whole difference. This
+    // module makes TWO `revalidatePath(EDITOR_PATTERN, …)` calls, so a
+    // `toContain` passed while one of them lost its type — measured, by
+    // dropping it from `addToBook` and watching `Tests 2 passed (2)`. A guard
+    // written to close a finding is itself unproven until it is mutated in
+    // every direction it claims to cover, including the one where a duplicate
+    // entry hides a loss (standing orders, Phase 4 addition 8). The second half
+    // of the pair is the sentinel: without it a refactor that renamed the
+    // constant would make `0 === 0` true and the case would pass over nothing.
+    const source = actionsSource()
+    const calls = source.split('revalidatePath(EDITOR_PATTERN').length - 1
+    const typed = source.split("revalidatePath(EDITOR_PATTERN, 'page')").length - 1
+
+    expect({ calls, typed, any: calls > 0 }).toEqual({ calls: typed, typed, any: true })
   })
 })
