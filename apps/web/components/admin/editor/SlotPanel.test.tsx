@@ -468,6 +468,92 @@ describe('SlotPanel', () => {
     expect(cropOf(host, '7:0')).toBe('25% 50%')
   })
 
+  it('does not revive a dropped crop when the same photograph is placed again', () => {
+    // LANDED FROM THE FIX-REVIEW PROBE (F1), wording kept. Crop the cell, let
+    // the server answer, then press Replace and tick THE SAME photograph —
+    // which the pool allows, because every tile is enabled once a cell is
+    // targeted. `setSlotMediaRow` writes `{ media, focalX: 50, focalY: 50 }`
+    // whatever was there, so the server's answer returns to the exact
+    // `{ focal: 50/50, media: 11 }` the pending edit was made over. A rule
+    // RE-EVALUATED each render lets the dropped edit become valid again.
+    const { host, again } = mountPanel([aSlot('7:0', { focal: { x: 50, y: 50 } })])
+
+    clickAt(cellOf(host, '7:0'), { clientX: 150, clientY: 126 })
+    expect(cropOf(host, '7:0')).toBe('25% 50%')
+
+    // The focal write lands: the server now holds 25/50.
+    again([aSlot('7:0', { focal: { x: 25, y: 50 } })])
+    expect(cropOf(host, '7:0')).toBe('25% 50%')
+
+    // Replace, then tick the same photograph. The server re-centres it.
+    again([aSlot('7:0', { focal: { x: 50, y: 50 } })])
+
+    expect(cropOf(host, '7:0')).toBe('50% 50%')
+    expect(host.querySelector('[data-focal-pill]')?.textContent).toBe('centred — click to focus')
+  })
+
+  it('does not revive a dropped crop when the original photograph is placed back', () => {
+    // The A → B → A walk, all of it through the pool: crop A, replace with B
+    // (which the landed M1 case already covers), then replace B with A again.
+    // The dropped edit's snapshot matches once more.
+    const { host, again } = mountPanel([aSlot('7:0', { focal: { x: 50, y: 50 }, media: aMedia('11') })])
+
+    clickAt(cellOf(host, '7:0'), { clientX: 150, clientY: 126 })
+    expect(cropOf(host, '7:0')).toBe('25% 50%')
+
+    again([aSlot('7:0', { focal: { x: 50, y: 50 }, media: aMedia('12') })])
+    expect(cropOf(host, '7:0')).toBe('50% 50%')
+
+    again([aSlot('7:0', { focal: { x: 50, y: 50 }, media: aMedia('11') })])
+
+    expect(cropOf(host, '7:0')).toBe('50% 50%')
+  })
+
+  it('drops only the cell the server moved, and leaves the other author’s edit alone', () => {
+    // THE SENTINEL ON THE DELETION. An invalidation that emptied the whole
+    // overlay would satisfy both cases above while throwing away a pending
+    // edit on a cell nobody touched — which is the M1 fix's own failure mode
+    // reversed, and exactly what an author cropping two frames in a row would
+    // meet.
+    const { host, again } = mountPanel([
+      aSlot('7:0', { focal: { x: 50, y: 50 } }),
+      aSlot('7:1', { focal: { x: 50, y: 50 }, label: 'Frame 2', cell: 1 }),
+    ])
+
+    clickAt(cellOf(host, '7:0'), { clientX: 150, clientY: 126 })
+    clickAt(cellOf(host, '7:1'), { clientX: 150, clientY: 126 })
+    expect([cropOf(host, '7:0'), cropOf(host, '7:1')]).toEqual(['25% 50%', '25% 50%'])
+
+    // The server answers for the FIRST cell only: a different photograph in it.
+    again([
+      aSlot('7:0', { focal: { x: 50, y: 50 }, media: aMedia('12') }),
+      aSlot('7:1', { focal: { x: 50, y: 50 }, label: 'Frame 2', cell: 1 }),
+    ])
+
+    expect([cropOf(host, '7:0'), cropOf(host, '7:1')]).toEqual(['50% 50%', '25% 50%'])
+  })
+
+  it('keeps every arrow press when two land in one React batch', () => {
+    // LANDED FROM THE FIX-REVIEW PROBE (F2). `nudge` computed its input from
+    // the value of the LAST COMMITTED RENDER rather than from the pending
+    // state, so two presses dispatched inside one `act` — which is what
+    // auto-repeat looks like when React batches — moved the crop one step.
+    //
+    // THE CASE BESIDE IT MODELLED THE ASSUMPTION. `writes the nudged point
+    // once the key is released…` wraps each press in its own `act()`, i.e. in
+    // its own flushed render, which is the thing the handler was built on
+    // rather than a fact about it. Same species as the `detail: 0` fixture.
+    const { host } = renderPanel([aSlot('7:0', { focal: { x: 22, y: 78 } })])
+    const cell = cellOf(host, '7:0')
+
+    act(() => {
+      cell.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'ArrowRight' }))
+      cell.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'ArrowRight' }))
+    })
+
+    expect(cropOf(host, '7:0')).toBe('24% 78%')
+  })
+
   it('drops a half-typed caption once the server has emptied the cell under it', () => {
     // THE SAME CLASS AS THE FOCAL OVERLAY, one field along: `clearSlotRow`
     // blanks the caption and the alt text as well as re-centring, so a words

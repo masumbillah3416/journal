@@ -38,8 +38,9 @@
  *
  * It is a PENDING EDIT over the server's own values, not a cache of them, and
  * the difference is the whole of Task 7 review M1. Each entry carries the value
- * it was made over (`against`), and is ignored the moment the server's value
- * for that cell has moved — because two of this screen's own writes move it:
+ * it was made over (`against`) plus the photograph it was made ON (`media`),
+ * and is DELETED the moment the server's answer for that cell has moved —
+ * because two of this screen's own writes move it:
  * `setSlotMediaRow` and `clearSlotRow` both re-centre the cell, and
  * `revalidatePath` then re-renders this island IN PLACE, same component, new
  * props. An overlay that only ever grew kept drawing the author's last click
@@ -50,6 +51,25 @@
  * cells have keys this map has never held. The caption and alt text are held
  * the same way, and for the second reason too: Clear blanks them on the
  * server.
+ *
+ * ═══ DELETED, NOT MERELY IGNORED — AND THAT IS TWO MECHANISMS ON PURPOSE ═══
+ *
+ * The first version of this only IGNORED a stale entry, re-deciding each
+ * render whether the server's answer still matched the snapshot. The server can
+ * leave a snapshot and come back to it: `setSlotMediaRow` re-centres
+ * unconditionally, and the pool enables every tile once a cell is targeted — so
+ * an author who crops a cell and then ticks the SAME photograph puts the
+ * server's answer back to the pair the dropped edit was made over, and the
+ * dropped crop revives (Task 7 fix review, F1). A rule that is re-satisfiable
+ * is not a rule.
+ *
+ * So invalidation is an EVENT: {@link SlotPanel}'s effect deletes every entry
+ * the current props have moved past, and a deleted entry cannot come back. The
+ * render still asks the same question through {@link pointIsPending} — not
+ * because it decides anything, but because an effect runs AFTER paint, and
+ * without the guard the stale crop would be drawn for one frame before the
+ * deletion landed. One predicate, two callers, two different jobs: the guard
+ * decides what is PAINTED, the effect decides what is KEPT.
  *
  * ═══ REPLACE IS A LINK, WHICH IS A DEVIATION AND A DELIBERATE ONE ═══
  *
@@ -107,7 +127,7 @@ import {
 } from '@travel-diary/domain/admin/focalPoint'
 import type { JourneyId, MediaId, SlotKey } from '@travel-diary/domain/ids'
 import type React from 'react'
-import { startTransition, useState } from 'react'
+import { startTransition, useEffect, useState } from 'react'
 import type { EditorSlot } from '../../../lib/admin/readJourneyEditor'
 import styles from './editor.module.css'
 
@@ -157,6 +177,62 @@ const NUDGE_BY: Readonly<Record<string, FocalPoint | undefined>> = {
   ArrowDown: { x: 0, y: FOCAL_NUDGE },
 }
 
+/**
+ * Whether a pending focal edit is still about the cell the server is
+ * describing.
+ *
+ * THE SNAPSHOT INCLUDES THE PHOTOGRAPH, and that is not belt and braces: both
+ * writes that invalidate an edit re-centre the cell to 50/50, which is very
+ * often the value it already had — so "has the stored point moved?" answers NO
+ * while everything else about the cell has changed. A focal point belongs to a
+ * PLACEMENT.
+ * @param pending - The edit, if there is one.
+ * @param slot - The cell as the server currently describes it.
+ * @returns Whether the edit is still the author's unanswered change.
+ */
+const pointIsPending = (pending: Pending<FocalPoint> | undefined, slot: EditorSlot): boolean =>
+  pending !== undefined && pending.media === slot.media && sameFocalPoint(pending.against, slot.focal)
+
+/**
+ * {@link pointIsPending}, for the caption and alt text.
+ * @param pending - The edit, if there is one.
+ * @param slot - The cell as the server currently describes it.
+ * @returns Whether the edit is still the author's unanswered change.
+ */
+const wordsArePending = (pending: Pending<SlotWords> | undefined, slot: EditorSlot): boolean =>
+  pending !== undefined &&
+  pending.media === slot.media &&
+  pending.against.caption === slot.caption &&
+  pending.against.alt === slot.alt
+
+/**
+ * The overlay with every entry the server has moved past removed.
+ *
+ * RETURNS THE SAME OBJECT WHEN NOTHING IS STALE, which is what lets the effect
+ * below run on every render without looping: React bails out of a state update
+ * that sets the value it already holds.
+ *
+ * IT ONLY JUDGES THE CELLS IT WAS GIVEN. An entry for a page that is no longer
+ * open is left alone — the server is not describing that cell, so there is
+ * nothing to have moved past, and the author's unanswered edit survives them
+ * looking at another page and coming back.
+ * @param held - The overlay.
+ * @param slots - The cells the server is currently describing.
+ * @param isPending - The question to ask of each.
+ * @returns The overlay, or the same reference when nothing was dropped.
+ */
+const withoutStale = <Value,>(
+  held: Readonly<Partial<Record<SlotKey, Pending<Value>>>>,
+  slots: readonly EditorSlot[],
+  isPending: (pending: Pending<Value> | undefined, slot: EditorSlot) => boolean,
+): Readonly<Partial<Record<SlotKey, Pending<Value>>>> => {
+  const stale = new Set(
+    slots.filter((slot) => held[slot.key] !== undefined && !isPending(held[slot.key], slot)).map((slot) => slot.key),
+  )
+  if (stale.size === 0) return held
+  return Object.fromEntries(Object.entries(held).filter(([key]) => !stale.has(key as SlotKey)))
+}
+
 /** What SCREENS.md §2.3's slots need to draw themselves and to save. */
 export interface SlotPanelProps {
   /** The journey being edited — the cache address every control posts. */
@@ -201,6 +277,15 @@ export const SlotPanel = ({
 }: SlotPanelProps): React.JSX.Element => {
   const [points, setPoints] = useState<Readonly<Partial<Record<SlotKey, Pending<FocalPoint>>>>>({})
   const [words, setWords] = useState<Readonly<Partial<Record<SlotKey, Pending<SlotWords>>>>>({})
+
+  // INVALIDATION IS AN EVENT — see this module's header. Every render whose
+  // props have moved past an edit deletes it, so no later render can find the
+  // snapshot matching again and resurrect it. `withoutStale` answers with the
+  // same object when nothing is stale, so this cannot loop.
+  useEffect(() => {
+    setPoints((held) => withoutStale(held, slots, pointIsPending))
+    setWords((held) => withoutStale(held, slots, wordsArePending))
+  }, [slots])
 
   /**
    * The body every control posts: the journey, for the cache address, and the
@@ -283,14 +368,22 @@ export const SlotPanel = ({
    * fast as the platform repeats it, and every write here mints a version row
    * on a versioned collection (`pageMutations.ts`'s header says why that is not
    * free). One physical press is one write, whatever the repeat rate.
-   * @param slot - The cell focused.
-   * @param stored - What the server holds for it, which the edit is made over.
-   * @param media - The photograph in the cell, which the edit also belongs to.
-   * @param from - Where its crop is anchored now.
+   * @param slot - The cell focused, as the server describes it.
    * @param by - How far to move.
    */
-  const nudge = (slot: SlotKey, stored: FocalPoint, media: MediaId | null, from: FocalPoint, by: FocalPoint): void => {
-    setPoints((held) => ({ ...held, [slot]: { value: nudgeFocalPoint(from, by), against: stored, media } }))
+  const nudge = (slot: EditorSlot, by: FocalPoint): void => {
+    setPoints((held) => {
+      // COMPUTED INSIDE THE UPDATER, from what is HELD rather than from what
+      // was last rendered. Two `keydown`s in one React batch would otherwise
+      // both start from the pre-render value, and the second would overwrite
+      // the first with the same result — a press the author made and the crop
+      // never took (Task 7 fix review, F2). Auto-repeat is the exact input
+      // this handler exists for, so "React usually flushes discrete events one
+      // at a time" is not a property to lean on.
+      const current = held[slot.key]
+      const from = current !== undefined && pointIsPending(current, slot) ? current.value : slot.focal
+      return { ...held, [slot.key]: { value: nudgeFocalPoint(from, by), against: slot.focal, media: slot.media } }
+    })
   }
 
   return (
@@ -299,21 +392,12 @@ export const SlotPanel = ({
         const stored = { caption: slot.caption, alt: slot.alt }
         const pendingPoint = points[slot.key]
         const pendingWords = words[slot.key]
-        // A PENDING EDIT IS DRAWN ONLY WHILE THE SERVER STILL HOLDS WHAT IT WAS
-        // MADE OVER — see this module's header, and Task 7 review M1.
-        const point =
-          pendingPoint !== undefined &&
-          pendingPoint.media === slot.media &&
-          sameFocalPoint(pendingPoint.against, slot.focal)
-            ? pendingPoint.value
-            : slot.focal
-        const said =
-          pendingWords !== undefined &&
-          pendingWords.media === slot.media &&
-          pendingWords.against.caption === stored.caption &&
-          pendingWords.against.alt === stored.alt
-            ? pendingWords.value
-            : stored
+        // WHAT IS PAINTED, while the effect above decides what is KEPT. The
+        // effect runs after paint, so without this the frame between a
+        // server answer and its deletion would draw the stale value.
+        const moved = pointIsPending(pendingPoint, slot)
+        const point = moved && pendingPoint !== undefined ? pendingPoint.value : slot.focal
+        const said = wordsArePending(pendingWords, slot) && pendingWords !== undefined ? pendingWords.value : stored
         const empty = slot.previewSrc === null
 
         return (
@@ -347,7 +431,7 @@ export const SlotPanel = ({
                 // The arrows scroll the page by default, and this element is
                 // inside a pane that scrolls.
                 event.preventDefault()
-                nudge(slot.key, slot.focal, slot.media, point, by)
+                nudge(slot, by)
               }}
               onKeyUp={(event) => {
                 // ONLY WHAT WAS MOVED IS WRITTEN. A release with no nudge
@@ -355,8 +439,9 @@ export const SlotPanel = ({
                 // or an arrow released after the page scrolled — would
                 // otherwise post the value that is already stored.
                 // The pending edit itself, not the effective point: a
-                // release with no nudge behind it must post nothing.
-                if (NUDGE_BY[event.key] === undefined || pendingPoint === undefined) return
+                // release with no nudge behind it, or one whose edit the
+                // server has already moved past, must post nothing.
+                if (NUDGE_BY[event.key] === undefined || !moved) return
                 commit(slot.key, point)
               }}
               style={
