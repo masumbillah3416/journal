@@ -47,10 +47,20 @@ export interface UploadProgress {
 
 /** What the card needs. */
 export interface UploadCardProps {
-  /** How many of {@link UploadCardProps.total} have finished. */
+  /** How many of {@link UploadCardProps.total} have finished, whatever they answered. */
   readonly done: number
   /** How many files this batch started with. */
   readonly total: number
+  /**
+   * How many became a photograph in the library.
+   *
+   * NOT THE SAME AS {@link UploadCardProps.done}, and the difference is what
+   * the finished card counts. A duplicate settles and becomes no row; a
+   * refusal settles and becomes no row. A finished card that counted settled
+   * files would read "Uploaded — 1 of 1" beside a notice saying the one file
+   * was skipped (MEDIA-001's second half).
+   */
+  readonly stored: number
   /**
    * How many came back `duplicate` from `finaliseUpload`.
    *
@@ -61,6 +71,37 @@ export interface UploadCardProps {
   /** One row per file, in the order the picker offered them. */
   readonly files: readonly UploadProgress[]
 }
+
+/**
+ * The eyebrow's sentence.
+ *
+ * ═══ THE VERB CHANGES WHEN THE BATCH DOES, AND SO DOES THE NUMBER ═══
+ *
+ * SCREENS.md §2.4 draws the card in ONE state — "Uploading — 2 of 34", a batch
+ * mid-flight — and says nothing about a finished one, because nothing in a
+ * prototype finishes. This card kept the design's sentence after every file had
+ * settled, so the screen said an upload was in progress when none was
+ * (`docs/qa/2026-09-20-media-screen-sweep.md`, MEDIA-001). The past tense is
+ * this implementation's and is recorded in `docs/deviations.md`.
+ *
+ * WHILE FILES ARE IN FLIGHT the number is how many have SETTLED, which is what
+ * §2.4's own "2 of 34" counts. ONCE THEY HAVE the number is how many became a
+ * photograph, because that is the question a finished card answers.
+ * @param counts - What the batch started with, what has settled, and what
+ *   became a row.
+ * @returns The eyebrow's text.
+ * @example
+ * uploadEyebrow({ done: 2, total: 34, stored: 2 }) // 'Uploading — 2 of 34'
+ * uploadEyebrow({ done: 34, total: 34, stored: 31 }) // 'Uploaded — 31 of 34'
+ */
+export const uploadEyebrow = (counts: {
+  readonly done: number
+  readonly total: number
+  readonly stored: number
+}): string =>
+  counts.done < counts.total
+    ? `Uploading — ${String(counts.done)} of ${String(counts.total)}`
+    : `Uploaded — ${String(counts.stored)} of ${String(counts.total)}`
 
 /**
  * The sentence the duplicate notice prints.
@@ -82,16 +123,16 @@ export const duplicateNotice = (duplicates: number): string =>
  * @returns The card, or `null` when there is nothing in flight — the screen
  *   draws no empty card, which is what the design shows.
  * @example
- * <UploadCard done={2} total={34} duplicates={3} files={rows} />
+ * <UploadCard done={2} total={34} stored={2} duplicates={3} files={rows} />
  */
-export const UploadCard = ({ done, total, duplicates, files }: UploadCardProps): React.JSX.Element | null => {
+export const UploadCard = ({ done, total, stored, duplicates, files }: UploadCardProps): React.JSX.Element | null => {
   if (total === 0) return null
 
   return (
     <section data-upload-card aria-label="Uploading" className={styles.uploadCard}>
       <div className={styles.uploadHead}>
         <p data-upload-count className={styles.eyebrow}>
-          Uploading — {done} of {total}
+          {uploadEyebrow({ done, total, stored })}
         </p>
         <span className={styles.uploadSpacer} />
         {duplicates === 0 ? null : (

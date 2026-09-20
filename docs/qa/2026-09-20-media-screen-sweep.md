@@ -27,7 +27,7 @@ the empty directories it does hold).
 
 ## Defects
 
-### MEDIA-001 · S3 · The upload card keeps saying "Uploading" after the batch has finished
+### MEDIA-001 · S3 · The upload card keeps saying "Uploading" after the batch has finished — FIXED
 
 - **Route:** `/admin/media`, desktop 1440×900 (every viewport)
 - **Steps:**
@@ -42,6 +42,14 @@ the empty directories it does hold).
   author navigates away. The screen therefore says an upload is in progress when none is.
 - **Evidence:** `assets/2026-09-20-media/08-upload-card.png`; the sweep's own reading
   `upload-state=100%` taken after `Uploading — 1 of 1` had settled.
+- **Fixed in `fix(admin): stop the upload card claiming a finished batch is in flight`.** The
+  eyebrow's verb now changes with the batch and so does its number: `Uploading — {settled} of
+{total}` while files are in flight, which is §2.4's own sentence, and `Uploaded — {stored} of
+{total}` once they have settled — counting what became a photograph, because a duplicate
+  settles and becomes no row. Watched failing first at
+  `expected 'Uploading — 2 of 2' to be 'Uploaded — 2 of 2'` and
+  `expected 'Uploading — 1 of 1' to be 'Uploaded — 0 of 1'`; re-verified in Chromium through
+  `e2e/upload.spec.ts`, which now waits on the past tense.
 
 ### MEDIA-002 · S3 · A refused file's row prints the pipeline's internal refusal name
 

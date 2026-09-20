@@ -25,6 +25,7 @@ const roots: Root[] = []
 const renderCard = (props: {
   readonly done: number
   readonly total: number
+  readonly stored: number
   readonly duplicates: number
   readonly files: readonly UploadProgress[]
 }): HTMLElement => {
@@ -51,7 +52,7 @@ describe('UploadCard', () => {
   it('draws nothing at all when no batch is in flight', () => {
     // The screen's ordinary state. An empty card with "Uploading — 0 of 0" in
     // it would be a permanent fixture claiming something is happening.
-    const host = renderCard({ done: 0, total: 0, duplicates: 0, files: [] })
+    const host = renderCard({ done: 0, total: 0, stored: 0, duplicates: 0, files: [] })
 
     expect(host.querySelector('[data-upload-card]')).toBeNull()
   })
@@ -60,6 +61,7 @@ describe('UploadCard', () => {
     const host = renderCard({
       done: 2,
       total: 34,
+      stored: 2,
       duplicates: 0,
       files: [{ name: 'MARRAKECH_0118.jpg', percent: 100 }],
     })
@@ -67,14 +69,64 @@ describe('UploadCard', () => {
     expect(host.querySelector('[data-upload-count]')?.textContent).toBe('Uploading — 2 of 34')
   })
 
+  it('stops saying the batch is uploading once every file has settled', () => {
+    // MEDIA-001: the card kept reading "Uploading — 1 of 1" with the batch
+    // finished, so the screen said an upload was in progress when none was.
+    // The number changes with the verb: while files are in flight it counts
+    // what has SETTLED, and once they have it counts what became a row.
+    const host = renderCard({
+      done: 2,
+      total: 2,
+      stored: 2,
+      duplicates: 0,
+      files: [
+        { name: 'a.jpg', percent: 100 },
+        { name: 'b.jpg', percent: 100 },
+      ],
+    })
+
+    expect(host.querySelector('[data-upload-count]')?.textContent).toBe('Uploaded — 2 of 2')
+  })
+
+  it('still says the batch is uploading while one file is in flight', () => {
+    // The other side, so the case above pins a transition rather than a word.
+    const host = renderCard({
+      done: 1,
+      total: 2,
+      stored: 1,
+      duplicates: 0,
+      files: [
+        { name: 'a.jpg', percent: 100 },
+        { name: 'b.jpg', percent: 0 },
+      ],
+    })
+
+    expect(host.querySelector('[data-upload-count]')?.textContent).toBe('Uploading — 1 of 2')
+  })
+
+  it('counts what became a photograph, not what finished, once the batch has settled', () => {
+    // A duplicate's bytes went up and no row came of it. A finished card that
+    // counted settled files would say "Uploaded — 1 of 1" beside a notice
+    // saying the one file was skipped.
+    const host = renderCard({
+      done: 1,
+      total: 1,
+      stored: 0,
+      duplicates: 1,
+      files: [{ name: 'a.jpg', percent: 100 }],
+    })
+
+    expect(host.querySelector('[data-upload-count]')?.textContent).toBe('Uploaded — 0 of 1')
+  })
+
   it('draws no duplicate notice when nothing was a duplicate', () => {
-    const host = renderCard({ done: 1, total: 1, duplicates: 0, files: [{ name: 'a.jpg', percent: 100 }] })
+    const host = renderCard({ done: 1, total: 1, stored: 1, duplicates: 0, files: [{ name: 'a.jpg', percent: 100 }] })
 
     expect(host.querySelector('[data-upload-duplicates]')).toBeNull()
   })
 
   it('draws the duplicate notice when the pipeline reported some', () => {
-    const host = renderCard({ done: 3, total: 3, duplicates: 3, files: [{ name: 'a.jpg', percent: 100 }] })
+    const host = renderCard({ done: 3, total: 3, stored: 0, duplicates: 3, files: [{ name: 'a.jpg', percent: 100 }] })
 
     expect(host.querySelector('[data-upload-duplicates]')?.textContent).toContain('3 look like duplicates — skipped')
   })
@@ -88,6 +140,7 @@ describe('UploadCard', () => {
     const host = renderCard({
       done: 1,
       total: 2,
+      stored: 1,
       duplicates: 0,
       files: [
         { name: 'MARRAKECH_0118.jpg', percent: 100 },
@@ -104,7 +157,7 @@ describe('UploadCard', () => {
   it('fills the track to the percentage the row carries', () => {
     // The one inline style on this screen, and it is a measurement: no
     // stylesheet can know how far one upload has got.
-    const host = renderCard({ done: 0, total: 1, duplicates: 0, files: [{ name: 'a.jpg', percent: 64 }] })
+    const host = renderCard({ done: 0, total: 1, stored: 0, duplicates: 0, files: [{ name: 'a.jpg', percent: 64 }] })
     const fill = host.querySelector('[data-upload-fill]')
 
     expect(fill instanceof HTMLElement ? fill.style.width : '').toBe('64%')

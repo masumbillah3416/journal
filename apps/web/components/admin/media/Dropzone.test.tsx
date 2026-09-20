@@ -279,7 +279,9 @@ describe('the upload one picked file drives', () => {
 
     await pick(host, new File([new Uint8Array([1])], 'tokyo.jpg', { type: 'image/jpeg' }))
 
-    expect(host.querySelector('[data-upload-count]')?.textContent).toBe('Uploading — 1 of 1')
+    // PAST TENSE, AND THE COUNT IS OF ROWS: the batch has settled, so the
+    // eyebrow says what became a photograph (MEDIA-001).
+    expect(host.querySelector('[data-upload-count]')?.textContent).toBe('Uploaded — 1 of 1')
     expect(host.querySelector('[data-upload-state]')?.textContent).toBe('100%')
     expect(refreshes).toBe(1)
   })
@@ -305,6 +307,10 @@ describe('the upload one picked file drives', () => {
     await pick(host, new File([new Uint8Array([1])], 'tokyo.jpg', { type: 'image/jpeg' }))
 
     expect(host.querySelector('[data-upload-duplicates]')?.textContent).toContain('1 looks like a duplicate')
+    // AND THE EYEBROW DOES NOT CLAIM IT. A duplicate settles and becomes no
+    // row, so a finished card counting settled files would contradict the
+    // notice beside it.
+    expect(host.querySelector('[data-upload-count]')?.textContent).toBe('Uploaded — 0 of 1')
   })
 
   it('draws the whole batch as refused when the slot request was refused, because it is refused whole', async () => {

@@ -123,6 +123,13 @@ interface UploadRow extends UploadProgress {
   readonly settled: boolean
   /** `true` when the finalise answered `duplicate`. */
   readonly duplicate: boolean
+  /**
+   * `true` when the finalise created a photograph.
+   *
+   * A duplicate and a refusal both settle and neither becomes a row, which is
+   * the distinction the finished card's count rests on (MEDIA-001).
+   */
+  readonly stored: boolean
 }
 
 /**
@@ -147,7 +154,7 @@ export const Dropzone = ({ journeys, accepted, requestSlots, finalise }: Dropzon
   const upload = async (files: readonly File[]): Promise<void> => {
     if (files.length === 0 || journey === '') return
 
-    setRows(files.map((file) => ({ name: file.name, percent: 0, settled: false, duplicate: false })))
+    setRows(files.map((file) => ({ name: file.name, percent: 0, settled: false, duplicate: false, stored: false })))
 
     const offered = await requestSlots({
       journey,
@@ -196,6 +203,7 @@ export const Dropzone = ({ journeys, accepted, requestSlots, finalise }: Dropzon
                 settled: true,
                 percent: finalised.ok ? 100 : 0,
                 duplicate: finalised.ok && finalised.value.kind === 'duplicate',
+                stored: finalised.ok && finalised.value.kind !== 'duplicate',
               }
             : row,
         ),
@@ -286,6 +294,7 @@ export const Dropzone = ({ journeys, accepted, requestSlots, finalise }: Dropzon
       <UploadCard
         done={rows.filter((row) => row.settled).length}
         total={rows.length}
+        stored={rows.filter((row) => row.stored).length}
         duplicates={rows.filter((row) => row.duplicate).length}
         files={rows}
       />

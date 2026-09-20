@@ -291,7 +291,7 @@ test('the Media screen uploads a real photograph, and the tile it draws carries 
   // THE SCREEN'S OWN STATEMENT THAT THE FINALISE ANSWERED. The card counts a
   // file done when its finalise has returned, never when its PUT has
   // (`Dropzone.tsx`'s invariant), so this is the upload having become a row.
-  await expect(page.locator('[data-upload-count]')).toHaveText('Uploading — 1 of 1', { timeout: 30_000 })
+  await expect(page.locator('[data-upload-count]')).toHaveText('Uploaded — 1 of 1', { timeout: 30_000 })
 
   // AND THEN THE GRID, THROUGH THE SEARCH. The unfiltered grid is the whole
   // library sorted by `order`, a new row sorts last, and past a hundred tiles

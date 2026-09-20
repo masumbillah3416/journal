@@ -3148,3 +3148,28 @@ prototype with handlers on them.
 
 **Recorded as:** this entry, `apps/web/lib/admin/mediaMutations.ts`'s header, and
 `MediaGrid.test.tsx`'s bulk-write cases.
+
+## 71 · The upload card has a finished state, which §2.4 does not draw
+
+**What changed:** `SCREENS.md` §2.4 draws the upload card in ONE state — "Uploading — 2 of 34",
+a batch mid-flight — because nothing in a prototype finishes. This card has a second: once every
+file has settled the eyebrow reads **"Uploaded — {n} of {m}"**, and the number changes with the
+verb.
+
+**Rationale.** Keeping the design's sentence after the batch had settled made the screen say an
+upload was in progress when none was, and it stayed that way until the author navigated
+(`docs/qa/2026-09-20-media-screen-sweep.md`, MEDIA-001). The alternatives were to hide the card —
+which throws away the duplicate notice §2.4 explicitly draws, and the only place a refusal
+appears — or to leave it lying. One word of the design's own sentence is the smallest change that
+stops it.
+
+**And the number it counts changes too, which is the half worth reading twice.** In flight it
+counts what has SETTLED, which is what §2.4's own "2 of 34" counts. Once the batch has settled it
+counts what became a PHOTOGRAPH: a duplicate settles and creates no row, a refusal settles and
+creates no row, so a finished card counting settled files would read "Uploaded — 1 of 1" beside a
+notice saying the one file was skipped.
+
+**What would reverse it:** a `SCREENS.md` revision that says what the card does when a batch ends.
+
+**Recorded as:** this entry, `uploadEyebrow`'s TSDoc in `UploadCard.tsx`, and the sweep's
+MEDIA-001.
