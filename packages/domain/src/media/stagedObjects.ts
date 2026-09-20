@@ -28,7 +28,7 @@
  * below are therefore decided in a module with no store, no clock and no
  * database, where each of them is a two-line case.
  *
- * ═══ THREE REFUSALS, AND THEY COMPOSE AS AN AND ═══
+ * ═══ TWO REFUSALS, AND THEY COMPOSE AS AN AND ═══
  *
  *   1. **A key nothing minted is never returned.** `isMintedStagingKey` is a
  *      match against the shape `planUploadSlots` produces — default-deny —
@@ -36,13 +36,28 @@
  *      the production store is rooted at `MEDIA_DIR`, the same directory
  *      Payload keeps every stored photograph and derivative in, so a sweep
  *      that trusted the prefix it was handed could delete the published book.
- *   2. **A key a row still points at is never returned.** `live` is the set of
- *      staging keys the caller found in the database. A sweep that decided on
- *      age alone would race a finalise that has created the row and not yet
- *      deleted the staged copy.
- *   3. **A young orphan is never returned.** An upload still being PUT has no
+ *   2. **A young orphan is never returned.** An upload still being PUT has no
  *      row yet and is not abandoned; sweeping on orphanhood alone deletes the
- *      author's photograph mid-upload.
+ *      author's photograph mid-upload. The window is therefore the ONLY thing
+ *      standing between the sweep and an upload in flight, which is why both
+ *      of its sides are pinned below.
+ *
+ * ═══ THERE IS NO "A ROW STILL POINTS AT IT" REFUSAL, AND THAT IS MEASURED ═══
+ *
+ * The task brief specifies a third parameter, `live: ReadonlySet<string>` —
+ * "the staging keys a media row still points at" — and this module was written
+ * with it. **Nothing in this repository can produce that set.** No column of
+ * `media`, `journeys`, `pages` or `jobs` records a staging key
+ * (`apps/web/collections/*.ts`, `apps/web/migrations/*.ts`,
+ * `apps/web/lib/ports/queue.ts`), and `apps/web/lib/media/ingestUpload.ts`
+ * deletes the staged object in a `finally` on EVERY finalise path, refusals
+ * included — so a finalised upload has no staged object to protect and an
+ * un-finalised one has no row. Every caller would pass an empty set, and a
+ * guard whose input is always empty is a guard nothing can fail, with a test
+ * case that is a hypothesis rather than a test. It is left out rather than
+ * carried, and the day a worker needs the staged original to SURVIVE ingest
+ * (ADR 0004 defers that worker), the column that records the key and this
+ * guard arrive together.
  *
  * ═══ INVARIANTS A FUTURE EDIT COULD BREAK ═══
  *
@@ -106,21 +121,15 @@ export interface StagedObject {
  * The staged objects that may be deleted.
  *
  * @param objects - Everything the store listed under the staging namespace.
- * @param live - The staging keys some `media` row still points at.
  * @param now - The sweep's clock reading, injected.
  * @param ttlMs - How long an orphan is left alone, injected. An age of exactly
  *   this is kept; one millisecond more is swept.
  * @returns The keys to delete, in the order they were listed. Empty when
  *   nothing qualifies, which is the ordinary answer.
  * @example
- * staleStagedObjects(listed, new Set(pending), Date.now(), STAGED_UPLOAD_TTL_MS)
+ * staleStagedObjects(listed, Date.now(), STAGED_UPLOAD_TTL_MS)
  */
-export const staleStagedObjects = (
-  objects: readonly StagedObject[],
-  live: ReadonlySet<string>,
-  now: number,
-  ttlMs: number,
-): readonly string[] =>
+export const staleStagedObjects = (objects: readonly StagedObject[], now: number, ttlMs: number): readonly string[] =>
   objects
-    .filter((object) => isMintedStagingKey(object.key) && !live.has(object.key) && now - object.modifiedAt > ttlMs)
+    .filter((object) => isMintedStagingKey(object.key) && now - object.modifiedAt > ttlMs)
     .map((object) => object.key)

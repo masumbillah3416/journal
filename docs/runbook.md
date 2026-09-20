@@ -295,20 +295,20 @@ third source rather than a new kind of problem.
 **Staged bytes that are never finalised are NOT part of this problem, and filing them
 here was the mistake this paragraph corrects.** A slot that is uploaded to and never
 finalised — the author closes the tab, the request fails, the page is reloaded — leaves
-its object under `apps/web/media/staging/<journey>/` forever: Task 8 of the media phase
+its object under `apps/web/media/staging/<journey>/`: Task 8 of the media phase
 deletes the staging copy on every _finalise_ path - `ingestUpload`'s `finally`, so a
 refused upload's original is removed as well as a stored one's - and an upload that never
-reaches that finalise step is swept by nothing. What makes that a security residual rather than a
+reaches that finalise step is reached by no finalise. What makes that a security residual rather than a
 capacity one is WHAT THOSE BYTES ARE: the pre-strip original, the copy that still carries
 the GPS coordinates, which is exactly the data `SECURITY.md`'s read-EXIF-then-strip
-requirement exists to remove. Freeing the disk is not the reason to sweep them. The owner
-is named in
-`docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`'s Consequences — the
-sweep is **Phase 4's**, which is where a scheduler exists to hang it on — and the
-requirement it is a residual against is `docs/security.md`'s EXIF row. **Until then, an
-operator clearing space should treat `apps/web/media/staging/` as the first thing to
-remove, not the last:** nothing published depends on it, and everything in it is either
-in flight or an un-stripped original.
+requirement exists to remove. Freeing the disk is not the reason to sweep them. **They are
+swept, hourly, by `npm run media:sweep-staged` — see the section below**, which is the
+Phase 4 owner `docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`'s
+Consequences named; the requirement it was a residual against is `docs/security.md`'s EXIF
+row, and the decision is `docs/adr/0024-the-staged-upload-sweep.md`. **An operator clearing
+space can still treat `apps/web/media/staging/` as the first thing to remove, not the
+last:** nothing published depends on it, and everything in it is either in flight or an
+un-stripped original.
 
 **The first symptom is not a full disk. It is a test that has always passed timing out,
 with no commit in between** — the same confusing shape as the wall-clock guard suite
@@ -366,6 +366,53 @@ attached where the writing happens, which today is the `media` collection — an
 storage moves to R2 the same deletion moves into the adapter, which is what R2 will need
 in order not to bill for orphans forever. Until then this is housekeeping, and the table above is what
 tells you when it is due.
+
+## Sweeping the staged originals — `npm run media:sweep-staged`
+
+**What it removes, and why that matters more than the disk it frees.** An upload that was
+offered a slot, PUT its bytes, and never finalised leaves its object under
+`apps/web/media/staging/<journey>/`. Those bytes are the **pre-strip original** — the copy
+that still carries the GPS coordinates `SECURITY.md`'s read-EXIF-then-strip requirement
+exists to remove, which is why "shoot anything at home and you have published your home
+address" is the sentence this command answers. `ingestUpload` deletes the staged copy on
+every _finalise_ path; nothing else reaches an upload that never finalises. This does.
+
+```bash
+npm run media:sweep-staged
+```
+
+**How often:** hourly. In production it is a platform scheduled invocation (Vercel Cron);
+locally and in a restore drill it is the command above. `STAGED_UPLOAD_TTL_MS`
+(`packages/domain/src/media/stagedObjects.ts`) is one hour, so an abandoned original lives
+at most **two** hours — up to an hour inside the window, plus up to an hour until the next
+run. The window is four times the fifteen minutes an offered upload URL lives, which is
+what keeps the sweep from deleting a photograph that is still being uploaded.
+
+**What it prints, and what it exits with.** One line — `Swept 3 abandoned staged
+upload(s).` — and **never a storage key**; a scheduler's log is not a place to publish the
+store's own naming. Exit `0` when the sweep ran, `1` when it could not list the store at
+all. Judge the run by the status, not the line.
+
+### ⚠ IF IT STOPS RUNNING, THAT IS GROWTH, NOT EXPOSURE — BUT FIX IT ANYWAY
+
+A staged object is **not served**: it has no `media` row, and Payload's own file-access
+check requires one, so nobody can fetch one by guessing its key. A scheduler that stops
+firing therefore leaves un-stripped originals accumulating on disk rather than reachable
+from the internet. That is a non-urgent alert, not an incident — and it is still an alert,
+because every one of those objects is a set of coordinates that was supposed to be gone.
+Clearing the backlog is one manual run of the command; nothing has to be re-derived and
+nothing published depends on what it removes.
+
+**What it will NOT remove, so you can run it without holding your breath.** Only keys of
+the shape `planUploadSlots` mints — `staging/<journey>/<nonce>-<name>` — and only ones
+older than the window. A published photograph's own file, any derivative of one, anything
+under a directory that merely begins with `staging`, and anything at the wrong depth are
+all refused by not being recognised rather than by appearing on a list
+(`packages/domain/src/media/stagedObjects.ts`). That matters because
+`apps/web/media` is BOTH the staging namespace and where Payload keeps the whole diary.
+
+The decision, the two rejected alternatives and the residual it closes are
+`docs/adr/0024-the-staged-upload-sweep.md`.
 
 ## Rotate secrets
 

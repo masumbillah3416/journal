@@ -34,6 +34,7 @@
     "db:migrate:down": "npm run db:migrate:down -w apps/web",
     "db:seed": "npm run db:seed -w apps/web",
     "media:rederive": "npm run media:rederive -w apps/web",
+    "media:sweep-staged": "npm run media:sweep-staged -w apps/web",
     "prepare": "husky"
   },
   "devDependencies": {

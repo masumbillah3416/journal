@@ -1032,8 +1032,11 @@ worker exists; see the row above. (2) **Between a PUT and a finalise that never 
 archive is still unsniffed**: a slot uploaded to and then abandoned leaves its object under
 `apps/web/media/staging/<journey>/` with nothing having read a byte of it. It is not SERVED (a
 staged object has no `media` row, and Payload's own file-access check requires one), so it is a
-residual rather than an exposure — the same orphan `docs/runbook.md` and ADR 0020 already own,
-swept by Phase 4.
+residual rather than an exposure — the same orphan `docs/runbook.md` and ADR 0020 already own.
+**It is now swept**, hourly, by `npm run media:sweep-staged` (Phase 4 Task 8,
+`docs/adr/0024-the-staged-upload-sweep.md`), so an unsniffed archive sits in the store for at
+most two hours rather than forever. The sweep deletes it; it does not sniff it, and nothing
+ever will — an object that is never finalised is never read.
 
 ### Read EXIF once for `capturedAt` and orientation, then strip all metadata
 
@@ -1201,15 +1204,41 @@ This paragraph claimed a crashed `inline` upload left a `processing` row, which 
 produce (whole-branch review F2). Both filters are written for the day `MEDIA_PIPELINE=worker`
 boots — one deleted `.refine` in `apps/web/lib/env.ts` — rather than for a state `inline` reaches. **AND
 ONE RESIDUAL BELONGS IN THIS ROW RATHER THAN IN A CAPACITY NOTE (Phase 3 Task 7's fix round).**
-A slot that is uploaded to and never finalised leaves its staged object on disk forever: Task
+A slot that is uploaded to and never finalised leaves its staged object on disk: Task
 8's `ingestUpload` deletes the staging copy on every _finalise_ path — a `finally`, so a refusal
 removes it too, pinned by “removes the staging object even when the bytes are refused” — and an
-upload that never reaches that finalise step is swept by nothing in the Phase 3 plan. **Those
+upload that never reaches that finalise step was swept by nothing in the Phase 3 plan. **Those
 orphans are the PRE-STRIP ORIGINALS** — the copy that still carries the coordinates this row
 exists to remove — so they are a residual against THIS requirement, not disk growth.
-`docs/runbook.md` records the same thing under that heading and points here. The sweep is owed
-by **Phase 4**, which is where a scheduler exists to hang it on; building one inside the upload
-path would be the speculative extension `CLAUDE.md` §4 refuses. Recorded in
+
+**THAT RESIDUAL IS NOW CLOSED (Phase 4 Task 8), and what closed it is a command with a
+schedule.** `npm run media:sweep-staged` walks the staging namespace through
+`StoragePort.list`, asks `packages/domain/src/media/stagedObjects.ts` which keys may go, and
+deletes those. It is invoked hourly — in production by Vercel Cron, and `docs/runbook.md`
+carries the schedule and the failure mode. An abandoned original therefore lives at most two
+hours: up to one hour inside `STAGED_UPLOAD_TTL_MS`, plus up to one hour until the next run.
+
+**WHAT A MISSED RUN COSTS, stated rather than implied.** The objects are NOT served — a staged
+object has no `media` row, and Payload's own file-access check requires one — so a scheduler
+that stops firing produces growth rather than exposure. The command still exits `1` when it
+could not list the store at all, so a broken sweep is not a green run in the platform's
+dashboard; that exit code has a case on each side
+(`apps/web/scripts/sweep-staged.integration.test.ts`).
+
+**WHAT THE PROOF IS, because an absence asserted on its own proves nothing.**
+`sweepStagedUploads.integration.test.ts`'s first case stages a photograph through the real
+planner, a real capability token and the real receiver; reads the object back OUT of the store
+and asserts `metadataMarkersIn` finds `exif` in it; and only THEN sweeps and asserts the object
+is gone. Without that positive control the case passes against an empty store — measured:
+replacing the fixture with `aTinyPng()` and leaving the sweep correct fails the case at the
+`toContain('exif')` line. A second case puts a filename Payload actually chose, read off a row
+it had just written, into the same store and requires it to survive: `MEDIA_DIR` holds the
+staging namespace AND every published file, so a sweep that trusted its prefix would delete the
+diary.
+
+Building the sweep inside the upload path would have been the speculative extension
+`CLAUDE.md` §4 refuses; the options and the decision are
+`docs/adr/0024-the-staged-upload-sweep.md`, and the residual's original statement is
 `docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`'s Consequences.
 
 ### Keep the admin on its own subdomain, or behind an IP allowlist

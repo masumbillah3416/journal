@@ -29,6 +29,7 @@ npm run db:migrate       # apply every pending migration  (→ apps/web)
 npm run db:migrate:down  # roll the most recent batch back  (→ apps/web)
 npm run db:seed          # seed from the handoff prototype content  (→ apps/web)
 npm run media:rederive   # give every stored media row the tiers imageSizes configures  (→ apps/web)
+npm run media:sweep-staged # delete abandoned, un-stripped staged uploads (hourly)  (→ apps/web)
 ```
 
 **There are two gates, deliberately, and they are not the same gate.**

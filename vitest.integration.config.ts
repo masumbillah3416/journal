@@ -256,6 +256,12 @@ export default defineConfig({
         // a real store and the real Postgres queue - and gated here instead.
         'apps/web/lib/media/ingestUpload.ts',
         'apps/web/lib/media/testing/ingestProbes.ts',
+        // Phase 4 Task 8's staged-upload sweep, excluded from
+        // `vitest.config.ts`'s coverage include by exact path for the reason
+        // stated there - it walks and deletes out of a real store - and gated
+        // here instead.
+        'apps/web/lib/media/sweepStagedUploads.ts',
+        'apps/web/scripts/sweep-staged.ts',
         'apps/web/collections/**/*.ts',
         'apps/web/globals/**/*.ts',
         'apps/web/payload.config.ts',
@@ -663,6 +669,18 @@ export default defineConfig({
         // threshold lowered to hide them.
         'apps/web/lib/media/ingestUpload.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/media/testing/ingestProbes.ts': { lines: 100, branches: 100, functions: 100 },
+        // Phase 4 Task 8's staged-upload sweep, at the same 100 across and
+        // measured rather than rounded up. The one arm neither file can reach
+        // organically is a `StoragePort.delete` that REFUSES: the local
+        // adapter swallows every filesystem error and returns `ok`, and the
+        // keys reaching it are the domain's own minted shapes, so
+        // `validateStorageKey` cannot refuse one either. It carries a
+        // `c8 ignore` with that reason at the line and stays in the code
+        // because an R2 adapter's delete genuinely can refuse - a credential,
+        // a bucket policy - and a sweep reporting those keys as removed would
+        // be a report `docs/runbook.md` trusts.
+        'apps/web/lib/media/sweepStagedUploads.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/scripts/sweep-staged.ts': { lines: 100, branches: 100, functions: 100 },
         // clipToolchain.ts: THIS FILE HAS TWO SETS OF UNREACHABLE CODE, ONE
         // PER ENVIRONMENT, so every threshold below is the FLOOR of the two
         // rather than either machine's own number. An earlier version gated

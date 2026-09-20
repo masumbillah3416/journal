@@ -580,26 +580,35 @@ const TOKEN_EXPIRES_AT = 2_000
 const RECEIVED_AT = 1_000
 
 /**
- * Plans a slot, PUTs the bytes through the receiver, and ingests them.
+ * Plans a slot and PUTs the bytes through the receiver, and stops there.
  *
- * THE RECEIVER IS IN THE PATH, not a bare `storage.put`: what this helper
- * hands back is a row whose bytes travelled the same three seams a browser's
- * upload does, so a case asserting about the STORED file is asserting about
- * the pipeline rather than about `sharp` alone. The clock is injected on both
- * sides — {@link TOKEN_EXPIRES_AT} against a `now` of {@link RECEIVED_AT} —
- * so the token's lifetime is a fact of the call and not of the machine.
+ * ═══ AN UPLOAD THAT WAS NEVER FINALISED, WHICH IS THE THING BEING SWEPT ═══
+ *
+ * THE RECEIVER IS IN THE PATH, not a bare `storage.put`: the object this
+ * leaves behind travelled the same seams a browser's upload does — the
+ * planner's key, a minted capability token, the receiver weighing the bytes
+ * that actually arrived — so a sweep case asserting about it is asserting
+ * about a real staged original rather than about a file a test wrote. A
+ * hand-written staging key would be refused by `isStagingKeyFor` before it
+ * reached the check it was written for, and a hand-written one that happened
+ * to match would be a fixture agreeing with itself (this module's header).
+ *
+ * The clock is injected on both sides — {@link TOKEN_EXPIRES_AT} against a
+ * `now` of {@link RECEIVED_AT} — so the token's lifetime is a fact of the call
+ * and not of the machine.
  * @param options - `bytes` are the upload's; `journey` defaults to a fresh
  *   fixture journey, so two cases cannot collide.
- * @returns The id of the row the ingest created.
- * @throws When the receiver refuses the PUT, or when the ingest named no new
- *   row — both of which mean the fixture, not the assertion, is wrong.
+ * @returns The staged upload: ingest's input, the store the bytes are in, and
+ *   the bytes themselves.
+ * @throws When the receiver refuses the PUT, which means the fixture, not the
+ *   assertion, is wrong.
  * @example
- * const media = await ingestPhotograph({ bytes: await aPhotographWithExif() })
+ * const staged = await stagePhotographThroughReceiver({ bytes: await aPhotographWithExif() })
  */
-export const ingestPhotograph = async (options: {
+export const stagePhotographThroughReceiver = async (options: {
   readonly bytes: Uint8Array
   readonly journey?: JourneyId
-}): Promise<MediaId> => {
+}): Promise<StagedUpload> => {
   const { storage } = await aTempStore()
   const input = plannedInput({
     bytes: options.bytes,
@@ -622,7 +631,31 @@ export const ingestPhotograph = async (options: {
   /* c8 ignore next -- no organic trigger: the token is minted here, over this key, unexpired and wide enough for every fixture. The throw stays so a receiver change fails by name rather than as an empty store. */
   if (!received.ok) throw new Error(`the receiver refused a fixture upload: ${received.error}`)
 
-  return idOf(await ingestUpload(input, await inlineDeps(storage)))
+  return { input, storage, bytes: options.bytes }
+}
+
+/**
+ * Plans a slot, PUTs the bytes through the receiver, and ingests them.
+ *
+ * {@link stagePhotographThroughReceiver} then `ingestUpload`, so the two
+ * helpers cannot disagree about how a photograph reaches the store: what this
+ * hands back is a row whose bytes travelled the same seams a browser's upload
+ * does, and a case asserting about the STORED file is asserting about the
+ * pipeline rather than about `sharp` alone.
+ * @param options - `bytes` are the upload's; `journey` defaults to a fresh
+ *   fixture journey, so two cases cannot collide.
+ * @returns The id of the row the ingest created.
+ * @throws When the receiver refuses the PUT, or when the ingest named no new
+ *   row — both of which mean the fixture, not the assertion, is wrong.
+ * @example
+ * const media = await ingestPhotograph({ bytes: await aPhotographWithExif() })
+ */
+export const ingestPhotograph = async (options: {
+  readonly bytes: Uint8Array
+  readonly journey?: JourneyId
+}): Promise<MediaId> => {
+  const staged = await stagePhotographThroughReceiver(options)
+  return idOf(await ingestUpload(staged.input, await inlineDeps(staged.storage)))
 }
 
 /** One file Payload actually wrote for a row, and which tier it is. */
@@ -633,29 +666,35 @@ export interface StoredFile {
   readonly bytes: Uint8Array
 }
 
+/** One file a row owns, as the store names it. */
+export interface StoredFilename {
+  /** The derivative tier's name, or `original` for the row's own file. */
+  readonly tier: string
+  /** The key the file is stored under, which is also the key the store takes. */
+  readonly filename: string
+}
+
 /**
- * Every file a row owns, read back OUT of the store through the port.
+ * The names of every file a row owns, as Payload actually wrote them.
  *
- * ═══ THROUGH `createLocalStorage(MEDIA_DIR)`, NEVER THROUGH `fs` ═══
+ * ═══ READ, NEVER WRITTEN DOWN ═══
  *
- * The phase's EXIF criterion is settled by reading the stored bytes, and the
- * store is the thing that holds them. Going through the port is also what
- * makes this the same read `readGalleryDownload` performs, so a key this
- * probe can fetch is a key a download can.
+ * A test that needs to know what a stored photograph's key LOOKS LIKE — the
+ * staged-upload sweep's, which must leave one alone — asks this rather than
+ * spelling `tokyo-1.jpg`. A fixture that spelled it would encode somebody's
+ * belief about Payload's naming, which is the fixture-drift species this
+ * module's header records two blockers from.
  *
  * A tier whose `filename` is null is one Payload did not derive — it is left
  * out rather than returned empty, so the caller's count is of files that
  * exist.
  * @param media - The row to read, as {@link ingestPhotograph} returned it.
  * @returns One entry per stored file, the row's own first.
- * @throws When the store cannot hand back a file the row names, which would
- *   mean a row pointing at bytes that are not there.
  * @example
- * for (const file of await storedFilesFor(media)) expect(metadataMarkersIn(file.bytes)).toEqual([])
+ * const [original] = await storedFilenamesFor(media)
  */
-export const storedFilesFor = async (media: MediaId): Promise<readonly StoredFile[]> => {
+export const storedFilenamesFor = async (media: MediaId): Promise<readonly StoredFilename[]> => {
   const { getTestPayload } = await import('../../testPayload')
-  const { MEDIA_DIR } = await import('../../../collections/media')
   const payload = await getTestPayload()
   const row = await payload.findByID({
     collection: 'media',
@@ -667,14 +706,35 @@ export const storedFilesFor = async (media: MediaId): Promise<readonly StoredFil
   const derivatives: Readonly<Record<string, { readonly filename?: string | null } | undefined>> =
     /* c8 ignore next -- no organic trigger: Payload writes a `sizes` object onto every row of an upload collection. The fallback stays so a row without one reads as "no derivatives" rather than throwing. */
     row.sizes ?? {}
-  const named = [
+  return [
     { tier: 'original', filename: row.filename },
     ...Object.entries(derivatives).map(([tier, size]) => ({
       tier,
       /* c8 ignore next -- no organic trigger: that object carries one entry per configured image size, so the optional chain's undefined arm is unreachable. It stays so a sparse `sizes` reads as "not derived" rather than throwing. */
       filename: size?.filename,
     })),
-  ].filter((file): file is { tier: string; filename: string } => typeof file.filename === 'string')
+  ].filter((file): file is StoredFilename => typeof file.filename === 'string')
+}
+
+/**
+ * Every file a row owns, read back OUT of the store through the port.
+ *
+ * ═══ THROUGH `createLocalStorage(MEDIA_DIR)`, NEVER THROUGH `fs` ═══
+ *
+ * The phase's EXIF criterion is settled by reading the stored bytes, and the
+ * store is the thing that holds them. Going through the port is also what
+ * makes this the same read `readGalleryDownload` performs, so a key this
+ * probe can fetch is a key a download can.
+ * @param media - The row to read, as {@link ingestPhotograph} returned it.
+ * @returns One entry per stored file, the row's own first.
+ * @throws When the store cannot hand back a file the row names, which would
+ *   mean a row pointing at bytes that are not there.
+ * @example
+ * for (const file of await storedFilesFor(media)) expect(metadataMarkersIn(file.bytes)).toEqual([])
+ */
+export const storedFilesFor = async (media: MediaId): Promise<readonly StoredFile[]> => {
+  const { MEDIA_DIR } = await import('../../../collections/media')
+  const named = await storedFilenamesFor(media)
 
   const storage = createLocalStorage(MEDIA_DIR)
   const files: StoredFile[] = []

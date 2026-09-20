@@ -608,6 +608,19 @@ export default defineConfig({
         // the four Task 7 files above.
         'apps/web/lib/media/ingestUpload.ts',
         'apps/web/lib/media/testing/ingestProbes.ts',
+        // Phase 4 Task 8's staged-upload sweep. `sweepStagedUploads.ts` walks a
+        // real store through a real `StoragePort` and deletes out of it, and
+        // `scripts/sweep-staged.ts` is the command around it, whose success
+        // case needs an object staged through the real receiver against a real
+        // Payload. Both are excluded by exact path and gated instead by
+        // vitest.integration.config.ts - same reasoning as the ingest pair
+        // above. Its CLI entry point `scripts/run-sweep-staged.ts` is NOT
+        // here: it stays in this pass's measured set, fully `c8 ignore`d,
+        // exactly like `run-rederive.ts`. The DECISION the sweep takes -
+        // which keys are stale - is pure and lives in
+        // `packages/domain/src/media/stagedObjects.ts`, gated at 100% here.
+        'apps/web/lib/media/sweepStagedUploads.ts',
+        'apps/web/scripts/sweep-staged.ts',
         // Task 1 of Phase 1: these three are the app/(payload)/** files
         // whose parent directory is a Next.js dynamic-route segment written
         // in square brackets (`[...slug]`, `[[...segments]]`) - required by
@@ -980,6 +993,18 @@ export default defineConfig({
         // 100 is the honest gate for a file with nothing left uncovered, and
         // adding a measurable line to it fails here.
         'apps/web/scripts/run-rederive.ts': {
+          lines: 100,
+          branches: 100,
+          functions: 100,
+        },
+        // `run-sweep-staged.ts` (Phase 4 Task 8) is another of the same twins,
+        // with the identical whole-file `c8 ignore start`/`stop` and the
+        // identical reason: a CLI entry point whose body is top-level `await`
+        // ending in `process.exit`, which no test can import without sweeping
+        // a real store and killing its own worker. What it wraps -
+        // `scripts/sweep-staged.ts` - is excluded above and gated by
+        // `vitest.integration.config.ts` at 100.
+        'apps/web/scripts/run-sweep-staged.ts': {
           lines: 100,
           branches: 100,
           functions: 100,
