@@ -1,0 +1,91 @@
+{
+  "before": [
+    {
+      "media": 1503,
+      "focalX": 22,
+      "focalY": 78
+    },
+    {
+      "media": 1504,
+      "focalX": 50,
+      "focalY": 50
+    },
+    {
+      "media": 1505,
+      "focalX": 50,
+      "focalY": 50
+    }
+  ],
+  "pill": "focus 55% 53%",
+  "after": [
+    {
+      "media": 1503,
+      "focalX": 22,
+      "focalY": 78
+    },
+    {
+      "media": 1504,
+      "focalX": 55,
+      "focalY": 53
+    },
+    {
+      "media": 1505,
+      "focalX": 50,
+      "focalY": 50
+    }
+  ],
+  "published": [
+    {
+      "src": "api/media/file/tokyo-a1-128-1000x800.png",
+      "objectPosition": "22% 78%"
+    },
+    {
+      "src": "api/media/file/tokyo-a2-128-1000x800.png",
+      "objectPosition": "55% 53%"
+    },
+    {
+      "src": "api/media/file/tokyo-a3-128-1000x800.png",
+      "objectPosition": "50% 50%"
+    },
+    {
+      "src": "api/media/file/tokyo-b1-128-1000x800.png",
+      "objectPosition": "50% 50%"
+    },
+    {
+      "src": "api/media/file/tokyo-b2-128-1000x800.png",
+      "objectPosition": "50% 50%"
+    },
+    {
+      "src": "api/media/file/tokyo-b3-128-1000x800.png",
+      "objectPosition": "80% 24%"
+    },
+    {
+      "src": "api/media/file/tokyo-b4-128-1000x800.png",
+      "objectPosition": "50% 50%"
+    },
+    {
+      "src": "AAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+      "objectPosition": "50% 50%"
+    },
+    {
+      "src": "AAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+      "objectPosition": "50% 50%"
+    },
+    {
+      "src": "AAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+      "objectPosition": "50% 50%"
+    }
+  ],
+  "noise": [
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected"
+  ]
+}

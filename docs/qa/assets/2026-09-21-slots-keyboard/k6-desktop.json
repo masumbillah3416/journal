@@ -1,0 +1,106 @@
+{
+  "stops": [
+    {
+      "tag": "BUTTON",
+      "handle": "data-focal-target,data-role",
+      "label": "Set the focal point of Frame 1 — click it, or move it with the arrow keys",
+      "disabled": false
+    },
+    {
+      "tag": "A",
+      "handle": "data-slot-replace",
+      "label": "Replace",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "handle": "data-slot-clear",
+      "label": "Clear",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "handle": "data-slot-caption",
+      "label": "Caption for Frame 1",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "handle": "data-slot-alt",
+      "label": "Alt text for Frame 1",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "handle": "data-slot-save-words",
+      "label": "Save words",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "handle": "data-focal-target,data-role",
+      "label": "Set the focal point of Frame 2 — click it, or move it with the arrow keys",
+      "disabled": false
+    },
+    {
+      "tag": "A",
+      "handle": "data-slot-replace",
+      "label": "Replace",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "handle": "data-slot-clear",
+      "label": "Clear",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "handle": "data-slot-caption",
+      "label": "Caption for Frame 2",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "handle": "data-slot-alt",
+      "label": "Alt text for Frame 2",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "handle": "data-slot-save-words",
+      "label": "Save words",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "handle": "data-focal-target,data-role",
+      "label": "Set the focal point of Frame 3 — click it, or move it with the arrow keys",
+      "disabled": false
+    },
+    {
+      "tag": "A",
+      "handle": "data-slot-replace",
+      "label": "Replace",
+      "disabled": false
+    }
+  ],
+  "noise": [
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected"
+  ]
+}

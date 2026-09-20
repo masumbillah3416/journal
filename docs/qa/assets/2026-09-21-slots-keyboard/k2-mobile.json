@@ -1,0 +1,48 @@
+{
+  "seen": {
+    "downs": 25,
+    "repeats": 24
+  },
+  "postsBeforeRelease": 0,
+  "pillBeforeRelease": "focus 47% 78%",
+  "postsAfterRelease": 1,
+  "pill": "focus 47% 78%",
+  "before": [
+    {
+      "media": 1503,
+      "focalX": 22,
+      "focalY": 78
+    },
+    {
+      "media": 1504,
+      "focalX": 50,
+      "focalY": 50
+    },
+    {
+      "media": 1505,
+      "focalX": 50,
+      "focalY": 50
+    }
+  ],
+  "after": [
+    {
+      "media": 1503,
+      "focalX": 47,
+      "focalY": 78
+    },
+    {
+      "media": 1504,
+      "focalX": 50,
+      "focalY": 50
+    },
+    {
+      "media": 1505,
+      "focalX": 50,
+      "focalY": 50
+    }
+  ],
+  "noise": [
+    "console[log] [HMR] connected",
+    "console[log] [HMR] connected"
+  ]
+}

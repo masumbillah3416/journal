@@ -1,0 +1,45 @@
+{
+  "programmatic": {
+    "detail": 0
+  },
+  "posts": 0,
+  "pill": "focus 22% 78%",
+  "before": [
+    {
+      "media": 1503,
+      "focalX": 22,
+      "focalY": 78
+    },
+    {
+      "media": 1504,
+      "focalX": 50,
+      "focalY": 50
+    },
+    {
+      "media": 1505,
+      "focalX": 50,
+      "focalY": 50
+    }
+  ],
+  "after": [
+    {
+      "media": 1503,
+      "focalX": 22,
+      "focalY": 78
+    },
+    {
+      "media": 1504,
+      "focalX": 50,
+      "focalY": 50
+    },
+    {
+      "media": 1505,
+      "focalX": 50,
+      "focalY": 50
+    }
+  ],
+  "noise": [
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected"
+  ]
+}

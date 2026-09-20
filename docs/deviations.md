@@ -2955,3 +2955,54 @@ own layout, or a Frames pane that gains a page-level field.
 
 **Recorded as:** this entry, `packages/domain/src/admin/pageSlots.ts`'s header, and
 `FramesPane.tsx`'s header.
+
+## 65 · Enter and Space do nothing on the focal control, and the arrow keys aim it instead
+
+**What changed:** `SCREENS.md` §2.3's focal point is "click anywhere on a slot", and the element
+that takes the click is a `<button>` — so it is in the tab order and a keyboard can activate it.
+Activating it does **nothing**. The arrow keys move the crop by one percentage point per press
+instead, and the write leaves on the key's release.
+
+**What the specified control does when a keyboard reaches it, which is why this exists.** Enter
+or Space on a `<button>` dispatches a `click` whose `clientX`/`clientY` are **0** — there is no
+pointer, so there is no pointer position. §2.3's own formula reads that as a drag that left the
+box and clamps it to the frame's top-left corner, and `0` is inside every refusal on the way to
+the column. So the specified control, reached by the specified element, **silently replaced the
+author's crop with `0% 0%`** and served it to every reader (Task 7 review, H1). A keyboard user
+could do exactly one thing to this control, and it was destroy.
+
+**Rationale for each half:**
+
+- **The activation is refused** on `MouseEvent.detail`, which is the standard signal: a pointer
+  carries its click count, a synthesised activation carries 0. A write must not invent a
+  coordinate it was never given.
+- **The arrows aim**, because refusing the activation alone leaves the control keyboard-INERT —
+  a smaller defect and still one. They go through `focalPointFrom`'s own clamp rather than a
+  second one (`packages/domain/src/admin/focalPoint.ts`'s `clamped`), so a keyboard that walked
+  off the edge and a pointer that left the box are answered identically.
+- **The step is one percentage point** (`FOCAL_NUDGE`). That is the pill's own resolution: it
+  prints whole percentages and the editor stores what it printed
+  (`docs/qa/2026-09-20-journey-slots-sweep.md`, SLOT-002). A finer step would move a value the
+  author cannot see; a coarser one would put points out of reach that a click can hit.
+- **The write is on `keyup`, not on `keydown`.** A held arrow fires `keydown` as fast as the
+  platform repeats it, and every write here mints a row on a versioned collection
+  (`apps/web/lib/admin/pageMutations.ts`'s header). One physical press is one write.
+
+**What it costs, said plainly rather than left implied.** A `<button>` that does nothing on Enter
+is unusual, and it is a trade rather than a free win: WCAG 2.1.1 is satisfied by the arrows, but
+`detail === 0` refuses EVERY synthesised activation — including `element.click()` from assistive
+tech and from voice control — and a focused `<button>` in a screen reader's browse mode may not
+receive arrow keys at all. **Whether the control is operable for a virtual-cursor screen-reader
+user is UNRESOLVED**: it cannot be settled on the authoring machine, and `CLAUDE.md` §7.1 forbids
+routing it anywhere else. It is the first question
+`docs/qa/2026-09-21-slots-keyboard-sweep.md` puts to a real browser, and the answer is recorded
+there.
+
+**What would reverse it:** a `SCREENS.md` revision that gives the focal point a keyboard
+interaction of its own, or an input the handoff adopts that reports a click's position as a
+fraction of the element — which is the thing whose absence makes the whole control need an island
+(§62).
+
+**Recorded as:** this entry, the `// HANDOFF-DEVIATION:` marker on
+`packages/domain/src/admin/focalPoint.ts`'s `nudgeFocalPoint`, `SlotPanel.tsx`'s `focus` and its
+key handlers, and the keyboard sweep.

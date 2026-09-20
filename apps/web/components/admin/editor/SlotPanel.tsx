@@ -81,6 +81,26 @@
  * state" the page rail already uses, and the journey pool's tiles then place a
  * photograph into the cell that address names.
  *
+ * ═══ AND ENTER DOES NOTHING ON THE FOCAL CONTROL, WHICH IS §65 ═══
+ *
+ * // HANDOFF-DEVIATION: §2.3's focal point is "click anywhere on a slot" and
+ * the element that takes the click is a `<button>`, so a keyboard can activate
+ * it — and an activation carries no pointer position, which §2.3's own formula
+ * reads as a drag that left the box and clamps to the top-left corner. It was
+ * writing that (Task 7 review, H1). So the activation is refused on
+ * `MouseEvent.detail` and the arrows aim instead, one percentage point per
+ * press, through the same clamp.
+ *
+ * ONE QUESTION ABOUT IT IS UNRESOLVED AND IS NOT BEING GUESSED AT. `detail ===
+ * 0` refuses EVERY synthesised activation, including `element.click()` from
+ * voice control — measured: it is refused, so nothing is destroyed and nothing
+ * is set (`docs/qa/2026-09-21-slots-keyboard-sweep.md`, k7). What that sweep
+ * could NOT settle is whether a screen reader's browse mode passes the arrows
+ * through to a focused `<button>` at all; neither NVDA nor JAWS is installed on
+ * the authoring machine and CLAUDE.md §7.1 forbids routing the question
+ * elsewhere. It is recorded in that sweep, in docs/deviations.md §65 and here,
+ * for the next task with a screen reader in reach.
+ *
  * // HANDOFF-DEVIATION: §2.3 lists Clear on the Notes page's two slots and not
  * on the Frames page's four, and lists no control that COMMITS the caption and
  * alt fields on either. Both are drawn here on every cell: `clearSlot` is one

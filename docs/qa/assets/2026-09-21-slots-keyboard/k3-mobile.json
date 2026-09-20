@@ -1,0 +1,21 @@
+{
+  "measured": {
+    "poolScrollHeight": 797,
+    "poolClientHeight": 432,
+    "contentScrollHeight": 3142,
+    "contentClientHeight": 844
+  },
+  "pageScroll": {
+    "before": 863,
+    "after": 863
+  },
+  "poolScroll": {
+    "before": 0,
+    "after": 40
+  },
+  "noise": [
+    "console[log] [HMR] connected",
+    "console[log] [HMR] connected",
+    "console[log] [HMR] connected"
+  ]
+}

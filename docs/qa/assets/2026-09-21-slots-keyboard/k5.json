@@ -1,0 +1,76 @@
+{
+  "before": [
+    {
+      "media": 1503,
+      "focalX": 22,
+      "focalY": 78
+    },
+    {
+      "media": 1504,
+      "focalX": 50,
+      "focalY": 50
+    },
+    {
+      "media": 1505,
+      "focalX": 50,
+      "focalY": 50
+    }
+  ],
+  "cropped": {
+    "pill": "focus 25% 50%",
+    "row": [
+      {
+        "media": 1503,
+        "focalX": 25,
+        "focalY": 50
+      },
+      {
+        "media": 1504,
+        "focalX": 50,
+        "focalY": 50
+      },
+      {
+        "media": 1505,
+        "focalX": 50,
+        "focalY": 50
+      }
+    ]
+  },
+  "afterReplace": {
+    "pill": "centred — click to focus",
+    "position": "50% 50%",
+    "row": [
+      {
+        "media": 1503,
+        "focalX": 50,
+        "focalY": 50
+      },
+      {
+        "media": 1504,
+        "focalX": 50,
+        "focalY": 50
+      },
+      {
+        "media": 1505,
+        "focalX": 50,
+        "focalY": 50
+      }
+    ]
+  },
+  "noise": [
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected",
+    "console[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "console[log] [HMR] connected"
+  ]
+}
