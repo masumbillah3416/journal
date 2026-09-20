@@ -30,11 +30,11 @@ where an operator meets it.
 
 ## Options considered
 
-| Option                                                | Why not, or why                                                                                                                                                                                                                                                                                                                                       |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sweep inside the upload path, opportunistically       | **Rejected.** ADR 0020 already refuses it: "inventing one inside the upload path would be the speculative extension CLAUDE.md §4 refuses". It also makes a delete a side effect of an unrelated request, so an author uploading one photograph pays for everybody else's abandoned ones, and a store that is slow to enumerate becomes a slow upload. |
-| A `jobs` row and a worker                             | **Rejected.** The worker is deferred (ADR 0004) and does not exist. A queue with no consumer is a table that grows — and the thing being swept is already "a store that grows because nothing consumes it", so this would answer it with a second one.                                                                                                |
-| **A CLI script, invoked by the platform's scheduler** | **Taken.** `npm run media:sweep-staged`, the same two-file shape `npm run media:rederive` has (`apps/web/scripts/run-rederive.ts`). In production it is invoked by Vercel Cron; locally and in a restore drill it is one command. Documented in `docs/runbook.md`.                                                                                    |
+| Option                                                     | Why not, or why                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Sweep inside the upload path, opportunistically            | **Rejected.** ADR 0020 already refuses it: "inventing one inside the upload path would be the speculative extension CLAUDE.md §4 refuses". It also makes a delete a side effect of an unrelated request, so an author uploading one photograph pays for everybody else's abandoned ones, and a store that is slow to enumerate becomes a slow upload.                                                                                                                          |
+| A `jobs` row and a worker                                  | **Rejected.** The worker is deferred (ADR 0004) and does not exist. A queue with no consumer is a table that grows — and the thing being swept is already "a store that grows because nothing consumes it", so this would answer it with a second one.                                                                                                                                                                                                                         |
+| **A CLI script, run by hand until something schedules it** | **Taken, with the scheduler NOT built.** `npm run media:sweep-staged`, the same two-file shape `npm run media:rederive` has (`apps/web/scripts/run-rederive.ts`). **Nothing invokes it: this repository holds no `vercel.json` and no cron definition of any kind, and `.github/workflows/` holds `ci.yml` alone.** Today it is one command an operator runs, locally and in a restore drill alike. What is left is named under Consequences. Documented in `docs/runbook.md`. |
 
 ## Decision
 
@@ -84,14 +84,32 @@ key and the guard that reads it arrive together.
 
 ## Consequences
 
-- **The residual ADR 0020 named is closed.** `docs/security.md`'s EXIF row and
-  `docs/runbook.md` both stop saying "swept by Phase 4" and start saying what runs, how often,
-  and what a missed run costs.
-- **A missed run is growth, not exposure** — the objects are not served — so the scheduler
-  failing is a non-urgent alert. It is still an alert: the command exits 1 when it could not
-  run at all.
-- **An abandoned original lives at most two hours**: up to one hour inside the window, plus up
-  to one hour until the next hourly run.
+- **The residual ADR 0020 named is HALF closed, and the half that is open is the half it
+  named.** ADR 0020's words were "it needs a scheduler, which no task in the Phase 3 plan
+  builds"; no task in the Phase 4 plan builds one either. What landed is the instrument — the
+  command, the decision about which keys, the exit code — and nothing that fires it.
+  `docs/security.md`'s EXIF row records the residual as **open and mitigated by an available
+  command**, not closed.
+- **NOTHING SCHEDULES IT. It runs when somebody runs it.** That is stated here rather than
+  left to a reader to discover from the absence of a config: an operator who believes a
+  schedule exists will not run the command, and un-stripped originals then accumulate
+  indefinitely — which is the residual itself, one level up, where it is harder to notice.
+- **What the remaining step actually is, in the shape it would take.** A platform cron
+  triggers an **HTTP request to a route in the deployment**; it cannot run an npm script, so
+  `npm run media:sweep-staged` is not a target a cron entry can name. Closing this is a route
+  that calls `sweepStaged` with the same deps `apps/web/scripts/run-sweep-staged.ts` builds,
+  guarded so only the scheduler can reach it, plus the `vercel.json` `crons` entry — or the
+  equivalent — pointing at it. **It is not built here**, because the route's guard and its
+  address are decisions about a deployment target this repository has not chosen, and
+  inventing one to make a sentence true is the speculation CLAUDE.md §4 refuses and that this
+  ADR refuses two rows above.
+- **A missed run is growth, not exposure** — the objects are not served — so the absence of a
+  schedule is a non-urgent gap rather than an incident. The command exits 1 when it could not
+  run at all, which is what a scheduler would need on the day one exists.
+- **Nothing bounds how long an abandoned original lives.** `STAGED_UPLOAD_TTL_MS` bounds only
+  how YOUNG one may be when the sweep runs — one hour, so an upload in flight is safe. How
+  long one sits before a sweep is whatever the gap between manual runs is, and an unscheduled
+  sweep bounds nothing.
 - **`StoragePort` grew a sixth operation**, and it is in the shared contract suite, so the R2
   adapter inherits it. Whoever writes the R2 adapter implements `list` against the bucket's
   own listing API and runs the same four cases.

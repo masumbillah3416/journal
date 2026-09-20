@@ -66,7 +66,7 @@ npm run db:migrate       # apply every pending migration  (→ apps/web)
 npm run db:migrate:down  # roll the most recent batch back  (→ apps/web)
 npm run db:seed          # seed the ten prototype journeys and their pages  (→ apps/web)
 npm run media:rederive   # give every stored media row the tiers imageSizes configures  (→ apps/web)
-npm run media:sweep-staged # delete abandoned, un-stripped staged uploads (hourly)  (→ apps/web)
+npm run media:sweep-staged # delete abandoned, un-stripped staged uploads — BY HAND; nothing schedules it  (→ apps/web)
 npm run db:migrate:create -w apps/web -- <name>  # generate a migration from schema changes
 ```
 

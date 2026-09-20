@@ -301,8 +301,9 @@ refused upload's original is removed as well as a stored one's - and an upload t
 reaches that finalise step is reached by no finalise. What makes that a security residual rather than a
 capacity one is WHAT THOSE BYTES ARE: the pre-strip original, the copy that still carries
 the GPS coordinates, which is exactly the data `SECURITY.md`'s read-EXIF-then-strip
-requirement exists to remove. Freeing the disk is not the reason to sweep them. **They are
-swept, hourly, by `npm run media:sweep-staged` — see the section below**, which is the
+requirement exists to remove. Freeing the disk is not the reason to sweep them. **There is now a command that
+removes them — `npm run media:sweep-staged`, see the section below, which NOTHING RUNS ON A
+SCHEDULE** — and it is the
 Phase 4 owner `docs/adr/0020-the-presign-seam-and-the-local-upload-receiver.md`'s
 Consequences named; the requirement it was a residual against is `docs/security.md`'s EXIF
 row, and the decision is `docs/adr/0024-the-staged-upload-sweep.md`. **An operator clearing
@@ -381,25 +382,36 @@ every _finalise_ path; nothing else reaches an upload that never finalises. This
 npm run media:sweep-staged
 ```
 
-**How often:** hourly. In production it is a platform scheduled invocation (Vercel Cron);
-locally and in a restore drill it is the command above. `STAGED_UPLOAD_TTL_MS`
-(`packages/domain/src/media/stagedObjects.ts`) is one hour, so an abandoned original lives
-at most **two** hours — up to an hour inside the window, plus up to an hour until the next
-run. The window is four times the fifteen minutes an offered upload URL lives, which is
-what keeps the sweep from deleting a photograph that is still being uploaded.
+**How often: WHENEVER YOU RUN IT. Nothing schedules it.** This repository holds no
+`vercel.json` and no cron definition of any kind, and `.github/workflows/` holds `ci.yml`
+alone, so the command above is the only thing that has ever invoked this sweep. Run it by
+hand — after a batch of uploads, during a restore drill, and when clearing space.
+
+`STAGED_UPLOAD_TTL_MS` (`packages/domain/src/media/stagedObjects.ts`) is one hour, and it
+bounds only how YOUNG an orphan may be when the sweep runs: it is four times the fifteen
+minutes an offered upload URL lives, which is what keeps the sweep from deleting a
+photograph still being uploaded. **It puts no ceiling on how long an un-stripped original
+sits in the store.** Nothing does, while nothing schedules the sweep.
+
+**What would put one there**, named so the next operator does not have to work it out: a
+platform cron fires an **HTTP request at a route in the deployment** and cannot run an npm
+script, so no cron entry can name `npm run media:sweep-staged`. It needs a route that calls
+the same `sweepStaged` this command does, plus the scheduler entry pointing at it —
+`vercel.json`'s `crons`, or whatever the chosen platform spells it. Neither exists;
+`docs/adr/0024-the-staged-upload-sweep.md` says why it was not invented here.
 
 **What it prints, and what it exits with.** One line — `Swept 3 abandoned staged
 upload(s).` — and **never a storage key**; a scheduler's log is not a place to publish the
 store's own naming. Exit `0` when the sweep ran, `1` when it could not list the store at
 all. Judge the run by the status, not the line.
 
-### ⚠ IF IT STOPS RUNNING, THAT IS GROWTH, NOT EXPOSURE — BUT FIX IT ANYWAY
+### ⚠ WHILE NOTHING RUNS IT, THAT IS GROWTH, NOT EXPOSURE — BUT RUN IT ANYWAY
 
 A staged object is **not served**: it has no `media` row, and Payload's own file-access
-check requires one, so nobody can fetch one by guessing its key. A scheduler that stops
-firing therefore leaves un-stripped originals accumulating on disk rather than reachable
-from the internet. That is a non-urgent alert, not an incident — and it is still an alert,
-because every one of those objects is a set of coordinates that was supposed to be gone.
+check requires one, so nobody can fetch one by guessing its key. An unrun sweep therefore
+leaves un-stripped originals accumulating on disk rather than reachable from the internet.
+That is a non-urgent gap, not an incident — and it is still a gap, because every one of
+those objects is a set of coordinates that was supposed to be gone.
 Clearing the backlog is one manual run of the command; nothing has to be re-derived and
 nothing published depends on what it removes.
 

@@ -1033,10 +1033,11 @@ archive is still unsniffed**: a slot uploaded to and then abandoned leaves its o
 `apps/web/media/staging/<journey>/` with nothing having read a byte of it. It is not SERVED (a
 staged object has no `media` row, and Payload's own file-access check requires one), so it is a
 residual rather than an exposure — the same orphan `docs/runbook.md` and ADR 0020 already own.
-**It is now swept**, hourly, by `npm run media:sweep-staged` (Phase 4 Task 8,
-`docs/adr/0024-the-staged-upload-sweep.md`), so an unsniffed archive sits in the store for at
-most two hours rather than forever. The sweep deletes it; it does not sniff it, and nothing
-ever will — an object that is never finalised is never read.
+**There is now a command that sweeps it** — `npm run media:sweep-staged` (Phase 4 Task 8,
+`docs/adr/0024-the-staged-upload-sweep.md`) — and **nothing schedules it**, so how long an
+unsniffed archive sits in the store is how long it is until somebody runs that command. The
+sweep deletes it; it does not sniff it, and nothing ever will — an object that is never
+finalised is never read.
 
 ### Read EXIF once for `capturedAt` and orientation, then strip all metadata
 
@@ -1211,19 +1212,32 @@ upload that never reaches that finalise step was swept by nothing in the Phase 3
 orphans are the PRE-STRIP ORIGINALS** — the copy that still carries the coordinates this row
 exists to remove — so they are a residual against THIS requirement, not disk growth.
 
-**THAT RESIDUAL IS NOW CLOSED (Phase 4 Task 8), and what closed it is a command with a
-schedule.** `npm run media:sweep-staged` walks the staging namespace through
-`StoragePort.list`, asks `packages/domain/src/media/stagedObjects.ts` which keys may go, and
-deletes those. It is invoked hourly — in production by Vercel Cron, and `docs/runbook.md`
-carries the schedule and the failure mode. An abandoned original therefore lives at most two
-hours: up to one hour inside `STAGED_UPLOAD_TTL_MS`, plus up to one hour until the next run.
+**THAT RESIDUAL IS OPEN, AND MITIGATED BY A COMMAND THAT EXISTS (Phase 4 Task 8). IT IS NOT
+CLOSED, AND THE REASON IS WORTH THE SENTENCE.** `npm run media:sweep-staged` walks the staging
+namespace through `StoragePort.list`, asks `packages/domain/src/media/stagedObjects.ts` which
+keys may go, and deletes those — so the instrument ADR 0020 said this requirement needed now
+exists and is proved. **Nothing invokes it.** This repository holds no `vercel.json` and no
+cron definition of any kind, and `.github/workflows/` holds `ci.yml` alone: the sweep runs
+when an operator runs it, and not otherwise. This row said for one commit range that the
+residual was closed and that an abandoned original lived at most two hours; **both sentences
+were false, and the second was false twice over** — a bound that rests on a schedule bounds
+nothing when there is no schedule, and a platform cron issues an HTTP request to a route and
+could not have invoked an npm script even if it had been configured. A residual declared
+closed on a scheduler that does not exist is the same danger the residual had — that nobody
+notices — moved one level up.
 
-**WHAT A MISSED RUN COSTS, stated rather than implied.** The objects are NOT served — a staged
-object has no `media` row, and Payload's own file-access check requires one — so a scheduler
-that stops firing produces growth rather than exposure. The command still exits `1` when it
-could not list the store at all, so a broken sweep is not a green run in the platform's
-dashboard; that exit code has a case on each side
-(`apps/web/scripts/sweep-staged.integration.test.ts`).
+**WHAT WOULD CLOSE IT**, in the shape it would actually take: a route in the deployment that
+calls the same `sweepStaged` the command does, guarded so only the scheduler can reach it,
+plus a `crons` entry — `vercel.json`'s or another platform's — pointing at that route. ADR
+0024 says why it was not built alongside the sweep: the guard and the address are decisions
+about a deployment target this repository has not chosen.
+
+**WHAT AN UNRUN SWEEP COSTS, stated rather than implied.** The objects are NOT served — a
+staged object has no `media` row, and Payload's own file-access check requires one — so
+un-stripped originals accumulate as growth rather than as exposure, indefinitely, until the
+command is run. The command exits `1` when it could not list the store at all, so a broken
+sweep is not a green run wherever it is eventually invoked from; that exit code has a case on
+each side (`apps/web/scripts/sweep-staged.integration.test.ts`).
 
 **WHAT THE PROOF IS, because an absence asserted on its own proves nothing.**
 `sweepStagedUploads.integration.test.ts`'s first case stages a photograph through the real

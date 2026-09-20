@@ -196,6 +196,10 @@ const PATHS_THAT_NAME_NO_FILE: readonly { readonly citation: string; readonly wh
     citation: 'prerender-manifest.json',
     why: 'a Next build artefact under `apps/web/.next/`, which `.gitignore` excludes, read once by ADR 0010 to count what was prerendered',
   },
+  {
+    citation: 'vercel.json',
+    why: 'the platform configuration a cron entry would live in, named by ADR 0024, docs/runbook.md and docs/security.md as the file this repository DOES NOT HAVE — which is why nothing schedules the staged-upload sweep. The day one is written this entry fails, and the three documents saying the sweep is unscheduled have to move with it',
+  },
 ]
 
 /**

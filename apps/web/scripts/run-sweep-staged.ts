@@ -12,16 +12,18 @@
  * file's relative imports.
  *
  * IT EXITS WITH THE COMMAND'S OWN STATUS, and that is the point of the split:
- * a scheduled job is judged by its exit code, and a sweep that could not list
- * the store must not report a green run. What decides the status is
- * `sweepStaged`, which has a case on each side.
+ * a sweep that could not list the store must not report a green run to whatever
+ * eventually invokes it. What decides the status is `sweepStaged`, which has a
+ * case on each side.
  *
- * WHAT A MISSED RUN COSTS, so an operator reading this knows: the objects are
- * NOT served — a staged object has no `media` row, and Payload's own
- * file-access check requires one — so a missed run is growth rather than
- * exposure. It is still an un-stripped original sitting in the store, which is
- * why it is swept hourly rather than weekly (`docs/runbook.md`,
- * `docs/security.md`'s EXIF row).
+ * NOTHING SCHEDULES THIS, so an operator reading it knows: there is no
+ * `vercel.json` and no cron definition in this repository, and this command runs
+ * when somebody runs it. The objects are NOT served — a staged object has no
+ * `media` row, and Payload's own file-access check requires one — so an unrun
+ * sweep is growth rather than exposure. It is still an un-stripped original
+ * sitting in the store, which is why it is worth running by hand rather than
+ * waiting (`docs/runbook.md`, `docs/security.md`'s EXIF row, ADR 0024 for the
+ * route a scheduler would actually have to call).
  *
  * Not exercised by any test, and it carries the `c8 ignore` CLAUDE.md §2.1
  * requires rather than only this prose — the same treatment, for the same
