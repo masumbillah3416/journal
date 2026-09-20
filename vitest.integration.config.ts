@@ -211,6 +211,10 @@ export default defineConfig({
         // on a versioned collection, excluded from the Docker-free pass by
         // exact path for the reason stated there.
         'apps/web/lib/admin/slotMutations.ts',
+        // Phase 4 Task 8's bulk media writes: three parses and three
+        // `where`-scoped updates, excluded from the Docker-free pass by exact
+        // path for the reason stated there.
+        'apps/web/lib/admin/mediaMutations.ts',
         // Phase 4 Task 5's journey editor read, here for the reason stated in
         // `vitest.config.ts`'s exclude: three queries, nothing to execute
         // without a database.
@@ -561,6 +565,9 @@ export default defineConfig({
         // document, a Payload row id the brand refuses, a stored row with no
         // filename - each carry a `c8 ignore next` with its reason at the line.
         'apps/web/lib/admin/readMediaScreen.ts': { lines: 100, branches: 100, functions: 100 },
+        // Phase 4 Task 8's bulk media writes, at the same 100 across: three
+        // parses and three updates, every branch of which a case takes.
+        'apps/web/lib/admin/mediaMutations.ts': { lines: 100, branches: 100, functions: 100 },
         // mint-lighthouse-session.ts (Phase 4 Task 3): 100% on every axis. Its
         // two branches are the account that already exists and the account that
         // does not, and `mint-lighthouse-session.integration.test.ts` drives

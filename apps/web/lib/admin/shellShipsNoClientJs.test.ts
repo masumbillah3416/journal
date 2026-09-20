@@ -15,10 +15,28 @@
  * SINCE TASK 7 THE EDITOR HAS EXACTLY ONE ISLAND, AND IT IS NAMED. §2.3's focal
  * point cannot be computed without the clicked element's measured width, so
  * `SlotPanel.tsx` carries the directive — and it is admitted by an ALLOWLIST OF
- * ONE FILE ({@link ISLANDS}) rather than by dropping the directory, so the
- * other modules there are judged exactly as before and a SECOND island fails
- * this file by name. Two further cases keep the allowlist honest: each entry
- * must still carry the directive, and there must still be one of them.
+ * NAMED FILES ({@link ISLANDS}) rather than by dropping the directory, so the
+ * other modules there are judged exactly as before and an undeclared island
+ * fails this file by name. Two further cases keep the allowlist honest: each
+ * entry must still carry the directive, and there must still be exactly as
+ * many as the budget argument was made about.
+ *
+ * ═══ TASK 8 ADDED A DIRECTORY AND TWO ISLANDS, AND SAYS SO LOUDLY ═══
+ *
+ * `components/admin/media` joins the scan in the same commit that creates it,
+ * because SCREENS.md §2.4 is the first admin screen that CANNOT be a form:
+ * §9.1 puts an upload's bytes straight on the store through a capability URL,
+ * so the page reads the picked `File`s, asks for slots, PUTs each body and
+ * finalises each key — four round trips a `<form action>` has no way to make.
+ * `Dropzone.tsx` is that, and `MediaGrid.tsx` is the selection §2.4's bulk bar
+ * appears with, which is a `ReadonlySet<MediaId>` no address can hold without
+ * a navigation per tick.
+ *
+ * **THE COUNT WENT FROM ONE TO THREE, and that is the number this file now
+ * asserts.** The directory is in the scan rather than out of it precisely so
+ * that a FOURTH island — the next `useState` somebody reaches for in there —
+ * fails by name instead of being found by whichever task finally exceeded
+ * 320KB.
  *
  * The task's phase-shaping claim is that nothing in the SHELL's own directory
  * is a client component, which is why
@@ -79,23 +97,43 @@ const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..')
  * not be written any other way.
  *
  * AN ALLOWLIST OF FILES, NOT AN EXCLUDED DIRECTORY, and that distinction is the
- * whole value of it. Dropping `components/admin/editor` from the scan would
- * make the next `useState` in that directory invisible; naming one file leaves
- * the other nine judged, and a SECOND island fails the case below by name.
+ * whole value of it. Dropping `components/admin/editor` or
+ * `components/admin/media` from the scan would make the next `useState` in that
+ * directory invisible; naming the files leaves every other module there judged,
+ * and an UNDECLARED island fails the case below by name.
  *
- * `SlotPanel.tsx` is the only entry. SCREENS.md §2.3's focal point is
- * `clamp(0, ((clientX − rect.left) / rect.width) × 100, 100)` — the pointer's
+ * `SlotPanel.tsx` — SCREENS.md §2.3's focal point is
+ * `clamp(0, ((clientX − rect.left) / rect.width) × 100, 100)`, the pointer's
  * position and the element's MEASURED width in one expression. A server has
  * neither; `<input type="image">` posts a click's coordinates but not the box
  * they were measured against; and a slot's width is a `1fr` track, so there is
- * no constant to divide by. The cost is one small client entry against the
- * headroom below, and it is recorded in `docs/deviations.md` rather than only
- * here.
+ * no constant to divide by.
+ *
+ * `Dropzone.tsx` — one upload is four round trips (slots, PUT, finalise, and
+ * the page again), and spec §9.1 puts the bytes straight on the store, so
+ * there is no form post that could carry it.
+ *
+ * `MediaGrid.tsx` — §2.4's bulk bar appears only with a selection, and the
+ * selection is a `ReadonlySet<MediaId>`. As an address it would be a
+ * navigation per tick, and the bar is in the same flex row as the search and
+ * the chips, which is why they are drawn there too (still a `GET` form and
+ * five links).
+ *
+ * The cost is three small client entries against the headroom below, and each
+ * is recorded in `docs/deviations.md` rather than only here.
  */
 const ISLANDS: readonly { readonly file: string; readonly why: string }[] = [
   {
     file: 'components/admin/editor/SlotPanel.tsx',
     why: "SCREENS.md §2.3's focal point needs the clicked element's measured width",
+  },
+  {
+    file: 'components/admin/media/Dropzone.tsx',
+    why: 'an upload is four round trips a form cannot make (§9.1, docs/adr/0020)',
+  },
+  {
+    file: 'components/admin/media/MediaGrid.tsx',
+    why: "SCREENS.md §2.4's bulk bar appears with a selection, which is a set of ids",
   },
 ]
 
@@ -125,6 +163,11 @@ const NO_CLIENT_JS: readonly { readonly directory: string; readonly why: string 
     why: "SCREENS.md §2.3's rail, layout picker and pool, which are forms and links",
   },
   { directory: 'app/(admin)/admin/journeys/[id]', why: 'the editor route itself, and the actions its forms post to' },
+  {
+    directory: 'components/admin/media',
+    why: "SCREENS.md §2.4's two islands are declared above, and a third is not",
+  },
+  { directory: 'app/(admin)/admin/media', why: 'the media route itself, and the actions its bulk bar dispatches' },
 ]
 
 /** The directive that turns a module into a client entry point. */
@@ -167,11 +210,12 @@ describe('the declared client islands', () => {
     expect(withoutOne.map((island) => island.file)).toEqual([])
   })
 
-  it('keeps the list to the one file the budget argument was made about', () => {
+  it('keeps the list to the files the budget argument was made about', () => {
     // A NUMBER IN PROSE IS A FLOOR OR IT IS DELETED (standing orders, species
     // 5) — so this is the number itself, asserted, rather than a sentence in a
-    // header claiming it. `docs/api.md` says the editor ships ONE client entry;
-    // a second island has to change that sentence, and this is what makes it.
-    expect(ISLANDS).toHaveLength(1)
+    // header claiming it. `docs/api.md` says the editor ships ONE client entry
+    // and the media screen two; a further island has to change those
+    // sentences, and this is what makes it.
+    expect(ISLANDS).toHaveLength(3)
   })
 })

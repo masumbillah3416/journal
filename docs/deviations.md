@@ -3006,3 +3006,145 @@ fraction of the element — which is the thing whose absence makes the whole con
 **Recorded as:** this entry, the `// HANDOFF-DEVIATION:` marker on
 `packages/domain/src/admin/focalPoint.ts`'s `nudgeFocalPoint`, `SlotPanel.tsx`'s `focus` and its
 key handlers, and the keyboard sweep.
+
+## 66 · The dropzone names only the formats this pipeline accepts, not the design's five
+
+**What changed:** `SCREENS.md` §2.4's italic note under the headline reads "JPEG, PNG, HEIC, MP4
+and MOV. Clips loop silently wherever they land — no extra step." The Media screen prints
+**"JPEG and PNG."** on this deployment, and the sentence is built from
+`acceptedIngestTypes(MEDIA_PIPELINE)` rather than transcribed.
+
+**Rationale.** Three of the five formats the design promises are refused before a byte is stored.
+`image/heic` is refused outright by `ingestDecision` — `docs/adr/0021-heic-refused-at-the-port.md`
+— and both clip types are behind `MEDIA_PIPELINE=worker`, which `apps/web/lib/env.ts` refuses at
+boot because the worker ADR 0004 defers does not exist. Printing the design's sentence on the one
+control whose whole job is to say what it will take would be a promise in prose the code does not
+keep: the author would drop a `.heic` into the zone and watch it come back refused, having been
+told it was welcome.
+
+**It reverses itself.** `acceptedFormatsNote` composes the list, and the clip half of the sentence
+is printed exactly when a `video/*` type is in it. So `MEDIA_PIPELINE=worker` — one deleted
+`.refine` in `apps/web/lib/env.ts`, the day a worker exists — makes the note read what §2.4 says,
+with nothing in the component edited. HEIC needs `docs/adr/0021` reversed as well.
+
+**What would reverse it:** a pipeline that accepts the formats the design names.
+
+**Recorded as:** this entry, `Dropzone.tsx`'s header, and the two cases in `Dropzone.test.tsx`
+that pin both sides of the sentence.
+
+## 67 · The upload card's percentage is 0 or 100, where §2.4 prints 74% and 31%
+
+**What changed:** `SCREENS.md` §2.4's upload card draws "a 3px track with a terracotta fill, and a
+right-aligned percentage", and the prototype's two rows read 74% and 31%. The card here draws the
+same track and the same right-aligned percentage, and the number is **0 while a file is in flight
+and 100 once it is finalised**.
+
+**Rationale.** The upload is a `fetch` PUT with a `File` body, and a `fetch` request body exposes
+no progress events. The alternative is `XMLHttpRequest`, which does — and which would change the
+request the receiver's CSRF check admits. `apps/web/lib/media/uploadContract.ts` records that
+`EXPECTED_UPLOAD_REQUEST` was **measured** against a real Chromium's `fetch`, that
+`isCrossSiteMutation` admits the upload because that `fetch` carries an `Origin`, and that
+`e2e/upload.spec.ts` asserts the wire request against a browser. Swapping the transport for the
+sake of a number would put an unmeasured request shape through a security check whose only
+evidence is that measurement — exactly the fixture-drift the contract module's header records two
+Phase 2 blockers from. A fake percentage — a timer counting up — would be worse: a progress bar
+that is not measuring anything.
+
+**What it costs.** The bar jumps rather than fills. For a 25MB photograph on a slow connection the
+author sees 0% for the whole upload and then 100%; the count beside it ("Uploading — 2 of 34")
+still moves, so the card is not silent.
+
+**What would reverse it:** a measurement of what a real Chromium sends on an `XMLHttpRequest` PUT
+— specifically whether it carries the same `Origin` the CSRF check admits — taken the way
+`uploadContract.ts`'s was, on this machine. `Dropzone.tsx` is the only file that changes;
+`UploadCard.tsx` draws whatever percentage it is handed.
+
+**Recorded as:** this entry, and `UploadCard.tsx`'s header.
+
+## 68 · The Media screen ships two client islands, and its controls row is inside one of them
+
+**What changed:** every admin screen before this one draws its chrome with no client JavaScript,
+and `apps/web/lib/admin/shellShipsNoClientJs.test.ts` is the assertion. §2.4 needs two islands,
+and the count that file asserts goes from **one to three**.
+
+- **`Dropzone.tsx`.** An upload is four round trips — ask for slots, PUT each body, finalise each
+  key, then ask for the page again — and spec §9.1 with `docs/adr/0020` put the bytes straight on
+  the store through a capability URL. There is no form post that carries that.
+- **`MediaGrid.tsx`.** §2.4's bulk bar appears "only with a selection", and a selection is a
+  `ReadonlySet<MediaId>`. As an address it would be a navigation per tick.
+
+**And the controls row moved inside the second one.** §2.4 draws the search, the five chips and
+the bulk bar as ONE flex row, and the bar's existence depends on state the grid owns. Rendering
+the row on the server and the bar in the island would put them on two lines. **What the row IS is
+unchanged**: the search is a `GET` form and each chip is an `<a>` to an address, so both survive
+a reload, can be sent to somebody, and need none of our JavaScript to work.
+
+**Rationale for the shape of the guard rather than its content.** `components/admin/media` joins
+`shellShipsNoClientJs.test.ts`'s scan in the same commit that creates it, and the two islands are
+admitted by name. The alternative — leaving the directory out — would make the next `useState`
+somebody reaches for in there invisible until whichever task finally exceeded the 320KB budget.
+A fourth island fails that file by name.
+
+**What would reverse it:** a browser API that reports upload progress and a selection through an
+address without a navigation, neither of which exists.
+
+**Recorded as:** this entry, `shellShipsNoClientJs.test.ts`'s `ISLANDS`, and both components'
+headers.
+
+## 69 · "Unused" means nothing in the diary points at it, which §2.4 does not define
+
+**What changed:** `SCREENS.md` §2.4 lists five filter chips and defines none of them. `Unused`
+here means **no page slot holds this photograph AND it is not marked for the book** —
+`!inBook && placements === 0`.
+
+**Rationale.** The other reading available is "not in the book", which is the prototype's: its
+`Unused` filter is the complement of its hard-coded in-book list. That reading calls a photograph
+printed on a Frames page unused, which is the opposite of what an author asking "what have I not
+used?" wants to hear — and the Frames pages are where most of a journey's photographs actually
+are. The chosen reading is the only one under which `Unused` and `In the book` are not exact
+complements, which is also what makes both chips worth having.
+
+**What it costs:** `placements` is counted from the `pages` MAIN rows. A photograph placed only in
+a page's unpublished draft would still count as used, and one removed only in a draft would still
+count as used — but `slotMutations.ts` writes the live row and the pending draft together
+(`pageMutations.ts`'s `writePageFields`), so the two cannot disagree today. Nothing destructive
+rests on the chip: §2.4's bulk bar has no delete.
+
+**What would reverse it:** a `SCREENS.md` revision that defines the chip.
+
+**Recorded as:** this entry, `packages/domain/src/admin/mediaFilters.ts`'s header, and the two
+cases in `mediaFilters.test.ts` that pin each half of the predicate.
+
+## 70 · Three of the bulk bar's four buttons had no behaviour at all, and now have one
+
+**What changed:** `Travel Diary Admin.dc.html`'s bulk bar wires exactly one of its four controls —
+`Clear`, which empties the selection. `Add to book`, `Caption` and `Move` have no handler.
+`SCREENS.md` §2.4 names all four and says what none of them does. Each had to be given a
+behaviour or left dead, and a dead affordance is what Task 5's browser sweep is this repository's
+record of.
+
+- **`Add to book` sets `media.inBook` on the selection, and is not a toggle.** The control says
+  "Add to book"; a toggle over a mixed selection has no honest answer, because half of it would
+  come back out. **This is `inBook`'s first writer anywhere in the repository** —
+  `docs/qa/2026-09-19-journey-editor-sweep.md`'s EDITOR-004 names §2.4 as the owner, and §63
+  records that the column had an eyebrow counting it and no tile showing it. §2.4's grid draws the
+  "In book" chip and the `In the book` filter, so the count is legible again from this commit.
+- **`Caption` and `Move` reveal one field inside the bar.** Both need a value and §2.4 gives the
+  bar four buttons and no field. The shape is COPIED rather than invented: §2.5's "Caption all"
+  toggles a panel with an "Apply captions" button, and §2.2's "New journey" toggles a panel — a
+  control that reveals a field and an Apply is this design's own idiom, used twice. It is kept to
+  one row inside the bar rather than grown into a panel of its own, because §2.4 draws no panel.
+- **`Caption` writes ONE caption to the whole selection.** Per-frame captions are §2.5's, where
+  each row has a field of its own.
+- **`Move` does not clear a page slot that still holds the photograph.** `pages.slots[].media` is
+  a relationship by id, so a page in journey A holding a photograph now filed under B still prints
+  it in the book, while `readJourneyEditor`'s pool — scoped to the journey — draws that cell
+  empty. §2.4 specifies a move and no cascade; inventing one is the abstraction `CLAUDE.md` §4
+  refuses. It is stated in `mediaMutations.ts`'s own header as well, because that is the file
+  somebody edits when they decide otherwise.
+
+**What would reverse it:** a `SCREENS.md` revision that says what these three controls do, or a
+prototype with handlers on them.
+
+**Recorded as:** this entry, `apps/web/lib/admin/mediaMutations.ts`'s header, and
+`MediaGrid.test.tsx`'s bulk-write cases.

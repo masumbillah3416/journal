@@ -1,0 +1,534 @@
+/**
+ * media.module.css — SCREENS.md §2.4's Media screen: the dropzone, the upload
+ * card, the controls row with its bulk bar, and the tile grid.
+ *
+ * A CSS MODULE, NOT A RULE IN `admin.css`, for the reason `journeys.module.css`
+ * and `shell.module.css` already give: `admin.css` is loaded by the route
+ * group's root layout, so every byte in it is a byte `/admin/sign-in` fetches
+ * before it can paint, and that route carries a Lighthouse LCP gate.
+ *
+ * ═══ THE DROPZONE'S `min-width` IS LOAD-BEARING, AND §2.4 SAYS WHY ═══
+ *
+ * "The `min-width` floor is required. Without it the text block absorbs all
+ * shrink, the headline wraps to two lines and the zone grows to 300px tall."
+ * `Dropzone.test.tsx` asserts the declared value by reading THIS file, and a
+ * visual baseline at the `mid` viewport is where the shrink actually happens.
+ *
+ * ═══ THE GRID'S TRACK MINIMUM IS A CUSTOM PROPERTY THE SERVER SETS ═══
+ *
+ * §2.4's grid is `repeat(auto-fill, minmax(calc(1120/columns)px, 1fr))`, and
+ * the arithmetic is `gridMinimum` in `@travel-diary/domain/admin/gridColumns`
+ * — measured off the prototype, which ROUNDS. A number spelled here as well
+ * would be this repository's most repeated defect, so the component sets
+ * `--td-media-track` from the function and this file only reads it. The
+ * fallback in the `var()` is the default six columns' own answer, so a
+ * stylesheet loaded without the property still lays out rather than collapsing.
+ *
+ * ═══ THE CONTAINER QUERY GOES ON A WRAPPER ═══
+ *
+ * An element cannot be its own query container (`journeys.module.css` learned
+ * this the hard way), so `.screen` declares `container-type` and every
+ * `@container` block below styles a DESCENDANT of it.
+ *
+ * Depends on: packages/tokens/src/tokens.css, loaded by the admin layout.
+ */
+
+/* ── The screen ────────────────────────────────────────────────────────── */
+
+.screen {
+  display: flex;
+  max-width: 1440px;
+  flex-direction: column;
+  gap: 16px;
+  container-name: td-media;
+  container-type: inline-size;
+}
+
+/* ── Dropzone (§2.4) ───────────────────────────────────────────────────── */
+
+.dropzone {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 26px 24px;
+  border: 2px dashed rgb(120 98 60 / 40%);
+  border-radius: 4px;
+  background: rgb(255 253 246 / 60%);
+  gap: 22px;
+}
+
+/* The zone under a drag. `transform`/`opacity` only would be the rule for an
+ * animation (CLAUDE.md §6); this is a state change on hover-equivalent, not a
+ * transition, so a colour swap costs one paint and no layout. */
+.dropzoneOver {
+  border-color: var(--td-accent);
+  background: rgb(163 68 52 / 6%);
+}
+
+.mark {
+  display: flex;
+  width: 70px;
+  height: 70px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px rgb(163 68 52 / 45%);
+}
+
+.markSquare {
+  width: 20px;
+  height: 20px;
+  background: var(--td-accent);
+  transform: rotate(45deg);
+}
+
+/* THE FLOOR §2.4 CALLS REQUIRED. Without `min-width` this block absorbs all
+ * the shrink, the Caveat headline wraps and the zone grows to 300px tall. */
+.dropzoneText {
+  flex: 1 1 300px;
+  min-width: 300px;
+}
+
+.headline {
+  font-family: var(--td-font-caveat);
+  font-size: 34px;
+  line-height: 1.1;
+  color: var(--td-ink);
+}
+
+.note {
+  margin-top: 3px;
+  font-family: var(--td-font-garamond);
+  font-size: 16px;
+  font-style: italic;
+  color: var(--td-ink-muted);
+}
+
+.journeySelect {
+  flex: none;
+  padding: 10px 13px;
+  border: none;
+  border-radius: 2px;
+  background: var(--td-paper-mount);
+  box-shadow: inset 0 0 0 1px rgb(120 98 60 / 30%);
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  color: var(--td-ink);
+}
+
+.browse {
+  flex: none;
+  padding: 10px 20px;
+  border: 1.5px solid var(--td-accent);
+  border-radius: 2px;
+  background: var(--td-accent);
+  color: var(--td-cream-alt);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.browse:hover {
+  border-color: var(--td-accent-hover);
+  background: var(--td-accent-hover);
+}
+
+.browse:disabled {
+  cursor: default;
+  opacity: 60%;
+}
+
+/* The real file input. Off-screen rather than `display: none`, so it keeps its
+ * place in the accessibility tree and a keyboard reader can still reach it. */
+.filePicker {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ── Upload card (§2.4) ────────────────────────────────────────────────── */
+
+.uploadCard {
+  padding: 15px 20px;
+  border-radius: 3px;
+  background: var(--td-paper-mount);
+  box-shadow: 0 0 0 1px rgb(120 98 60 / 16%);
+}
+
+.uploadHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  margin-bottom: 11px;
+  gap: 12px;
+}
+
+.eyebrow {
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--td-ink-muted);
+}
+
+.uploadSpacer {
+  flex: 1 1 20px;
+}
+
+.duplicates {
+  display: flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 2px;
+  background: rgb(132 88 37 / 10%);
+  box-shadow: inset 0 0 0 1px rgb(132 88 37 / 40%);
+  gap: 8px;
+}
+
+.duplicatesMark {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  background: #845825;
+  transform: rotate(45deg);
+}
+
+.duplicatesText {
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #845825;
+}
+
+.uploadRows {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.uploadRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.uploadName {
+  overflow-x: hidden;
+  width: 230px;
+  flex: none;
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--td-ink-body);
+}
+
+.uploadTrack {
+  position: relative;
+  height: 3px;
+  flex: 1;
+  background: rgb(120 98 60 / 18%);
+}
+
+.uploadFill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--td-accent);
+}
+
+.uploadState {
+  width: 78px;
+  flex: none;
+  font-family: var(--td-font-courier);
+  font-size: 10.5px;
+  text-align: right;
+  color: var(--td-ink-muted);
+}
+
+/* ── Controls, chips, bulk bar (§2.4) ──────────────────────────────────── */
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 11px;
+}
+
+.searchForm {
+  display: flex;
+  flex: 1 1 200px;
+  min-width: 180px;
+  gap: 8px;
+}
+
+.search {
+  width: 100%;
+  padding: 9px 13px;
+  border: none;
+  border-radius: 2px;
+  background: var(--td-paper-mount);
+  box-shadow: inset 0 0 0 1px rgb(120 98 60 / 30%);
+  font-family: var(--td-font-courier);
+  font-size: 12px;
+  color: var(--td-ink);
+}
+
+.search:focus-visible {
+  outline: 2px solid rgb(163 68 52 / 45%);
+  outline-offset: 1px;
+}
+
+/* Submits the search without JavaScript of ours: a `GET` form with one text
+ * input submits on Enter, and a reader arriving by keyboard still needs
+ * something focusable that says what Enter does. */
+.searchSubmit {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.chip {
+  padding: 7px 12px;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgb(120 98 60 / 28%);
+  color: var(--td-ink-body);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.chipOn {
+  background: rgb(163 68 52 / 10%);
+  box-shadow: inset 0 0 0 1.5px var(--td-accent);
+  color: var(--td-accent);
+}
+
+.controlsSpacer {
+  flex: 1;
+}
+
+.bulkBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 9px 16px;
+  border-radius: 2px;
+  background: rgb(163 68 52 / 8%);
+  box-shadow: inset 0 0 0 1px rgb(163 68 52 / 30%);
+  gap: 16px;
+}
+
+.bulkCount {
+  font-family: var(--td-font-courier);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--td-accent);
+}
+
+.bulkAction {
+  border: none;
+  background: transparent;
+  color: var(--td-ink-body);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.bulkAction:hover {
+  color: var(--td-accent);
+}
+
+.bulkClear {
+  color: var(--td-ink-muted);
+}
+
+.bulkClear:hover {
+  color: var(--td-ink-body);
+}
+
+/* The one row §2.4 does not draw, and `docs/deviations.md` records: Caption and
+ * Move each need a value, and the design gives the bar four buttons and no
+ * field. The shape is §2.5's bulk panel and §2.2's create panel — a control
+ * that reveals a field and an Apply — kept to one row inside the bar rather
+ * than grown into a panel of its own. */
+.bulkEntry {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.bulkInput {
+  padding: 7px 11px;
+  border: none;
+  border-radius: 2px;
+  flex: 1 1 220px;
+  background: var(--td-paper-mount);
+  box-shadow: inset 0 0 0 1px rgb(120 98 60 / 30%);
+  font-family: var(--td-font-caveat);
+  font-size: 21px;
+  color: var(--td-ink);
+}
+
+.bulkSelect {
+  padding: 7px 11px;
+  border: none;
+  border-radius: 2px;
+  background: var(--td-paper-mount);
+  box-shadow: inset 0 0 0 1px rgb(120 98 60 / 30%);
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  color: var(--td-ink);
+}
+
+/* ── The grid (§2.4) ───────────────────────────────────────────────────── */
+
+.grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(var(--td-media-track, 187px), 1fr));
+}
+
+/* The rows the window is not drawing, kept as height so the scrollbar still
+ * describes the whole grid. `grid-column: 1 / -1` so a spacer never takes a
+ * tile's track. */
+.spacer {
+  grid-column: 1 / -1;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tile {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgb(120 98 60 / 22%);
+  cursor: pointer;
+}
+
+.tileOn {
+  box-shadow: 0 0 0 2.5px var(--td-accent);
+}
+
+.tile:focus-visible {
+  outline: 2px solid rgb(163 68 52 / 65%);
+  outline-offset: 2px;
+}
+
+.thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: rgb(120 98 60 / 10%);
+  object-fit: cover;
+}
+
+.tick {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  width: 19px;
+  height: 19px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  background: rgb(255 253 246 / 86%);
+  box-shadow: inset 0 0 0 1px rgb(120 98 60 / 30%);
+  color: transparent;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.tickOn {
+  background: var(--td-accent);
+  color: var(--td-cream-alt);
+}
+
+.inBook {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  padding: 2px 6px;
+  background: rgb(163 68 52 / 90%);
+  color: var(--td-cream-alt);
+  font-family: var(--td-font-courier);
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.duration {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 2px 6px;
+  background: rgb(26 22 17 / 75%);
+  color: #fbf6e9;
+  font-family: var(--td-font-courier);
+  font-size: 8.5px;
+  letter-spacing: 0.06em;
+}
+
+.tileName {
+  overflow-x: hidden;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--td-ink-muted);
+}
+
+.empty {
+  padding: 40px 20px;
+  font-family: var(--td-font-garamond);
+  font-size: 17px;
+  font-style: italic;
+  text-align: center;
+  color: var(--td-ink-muted);
+}
+
+/* The dropzone stacks its select and its button under the text block once the
+ * row has stopped fitting, rather than squeezing the 300px floor above. */
+@container td-media (max-width: 640px) {
+  .journeySelect,
+  .browse {
+    flex: 1 1 100%;
+  }
+}

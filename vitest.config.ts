@@ -543,6 +543,12 @@ export default defineConfig({
         // patches one cell of. Same exclude-and-regate treatment as its
         // neighbours above.
         'apps/web/lib/admin/slotMutations.ts',
+        // Phase 4 Task 8's three bulk media writes: `where`-scoped
+        // `payload.update`s over a real collection, with nothing to execute
+        // without a database. Excluded by exact path and gated instead by
+        // vitest.integration.config.ts, same reasoning as the four mutation
+        // modules above.
+        'apps/web/lib/admin/mediaMutations.ts',
         // readJourneyEditor.ts (Phase 4 Task 5) is the journey editor's three
         // queries — and every question it answers is Payload's: what a read with
         // `draft: true` returns for a page with a pending draft, what a trashed

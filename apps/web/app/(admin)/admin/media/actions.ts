@@ -14,12 +14,21 @@
  * load is an export no `export` keyword spells. The decisions themselves live
  * in `offerUploadSlots` and `finaliseStagedUpload`, both of which are
  * executable; this file is the guard and the wiring.
+ *
+ * ═══ PHASE 4 TASK 8 ADDED THE THREE BULK WRITES §2.4'S BAR DISPATCHES ═══
+ *
+ * The same shape: the guard and the wiring here, every decision in
+ * `../../../../lib/admin/mediaMutations.ts`, which an integration test
+ * executes against a real Payload. They take arrays rather than `FormData`
+ * because §2.4's bulk bar is a client island holding a
+ * `ReadonlySet<MediaId>`, not a form — see that module's header.
  * Depends on: guardedAction (../../../../lib/auth/guard), offerUploadSlots
  * (../../../../lib/media/uploadSlots), finaliseStagedUpload
  * (../../../../lib/media/ingestUpload), mediaProcessor
  * (../../../../lib/media/services), createLocalStorage and MEDIA_DIR,
- * createPostgresQueue, getPayload, env, and the contract types
- * (../../../../lib/media/uploadContract).
+ * createPostgresQueue, getPayload, env, the contract types
+ * (../../../../lib/media/uploadContract), adminScope and the three bulk
+ * writes (../../../../lib/admin/…).
  */
 /* c8 ignore start -- Framework passthrough with no authored logic: this file
  * names the guard factory and the services it wraps. Every decision is
@@ -37,7 +46,10 @@
  * the imports too: an unimported file's imports are themselves uncovered
  * lines. */
 import { randomUUID } from 'node:crypto'
+import { revalidatePath } from 'next/cache'
 import { MEDIA_DIR } from '../../../../collections/media'
+import { adminScope } from '../../../../lib/admin/adminScope'
+import { addMediaToBook, captionMediaRows, moveMediaRows } from '../../../../lib/admin/mediaMutations'
 import { createLocalStorage } from '../../../../lib/adapters/local-storage'
 import { createPostgresQueue } from '../../../../lib/adapters/postgres-queue'
 import { guardedAction } from '../../../../lib/auth/guard'
@@ -52,6 +64,19 @@ import type {
 } from '../../../../lib/media/uploadContract'
 import { offerUploadSlots } from '../../../../lib/media/uploadSlots'
 import { getPayload } from '../../../../lib/payload'
+
+/**
+ * The address the three bulk writes invalidate.
+ *
+ * `revalidatePath` AFTER EVERY ONE, which is what
+ * `app/(admin)/admin/journeys/actions.ts` does and for the same reason: the
+ * screen is a Server Component reading the library, and without this the grid
+ * redraws from the cached render and the author's change is invisible until a
+ * hard reload. `requestUploadSlots` and `finaliseUpload` do NOT call it —
+ * they are Phase 3's actions, called here and not rewritten, and the dropzone
+ * asks for the page itself once its batch has finished.
+ */
+const MEDIA_PATH = '/admin/media'
 
 /**
  * Offers the admin somewhere to PUT each file it is about to upload.
@@ -92,4 +117,47 @@ export const finaliseUpload = guardedAction(async (_session, request: FinaliseRe
     mode: env.MEDIA_PIPELINE,
   }),
 )
+
+/**
+ * Marks every selected photograph as being in the book.
+ *
+ * @param session - The account the guard admitted, resolved to a scope.
+ * @param ids - The selection, as the grid sent it.
+ * @returns Nothing. The grid asks for the page again rather than being told.
+ */
+export const addToBook = guardedAction(async (session, ids: readonly string[]): Promise<void> => {
+  await addMediaToBook(await getPayload(), await adminScope(session), ids)
+  revalidatePath(MEDIA_PATH)
+})
+
+/**
+ * Writes one caption to every selected photograph.
+ *
+ * @param session - The account the guard admitted, resolved to a scope.
+ * @param ids - The selection, as the grid sent it.
+ * @param caption - What to write. The empty string clears it.
+ * @returns Nothing.
+ */
+export const captionMedia = guardedAction(async (session, ids: readonly string[], caption: string): Promise<void> => {
+  await captionMediaRows(await getPayload(), await adminScope(session), ids, caption)
+  revalidatePath(MEDIA_PATH)
+})
+
+/**
+ * Re-points every selected photograph at another journey.
+ *
+ * @param session - The account the guard admitted, resolved to a scope.
+ * @param ids - The selection, as the grid sent it.
+ * @param journey - The destination journey's row id.
+ * @returns Nothing.
+ */
+export const moveMedia = guardedAction(async (session, ids: readonly string[], journey: string): Promise<void> => {
+  await moveMediaRows(await getPayload(), await adminScope(session), ids, journey)
+  // BOTH GALLERIES CHANGED, and only this screen is revalidated. The public
+  // diary is rendered per request from `readGalleryBundle` and carries no
+  // route cache of its own, so there is nothing else here to invalidate;
+  // `app/(admin)/admin/journeys/[id]/actions.ts` revalidates two addresses
+  // because both of ITS readers are cached admin routes.
+  revalidatePath(MEDIA_PATH)
+})
 /* c8 ignore stop */
