@@ -37,7 +37,7 @@
  * ═══ INVARIANT A FUTURE EDIT COULD BREAK ═══
  *
  * {@link reorderFrames} always hands back every frame it was given, exactly
- * once. The moved frame is removed and re-inserted, so an edit that forgot the
+ * once, and NEVER MOVES A FRAME THAT WAS TOLD TO SIT BEFORE ITSELF. The moved frame is removed and re-inserted, so an edit that forgot the
  * removal would duplicate it and an edit that forgot the re-insertion would
  * lose it — and the write this feeds ({@link Frame.order}, per id) would then
  * silently renumber a gallery around a photograph that is in it twice or not
@@ -106,7 +106,10 @@ const renumbered = <T extends Frame>(frames: readonly T[]): readonly T[] =>
  *   exactly once. A `moved` or `before` naming a frame that is not in the list
  *   is not an error: the grid is live, and a frame can be hidden, re-filed or
  *   deleted between the render a pointer started on and the one it finished
- *   on. An unknown `moved` changes nothing; an unknown `before` means the end.
+ *   on. An unknown `moved` changes nothing; an unknown `before` means the end;
+ *   and a frame told to sit before ITSELF stays where it is, rather than being
+ *   appended, which is the degenerate input a "send this to the front" control
+ *   produces on the frame that is already there.
  * @example
  * reorderFrames(frames, mediaId('9'), mediaId('4')) // 9 now sits before 4
  */
@@ -117,6 +120,15 @@ export const reorderFrames = <T extends Frame>(
 ): readonly T[] => {
   const subject = frames.find((frame) => frame.id === moved)
   if (subject === undefined) return renumbered(frames)
+
+  // A FRAME TOLD TO SIT BEFORE ITSELF STAYS WHERE IT IS. Without this the
+  // removal below takes the target out of the list, `findIndex` answers `-1`,
+  // and the frame is APPENDED — so a caller asking "put this one first" about
+  // the frame that is already first sent it to the end instead, and the write
+  // reached Postgres (HIGH-1, task-9-review.md). `FrameGrid`'s grip no longer
+  // asks, and this refuses anyway: the trap was laid for every future caller,
+  // and the next one would not know it was there.
+  if (moved === before) return renumbered(frames)
 
   // REMOVED FIRST, THEN THE TARGET IS FOUND. Resolving `before` against the
   // untouched array would be one too far whenever the moved frame sat ahead of

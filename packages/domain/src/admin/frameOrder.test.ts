@@ -90,6 +90,27 @@ describe('reorderFrames', () => {
     expect(idsOf(reorderFrames(frames, anId('a'), anId('gone')))).toEqual([anId('b'), anId('a')])
   })
 
+  it('leaves a frame where it is when it is told to sit before itself', () => {
+    // THE BOUNDARY THE CALLER ACTUALLY PRESSES. `FrameGrid`'s grip sends Home as
+    // "sit before whatever is first", and on the frame that IS first that names
+    // the moved frame itself. Removing the moved frame before resolving the
+    // target then finds nothing, and an unguarded implementation appends it —
+    // so Home on the cover sent the cover to the END, and the write reached
+    // Postgres (HIGH-1, task-9-review.md). The caller must not ask for a move
+    // that is not a move; this function must not answer "append" when it does.
+    const frames = [aFrame('a'), aFrame('b'), aFrame('c')]
+
+    expect(idsOf(reorderFrames(frames, anId('a'), anId('a')))).toEqual([anId('a'), anId('b'), anId('c')])
+  })
+
+  it('leaves a frame in the middle where it is when it is told to sit before itself', () => {
+    // THE SAME DEGENERATE INPUT AWAY FROM EITHER END, because "append" and "no
+    // move" happen to agree for the last frame and nowhere else.
+    const frames = [aFrame('a'), aFrame('b'), aFrame('c')]
+
+    expect(idsOf(reorderFrames(frames, anId('b'), anId('b')))).toEqual([anId('a'), anId('b'), anId('c')])
+  })
+
   it('leaves the arrangement alone when the moved frame is not in the list', () => {
     const frames = [aFrame('a'), aFrame('b')]
 

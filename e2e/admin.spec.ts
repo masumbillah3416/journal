@@ -730,35 +730,47 @@ test.describe('the galleries screen (SCREENS.md §2.5)', () => {
     }).toEqual({ widest: '286px', middle: '258px', stackedTracks: 1 })
   })
 
-  test('lets a keyboard rearrange the gallery, which a drag alone would not', async ({ page }) => {
+  test('lets a keyboard rearrange the gallery two places at a time, which a drag alone would not', async ({ page }) => {
     // A GRID THAT IS ONLY DRAGGABLE IS NOT OPERABLE. The grip is a real button
     // and its arrow keys move the frame one place; this is the case that says
     // so in a browser rather than in jsdom.
     //
-    // ONE PRESS, ON THE SECOND FRAME. Two presses in a row was flaky and the
-    // reason is worth writing down rather than retrying past: each move
-    // re-renders the grid, React moves the grip's DOM node to its new place,
-    // and the browser does not always keep focus across that move. So the case
-    // asks the question a keyboard user asks once — can I move this frame? —
-    // and `FrameGrid.test.tsx` walks the rest of the key table in jsdom.
-    const second = galleryFixture.frames[1]
+    // TWO PRESSES, BACK TO BACK, AND THE FOCUS IS ASSERTED. An earlier version
+    // of this case pressed once and its comment said a second press was flaky
+    // because React moves the grip's DOM node and the browser loses focus
+    // across the move. **That was false, and measured false** — the node moves,
+    // the focus stays on the grip, and both writes land (task-9-review.md
+    // MEDIUM-4). An understated capability is as wrong as an overstated one, so
+    // the case now presses twice and reads the focus back.
+    const third = galleryFixture.frames[2]
+    const posts: string[] = []
+    page.on('response', (answer) => {
+      if (answer.request().method() === 'POST' && answer.url().includes('/admin/galleries')) posts.push(answer.url())
+    })
 
     await page.goto(`/admin/galleries?journey=${String(galleryFixture.journey)}`)
     await expect(page.locator('[data-frame-grid]')).toBeVisible()
 
-    await page.locator(`[data-frame-grip="${String(second)}"]`).focus()
-    const [response] = await Promise.all([
-      page.waitForResponse(
-        (answer) => answer.request().method() === 'POST' && answer.url().includes('/admin/galleries'),
+    await page.locator(`[data-frame-grip="${String(third)}"]`).focus()
+    await page.keyboard.press('ArrowLeft')
+    await page.keyboard.press('ArrowLeft')
+    await expect.poll(() => posts.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(2)
+
+    await expect(
+      page.locator(`[data-frame-id="${String(third)}"] [data-cover-chip]`),
+      'two presses moved it two places, to the front',
+    ).toHaveCount(1)
+    expect(
+      await page.evaluate(
+        () => document.activeElement?.getAttribute('data-frame-grip') ?? document.activeElement?.tagName,
       ),
-      page.keyboard.press('ArrowLeft'),
-    ])
-    expect(response.ok(), 'the arrangement was accepted').toBe(true)
+      'the grip keeps focus across both moves',
+    ).toBe(String(third))
 
     await page.reload()
 
     await expect(
-      page.locator(`[data-frame-id="${String(second)}"] [data-cover-chip]`),
+      page.locator(`[data-frame-id="${String(third)}"] [data-cover-chip]`),
       'a keyboard moved the frame to the front, and the reload proves the write landed',
     ).toHaveCount(1)
   })

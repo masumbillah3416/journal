@@ -202,6 +202,12 @@ export const FrameGrid = ({
    * @param next - The new arrangement, already renumbered.
    */
   const rearrange = (next: readonly FrameRow[]): void => {
+    // AN ARRANGEMENT THAT IS THE ONE ON SCREEN IS NOT A WRITE. `End` on the
+    // last frame, a right arrow on the last frame and "Sort by date" pressed
+    // while the tick already reads "By date ✓" all produce the list already
+    // drawn; dispatching it cost a round trip and `revalidatePath` on three
+    // addresses for a statement that touched no row (LOW-5, task-9-review.md).
+    if (sameArrangement(next, arrangement)) return
     setArrangement(next)
     startTransition(async () => {
       await setFrameOrder(
@@ -406,8 +412,17 @@ export const FrameGrid = ({
                       // tiles to look at them cannot write anything.
                       if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nudge(frame.id, -1)
                       else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nudge(frame.id, 1)
-                      else if (event.key === 'Home') move(frame.id, arrangement[0]?.id ?? null)
-                      else if (event.key === 'End') move(frame.id, null)
+                      // HOME ASKS FOR NOTHING ON THE FRAME THAT IS ALREADY
+                      // FIRST. `move(id, arrangement[0].id)` there names the
+                      // moved frame as its own target, which is the degenerate
+                      // input `reorderFrames` used to answer by appending
+                      // (HIGH-1, task-9-review.md). That function now refuses
+                      // it too; the caller stops asking, which is the half that
+                      // keeps `onMakeCover` honest if the panel's `disabled`
+                      // is ever removed.
+                      else if (event.key === 'Home') {
+                        if (frame.id !== arrangement[0]?.id) move(frame.id, arrangement[0]?.id ?? null)
+                      } else if (event.key === 'End') move(frame.id, null)
                       else return
                       event.preventDefault()
                     }}

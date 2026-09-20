@@ -445,6 +445,62 @@ describe('FrameGrid — rearranging', () => {
     expect(drawnIds(host)).toEqual(['a', 'b', 'c'])
   })
 
+  it('leaves the frame that is already first where it is on Home, and writes nothing', () => {
+    // HIGH-1 (task-9-review.md). `Home` sends "sit before whatever is first",
+    // and on the head frame that names the frame itself — which an unguarded
+    // `reorderFrames` answers by APPENDING it. Pressed on the "Cover" tile in
+    // real Chromium it produced [1763,1764,1762] and the write reached
+    // Postgres, so the author pressed Home to protect the cover and lost it.
+    // The existing Home case presses it on `'c'`, which is the one position
+    // where the key cannot do this.
+    const written: string[][] = []
+    const host = renderGalleries({
+      frames: [aFrame('a'), aFrame('b'), aFrame('c')],
+      setFrameOrder: (_journey, order) => {
+        written.push([...order])
+        return Promise.resolve()
+      },
+    })
+
+    pressKey(host, 'a', 'Home')
+
+    expect({ drawn: drawnIds(host), written }).toEqual({ drawn: ['a', 'b', 'c'], written: [] })
+  })
+
+  it('leaves the frame that is already last where it is on End, and writes nothing', () => {
+    // THE SYMMETRIC BOUNDARY. `End` is safe by accident — "append what is
+    // already last" is where it already was — so what this pins is the WRITE:
+    // a round trip and three `revalidatePath` calls for a row nobody moved
+    // (LOW-5).
+    const written: string[][] = []
+    const host = renderGalleries({
+      frames: [aFrame('a'), aFrame('b'), aFrame('c')],
+      setFrameOrder: (_journey, order) => {
+        written.push([...order])
+        return Promise.resolve()
+      },
+    })
+
+    pressKey(host, 'c', 'End')
+
+    expect({ drawn: drawnIds(host), written }).toEqual({ drawn: ['a', 'b', 'c'], written: [] })
+  })
+
+  it('writes nothing when the right arrow is pressed on the last frame', () => {
+    const written: string[][] = []
+    const host = renderGalleries({
+      frames: [aFrame('a'), aFrame('b')],
+      setFrameOrder: (_journey, order) => {
+        written.push([...order])
+        return Promise.resolve()
+      },
+    })
+
+    pressKey(host, 'b', 'ArrowRight')
+
+    expect({ drawn: drawnIds(host), written }).toEqual({ drawn: ['a', 'b'], written: [] })
+  })
+
   it('sends a frame to the front on Home and to the end on End', () => {
     const host = renderGalleries({ frames: [aFrame('a'), aFrame('b'), aFrame('c')] })
 
@@ -565,6 +621,27 @@ describe('FrameGrid — sort by date', () => {
       label: host.querySelector('[data-sort-by-date]')?.textContent,
       pressed: host.querySelector('[data-sort-by-date]')?.getAttribute('aria-pressed'),
     }).toEqual({ label: 'By date ✓', pressed: 'true' })
+  })
+
+  it('writes nothing when it is pressed while the tick already reads "By date ✓"', () => {
+    // LOW-5. The arrangement is already the date order, so `rearrange` is
+    // handed the list it is already showing: a `POST`, a write that skips every
+    // row, and `revalidatePath` on three addresses, for nothing.
+    const written: string[][] = []
+    const host = renderGalleries({
+      frames: [
+        aFrame('b', { capturedAt: '2024-01-01T00:00:00.000Z' }),
+        aFrame('a', { capturedAt: '2025-03-01T00:00:00.000Z' }),
+      ],
+      setFrameOrder: (_journey, order) => {
+        written.push([...order])
+        return Promise.resolve()
+      },
+    })
+
+    press(host, '[data-sort-by-date]')
+
+    expect({ drawn: drawnIds(host), written }).toEqual({ drawn: ['b', 'a'], written: [] })
   })
 
   it('turns the tick off again when a drag breaks the date order', () => {
