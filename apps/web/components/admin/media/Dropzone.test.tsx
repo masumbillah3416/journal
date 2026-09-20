@@ -120,6 +120,29 @@ const pick = async (host: HTMLElement, file: File): Promise<void> => {
   })
 }
 
+/**
+ * Drops files on the zone, as a browser's own drag-and-drop does.
+ *
+ * NOT `pick`: the picker hands over one `input.files` list, and this hands over
+ * `event.dataTransfer.files`, which is where two files with the SAME NAME can
+ * arrive together — one drag from two folders.
+ * @param host - The rendered host.
+ * @param files - What was dragged in.
+ */
+const drop = async (host: HTMLElement, files: readonly File[]): Promise<void> => {
+  const zone = host.querySelector('[data-dropzone]')
+  if (!(zone instanceof HTMLElement)) throw new Error('the zone drew no drop target')
+  const event = new Event('drop', { bubbles: true })
+  Object.defineProperty(event, 'dataTransfer', { configurable: true, value: { files } })
+  await act(async () => {
+    zone.dispatchEvent(event)
+    await Promise.resolve()
+  })
+}
+
+/** Every upload row currently drawn. */
+const uploadRows = (host: HTMLElement): readonly Element[] => [...host.querySelectorAll('[data-upload-row]')]
+
 beforeEach(() => {
   refreshes = 0
   refreshed = (): void => {
@@ -373,6 +396,50 @@ describe('the upload one picked file drives', () => {
     await pick(host, new File([new Uint8Array([1])], 'tokyo.jpg', { type: 'image/jpeg' }))
 
     expect(host.querySelector('[data-upload-refusal]')?.textContent).toBe(refusalSentence('svg-rejected'))
+  })
+
+  it('keeps one dropped file’s refusal off its namesake’s row, because a drop can carry two of a name', async () => {
+    // CLAUDE.md §0.9, on the one path that can produce the collision.
+    // `event.dataTransfer.files` is whatever was dragged in, so `tokyo.jpg`
+    // from two folders is two files with one name — and the rows were keyed
+    // and updated BY NAME, so the first file's failed PUT was written to both
+    // rows and the second file's 100% then overwrote both again. The author
+    // saw two identical rows, neither of which described its own file.
+    //
+    // The first slot's PUT is refused and the second's is not, so exactly one
+    // of the two rows must carry a refusal.
+    vi.stubGlobal('fetch', (url: string) =>
+      Promise.resolve(new Response(null, { status: url === 'http://localhost/put-1' ? 403 : 200 })),
+    )
+    const host = renderZone({
+      requestSlots: (): Promise<UploadSlotResponse> =>
+        Promise.resolve({
+          ok: true,
+          value: [
+            {
+              stagingKey: 'staging/7/abc-tokyo.jpg',
+              declaredType: 'image/jpeg',
+              filename: 'tokyo.jpg',
+              uploadUrl: 'http://localhost/put-1',
+            },
+            {
+              stagingKey: 'staging/7/def-tokyo.jpg',
+              declaredType: 'image/jpeg',
+              filename: 'tokyo.jpg',
+              uploadUrl: 'http://localhost/put-2',
+            },
+          ],
+        }),
+      finalise: (): Promise<FinaliseResponse> => Promise.resolve({ ok: true, value: { kind: 'ready', media: '12' } }),
+    })
+
+    await drop(host, [
+      new File([new Uint8Array([1])], 'tokyo.jpg', { type: 'image/jpeg' }),
+      new File([new Uint8Array([2])], 'tokyo.jpg', { type: 'image/jpeg' }),
+    ])
+
+    expect(uploadRows(host)).toHaveLength(2)
+    expect(uploadRows(host).filter((row) => row.querySelector('[data-upload-refusal]') !== null)).toHaveLength(1)
   })
 
   it('does not finalise a PUT the store refused', async () => {

@@ -17,6 +17,26 @@ import { UploadCard, duplicateNotice, type UploadProgress } from './UploadCard'
 
 const roots: Root[] = []
 
+/** How many rows these cases have minted an id for. Never read as a position. */
+let mintedRows = 0
+
+/**
+ * One row the card draws, with an id of its own.
+ *
+ * THE ID IS MINTED, NOT DERIVED FROM THE NAME: `Dropzone.tsx` mints one per
+ * file when the batch is built, because two files in one drop can share a
+ * filename (CLAUDE.md §0.9). A fixture keying the id off the name would encode
+ * a shape the zone never produces.
+ * @param row - The name, and whatever else this case cares about.
+ * @returns The row.
+ * @example
+ * aRow({ name: 'a.jpg', percent: 0 })
+ */
+const aRow = (row: { readonly name: string; readonly percent?: number; readonly refusal?: string }): UploadProgress => {
+  mintedRows += 1
+  return { id: `row-${String(mintedRows)}`, percent: 100, refusal: null, ...row }
+}
+
 /**
  * Renders the card and hands back the host element.
  * @param props - What the card is told.
@@ -63,7 +83,7 @@ describe('UploadCard', () => {
       total: 34,
       stored: 2,
       duplicates: 0,
-      files: [{ name: 'MARRAKECH_0118.jpg', percent: 100, refusal: null }],
+      files: [aRow({ name: 'MARRAKECH_0118.jpg', percent: 100 })],
     })
 
     expect(host.querySelector('[data-upload-count]')?.textContent).toBe('Uploading — 2 of 34')
@@ -79,10 +99,7 @@ describe('UploadCard', () => {
       total: 2,
       stored: 2,
       duplicates: 0,
-      files: [
-        { name: 'a.jpg', percent: 100, refusal: null },
-        { name: 'b.jpg', percent: 100, refusal: null },
-      ],
+      files: [aRow({ name: 'a.jpg', percent: 100 }), aRow({ name: 'b.jpg', percent: 100 })],
     })
 
     expect(host.querySelector('[data-upload-count]')?.textContent).toBe('Uploaded — 2 of 2')
@@ -95,10 +112,7 @@ describe('UploadCard', () => {
       total: 2,
       stored: 1,
       duplicates: 0,
-      files: [
-        { name: 'a.jpg', percent: 100, refusal: null },
-        { name: 'b.jpg', percent: 0, refusal: null },
-      ],
+      files: [aRow({ name: 'a.jpg', percent: 100 }), aRow({ name: 'b.jpg', percent: 0 })],
     })
 
     expect(host.querySelector('[data-upload-count]')?.textContent).toBe('Uploading — 1 of 2')
@@ -113,7 +127,7 @@ describe('UploadCard', () => {
       total: 1,
       stored: 0,
       duplicates: 1,
-      files: [{ name: 'a.jpg', percent: 100, refusal: null }],
+      files: [aRow({ name: 'a.jpg', percent: 100 })],
     })
 
     expect(host.querySelector('[data-upload-count]')?.textContent).toBe('Uploaded — 0 of 1')
@@ -125,7 +139,7 @@ describe('UploadCard', () => {
       total: 1,
       stored: 1,
       duplicates: 0,
-      files: [{ name: 'a.jpg', percent: 100, refusal: null }],
+      files: [aRow({ name: 'a.jpg', percent: 100 })],
     })
 
     expect(host.querySelector('[data-upload-duplicates]')).toBeNull()
@@ -137,7 +151,7 @@ describe('UploadCard', () => {
       total: 3,
       stored: 0,
       duplicates: 3,
-      files: [{ name: 'a.jpg', percent: 100, refusal: null }],
+      files: [aRow({ name: 'a.jpg', percent: 100 })],
     })
 
     expect(host.querySelector('[data-upload-duplicates]')?.textContent).toContain('3 look like duplicates — skipped')
@@ -154,10 +168,7 @@ describe('UploadCard', () => {
       total: 2,
       stored: 1,
       duplicates: 0,
-      files: [
-        { name: 'MARRAKECH_0118.jpg', percent: 100, refusal: null },
-        { name: 'MARRAKECH_0119.mov', percent: 0, refusal: null },
-      ],
+      files: [aRow({ name: 'MARRAKECH_0118.jpg', percent: 100 }), aRow({ name: 'MARRAKECH_0119.mov', percent: 0 })],
     })
 
     expect([...host.querySelectorAll('[data-upload-row]')].map((row) => row.textContent)).toEqual([
@@ -174,7 +185,7 @@ describe('UploadCard', () => {
       total: 1,
       stored: 0,
       duplicates: 0,
-      files: [{ name: 'a.jpg', percent: 64, refusal: null }],
+      files: [aRow({ name: 'a.jpg', percent: 64 })],
     })
     const fill = host.querySelector('[data-upload-fill]')
 

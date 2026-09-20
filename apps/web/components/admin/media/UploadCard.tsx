@@ -39,7 +39,18 @@ import styles from './media.module.css'
 
 /** One file the card has a row for. */
 export interface UploadProgress {
-  /** What distinguishes this row. The client's own filename. */
+  /**
+   * What distinguishes this row, minted when the batch was built.
+   *
+   * NOT THE FILENAME (CLAUDE.md §0.9). This said "a picker cannot offer the
+   * same File twice in one selection", which is true of the picker and false of
+   * the zone's `onDrop`: `event.dataTransfer.files` carries two same-named
+   * files dragged from two folders, and keying on the name then gave both rows
+   * one React key and wrote every per-file update to both of them — one file's
+   * refusal printed against its namesake's row.
+   */
+  readonly id: string
+  /** The client's own filename, which the row prints. Not its identity. */
   readonly name: string
   /** How far along, 0 to 100. See this module's header for what it can say. */
   readonly percent: number
@@ -155,11 +166,10 @@ export const UploadCard = ({ done, total, stored, duplicates, files }: UploadCar
 
       <ul className={styles.uploadRows}>
         {files.map((file) => (
-          // KEYED BY NAME, which is what distinguishes one row of this batch
-          // from another: a picker cannot offer the same File twice in one
-          // selection, and an index key would re-label every row when a
-          // finished one is dropped from the list.
-          <li key={file.name} data-upload-row className={styles.uploadRow}>
+          // KEYED BY THE MINTED ID. An index key would re-label every row when
+          // a finished one is dropped from the list, and the filename is not
+          // unique within a batch — see {@link UploadProgress.id}.
+          <li key={file.id} data-upload-row className={styles.uploadRow}>
             <span className={styles.uploadName}>{file.name}</span>
             {file.refusal === null ? (
               <span className={styles.uploadTrack}>

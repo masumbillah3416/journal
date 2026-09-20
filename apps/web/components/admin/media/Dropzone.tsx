@@ -175,6 +175,31 @@ const REFUSAL_SENTENCE: Readonly<Record<SlotFailure | FinaliseFailure, string>> 
 /** What the row says when the PUT itself never landed. Not a refusal of ours. */
 const PUT_FAILED = 'the upload did not reach the store'
 
+/** How many rows this page has minted an id for. Never read as a position. */
+let mintedRows = 0
+
+/**
+ * Mints the id one upload row is addressed by, for this page's lifetime.
+ *
+ * TWO FILES IN ONE BATCH CAN SHARE A NAME. `event.dataTransfer.files` carries
+ * whatever was dragged in, and `IMG_0001.jpg` dragged from two folders is two
+ * files with one name — so the name cannot be the row's identity
+ * (CLAUDE.md §0.9), and neither can the position, which is what §0.9 says
+ * first.
+ *
+ * A COUNTER RATHER THAN `crypto.randomUUID()`, deliberately: `randomUUID` is
+ * absent outside a secure context, so a deployment served over plain `http`
+ * would throw here instead of uploading. Uniqueness within one document is all
+ * a React key and a row update need.
+ * @returns An id no other row of this page has.
+ * @example
+ * uploadRowId() // 'upload-1'
+ */
+const uploadRowId = (): string => {
+  mintedRows += 1
+  return `upload-${String(mintedRows)}`
+}
+
 /**
  * The sentence one refusal is told to the author as.
  *
@@ -236,8 +261,16 @@ export const Dropzone = ({ journeys, accepted, requestSlots, finalise }: Dropzon
   const upload = async (files: readonly File[]): Promise<void> => {
     if (files.length === 0 || journey === '') return
 
+    // THE BATCH IS BUILT ONCE, WITH AN ID PER FILE, and every update below
+    // addresses a row by that id. The slot list comes back in request order,
+    // which is the contract's own pairing, so `batch[index]` is the file the
+    // slot at `index` was offered for — and the row it updates is named by id
+    // rather than found by position or by filename.
+    const batch = files.map((file) => ({ id: uploadRowId(), file }))
+
     setRows(
-      files.map((file) => ({
+      batch.map(({ id, file }) => ({
+        id,
         name: file.name,
         percent: 0,
         settled: false,
@@ -265,8 +298,9 @@ export const Dropzone = ({ journeys, accepted, requestSlots, finalise }: Dropzon
     }
 
     for (const [index, slot] of offered.value.entries()) {
-      const file = files[index]
-      if (file === undefined) continue
+      const entry = batch[index]
+      if (entry === undefined) continue
+      const { id, file } = entry
 
       const put = await fetch(slot.uploadUrl, {
         method: 'PUT',
@@ -276,9 +310,7 @@ export const Dropzone = ({ journeys, accepted, requestSlots, finalise }: Dropzon
 
       if (put === undefined || !put.ok) {
         setRows((current) =>
-          current.map((row) =>
-            row.name === file.name ? { ...row, settled: true, percent: 0, refusal: PUT_FAILED } : row,
-          ),
+          current.map((row) => (row.id === id ? { ...row, settled: true, percent: 0, refusal: PUT_FAILED } : row)),
         )
         continue
       }
@@ -292,7 +324,7 @@ export const Dropzone = ({ journeys, accepted, requestSlots, finalise }: Dropzon
 
       setRows((current) =>
         current.map((row) =>
-          row.name === file.name
+          row.id === id
             ? {
                 ...row,
                 settled: true,
