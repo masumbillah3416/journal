@@ -215,6 +215,10 @@ export default defineConfig({
         // `vitest.config.ts`'s exclude: three queries, nothing to execute
         // without a database.
         'apps/web/lib/admin/readJourneyEditor.ts',
+        // Phase 4 Task 8's media screen read, here for the reason stated in
+        // `vitest.config.ts`'s exclude: three grouped queries, nothing to
+        // execute without a database.
+        'apps/web/lib/admin/readMediaScreen.ts',
         // Phase 4 Task 3's minting script, here for the reason stated in
         // `vitest.config.ts`'s exclude: it writes a `users` row and a
         // `sessions` row, so nothing without a database can execute it.
@@ -551,6 +555,12 @@ export default defineConfig({
         // Postgres's integer ids cannot produce - the same treatment and the
         // same reason as `readJourneysScreen.ts`'s.
         'apps/web/lib/admin/readJourneyEditor.ts': { lines: 100, branches: 100, functions: 100 },
+        // Phase 4 Task 8's media screen read, at the same 100 across: every
+        // branch is a real decision a case takes both sides of, and the arms
+        // nothing can reach - the `depth: 0` relationship coming back as a
+        // document, a Payload row id the brand refuses, a stored row with no
+        // filename - each carry a `c8 ignore next` with its reason at the line.
+        'apps/web/lib/admin/readMediaScreen.ts': { lines: 100, branches: 100, functions: 100 },
         // mint-lighthouse-session.ts (Phase 4 Task 3): 100% on every axis. Its
         // two branches are the account that already exists and the account that
         // does not, and `mint-lighthouse-session.integration.test.ts` drives

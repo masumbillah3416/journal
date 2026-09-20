@@ -549,6 +549,12 @@ export default defineConfig({
         // journey does to a `where`, and whether a small upload has a `thumb` at
         // all. Same exclude-and-regate treatment as its neighbours above.
         'apps/web/lib/admin/readJourneyEditor.ts',
+        // Phase 4 Task 8's media screen read: three grouped queries, a `like`
+        // on a column and a placement count folded over every page's `slots`
+        // array - nothing this Docker-free pass can execute. Excluded by exact
+        // path and gated instead by vitest.integration.config.ts, same
+        // reasoning as `readJourneyEditor.ts` above.
+        'apps/web/lib/admin/readMediaScreen.ts',
         // `mint-lighthouse-session.ts` (Phase 4 Task 3) creates an account and
         // issues a session through this repository's own session service, both
         // of which are rows in a real Postgres, so its only test is an

@@ -124,6 +124,15 @@ const SQUARE_BY_DESIGN: readonly { readonly file: string; readonly declaration: 
     file: 'apps/web/lib/admin/readJourneyEditor.ts',
     declaration: /const url = sizes\?\.thumb\?\.url/,
   },
+  // The Media screen's grid (SCREENS.md §2.4): "Tiles: square", at a track
+  // minimum of 187px by default. Square on purpose, and one rung rather than a
+  // ladder for the two reasons above — this grid lists EVERY journey's media,
+  // so an uncropped tier here would be the whole library at full size on one
+  // page (CLAUDE.md §6).
+  {
+    file: 'apps/web/lib/admin/readMediaScreen.ts',
+    declaration: /const url = sizes\?\.thumb\?\.url/,
+  },
 ]
 
 /**
