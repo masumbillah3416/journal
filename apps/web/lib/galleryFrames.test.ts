@@ -196,6 +196,27 @@ describe('galleryFrameWhere', () => {
     })
   })
 
+  it('admits a hidden frame for the one reader that is allowed to see one, and drops only that clause', () => {
+    // SCREENS.md §2.5's admin grid draws a "Hidden" chip and a "Hidden from
+    // the gallery" toggle, so the one screen that can UNHIDE a frame has to
+    // list it. It asks here rather than writing its own `where`, because a
+    // second spelling of "what is a gallery frame" is exactly the drift this
+    // module exists to stop — and the ephemera and unfinished-row exclusions
+    // still apply to it, which is what this assertion says by naming the whole
+    // clause rather than only the missing term.
+    expect(galleryFrameWhere([7], [20], { includeHidden: true })).toEqual({
+      and: [{ journey: { in: [7] } }, FINISHED, { id: { not_in: [20] } }],
+    })
+  })
+
+  it('withholds a hidden frame from a reader that asks for the default, which every public caller does', () => {
+    // BOTH SIDES OF THE SWITCH. Without this, a default flipped to admit
+    // hidden rows would put an editor's withheld photograph in the public
+    // grid, in the census and behind the download handler, with only the case
+    // above still green.
+    expect(galleryFrameWhere([7], [], { includeHidden: false }).and).toContainEqual({ hidden: { not_equals: true } })
+  })
+
   it('omits the exclusion entirely when there is no scrap, rather than passing an empty not_in', () => {
     // A journey with no ephemera should produce the query it always did, not a
     // clause whose behaviour on an empty list this module would have to know.

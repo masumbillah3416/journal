@@ -561,6 +561,17 @@ export default defineConfig({
         // path and gated instead by vitest.integration.config.ts, same
         // reasoning as `readJourneyEditor.ts` above.
         'apps/web/lib/admin/readMediaScreen.ts',
+        // Phase 4 Task 9's galleries screen read: three grouped queries built
+        // from `lib/galleryFrames.ts`'s own `where` and sort, with nothing this
+        // Docker-free pass can execute. Excluded by exact path and gated
+        // instead by vitest.integration.config.ts, same reasoning as
+        // `readMediaScreen.ts` above.
+        'apps/web/lib/admin/readGalleriesScreen.ts',
+        // Phase 4 Task 9's five gallery writes: the arrangement write reads the
+        // `order` column back before it writes, so even its "only what moved"
+        // decision needs a real row. Same exclude-and-regate treatment as the
+        // five mutation modules above.
+        'apps/web/lib/admin/galleryMutations.ts',
         // `mint-lighthouse-session.ts` (Phase 4 Task 3) creates an account and
         // issues a session through this repository's own session service, both
         // of which are rows in a real Postgres, so its only test is an

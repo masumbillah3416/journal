@@ -223,6 +223,14 @@ export default defineConfig({
         // `vitest.config.ts`'s exclude: three grouped queries, nothing to
         // execute without a database.
         'apps/web/lib/admin/readMediaScreen.ts',
+        // Phase 4 Task 9's galleries screen read, here for the reason stated in
+        // `vitest.config.ts`'s exclude: three grouped queries, nothing to
+        // execute without a database.
+        'apps/web/lib/admin/readGalleriesScreen.ts',
+        // Phase 4 Task 9's five gallery writes, here for the reason stated in
+        // `vitest.config.ts`'s exclude: the arrangement write reads the column
+        // back before it writes it.
+        'apps/web/lib/admin/galleryMutations.ts',
         // Phase 4 Task 3's minting script, here for the reason stated in
         // `vitest.config.ts`'s exclude: it writes a `users` row and a
         // `sessions` row, so nothing without a database can execute it.
@@ -565,6 +573,17 @@ export default defineConfig({
         // document, a Payload row id the brand refuses, a stored row with no
         // filename - each carry a `c8 ignore next` with its reason at the line.
         'apps/web/lib/admin/readMediaScreen.ts': { lines: 100, branches: 100, functions: 100 },
+        // Phase 4 Task 9's galleries screen read, at the same 100 across: every
+        // branch is a real decision a case takes both sides of, and the arms
+        // nothing can reach — the `depth: 0` relationship coming back as a
+        // document, a Payload row id the brand refuses, a stored row with no
+        // filename, and a diary with no live journeys at all — each carry a
+        // `c8 ignore next` with its reason at the line.
+        'apps/web/lib/admin/readGalleriesScreen.ts': { lines: 100, branches: 100, functions: 100 },
+        // Phase 4 Task 9's five gallery writes, at the same 100 across: five
+        // parses, four updates and one read-compare-write, every branch of
+        // which a case takes.
+        'apps/web/lib/admin/galleryMutations.ts': { lines: 100, branches: 100, functions: 100 },
         // Phase 4 Task 8's bulk media writes, at the same 100 across: three
         // parses and three updates, every branch of which a case takes.
         'apps/web/lib/admin/mediaMutations.ts': { lines: 100, branches: 100, functions: 100 },

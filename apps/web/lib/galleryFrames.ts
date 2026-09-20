@@ -28,6 +28,14 @@
  *      bucket, including anything marked hidden". The census was the one
  *      caller that had never applied it: nothing in the seed is hidden, so a
  *      count that included hidden rows was a defect no fixture could show.
+ *      THIS IS THE ONE EXCLUSION WITH A READER ALLOWED PAST IT, since Phase 4
+ *      Task 9: SCREENS.md §2.5's admin grid draws a "Hidden" chip on a
+ *      withheld frame and the toggle that puts it back, so the screen that can
+ *      unhide one has to list one. It asks through {@link GalleryFrameScope}
+ *      rather than writing its own clause, which keeps this the only place the
+ *      question is answered. The other two exclusions have no such reader:
+ *      a scrap is not a gallery frame for anybody, and an unfinished row has
+ *      no derivative to draw.
  *
  *   2. A ROW THE PIPELINE HAS NOT FINISHED, WHICH IS THE SAME KIND OF
  *      REQUIREMENT AS `hidden` AND WAS ADDED FOR THE SAME REASON IT WAS.
@@ -151,11 +159,40 @@ export const ephemeraMediaIds = (pages: readonly PageSlotSource[]): readonly num
   )
 
 /**
+ * Who is asking, for the one exclusion that has a reader allowed past it.
+ *
+ * ONE OPTION, AND IT EXISTS BECAUSE THE ALTERNATIVE IS A SECOND SPELLING.
+ * SCREENS.md §2.5's admin grid draws a "Hidden" chip on a withheld frame and a
+ * "Hidden from the gallery" toggle beside it, so the one screen that can
+ * UNHIDE a frame is the one screen that has to list one. Everything else this
+ * module excludes still applies to it: a scrap is not a gallery frame for
+ * anybody, and a row the pipeline has not finished has no derivative to draw.
+ * So the admin's question is this question minus exactly one clause, and an
+ * option here keeps it one definition rather than two — which is what this
+ * module's header exists to say, and what `readGalleriesScreen.ts` asks for.
+ */
+export interface GalleryFrameScope {
+  /**
+   * Whether a frame an editor has taken out of the public gallery is admitted.
+   *
+   * DEFAULTS TO WITHHOLDING IT, and the default is the security-relevant side:
+   * all three public callers run through the Local API with no user, where
+   * `collections/media.ts`'s reader rule is overridden, so this clause is the
+   * only thing between a hidden row and the grid, the census and the download
+   * handler (SECURITY.md). A caller that passes nothing gets the public
+   * answer.
+   */
+  readonly includeHidden?: boolean
+}
+
+/**
  * Builds the `where` clause admitting the given journeys' gallery frames.
  *
  * @param journeyNumericIds - The owning journeys' Payload ids - one for a
  *   gallery, every journey in the book for the census.
  * @param decorativeMediaIds - The ids {@link ephemeraMediaIds} found.
+ * @param scope - Who is asking. See {@link GalleryFrameScope}; omitting it is
+ *   the public answer.
  * @returns A Payload `where` admitting those journeys' visible, finished
  *   photographs and nothing else - see this module's header for what "nothing
  *   else" excludes.
@@ -165,10 +202,14 @@ export const ephemeraMediaIds = (pages: readonly PageSlotSource[]): readonly num
 export const galleryFrameWhere = (
   journeyNumericIds: readonly number[],
   decorativeMediaIds: readonly number[],
+  scope: GalleryFrameScope = {},
 ): Where => ({
   and: [
     { journey: { in: [...journeyNumericIds] } },
-    { hidden: { not_equals: true } },
+    // OMITTED RATHER THAN NEGATED for the admin: a clause admitting both
+    // states is a clause a reader has to reason about, and there is nothing to
+    // reason about - §2.5 lists every frame of the journey.
+    ...(scope.includeHidden === true ? [] : [{ hidden: { not_equals: true } }]),
     // Spelled the same way `collections/media.ts`'s reader rule spells it, and
     // for the same reason - see this module's header, exclusion 2.
     { or: [{ state: { equals: 'ready' } }, { state: { exists: false } }] },

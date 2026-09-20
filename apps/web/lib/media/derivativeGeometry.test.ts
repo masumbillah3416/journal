@@ -88,6 +88,17 @@ const UNCROPPED_LADDERS: readonly { readonly file: string; readonly declaration:
     file: 'apps/web/lib/admin/readJourneyEditor.ts',
     declaration: /const PREVIEW_TIERS = \[([^\]]*)\] as const/,
   },
+  // THE SAME ARGUMENT WITH THE CAPTION ON THE OTHER SIDE (Phase 4 Task 9).
+  // SCREENS.md §2.5's selected-frame panel is where an author writes what a
+  // frame IS - its caption and the alt text a reader who cannot see it hears -
+  // so its 150px preview has to be the whole photograph. Drawn from `thumb`, a
+  // 400x400 centre crop, they would be describing a picture the gallery does
+  // not print. This file also keeps a square ladder for its 136px grid tiles,
+  // which is why it appears in both lists.
+  {
+    file: 'apps/web/lib/admin/readGalleriesScreen.ts',
+    declaration: /const PREVIEW_TIERS = \[([^\]]*)\] as const/,
+  },
 ]
 
 /**
@@ -131,6 +142,16 @@ const SQUARE_BY_DESIGN: readonly { readonly file: string; readonly declaration: 
   // page (CLAUDE.md §6).
   {
     file: 'apps/web/lib/admin/readMediaScreen.ts',
+    declaration: /const url = sizes\?\.thumb\?\.url/,
+  },
+  // The Galleries screen's grid (SCREENS.md §2.5): 136px tiles carrying an
+  // index badge, a grip and two chips, plus the bulk panel's 38px rows. Square
+  // on purpose, and one rung rather than a ladder for the reasons above — this
+  // read carries every journey's frames, so an uncropped tier here would be
+  // the whole diary at full size on one page (CLAUDE.md §6). Its 150px panel
+  // preview is the uncropped ladder above, in the same file.
+  {
+    file: 'apps/web/lib/admin/readGalleriesScreen.ts',
     declaration: /const url = sizes\?\.thumb\?\.url/,
   },
 ]
