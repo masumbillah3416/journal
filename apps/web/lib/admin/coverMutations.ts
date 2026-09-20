@@ -29,9 +29,10 @@
  * // HANDOFF-DEVIATION: `Travel Diary Admin.dc.html`'s "Replace" button under
  * the portrait carries no handler at all — it opens nothing, because the
  * prototype has no media library to open. This repository does, so Replace is
- * a `<select>` over it plus the submit that applies the choice, which is the
- * smallest control that actually replaces a portrait and ships no client
- * JavaScript. `''` means "leave the portrait as it is", which is what every
+ * a `<select>` over it plus a submit, which is the smallest control that
+ * actually replaces a portrait and ships no client JavaScript. That submit
+ * posts the WHOLE card, because the card is one `<form>` — so "Replace" and
+ * "Save about" write the same four groups and differ only in their label. `''` means "leave the portrait as it is", which is what every
  * save that is about the paragraphs sends. See `docs/deviations.md` §83.
  *
  * ═══ A BLANK PARAGRAPH IS KEPT AND A BLANK KIT LINE IS NOT ═══

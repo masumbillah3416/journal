@@ -3491,7 +3491,9 @@ already have for `galleryThumbPx`.
 `Travel Diary Admin.dc.html` that button carries **no handler at all** — it is drawn and does
 nothing, because the prototype has no media library behind it. This repository does, so
 `/admin/cover` draws a `<select>` of the library's photographs beside the portrait and makes
-Replace the submit that applies the choice.
+Replace a submit. That submit posts the whole card, because the card is one `<form>`: "Replace"
+and "Save about" write the same four groups and differ only in their label, which is what
+keeps a second `<form>` — invalid HTML inside this one — out of the markup.
 
 **Why not a picker overlay.** The one upload path this repository has (`§9.1`, `Dropzone.tsx`)
 is four round trips and a client island, and §2.7 is not an upload screen: the portrait is

@@ -13,11 +13,14 @@
  *
  * // HANDOFF-DEVIATION: `Travel Diary Admin.dc.html`'s Replace carries no
  * handler at all. This repository has a media library, so Replace is a
- * `<select>` over it plus the submit that applies the choice — the smallest
- * control that actually replaces a portrait and ships no JavaScript. Its first
- * option is valued `''`, which `coverMutations.ts` reads as "leave the portrait
- * alone", so a save about the paragraphs cannot empty the mount. See
- * `docs/deviations.md` §83.
+ * `<select>` over it plus a submit — the smallest control that actually replaces
+ * a portrait and ships no JavaScript. THE WHOLE CARD IS ONE `<form>`, so
+ * "Replace" saves the paragraphs and the Kit alongside the portrait, exactly as
+ * "Save about" does; the two buttons differ in their label and in nothing else,
+ * because a second form inside this one would be invalid HTML that browsers
+ * resolve by dropping it. Its first option is valued `''`, which
+ * `coverMutations.ts` reads as "leave the portrait alone", so a save about the
+ * paragraphs cannot empty the mount. See `docs/deviations.md` §83.
  *
  * ═══ THE KIT DRAWS ONE INPUT MORE THAN IT HOLDS ═══
  *
