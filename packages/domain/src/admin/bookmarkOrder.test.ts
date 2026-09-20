@@ -54,6 +54,21 @@ describe('moveBookmark', () => {
     expect(moveBookmark(rows, 'kyoto', 'up')).toEqual(rows)
   })
 
+  it('hands back the very array it was given when it refuses, which is how a caller knows', () => {
+    // A REFERENCE COMPARISON ON PURPOSE. `BookmarkOrder.tsx` draws a disabled
+    // arrow on exactly this, so that a button which would change nothing is not
+    // a form that posts the order the book already had.
+    const rows = [aBookmark('cover', 'cover'), aBookmark('tokyo', 'journey')]
+
+    expect(moveBookmark(rows, 'cover', 'down')).toBe(rows)
+  })
+
+  it('hands back a different array when it does move something, which is the other half', () => {
+    const rows = [aBookmark('tokyo', 'journey'), aBookmark('lisbon', 'journey')]
+
+    expect(moveBookmark(rows, 'lisbon', 'up')).not.toBe(rows)
+  })
+
   it('refuses to move a journey off the end of the list, where there is no row at all', () => {
     const rows = [aBookmark('tokyo', 'journey'), aBookmark('lisbon', 'journey')]
 

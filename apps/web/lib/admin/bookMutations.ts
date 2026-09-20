@@ -182,6 +182,21 @@ const BOOK_SETTINGS = z.object({
 })
 
 /**
+ * The journeys SCREENS.md §2.6's arrows posted, in the order they posted them.
+ *
+ * `getAll` rather than `Object.fromEntries`, which keeps only the LAST of a
+ * repeated name — and an arrow posts one hidden `journey` field per row of the
+ * book. A `File` entry is not a string and is dropped here, which the bijection
+ * in {@link saveBookmarkOrder} then catches.
+ * @param form - The body the arrow's `<form>` posted.
+ * @returns The ids, in document order.
+ * @example
+ * await saveBookmarkOrder(payload, scope, readBookmarkOrder(form))
+ */
+export const readBookmarkOrder = (form: FormData): readonly string[] =>
+  form.getAll('journey').flatMap((value) => (typeof value === 'string' ? [value] : []))
+
+/**
  * Writes SCREENS.md §2.6's Book settings card.
  *
  * SIX COLUMNS OF THE `book` GLOBAL, NAMED. The other six are §2.7's and the

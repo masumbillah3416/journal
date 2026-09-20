@@ -821,6 +821,103 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   screen is not judged by the Lighthouse gate** (`docs/deviations.md` §80), measured at
   4,162ms against 3,085ms with 70% of that in Render Delay rather than in bytes.
 
+### `GET /admin/book`
+
+- **Path:** `apps/web/app/(admin)/admin/book/page.tsx`; the frame is
+  `apps/web/components/admin/shell/AdminShell.tsx`, and the screen inside it is
+  `apps/web/components/admin/book/` — `BookmarkOrder.tsx` and `BookSettings.tsx`.
+- **Method:** `GET`. This route answers nothing else; its two mutations are Server Actions
+  with their own opaque `POST` addresses.
+- **Input:** the session cookie. Nothing else — this screen has no address of its own beyond
+  the path.
+- **Output:** an HTML document: `SCREENS.md` §2's shell — with the screen title
+  "Book & bookmarks" and a crumb reading "{n} bookmarks" — around §2.6's two cards: the
+  bookmark list under "this is also the order of the book", one row per page-group of the
+  book with its grip, its 9px tint square, its name, its place, its derived "p. {n}" and its
+  two 26px arrows; and the Book settings card with the contents-page note, the three journey
+  order chips, the four cover cloths, the two sliders and the three toggles. `metadata` sets
+  the document title and `robots: { index: false, follow: false }`.
+- **Reads:** three call sites, seven queries, under ONE hoisted `adminScope` —
+  `readNavCounts` (four `payload.count` calls), one `findGlobal('site')` selecting `name`, and
+  `readBookScreen` (two: the `book` global's eight settings columns, and the journeys the
+  book contains). Seven whatever the size of the diary; the page numbers cost no query at all
+  (CLAUDE.md §6). Plus the one `users` row `adminScope` itself resolves.
+- **Errors:** none observable from the screen's own content. A refused read would throw before
+  anything is drawn. A diary with no journeys draws the three fixed rows and nothing else.
+- **Auth requirement:** **signed in.** `requireAdminSession` runs in this file before anything
+  is drawn, with the same five refusals `GET /admin` lists.
+- **Notes:** **"p. {n}" is derived, never stored** (`DATA_MODEL.md`, "Derived, not stored").
+  `numberBookmarkPages` walks the list the way `derivePages` walks the reading sequence, and
+  `readBookScreen.integration.test.ts` compares the result against `readBookBundle`'s own
+  contents entries — two different code paths, so the agreement is evidence rather than a
+  restatement.
+
+  **The list is the book's own order.** It uses `BOOK_JOURNEYS_QUERY` (shared with the write
+  that renumbers the journeys) and `readBookBundle`'s own `sortForJourneyOrderMode`. That sort
+  is imported rather than copied because a copy was written first and was wrong within the
+  hour: it returned `'order'` where the diary returns `['order', 'createdAt']`.
+
+  **Cover, Contents and About refuse to move**, in both directions, and the rule is
+  `moveBookmark`'s in `packages/domain/src/admin/bookmarkOrder.ts` rather than the markup's.
+  Each arrow posts the WHOLE new sequence of journey ids, and `saveBookmarkOrder` refuses
+  anything that is not a bijection onto the book's journeys.
+
+  **The arrows are off unless the book is arranged by hand** (`docs/deviations.md` §84), with
+  one line saying why — under either date mode they would write a column the book ignores.
+
+  **The screen ships ONE client entry**, `BookSettings.tsx`, and it is half the screen:
+  SCREENS.md §2.6 states that both sliders are controlled and their readouts follow the value.
+  The bookmark list beside it ships nothing.
+  `apps/web/lib/admin/shellShipsNoClientJs.test.ts` names the file and asserts the count,
+  which is now **six** across the admin.
+
+  **There is no visual baseline for this screen yet** (`docs/deviations.md` §86).
+
+### `GET /admin/cover`
+
+- **Path:** `apps/web/app/(admin)/admin/cover/page.tsx`; the frame is
+  `apps/web/components/admin/shell/AdminShell.tsx`, and the screen inside it is
+  `apps/web/components/admin/book/` — `CoverPreview.tsx` and `AboutCard.tsx`.
+- **Method:** `GET`. Its two mutations are Server Actions with their own opaque `POST`
+  addresses.
+- **Input:** the session cookie.
+- **Output:** an HTML document: `SCREENS.md` §2's shell — with the screen title
+  "Cover & About" and a crumb reading "front matter" — around §2.7's two cards: the 172x224px
+  live cover preview beside Title, Subtitle, Kept by and Years shown with four cloth swatches
+  under them; and the About card's 140px portrait with Replace, two paragraph textareas, the
+  Kit list and the reply-to address.
+- **Reads:** three call sites, nine queries, under ONE hoisted `adminScope` — `readNavCounts`
+  (four `payload.count` calls), one `findGlobal('site')` selecting `name`, and
+  `readCoverScreen` (four: the `book` global's cover columns, the `about` global, the capped
+  list of replacement photographs, and the portrait itself). The last is skipped outright when
+  no portrait is set, so a diary that has never had one costs eight. None of them grows with
+  the library. Plus the one `users` row `adminScope` itself resolves.
+- **Errors:** none observable from the screen's own content. Every field of both globals is
+  nullable, and a cleared one draws an empty box rather than failing the screen.
+- **Auth requirement:** **signed in.** `requireAdminSession` runs in this file before anything
+  is drawn.
+- **Notes:** **the preview uses the diary's own fitter.** `fitPreviewTitleSize` lives beside
+  the cover page's `fitTitleSize` in `packages/domain/src/coverTitle.ts`, so SCREENS.md §1.1's
+  "Title must fit, not truncate" and this preview cannot be changed apart. It is not
+  `fitTitleSize` with a smaller width — that function floors at 38px, which overflows a 144px
+  box — so both of its bounds are the admin prototype's own.
+
+  **Replace is a select** (`docs/deviations.md` §83): the prototype's button carries no
+  handler at all, and a `<select>` over the media library plus a submit is the smallest
+  control that actually replaces a portrait and ships no JavaScript. Its first option is
+  valued `''`, which the write reads as "leave the portrait alone", so a save about the two
+  paragraphs cannot empty the mount. The list is capped at `MAX_PORTRAIT_CHOICES`; a portrait
+  older than the cap is still drawn, because it is read by its own id.
+
+  **The Kit draws one input more than it holds**, which is how a line is added with no
+  JavaScript, and blank kit lines are dropped on save. The two paragraph boxes are a FIXED
+  count instead, so clearing the first does not slide the second into its box.
+
+  **The screen ships ONE client entry**, `CoverPreview.tsx`, because §2.7 calls the preview
+  live. The About card beside it is one `<form>` and ships nothing.
+
+  **There is no visual baseline for this screen yet** (`docs/deviations.md` §86).
+
 ### `GET /admin/sign-in`
 
 - **Method:** `GET`. This route answers nothing else; see the note below.
@@ -1735,6 +1832,50 @@ Found` and a refused write. **The editing pane surfaces none of them** -
   **A blank bulk caption is left alone**, which is §2.5's own line — "Anything left empty
   keeps its file name for now." The panel submits every row it drew, blanks included, and
   the rule about which of them is written is in one place.
+
+### `saveBookSettings(settings)` · `saveBookmarkOrder(form)`
+
+- **Path:** `apps/web/app/(admin)/admin/book/actions.ts`. Every decision is
+  `apps/web/lib/admin/bookMutations.ts`'s; this module is the guard, the wiring and the
+  cache hints.
+- **Input:** `saveBookSettings` takes SCREENS.md §2.6's eight controls as a plain object —
+  the card is a client island, so there is no form body between it and the action.
+  `saveBookmarkOrder` takes an arrow's `FormData`: one `journey` field per journey of the
+  book, in the new order.
+- **Output:** nothing. Both revalidate and the screen asks for the page again.
+- **Errors:** a `ZodError` from the parse, or an `Error` from `saveBookmarkOrder` when the
+  order is not a bijection onto the book's journeys. Neither screen draws an error surface
+  (`docs/deviations.md` §60), so a refusal arrives as an unhandled Server Action error.
+- **Auth requirement:** **signed in.** Both are built from `guardedAction`.
+- **Notes:** `saveBookSettings` names six columns of the `book` global and relies on
+  `updateGlobal` MERGING, which is asserted rather than assumed. `saveBookmarkOrder` writes
+  `journeys.order` through the two-write dance a versioned collection needs, so an author's
+  pending draft is neither published nor lost, and it writes only the rows that moved.
+
+  **Which addresses each invalidates** is `apps/web/lib/admin/bookRevalidationRegistration.test.ts`'s
+  table. `saveBookSettings` reaches `/admin/book`, `/admin/cover` and `/admin/sign-in` — the
+  last because §2.6's swatches write `book.coverCloth`, which the sign-in cloth panel reads
+  and which is rendered without a dynamic function. `saveBookmarkOrder` reaches `/admin/book`
+  and `/admin/journeys`, which is the only other screen sorted by `journeys.order`. **The
+  public diary needs nothing**: `/p/<n>`, `/m/<n>` and `/gallery/<slug>` render per request
+  and declare no `generateStaticParams`.
+
+### `saveCover(cover)` · `saveAbout(form)`
+
+- **Path:** `apps/web/app/(admin)/admin/cover/actions.ts`. Every decision is
+  `apps/web/lib/admin/coverMutations.ts`'s.
+- **Input:** `saveCover` takes SCREENS.md §2.7's five Cover fields as a plain object, from the
+  island. `saveAbout` takes the About card's whole `FormData`: two `paragraph` fields, a `kit`
+  field per row, `replyTo`, and `portrait` — where `''` means "leave the portrait alone".
+- **Output:** nothing.
+- **Errors:** a `ZodError` from the parse. The cloth must be a six-digit hex colour, the
+  reply-to must be an address or empty, the portrait must be a row id or empty, and the
+  paragraph count is fixed.
+- **Auth requirement:** **signed in.** Both are built from `guardedAction`.
+- **Notes:** `saveCover` reaches `/admin/cover`, `/admin/book` and `/admin/sign-in`, because
+  `title`, `subtitle` and `coverCloth` are read by all three. `saveAbout` reaches
+  `/admin/cover` alone: the `about` global is read by this screen and by `readBookBundle`, and
+  the diary caches nothing.
 
 ## Planned routes (Phase 1)
 

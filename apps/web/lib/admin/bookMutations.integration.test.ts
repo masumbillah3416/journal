@@ -48,6 +48,7 @@ import { adminScope, type AdminScope } from './adminScope'
 import {
   BOOK_JOURNEYS_QUERY,
   MAX_BOOK_JOURNEYS,
+  readBookmarkOrder,
   saveBookSettings,
   saveBookmarkOrder,
   type BookSettings,
@@ -273,6 +274,28 @@ describe('saveBookSettings', () => {
     await expect(
       saveBookSettings(payload, scope, theSettings({ coverCloth: 'red); background: url(http://evil' })),
     ).rejects.toThrow(ZodError)
+  })
+})
+
+describe('readBookmarkOrder', () => {
+  it('keeps every journey the arrow posted, in the order the browser sent them', () => {
+    const form = new FormData()
+    form.append('journey', '7')
+    form.append('journey', '4')
+    form.append('journey', '11')
+
+    expect(readBookmarkOrder(form)).toEqual(['7', '4', '11'])
+  })
+
+  it('drops an entry that arrived as a file rather than treating it as an id', () => {
+    // A `FormData` entry is a string OR a `File`, and this screen's own forms
+    // send only strings — so this is the shape a crafted `POST` sends, and
+    // dropping it is what leaves the bijection to refuse the short list.
+    const form = new FormData()
+    form.append('journey', '7')
+    form.append('journey', new File(['bytes'], 'not-an-id.txt'))
+
+    expect(readBookmarkOrder(form)).toEqual(['7'])
   })
 })
 

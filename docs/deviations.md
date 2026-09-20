@@ -3539,3 +3539,53 @@ asserts the disabled attribute and the line beside it.
 
 **Recorded as:** this entry, `readBookScreen.ts`'s header and `docs/api.md`'s `/admin/book`
 section.
+
+## 85 · Both new screens grew a Save button the prototype does not have
+
+**What changed:** `Travel Diary Admin.dc.html` has **no Save on either screen**. §2.6's chips,
+swatches, sliders and toggles each mutate the prototype's own state; §2.7's four cover fields
+and the About card's textareas are `defaultValue` inputs with nothing behind them. `SCREENS.md`
+§2.6 and §2.7 describe the controls and name no button. `/admin/book` draws "Save settings",
+`/admin/cover` draws "Save cover", and the About card draws "Save about".
+
+**Why.** The prototype persists nothing, so it never had to answer this. Two of the controls
+are **sliders**, and React's `onChange` on a `<input type="range">` is the `input` event — one
+write per pixel of a drag, each one a `POST`, a Payload write and a `revalidatePath`. Writing
+on release instead would make the sliders behave differently from the chips beside them, which
+is two saving models on one card. A single commit for the card is the shape the rest of this
+admin already uses: §2.3's "Save draft" and §2.5's "Save frame".
+
+**What it costs.** An author who changes a value and navigates away loses it, where the
+prototype's state would also have been lost. There is no unsaved-changes warning, because there
+is no client state outside the two islands and §2.6 and §2.7 specify none.
+
+**What IS pinned:** `BookSettings.test.tsx` and `CoverPreview.test.tsx` both assert that the
+save posts what is IN the card rather than what was rendered into it — the mutation that made
+`save` post the prop failed five cases and one respectively.
+
+**Recorded as:** this entry and the two islands' own headers.
+
+## 86 · Neither of Task 10's screens has a visual baseline, and that is a debt
+
+**What changed:** `e2e/visual.spec.ts` photographs `/admin`, `/admin/journeys` and the sign-in
+family. `/admin/book` and `/admin/cover` are not among them, so `SCREENS.md` §2.6's and §2.7's
+high-fidelity values — the 340px settings column, the 66px page cell, the 9px rotated square,
+the 26px arrows, the 44px swatches, the 172x224px preview with its `inset: 9px` rule, the 140px
+portrait and the Caveat 26px reply-to line — are pinned by declarations and by measured boxes
+rather than by a photograph.
+
+**Rationale.** It is `docs/deviations.md` §81's, unchanged and now larger: baselines are
+generated in the pinned Playwright Linux container and committed as `-linux.png` only, this
+task was implemented on Windows, and a run on a developer's host writes a `-win32` baseline and
+then compares the host against itself for ever. **Six** admin screens now owe a baseline. They
+are being taken together in Task 15 under the container, because adding two more one at a time
+is how the other four came to be missing without anybody counting.
+
+**What IS pinned meanwhile**, so the gap is bounded rather than open: `e2e/admin.spec.ts`
+measures both screens' column shapes and their controls' boxes in a real engine;
+`e2e/a11y.spec.ts` runs the full axe ruleset on both; and every literal §2.6 and §2.7 name is
+asserted by a jsdom case or declared in `book.module.css`. What none of those can see is a
+colour, a weight or a spacing that is declared correctly and drawn wrongly.
+
+**Recorded as:** this entry, both routes' `c8 ignore` headers, `docs/api.md`'s two new route
+sections and Task 10's report.

@@ -46,8 +46,23 @@
  * state, so drawing them apart would split one screen's state across a
  * boundary. Its two panels, `SelectedFrame.tsx` and `CaptionAll.tsx`, carry NO
  * directive and are not in the allowlist: a module imported by a client entry
- * is part of that entry, and the allowlist counts entries. **The count is now
- * four**, and `docs/api.md` says the same number.
+ * is part of that entry, and the allowlist counts entries.
+ *
+ * ═══ TASK 10 ADDED A FIFTH AND A SIXTH, ONE PER SCREEN, AND HALF OF EACH
+ *     SCREEN STILL SHIPS NOTHING ═══
+ *
+ * `components/admin/book/BookSettings.tsx` and `CoverPreview.tsx`. Both are
+ * SCREENS.md's own words rather than an implementation's convenience: §2.6 says
+ * "Both sliders are controlled and their readouts follow the value", and §2.7
+ * calls its preview LIVE. In both cases the value the browser holds and the
+ * text the page prints have to agree within one render, which no form post
+ * reaches.
+ *
+ * WHAT PUTTING THE DIRECTORY IN THE SCAN BUYS is the other half of both
+ * screens: `BookmarkOrder.tsx` is a list whose every arrow is a `<form>` and
+ * `AboutCard.tsx` is one `<form>`, and a `'use client'` added to either fails
+ * the case below by name. **The count is now six**, and `docs/api.md` says the
+ * same number.
  *
  * The task's phase-shaping claim is that nothing in the SHELL's own directory
  * is a client component, which is why
@@ -134,6 +149,16 @@ const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..')
  * gesture no form post carries, and the selection, the arrangement and the
  * bulk panel are one screen's state.
  *
+ * `BookSettings.tsx` — SCREENS.md §2.6 says it in the screen's own text: "Both
+ * sliders are controlled and their readouts follow the value." A label that
+ * follows a `<input type="range">` is the browser's value and the page's text
+ * in one render, with no request between them.
+ *
+ * `CoverPreview.tsx` — SCREENS.md §2.7 calls the 172x224px preview LIVE, and
+ * the whole point of it is that a title too long for the cover visibly shrinks
+ * as it is typed. A preview that redrew on save would show an author what their
+ * title used to do.
+ *
  * The cost is four small client entries against the headroom below, and each
  * is recorded in `docs/deviations.md` rather than only here.
  */
@@ -153,6 +178,14 @@ const ISLANDS: readonly { readonly file: string; readonly why: string }[] = [
   {
     file: 'components/admin/galleries/FrameGrid.tsx',
     why: "SCREENS.md §2.5's grid is 'Drag to reorder', which no form post carries",
+  },
+  {
+    file: 'components/admin/book/BookSettings.tsx',
+    why: "SCREENS.md §2.6 states it: 'Both sliders are controlled and their readouts follow the value'",
+  },
+  {
+    file: 'components/admin/book/CoverPreview.tsx',
+    why: "SCREENS.md §2.7's preview is LIVE, which is the typed value and the drawn value in one render",
   },
 ]
 
@@ -192,6 +225,15 @@ const NO_CLIENT_JS: readonly { readonly directory: string; readonly why: string 
     why: "SCREENS.md §2.5's one island is declared above, and its two panels are not",
   },
   { directory: 'app/(admin)/admin/galleries', why: 'the galleries route itself, and the five actions it dispatches' },
+  {
+    directory: 'components/admin/book',
+    why: "SCREENS.md §2.6's and §2.7's two islands are declared above and a third is not: the bookmark list is forms and the About card is one form",
+  },
+  {
+    directory: 'app/(admin)/admin/book',
+    why: 'the book route itself, and the two actions its arrows and its settings card dispatch',
+  },
+  { directory: 'app/(admin)/admin/cover', why: 'the cover route itself, and the two actions its two cards dispatch' },
 ]
 
 /** The directive that turns a module into a client entry point. */
@@ -240,6 +282,6 @@ describe('the declared client islands', () => {
     // header claiming it. `docs/api.md` says the editor ships ONE client entry
     // and the media screen two; a further island has to change those
     // sentences, and this is what makes it.
-    expect(ISLANDS).toHaveLength(4)
+    expect(ISLANDS).toHaveLength(6)
   })
 })

@@ -83,6 +83,12 @@ export interface BookmarkRow {
  * @returns The new order, or the order unchanged. Unchanged when the id names
  *   no row, when the named row is Cover, Contents or About, when the row it
  *   would swap with is one of those, and when there is no row that way at all.
+ *
+ *   A REFUSAL RETURNS THE VERY ARRAY IT WAS HANDED, and that is part of the
+ *   contract rather than an accident of the implementation: it is how a caller
+ *   tells "this arrow would do nothing" from "this arrow would swap two rows"
+ *   without re-deriving the rule. `BookmarkOrder.tsx` draws a disabled button
+ *   on `answer === rows`, and `bookmarkOrder.test.ts` pins both halves.
  * @example
  * moveBookmark(rows, '7', 'up') // journey 7 now sits before the journey above it
  */
