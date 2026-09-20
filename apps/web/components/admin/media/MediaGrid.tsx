@@ -417,6 +417,15 @@ export const MediaGrid = ({
                   // this tile, as `JourneyPool.tsx` serves its own: `thumb` is
                   // 400px square against a 187px track, so a second optimiser
                   // in front of it would buy nothing.
+                  // LAZY, AND EAGER WAS TRIED AND MEASURED WORSE. Fetching the
+                  // first twelve tiles eagerly cut the LCP element's Load Delay
+                  // from 2,553ms to 1,405ms and made the LCP itself WORSE —
+                  // 4,580ms to 5,312ms — because under the gate's simulated
+                  // connection the constraint is bandwidth rather than
+                  // discovery, and twelve high-priority photographs take it
+                  // from the fonts and the document. Both runs are in
+                  // `docs/testing.md`; the shortfall they belong to is
+                  // `docs/deviations.md` §73.
                   <img src={row.thumbSrc} alt={row.alt} loading="lazy" decoding="async" className={styles.thumb} />
                 )}
                 <span

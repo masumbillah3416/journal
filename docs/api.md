@@ -687,9 +687,11 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   `clamp(0, ((clientX - rect.left) / rect.width) x 100, 100)`, which needs the clicked
   element's measured width, and no server has it (`docs/deviations.md` §62).
   `apps/web/lib/admin/shellShipsNoClientJs.test.ts` judges `components/admin/editor/` for
-  that claim, admits that one file by name, and fails on the commit that adds a SECOND
+  that claim, admits that one file by name, and fails on the commit that adds an UNDECLARED
   `'use client'` there - or that leaves the allowlist naming a file which no longer carries
-  the directive.
+  the directive. **That allowlist now names three files**, not one: Phase 4 Task 8 put
+  `components/admin/media/` inside the same scan and declared its two islands
+  (`docs/deviations.md` §68). The editor's own count is unchanged - one.
   **The pool's duration chip is behind `MEDIA_PIPELINE`**, which is design spec §9.3's
   "whether the admin shows clip-specific affordances": the flag is read on the server, turned
   into a yes or a no by `showsClipAffordances`
@@ -697,6 +699,70 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   than from the mode's name) and passed down. The TILE is still drawn either way — a clip
   ingested before the flag moved is content, and hiding it would make the screen lie about
   what the library holds.
+
+### `GET /admin/media`
+
+- **Path:** `apps/web/app/(admin)/admin/media/page.tsx`; the frame is
+  `apps/web/components/admin/shell/AdminShell.tsx`, and the screen inside it is
+  `apps/web/components/admin/media/` - `Dropzone.tsx`, `UploadCard.tsx` and `MediaGrid.tsx`.
+- **Method:** `GET`. This route answers nothing else; the upload path is
+  `PUT /admin/media/upload` (documented above) and the three bulk mutations are Server
+  Actions with their own opaque `POST` addresses.
+- **Input:** the session cookie, plus two optional query parameters - `q`, what the author
+  typed into the filename search, and `filter`, one of `stills`, `clips`, `in-the-book` or
+  `unused`. Both are parsed by `mediaQuery` in `apps/web/lib/admin/readMediaScreen.ts`: a
+  repeated parameter takes its first value, and a `filter` no chip offers falls back to
+  `everything` rather than selecting nothing.
+- **Output:** an HTML document: `SCREENS.md` §2's shell - with the screen title "Media" and a
+  crumb reading "{drawn} of {total}" - around §2.4's screen: the dashed dropzone with its
+  "Add to — {journey}" select and Browse, the upload card while a batch is in flight, the
+  filename search, the five filter chips, a bulk bar that appears only with a selection, and
+  the tile grid. `metadata` sets the document title and
+  `robots: { index: false, follow: false }`.
+- **Reads:** three call sites, eight queries, under ONE hoisted `adminScope` -
+  `readNavCounts` (four `payload.count` calls), one `findGlobal('site')` selecting `name`,
+  and `readMediaScreen` (three: the media, the pages that hold it, and the live journeys).
+  Eight whatever the size of the library: "is this one used anywhere" is a fold over every
+  page's `slots` built once, not a read per tile (CLAUDE.md §6). Plus the one `users` row
+  `adminScope` itself resolves.
+- **Errors:** none observable from the screen's own content. A refused read would throw
+  before anything is drawn. A search or a chip that matches nothing draws
+  "Nothing here — {n} in the library." in place of the grid.
+- **Auth requirement:** **signed in.** `requireAdminSession` runs in this file before
+  anything is drawn, with the same five refusals `GET /admin` lists.
+- **Notes:** **this is the one admin read that is not keyed by journey**, because §2.4's grid
+  is the library rather than one journey's pool - said out loud in `readMediaScreen.ts`'s
+  header, because a read with no journey clause is the shape CLAUDE.md §7 exists to make
+  suspicious.
+
+  **The search is SQL and the chips are memory.** A filename search is a `like` on a column,
+  so it narrows what crosses the wire; `unused` is a fact about an array column on another
+  collection and cannot be a `where` at all, so all five chips are applied together by
+  `packages/domain/src/admin/mediaFilters.ts`. `total` is therefore what the SEARCH admitted,
+  before the chip.
+
+  **The screen ships TWO client entries**, which is two more than every admin screen before
+  it, and `apps/web/lib/admin/shellShipsNoClientJs.test.ts` names both. An upload is four
+  round trips a `<form action>` cannot make (spec §9.1, `docs/adr/0020`), and §2.4's bulk bar
+  appears with a selection that is a `ReadonlySet<MediaId>` - an address would be a
+  navigation per tick. The search and the chips are still a `GET` form and five `<a>`s; they
+  are drawn inside the grid island only because §2.4 puts them in one flex row with the bar
+  (`docs/deviations.md` §68).
+
+  **The grid windows past a hundred tiles** (design spec §12, CLAUDE.md §6). The arithmetic is
+  `virtualWindow` in `packages/domain/src/admin/gridColumns.ts` - pure, because jsdom lays
+  nothing out - and the component measures. Measured in a browser with 145 rows: 120 tile
+  elements, unchanged by scrolling (`e2e/upload.spec.ts` carries it as a standing case).
+
+  **The dropzone's note names what this pipeline accepts, not what §2.4 promises.** It reads
+  "JPEG and PNG." here, built from `acceptedIngestTypes(MEDIA_PIPELINE)`: HEIC is refused at
+  the port (`docs/adr/0021`) and both clip types are behind a worker ADR 0004 defers
+  (`docs/deviations.md` §66). The duration chip is behind the same flag, exactly as the
+  journey editor's pool's is.
+
+  **§2.4 is the first screen anywhere here that writes `media.inBook`**, and the first that
+  displays it per tile - `docs/deviations.md` §63 records the column having had an eyebrow
+  counting it and no tile showing it.
 
 ### `GET /admin/sign-in`
 
@@ -1508,6 +1574,41 @@ Found` and a refused write. **The editing pane surfaces none of them** -
   `<form>`. The shape is the same so one parse serves both.
   `slotMutations.integration.test.ts` asserts the property the phase's second exit criterion
   rests on: a focal point set here moves the crop `readBookBundle` hands the diary.
+
+### `addToBook(ids)` · `captionMedia(ids, caption)` · `moveMedia(ids, journey)`
+
+- **Path:** `apps/web/app/(admin)/admin/media/actions.ts`; the decisions are
+  `addMediaToBook`, `captionMediaRows` and `moveMediaRows` in
+  `apps/web/lib/admin/mediaMutations.ts`.
+- **Method:** `POST`, to the opaque action ids Next.js mints. Dispatched by
+  `components/admin/media/MediaGrid.tsx` inside `startTransition`, not by a form.
+- **Input:** the selection as an array of media row ids, plus a caption (any string,
+  including the empty one, which clears it) or a destination journey's row id. Parsed by
+  `readMediaIds` - `z.array(z.coerce.number().int().positive()).min(1).max(MAX_BULK_MEDIA)`,
+  so an empty selection is refused rather than answered as a silent no-op, and
+  `Number('nonsense')` never reaches the driver as `NaN`.
+- **Output:** nothing. Each calls `revalidatePath('/admin/media')` and the grid redraws from
+  the server's own read.
+- **Errors:** a `ZodError` for a selection or a destination the grid's own controls cannot
+  produce, and Payload's own for a refused write. **Neither is drawn**: the bar has no error
+  surface, and a rejection inside `startTransition` surfaces as an unhandled promise
+  rejection (`docs/deviations.md` §60, which this screen inherits unchanged).
+- **Auth requirement:** **signed in.** All three are `guardedAction`s, so the guard runs
+  inside the action rather than being inherited from the page around it.
+- **Notes:** **one write per action, not one per id** - Payload's `update` takes a `where`, so
+  a selection of forty rows is one statement (CLAUDE.md §6). `media` carries no `versions`
+  block, so none of this needs `journeyMutations.ts`'s two-write dance.
+
+  **`addToBook` is not a toggle.** The control says "Add to book", and a toggle over a mixed
+  selection has no honest answer. **`moveMedia` changes which public gallery a photograph is
+  in** - `galleryFrameWhere` selects a gallery's frames by `journey` - and
+  `mediaMutations.integration.test.ts` asserts both counts through that module's own query
+  rather than counting rows itself. **It does not clear a page slot** that still holds the
+  photograph; §2.4 specifies a move and no cascade (`docs/deviations.md` §70).
+
+  **All three take arrays rather than `FormData`**, because §2.4's bulk bar is a client island
+  holding a `ReadonlySet<MediaId>` and not a form - the one place in this repository where
+  that is true.
 
 ## Planned routes (Phase 1)
 

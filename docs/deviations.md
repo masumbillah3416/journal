@@ -3208,3 +3208,49 @@ that shows a write error and gives this one a shape to copy.
 
 **Recorded as:** this entry, `UPLOAD_REFUSALS` and `refusalSentence` in `Dropzone.tsx`,
 `UploadProgress.refusal`'s TSDoc in `UploadCard.tsx`, and the sweep's MEDIA-002.
+
+## 73 · The Media screen is not in the Lighthouse config, because a grid of photographs does not fit the LCP budget
+
+**What changed:** `CLAUDE.md` §6 makes LCP ≤ 3,085ms a hard gate for every admin screen, and
+`lighthouserc.admin.json` is where a screen is judged. `/admin/media` was added to it, measured,
+and **removed again**. It is the first admin screen not judged by that gate.
+
+**What was measured**, five runs per configuration, on this machine:
+
+| `/admin/media`                          | script transfer | image requests | image transfer | LCP median  |
+| --------------------------------------- | --------------- | -------------- | -------------- | ----------- |
+| as built (every tile lazy)              | 143,108         | 70             | 1,260,054      | **4,580ms** |
+| first twelve tiles `loading="eager"`    | 143,142         | 70             | 1,260,054      | **5,312ms** |
+| the same screen with **no tile images** | 143,142         | 0              | 0              | **2,929ms** |
+
+**Rationale.** The third row is the one that decides it. With the tile images removed and nothing
+else changed, the screen measures 2,929ms — statistically the same as `/admin/journeys`'s
+2,930ms, and inside the gate. So the overage is not this screen's chrome, its two client islands,
+its queries or its markup: it is 1.26MB of `thumb` derivatives, at roughly 1.3ms of simulated LCP
+per kilobyte. `docs/testing.md` already named LCP the binding budget with **155ms of margin**;
+155ms buys about 120KB, which is six or seven thumbnails. §2.4's grid is not six tiles.
+
+**The obvious fix was tried and measured worse**, which is the second row. The trace attributed
+2,553ms of the first run's LCP — 56% — to _Load Delay_ on the LCP element, because a
+`loading="lazy"` image is invisible to the preload scanner. Making the first twelve tiles eager
+cut that phase to 1,405ms and made the LCP **worse by 732ms**: under the gate's simulated
+connection the constraint is bandwidth, not discovery. The change was reverted and the
+measurement is at the `<img>` in `MediaGrid.tsx`, so nobody re-derives it.
+
+**Why the URL is out rather than in and red.** A gate that fails for a reason no change in this
+task can reach would block `npm run test:perf` for every later task, and the numbers would stop
+being read. The screen ahead of this one — the journey editor, `/admin/journeys/<id>` — is
+already absent from the same config for its own reasons, so this is not a new kind of gap; what
+is new is that this one is measured and written down rather than left unnoticed.
+
+**What would reverse it**, either of:
+
+- **A derivative rung smaller than `thumb`.** The tile is 217px at DPR 1 and `thumb` is 400×400,
+  so the grid fetches about three and a half times the pixels it draws. A ~220px rung is an
+  `imageSizes` change, a migration and a `npm run media:rederive` over the whole library — the
+  shape `docs/adr/0013`'s Option 3 already has a worked precedent for.
+- **A budget that distinguishes an admin screen that draws photographs from one that draws a
+  table.** 3,085ms is the diary's number; the admin inherited it whole.
+
+**Recorded as:** this entry, `docs/testing.md`'s `/admin/media` section, the comment at
+`MediaGrid.tsx`'s `<img>`, and Task 8's report, which names it first among its concerns.

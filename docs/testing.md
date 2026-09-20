@@ -532,6 +532,45 @@ screens are not the worry. **LCP is:** 2,930ms against the 3,085ms gate is **95%
 without shipping a byte of JavaScript — one more query, one uncached font, one image above
 the fold. Read the LCP column first when this gate goes red.
 
+### `/admin/media` IS MEASURED AND IS NOT IN THE CONFIG, AND THAT IS THE MOST IMPORTANT ROW HERE
+
+Phase 4 Task 8 added `http://localhost:3000/admin/media` to `lighthouserc.admin.json`, ran the
+gate, and **took it out again**. What follows is why, with every number measured on this machine
+at five runs per configuration.
+
+| `/admin/media` as collected             | script transfer | image requests | image transfer | LCP median  | CLS |
+| --------------------------------------- | --------------- | -------------- | -------------- | ----------- | --- |
+| as built (every tile lazy)              | 143,108         | 70             | 1,260,054      | **4,580ms** | 0   |
+| first twelve tiles `loading="eager"`    | 143,142         | 70             | 1,260,054      | **5,312ms** | 0   |
+| the same screen with **no tile images** | 143,142         | 0              | 0              | **2,929ms** | 0   |
+
+**The script budget is fine.** 143,108 bytes against 327,680 is 43.7%, and the two client islands
+SCREENS.md §2.4 needs — the dropzone and the grid's selection — cost about 3,000 bytes over
+`/admin/journeys`. Nothing about this screen threatens the byte ceiling.
+
+**The LCP budget is not, and it is not this screen's arrangement that breaks it.** With the tile
+images removed and nothing else changed, the screen measures 2,929ms — statistically the same as
+`/admin/journeys`'s 2,930ms, and inside the 3,085ms gate. Every millisecond of the overage is the
+photographs: 70 requests and 1.26MB of `thumb` derivatives, at roughly 1.3ms of simulated LCP per
+kilobyte. **The margin this document already called the binding one — 155ms — buys about 120KB,
+which is six or seven thumbnails.** A grid of photographs does not fit in it.
+
+**THE OBVIOUS FIX WAS TRIED AND IS WORSE, which is why the middle row is here.** The Lighthouse
+trace attributed 2,553ms of the first run's LCP — 56% — to _Load Delay_ on the LCP element, a
+grid tile: a `loading="lazy"` image is invisible to the preload scanner. Making the first twelve
+tiles eager cut that phase to 1,405ms and made the LCP itself **worse by 732ms**, tightly
+clustered across five runs. Under the gate's simulated connection the constraint is BANDWIDTH,
+not discovery, and twelve high-priority photographs take it from the fonts and the document. The
+change was reverted; `MediaGrid.tsx` carries the measurement at the `<img>` so nobody re-derives
+it.
+
+**What would close it** is a derivative smaller than `thumb`'s 400×400 — the tile is 217px at
+DPR 1, so the grid is fetching about three and a half times the pixels it draws — which is an
+`imageSizes` rung, a migration and a `npm run media:rederive` over the whole library; or a
+revised LCP budget for admin screens that draw images. Neither is Task 8's, and pretending
+otherwise by leaving a red URL in the config would have blocked the gate for every later task.
+The shortfall is `docs/deviations.md` §73.
+
 Every URL above is JUDGED and not merely collected, which was once a manual
 `lhci assert --includePassedAssertions` reading of the saved runs and is now
 `scripts/lighthouseJudged.test.js` — landed from the Task 3 review, run in the pre-commit
