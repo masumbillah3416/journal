@@ -75,6 +75,14 @@
  * controls nobody had looked at sat behind a click, which is exactly what the
  * journeys case's `⋯` strip exists to prevent one screen along.
  *
+ * PHASE 4 TASK 9 ADDS `/admin/galleries` (SCREENS.md §2.5), walked with its
+ * BULK CAPTION PANEL OPEN and for a second reason the others do not have: that
+ * screen's grid is "Drag to reorder", so its keyboard path — a real grip button
+ * per tile — is the half a pointer never exercises, and axe is what judges
+ * whether those buttons are named. The case presses NO control that writes,
+ * because every rearranging control on that screen persists to the developer's
+ * own database.
+ *
  * TASK 8 ADDS THE SECOND SIGN-IN STATE, `/admin/sign-in/code`, with no
  * exclusions either. It is the first view in the product where `label` has six
  * unlabelled-looking boxes to judge - the code cells carry `aria-label`s
@@ -572,6 +580,44 @@ test('has no axe violations on /admin/media, with its bulk bar open', async ({ p
   await expect(page.locator('[data-bulk-entry="caption"]')).toBeVisible()
   await page.locator('[data-bulk="move"]').click()
   await expect(page.locator('[data-bulk-entry="move"]')).toBeVisible()
+
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /admin/galleries, with its bulk caption panel open', async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  // SCREENS.md §2.5, and a guarded screen like its neighbours above.
+  //
+  // IT READS AND DOES NOT WRITE. Every control on this screen that rearranges a
+  // gallery — the grips' arrow keys, "Sort by date", a drag — persists to the
+  // developer's own `diary` database, so this case presses none of them. The
+  // one disclosure it does open, "Caption all", is local state.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`a11ygalleries.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin/galleries')
+  // The grid is drawn AND its tiles are there before axe looks: a screen that
+  // rendered an empty card would have no violations either. Each tile carries
+  // TWO controls — the tile itself and its grip, the grip being the whole of
+  // the keyboard's path through a drag — and the panel beside it holds a text
+  // input, a textarea and three checkboxes. The bulk panel is then OPENED,
+  // because its rows are markup axe cannot see until "Caption all" is pressed,
+  // exactly as the journeys case opens the `⋯` strip and the media case opens
+  // the bulk bar.
+  await expect(page.locator('[data-admin-galleries]')).toBeVisible()
+  await expect(page.locator('[data-frame-grid]')).toBeVisible()
+  await expect(page.locator('[data-frame-id]').first()).toBeVisible()
+  await expect(page.locator('[data-frame-grip]').first()).toBeVisible()
+  await expect(page.locator('[data-selected-frame]')).toBeVisible()
+  await page.locator('[data-caption-all]').click()
+  await expect(page.locator('[data-bulk-panel]')).toBeVisible()
 
   await expectNoAxeViolations(page)
 })

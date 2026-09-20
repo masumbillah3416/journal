@@ -3429,3 +3429,27 @@ now with a second and differently-shaped data point.
 
 **Recorded as:** this entry, `docs/testing.md`'s `/admin/galleries` section, and Task 9's
 report.
+
+## 81 · The Galleries screen has no visual baseline, and that is a debt rather than a decision
+
+**What changed:** `e2e/visual.spec.ts` photographs `/admin`, `/admin/journeys` and the
+sign-in family. `/admin/galleries` is not among them, so `SCREENS.md` §2.5's high-fidelity
+values — the 286px and 258px panel rungs, the `136px` tiles, the index badge, the grip, the
+"Cover" and "Hidden" chips, the terracotta ring — are pinned by declarations and by measured
+boxes rather than by a photograph.
+
+**Rationale.** It is not that this screen does not need one. Four admin screens now owe a
+baseline, and each has been added one at a time by the task that built it — which is how
+three of them came to be missing without anybody counting. They are being taken together in
+Task 15, and adding this screen's alone would leave three missing and make the debt harder to
+see rather than easier.
+
+**What IS pinned meanwhile**, so the gap is bounded rather than open: `e2e/admin.spec.ts`
+measures the grips' boxes against their tiles at four widths and the two column shapes at
+1440, 1200 and 700; `e2e/a11y.spec.ts` runs the full axe ruleset with the bulk panel open;
+and every literal §2.5 names is asserted by a jsdom case. What none of those can see is a
+colour, a weight or a spacing that is declared correctly and drawn wrongly.
+
+**Recorded as:** this entry, the `c8 ignore` header of
+`apps/web/app/(admin)/admin/galleries/page.tsx` — which claimed the coverage before it
+existed, and now names what is real and what is owed — and Task 9's report §8.

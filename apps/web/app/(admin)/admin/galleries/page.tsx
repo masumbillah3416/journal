@@ -47,8 +47,13 @@
  * context, and no integration test can supply one), so a per-file c8 ignore is
  * CLAUDE.md §2.1's honest treatment — the same one
  * `app/(admin)/admin/media/page.tsx` carries, and for the same reason. Its
- * runtime behaviour is covered in the browser by e2e/admin.spec.ts,
- * e2e/a11y.spec.ts and e2e/visual.spec.ts. */
+ * runtime behaviour is covered in the browser by e2e/admin.spec.ts (four cases
+ * — a drag, two arrow presses, the grips' boxes and §2.5's two column shapes)
+ * and e2e/a11y.spec.ts (axe, full ruleset, with the bulk caption panel open).
+ * IT IS NOT IN e2e/visual.spec.ts, and this sentence named it before it was
+ * true: a baseline for this screen is OWED, and is being taken with the three
+ * other screens that owe one in Task 15 rather than alone, so that the debt
+ * stays one thing. `docs/deviations.md` §81 records it. */
 import { ADMIN_NAV, type NavEntry } from '@travel-diary/domain/admin/navigation'
 import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
 import { showsClipAffordances } from '@travel-diary/domain/media/ingestPolicy'
