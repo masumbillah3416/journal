@@ -115,8 +115,13 @@ export interface UploadSlotPlan {
  * those two drifting apart is the whole failure this constant exists to
  * prevent: a checker that spelled the namespace itself would keep passing a
  * key the planner had stopped producing.
+ *
+ * EXPORTED FOR ONE CALLER: the staged-upload sweep asks the store for
+ * everything under it (`apps/web/lib/media/sweepStagedUploads.ts`). Exported
+ * rather than copied for exactly the reason above — a second spelling would be
+ * a sweep enumerating a directory nothing writes to any more.
  */
-const STAGING_PREFIX = 'staging'
+export const STAGING_PREFIX = 'staging'
 
 /**
  * What a single segment of a minted key may hold: {@link keyNameFor}'s own
@@ -283,3 +288,30 @@ export const isStagingKeyFor = (candidate: { readonly key: string; readonly jour
   const matched = STAGED_KEY.exec(candidate.key)
   return matched !== null && matched[1] === candidate.journey
 }
+
+/**
+ * Whether `key` is one {@link planUploadSlots} would have minted, for ANY
+ * journey.
+ *
+ * ═══ THE SAME SHAPE {@link isStagingKeyFor} ASKS ABOUT, MINUS THE JOURNEY ═══
+ *
+ * Ingest knows which journey it is finalising and must refuse a key minted for
+ * a different one. The staged-upload sweep knows no journey at all: it walks
+ * the whole staging namespace and decides object by object. So it asks the
+ * weaker of the two questions — and it asks THIS function rather than
+ * `key.startsWith(STAGING_PREFIX)`, because the sweep DELETES. Written as a
+ * match against the minted shape, not as a list of keys to refuse: a checker
+ * that enumerated bad keys would pass the one nobody listed.
+ *
+ * WHAT IT REFUSES, AND EACH REFUSAL MATTERS TO THE SWEEP. A key under a
+ * directory that merely begins with the namespace (`staging-archive/...`), a
+ * key at the wrong depth (`staging/loose.jpg`, `staging/j/a/b.jpg`), a segment
+ * of `.` or `..`, and anything outside the namespace altogether — a stored
+ * photograph's own key, which lives in the SAME store the sweep is walking.
+ * @param key - The key a listing reported.
+ * @returns True only for a key of the shape {@link planUploadSlots} mints.
+ * @example
+ * isMintedStagingKey('staging/4/ab-tokyo.jpg') // true
+ * isMintedStagingKey('staging-archive/4/ab-tokyo.jpg') // false
+ */
+export const isMintedStagingKey = (key: string): boolean => STAGED_KEY.test(key)
