@@ -47,14 +47,25 @@
  * It writes to the developer's own `diary` database, like every other case
  * here, and deletes what it wrote in `afterAll`.
  *
- * Depends on: @playwright/test, the running app from playwright.config.ts's
- * `webServer`, `./support/adminSession` (the guard needs a real session —
- * see that file for why a browser cannot sign itself in here),
- * `@travel-diary/domain/admin/navigation`, and `getPayload` for the one
- * fixture this file has to clean up itself.
+ * SINCE PHASE 4 TASK 9 IT ALSO WALKS THE GALLERIES SCREEN, and the case that
+ * matters there is again one no Vitest project can write: a drag is a browser
+ * gesture, a Server Action is dispatched under an opaque action id, and the
+ * assertion RELOADS the page before reading the order back — so what it
+ * compares came out of Postgres. A second case does the same rearrangement
+ * with the keyboard, because a grid that is only draggable is not operable.
+ * Both work on a journey of their own, created and deleted here, so that
+ * dragging leaves the developer's `diary` database exactly as it was.
+ *
+ * Depends on: @playwright/test, sharp (the galleries fixture's real uploads),
+ * the running app from playwright.config.ts's `webServer`,
+ * `./support/adminSession` (the guard needs a real session — see that file for
+ * why a browser cannot sign itself in here),
+ * `@travel-diary/domain/admin/navigation`, and `getPayload` for the two
+ * fixtures this file has to clean up itself.
  */
 import { ADMIN_NAV, activeNavId } from '@travel-diary/domain/admin/navigation'
 import { expect, test } from '@playwright/test'
+import sharp from 'sharp'
 import { getPayload } from '../apps/web/lib/payload'
 import { aSignedInSession, fixtureLabel, removeSignedInFixture, SESSION_FIXTURE_DOMAIN } from './support/adminSession'
 
@@ -515,4 +526,171 @@ test('answers a journey address nobody owns with a not-found page rather than a 
 
   expect(response?.status()).toBe(404)
   await expect(page.locator('[data-journey-editor]')).toHaveCount(0)
+})
+
+/**
+ * The galleries fixture's row ids, filled in by its own `beforeAll`.
+ *
+ * ITS OWN JOURNEY, NOT A SEEDED ONE. The case below WRITES: it rearranges a
+ * gallery and reads the new order back after a reload, which is the only way
+ * to prove the write reached Postgres. Dragging a seeded journey's frames
+ * would leave the developer's own `diary` database rearranged for every
+ * screenshot taken afterwards — which is what the journey editor's page-order
+ * case already avoids, and for the same reason.
+ */
+const galleryFixture: { journey: number; frames: number[] } = { journey: 0, frames: [] }
+
+/**
+ * The name this worker's galleries fixture carries.
+ * @param testInfo - Playwright's own run info.
+ * @returns A name unique to this project and worker.
+ */
+const galleryJourneyName = (testInfo: {
+  readonly project: { readonly name: string }
+  readonly workerIndex: number
+}): string => `Gallery ${label(testInfo)}`
+
+test.describe('the galleries screen (SCREENS.md §2.5)', () => {
+  test.beforeAll(async ({}, testInfo) => {
+    const payload = await getPayload()
+    const name = galleryJourneyName(testInfo)
+    const stale = await payload.find({ collection: 'journeys', where: { name: { like: name } }, pagination: false })
+    for (const journey of stale.docs) {
+      await payload.delete({ collection: 'media', where: { journey: { equals: journey.id } } })
+    }
+    await payload.delete({ collection: 'journeys', where: { name: { like: name } } })
+
+    const journey = await payload.create({
+      collection: 'journeys',
+      data: {
+        name,
+        place: 'Norway',
+        slug: name.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-'),
+        dates: '2 - 9 May 2026',
+        _status: 'published',
+      },
+    })
+    galleryFixture.journey = journey.id
+    galleryFixture.frames = []
+    for (const order of [0, 1, 2]) {
+      const png = await sharp({
+        create: { width: 800, height: 800, channels: 3, background: { r: 20 * order, g: 40, b: 60 } },
+      })
+        .png()
+        .toBuffer()
+      const created = await payload.create({
+        collection: 'media',
+        data: { journey: journey.id, alt: `${name} ${String(order)}`, state: 'ready', order },
+        file: {
+          data: png,
+          mimetype: 'image/png',
+          name: `${name.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}-${String(order)}.png`,
+          size: png.length,
+        },
+      })
+      galleryFixture.frames.push(created.id)
+    }
+  })
+
+  test.afterAll(async ({}, testInfo) => {
+    const payload = await getPayload()
+    const name = galleryJourneyName(testInfo)
+    const mine = await payload.find({
+      collection: 'journeys',
+      where: { name: { like: name } },
+      pagination: false,
+      depth: 0,
+    })
+    for (const journey of mine.docs) {
+      await payload.delete({ collection: 'media', where: { journey: { equals: journey.id } } })
+    }
+    await payload.delete({ collection: 'journeys', where: { name: { like: name } } })
+  })
+
+  test.beforeEach(async () => {
+    // EACH CASE HERE REARRANGES, so each one starts from the arrangement the
+    // fixture was written in. Without this the second case inherits the first
+    // case's move and asks a question about an order nobody set up — which is
+    // exactly what it did, once.
+    const payload = await getPayload()
+    for (const [order, id] of galleryFixture.frames.entries()) {
+      await payload.update({ collection: 'media', id, data: { order } })
+    }
+  })
+
+  test('moves the cover to the frame an author drags to the front, and it is still there after a reload', async ({
+    page,
+  }) => {
+    // THE ONE CASE NO VITEST PROJECT CAN WRITE. A drag is a browser gesture, a
+    // Server Action is dispatched under an opaque action id, and the assertion
+    // RELOADS THE PAGE before reading the order back — so what it compares came
+    // out of Postgres rather than out of React state.
+    //
+    // IT WAITS FOR THE ACTION'S OWN RESPONSE BEFORE RELOADING, and that is not
+    // a flake guard bolted on: the grid moves the tile OPTIMISTICALLY and
+    // §2.5 draws no saved state (`docs/deviations.md` §60), so there is nothing
+    // on screen that says the write landed. Reloading on the optimistic paint
+    // alone raced the `POST` and read the old order back — measured, twice.
+    const third = galleryFixture.frames[2]
+    const first = galleryFixture.frames[0]
+    expect(third, 'the fixture wrote three frames').toBeDefined()
+
+    await page.goto(`/admin/galleries?journey=${String(galleryFixture.journey)}`)
+    await expect(page.locator('[data-frame-grid]')).toBeVisible()
+    await expect(page.locator('[data-cover-chip]')).toHaveCount(1)
+    await expect(
+      page.locator(`[data-frame-id="${String(first)}"] [data-cover-chip]`),
+      'the gallery starts with its first frame as the cover',
+    ).toHaveCount(1)
+
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (answer) => answer.request().method() === 'POST' && answer.url().includes('/admin/galleries'),
+      ),
+      page.dragAndDrop(`[data-frame-cell="${String(third)}"]`, `[data-frame-cell="${String(first)}"]`),
+    ])
+    expect(response.ok(), 'the arrangement was accepted').toBe(true)
+    await expect(page.locator(`[data-frame-id="${String(third)}"] [data-cover-chip]`)).toHaveCount(1)
+
+    await page.reload()
+
+    await expect(
+      page.locator(`[data-frame-id="${String(third)}"] [data-cover-chip]`),
+      'the chip moved with the frame, and the reload proves the write landed',
+    ).toHaveCount(1)
+    await expect(page.locator('[data-cover-chip]')).toHaveCount(1)
+  })
+
+  test('lets a keyboard rearrange the gallery, which a drag alone would not', async ({ page }) => {
+    // A GRID THAT IS ONLY DRAGGABLE IS NOT OPERABLE. The grip is a real button
+    // and its arrow keys move the frame one place; this is the case that says
+    // so in a browser rather than in jsdom.
+    //
+    // ONE PRESS, ON THE SECOND FRAME. Two presses in a row was flaky and the
+    // reason is worth writing down rather than retrying past: each move
+    // re-renders the grid, React moves the grip's DOM node to its new place,
+    // and the browser does not always keep focus across that move. So the case
+    // asks the question a keyboard user asks once — can I move this frame? —
+    // and `FrameGrid.test.tsx` walks the rest of the key table in jsdom.
+    const second = galleryFixture.frames[1]
+
+    await page.goto(`/admin/galleries?journey=${String(galleryFixture.journey)}`)
+    await expect(page.locator('[data-frame-grid]')).toBeVisible()
+
+    await page.locator(`[data-frame-grip="${String(second)}"]`).focus()
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (answer) => answer.request().method() === 'POST' && answer.url().includes('/admin/galleries'),
+      ),
+      page.keyboard.press('ArrowLeft'),
+    ])
+    expect(response.ok(), 'the arrangement was accepted').toBe(true)
+
+    await page.reload()
+
+    await expect(
+      page.locator(`[data-frame-id="${String(second)}"] [data-cover-chip]`),
+      'a keyboard moved the frame to the front, and the reload proves the write landed',
+    ).toHaveCount(1)
+  })
 })
