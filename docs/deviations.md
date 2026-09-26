@@ -4056,3 +4056,45 @@ the `AdminShell` `counts` prop documentation, `docs/api.md`'s `GET /admin` row, 
 `e2e/admin.spec.ts`'s "prints no number on this screen that disagrees with how many changes are
 waiting" — which asserts the PROPERTY rather than the fix, so it stays green the day the chrome
 can afford the real count.
+
+## 98 · Nothing checks that a cited `§N` resolves to the entry it means — owner: Task 15
+
+**What changed:** nothing, and that is what this entry is for.
+`apps/web/lib/docs/pathCitations.test.ts` checks two kinds of citation: a backticked **path**
+must name a file git lists, and a backticked **identifier** must appear somewhere in this
+repository's source. Both are fail-closed in both directions. A **section number** — the
+`docs/deviations.md §N`, `SCREENS.md §2.1` and `CLAUDE.md §N` references this tree carries
+**362 times** in source and documents — is checked by nothing at all, except
+`standardsSections.test.ts`, which resolves `CLAUDE.md §N` and only that family.
+
+**How it was found.** Phase 4 Task 12's review, finding 4:
+`apps/web/app/(admin)/admin/publish/actions.ts` cited `docs/deviations.md` §93 — the CopyLink
+island — in a sentence describing §96, the revalidation gap. It was written, reviewed, verified
+and committed, and every gate in this repository stayed green. A reviewer reading the entry had
+to notice by hand.
+
+**Why a citation that resolves to the WRONG entry is worse than one that resolves to nothing.**
+A path naming nothing fails a test today. A `§93` that exists but says something else reads as
+confirmed: the reader follows it, finds a real heading, and takes the mismatch as their own
+misunderstanding. `docs/deviations.md` alone is ninety-seven entries and grows every task, so
+the numbers a reader must trust get denser, not sparser.
+
+**Why it is recorded rather than built now.** The guard is phase-wide rather than screen-wide,
+and it is not a `toBeGreaterThan` on a regex: resolving `§N` means knowing which document each
+citation is _about_ (the same `§2.1` means `SCREENS.md`'s Overview in one sentence and
+`CLAUDE.md`'s coverage gates in another), and then checking that the heading exists. Half of
+that is `standardsSections.test.ts`'s shape already. Building it inside a screen task would be
+the abstraction `CLAUDE.md` §4 refuses, and a defect report is not permission to reach across a
+phase.
+
+**Owner: Phase 4 Task 15**, which already carries the phase's cross-cutting debts — the eight
+owed visual baselines (§86) and the container run that settles them. The scope: extend
+`pathCitations.test.ts`, or add a sibling beside it, so that a backticked `<document> §N`
+resolves to a heading in that document, with the same two-sided exemption list the path and
+identifier checks already use.
+
+**What would reverse this:** that guard landing, at which point this entry becomes a note about
+which round found the gap.
+
+**Recorded as:** this entry, and Phase 4 Task 12's report, which names it as a residual rather
+than closing it.
