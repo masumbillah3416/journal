@@ -8,7 +8,8 @@
         "http://localhost:3000/admin",
         "http://localhost:3000/admin/journeys",
         "http://localhost:3000/admin/book",
-        "http://localhost:3000/admin/cover"
+        "http://localhost:3000/admin/cover",
+        "http://localhost:3000/admin/publish"
       ],
       "numberOfRuns": 5,
       "startServerCommand": "npm run build -w apps/web && npm run start -w apps/web -- --port 3000",

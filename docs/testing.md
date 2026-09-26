@@ -595,19 +595,25 @@ different reasons, and a fix aimed at either one alone would move only one of th
 worse was NOT repeated, because this screen's own phase breakdown says discovery is not its
 constraint either.
 
-### `/admin/publish` IS MEASURED, PASSES EVERY ASSERTION, AND IS STILL NOT IN THE CONFIG
+### `/admin/publish` IS MEASURED, PASSES EVERY ASSERTION, AND IS NOW IN THE CONFIG
 
 Phase 4 Task 11 measured `http://localhost:3000/admin/publish` against the same matrix, the
-same five runs, the same production build and the same 1440x900 desktop emulation — by copying
-`lighthouserc.admin.json` to a scratch file with one URL in it, because that config was not
-this task's to edit.
+same five runs, the same production build and the same 1440x900 desktop emulation — first by
+copying `lighthouserc.admin.json` to a scratch file with one URL in it, because that config was
+not the task's to edit, and then, on the review's ruling, **by adding the URL to
+`lighthouserc.admin.json` itself**. A measurement in a document that no command re-runs is a
+number with no owner: it rots silently as the screen changes. It is the eighth URL in that
+config and the fourth admin SCREEN in it, beside `/admin/journeys`, `/admin/book` and
+`/admin/cover`.
 
-| `/admin/publish` as collected  | final URL        | `http-status-code` | script transfer | script requests | LCP median  | CLS | TBT  |
-| ------------------------------ | ---------------- | ------------------ | --------------- | --------------- | ----------- | --- | ---- |
-| as built, four changes waiting | `/admin/publish` | 1                  | 139,967         | 7               | **2,927ms** | 0   | 20ms |
+| `/admin/publish`             | final URL        | `http-status-code` | script transfer | script requests | LCP median  | CLS | TBT  |
+| ---------------------------- | ---------------- | ------------------ | --------------- | --------------- | ----------- | --- | ---- |
+| in `lighthouserc.admin.json` | `/admin/publish` | 1                  | 139,967         | 7               | **2,928ms** | 0   | 20ms |
 
-All five LCP runs: 2,933.5 / 2,926.2 / 2,927.0 / 2,928.2 / 2,927.0. **Every assertion passed**,
-and the final URL is the requested one, which is what says the collector's cookie was honoured
+All five LCP runs of the configured gate: 2,925.3 / 2,927.4 / 2,928.8 / 2,927.8 / 2,928.3. The
+scratch run that measured this screen before the URL was added read 2,927ms on the same build,
+so the two agree inside one run's own spread. **Every assertion passed**, on all eight URLs,
+and the final URL is the requested one — which is what says the collector's cookie was honoured
 rather than that the sign-in screen was measured under this screen's name.
 
 **It is the first admin screen since `/admin/journeys` to fit inside the LCP gate**, and the
@@ -622,10 +628,9 @@ reports.
 `/admin`'s 137,986 and one more script request — **1,981 bytes** for `PublishSelection.tsx`,
 which is §2.8's live button label and its strike-through. That is 42.7% of the 327,680 ceiling.
 
-**It is not in `lighthouserc.admin.json`, and that is a scope decision rather than a
-measurement.** The config was fixed before this task and `lighthouserc.admin.json` was named as
-not this task's to change. A future task that adds the URL should expect it to pass: these are
-the numbers it would be judged on.
+**It is judged rather than only collected.** The `.*/admin/.*` matrix entry matches it, which
+`scripts/lighthouseJudged.test.js` checks in the pre-commit gate, so the four assertions above
+are asserted on every `npm run test:perf` rather than recorded once here.
 
 Every URL **in `lighthouserc.admin.json`** is JUDGED and not merely collected, which was
 once a manual `lhci assert --includePassedAssertions` reading of the saved runs and is now
