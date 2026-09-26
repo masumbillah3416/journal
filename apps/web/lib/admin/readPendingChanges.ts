@@ -57,7 +57,12 @@
  * `journeyId` (@travel-diary/domain/ids), `payload` (types), `AdminScope`
  * (./adminScope).
  */
-import { changeId, type ChangeKind, type PendingChange } from '@travel-diary/domain/admin/pendingChange'
+import {
+  changeId,
+  type ChangeKind,
+  type ChangeTone,
+  type PendingChange,
+} from '@travel-diary/domain/admin/pendingChange'
 import { journeyId } from '@travel-diary/domain/ids'
 import type { Payload, Where } from 'payload'
 import type { AdminScope } from './adminScope'
@@ -161,6 +166,7 @@ interface Stamped {
  */
 const aChange = (
   kind: ChangeKind,
+  tone: ChangeTone,
   row: number,
   facts: JourneyFacts,
   journey: number,
@@ -175,6 +181,7 @@ const aChange = (
   return {
     id: changeId(kind, row),
     kind,
+    tone,
     journey: branded.value,
     slug: facts.slug,
     text: what,
@@ -233,7 +240,7 @@ export const readPendingChanges = async (payload: Payload, scope: AdminScope): P
     ...scope,
     depth: 0,
     pagination: false,
-    select: { journey: true, title: true },
+    select: { journey: true, title: true, _status: true },
     where: { journey: { in: ids } },
   })
 
@@ -258,10 +265,20 @@ export const readPendingChanges = async (payload: Payload, scope: AdminScope): P
     // so a line claiming WHAT changed would be a line this module invented;
     // `docs/deviations.md` §87 records the gap against the prototype's own
     // "Note rewritten on the Tokyo entry".
-    const what = published.has(row)
+    const live = published.has(row)
+    const what = live
       ? `${journey.name} has been edited since it was published`
       : `${journey.name} has never been published`
-    const built = aChange('journey', row, journey, row, what, `${journey.name} · journey`, version.updatedAt)
+    const built = aChange(
+      'journey',
+      live ? 'edited' : 'added',
+      row,
+      journey,
+      row,
+      what,
+      `${journey.name} · journey`,
+      version.updatedAt,
+    )
     /* c8 ignore next -- the `null` arm is `aChange`'s own unreachable brand refusal, above. */
     return built === null ? [] : [{ change: built, at: version.updatedAt }]
   })
@@ -278,12 +295,14 @@ export const readPendingChanges = async (payload: Payload, scope: AdminScope): P
     /* c8 ignore next -- the page query was built from these very journey ids. */
     if (journey === undefined) return []
     const title = page.title ?? 'A page'
+    const live = page._status === 'published'
     const built = aChange(
       'page',
+      live ? 'edited' : 'added',
       row,
       journey,
       owner,
-      `${title} has been edited since it was published`,
+      live ? `${title} has been edited since it was published` : `${title} has never been published`,
       `${journey.name} · ${title}`,
       version.updatedAt,
     )

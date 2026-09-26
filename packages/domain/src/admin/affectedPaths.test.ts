@@ -55,6 +55,7 @@ const aBook = (): ReturnType<typeof aBookBundle> =>
 const aChange = (kind: ChangeKind, journey: JourneyId, slug: string): PendingChange => ({
   id: changeId(kind, Number(journey)),
   kind,
+  tone: 'edited',
   journey,
   slug,
   text: 'Note rewritten',

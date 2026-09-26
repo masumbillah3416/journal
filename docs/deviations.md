@@ -3586,9 +3586,10 @@ rather than by a photograph.
 **Rationale.** It is `docs/deviations.md` §81's, unchanged and now larger: baselines are
 generated in the pinned Playwright Linux container and committed as `-linux.png` only, this
 task was implemented on Windows, and a run on a developer's host writes a `-win32` baseline and
-then compares the host against itself for ever. **Six** admin screens now owe a baseline. They
-are being taken together in Task 15 under the container, because adding two more one at a time
-is how the other four came to be missing without anybody counting.
+then compares the host against itself for ever. **Seven** admin screens now owe a baseline —
+Phase 4 Task 11's Publish screen is the latest. They are being taken together in Task 15 under
+the container, because adding them one at a time is how the others came to be missing without
+anybody counting.
 
 **What IS pinned meanwhile**, so the gap is bounded rather than open: `e2e/admin.spec.ts`
 measures both screens' column shapes and their controls' boxes in a real engine;
@@ -3598,3 +3599,125 @@ colour, a weight or a spacing that is declared correctly and drawn wrongly.
 
 **Recorded as:** this entry, both routes' `c8 ignore` headers, `docs/api.md`'s two new route
 sections and Task 10's report.
+
+## 87 · The Publish screen lists only what this data model can hold back, which is two kinds of thing and not six
+
+**What changed:** `SCREENS.md` §2.8's Changes card and §2.1's "Waiting to go out" list are
+drawn from `apps/web/lib/admin/readPendingChanges.ts`, which reports a journey or a page whose
+newest version is a draft — and nothing else. Four differences from the handoff follow from
+that, and all four are visible on the screen:
+
+| The handoff                                                                                              | What is drawn                                                          | Why                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Four kinds of pending row, including "34 photographs and 3 clips uploaded" and "Hanoi moved above Porto" | Two: a `journeys` row and a `pages` row                                | `DATA_MODEL.md` puts `versions: { drafts: true }` on `journeys` and `pages` and on nothing else                                |
+| Change text describing the edit — "Note rewritten on the Tokyo entry"                                    | Text naming the state — "Tokyo has been edited since it was published" | Nothing diffs two versions, so a line claiming _what_ changed would be invented                                                |
+| Four chip tones (`added`, `edited`, `removed`, `order`)                                                  | Two (`added`, `edited`)                                                | A delete is a soft delete written live and a reorder writes `journeys.order` live; neither is ever waiting                     |
+| A relative time — "2h ago", "yesterday"                                                                  | The date — "3 Mar 2025"                                                | §54's reason, unchanged: a relative string is a function of the current instant and this screen is rendered once on the server |
+
+**And an edition is one journey's publish, not the site's.** §2.8's Editions card draws
+site-wide snapshots — "Edition 14 — Patagonia gallery recaptioned, cover cloth changed" — with
+a number and a summary of what each contained. Nothing records either: versions are per row and
+there is no publish log, so an edition number and its description would both be this
+repository's invention. The card lists every published version of every journey, newest first,
+with the newest marked live, capped at `EDITIONS_SHOWN`.
+
+**Rationale.** A media caption, an upload, a bookmark reorder and a cover title are written
+live by this repository's own writes — `mediaMutations.ts`, `galleryMutations.ts`,
+`bookMutations.ts` and `coverMutations.ts` — so by the time an author reaches this screen, they
+have already reached the reader. Listing them as "waiting" would be false. Implementing the
+other four kinds would mean a `ChangeKind` with four arms nothing can ever produce, covered
+only by the fixtures written to cover them, which is the fourth defect species the phase's
+standing orders name.
+
+**What this costs the author, said plainly:** the screen is honest about journeys and pages and
+silent about everything else, so an author who has recaptioned a gallery sees nothing waiting
+and has already published it. The chrome says so — "Nothing below is visible to readers until
+you publish" is true of what the card lists, and of nothing else on the site.
+
+**What would reverse it:** `versions: { drafts: true }` on `media` and on the three globals,
+which is a `DATA_MODEL.md` revision and a migration, plus a diff between two versions for the
+change text. Both are a phase of their own.
+
+**Recorded as:** this entry; the headers of `packages/domain/src/admin/pendingChange.ts` and
+`apps/web/lib/admin/readPendingChanges.ts`; the `GET /admin/publish` row in `docs/api.md`; and
+the cases in `readPendingChanges.integration.test.ts` that assert both tones and the two kinds.
+
+## 88 · The Publish screen draws no "Preview draft" and no "View" on an edition
+
+**What changed:** `SCREENS.md` §2.8's headline card lists "Preview draft" beside the primary
+button, and its Editions card gives every row "View / Restore". Neither is drawn.
+`Headline.tsx` renders one control and `EditionsCard.tsx` renders Restore alone.
+
+**Rationale.** Both would have to lead somewhere, and there is nowhere. The diary serves the
+PUBLISHED row at every address — `apps/web/lib/readBookBundle.ts` filters `_status` on journeys
+and on pages, which `docs/deviations.md` §56 records and explains — so a draft has no address
+and a version that is not the published one has no address either. A "Preview draft" link that
+opened `/p/2` would show the reader's book and call it the draft, which is worse than no
+control: it is a control that answers the wrong question convincingly. `NotesPane.tsx` leaves
+out "Preview page" for exactly this reason (§59), and `AdminShell` hands the shell header
+`previewHref={null}` on every screen for the same one.
+
+**What would reverse it:** a draft-preview route — an address that assembles a `BookBundle`
+from the newest versions rather than the published rows, gated by the admin guard and excluded
+from indexing. That is a route, a second bundle reader and a second content window, and it is
+not this task's.
+
+**Recorded as:** this entry; the headers of `apps/web/components/admin/publish/Headline.tsx`
+and `EditionsCard.tsx`; the `GET /admin/publish` row in `docs/api.md`; and the case in
+`Headline.test.tsx` that counts the card's controls, so a later task that adds one has to
+change this entry with it.
+
+## 89 · Three pieces of this screen's copy are ours: the singular, the inert label and the status line
+
+**What changed:** `packages/domain/src/admin/pendingChange.ts` writes
+
+- **"1 change waiting"**, where `SCREENS.md` §2.8's headline is "{n} changes waiting" and the
+  prototype interpolates the count into that literal;
+- **"Publish 0 of 0"** when nothing is waiting at all, where the prototype's own expression —
+  `pending.filter(c => c.included).length === pending.length ? 'Publish all ' + pending.length : …`
+  — answers "Publish all 0";
+- **"{n} changes are still unpublished."** on the signed-in screen, where the prototype writes
+  "Four changes are still unpublished from your last session."
+
+**Rationale.** All three are states the handoff's own fixtures cannot reach. Its `pending` is a
+four-element literal, so it never renders one change and never renders none — and a real count
+reaches both, the first every time an author publishes all but one thing and the second every
+time they publish everything. "Publish all 0" on an inert button is an offer to publish the
+whole book made by a control that does nothing. The trailing "from your last session" is
+dropped because nothing attributes a draft version to the session that wrote it; the number
+itself is real now, which is what closes §38.
+
+**"Publish 0 of 4" is NOT in this list.** `SCREENS.md` §2.8 gives the two forms and says the
+button goes inert with a muted ring and `#8f836d` when nothing is ticked, without saying what
+it reads — but the label expression in
+`handoff/design_handoff_travel_diary/Travel Diary Admin.dc.html` answers exactly
+"Publish 0 of 4" for that state, so it is the handoff's value read off the handoff's own code
+rather than a decision of ours.
+
+**What would reverse it:** a `SCREENS.md` revision that writes the singular and the empty
+state, at which point the literals move to it.
+
+**Recorded as:** this entry; `pendingChange.ts`'s header; the cases in `pendingChange.test.ts`
+that pin each string; and §38, which this closes.
+
+## 90 · The Publish screen ships a seventh client island, and it is the screen's left column
+
+**What changed:** `apps/web/components/admin/publish/PublishSelection.tsx` carries
+`'use client'`. `apps/web/lib/admin/shellShipsNoClientJs.test.ts`'s allowlist is now **seven**
+files, and `docs/api.md` says the same number.
+
+**Rationale.** `SCREENS.md` §2.8 states the behaviour that requires it: the primary button
+reads "Publish all 4" or "Publish 2 of 4", it goes inert when nothing is ticked, and a row's
+text is struck through and greyed the moment its box is cleared. All three are the tick state
+and the text printed from it within ONE render. A form post per tick would be a navigation per
+checkbox, and a `<form>` cannot re-read its own boxes without script.
+
+**What putting the directory in the scan buys**, as with §2.6's and §2.7's islands: the other
+half of the screen. `EditionsCard.tsx` is a server component with one `<form>` per row, and a
+`'use client'` added to it fails that file's case by name. `Headline.tsx` and `ChangesCard.tsx`
+carry no directive and are not in the allowlist — a module imported by a client entry is part
+of that entry, and the allowlist counts entries.
+
+**Recorded as:** this entry; the allowlist entry and the header block in
+`shellShipsNoClientJs.test.ts`; `PublishSelection.tsx`'s own header; and the
+`GET /admin/publish` row in `docs/api.md`.

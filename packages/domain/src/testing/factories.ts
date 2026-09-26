@@ -22,6 +22,7 @@
  * does not re-export them: a re-export would leave two import paths for one
  * symbol, and the next reader would not know which is the home.
  */
+import type { PendingChange } from '../admin/pendingChange'
 import type { Highlight } from '../admin/highlights'
 import type { RailPage } from '../admin/pageRail'
 import type { ChallengeRecord } from '../auth/otpChallenge'
@@ -127,6 +128,30 @@ export const anAboutContent = (overrides: Partial<AboutContent> = {}): AboutCont
   ],
   kit: ['35mm rangefinder, one lens', 'Pocket notebook, blue ink', 'Roll of washi tape, always'],
   replyTo: 'hello@wanderings.travel',
+  ...overrides,
+})
+
+/**
+ * Builds a {@link PendingChange} for tests.
+ *
+ * `id` is the ONLY parameter that is not an override, because it is the
+ * fixture's identity: every case about SCREENS.md §2.8 is about WHICH row was
+ * ticked, and naming that row at the call site is what makes those cases
+ * readable. The default is a journey that has been edited since it was
+ * published, which is the row the screen exists for.
+ * @param id - The change id, as `changeId` mints one — e.g. `'journey:12'`.
+ * @param overrides - Fields to override. Merged shallowly over the defaults.
+ * @returns A fresh change, shared with no other call's result.
+ */
+export const aPendingChange = (id: string, overrides: Partial<PendingChange> = {}): PendingChange => ({
+  id,
+  kind: 'journey',
+  tone: 'edited',
+  journey: DEFAULT_JOURNEY_ID,
+  slug: 'tokyo',
+  text: 'Tokyo has been edited since it was published',
+  location: 'Tokyo · journey',
+  at: '3 Mar 2025',
   ...overrides,
 })
 

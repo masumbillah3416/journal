@@ -69,8 +69,25 @@ import type { JourneyId } from '../ids'
  */
 export const CHANGE_KINDS = ['journey', 'page'] as const
 
-/** Which collection a pending change is a row of. Also the kind chip's word. */
+/** Which collection a pending change is a row of. */
 export type ChangeKind = (typeof CHANGE_KINDS)[number]
+
+/**
+ * The two words SCREENS.md §2.1's kind chip can print, which are also what it
+ * is "colour-coded by tone" BY.
+ *
+ * The handoff's prototype offers four — `added`, `edited`, `removed` and
+ * `order` — keyed off a `tone` on each of its four fixture rows. Two of them
+ * cannot arise here: a delete is a soft delete written live (`deletedAt`), and
+ * a bookmark reorder writes `journeys.order` live, so neither is ever waiting.
+ * The two that remain are the two states a versioned row can be in against the
+ * public book: one it has never had, and one it has an older copy of.
+ * `docs/deviations.md` §87 records the difference.
+ */
+export const CHANGE_TONES = ['added', 'edited'] as const
+
+/** The chip's word, and the colour it is drawn in. */
+export type ChangeTone = (typeof CHANGE_TONES)[number]
 
 /**
  * One row of SCREENS.md §2.8's Changes card, which is also one row of §2.1's
@@ -79,8 +96,10 @@ export type ChangeKind = (typeof CHANGE_KINDS)[number]
 export interface PendingChange {
   /** What a tick posts. `<kind>:<row id>`; see {@link changeId}. */
   readonly id: string
-  /** The kind chip's word, colour-coded by tone. */
+  /** Which collection the row is in. Not drawn: it is what the id addresses. */
   readonly kind: ChangeKind
+  /** The kind chip's word, and the colour it is drawn in. */
+  readonly tone: ChangeTone
   /** The journey this change belongs to. Everything is keyed by it (§0.9). */
   readonly journey: JourneyId
   /** That journey's gallery address, which is a path this change can affect. */

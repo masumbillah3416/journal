@@ -354,9 +354,15 @@ for a different reason — see its row.
   wrapped in React's per-request `cache` so this route's two reads of it —
   `generateMetadata`'s and the page component's — cost six Payload queries between them
   rather than twelve.
-- **Still to come:** on-demand revalidation of affected paths on publish (design spec §8).
-  Nothing publishes yet, so there is nothing to revalidate; it is named here so the gap
-  between this row and the design spec is a recorded decision rather than an omission.
+- **Revalidated on publish (design spec §8), as of Phase 4 Task 11.** `GET /admin/publish`'s
+  `publishChanges` calls `revalidatePath` on each `/p/<n>` the published journeys occupy, on
+  the Contents page and on each journey's `/gallery/<slug>` — and on nothing else. It is
+  registered rather than served differently: this route declares no `generateStaticParams`
+  and renders per request, so there is no prerendered artefact to invalidate today and a
+  reader already gets the current book. `docs/adr/0010-static-generation-and-the-content-window.md`
+  says the same in advance. What the call buys now is that the set is correct and measured;
+  what it buys the day this route is cached — by ISR, or by a CDN honouring it — is that only
+  the pages that changed are dropped.
 
 ### `GET /m/<n>` — the mobile surface's route entry, which is not an address
 
@@ -869,7 +875,7 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   SCREENS.md §2.6 states that both sliders are controlled and their readouts follow the value.
   The bookmark list beside it ships nothing.
   `apps/web/lib/admin/shellShipsNoClientJs.test.ts` names the file and asserts the count,
-  which is now **six** across the admin.
+  which is now **seven** across the admin.
 
   **There is no visual baseline for this screen yet** (`docs/deviations.md` §86).
 
@@ -915,6 +921,73 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
 
   **The screen ships ONE client entry**, `CoverPreview.tsx`, because §2.7 calls the preview
   live. The About card beside it is one `<form>` and ships nothing.
+
+  **There is no visual baseline for this screen yet** (`docs/deviations.md` §86).
+
+### `GET /admin/publish`
+
+- **Path:** `apps/web/app/(admin)/admin/publish/page.tsx`; the frame is
+  `apps/web/components/admin/shell/AdminShell.tsx`, and the screen inside it is
+  `apps/web/components/admin/publish/` — `PublishSelection.tsx` over `Headline.tsx` and
+  `ChangesCard.tsx`, beside `EditionsCard.tsx`.
+- **Method:** `GET`. Its three mutations are Server Actions with their own opaque `POST`
+  addresses.
+- **Input:** the session cookie. Nothing else — this screen has no address of its own beyond
+  the path.
+- **Output:** an HTML document: `SCREENS.md` §2's shell — with the screen title "Publish" and
+  a crumb reading "{n} changes waiting" — around §2.8's three cards: the headline card with
+  its washi strip, the count in Caveat 40px, "Nothing below is visible to readers until you
+  publish." and the primary button; the Changes card under "tick what goes out", one row per
+  waiting change with a 21px checkbox, its tone chip, its text over "{location} · {when}" and
+  Revert; and the Editions card, one row per published version of a journey with a 9px rotated
+  mark, the timestamp, the description and Restore. `metadata` sets the document title and
+  `robots: { index: false, follow: false }`.
+- **Reads:** four call sites, ten queries, under ONE hoisted `adminScope` — `readNavCounts`
+  (four `payload.count` calls), one `findGlobal('site')` selecting `name`,
+  `readPendingChanges` (four: the live journeys, their latest versions, their pages, and
+  those pages' latest versions) and `readEditions` (one). Ten whatever the size of the diary.
+  Plus the one `users` row `adminScope` itself resolves.
+- **Errors:** none observable from the screen's own content. A diary with nothing waiting
+  draws one line in place of the rows, and a book that has never gone out draws one in place
+  of the editions.
+- **Auth requirement:** **signed in.** `requireAdminSession` runs in this file before anything
+  is drawn, with the same five refusals `GET /admin` lists.
+- **Notes:** **this is the screen design spec §8 has been waiting for.** "Publishing triggers
+  on-demand revalidation of affected paths only" was recorded as a gap on `GET /p/<n>` for
+  three phases; `publishSelection` now answers the diary addresses one publish makes stale and
+  `actions.ts` spends them. The addresses are COMPUTED — one `/p/<n>` per page of each journey
+  that went out, plus the Contents page and each journey's `/gallery/<slug>` — so they are the
+  one revalidation in this repository that no registration test can read off a source file.
+  `publishSelection.integration.test.ts` measures WHICH paths against the book's own page
+  list, and `publishRevalidationRegistration.test.ts` asserts that both writes that answer any
+  spend every one of them.
+
+  **The bundle is read BEFORE the publish.** A cache entry can only exist for an address that
+  has been served, and publishing a journey the book does not hold yet inserts three leaves
+  and renumbers everything after them — which is why `affectedPaths` answers the whole book
+  for a journey it cannot find in it.
+
+  **Only two kinds of thing can be waiting** (`docs/deviations.md` §87). `DATA_MODEL.md` puts
+  `versions: { drafts: true }` on `journeys` and `pages` and on nothing else, so a caption, an
+  upload, a bookmark reorder and a cover title are written live and reach a reader at once.
+  The prototype's four pending rows include three that this data model publishes immediately.
+
+  **An empty selection publishes nothing, and asks the database nothing.** The array is the
+  selection; `[]` is "nothing was ticked" and never "everything".
+
+  **Revert is a submit button, not a second form.** A `<form>` inside a `<form>` is invalid
+  HTML, so each row's Revert carries `formAction` and `name="revert"` instead, and the action
+  that reads `revert` ignores the ticks entirely. It is withheld on a row that has never been
+  published, because there is nothing behind it to go back to and §2.8 draws no error surface
+  (`docs/deviations.md` §60).
+
+  **The screen ships ONE client entry**, `PublishSelection.tsx`, because §2.8's button reads
+  "Publish 2 of 4" and its rows strike through as boxes are cleared — the tick state and the
+  text printed from it in one render. The Editions card beside it is a server component whose
+  every Restore is a `<form>`.
+
+  **There is no "Preview draft" and no "View" on an edition** (`docs/deviations.md` §88): the
+  diary serves published rows at every address, so neither control has anywhere to lead.
 
   **There is no visual baseline for this screen yet** (`docs/deviations.md` §86).
 

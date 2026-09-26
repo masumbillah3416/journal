@@ -61,8 +61,23 @@
  * WHAT PUTTING THE DIRECTORY IN THE SCAN BUYS is the other half of both
  * screens: `BookmarkOrder.tsx` is a list whose every arrow is a `<form>` and
  * `AboutCard.tsx` is one `<form>`, and a `'use client'` added to either fails
- * the case below by name. **The count is now six**, and `docs/api.md` says the
- * same number.
+ * the case below by name.
+ *
+ * ═══ TASK 11 ADDED A SEVENTH, AND IT IS SCREENS.md's OWN SENTENCE AGAIN ═══
+ *
+ * `components/admin/publish/PublishSelection.tsx`. §2.8 gives the primary
+ * button two forms — "Publish all 4" and "Publish 2 of 4" — and an inert state
+ * when nothing is ticked, and strikes a row's text through the moment its box
+ * is cleared. All three are the tick state and the text printed from it in ONE
+ * render, which no form post reaches: a post per tick is a navigation per
+ * checkbox, and a `<form>` cannot re-read its own boxes.
+ *
+ * `Headline.tsx` and `ChangesCard.tsx` carry NO directive and are not in the
+ * allowlist — a module imported by a client entry is part of that entry, and
+ * the allowlist counts entries — and `EditionsCard.tsx` beside them is a server
+ * component whose every Restore is a `<form>`, which is what putting the
+ * directory in the scan buys here. **The count is now seven**, and
+ * `docs/api.md` says the same number.
  *
  * The task's phase-shaping claim is that nothing in the SHELL's own directory
  * is a client component, which is why
@@ -187,6 +202,10 @@ const ISLANDS: readonly { readonly file: string; readonly why: string }[] = [
     file: 'components/admin/book/CoverPreview.tsx',
     why: "SCREENS.md §2.7's preview is LIVE, which is the typed value and the drawn value in one render",
   },
+  {
+    file: 'components/admin/publish/PublishSelection.tsx',
+    why: "SCREENS.md §2.8's button reads 'Publish 2 of 4' and its rows strike through as boxes are cleared",
+  },
 ]
 
 /**
@@ -234,6 +253,14 @@ const NO_CLIENT_JS: readonly { readonly directory: string; readonly why: string 
     why: 'the book route itself, and the two actions its arrows and its settings card dispatch',
   },
   { directory: 'app/(admin)/admin/cover', why: 'the cover route itself, and the two actions its two cards dispatch' },
+  {
+    directory: 'components/admin/publish',
+    why: "SCREENS.md §2.8's one island is declared above, and its two cards are not: the Editions card is a form per row, and the headline and Changes cards are compiled into the island that renders them",
+  },
+  {
+    directory: 'app/(admin)/admin/publish',
+    why: 'the publish route itself, and the three actions its two forms dispatch',
+  },
 ]
 
 /** The directive that turns a module into a client entry point. */
@@ -282,6 +309,6 @@ describe('the declared client islands', () => {
     // header claiming it. `docs/api.md` says the editor ships ONE client entry
     // and the media screen two; a further island has to change those
     // sentences, and this is what makes it.
-    expect(ISLANDS).toHaveLength(6)
+    expect(ISLANDS).toHaveLength(7)
   })
 })

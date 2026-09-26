@@ -1,0 +1,369 @@
+/**
+ * publish.module.css — SCREENS.md §2.8's Publish screen: the headline card,
+ * the Changes card and the Editions card.
+ *
+ * A CSS MODULE, NOT A RULE IN `admin.css`, for the reason every other admin
+ * screen's stylesheet gives: `admin.css` is loaded by the route group's root
+ * layout, so every byte in it is a byte `/admin/sign-in` fetches before it can
+ * paint, and that route carries a Lighthouse LCP gate.
+ *
+ * ═══ THE RUNG IS 1120, WHICH IS 1180 IN THE UNITS THE PROTOTYPE MEASURES IN ═══
+ *
+ * SCREENS.md §2.8 gives `minmax(0,1fr) 360px` above 1180px.
+ * `Travel Diary Admin.dc.html` reads that number off
+ * `document.querySelector('[data-content]').clientWidth`, and `.content` is
+ * `padding: 24px 30px 44px` — so the box a `@container` on the screen measures
+ * is the prototype's `w` LESS 60, and 1180 becomes 1120.
+ * `galleries.module.css` carries the conversion in full and `book.module.css`
+ * repeats it; this is the same one, and it is not transcribed raw.
+ *
+ * THE CONTAINER QUERY GOES ON A WRAPPER. An element cannot be its own query
+ * container — `journeys.module.css` learned it, `book.module.css` re-learned it
+ * in a browser, and `containerQueries.test.ts` now checks it — so `.screen`
+ * declares `container-type` and `.columns` inside it takes the grid.
+ *
+ * Depends on: packages/tokens/src/tokens.css, loaded by the admin layout.
+ */
+
+/* ── The screen ────────────────────────────────────────────────────────── */
+
+.screen {
+  max-width: 1440px;
+  container-name: td-publish;
+  container-type: inline-size;
+}
+
+.columns {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+.outgoing {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* SCREENS.md §2.8: `minmax(0,1fr) 360px` above 1180px, stacked below.
+ * `minmax(0,1fr)` rather than `1fr` because a grid track's automatic minimum is
+ * its content, and a change text with one long word would otherwise push the
+ * Editions card off the screen. */
+@container td-publish (min-width: 1120px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+}
+
+/* ── Cards ─────────────────────────────────────────────────────────────── */
+
+.card {
+  border-radius: 3px;
+  background: var(--td-paper-mount);
+  box-shadow:
+    0 0 0 1px var(--td-hairline-border-min),
+    0 12px 26px -22px rgba(60, 44, 20, 0.55);
+}
+
+.headline {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 22px;
+  padding: 22px 24px;
+}
+
+/* SCREENS.md §2.8: washi at `top: -12px; right: 44px` at `rotate(3deg)`. */
+.washi {
+  position: absolute;
+  top: -12px;
+  right: 44px;
+  width: 106px;
+  height: 26px;
+  transform: rotate(3deg);
+  opacity: 0.7;
+  background: repeating-linear-gradient(120deg, rgba(163, 68, 52, 0.55) 0 7px, rgba(163, 68, 52, 0.28) 7px 14px);
+  clip-path: polygon(0 8%, 5% 0, 100% 5%, 96% 98%, 4% 100%);
+}
+
+/* SCREENS.md §2.8: `flex: 1 1 280px; min-width: 280px`, so the BUTTONS wrap
+ * and the headline does not — the same floor §2.4's dropzone needs for the
+ * same reason. */
+.headlineText {
+  flex: 1 1 280px;
+  min-width: 280px;
+}
+
+.headlineTitle {
+  margin: 0;
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-size: 40px;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.headlineNote {
+  margin: 3px 0 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 16.5px;
+  font-style: italic;
+}
+
+/* ── The primary button, and the inert state ───────────────────────────── */
+
+.publish {
+  flex: none;
+  border: 1.5px solid var(--td-accent);
+  border-radius: 2px;
+  background: var(--td-accent);
+  padding: 11px 24px;
+  color: var(--td-cream-alt);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.publish:hover:not(:disabled) {
+  border-color: var(--td-accent-hover);
+  background: var(--td-accent-hover);
+}
+
+/* SCREENS.md §2.8: inert with a muted ring and `#8f836d` when nothing is
+ * ticked. The colour is written out rather than tokenised because §2.8 names
+ * it literally and this is its only use in the repository; it is a disabled
+ * control's label, which WCAG exempts from the contrast minimum. */
+.publish:disabled {
+  border-color: var(--td-hairline-border-max);
+  background: transparent;
+  color: #8f836d;
+  cursor: default;
+}
+
+/* ── The Changes card ──────────────────────────────────────────────────── */
+
+.changes {
+  padding: 18px 22px 6px;
+}
+
+.changesHead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid var(--td-hairline-border-max);
+  padding-bottom: 9px;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.aside {
+  margin: 0 0 0 auto;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 15px;
+  font-style: italic;
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px dotted var(--td-hairline-dotted-max);
+  padding: 13px 0;
+}
+
+/* SCREENS.md §2's checkbox: a 21px square, `2px` radius, filled `#a34434` with
+ * a `#fdf8ec` tick. A REAL `<input type="checkbox">` under `accent-color`,
+ * rather than a styled `<span>`: the tick is the browser's own, so it arrives
+ * with the checkbox role, the label association and the keyboard behaviour
+ * that a div cannot be given without re-implementing all three. */
+.tick {
+  flex: none;
+  width: 21px;
+  height: 21px;
+  margin: 0;
+  border-radius: 2px;
+  accent-color: var(--td-accent);
+  cursor: pointer;
+}
+
+/* SCREENS.md §2.1: a 64px fixed-width kind chip, Courier 9px `.16em`,
+ * colour-coded by tone with a 55%-alpha ring. The two tones are
+ * `CHANGE_TONES`; the colour comes in on `--td-chip-tone`, because the tone is
+ * the row's own datum and the stylesheet owns everything else about the chip. */
+.chip {
+  flex: none;
+  width: 64px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px var(--td-chip-tone);
+  padding: 4px 8px;
+  box-sizing: border-box;
+  color: var(--td-chip-tone);
+  font-family: var(--td-font-courier);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.rowText {
+  flex: 1;
+  min-width: 0;
+}
+
+/* `display: block` because both lines are `<span>`s inside the row's `<label>`
+ * — an inline element takes no top margin and the two would share a line. */
+.what {
+  display: block;
+  margin: 0;
+  color: var(--td-ink);
+  font-family: var(--td-font-garamond);
+  font-size: 17px;
+}
+
+/* SCREENS.md §2.8: the text is struck through and `#8f836d` when excluded. */
+.whatExcluded {
+  color: #8f836d;
+  text-decoration: line-through;
+}
+
+.where {
+  display: block;
+  margin: 2px 0 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.revert {
+  flex: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.revert:hover {
+  color: var(--td-accent);
+}
+
+.empty {
+  margin: 0;
+  padding: 16px 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 16.5px;
+  font-style: italic;
+}
+
+/* ── The Editions card ─────────────────────────────────────────────────── */
+
+.editions {
+  padding: 18px 22px 20px;
+}
+
+.editionsTitle {
+  margin: 0 0 4px;
+  border-bottom: 1px solid var(--td-hairline-border-max);
+  padding-bottom: 11px;
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-size: var(--td-admin-card-heading);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.editionRow {
+  display: flex;
+  gap: 13px;
+  border-bottom: 1px dotted var(--td-hairline-dotted-max);
+  padding: 13px 0;
+}
+
+/* SCREENS.md §2.8: a 9px rotated mark, filled for the live edition, a ring
+ * otherwise. */
+.mark {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 7px;
+  box-shadow: inset 0 0 0 1px var(--td-hairline-border-max);
+  background: transparent;
+  transform: rotate(45deg);
+}
+
+.markLive {
+  box-shadow: none;
+  background: var(--td-accent);
+}
+
+.editionText {
+  flex: 1;
+  min-width: 0;
+}
+
+.editionWhen {
+  margin: 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+}
+
+.editionWhat {
+  margin: 2px 0 0;
+  color: var(--td-ink-body);
+  font-family: var(--td-font-garamond);
+  font-size: 16.5px;
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+
+.restore {
+  margin-top: 5px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.restore:hover:not(:disabled) {
+  color: var(--td-ink-body);
+}
+
+.restore:disabled {
+  color: #8f836d;
+  cursor: default;
+}

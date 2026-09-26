@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   aBookBundle,
   aBookChrome,
+  aPendingChange,
   aGalleryBundle,
   aGalleryFrame,
   anAboutContent,
@@ -205,5 +206,24 @@ describe('aBookBundle', () => {
 
   it('gives every call its own bundle, never a shared reference', () => {
     expect(aBookBundle()).not.toBe(aBookBundle())
+  })
+})
+
+describe('aPendingChange', () => {
+  it('builds the row the Publish screen exists for, at the id the call names', () => {
+    expect(aPendingChange('journey:12')).toMatchObject({ id: 'journey:12', kind: 'journey', tone: 'edited' })
+  })
+
+  it('merges overrides shallowly over the defaults', () => {
+    expect(aPendingChange('page:41', { kind: 'page', tone: 'added' })).toMatchObject({
+      id: 'page:41',
+      kind: 'page',
+      tone: 'added',
+      slug: 'tokyo',
+    })
+  })
+
+  it('gives every call its own object, never a shared reference', () => {
+    expect(aPendingChange('journey:1')).not.toBe(aPendingChange('journey:1'))
   })
 })

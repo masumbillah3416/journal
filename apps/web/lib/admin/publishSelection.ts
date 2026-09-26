@@ -99,6 +99,48 @@ const parsedAll = (ids: readonly string[]): readonly { readonly kind: ChangeKind
   })
 
 /**
+ * The change ids the ticked boxes posted.
+ *
+ * `getAll` rather than `Object.fromEntries`, which keeps only the LAST of a
+ * repeated name — and the Changes card posts one `change` field per ticked row.
+ * A `File` entry is not a string and is dropped here, which
+ * {@link publishSelection}'s parse would then have refused anyway.
+ * @param form - The body the publish form posted.
+ * @returns The ids, in document order.
+ * @example
+ * await publishSelection(payload, scope, readSelection(form))
+ */
+export const readSelection = (form: FormData): readonly string[] =>
+  form.getAll('change').flatMap((value) => (typeof value === 'string' ? [value] : []))
+
+/**
+ * The one change id a row's Revert posted.
+ *
+ * The SAME body the publish button sends — one form, two actions — so this
+ * reads only its own field and ignores every `change` beside it.
+ * @param form - The body the publish form posted.
+ * @returns The id, or `''` when the field is absent, which the parse refuses.
+ * @example
+ * await revertChange(payload, scope, readRevert(form))
+ */
+export const readRevert = (form: FormData): string => {
+  const posted = form.get('revert')
+  return typeof posted === 'string' ? posted : ''
+}
+
+/**
+ * The edition id a row's Restore posted.
+ * @param form - The body the Editions card's own form posted.
+ * @returns The id, or `''` when the field is absent, which the read refuses.
+ * @example
+ * await restoreEdition(payload, scope, readEdition(form))
+ */
+export const readEdition = (form: FormData): string => {
+  const posted = form.get('edition')
+  return typeof posted === 'string' ? posted : ''
+}
+
+/**
  * Publishes the ticked changes, and answers the diary addresses they made stale.
  *
  * @param payload - The Local API instance.
@@ -223,6 +265,10 @@ export const restoreEdition = async (
   const change: PendingChange = {
     id: changeId('journey', parent),
     kind: 'journey',
+    // A SYNTHETIC ROW, built only so `affectedPaths` can be asked about it —
+    // it is never drawn, so the tone is the one a restored journey would have
+    // on the card: the book already holds it.
+    tone: 'edited',
     journey: branded.value,
     slug: version.version.slug,
     text: `${version.version.name} restored`,

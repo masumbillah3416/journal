@@ -585,7 +585,18 @@ describes.
 1. The author edits content in the admin (`apps/(admin)/admin`), which writes to Payload
    collections in Postgres via typed repository accessors (the Repository pattern —
    the diary never learns what a Payload row looks like).
-2. Publishing triggers on-demand revalidation of only the affected static paths.
+2. Publishing triggers on-demand revalidation of only the affected static paths. **BUILT
+   (Phase 4 Task 11).** `apps/web/lib/admin/publishSelection.ts` publishes the ticked changes
+   and answers the addresses they made stale; `app/(admin)/admin/publish/actions.ts` spends
+   them. The set is `packages/domain/src/admin/affectedPaths.ts`'s: the `/p/<n>` of each page
+   the published journeys occupy, the Contents page that lists them, and each journey's
+   `/gallery/<slug>` — and, for a journey the book did not hold, every page address, because
+   publishing it inserts three leaves and renumbers the rest. The bundle is read BEFORE the
+   write, since only an address that has been served can have been cached. **What this does
+   NOT yet buy:** `/p/[n]`, `/m/[n]` and `/gallery/[slug]` declare no `generateStaticParams`
+   and render per request (ADR 0010), so there is no prerendered artefact to invalidate and a
+   reader is never served a stale page either way. The value is that the affected set is
+   computed and correct the day one of those routes is cached.
 3. On a request to a diary route, the server assembles one `BookBundle` from the
    relevant Payload rows and statically renders every page's content.
 4. The client takes over only for scaling (`bookScale`) and flipping (`flipMachine`);

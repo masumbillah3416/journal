@@ -191,6 +191,22 @@ describe('readPendingChanges', () => {
     expect(noisy).not.toContain(`journey:${String(journey)}`)
   })
 
+  it('calls a row nobody has ever seen "added" and a row that has changed since "edited"', async () => {
+    // SCREENS.md §2.1's chip is "colour-coded by tone", and the prototype's own
+    // chips print the tone word. These are the two tones this data model can
+    // produce: a row the public has never had, and a row it has an older copy
+    // of.
+    const fresh = await aJourney('tone-added', 'draft')
+    const changed = await aJourney('tone-edited', 'published')
+    await editJourney(changed)
+
+    const waiting = await readPendingChanges(payload, scope)
+    const toneOf = (row: number): string | undefined =>
+      waiting.find((change) => change.id === `journey:${String(row)}`)?.tone
+
+    expect([toneOf(fresh), toneOf(changed)]).toEqual(['added', 'edited'])
+  })
+
   it('names a page that has no title of its own, rather than printing a gap', async () => {
     // `title` is not `required` on the collection (DATA_MODEL.md), so a page
     // with none is a state an author can really produce — the editor's "Add
