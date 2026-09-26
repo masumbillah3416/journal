@@ -196,3 +196,38 @@ describe('NavRail', () => {
     expect(form?.getAttribute('action')).toBe('/admin/sign-out')
   })
 })
+
+describe('navCountFor', () => {
+  it('prints nothing beside Publish, because a bare digit there cannot say what it counts', () => {
+    // OVR-003 (`docs/qa/2026-09-26-overview-sweep.md`). This button used to
+    // carry `counts.unpublished` — journeys that have never been published —
+    // while the header's crumb and the Publish screen counted every ROW whose
+    // newest version is a draft. The rail printed 0 beside "Publish · WHAT
+    // GOES OUT" on a diary with one change waiting.
+    //
+    // The other three counts are unambiguous because each counts rows of the
+    // thing its button names. "Publish" names an ACTION, so the only number
+    // that belongs beside it is the waiting count — which the chrome cannot
+    // afford: it is four queries on all twelve admin screens
+    // (`docs/deviations.md` §91). Drawing nothing is honest; drawing a
+    // different number is not.
+    expect(navCountFor('publish', COUNTS)).toBeUndefined()
+  })
+
+  it('still prints the three counts that name rows of their own button’s subject', () => {
+    // The other side: a fix that silenced every count would satisfy the case
+    // above.
+    expect([navCountFor('journeys', COUNTS), navCountFor('media', COUNTS), navCountFor('trash', COUNTS)]).toEqual([
+      COUNTS.journeys,
+      COUNTS.media,
+      COUNTS.trashed,
+    ])
+  })
+
+  it('leaves `unpublished` for the header chip, which says in words what it counts', () => {
+    // The datum survives; only the unlabelled digit goes. `ScreenHeader` draws
+    // it as "n journeys never published".
+    expect(COUNTS.unpublished).toBeGreaterThan(0)
+    expect(navCountFor('publish', COUNTS)).toBeUndefined()
+  })
+})

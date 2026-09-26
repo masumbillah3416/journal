@@ -92,10 +92,33 @@ const sectionBarStyle = (section: AdminSection): SectionBarStyle => ({
 /**
  * The number printed beside one rail button, if it has one.
  *
- * Five of the nine entries count nothing — Overview is the desk, Galleries and
+ * Six of the nine entries count nothing — Overview is the desk, Galleries and
  * Cover are views onto rows counted elsewhere, Book and Settings are single
  * screens — and a `0` beside them would read as an empty library rather than
  * as nothing to count.
+ *
+ * ═══ PUBLISH IS THE SIXTH, AND IT USED TO CARRY A NUMBER ═══
+ *
+ * It printed `counts.unpublished` — live journeys that have never been
+ * published. The other three counts are unambiguous because each counts ROWS
+ * OF THE THING ITS BUTTON NAMES: journeys, media rows, trashed journeys. But
+ * "Publish" names an ACTION, so a bare digit beside it reads as "this many
+ * things are waiting to go out" — and that is a different number.
+ *
+ * Measured on a diary with one change waiting: the rail printed **0** beside
+ * "Publish · WHAT GOES OUT" while the header's crumb, the Overview's Waiting
+ * card and `/admin/publish` all said one (OVR-003,
+ * `docs/qa/2026-09-26-overview-sweep.md`). It is PUB-001
+ * (`docs/deviations.md` §91) in its third instance, and unlike the header chip
+ * — which this phase relabelled to "n journeys never published" — a digit has
+ * no label to fix.
+ *
+ * The number that belongs here is what `readPendingChanges` counts, and the
+ * chrome cannot afford it: the rail is drawn on all twelve admin screens, so
+ * that is four more queries on every one of them, for a number two screens act
+ * on. Drawing nothing is honest; drawing a different number is not. The datum
+ * itself survives on {@link NavCounts} and the header chip still prints it, in
+ * words.
  * @param id - The entry's id.
  * @param counts - The four numbers.
  * @returns The number to print, or `undefined` when that entry prints none.
@@ -105,7 +128,6 @@ const sectionBarStyle = (section: AdminSection): SectionBarStyle => ({
 export const navCountFor = (id: string, counts: NavCounts): number | undefined => {
   if (id === 'journeys') return counts.journeys
   if (id === 'media') return counts.media
-  if (id === 'publish') return counts.unpublished
   if (id === 'trash') return counts.trashed
   return undefined
 }

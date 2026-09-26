@@ -1838,4 +1838,33 @@ test.describe('the Overview’s prompts, walked into the screen they name', () =
       ).toBeGreaterThan(measured?.chip ?? 0)
     }
   })
+
+  test('prints no number on this screen that disagrees with how many changes are waiting', async ({ page }) => {
+    // OVR-003 (`docs/qa/2026-09-26-overview-sweep.md`). The rail printed **1**
+    // beside "Publish · WHAT GOES OUT" — `readNavCounts.unpublished`, journeys
+    // that have never been published — while the crumb, the Waiting card and
+    // /admin/publish all counted **2**. It is PUB-001 in its third instance,
+    // and a bare digit has no label to relabel.
+    //
+    // THE PROPERTY, NOT THE FIX: a Publish count is allowed, as long as it is
+    // the number the rest of the screen agrees on. A case asserting "the rail
+    // draws no count" would fail the day the chrome can afford the real one.
+    await page.goto('/admin')
+    await expect(page.locator('[data-admin-overview]')).toBeVisible()
+
+    const crumb = (await page.locator('[data-crumb]').textContent()) ?? ''
+    const waiting = Number(crumb.split(' ')[0])
+    expect(Number.isFinite(waiting), `the crumb did not lead with a number: "${crumb}"`).toBe(true)
+    // The fixture puts two changes in front of this, so the case cannot be
+    // satisfied by a diary where every number happens to be zero.
+    expect(waiting, 'nothing was waiting, so no two numbers could disagree').toBeGreaterThan(0)
+
+    const railCounts = await page
+      .locator('a[data-nav-id="publish"] [data-nav-count]')
+      .evaluateAll((nodes) => nodes.map((node) => Number(node.textContent)))
+
+    expect(railCounts, `the rail says ${JSON.stringify(railCounts)} beside Publish while ${crumb}`).toEqual(
+      railCounts.map(() => waiting),
+    )
+  })
 })

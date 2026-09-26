@@ -4001,3 +4001,42 @@ question moot.
 the reason at the constant, and the `REVALIDATED` table in
 `apps/web/lib/admin/publishRevalidationRegistration.test.ts`, which pins the addresses and
 their order for all three exports.
+
+## 97 · The rail prints no number beside Publish, where `SCREENS.md` §2 gives every nav button a count
+
+**What changed:** `apps/web/components/admin/shell/NavRail.tsx`'s `navCountFor` returns
+`undefined` for the `publish` entry. It used to return `readNavCounts`' `unpublished`. Three
+buttons still carry a number — Journeys, Media and Trash — and six carry none.
+
+**Rationale.** §2 describes the nav button as "a 5px section-coloured bar, label, sub-label, and
+a count", and the handoff prototype gives four of its nine buttons one. The three that remain
+are unambiguous because **each counts rows of the thing its button names**: live journeys, media
+rows, trashed journeys. "Publish" names an ACTION, so a bare digit beside it reads as "this many
+things are waiting to go out" — and `unpublished` is a different number.
+
+**Measured, on a diary with one change waiting** (`docs/qa/2026-09-26-overview-sweep.md`,
+OVR-003): the rail printed **0** beside "Publish · WHAT GOES OUT" while the header's crumb, the
+Overview's "Waiting to go out" card and `/admin/publish` all said **one**. A rail saying there is
+nothing to publish, on a screen listing something to publish.
+
+**Why the label fix §91 applied to the chip does not work here.** The header chip was relabelled
+to "n journeys never published", which is exactly what it counts. A digit has nothing to
+relabel. The only number that belongs beside this button is `readPendingChanges().length`, and
+the chrome cannot afford it: the rail is drawn on all twelve admin screens, so that is four more
+queries on every one of them — the journeys, their latest versions, their pages and those pages'
+latest versions — for a number two screens act on. §91 carries the same arithmetic.
+
+**Nothing is lost from the data.** `NavCounts.unpublished` is unchanged and still read: the
+header chip prints it, in words, on every screen. What goes is one unlabelled digit.
+
+**What would reverse this:** a cheap count of what is waiting. `payload.countVersions` alone
+cannot supply one — the developer's own database holds 42 `_journeys_v` rows with
+`latest = true`, `version._status = 'draft'` and a **null** `parent_id`, orphans of deleted
+journeys, which is exactly why `readPendingChanges` filters by the live journeys' ids and needs
+them first.
+
+**Recorded as:** this entry, `navCountFor`'s header, its three new cases in `NavRail.test.tsx`,
+the `AdminShell` `counts` prop documentation, `docs/api.md`'s `GET /admin` row, and
+`e2e/admin.spec.ts`'s "prints no number on this screen that disagrees with how many changes are
+waiting" — which asserts the PROPERTY rather than the fix, so it stays green the day the chrome
+can afford the real count.

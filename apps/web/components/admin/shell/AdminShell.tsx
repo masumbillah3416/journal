@@ -34,7 +34,13 @@ export interface AdminShellProps {
   readonly screen: NavEntry
   /** The line above the title. */
   readonly crumb: string
-  /** The four numbers the rail prints, from `readNavCounts`. */
+  /**
+   * The four numbers `readNavCounts` reads; the rail prints three of them.
+   *
+   * `unpublished` is NOT printed beside a button — see `navCountFor` — and
+   * reaches the screen through `ScreenHeader`'s chip instead, where it can say
+   * in words what it counts.
+   */
   readonly counts: NavCounts
   /** When the book last went out, already formatted, or `null` for never. */
   readonly lastPublished: string | null

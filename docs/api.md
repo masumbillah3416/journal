@@ -525,7 +525,7 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   address.
 - **Input:** the session cookie, and nothing else. No path parameter, no query, no body.
 - **Output:** an HTML document: `SCREENS.md` §2's shell — the 238px rail with its nine
-  buttons, the counts beside four of them, the profile block and the sign-out form; the
+  buttons, the counts beside three of them, the profile block and the sign-out form; the
   96px header with its crumb ("4 changes waiting") over the screen title "Overview" —
   around §2.1's Overview: a four-card stat grid (Journeys, Pages, Photographs, Clips, each
   with a derived figure, a note and a coloured tick), "Waiting to go out" with one row per
