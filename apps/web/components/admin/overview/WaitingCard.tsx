@@ -105,25 +105,31 @@ export const WaitingCard = ({ changes, revert }: WaitingCardProps): React.JSX.El
               </span>
             </span>
 
-            <span data-waiting-when className={styles.when}>
-              {change.at}
-            </span>
+            {/* THE TIMESTAMP AND REVERT TRAVEL TOGETHER, so that when the row
+                is too narrow to hold everything on one line they wrap as a
+                pair rather than squeezing the change text between them
+                (OVR-002, `docs/qa/2026-09-26-overview-sweep.md`). */}
+            <span className={styles.rowMeta}>
+              <span data-waiting-when className={styles.when}>
+                {change.at}
+              </span>
 
-            <form className={styles.revertForm} action={revert.bind(null, change.id)}>
-              <button
-                data-waiting-revert
-                className={styles.revert}
-                type="submit"
-                disabled={change.tone === 'added'}
-                title={
-                  change.tone === 'added'
-                    ? 'Nothing has been published yet, so there is nothing to go back to'
-                    : 'Discard this change'
-                }
-              >
-                Revert
-              </button>
-            </form>
+              <form className={styles.revertForm} action={revert.bind(null, change.id)}>
+                <button
+                  data-waiting-revert
+                  className={styles.revert}
+                  type="submit"
+                  disabled={change.tone === 'added'}
+                  title={
+                    change.tone === 'added'
+                      ? 'Nothing has been published yet, so there is nothing to go back to'
+                      : 'Discard this change'
+                  }
+                >
+                  Revert
+                </button>
+              </form>
+            </span>
           </li>
         ))}
       </ul>

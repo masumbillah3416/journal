@@ -242,12 +242,35 @@
   list-style: none;
 }
 
+/* ═══ THE ROW WRAPS RATHER THAN SQUEEZING ITS ONE FLEXIBLE COLUMN ═══
+ *
+ * §2.1's row is a 64px fixed chip, the change text, a timestamp and Revert, and
+ * three of those four are `flex: none`. Inside a 302px card that left the text
+ * **63px** — narrower than the chip beside it, one word per line, a 238px-tall
+ * row (OVR-002, `docs/qa/2026-09-26-overview-sweep.md`). The §2.8 row manages
+ * 128px at the same width because it puts its timestamp on the second line
+ * instead of in a column of its own; §2.1 asks for the column, so the row has
+ * to hold itself.
+ *
+ * `flex: 1 1 50%` on the text is the whole mechanism: the change text asks for
+ * half the row, and when the timestamp and Revert cannot also fit beside it
+ * they wrap onto their own line as a pair. No breakpoint, no container query —
+ * the row answers whatever width it is given. */
 .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 14px;
   border-bottom: 1px dotted var(--td-hairline-dotted-max);
   padding: 13px 0;
+}
+
+.rowMeta {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
 }
 
 /* §2.1: "a 64px fixed-width kind chip (Courier 9px `.16em`, colour-coded by
@@ -269,7 +292,7 @@
 }
 
 .rowText {
-  flex: 1;
+  flex: 1 1 50%;
   min-width: 0;
 }
 

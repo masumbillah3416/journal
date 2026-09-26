@@ -1802,4 +1802,40 @@ test.describe('the Overview’s prompts, walked into the screen they name', () =
       rows.map(() => 0),
     )
   })
+
+  test('gives a waiting row’s change text more room than the fixed chip beside it, at every width', async ({
+    page,
+  }) => {
+    // OVR-002 (`docs/qa/2026-09-26-overview-sweep.md`). §2.1's row is a 64px
+    // fixed chip, the change text, a timestamp and Revert. All three of the
+    // others are `flex: none`, so at a 302px card the text got **63px** and
+    // wrapped to one word per line — a 238px-tall row against the 128px the
+    // §2.8 row manages at the same width, because §2.8 puts its timestamp on
+    // the second line instead of in a column.
+    //
+    // THE THRESHOLD IS THE DESIGN'S OWN 64px, not a number invented here: the
+    // row's one flexible column must not end up narrower than its one fixed
+    // one. Both widths are read in the same pass, so the comparison moves with
+    // the layout rather than against a literal.
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/admin')
+      await expect(page.locator('[data-waiting-row]').first()).toBeVisible()
+
+      const measured = await page
+        .locator('[data-waiting-row]')
+        .first()
+        .evaluate((row) => {
+          const text = row.querySelector('[data-waiting-text]')?.getBoundingClientRect().width
+          const chip = row.querySelector('[data-waiting-chip]')?.getBoundingClientRect().width
+          return text === undefined || chip === undefined ? null : { text: Math.round(text), chip: Math.round(chip) }
+        })
+
+      expect(measured, `no waiting row was drawn at ${String(width)}`).not.toBeNull()
+      expect(
+        measured?.text ?? 0,
+        `at ${String(width)} the change text got ${String(measured?.text)}px against a ${String(measured?.chip)}px chip`,
+      ).toBeGreaterThan(measured?.chip ?? 0)
+    }
+  })
 })
