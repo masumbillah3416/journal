@@ -95,6 +95,16 @@
  * Neither case presses a control that writes: every save on either screen
  * persists to the developer's own database.
  *
+ * PHASE 4 TASK 11 ADDS `/admin/publish` (SCREENS.md §2.8), and its shape is one
+ * no admin screen before it had: a list of CHECKBOXES whose labels are the only
+ * thing that says which change each one ships, beside a submit button that goes
+ * `disabled` and whose label is the one piece of copy on the screen that
+ * changes as the boxes do. It is also the first case here that has to WRITE to
+ * be worth running — the card draws one line and no rows on a diary with
+ * nothing waiting, and a screen with no rows has no violations either — so it
+ * creates a journey with a pending draft, looks, and deletes it. It presses
+ * nothing: a publish cannot be undone.
+ *
  * TASK 8 ADDS THE SECOND SIGN-IN STATE, `/admin/sign-in/code`, with no
  * exclusions either. It is the first view in the product where `label` has six
  * unlabelled-looking boxes to judge - the code cells carry `aria-label`s
@@ -113,6 +123,7 @@
  * diary (`npm run db:seed`) — the cover's copy is what the last case measures.
  */
 import { expect, test } from '@playwright/test'
+import { getPayload } from '../apps/web/lib/payload'
 import { aSignedInSession, fixtureLabel, removeSignedInFixture, SESSION_FIXTURE_DOMAIN } from './support/adminSession'
 import { expectNoAxeViolations } from './support/axe'
 import { measureContrastOverGradient } from './support/coverContrast'
@@ -665,6 +676,63 @@ test('has no axe violations on /admin/book, with both of §2.6’s cards drawn',
   await expect(page.locator('[data-cloth]').first()).toBeVisible()
 
   await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /admin/publish, with a real change waiting on it', async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  // SCREENS.md §2.8. IT WRITES A FIXTURE AND DELETES IT, which no other case
+  // here needs to: the Changes card draws one line and no rows on a diary with
+  // nothing waiting, and axe finds no violations on a screen with no controls.
+  // It presses NOTHING — a publish cannot be undone.
+  const payload = await getPayload()
+  const stem = `A11y publish ${fixtureLabel(testInfo)}`
+
+  try {
+    const created = await payload.create({
+      collection: 'journeys',
+      depth: 0,
+      data: {
+        name: stem,
+        place: 'Nowhere',
+        slug: stem.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-'),
+        dates: '1 - 2 March 2026',
+        note: 'the published note',
+        _status: 'published',
+      },
+    })
+    await payload.update({
+      collection: 'journeys',
+      id: created.id,
+      depth: 0,
+      draft: true,
+      data: { note: 'an edit nobody has published' },
+    })
+
+    await context.addCookies([
+      {
+        name: 'td-session',
+        value: await aSignedInSession(`a11ypublish.${fixtureLabel(testInfo)}`),
+        url: `${baseURL ?? ''}/admin`,
+      },
+    ])
+    await page.goto('/admin/publish')
+    // The three cards and the controls inside them: a checkbox whose only
+    // label is the change text beside it, a tone chip that is uppercase
+    // Courier at 9px on a tinted ring, a submit button that carries the count,
+    // and a Restore in each edition row whose accessible name is the same word
+    // on every one of them.
+    await expect(page.locator('[data-admin-publish]')).toBeVisible()
+    await expect(page.locator('[data-publish-headline]')).toBeVisible()
+    await expect(page.locator(`[data-change-row="journey:${String(created.id)}"]`)).toBeVisible()
+    await expect(page.locator('[data-publish-editions]')).toBeVisible()
+
+    await expectNoAxeViolations(page)
+  } finally {
+    await payload.delete({ collection: 'journeys', where: { name: { like: stem } } })
+  }
 })
 
 test('has no axe violations on /admin/cover, with its preview and its About form drawn', async ({

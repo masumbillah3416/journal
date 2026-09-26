@@ -142,15 +142,17 @@ describe('ChangesCard', () => {
   })
 
   it('offers Revert on a row that has something behind it', () => {
+    // THE ROW ID IS NOT ASSERTED HERE, AND THAT IS DELIBERATE. It is bound into
+    // the `formAction` rather than written into the button's `name`/`value`,
+    // because React uses the submitter's own `name` and `value` to carry the
+    // action id — which jsdom cannot see, since it renders the component and
+    // not the action. `e2e/admin.spec.ts`'s Revert case is the instrument that
+    // can, and it failed against the `name`/`value` version for exactly that
+    // reason.
     const host = renderCard([aPendingChange('journey:11')])
 
     const revert = host.querySelector<HTMLButtonElement>('button')
-    expect([revert?.textContent, revert?.name, revert?.value, revert?.disabled]).toEqual([
-      'Revert',
-      'revert',
-      'journey:11',
-      false,
-    ])
+    expect([revert?.textContent, revert?.type, revert?.disabled]).toEqual(['Revert', 'submit', false])
   })
 
   it('withholds Revert on a row nobody has ever published, because there is nothing to go back to', () => {

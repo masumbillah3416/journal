@@ -56,6 +56,16 @@
  * Both work on a journey of their own, created and deleted here, so that
  * dragging leaves the developer's `diary` database exactly as it was.
  *
+ * SINCE PHASE 4 TASK 11 IT ALSO WALKS THE PUBLISH SCREEN, and that block is
+ * the one with a hazard the others do not have: publishing cannot be undone.
+ * There is no operation that turns a published version back into the draft it
+ * came from, so the case works on two journeys of its own AND clears every
+ * other tick on the screen before it presses anything — a press with the
+ * developer's own pending drafts still ticked would publish them irreversibly.
+ * What it measures is the half no Vitest project reaches: the ticked change
+ * appears in the book a reader is served, at the address the diary serves it
+ * at, and the unticked one does not.
+ *
  * Depends on: @playwright/test, sharp (the galleries fixture's real uploads),
  * the running app from playwright.config.ts's `webServer`,
  * `./support/adminSession` (the guard needs a real session — see that file for
@@ -65,11 +75,15 @@
  */
 import { ADMIN_NAV, activeNavId } from '@travel-diary/domain/admin/navigation'
 import { userId } from '@travel-diary/domain/ids'
+import { pagePath } from '@travel-diary/domain/pageAddress'
 import { expect, test } from '@playwright/test'
 import sharp from 'sharp'
 import { adminScope, type AdminScope } from '../apps/web/lib/admin/adminScope'
 import { writeJourneyPlace } from '../apps/web/lib/admin/bookMutations'
 import { getPayload } from '../apps/web/lib/payload'
+import { publishSelection } from '../apps/web/lib/admin/publishSelection'
+import { readEditions } from '../apps/web/lib/admin/readPendingChanges'
+import { readBookBundle } from '../apps/web/lib/readBookBundle'
 import { aSignedInSession, fixtureLabel, removeSignedInFixture, SESSION_FIXTURE_DOMAIN } from './support/adminSession'
 
 /** What this file's fixture account is called, per project, so runs cannot collide. */
@@ -1141,6 +1155,249 @@ test.describe('the book and cover screens', () => {
       ).toEqual({ before: before.coverCloth, after: wanted })
     } finally {
       await payload.updateGlobal({ slug: 'book', data: { coverCloth: before.coverCloth ?? '#2f4a47' } })
+    }
+  })
+})
+
+/** The Publish fixture's two journeys, per project and worker, filled in by the case. */
+const publishFixture: { first: number; second: number } = { first: 0, second: 0 }
+
+/**
+ * What this file's Publish fixtures are called, per project and worker.
+ * @param testInfo - Playwright's own per-test information.
+ * @returns The name stem both journeys carry.
+ */
+const publishJourneyName = (testInfo: {
+  readonly project: { readonly name: string }
+  readonly workerIndex: number
+}): string => `Publish ${label(testInfo)}`
+
+test.describe('the publish screen (SCREENS.md §2.8)', () => {
+  // IT PUBLISHES, WHICH IS THE ONE WRITE NOTHING CAN PUT BACK. Publishing a
+  // draft makes it the live row, and there is no operation that un-publishes a
+  // version into the draft it came from — so this block works on two journeys
+  // of its own and, before it presses anything, CLEARS EVERY OTHER TICK on the
+  // screen. Standing orders §9: the dev database is not a scratchpad, and a
+  // press that published the developer's own pending drafts would be
+  // irreversible rather than merely untidy.
+
+  test('publishes the ticked change and leaves the unticked one, measured in the book a reader gets', async ({
+    page,
+  }, testInfo) => {
+    // THE CASE NO VITEST PROJECT CAN WRITE. A Server Action is dispatched under
+    // an opaque action id, so the whole chain — the ticks, the form body, the
+    // action id, the guard, the read of what is waiting, the version write, the
+    // revalidate and the diary's own render — runs end to end only here.
+    const payload = await getPayload()
+    const stem = publishJourneyName(testInfo)
+    const slug = stem.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')
+
+    try {
+      for (const [key, suffix] of [
+        ['first', 'one'],
+        ['second', 'two'],
+      ] as const) {
+        const created = await payload.create({
+          collection: 'journeys',
+          depth: 0,
+          data: {
+            name: `${stem} ${suffix}`,
+            place: 'Nowhere',
+            slug: `${slug}-${suffix}`,
+            dates: '1 - 2 March 2026',
+            note: `${suffix} as published`,
+            _status: 'published',
+          },
+        })
+        publishFixture[key] = created.id
+        await payload.update({
+          collection: 'journeys',
+          id: created.id,
+          depth: 0,
+          draft: true,
+          data: { note: `${suffix} edited and not yet published` },
+        })
+      }
+
+      const ticked = `[data-change-row="journey:${String(publishFixture.first)}"] input[type="checkbox"]`
+      const untouched = `[data-change-row="journey:${String(publishFixture.second)}"] input[type="checkbox"]`
+
+      const posts: string[] = []
+      page.on('response', (answer) => {
+        if (answer.request().method() === 'POST' && answer.url().includes('/admin/publish')) posts.push(answer.url())
+      })
+
+      await page.goto('/admin/publish')
+      await expect(page.locator('[data-admin-publish]')).toBeVisible()
+      await expect(page.locator(ticked)).toBeChecked()
+      await expect(page.locator(untouched)).toBeChecked()
+
+      // EVERY OTHER ROW IS CLEARED FIRST, including the second fixture. What is
+      // left ticked is exactly one change, which is also what makes the label
+      // assertion below a fixed string on a screen whose row count this case
+      // does not control.
+      const boxes = page.locator('[data-change-row] input[type="checkbox"]')
+      for (let index = 0; index < (await boxes.count()); index += 1) {
+        const box = boxes.nth(index)
+        if ((await box.getAttribute('value')) !== `journey:${String(publishFixture.first)}`) await box.uncheck()
+      }
+
+      await expect(page.locator('[data-publish-now]')).toHaveText(/^Publish 1 of \d+$/u)
+      await expect(
+        page.locator(`[data-change-row="journey:${String(publishFixture.second)}"] [data-change-text]`),
+      ).toHaveCSS('text-decoration-line', 'line-through')
+
+      await page.locator('[data-publish-now]').click()
+      // THE ACTION'S OWN RESPONSE IS WAITED FOR, not the re-render: reloading
+      // before it answers reads the book back BEFORE the write.
+      await expect.poll(() => posts.length, { timeout: 20_000 }).toBeGreaterThanOrEqual(1)
+
+      await page.reload()
+      await expect(page.locator(`[data-change-row="journey:${String(publishFixture.first)}"]`)).toHaveCount(0)
+      await expect(page.locator(`[data-change-row="journey:${String(publishFixture.second)}"]`)).toHaveCount(1)
+
+      // AND NOW THE READER'S OWN BOOK, through the addresses the diary serves.
+      // The page numbers are read off `readBookBundle` — the diary's own mapper
+      // — rather than counted here, because the fixtures move every page after
+      // them and a hard-coded `/p/<n>` would be a different page each run.
+      const bundle = await readBookBundle()
+      const pageOf = (journey: number): string => {
+        const index = bundle.pages.findIndex(
+          (leaf) => 'journeyId' in leaf && leaf.journeyId === String(journey) && leaf.kind === 'notes',
+        )
+        if (index < 0) throw new Error(`the book holds no notes page for journey ${String(journey)}`)
+        return pagePath(index)
+      }
+
+      await page.goto(pageOf(publishFixture.first))
+      await expect(page.getByText('one edited and not yet published')).toBeVisible()
+
+      await page.goto(pageOf(publishFixture.second))
+      await expect(page.getByText('two as published')).toBeVisible()
+      await expect(page.getByText('two edited and not yet published')).toHaveCount(0)
+    } finally {
+      // THE FIXTURES ARE THE ONLY ROWS THIS CASE TOUCHED, because every other
+      // tick was cleared before the publish. They are deleted rather than
+      // restored: a published version cannot be turned back into a draft.
+      await payload.delete({ collection: 'journeys', where: { name: { like: stem } } })
+    }
+  })
+
+  test('discards a change with Revert, and leaves the live row where readers already saw it', async ({
+    page,
+  }, testInfo) => {
+    // THE CASE THAT FOUND A DEFECT NO jsdom RENDER CAN. Revert is a
+    // `<button formAction>` inside the publish form, because a form inside a
+    // form is invalid HTML — and React REPLACES that button's `name` with its
+    // own `$ACTION_ID_…` when the `formAction` is a Server Action. A row id
+    // carried in `name`/`value` therefore never reaches the server: it is a
+    // hydration mismatch in the browser and an empty field on the wire, and
+    // every jsdom case still passes because jsdom renders the component rather
+    // than the action. The id is a BOUND argument now, and this is what fails
+    // when it stops being one.
+    const payload = await getPayload()
+    const stem = `${publishJourneyName(testInfo)} revert`
+    const slug = stem.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')
+
+    try {
+      const created = await payload.create({
+        collection: 'journeys',
+        depth: 0,
+        data: {
+          name: stem,
+          place: 'Nowhere',
+          slug,
+          dates: '1 - 2 March 2026',
+          note: 'the note a reader can see',
+          _status: 'published',
+        },
+      })
+      await payload.update({
+        collection: 'journeys',
+        id: created.id,
+        depth: 0,
+        draft: true,
+        data: { note: 'a draft nobody is going to keep' },
+      })
+
+      const posts: string[] = []
+      page.on('response', (answer) => {
+        if (answer.request().method() === 'POST' && answer.url().includes('/admin/publish')) posts.push(answer.url())
+      })
+
+      await page.goto('/admin/publish')
+      const row = page.locator(`[data-change-row="journey:${String(created.id)}"]`)
+      await expect(row).toHaveCount(1)
+
+      await row.getByRole('button', { name: 'Revert' }).click()
+      await expect.poll(() => posts.length, { timeout: 20_000 }).toBeGreaterThanOrEqual(1)
+      await page.reload()
+
+      await expect(row, 'the change is no longer waiting').toHaveCount(0)
+
+      // AND THE LIVE ROW DID NOT MOVE. A revert that published the draft on its
+      // way to discarding it would satisfy the assertion above on its own.
+      const live = await payload.findByID({ collection: 'journeys', id: created.id, depth: 0 })
+      expect(live.note, 'the published note is the one a reader already had').toBe('the note a reader can see')
+      expect(live._status).toBe('published')
+    } finally {
+      await payload.delete({ collection: 'journeys', where: { name: { like: stem } } })
+    }
+  })
+
+  test('puts an older edition back on the page a reader is looking at', async ({ page }, testInfo) => {
+    // THE OTHER CARD'S CONTROL, in the browser. Restore is a real `<form>` with
+    // a hidden field — the Editions card sits OUTSIDE the publish form, so it
+    // can have one — which is the second shape Next.js documents for passing an
+    // argument. This is what says the shape works rather than that the docs say
+    // it does, after the submitter's `name` turned out not to.
+    const payload = await getPayload()
+    const scope = await fixtureScope(testInfo)
+    const stem = `${publishJourneyName(testInfo)} edition`
+    const slug = stem.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')
+
+    try {
+      const created = await payload.create({
+        collection: 'journeys',
+        depth: 0,
+        data: {
+          name: stem,
+          place: 'Nowhere',
+          slug,
+          dates: '1 - 2 March 2026',
+          note: 'the first edition',
+          _status: 'published',
+        },
+      })
+      await payload.update({
+        collection: 'journeys',
+        id: created.id,
+        depth: 0,
+        draft: true,
+        data: { note: 'the second edition' },
+      })
+      await publishSelection(payload, scope, [`journey:${String(created.id)}`])
+
+      const older = (await readEditions(payload, scope)).find((edition) => edition.what.includes(stem) && !edition.live)
+      if (older === undefined) throw new Error('the fixture published twice and produced one edition')
+
+      const posts: string[] = []
+      page.on('response', (answer) => {
+        if (answer.request().method() === 'POST' && answer.url().includes('/admin/publish')) posts.push(answer.url())
+      })
+
+      await page.goto('/admin/publish')
+      const row = page.locator(`[data-edition-row="${older.id}"]`)
+      await expect(row).toHaveCount(1)
+      await row.getByRole('button', { name: 'Restore' }).click()
+      await expect.poll(() => posts.length, { timeout: 20_000 }).toBeGreaterThanOrEqual(1)
+
+      // THE LIVE ROW, not the version table: a restore that wrote a version
+      // nothing reads would pass any assertion about versions.
+      const live = await payload.findByID({ collection: 'journeys', id: created.id, depth: 0 })
+      expect(live.note, 'the first edition is back on the page a reader is served').toBe('the first edition')
+    } finally {
+      await payload.delete({ collection: 'journeys', where: { name: { like: stem } } })
     }
   })
 })

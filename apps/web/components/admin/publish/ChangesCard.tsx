@@ -17,13 +17,22 @@
  * arrive with the element; a div would need all four re-implemented, which is
  * how §2.5's grip became two buttons (`docs/deviations.md` §78).
  *
- * ═══ REVERT IS A SUBMIT BUTTON, NOT A SECOND FORM ═══
+ * ═══ REVERT IS A SUBMIT BUTTON, AND ITS ROW ID IS BOUND, NOT POSTED ═══
  *
  * A `<form>` inside a `<form>` is invalid HTML and the browser drops the inner
  * one, so a per-row Revert cannot be its own form while the card lives inside
- * the publish form. It is a `<button formAction>` carrying `name="revert"` and
- * its own row's id instead — one body, two possible actions, and the action
- * that reads `revert` ignores the ticks entirely.
+ * the publish form. It is a `<button formAction>` — one body, two possible
+ * actions, and the revert ignores the ticks entirely.
+ *
+ * ITS ID CANNOT TRAVEL IN `name`/`value`, WHICH WAS MEASURED RATHER THAN READ.
+ * React uses the SUBMITTER'S own `name` and `value` to carry the action id when
+ * the `formAction` is a Server Action, so `name="revert"` is overwritten with
+ * `$ACTION_ID_…` between the server render and the browser: the action arrived
+ * with an empty field and threw, and every jsdom case in this directory stayed
+ * green, because jsdom renders the component rather than the action.
+ * `e2e/admin.spec.ts`'s Revert case is the instrument that can see it. The id
+ * is bound with `.bind`, which is the other shape Next.js documents for passing
+ * an argument to a Server Action.
  *
  * ═══ A ROW WITH NOTHING BEHIND IT DRAWS NO REVERT ═══
  *
@@ -54,8 +63,11 @@ export interface ChangesCardProps {
   readonly excluded: ReadonlySet<string>
   /** Called when a row's box is toggled. */
   readonly onToggle: (id: string) => void
-  /** Discards one change. A submit button's `formAction`, not a nested form. */
-  readonly revert: (form: FormData) => Promise<void>
+  /**
+   * Discards one change, by id. Bound per row into a submit button's
+   * `formAction`; see this module's header for why the id cannot be posted.
+   */
+  readonly revert: (id: string) => Promise<void>
 }
 
 /**
@@ -132,9 +144,7 @@ export const ChangesCard = ({ changes, excluded, onToggle, revert }: ChangesCard
               <button
                 className={styles.revert}
                 type="submit"
-                formAction={revert}
-                name="revert"
-                value={change.id}
+                formAction={revert.bind(null, change.id)}
                 disabled={change.tone === 'added'}
                 title={
                   change.tone === 'added'

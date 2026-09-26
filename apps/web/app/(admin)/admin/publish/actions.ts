@@ -53,7 +53,6 @@ import { revalidatePath } from 'next/cache'
 import {
   publishSelection as publishRows,
   readEdition,
-  readRevert,
   readSelection,
   restoreEdition as restoreOne,
   revertChange as revertOne,
@@ -114,12 +113,25 @@ export const publishChanges = guardedAction(async (session, form: FormData): Pro
 /**
  * Discards one pending change.
  *
+ * ═══ THE ID IS A BOUND ARGUMENT, NOT A FORM FIELD, AND THAT IS MEASURED ═══
+ *
+ * SCREENS.md §2.8's Revert sits inside the publish form, so it is a
+ * `<button formAction>` rather than a form of its own — and React uses THAT
+ * BUTTON'S OWN `name` and `value` to carry the action id when the `formAction`
+ * is a Server Action. A row id written into `name="revert"` is overwritten with
+ * `$ACTION_ID_…` before the browser sends anything: a hydration mismatch on
+ * screen and an empty field on the wire. `e2e/admin.spec.ts`'s Revert case
+ * found it and is what fails if the id stops being bound. Binding is the other
+ * shape Next.js documents for passing an argument, and the one that works for a
+ * submitter.
+ *
  * @param session - The account the guard admitted, resolved to a scope.
- * @param form - The same body, of which only `revert` is read.
- * @returns Nothing.
+ * @param id - The change id, bound at the call site by the row that owns it.
+ * @returns Nothing. The `FormData` React appends is deliberately not taken:
+ *   this write reads nothing off the body.
  */
-export const revertOneChange = guardedAction(async (session, form: FormData): Promise<void> => {
-  await revertOne(await getPayload(), await adminScope(session), readRevert(form))
+export const revertOneChange = guardedAction(async (session, id: string): Promise<void> => {
+  await revertOne(await getPayload(), await adminScope(session), id)
   // NO DIARY ADDRESS, and that is the point of this export being here. A
   // revert puts a row back to the version readers are ALREADY looking at, so
   // nothing published changes and nothing served is stale. Only the three

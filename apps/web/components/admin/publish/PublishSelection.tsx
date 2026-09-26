@@ -28,9 +28,11 @@
  * ═══ ONE FORM, TWO ACTIONS ═══
  *
  * The publish button submits to `publish`; each row's Revert is a submit button
- * carrying `formAction={revert}`, because a `<form>` inside a `<form>` is
- * invalid HTML and the browser drops the inner one. Both actions therefore
- * receive the same body, and each reads only its own half of it.
+ * carrying a `formAction` of its own, because a `<form>` inside a `<form>` is
+ * invalid HTML and the browser drops the inner one. The publish reads the
+ * ticked boxes off the body; the revert reads nothing off it at all, because
+ * its row id is BOUND — see `ChangesCard.tsx`'s header for the measurement
+ * behind that.
  *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. One `useState` over a set of
  * ids.
@@ -55,8 +57,8 @@ export interface PublishSelectionProps {
   readonly changes: readonly PendingChange[]
   /** Publishes the ticked rows. Reads `change` off the body. */
   readonly publish: (form: FormData) => Promise<void>
-  /** Discards one row's change. Reads `revert` off the same body. */
-  readonly revert: (form: FormData) => Promise<void>
+  /** Discards one row's change, by id — bound per row, never posted. */
+  readonly revert: (id: string) => Promise<void>
 }
 
 /**

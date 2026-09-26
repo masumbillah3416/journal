@@ -114,21 +114,6 @@ export const readSelection = (form: FormData): readonly string[] =>
   form.getAll('change').flatMap((value) => (typeof value === 'string' ? [value] : []))
 
 /**
- * The one change id a row's Revert posted.
- *
- * The SAME body the publish button sends — one form, two actions — so this
- * reads only its own field and ignores every `change` beside it.
- * @param form - The body the publish form posted.
- * @returns The id, or `''` when the field is absent, which the parse refuses.
- * @example
- * await revertChange(payload, scope, readRevert(form))
- */
-export const readRevert = (form: FormData): string => {
-  const posted = form.get('revert')
-  return typeof posted === 'string' ? posted : ''
-}
-
-/**
  * The edition id a row's Restore posted.
  * @param form - The body the Editions card's own form posted.
  * @returns The id, or `''` when the field is absent, which the read refuses.
