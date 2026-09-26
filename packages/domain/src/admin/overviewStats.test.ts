@@ -35,13 +35,19 @@ describe('overviewStats', () => {
     // SCREENS.md §2's section colours, so the module asks `sectionColour` for
     // them rather than transcribing four hexes.
     //
-    // WHAT THIS CASE CAN AND CANNOT SAY, measured rather than assumed: a
-    // literal `'#a06b3e'` substituted for the `sectionColour('media')` call
-    // leaves it GREEN, because the literal and the table agree today. So this
-    // pins the four VALUES against the rail's, which is what a reader of the
-    // screen sees; it does not pin the call. The call is what stops them
-    // diverging the day §2's table moves, and the only instrument for that
-    // would be a source-level read — more machinery than a colour is worth.
+    // WHAT THIS CASE CAN AND CANNOT SAY, measured in both directions rather
+    // than assumed. It DOES guard the mapping: `sectionColour('media')`
+    // replaced by `sectionColour('journeys')` fails it, `1 failed | 19 passed`.
+    // What it does not pin is the INDIRECTION — a literal `'#a06b3e'`
+    // substituted for the call leaves it green, because the literal and §2's
+    // table agree today.
+    //
+    // THAT GAP IS ALREADY CLOSED ELSEWHERE, and naming where matters more than
+    // confessing it here: `navigation.test.ts`'s `sectionColour` block pins
+    // those colours to their literals (`sectionColour('book')` to `#5a72a8`),
+    // so the day §2's table moves, that file goes red and forces the look. Two
+    // cases, two halves — this one says which section each card belongs to, and
+    // that one says what each section is painted.
     expect(overviewStats(figures()).map((stat) => stat.tone)).toEqual([
       sectionColour('journeys'),
       sectionColour('book'),

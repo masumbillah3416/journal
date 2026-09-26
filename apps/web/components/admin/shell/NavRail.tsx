@@ -114,9 +114,14 @@ const sectionBarStyle = (section: AdminSection): SectionBarStyle => ({
  * no label to fix.
  *
  * The number that belongs here is what `readPendingChanges` counts, and the
- * chrome cannot afford it: the rail is drawn on all twelve admin screens, so
- * that is four more queries on every one of them, for a number two screens act
- * on. Drawing nothing is honest; drawing a different number is not. The datum
+ * chrome cannot afford it: the rail is drawn on EVERY screen that mounts
+ * `AdminShell` — eight page files today, and eleven once `SCREENS.md` §2's
+ * remaining sections are mounted — so that is four more queries on every one of
+ * them, for a number exactly TWO of them act on (`app/(admin)/admin/page.tsx`
+ * and `app/(admin)/admin/publish/page.tsx`, the only readers of
+ * `readPendingChanges`). The counts are the tree's, not a round number: an
+ * earlier revision of this paragraph said "twelve", which is neither the page
+ * files, nor `ADMIN_NAV`'s nine entries, nor §2's eleven sections. Drawing nothing is honest; drawing a different number is not. The datum
  * itself survives on {@link NavCounts} and the header chip still prints it, in
  * words.
  * @param id - The entry's id.

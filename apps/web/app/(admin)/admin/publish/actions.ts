@@ -100,7 +100,7 @@ const SIGNED_IN_PATH = '/admin/sign-in/done'
  * out" card reads THIS module's own `readPendingChanges` — so a publish, a
  * revert or a restore that did not name this address would leave the screen an
  * author lands on listing changes that have gone out. Its stat grid and its
- * crumb count the same set. `docs/deviations.md` §93 records what is NOT here:
+ * crumb count the same set. `docs/deviations.md` §96 records what is NOT here:
  * the writes on the other admin screens, which move this screen's figures too
  * and do not name it.
  */

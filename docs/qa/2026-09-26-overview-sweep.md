@@ -28,15 +28,29 @@ them afterwards. **The dev database was dumped before and after** — journeys 1
 143, `_journeys_v` 610, `_pages_v` 546 — and the three COLLECTION counts came back identical,
 with zero rows matching either fixture marker.
 
-**The version tables did not, and it is worth saying exactly why rather than rounding it to
-"clean".** After the full `e2e/admin.spec.ts` run `_journeys_v` reads 650: the orphan count
-(rows whose `parent_id` is null, which Payload leaves behind when a journey is deleted) went
-42 → 56, and all ten seeded journeys carry a new version row and a fresh `updated_at`. Their
-names, places and `_status` are unchanged, and the cause is Task 10's own bookmark-order case,
-which says so at the top of itself — "IT WRITES THE DEVELOPER'S OWN DATABASE, so it reads every
-journey's `order` AND `_status` first and writes them all back at the end" — through
-`writeJourneyPlace`, which is the versioned-write path that makes the restore safe. Nothing this
-sweep did touches a seeded row: its fixtures are rows it created and deleted.
+**The version table did, and it is worth saying exactly why rather than rounding it to
+"clean".** After the full `e2e/admin.spec.ts` run `_journeys_v` reads 650 against the 610 it
+started from — **40 rows, and every one of them attached to a live journey.** Measured: two e2e
+runs, at `2026-09-26 15:10` and `15:17`, each writing all ten journeys once with an explicit
+`order` and once back with the seeded `NULL`. All ten seeded journeys therefore carry a new
+version row and a fresh `updated_at`, and comparing each journey's newest pre-run version with
+its newest post-run one across fourteen columns — name, place, slug, order, `_status`, hidden,
+archived, dates, note, weather, mood, accent, deletedAt — gives **ten of ten identical**. The
+cause is Task 10's own bookmark-order case, which says so at the top of itself: "IT WRITES THE
+DEVELOPER'S OWN DATABASE, so it reads every journey's `order` AND `_status` first and writes
+them all back at the end", through `writeJourneyPlace`, the versioned-write path that makes the
+restore safe. Nothing this sweep did touches a seeded row: its fixtures are rows it created and
+deleted.
+
+**THE ORPHAN COUNT DID NOT MOVE, AND AN EARLIER REVISION OF THIS PARAGRAPH SAID IT DID.** It
+claimed "42 → 56", which is not movement: it is two different predicates subtracted from each
+other. `count(*) where parent_id is null` is **56**; `count(*) where parent_id is null AND
+latest` is **42**; the remaining 14 are the same rows with `latest = false`. 42 + 14 = 56. The
+orphans are ids **1–56**, a contiguous block written 2026-08-31 16:32–17:04 by aborted early
+seed runs, and **every one has `created_at = updated_at`** — none has been written again, by
+this task or anything since. The correction is recorded rather than quietly edited because the
+false sentence was in the commit whose whole purpose was to stop rounding the dump to "clean",
+which is the species landing on the paragraph written against it.
 
 ## Defects
 
@@ -93,7 +107,8 @@ sweep did touches a seeded row: its fixtures are rows it created and deleted.
 
 ### OVR-003 · S3 · The rail's Publish count says 1 beside a crumb that says 2
 
-- **Route:** `/admin` at all three viewports; the rail is on all twelve admin screens.
+- **Route:** `/admin` at all three viewports; the rail is on every screen that mounts
+  `AdminShell`, which is eight page files today.
 - **Steps:**
   1. Have one journey that has never been published and one that was edited after publishing.
   2. Open `/admin` and read the rail's "Publish" button and the header's crumb.

@@ -3803,8 +3803,9 @@ them.
 
 **RESOLVED BY TASK 12, THE OTHER WAY ROUND, AND THE MEASUREMENT IS WHY.** The reversal above
 only works on the two screens that read the pending set. The chip is in `ScreenHeader`, which
-every one of the twelve admin screens draws — so "the chip takes the same count" is either
-four more queries on all twelve, or the SAME chip printing 4 on `/admin` and `/admin/publish`
+every screen that mounts `AdminShell` draws — **eight page files today**, eleven once
+`SCREENS.md` §2's remaining sections are mounted — so "the chip takes the same count" is either
+four more queries on every one of them, or the SAME chip printing 4 on `/admin` and `/admin/publish`
 and 1 on `/admin/journeys`, which is the original defect with more screens in it. Making the
 chip's number right everywhere costs the journeys, their latest versions, their pages and
 those pages' latest versions, on every screen, for a number no screen but two acts on.
@@ -4029,9 +4030,17 @@ nothing to publish, on a screen listing something to publish.
 **Why the label fix §91 applied to the chip does not work here.** The header chip was relabelled
 to "n journeys never published", which is exactly what it counts. A digit has nothing to
 relabel. The only number that belongs beside this button is `readPendingChanges().length`, and
-the chrome cannot afford it: the rail is drawn on all twelve admin screens, so that is four more
-queries on every one of them — the journeys, their latest versions, their pages and those pages'
-latest versions — for a number two screens act on. §91 carries the same arithmetic.
+the chrome cannot afford it: the rail is drawn on every screen that mounts `AdminShell` — eight
+page files today, eleven once `SCREENS.md` §2's remaining sections are mounted — so that is four
+more queries on every one of them — the journeys, their latest versions, their pages and those
+pages' latest versions — for a number exactly **two** of them act on. §91 carries the same
+arithmetic.
+
+**THE NUMBER IS THE TREE'S, AND AN EARLIER REVISION OF BOTH ENTRIES SAID "twelve".** Counted:
+`<AdminShell` appears in **8** page files, `ADMIN_NAV` holds **9** entries, and `SCREENS.md` §2
+has **11** sections. Twelve is none of them. The conclusion does not move — eight is still four
+times the two screens that read the pending set — but the figure the argument was written around
+was never measured, and it was repeated as if it had been.
 
 **Nothing is lost from the data.** `NavCounts.unpublished` is unchanged and still read: the
 header chip prints it, in words, on every screen. What goes is one unlabelled digit.

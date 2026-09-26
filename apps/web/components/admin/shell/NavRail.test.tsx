@@ -208,7 +208,7 @@ describe('navCountFor', () => {
     // The other three counts are unambiguous because each counts rows of the
     // thing its button names. "Publish" names an ACTION, so the only number
     // that belongs beside it is the waiting count — which the chrome cannot
-    // afford: it is four queries on all twelve admin screens
+    // afford: it is four queries on every screen that mounts `AdminShell`
     // (`docs/deviations.md` §91). Drawing nothing is honest; drawing a
     // different number is not.
     expect(navCountFor('publish', COUNTS)).toBeUndefined()
