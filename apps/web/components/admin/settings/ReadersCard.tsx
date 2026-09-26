@@ -33,6 +33,13 @@
  * `:disabled` rule that makes it look inert.
  *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. Rows and forms.
+ *
+ * THE SWITCH'S HIT AREA IS THE BUTTON, NOT THE TRACK, and that is SET-002's
+ * fix rather than a styling choice: the track is 46x24, because a 44px-tall
+ * switch does not read as a switch, and `--td-min-hit-target` is 44px. Its
+ * accessible name is an `aria-label`, because the control carries no text —
+ * `has no axe violations on /admin/settings, with all three of §2.9's cards
+ * drawn` (`e2e/a11y.spec.ts`) is what would fail if that label were dropped.
  * Depends on: react, `ReaderToggle` (../../../lib/admin/readSettingsScreen),
  * ./settings.module.css.
  */
