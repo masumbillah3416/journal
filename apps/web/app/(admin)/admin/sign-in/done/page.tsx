@@ -10,6 +10,21 @@
  * `components/admin/SignedInStep.tsx` (jsdom, plus `e2e/reset.spec.ts` in a
  * real browser).
  *
+ * ═══ SINCE PHASE 4 TASK 11 IT READS A COUNT, AND THAT IS §38 CLOSING ═══
+ *
+ * SCREENS.md §3.4's status line names how many changes are waiting.
+ * `docs/deviations.md` §38 held it to a sentence with no number in it because
+ * nothing before Phase 4 could compute one, and named its own reversal
+ * condition. `readPendingChanges` is that count, and it is the SAME read
+ * SCREENS.md §2.8's Changes card is drawn from - so the two screens cannot
+ * disagree about how many things are waiting, which is the property a second
+ * cheaper query would have thrown away.
+ *
+ * IT COSTS FOUR QUERIES ON THIS SCREEN, and they are named rather than hidden:
+ * the live journeys, their latest versions, their pages and those pages'
+ * latest versions, under one hoisted `adminScope`. This screen is reached once
+ * per sign-in.
+ *
  * ═══ IT IS GUARDED, AND THAT IS THE WHOLE OF WHAT TASK 10 CHANGED HERE ═══
  *
  * §3.4 is the state a reader reaches after signing in, and until Task 10 this
@@ -34,7 +49,9 @@
  * same task — `sessions.ts`'s `revokeSession` answers it, and revoking a
  * session requires reading the cookie that names it.
  * Depends on: `requireAdminSession` (../../../../../lib/auth/guard),
- * `readSignInScreen` (../../../../../lib/auth/readSignInScreen),
+ * `readSignInScreen` (../../../../../lib/auth/readSignInScreen), `adminScope`
+ * and `readPendingChanges` (../../../../../lib/admin/), `getPayload`
+ * (../../../../../lib/payload),
  * `SignedInStep`/`SignInShell` (../../../../../components/admin/).
  */
 /* c8 ignore start -- Framework passthrough with no authored logic: read the
@@ -53,8 +70,11 @@ import type { Metadata } from 'next'
 import type React from 'react'
 import { SignInShell } from '../../../../../components/admin/SignInShell'
 import { SignedInStep } from '../../../../../components/admin/SignedInStep'
+import { adminScope } from '../../../../../lib/admin/adminScope'
+import { readPendingChanges } from '../../../../../lib/admin/readPendingChanges'
 import { requireAdminSession } from '../../../../../lib/auth/guard'
 import { readSignInScreen } from '../../../../../lib/auth/readSignInScreen'
+import { getPayload } from '../../../../../lib/payload'
 
 /**
  * The screen's title, and the one instruction it gives a crawler.
@@ -72,12 +92,14 @@ export const metadata: Metadata = {
 const SignedInPage = async (): Promise<React.JSX.Element> => {
   // Before anything is read or drawn: a refusal redirects, so no part of this
   // screen is ever assembled for a request that has no live session.
-  await requireAdminSession()
-  const content = await readSignInScreen()
+  const session = await requireAdminSession()
+
+  const scope = await adminScope(session)
+  const [content, waiting] = await Promise.all([readSignInScreen(), readPendingChanges(await getPayload(), scope)])
 
   return (
     <SignInShell book={content}>
-      <SignedInStep />
+      <SignedInStep waiting={waiting.length} />
     </SignInShell>
   )
 }

@@ -21,17 +21,23 @@
  * round trip - a revealed password, six cells, a message answered by typing -
  * and this one has nothing.
  *
- * ═══ THE STATUS LINE IS OURS, AND IT SAYS SOMETHING TRUE ═══
+ * ═══ THE STATUS LINE NAMES A REAL NUMBER, AS OF PHASE 4 TASK 11 ═══
  *
  * The handoff's prototype prints "Four changes are still unpublished from your
  * last session." That number is a count of draft versions across journeys - a
- * fact the Publish screen owns (`SCREENS.md` §2.8), which Phase 4 builds, and
- * which nothing in this phase can compute. Printing the prototype's sentence
- * would be printing a number this repository invented, on the one screen whose
- * whole job is to tell a reader where they stand. Printing nothing would drop
- * a line §3.4 asks for. So the line stays and states something that is true of
- * every visit, on the same subject the prototype's is - unpublished work.
- * Recorded in docs/deviations.md.
+ * fact the Publish screen owns (`SCREENS.md` §2.8) - and for three phases
+ * nothing here could compute it, so this pane printed a sentence of its own
+ * with no count in it and `docs/deviations.md` §38 recorded why, naming its
+ * own reversal condition: "Phase 4's Publish screen, which brings a real count
+ * with it."
+ *
+ * It has. `readPendingChanges` is the same read the Publish screen's Changes
+ * card is drawn from, so this line and that card cannot disagree about how
+ * many things are waiting - which is the whole reason the count is handed IN
+ * rather than fetched here. The prototype's trailing "from your last session"
+ * is still not printed: nothing attributes a draft version to the session that
+ * wrote it, and §89 records that beside the two other pieces of copy that are
+ * ours.
  *
  * ═══ SIGNING OUT IS A POST, AND THE OTHER TWO ARE LINKS ═══
  *
@@ -50,9 +56,11 @@
  * with the rest of the sign-in surface's handlers by Task 10 along with the
  * cookie policy this screen would have to be gated by - the same split
  * `PasswordStep.tsx` and `CodeStep.tsx` make, recorded in docs/deviations.md.
- * Depends on: react, `pagePath` (@travel-diary/domain/pageAddress),
- * ./signIn.module.css.
+ * Depends on: react, `unpublishedStatusLine`
+ * (@travel-diary/domain/admin/pendingChange), `pagePath`
+ * (@travel-diary/domain/pageAddress), ./signIn.module.css.
  */
+import { unpublishedStatusLine } from '@travel-diary/domain/admin/pendingChange'
 import { pagePath } from '@travel-diary/domain/pageAddress'
 import type React from 'react'
 import { ADMIN_PANEL_PATH as PANEL_PATH, SIGN_OUT_ENDPOINT as SIGN_OUT } from '../../lib/auth/adminPaths'
@@ -93,26 +101,27 @@ export const DIARY_PATH = pagePath(0)
  */
 export const SIGN_OUT_ENDPOINT = SIGN_OUT
 
-/**
- * The line SCREENS.md §3.4 calls a status line.
- *
- * HANDOFF-DEVIATION (docs/deviations.md): the prototype's own line counts
- * unpublished changes, which no phase before 4 can compute - see this module's
- * header. This one keeps the subject and states something true of every visit.
- */
-export const SIGNED_IN_STATUS = 'Everything you change in here stays a draft until you publish it.'
+/** What SCREENS.md §3.4's pane needs, which is one number. */
+export interface SignedInStepProps {
+  /**
+   * How many changes are waiting to go out, from `readPendingChanges` - the
+   * same read SCREENS.md §2.8's Changes card is drawn from.
+   */
+  readonly waiting: number
+}
 
 /**
  * Renders the signed-in state.
  *
+ * @param props - See {@link SignedInStepProps}.
  * @returns The pane: the mark, the heading, the status line and the three
  *   ways on.
  * @example
  * <SignInShell book={content}>
- *   <SignedInStep />
+ *   <SignedInStep waiting={4} />
  * </SignInShell>
  */
-export const SignedInStep = (): React.JSX.Element => (
+export const SignedInStep = ({ waiting }: SignedInStepProps): React.JSX.Element => (
   <div data-signed-in-step>
     {/* Decoration, exactly as `SignInShell.tsx`'s cloth furniture is: it says
      * nothing the heading below does not, so a screen reader is not read a
@@ -123,7 +132,9 @@ export const SignedInStep = (): React.JSX.Element => (
 
     <p className={styles.eyebrow}>Signed in</p>
     <h1 className={[styles.title, styles.titleCompact].join(' ')}>The back room is open</h1>
-    <p className={styles.lede}>{SIGNED_IN_STATUS}</p>
+    <p data-signed-in-status className={styles.lede}>
+      {unpublishedStatusLine(waiting)}
+    </p>
 
     <a className={[styles.submit, styles.actionFirst, styles.buttonLink].join(' ')} href={ADMIN_PANEL_PATH}>
       Open the admin panel

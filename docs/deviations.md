@@ -1626,6 +1626,18 @@ where the control leads.
 
 ## 38 · SCREENS.md §3.4's status line is ours, because the prototype's counts something nothing can count
 
+> **Closed by Phase 4 Task 11.** The reversal condition below — "Phase 4's Publish screen,
+> which brings a real count with it" — is met. `apps/web/lib/admin/readPendingChanges.ts` is
+> that count, `app/(admin)/admin/sign-in/done/page.tsx` reads it, and `SignedInStep.tsx` now
+> prints "4 changes are still unpublished." — or "Nothing is waiting to go out." at zero. It
+> is the SAME read `SCREENS.md` §2.8's Changes card is drawn from, so the two screens cannot
+> disagree about the number. What remains different from the prototype is its trailing "from
+> your last session", which nothing can support because no draft version records the session
+> that wrote it; that residue is §89, with the two other pieces of this screen group's copy
+> that are ours. The exported constant that held the old sentence is gone: the line is a
+> function of the count now, and
+> `unpublishedStatusLine` in `packages/domain/src/admin/pendingChange.ts` is its home.
+
 **What changed:** the status line under "The back room is open" reads "Everything you
 change in here stays a draft until you publish it." The handoff's prototype prints "Four
 changes are still unpublished from your last session."
@@ -1646,9 +1658,9 @@ true.
 **What would reverse this:** Phase 4's Publish screen, which brings a real count with it.
 At that point the line can name a number and this entry goes.
 
-**Recorded as:** the `SIGNED_IN_STATUS` constant and the header of
-`apps/web/components/admin/SignedInStep.tsx`, the `GET /admin/sign-in/done` row in
-`docs/api.md`, and the case in `SignedInStep.test.tsx` that asserts the line is printed.
+**Recorded as:** the header of `apps/web/components/admin/SignedInStep.tsx`, the
+`GET /admin/sign-in/done` row in `docs/api.md`, and the three cases in
+`SignedInStep.test.tsx` that assert the line at four changes, at one and at none.
 
 ## 39 · Two more screens are mounted ahead of the handlers behind them
 

@@ -14,7 +14,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
-import { ADMIN_PANEL_PATH, DIARY_PATH, SIGNED_IN_STATUS, SIGN_OUT_ENDPOINT, SignedInStep } from './SignedInStep'
+import { ADMIN_PANEL_PATH, DIARY_PATH, SIGN_OUT_ENDPOINT, SignedInStep } from './SignedInStep'
 
 const roots: Root[] = []
 
@@ -22,13 +22,13 @@ const roots: Root[] = []
  * Renders the pane and hands back the host element.
  * @returns The host element the pane was rendered into.
  */
-const renderStep = (): HTMLElement => {
+const renderStep = (waiting = 0): HTMLElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
   roots.push(root)
   act(() => {
-    root.render(<SignedInStep />)
+    root.render(<SignedInStep waiting={waiting} />)
   })
   return host
 }
@@ -54,25 +54,35 @@ describe('SignedInStep', () => {
     expect(host.textContent).toContain('Signed in')
   })
 
-  it('prints §3.4’s status line, in the words docs/deviations.md §38 settled', () => {
-    // PINNED TO THE LITERAL, not to `SIGNED_IN_STATUS`. Asserting the render
-    // against the constant that produces it is an assertion that cannot fail:
-    // an edit to the copy moves both halves together and the suite stays
-    // green. This sentence is a recorded HANDOFF-DEVIATION - it replaces the
-    // prototype's "Four changes are still unpublished from your last
-    // session.", which counts something no phase before 4 can count - so it
-    // needs the literal MORE than handoff copy does, not less. The second
-    // copy of the string is the point.
-    const host = renderStep()
+  it('prints §3.4’s status line with the real number of changes waiting', () => {
+    // PINNED TO THE LITERAL, not to `unpublishedStatusLine(4)`. Asserting the
+    // render against the function that produces it is an assertion that cannot
+    // fail: an edit to the copy moves both halves together and the suite stays
+    // green. The domain's own suite owns which words each count produces; this
+    // holds the RENDER still.
+    //
+    // docs/deviations.md §38 is what this closes. Its line — "Everything you
+    // change in here stays a draft until you publish it." — was ours because
+    // no phase before 4 could count unpublished changes. Task 11 brought the
+    // count, so the line names it.
+    const host = renderStep(4)
 
-    expect(host.textContent).toContain('Everything you change in here stays a draft until you publish it.')
+    expect(host.textContent).toContain('4 changes are still unpublished.')
   })
 
-  it('exports that line as the constant the deviation entry names', () => {
-    // The two halves of the pin: the case above holds the RENDER still, and
-    // this one holds the exported name docs/deviations.md §38 points at, so
-    // renaming or emptying it is a failure rather than a silent drift.
-    expect(SIGNED_IN_STATUS).toBe('Everything you change in here stays a draft until you publish it.')
+  it('writes one change in the singular, which is the state the prototype never renders', () => {
+    expect(renderStep(1).textContent).toContain('1 change is still unpublished.')
+  })
+
+  it('says so plainly when nothing is waiting, rather than printing a zero', () => {
+    // BOTH SIDES OF THE COUNT. A pane that printed the number unconditionally
+    // would read "0 changes are still unpublished." to an author who has just
+    // published everything, on the screen whose job is to say where they
+    // stand.
+    const host = renderStep(0)
+
+    expect(host.textContent).toContain('Nothing is waiting to go out.')
+    expect(host.textContent).not.toContain('0 changes')
   })
 
   it('draws the ringed circle and the square inside it, out of the accessibility tree', () => {

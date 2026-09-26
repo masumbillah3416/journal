@@ -1258,6 +1258,9 @@ follow: false }`.
 - **Method:** `GET`. The `POST` that "Sign out and start again" makes goes to
   `/admin/sign-out`, documented below.
 - **Input:** the session cookie, and nothing else. No path parameter, no query and no body.
+- **Reads:** `readSignInScreen` for the cloth panel's title, subtitle and cloth, and
+  `readPendingChanges` (four queries, under one hoisted `adminScope`) for the number the
+  status line prints. The one `users` row `adminScope` itself resolves makes six.
 - **Output:** an HTML document: the §3 shell with `SCREENS.md` §3.4's signed-in state — a
   62px ringed circle holding a 20px `#2f6b68` square, the "Signed in" eyebrow, "The back
   room is open", a status line, then "Open the admin panel" (primary, to `/admin`), "View
@@ -1274,9 +1277,14 @@ follow: false }`.
 - **Notes:** the guard is called in the page rather than inherited from a layout, because
   the siblings under `/admin/sign-in` are the screens a reader with no session must be able
   to reach. What stops a later screen forgetting the call is
-  `apps/web/lib/auth/adminGuardRegistration.test.ts`. The status line is ours rather than
-  the prototype's, whose own line counts unpublished changes that no phase before 4 can
-  compute (`docs/deviations.md` §38).
+  `apps/web/lib/auth/adminGuardRegistration.test.ts`.
+
+  **The status line names a real number, as of Phase 4 Task 11**, which is what closed
+  `docs/deviations.md` §38. It reads "4 changes are still unpublished." — or "Nothing is
+  waiting to go out." when none is — from `readPendingChanges`, the SAME read `GET
+/admin/publish`'s Changes card is drawn from, so the two screens cannot disagree about the
+  count. The prototype's trailing "from your last session" is still not printed, because no
+  draft version records the session that wrote it (`docs/deviations.md` §89).
 
 ### `POST /admin/sign-in/password`
 
