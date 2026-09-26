@@ -645,6 +645,20 @@ round, a state a reader reaches only by typing the address — an exhausted or e
 challenge is now described rather than replaced by it (see §8 and
 `docs/qa/2026-09-07-sign-in-sweep.md`).
 
+**`apps/web/scripts/sweep-staged.integration.test.ts` no longer reads two clocks**, which is
+worth recording here because it was an intermittent GATE rather than an intermittent test. The
+case stages a real object and sweeps with a clock one millisecond past the window;
+`staleStagedObjects` compares that clock against the FILE'S `mtimeMs`, and the clock came from
+`Date.now()`. On Windows those are different sources and the filesystem's can lead, so the
+one-millisecond margin was sometimes spent before the comparison ran: **1 failure in 20
+isolated runs**, and three of four `verify:full` runs once Task 11's longer suite moved the
+timing. The clock is now read off the object's own `modifiedAt`, so both sides of the
+comparison come from one source, and the helper throws on an empty listing rather than letting
+"the fixture staged nothing" arrive as the same "Swept 0" sentence a working sweep prints.
+**Twenty isolated runs after the change: 20 passed, 0 failed.** A gate that fails
+intermittently is one people re-run rather than read, and this one guards the deletion of
+staged pre-strip originals — the copies that still carry GPS.
+
 **INP has no Lighthouse lab equivalent** — it is a field metric — so `CLAUDE.md` §6's
 ≤200ms is not asserted by any of the three configs, here or on the diary. What the lab can
 say is total blocking time, which measured **20ms** on all three admin routes. Stated here
