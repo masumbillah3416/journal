@@ -140,9 +140,25 @@ const AN_IDENTIFIER_THAT_RESOLVES_NOWHERE = 'thereIsNoSuchSymbolAsThisOneAnywher
  * resolve — see the module header for why both directions are asserted.
  */
 const PATHS_THAT_NAME_NO_FILE: readonly { readonly citation: string; readonly why: string }[] = [
+  // THE THREE NAMES PLAYWRIGHT ACTUALLY WRITES, one entry each. Cited as the
+  // bare `admin-overview.png` — the string `toHaveScreenshot` is passed — this
+  // was a one-way exemption: `resolvesToAFile` matches exact paths and exact
+  // basenames, that name never becomes a file, and the guard that is supposed
+  // to tell Task 15 it has succeeded would have stayed green after the
+  // baselines landed. Measured: with all three real files present the suite is
+  // `Tests 4 passed`; only a file named exactly `admin-overview.png` turned it
+  // red. Three entries rather than one so a PARTIAL run fails too.
   {
-    citation: 'admin-overview.png',
-    why: 'a visual baseline Phase 4 Task 12 OWES rather than holds: it must be generated in the pinned Playwright Linux container, and docs/deviations.md §86 says so at the citation. This exemption fails the moment Task 15 commits the file, which is the point',
+    citation: 'admin-overview-desktop-linux.png',
+    why: 'a visual baseline Phase 4 Task 12 OWES rather than holds: it must be generated in the pinned Playwright Linux container, and docs/deviations.md §86 says so at the citation. This exemption fails the moment Task 15 commits this file, which is the point',
+  },
+  {
+    citation: 'admin-overview-mid-linux.png',
+    why: 'as above, the `mid` project’s baseline',
+  },
+  {
+    citation: 'admin-overview-mobile-linux.png',
+    why: 'as above, the `mobile` project’s baseline',
   },
   {
     citation: 'apps/web/components/admin/PanelHome.tsx',

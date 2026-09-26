@@ -3618,9 +3618,15 @@ is how the others came to be missing without anybody counting.
 The three `admin-panel-*-linux.png` files photographed the holding screen §44
 records, which that task deleted; they are pictures of a screen that no longer exists, and
 leaving them would have failed the next container run against markup nothing renders. The case
-in `e2e/visual.spec.ts` is kept and repointed at the Overview under the name
-`admin-overview.png`, so the route is ready for Task 15's run and the debt is one line in this
-entry rather than a missing case nobody counted. **No baseline was generated on the host**: a
+in `e2e/visual.spec.ts` is kept and repointed at the Overview, so the route is ready for Task 15's
+run and the debt is one line in this entry rather than a missing case nobody counted. The three
+files that run will commit are `admin-overview-desktop-linux.png`,
+`admin-overview-mid-linux.png` and `admin-overview-mobile-linux.png` — **named here in the
+spelling Playwright actually writes**, which is what makes `pathCitations.test.ts`'s exemption
+for them fail on the day each one lands. Cited by the bare stem the case hands
+`toHaveScreenshot`, the exemption could never fire: Playwright appends the project and the
+platform, so that spelling never becomes a file, and the guard telling Task 15 it had succeeded
+would have stayed green for ever. **No baseline was generated on the host**: a
 Windows run asks for `-win32.png`, writes one, and every run after that compares the host
 against itself while the committed files go unread — 31 such files were found untracked once.
 
