@@ -1494,43 +1494,6 @@ test.describe('the publish screen (SCREENS.md §2.8)', () => {
 })
 
 test.describe('the Overview, SCREENS.md §2.1', () => {
-  test('the overview’s "Pick posters" prompt opens the gallery with that frame already selected', async ({ page }) => {
-    await page.goto('/admin')
-    await expect(page.locator('[data-admin-overview]')).toBeVisible()
-
-    const prompt = page.locator('[data-prompt="pick-posters"] [data-prompt-action]')
-    await expect(prompt, 'the seeded diary has no clip without a poster, so this prompt cannot be walked').toHaveCount(
-      1,
-    )
-
-    // THE ID IS NEVER TYPED HERE, AND IT IS READ BEFORE THE CLICK. Reading
-    // `page.url()` afterwards compares the destination against its OWN address,
-    // which agrees with itself however wrong it is; reading the prompt's `href`
-    // first is what makes this a statement about the two screens agreeing.
-    const href = await prompt.getAttribute('href')
-    const expected = new URL(href ?? '', 'https://example.test').searchParams.get('frame')
-    expect(expected, 'the prompt carried no frame, so there is nothing for the gallery to select').not.toBeNull()
-
-    await prompt.click()
-    await page.waitForURL('**/admin/galleries?**')
-
-    await expect(page.locator('[data-selected-frame]')).toHaveAttribute('data-frame-id', expected ?? '')
-    // AND THE TILE, not only the panel: a panel drawn over a grid highlighting
-    // another frame is the desync §2.5 states its id rule to prevent.
-    await expect(page.locator(`[data-frame-id="${expected ?? ''}"][data-highlighted="true"]`)).toHaveCount(1)
-  })
-
-  test('the "Caption them" prompt opens the bulk panel already expanded', async ({ page }) => {
-    await page.goto('/admin')
-    const prompt = page.locator('[data-prompt="caption-them"] [data-prompt-action]')
-    await expect(prompt, 'the seeded diary has no uncaptioned frame, so this prompt cannot be walked').toHaveCount(1)
-
-    await prompt.click()
-    await page.waitForURL('**/admin/galleries?**')
-
-    await expect(page.locator('[data-caption-all]')).toHaveAttribute('aria-expanded', 'true')
-  })
-
   test('fits the book title inside the 78px cloth chip, measured by the number a wrong fit moves', async ({ page }) => {
     // `scrollWidth <= clientWidth`, NOT a bounding rect. `.chipTitle` carries
     // `nowrap`, `overflow: hidden` and an ellipsis, so its rect is clamped to
@@ -1572,16 +1535,19 @@ test.describe('the Overview, SCREENS.md §2.1', () => {
     expect(onOverview).toEqual(onPublish)
   })
 
-  test('prints a chip that says what it counts, beside a crumb that counts something else', async ({ page }) => {
+  test('prints a crumb counting what is waiting, and no chip while every journey is published', async ({ page }) => {
     // PUB-001 (`docs/deviations.md` §91): the chip counted journeys that have
-    // never been published while the headline counted every waiting row, and
-    // both were labelled "unpublished". The chip now names its own subject.
+    // never been published while the crumb counted every waiting row, and both
+    // wore the word "unpublished". BOTH SIDES OF THE CHIP ARE STATED HERE
+    // rather than one guarded by an `if`: the seeded diary publishes all ten
+    // journeys, so the chip is WITHHELD — which is a definite claim about this
+    // data, not a conditional that passes either way. What the chip SAYS when
+    // it is drawn is `ScreenHeader.test.tsx`'s, against its own text.
     await page.goto('/admin')
     await expect(page.locator('[data-admin-overview]')).toBeVisible()
 
-    const chip = page.locator('[data-control="unpublished"]')
-    if ((await chip.count()) > 0) await expect(chip).toHaveText(/^\d+ journeys? never published$/u)
     await expect(page.locator('[data-crumb]')).toHaveText(/^\d+ changes? waiting$/u)
+    await expect(page.locator('[data-control="unpublished"]')).toHaveCount(0)
   })
 
   test('draws every card §2.1 specifies, so none of them can be quietly missing', async ({ page }) => {
@@ -1612,5 +1578,228 @@ test.describe('the Overview, SCREENS.md §2.1', () => {
 
     await page.setViewportSize({ width: 900, height: 900 })
     await expect.poll(columnsAt).toBe(2)
+  })
+})
+
+/**
+ * What the two prompt fixtures below carry in their filenames, so cleanup can
+ * find them however the run ended.
+ */
+const PROMPT_MARKER = 'e2e-overview-prompt'
+
+/**
+ * Which journey the prompt fixtures are added to.
+ *
+ * The FIRST journey the Galleries screen offers, so the destination's own
+ * fallback — "an address naming no journey shows the first" — cannot make the
+ * walk pass for a link that carried no journey at all. Resolved from the
+ * database rather than written as an id: `diary_test` and the developer's
+ * `diary` mint different ones.
+ * @returns The journey's row id.
+ */
+const aJourneyToPromptAbout = async (): Promise<number> => {
+  const payload = await getPayload()
+  const found = await payload.find({
+    collection: 'journeys',
+    depth: 0,
+    limit: 1,
+    sort: 'name',
+    select: {},
+    where: { deletedAt: { exists: false } },
+  })
+  const journey = found.docs[0]
+  if (journey === undefined) throw new Error('the seeded diary has no journey to hang a prompt fixture on')
+  return journey.id
+}
+
+/**
+ * A media row this file owns, with a real derivative behind it.
+ *
+ * ═══ WHY THE FIXTURE EXISTS AT ALL ═══
+ *
+ * **The seeded diary has nothing outstanding.** Measured rather than assumed:
+ * every gallery frame carries a caption and alt text, every journey is
+ * published, and `select count(*) from media where kind = 'clip'` is **0**. The
+ * ten rows with an empty caption are all ephemera — decorative scraps
+ * `galleryFrameWhere` excludes for every reader — so "Needs a look" draws its
+ * empty line and there is no prompt to walk. A case that skipped on that is a
+ * case that proves nothing, and one that asserted the empty line would be
+ * asserting the absence of the behaviour §2.1 puts in bold.
+ *
+ * @param label - What distinguishes this row; it becomes part of the filename.
+ * @param fields - The columns the prompt under test turns on.
+ * @returns The media row's id, as the address spells it.
+ */
+const aPromptFixture = async (
+  journey: number,
+  label: string,
+  fields: { readonly kind: 'still' | 'clip'; readonly caption: string; readonly posterAt: number | null },
+): Promise<string> => {
+  const payload = await getPayload()
+  const png = await sharp({ create: { width: 800, height: 800, channels: 3, background: { r: 9, g: 9, b: 9 } } })
+    .png()
+    .toBuffer()
+  const created = await payload.create({
+    collection: 'media',
+    data: {
+      journey,
+      alt: `${PROMPT_MARKER} ${label}`,
+      state: 'ready',
+      // LAST IN THE GALLERY, so the fixture cannot become the cover of a
+      // seeded journey while it is there — `coverFrame` is the first frame.
+      order: 9_000,
+      hidden: false,
+      inBook: false,
+      kind: fields.kind,
+      caption: fields.caption,
+      ...(fields.posterAt === null ? {} : { posterAt: fields.posterAt }),
+    },
+    file: { data: png, mimetype: 'image/png', name: `${PROMPT_MARKER}-${label}.png`, size: png.length },
+  })
+  return String(created.id)
+}
+
+test.describe('the Overview’s prompts, walked into the screen they name', () => {
+  let journey = 0
+  let posterless = ''
+  let uncaptioned = ''
+  let mediaBefore = 0
+  let journeysBefore = 0
+
+  test.beforeAll(async () => {
+    const payload = await getPayload()
+    journeysBefore = (await payload.count({ collection: 'journeys' })).totalDocs
+    // THE DEV DATABASE IS NOT A SCRATCHPAD (standing order 9). The count is
+    // taken before anything is written and compared after everything is
+    // removed, so a fixture that failed to clean up fails the suite rather
+    // than quietly staying in the developer's diary.
+    mediaBefore = (await payload.count({ collection: 'media' })).totalDocs
+    journey = await aJourneyToPromptAbout()
+    // A CLIP WITH NO POSTER, captioned and described, so it can only produce
+    // the "Pick posters" prompt.
+    posterless = await aPromptFixture(journey, 'clip', { kind: 'clip', caption: 'a clip', posterAt: null })
+    // A STILL WITH NO CAPTION, described, so it can only produce "Caption them".
+    uncaptioned = await aPromptFixture(journey, 'still', { kind: 'still', caption: '', posterAt: null })
+
+    // SOMETHING WAITING TO GO OUT, so the "Waiting to go out" card has rows.
+    // The seeded diary has none — measured: every live journey's latest version
+    // is published, and the 42 draft version rows are orphans with a null
+    // parent (`docs/qa/2026-09-26-overview-sweep.md`). Without this the card
+    // draws its empty line and every case about a row is vacuous.
+    const waiting = await payload.create({
+      collection: 'journeys',
+      data: {
+        name: `${PROMPT_MARKER} Waiting`,
+        place: 'Nowhere',
+        slug: `${PROMPT_MARKER}-waiting`,
+        dates: 'one day',
+        _status: 'published',
+      },
+    })
+    await payload.update({
+      collection: 'journeys',
+      id: waiting.id,
+      draft: true,
+      data: { note: 'an edit nobody has published' },
+    })
+  })
+
+  test.afterAll(async () => {
+    const payload = await getPayload()
+    await payload.delete({ collection: 'media', where: { filename: { like: PROMPT_MARKER } } })
+    await payload.delete({ collection: 'journeys', where: { slug: { like: PROMPT_MARKER } } })
+    expect(
+      [
+        (await payload.count({ collection: 'media' })).totalDocs,
+        (await payload.count({ collection: 'journeys' })).totalDocs,
+      ],
+      'the fixtures were not cleaned out of the developer’s diary',
+    ).toEqual([mediaBefore, journeysBefore])
+  })
+
+  test('the overview’s "Pick posters" prompt opens the gallery with that frame already selected', async ({ page }) => {
+    await page.goto('/admin')
+    await expect(page.locator('[data-admin-overview]')).toBeVisible()
+
+    const prompt = page.getByRole('link', { name: 'Pick posters' })
+    await expect(prompt).toHaveCount(1)
+
+    // THE ID IS NEVER TYPED HERE, AND IT IS READ BEFORE THE CLICK. Reading
+    // `page.url()` afterwards compares the destination against its OWN address,
+    // which agrees with itself however wrong it is; reading the prompt's own
+    // `href` first is what makes this a statement about the two screens
+    // agreeing rather than about one screen agreeing with itself.
+    const href = await prompt.getAttribute('href')
+    const expected = new URL(href ?? '', 'https://example.test').searchParams.get('frame')
+    expect(expected, 'the prompt carried no frame, so there is nothing for the gallery to select').toBe(posterless)
+
+    await prompt.click()
+    await page.waitForURL('**/admin/galleries?**')
+
+    await expect(page.locator('[data-selected-frame]')).toHaveAttribute('data-frame-id', expected ?? '')
+    // AND THE TILE, not only the panel: a panel drawn over a grid highlighting
+    // another frame is the desync §2.5 states its id rule to prevent.
+    await expect(page.locator(`[data-frame-id="${expected ?? ''}"][data-highlighted="true"]`)).toHaveCount(1)
+  })
+
+  test('the "Caption them" prompt opens the bulk panel already expanded, over its own frame', async ({ page }) => {
+    await page.goto('/admin')
+    const prompt = page.getByRole('link', { name: 'Caption them' })
+    await expect(prompt).toHaveCount(1)
+
+    const href = await prompt.getAttribute('href')
+    const asked = new URL(href ?? '', 'https://example.test').searchParams
+    expect(asked.get('frame')).toBe(uncaptioned)
+
+    await prompt.click()
+    await page.waitForURL('**/admin/galleries?**')
+
+    await expect(page.locator('[data-caption-all]')).toHaveAttribute('aria-expanded', 'true')
+    await expect(page.locator('[data-selected-frame]')).toHaveAttribute('data-frame-id', uncaptioned)
+  })
+
+  test('names the gallery as well as the frame, so the destination draws the right journey', async ({ page }) => {
+    // Without the journey, §2.5's own fallback — "an address naming no journey
+    // shows the first" — decides which gallery opens, and the frame the prompt
+    // named is not in it.
+    await page.goto('/admin')
+    const href = await page.getByRole('link', { name: 'Pick posters' }).getAttribute('href')
+
+    expect(new URL(href ?? '', 'https://example.test').searchParams.get('journey')).toBe(String(journey))
+  })
+
+  test('stacks each prompt’s action under its sentence, rather than running on from it', async ({ page }) => {
+    // OVR-001 (`docs/qa/2026-09-26-overview-sweep.md`). The action is an
+    // inline-block whose `margin-top` does nothing while the sentence beside it
+    // is an inline `<span>`, so the screen read "…has no alt text.ADD ALT TEXT"
+    // with no space at all. `publish.module.css`'s `.what` carries the note
+    // this stylesheet needed: "an inline element takes no top margin and the
+    // two would share a line."
+    //
+    // ═══ WHY THE ASSERTION IS THE LEFT EDGE AND NOT THE TOP ═══
+    //
+    // An inline sentence runs on ONLY WHEN THE ACTION FITS on its last line, so
+    // "the action begins below the text" is true by accident for any prompt
+    // whose last line is nearly full — measured: of three prompts on one
+    // render, two looked stacked and one ran on at x=1061 against a body edge
+    // of x=974. A case reading the first prompt's top would pass or fail with
+    // the length of a journey's name.
+    //
+    // Every action starting at the BODY'S OWN LEFT EDGE is the statement that
+    // holds for every content and breaks for exactly this defect, so it is
+    // asserted over ALL the prompts rather than one.
+    await page.goto('/admin')
+    const rows = await page.locator('[data-prompt]').evaluateAll((prompts) =>
+      prompts.map((row) => {
+        const action = row.querySelector('[data-prompt-action]')?.getBoundingClientRect().left
+        const body = row.querySelector('[data-prompt-text]')?.parentElement?.getBoundingClientRect().left
+        return action === undefined || body === undefined ? null : Math.round(action) - Math.round(body)
+      }),
+    )
+
+    expect(rows.length, 'the diary offered no prompt, so there is no action to place').toBeGreaterThan(0)
+    expect(rows, 'a prompt’s action does not start at its own left edge, so it ran on from the sentence').toEqual(
+      rows.map(() => 0),
+    )
   })
 })

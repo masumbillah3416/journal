@@ -476,7 +476,14 @@
   min-width: 0;
 }
 
+/* `display: block` because the sentence and the action beneath it are both
+ * `<span>`s inside the prompt's body — an inline element takes no top margin,
+ * and the action would sit on the sentence's last line whenever it fitted
+ * there. `publish.module.css`'s `.what` carries the same rule for the same
+ * reason; this file needed it and did not copy it (OVR-001,
+ * `docs/qa/2026-09-26-overview-sweep.md`). */
 .promptText {
+  display: block;
   margin: 0;
   color: var(--td-ink-body);
   font-family: var(--td-font-garamond);
