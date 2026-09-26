@@ -1,0 +1,492 @@
+/**
+ * settings.module.css — SCREENS.md §2.9's Settings screen and §2.10's Trash
+ * card, which share a stylesheet because they share a vocabulary: the same
+ * card, the same ruled head, the same ringed buttons.
+ *
+ * A CSS MODULE, NOT A RULE IN `admin.css`, for the reason every other admin
+ * screen's stylesheet gives: `admin.css` is loaded by the route group's root
+ * layout, so every byte in it is a byte `/admin/sign-in` fetches before it can
+ * paint, and that route carries a Lighthouse LCP gate.
+ *
+ * ═══ ONE STYLESHEET FOR TWO SCREENS, AND THAT IS A DECISION ═══
+ *
+ * `TrashCard.tsx` imports this file from `components/admin/trash/`. The two
+ * screens are one card each in the same visual family and the Trash card is a
+ * single component; a second stylesheet holding one card's rules would be a
+ * second file to keep in step with this one for no separation anybody can
+ * name. The Trash rules are in their own block at the bottom and carry a
+ * `trash` prefix.
+ *
+ * ═══ THE RUNG IS 776, WHICH IS 820 IN THE UNITS THE PROTOTYPE MEASURES IN ═══
+ *
+ * `overview.module.css` carries the arithmetic in full and this is the same
+ * conversion: the prototype's `w` is the viewport less the 238px rail, and a
+ * `@container` on this screen measures that less `.content`'s own gutter — 44
+ * at or below viewport 1179. §2.9's "two equal columns" is the prototype's
+ * two-column mode, and the rung it transitions at converts to **776**.
+ * Transcribing 820 raw is GAL-004 one screen along: at the design's own 1440
+ * reference the container is about 1142px, so the raw number would be reached
+ * at a viewport this project does not test.
+ *
+ * THE CONTAINER QUERY GOES ON A WRAPPER. An element cannot be its own query
+ * container — `containerQueries.test.ts` is the check that says so — so
+ * `.screen` declares `container-type` and everything queried is a descendant.
+ *
+ * ═══ THE BAR'S TWO INKS ARE THE STATUS PILLS' ═══
+ *
+ * §2.9 gives photographs `#2f6b68` and clips `#845825`, which are exactly the
+ * two values `--td-status-published` and `--td-status-edited` hold. They are
+ * one palette, so the tokens are reused rather than the hexes repeated: a
+ * literal here would be a second copy of a design token to keep in step, and
+ * `e2e/a11y.spec.ts`'s contrast assertions are meaningful only while the
+ * stylesheets read tokens.
+ *
+ * Depends on: packages/tokens/src/tokens.css, loaded by the admin layout.
+ */
+
+/* ── The screen ────────────────────────────────────────────────────────── */
+
+.screen {
+  max-width: 1320px;
+  container-name: td-settings;
+  container-type: inline-size;
+}
+
+/* THE GRID IS ON A DESCENDANT, and that is a fix rather than a filing choice:
+ * an element cannot be its own query container, so a `grid-template-columns`
+ * on `.screen` inside `@container td-settings` can never match.
+ * `containerQueries.test.ts` is the check that says so, and it caught this
+ * stylesheet on its first run — the fifth time this repository has made that
+ * mistake and the first time something other than a browser found it. */
+.columns {
+  display: grid;
+  gap: var(--td-gap-admin-cards);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--td-gap-admin-cards);
+  min-width: 0;
+}
+
+@container td-settings (min-width: 776px) {
+  .columns {
+    /* §2.9: "Two equal columns; left stacks two cards." */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+/* ── The card, shared by both screens ──────────────────────────────────── */
+
+.card {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--td-radius-card);
+  background: var(--td-paper-mount);
+  box-shadow:
+    0 0 0 1px var(--td-hairline-border-min),
+    0 12px 26px -22px rgb(60 44 20 / 55%);
+  padding: 20px 22px 18px;
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  border-bottom: 1px solid rgb(120 98 60 / 22%);
+  padding-bottom: 11px;
+}
+
+.cardTitle {
+  margin: 0;
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-size: var(--td-admin-card-heading);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.cardNote {
+  margin-left: auto;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 15px;
+  font-style: italic;
+}
+
+.body {
+  margin: 14px 0 0;
+  color: var(--td-ink-body);
+  font-family: var(--td-font-garamond);
+  font-size: var(--td-admin-body-max);
+  line-height: 1.5;
+}
+
+/* ── The site card's fields (§2.9: each with an italic hint beneath) ────── */
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--td-gap-card-inner);
+  margin-top: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.eyebrow {
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: var(--td-admin-label-max);
+  letter-spacing: var(--td-letter-spacing-min);
+  text-transform: uppercase;
+}
+
+.hint {
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 15px;
+  font-style: italic;
+}
+
+.input,
+.textarea {
+  border: 1px solid rgb(120 98 60 / 34%);
+  border-radius: var(--td-radius-control);
+  background: var(--td-paper);
+  padding: 8px 10px;
+  width: 100%;
+  color: var(--td-ink-body);
+  font-family: var(--td-font-garamond);
+  font-size: var(--td-admin-body-max);
+}
+
+.textarea {
+  resize: vertical;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+
+.save {
+  margin-top: 16px;
+  border: 1px solid var(--td-ink);
+  border-radius: var(--td-radius-control);
+  background: transparent;
+  cursor: pointer;
+  padding: 8px 16px;
+  min-height: var(--td-min-hit-target);
+  color: var(--td-ink);
+  font-family: var(--td-font-courier);
+  font-size: var(--td-admin-label-max);
+  letter-spacing: var(--td-letter-spacing-min);
+  text-transform: uppercase;
+}
+
+.save:hover {
+  background: rgb(51 64 60 / 8%);
+}
+
+/* §2.9's Careful now button, and §2.10's Delete for good: a terracotta ring. */
+.danger {
+  border-color: var(--td-accent);
+  color: var(--td-accent);
+}
+
+.danger:hover {
+  background: rgb(163 68 52 / 10%);
+}
+
+/* THE DISABLED ARM IS NOT OPTIONAL. A control rendered `disabled` with no
+ * `:disabled` rule paints and behaves exactly like a live one - same ink, same
+ * `cursor: pointer` - so a control that can do nothing invites a press
+ * (docs/deviations.md §92, PUB-002). Both inert controls on these screens
+ * are here. */
+.save:disabled,
+.danger:disabled {
+  border-color: rgb(120 98 60 / 34%);
+  cursor: not-allowed;
+  color: var(--td-ink-muted);
+}
+
+.save:disabled:hover,
+.danger:disabled:hover {
+  background: transparent;
+}
+
+/* ── Your material (§2.9) ──────────────────────────────────────────────── */
+
+.materialActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.export {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--td-ink);
+  border-radius: var(--td-radius-control);
+  padding: 8px 16px;
+  min-height: var(--td-min-hit-target);
+  color: var(--td-ink);
+  font-family: var(--td-font-courier);
+  font-size: var(--td-admin-label-max);
+  letter-spacing: var(--td-letter-spacing-min);
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.export:hover {
+  background: rgb(51 64 60 / 8%);
+}
+
+.spaceUsed {
+  margin-top: 20px;
+}
+
+.spaceLine {
+  margin: 6px 0 0;
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-size: 27px;
+  line-height: 1.1;
+}
+
+/* §2.9: "a 7px segmented bar ... the remainder the track". */
+.bar {
+  display: flex;
+  margin-top: 8px;
+  border-radius: 4px;
+  background: rgb(120 98 60 / 14%);
+  height: 7px;
+  overflow: hidden;
+}
+
+.segment {
+  background: var(--td-segment-ink);
+  height: 100%;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 15px;
+}
+
+/* §2.9: "a legend of three rotated-square swatches". */
+.swatch {
+  transform: rotate(45deg);
+  background: var(--td-segment-ink);
+  width: 9px;
+  height: 9px;
+}
+
+.lastBackup {
+  margin: 12px 0 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 15px;
+  font-style: italic;
+}
+
+/* ── Readers (§2.9: five toggles, then a "Careful now" block) ──────────── */
+
+.toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.toggleRow {
+  border-bottom: 1px dotted rgb(120 98 60 / 26%);
+  padding: 11px 0;
+}
+
+.toggleRow:last-child {
+  border-bottom: none;
+}
+
+.toggleForm {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toggleText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.toggleLabel {
+  color: var(--td-ink);
+  font-family: var(--td-font-garamond);
+  font-size: var(--td-admin-body-max);
+}
+
+/* The switch itself: a submit button drawn as a track and a knob, so the card
+ * ships no client JavaScript. `shellShipsNoClientJs.test.ts` judges this
+ * directory. */
+.switch {
+  position: relative;
+  flex: none;
+  margin-left: auto;
+  border: 1px solid rgb(120 98 60 / 44%);
+  border-radius: 11px;
+  background: rgb(120 98 60 / 14%);
+  cursor: pointer;
+  padding: 0;
+  width: 46px;
+  min-width: 46px;
+  height: 24px;
+}
+
+.switch[data-on='true'] {
+  border-color: var(--td-status-published);
+  background: var(--td-status-published);
+}
+
+.knob {
+  display: block;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transform: translateX(0);
+  border-radius: 50%;
+  background: var(--td-paper-mount);
+  width: 18px;
+  height: 18px;
+}
+
+.switch[data-on='true'] .knob {
+  transform: translateX(22px);
+}
+
+.careful {
+  margin-top: 18px;
+  border-top: 1px solid rgb(120 98 60 / 22%);
+  padding-top: 14px;
+}
+
+/* ── Trash (SCREENS.md §2.10) ──────────────────────────────────────────── */
+
+.trashScreen {
+  max-width: 1000px;
+}
+
+.trashEmpty {
+  padding: 34px 0 30px;
+  text-align: center;
+}
+
+.trashEmptyTitle {
+  margin: 0;
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-size: 34px;
+  font-weight: 400;
+}
+
+.trashEmptyLine {
+  margin: 6px 0 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-garamond);
+  font-size: var(--td-admin-body-max);
+  font-style: italic;
+}
+
+.trashRows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trashRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px dotted rgb(120 98 60 / 26%);
+  padding: 14px 0;
+}
+
+.trashRow:last-child {
+  border-bottom: none;
+}
+
+/* §2.10: "46px thumb". */
+.trashThumb {
+  flex: none;
+  border-radius: 2px;
+  background-position: center;
+  background-size: cover;
+  width: 46px;
+  height: 46px;
+  object-fit: cover;
+}
+
+.trashThumbEmpty {
+  background: rgb(120 98 60 / 12%);
+}
+
+.trashText {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.trashName {
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-size: 27px;
+  line-height: 1.1;
+}
+
+.trashSummary {
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 15.5px;
+}
+
+.trashCountdown {
+  flex: none;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: var(--td-admin-label-max);
+  letter-spacing: var(--td-letter-spacing-min);
+  text-transform: uppercase;
+}
+
+.trashActions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  margin-left: auto;
+}

@@ -4277,3 +4277,57 @@ that means offline without meaning closed.
 
 **Recorded as:** this entry, `apps/web/lib/admin/journeyMutations.ts`'s header,
 `apps/web/lib/admin/siteMutations.ts`'s `takeBookOffline`, and the cases named in both.
+
+## 103 · Four of `SCREENS.md` §2.9's and §2.10's controls say something this repository can answer
+
+**What this entry is.** The two screens draw four things the design assumes and this data
+model, this hosting shape or this task's scope cannot provide. Each is drawn — the layout is
+the design's — and each says what is true instead of pretending.
+
+**1 · "Export everything" is a JSON document, not a ZIP.** The brief asked for a ZIP
+containing a JSON dump of every collection and global plus the media manifest. This
+repository has no archive library, and hand-rolling the container format — local headers, a
+central directory, CRC-32 — would add code whose only possible test is a parse of its own
+output. Two things agreeing while both are wrong is the fixture defect this phase has
+watched; a dependency added for a container format is a supply-chain decision this task has
+no mandate for. What the feature is FOR is the data, and one JSON document holds all of it,
+opens in anything, and is verifiable field by field. **What would reverse it:** a second
+file in the export (a README, or the media bytes) — at which point a container is carrying
+its weight and the decision is worth taking again.
+
+**2 · "Import a backup" is rendered inert.** §2.9 draws the button beside Export. There is no
+import: restoring is a `docs/runbook.md` procedure against a SCRATCH database, deliberately,
+so that a bad restore cannot land on the live one, and a browser button that dropped a file
+onto a running diary would be the most dangerous control in the admin. It is drawn
+`disabled`, with the `:disabled` rule that makes it look inert (§92's lesson — a control
+rendered disabled with no such rule paints and behaves exactly like a live one), and a line
+beneath it names the runbook. **What would reverse it:** an import path with a dry run and a
+confirmation, which is a task of its own.
+
+**3 · "The last backup date" is a sentence, not a date.** §2.9 prints one. `DATA_MODEL.md`
+records no backup anywhere: no table, no column, no timestamp, and the backups themselves
+run against Postgres and the bucket rather than through this application, so nothing here
+could observe one finishing. The view carries no field for it — a property that is always
+`null` is a shape pretending to hold something — and the card prints what is true: that
+backups run on the runbook's schedule and nothing in this diary writes down when one last
+finished. **What would reverse it:** a backup that reports in, which is a column and a
+webhook.
+
+**4 · "Delete for good" has no confirmation step.** §2.10 gives a terracotta ring and no
+dialogue, and a confirmation would be a client island on a screen that otherwise ships
+nothing to the browser. What stands in its place is server-side and stronger than a modal:
+`deleteJourneyForGood` refuses a journey that is not in the trash, so the only rows the
+button can destroy are rows the author has already thrown away once, from another screen,
+and has had thirty days to put back — with Put back sitting beside it. **What would reverse
+it:** a design that asks for one.
+
+**The Site card's three hints are ours.** §2.9 asks for "an italic hint beneath" each of the
+four fields and gives words for none of them, so they say what the field does in this
+repository: where the diary is served, what a search result prints, and which address the
+About page offers a reader.
+
+**Recorded as:** this entry, `apps/web/lib/admin/exportEverything.ts`'s header,
+`apps/web/components/admin/settings/MaterialCard.tsx`'s header,
+`apps/web/components/admin/trash/TrashCard.tsx`'s header, `docs/runbook.md`'s
+"Export everything" section, and the cases in `MaterialCard.test.tsx` that assert each
+inert control is drawn inert.

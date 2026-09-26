@@ -256,6 +256,7 @@ export default defineConfig({
         'apps/web/lib/admin/readSettingsScreen.ts',
         'apps/web/lib/admin/readTrashScreen.ts',
         'apps/web/lib/admin/siteMutations.ts',
+        'apps/web/lib/admin/exportEverything.ts',
         // Phase 4 Task 3's minting script, here for the reason stated in
         // `vitest.config.ts`'s exclude: it writes a `users` row and a
         // `sessions` row, so nothing without a database can execute it.
@@ -650,6 +651,7 @@ export default defineConfig({
         'apps/web/lib/admin/readSettingsScreen.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/admin/readTrashScreen.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/admin/siteMutations.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/admin/exportEverything.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/admin/readOverview.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/admin/publishSelection.ts': { lines: 100, branches: 100, functions: 100 },
         // mint-lighthouse-session.ts (Phase 4 Task 3): 100% on every axis. Its

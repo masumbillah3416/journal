@@ -504,7 +504,46 @@ backup mechanism itself):
    hypothesis.
 6. Tear down the scratch instance and bucket.
 
-**Also required, per `SECURITY.md`:** the Settings screen's "Export everything" feature
-(design spec §4, Phase 4) is a genuine feature the author can run without engineering
-involvement — it is not a nicety, and it is the fastest path to a personal copy of
-everything if every other backup mechanism has somehow failed at once.
+## Export everything — what the button hands you, and what it does not
+
+`SECURITY.md` asks for this by name under "The thing most likely to actually hurt you":
+_"The design's 'Export everything' is a genuine feature, not a nicety — wire it up."_ It is
+wired up as of Phase 4 Task 13, and it is the fastest path to a personal copy of the diary
+if every other backup mechanism has somehow failed at once. It needs no engineering
+involvement: sign in, open Settings, press **Export everything**, and the browser saves a
+file called `travel-diary-<yyyy-mm-dd>.json`.
+
+**What is in it.** Every row of `journeys`, `pages` and `media`; all three globals (`book`,
+`about`, `site`); and a **media manifest** — one entry per stored file, with its key, its
+size in bytes and its content hash.
+
+**What is NOT in it, and why.**
+
+- **The photographs and clips themselves.** The manifest names them; the bytes stay in the
+  bucket, which is backed up by the bucket's own versioning (above). A serverless function
+  cannot stream 40GB in a request, and an export that pretended otherwise would time out at
+  the moment it was most needed. The manifest is what makes a restore checkable: every row
+  it lists should have a file in the restored bucket, which is step 4 of the drill above.
+- **`users`, `sessions`, `otpChallenges` and `signInAttempts`.** Password hashes, salts and
+  reset tokens; the stored form of every live session; the hashed form of every one-time
+  code still in its window; and the IP address of every sign-in attempt, which is the only
+  PII this site holds. A backup is a file that gets emailed, copied to a laptop and left in
+  a downloads folder — `SECURITY.md`'s worry is losing the data, and a dump that leaked
+  credentials would hurt differently. **A restore therefore creates a new account** rather
+  than bringing one back.
+- **`jobs`, and Payload's own four internal collections.** Machinery: a queue of work in
+  flight, a key-value cache, document locks, admin-UI preferences and the migration ledger.
+  A restored database builds its own.
+
+The file says all of this in its own `excludes` field, so one opened in five years explains
+itself without this document.
+
+**If the export ever refuses with a 500**, read the message: it names a collection the
+Payload config declares and that nobody has classified as content or withheld
+(`apps/web/lib/admin/exportEverything.ts`). That is deliberate — a new collection is
+refused until somebody decides which it is, rather than being swept into a file the author
+downloads. A Payload upgrade that adds an internal collection will do this.
+
+**Importing one is not a button.** The Settings screen draws "Import a backup" because
+`SCREENS.md` §2.9 does, and it is rendered inert: restoring is the drill above, against a
+scratch database, so that a bad restore cannot land on the live one.

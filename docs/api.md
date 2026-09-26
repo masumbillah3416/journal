@@ -1048,6 +1048,66 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
 
   **There is no visual baseline for this screen yet** (`docs/deviations.md` §86).
 
+### `GET /admin/settings`
+
+- **Path:** `apps/web/app/(admin)/admin/settings/page.tsx`.
+- **Method:** `GET` — a React Server Component route.
+- **Input:** none. No path parameter, no query, no body.
+- **Output:** an HTML document: `SCREENS.md` §2.9 — two equal columns, the left stacking
+  "The site" (four fields, each with an italic hint) and "Your material" (the explanatory
+  paragraph, Export everything / Import a backup, "Space used" with its 7px segmented bar
+  and legend), the right holding "Readers" (one toggle per `site` checkbox, then a
+  "Careful now" block). Its content is
+  `apps/web/lib/admin/readSettingsScreen.ts`'s `SettingsView`, read in TWO statements.
+  `metadata` sets the document title and `robots: { index: false, follow: false }`.
+- **Errors:** a refused session redirects to `/admin/sign-in`. A Payload failure surfaces
+  as a `500`.
+- **Auth requirement:** **signed in.** `requireAdminSession()` is applied in this file.
+- **Notes:** the toggle list is DERIVED from the `site` global's own `checkbox` fields, so a
+  sixth setting appears here the day it lands rather than becoming a setting no screen can
+  reach. Two of §2.9's controls cannot be answered by this data model and are drawn as what
+  is true instead — see `docs/deviations.md` §103.
+
+### `GET /admin/trash`
+
+- **Path:** `apps/web/app/(admin)/admin/trash/page.tsx`.
+- **Method:** `GET` — a React Server Component route.
+- **Input:** none.
+- **Output:** an HTML document: `SCREENS.md` §2.10 — one card, max 1000px, headed "Kept for
+  thirty days" with a count, and a row per trashed journey (a 46px thumb, the name over
+  "{place} · {n} pages · {n} photographs", the countdown, then Put back and Delete for
+  good). Its content is `apps/web/lib/admin/readTrashScreen.ts`, read in THREE statements,
+  with the clock taken once per render. `metadata` sets the document title and
+  `robots: { index: false, follow: false }`.
+- **Errors:** as `/admin/settings` above.
+- **Auth requirement:** **signed in.** `requireAdminSession()` is applied in this file.
+- **Notes:** NOTHING SWEEPS THE TRASH. No job removes a row when its thirty days are up, so
+  a row past the window is still listed, still restorable, and says so rather than counting
+  down to a promise this repository does not keep.
+
+### `GET /admin/export`
+
+- **Path:** `apps/web/app/(admin)/admin/export/route.ts` —
+  `export const GET = guarded(handleExport)`.
+- **Method:** `GET`. A route rather than a server action, because the response is a stream
+  of bytes the browser saves rather than a value a component re-renders from.
+- **Input:** none. The export is the whole diary and takes no parameters.
+- **Output:** `application/json; charset=utf-8`, as an attachment named
+  `travel-diary-<yyyy-mm-dd>.json`, with `Cache-Control: private, no-store` and
+  `X-Robots-Tag: noindex`. The document holds `takenAt`, an `excludes` list in words, every
+  row of every CONTENT collection, every global, and a media manifest — one entry per stored
+  file, with its key, size and hash.
+- **Errors:** a refused session is answered `303` to `/admin/sign-in` with the dead cookie
+  cleared. A Payload config declaring a collection or global nobody has classified makes the
+  handler THROW, which surfaces as a `500` — deliberately: an export that quietly included
+  something unclassified is the failure this refuses.
+- **Auth requirement:** **signed in.** Built from `guarded`.
+- **Notes:** what is in it is `apps/web/lib/admin/exportEverything.ts`'s decision, not this
+  route's. It excludes the photographs themselves (the bucket is backed up by the bucket's
+  own versioning) and five collections that hold credentials, PII or machinery —
+  `users`, `sessions`, `otpChallenges`, `signInAttempts`, `jobs` — plus Payload's own four
+  internal collections. `docs/deviations.md` §103 records why it is JSON rather than a ZIP.
+
 ### `GET /admin/sign-in`
 
 - **Method:** `GET`. This route answers nothing else; see the note below.
@@ -2014,6 +2074,45 @@ Found` and a refused write. **The editing pane surfaces none of them** -
   `title`, `subtitle` and `coverCloth` are read by all three. `saveAbout` reaches
   `/admin/cover` alone: the `about` global is read by this screen and by `readBookBundle`, and
   the diary caches nothing.
+
+### `saveSite(form)` · `setReaderSetting(form)` · `takeBookOffline()`
+
+- **Path:** `apps/web/app/(admin)/admin/settings/actions.ts`. Every decision is
+  `apps/web/lib/admin/siteMutations.ts`'s.
+- **Input:** `saveSite` takes the Site card's whole `FormData` — `name`, `domain`,
+  `description`, `replyTo`. `setReaderSetting` takes one toggle's form: `setting`, the
+  column it writes, and `on`, the value it is switching TO (a checkbox that is off posts
+  nothing at all, so a form built that way could only ever switch a setting on).
+  `takeBookOffline` takes nothing.
+- **Output:** nothing.
+- **Errors:** a `ZodError` from the parse. `replyTo` must be an address or empty, and
+  `setting` must be a `checkbox` the `site` global declares — `name` and `analyticsId` are
+  refused by that same rule.
+- **Auth requirement:** **signed in.** All three are built from `guardedAction`.
+- **Notes:** each write is PARTIAL, so saving a site name cannot clear the analytics id no
+  screen in this phase can put back, and a toggle cannot overwrite the card above it.
+  `saveSite` reaches `/admin/settings` and `/admin` with the `layout` type, because the
+  rail's masthead prints `site.name` on every screen. The two settings writes reach
+  `/robots.txt`, `/gallery/[slug]`, `/p/[n]` and `/m/[n]`, which are the public addresses
+  the five columns are read at; `apps/web/lib/admin/settingsRevalidationRegistration.test.ts`
+  holds the table.
+
+### `putJourneyBackFromTrash(form)` · `deleteJourneyForGood(form)`
+
+- **Path:** `apps/web/app/(admin)/admin/trash/actions.ts`. Every decision is
+  `apps/web/lib/admin/journeyMutations.ts`'s.
+- **Input:** the row's `FormData`, carrying `journey` — the journey's row id.
+- **Output:** nothing.
+- **Errors:** a `ZodError` for a reference that is not a row id. `deleteJourneyForGood`
+  throws for a journey that is NOT in the trash, before anything is deleted: the only route
+  to it is §2.10, which lists nothing else, so a request naming a live journey is a stale
+  page, a typed id or a replayed POST.
+- **Auth requirement:** **signed in.** Both are built from `guardedAction`.
+- **Notes:** `deleteJourneyForGood` is the only hard delete in Phase 4. It removes the
+  journey, its pages and its photographs — `docs/deviations.md` §102 carries the decision and
+  the alternative that was not taken — and it is the only write in this phase that makes
+  §2.9's "Space used" go down, which is why it alone invalidates `/admin/settings`.
+  `apps/web/lib/admin/trashRevalidationRegistration.test.ts` holds both tables.
 
 ## Planned routes (Phase 1)
 

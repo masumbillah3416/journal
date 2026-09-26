@@ -641,6 +641,12 @@ export default defineConfig({
         // what Payload does with the columns they were NOT given — which is a
         // fact about Postgres. Same exclude-and-regate treatment.
         'apps/web/lib/admin/siteMutations.ts',
+        // `exportEverything.ts` enumerates the Payload CONFIG's collections
+        // and reads every row of the content ones, and the one thing it is
+        // actually about — that no account's stored hash reaches the output —
+        // is a search of a dump taken from a real database. Same
+        // exclude-and-regate treatment.
+        'apps/web/lib/admin/exportEverything.ts',
         // `mint-lighthouse-session.ts` (Phase 4 Task 3) creates an account and
         // issues a session through this repository's own session service, both
         // of which are rows in a real Postgres, so its only test is an

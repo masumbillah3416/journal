@@ -276,6 +276,20 @@ const NO_CLIENT_JS: readonly { readonly directory: string; readonly why: string 
     why: 'the publish route itself, and the three actions its two forms dispatch',
   },
   {
+    directory: 'components/admin/settings',
+    why: "SCREENS.md §2.9's three cards are forms and links: each of the five toggles is a one-field form posting the value it switches TO, which is the whole reason a server-rendered switch can turn a setting OFF",
+  },
+  {
+    directory: 'app/(admin)/admin/settings',
+    why: 'the settings route itself, and the three actions its cards dispatch',
+  },
+  {
+    directory: 'components/admin/trash',
+    why: "SCREENS.md §2.10's card is a list and two forms per row; the terracotta control has no confirmation dialogue, and what stands in its place is server-side (docs/deviations.md §103)",
+  },
+  { directory: 'app/(admin)/admin/trash', why: 'the trash route itself, and the two actions its rows dispatch' },
+  { directory: 'app/(admin)/admin/export', why: 'the export route, which answers with bytes and renders nothing' },
+  {
     directory: 'components/admin/overview',
     why: "SCREENS.md §2.1's one island is declared above, and its five cards are not: the stat grid, the waiting list, the book card, the prompts and the Lately card are all server-rendered, and every Revert is a form",
   },
