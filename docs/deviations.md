@@ -2544,7 +2544,7 @@ and `'just now'` for a journey the mock has only created.
 **Rationale:** a relative string is a function of TWO instants, and this screen only has
 one of them. `/admin/journeys` is a Server Component rendered once per request and never
 re-rendered — the shell it hangs in ships no client JavaScript at all, which is the whole
-of the CLAUDE.md §6 headroom argument the twelve screens inherit — so "2 months ago" would
+of the CLAUDE.md §6 headroom argument every screen that mounts `AdminShell` inherits — so "2 months ago" would
 be true at the moment the response was written and quietly wrong for as long as the tab
 stayed open. Making it true would mean either a client component ticking a clock, which
 buys exactly the JavaScript the shell exists to avoid, or an injected clock parameter on a
@@ -3786,7 +3786,7 @@ draft. A diary with three journeys edited after publishing and one never publish
 (`docs/qa/2026-09-26-publish-sweep.md`, PUB-001, with the screenshot).
 
 **Rationale for leaving it.** `readNavCounts` is read by `AdminShell`, which every admin screen
-is drawn inside, so making its number the pending one is four more queries on twelve screens —
+is drawn inside, so making its number the pending one is four more queries on every screen that mounts it —
 the journeys, their latest versions, their pages and those pages' latest versions. Whether the
 chrome pays that is a decision about the chrome, and `SCREENS.md` §2.1's Overview screen is
 where the admin's own numbers are settled. Phase 4 Task 11 built the count and has no business
@@ -4064,8 +4064,21 @@ can afford the real count.
 must name a file git lists, and a backticked **identifier** must appear somewhere in this
 repository's source. Both are fail-closed in both directions. A **section number** — the
 `docs/deviations.md §N`, `SCREENS.md §2.1` and `CLAUDE.md §N` references this tree carries
-**362 times** in source and documents — is checked by nothing at all, except
+throughout its source and documents — is checked by nothing at all, except
 `standardsSections.test.ts`, which resolves `CLAUDE.md §N` and only that family.
+
+**NO FIGURE IS GIVEN FOR HOW MANY, AND THAT IS THE POINT OF THIS ENTRY.** An earlier
+revision of this paragraph said **362**. Phase 4 Task 12's re-review measured the same
+corpus four ways and got four answers — 1,200 for the `CLAUDE.md` family alone under the
+regex `standardsSections.test.ts` itself ships, 2,781 raw occurrences across 571 files,
+142 distinct (document, section) pairs, 240 backtick-wrapped spans — and none of them was 362. The `CLAUDE.md` family alone tripled the number claimed for all three.
+
+The figure is deleted rather than replaced because the question "how many `§N` citations
+are there" has no single answer until the guard this entry asks for defines one: whichever
+count that guard ends up making is the count, and any figure written before it exists is a
+number nobody can check. CLAUDE.md §0 puts it as a rule — a count in prose is a floor, or
+it is deleted — and this paragraph, which was added in the same commit that recorded that
+rule, broke it in its own second sentence.
 
 **How it was found.** Phase 4 Task 12's review, finding 4:
 `apps/web/app/(admin)/admin/publish/actions.ts` cited `docs/deviations.md` §93 — the CopyLink
