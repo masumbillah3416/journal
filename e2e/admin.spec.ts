@@ -75,6 +75,7 @@
  */
 import { ADMIN_NAV, activeNavId } from '@travel-diary/domain/admin/navigation'
 import { userId } from '@travel-diary/domain/ids'
+import { contrastRatio } from '@travel-diary/domain/contrast'
 import { pagePath } from '@travel-diary/domain/pageAddress'
 import { expect, test } from '@playwright/test'
 import sharp from 'sharp'
@@ -155,6 +156,26 @@ const fixtureScope = async (testInfo: {
   const branded = userId(String(account.id))
   if (!branded.ok) throw new Error(branded.error)
   return adminScope({ user: branded.value })
+}
+
+/**
+ * A computed `rgb(r, g, b)` as the `#rrggbb` `contrastRatio` takes.
+ *
+ * `getComputedStyle` answers in `rgb()` however a stylesheet spelled the colour,
+ * and `@travel-diary/domain/contrast` is the WCAG arithmetic this repository
+ * already uses — so the conversion belongs here rather than a second ratio.
+ * @param computed - What the browser answered.
+ * @returns The same colour as a hex string.
+ * @throws {Error} When the browser answered something this cannot read, which
+ *   is a changed engine rather than a failed assertion.
+ */
+const asHex = (computed: string): string => {
+  const channels = /rgba?\((\d+),\s*(\d+),\s*(\d+)/u.exec(computed)
+  if (channels === null) throw new Error(`cannot read a colour out of ${computed}`)
+  return `#${channels
+    .slice(1, 4)
+    .map((channel) => Number(channel).toString(16).padStart(2, '0'))
+    .join('')}`
 }
 
 /** The editor fixture's row ids, filled in by `beforeAll`. */
@@ -1340,6 +1361,76 @@ test.describe('the publish screen (SCREENS.md §2.8)', () => {
       const live = await payload.findByID({ collection: 'journeys', id: created.id, depth: 0 })
       expect(live.note, 'the published note is the one a reader already had').toBe('the note a reader can see')
       expect(live._status).toBe('published')
+    } finally {
+      await payload.delete({ collection: 'journeys', where: { name: { like: stem } } })
+    }
+  })
+
+  test('does not offer a Revert on a row that has nothing to go back to', async ({ page }, testInfo) => {
+    // PUB-002, from `docs/qa/2026-09-26-publish-sweep.md`. A journey that has
+    // never been published has no earlier version, so `revertChange` refuses it
+    // and the control is `disabled` — and §2.8 draws no error surface
+    // (`docs/deviations.md` §60), so the refusal has to be visible BEFORE the
+    // press rather than arriving as an unhandled Server Action error.
+    //
+    // WHAT IS ASSERTED IS THE BEHAVIOUR, NOT THE DECLARATION: the spent control
+    // does not invite a press, and it reads as weaker than a live one. Both
+    // sides are on screen at once, so neither can pass by being measured alone
+    // — and `toHaveCSS('color', …)` would have been an assertion about the fix.
+    const payload = await getPayload()
+    const stem = `${publishJourneyName(testInfo)} spent`
+
+    try {
+      for (const [suffix, status] of [
+        ['fresh', 'draft'],
+        ['edited', 'published'],
+      ] as const) {
+        const created = await payload.create({
+          collection: 'journeys',
+          depth: 0,
+          data: {
+            name: `${stem} ${suffix}`,
+            place: 'Nowhere',
+            slug: `${stem} ${suffix}`.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-'),
+            dates: '1 - 2 March 2026',
+            note: 'the published note',
+            _status: status,
+          },
+        })
+        if (status === 'published') {
+          await payload.update({
+            collection: 'journeys',
+            id: created.id,
+            depth: 0,
+            draft: true,
+            data: { note: 'an edit nobody has published' },
+          })
+        }
+      }
+
+      await page.goto('/admin/publish')
+      const spent = page.locator('[data-change-tone="added"]').first().getByRole('button', { name: 'Revert' })
+      const live = page.locator('[data-change-tone="edited"]').first().getByRole('button', { name: 'Revert' })
+      await expect(spent).toBeVisible()
+      await expect(live).toBeVisible()
+
+      const paint = async (control: typeof spent): Promise<{ cursor: string; ink: string }> =>
+        control.evaluate((node) => {
+          const style = getComputedStyle(node)
+          return { cursor: style.cursor, ink: style.color }
+        })
+      const card = await page
+        .locator('[data-publish-changes]')
+        .evaluate((node) => getComputedStyle(node).backgroundColor)
+
+      const spentPaint = await paint(spent)
+      const livePaint = await paint(live)
+
+      expect(spentPaint.cursor, 'a control that does nothing does not invite a press').not.toBe('pointer')
+      expect(
+        contrastRatio(asHex(spentPaint.ink), asHex(card)),
+        'the spent control reads as weaker than the live one beside it',
+      ).toBeLessThan(contrastRatio(asHex(livePaint.ink), asHex(card)))
     } finally {
       await payload.delete({ collection: 'journeys', where: { name: { like: stem } } })
     }

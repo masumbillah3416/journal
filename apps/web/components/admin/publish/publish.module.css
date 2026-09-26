@@ -270,8 +270,21 @@
   text-transform: uppercase;
 }
 
-.revert:hover {
+.revert:hover:not(:disabled) {
   color: var(--td-accent);
+}
+
+/* A ROW THAT HAS NEVER BEEN PUBLISHED HAS NOTHING TO GO BACK TO, and its Revert
+ * is `disabled` — but the button had no disabled arm at all, so it painted
+ * `#736247` with `cursor: pointer` exactly like a live one and invited a press
+ * that could do nothing (`docs/qa/2026-09-26-publish-sweep.md`, PUB-002). This
+ * is the treatment `.restore:disabled` below already had, which is why the
+ * Editions card did not have the defect. §2.8 gives this screen no error
+ * surface (`docs/deviations.md` §60), so the refusal has to be legible before
+ * the press rather than arriving after it. */
+.revert:disabled {
+  color: #8f836d;
+  cursor: default;
 }
 
 .empty {

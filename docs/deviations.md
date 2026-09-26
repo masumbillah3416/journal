@@ -3733,3 +3733,32 @@ of that entry, and the allowlist counts entries.
 **Recorded as:** this entry; the allowlist entry and the header block in
 `shellShipsNoClientJs.test.ts`; `PublishSelection.tsx`'s own header; and the
 `GET /admin/publish` row in `docs/api.md`.
+
+## 91 · The header's "n unpublished" chip counts a different thing from the Publish screen's headline
+
+**What changed:** nothing, and that is what this entry is for. `SCREENS.md` §2's screen header
+carries an "n unpublished" chip on every admin screen, and §2.8's headline reads "{n} changes
+waiting". The handoff's prototype computes BOTH from one list — `pending.length` rendered twice
+— so the two numbers are always the same there. Here they are not: the chip is
+`readNavCounts`'s `unpublished`, which counts live journeys whose `_status` is `draft`, and the
+headline is `readPendingChanges().length`, which counts every row whose newest version is a
+draft. A diary with three journeys edited after publishing and one never published draws
+**"1 unpublished"** in the header beside **"4 changes waiting"** in the card
+(`docs/qa/2026-09-26-publish-sweep.md`, PUB-001, with the screenshot).
+
+**Rationale for leaving it.** `readNavCounts` is read by `AdminShell`, which every admin screen
+is drawn inside, so making its number the pending one is four more queries on twelve screens —
+the journeys, their latest versions, their pages and those pages' latest versions. Whether the
+chrome pays that is a decision about the chrome, and `SCREENS.md` §2.1's Overview screen is
+where the admin's own numbers are settled. Phase 4 Task 11 built the count and has no business
+changing what every other screen's header prints on the way past.
+
+**Neither number is wrong about itself.** `readNavCounts.unpublished` says what it counts in
+its own field documentation, and it is the number the Journeys screen's `draft` chip filters
+to. What is wrong is that one screen prints both.
+
+**What would reverse it:** Task 12 (`SCREENS.md` §2.1), which reads `readPendingChanges`
+anyway for its "Waiting to go out" card — at which point the chip can take the same count, and
+the four queries are paid once for a screen that already needs them.
+
+**Recorded as:** this entry and PUB-001 in `docs/qa/2026-09-26-publish-sweep.md`.
