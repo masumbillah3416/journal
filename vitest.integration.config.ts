@@ -243,6 +243,11 @@ export default defineConfig({
         // and a capped media read.
         'apps/web/lib/admin/readBookScreen.ts',
         'apps/web/lib/admin/readCoverScreen.ts',
+        // Phase 4 Task 11's Publish screen, here for the reason stated in
+        // `vitest.config.ts`'s exclude: two version tables and Payload's own
+        // publish, revert and restore operations.
+        'apps/web/lib/admin/readPendingChanges.ts',
+        'apps/web/lib/admin/publishSelection.ts',
         // Phase 4 Task 3's minting script, here for the reason stated in
         // `vitest.config.ts`'s exclude: it writes a `users` row and a
         // `sessions` row, so nothing without a database can execute it.
@@ -621,6 +626,14 @@ export default defineConfig({
         // refuses to write at all (measured, and the message is in the comment).
         'apps/web/lib/admin/readBookScreen.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/admin/readCoverScreen.ts': { lines: 100, branches: 100, functions: 100 },
+        // Phase 4 Task 11's Publish screen, at 100 across: MEASURED. The arms
+        // a case takes both sides of are a journey that has never been
+        // published against one that has, an archived journey, a page draft
+        // against its journey's, a selection that names nothing pending, and
+        // an empty book. The arms nothing can reach carry a `c8 ignore next`
+        // with the reason at the line.
+        'apps/web/lib/admin/readPendingChanges.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/admin/publishSelection.ts': { lines: 100, branches: 100, functions: 100 },
         // mint-lighthouse-session.ts (Phase 4 Task 3): 100% on every axis. Its
         // two branches are the account that already exists and the account that
         // does not, and `mint-lighthouse-session.integration.test.ts` drives

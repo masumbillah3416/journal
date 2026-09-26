@@ -52,6 +52,7 @@
  */
 import { MAX_HIGHLIGHTS } from '@travel-diary/domain/admin/highlights'
 import { TALLY_ROWS, type JourneyPage } from '@travel-diary/domain/bookBundle'
+import { changeId } from '@travel-diary/domain/admin/pendingChange'
 import { journeyId, userId, type UserId } from '@travel-diary/domain/ids'
 import type { Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -60,6 +61,7 @@ import { readBookBundle } from '../readBookBundle'
 import { getTestPayload } from '../testPayload'
 import { adminScope, type AdminScope } from './adminScope'
 import { readNotes, writeNotesDraft } from './notesMutations'
+import { publishSelection } from './publishSelection'
 
 /** What every row this file writes carries, so cleanup can find them all. */
 const MARKER = 'test-notes-mutations'
@@ -180,14 +182,15 @@ const newestVersion = async (journey: number): Promise<Journey> =>
 /**
  * Publishes whatever the newest version holds.
  *
- * TASK 11 OWNS THE REAL ACTION. Until it lands, this is the same write that
- * action will make — `_status: 'published'`, through the scope — and Task 11
- * replaces this helper's body with a call to it. It is a helper rather than an
- * inline line so there is one place to make that change.
+ * TASK 11 OWNS THE REAL ACTION, AND THIS NOW CALLS IT. The helper used to make
+ * the write itself — `_status: 'published'`, through the scope — with a note
+ * saying Task 11 would replace its body. It has: the two cases below now reach
+ * the book through SCREENS.md §2.8's own write rather than through a second
+ * copy of it, which is also what stops the two drifting apart.
  * @param journey - The row id.
  */
 const publishJourney = async (journey: number): Promise<void> => {
-  await payload.update({ collection: 'journeys', id: journey, ...scope, data: { _status: 'published' } })
+  await publishSelection(payload, scope, [changeId('journey', journey)])
 }
 
 /**

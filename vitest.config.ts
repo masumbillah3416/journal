@@ -597,6 +597,17 @@ export default defineConfig({
         // pass can execute. Same exclude-and-regate treatment as the reads above.
         'apps/web/lib/admin/readBookScreen.ts',
         'apps/web/lib/admin/readCoverScreen.ts',
+        // Phase 4 Task 11's Publish screen. `readPendingChanges.ts` asks four
+        // questions of two collections AND their two version tables, and the
+        // whole of what it answers — "is this row's newest version a draft" —
+        // is a fact about `_journeys_v` and `_pages_v` that no stub can have.
+        // `publishSelection.ts` publishes, reverts and restores through
+        // Payload's own version operations, and its one real decision is what
+        // a merge from the newest version does. Nothing this Docker-free pass
+        // can execute; same exclude-and-regate treatment as the reads and the
+        // mutation modules above.
+        'apps/web/lib/admin/readPendingChanges.ts',
+        'apps/web/lib/admin/publishSelection.ts',
         // `mint-lighthouse-session.ts` (Phase 4 Task 3) creates an account and
         // issues a session through this repository's own session service, both
         // of which are rows in a real Postgres, so its only test is an
