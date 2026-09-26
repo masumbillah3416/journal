@@ -130,6 +130,20 @@ describe('WaitingCard', () => {
     expect(renderCard().querySelector('[data-waiting-washi]')?.getAttribute('aria-hidden')).toBe('true')
   })
 
+  it('does not put a Revert form inside phrasing content, which is invalid nesting', () => {
+    // `<form>` is flow content; `<span>` is phrasing content and may hold only
+    // phrasing. The HTML parser does NOT auto-close a span for a form the way
+    // it does for a paragraph, so browsers render it and axe has nothing to
+    // say — which is why `a11f5ff` shipped one, the sweep missed it, and only a
+    // read caught it (`127ac38`). That fix landed with no case, so nothing
+    // refused the nesting coming back: a later round wrapping the row meta in a
+    // `<span>` again for a flex rule would leave every jsdom case, every
+    // browser case and axe green.
+    const form = renderCard().querySelector('form')
+
+    expect(form?.closest('span')).toBe(null)
+  })
+
   it('says so in a sentence when nothing is waiting, rather than drawing an empty list', () => {
     const host = renderCard([])
 
