@@ -109,7 +109,9 @@ export const WaitingCard = ({ changes, revert }: WaitingCardProps): React.JSX.El
                 is too narrow to hold everything on one line they wrap as a
                 pair rather than squeezing the change text between them
                 (OVR-002, `docs/qa/2026-09-26-overview-sweep.md`). */}
-            <span className={styles.rowMeta}>
+            {/* A `<div>` rather than a `<span>`: it holds a `<form>`, which is
+                flow content and cannot be nested inside phrasing content. */}
+            <div className={styles.rowMeta}>
               <span data-waiting-when className={styles.when}>
                 {change.at}
               </span>
@@ -129,7 +131,7 @@ export const WaitingCard = ({ changes, revert }: WaitingCardProps): React.JSX.El
                   Revert
                 </button>
               </form>
-            </span>
+            </div>
           </li>
         ))}
       </ul>
