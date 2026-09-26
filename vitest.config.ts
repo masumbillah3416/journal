@@ -626,6 +626,16 @@ export default defineConfig({
         // the ingest pipeline writes, and no stub has that. Same
         // exclude-and-regate treatment.
         'apps/web/lib/admin/readOverview.ts',
+        // Phase 4 Task 13's two screens. `readSettingsScreen.ts` sums the
+        // media library's `filesize` by `kind` and reads the `site` global;
+        // `readTrashScreen.ts` reads the INVERSE of every other admin read's
+        // `deletedAt` clause and tallies two collections against it. What an
+        // unwritten checkbox column comes back as, what a stored upload's
+        // `filesize` actually is, and whether the two screens cost a fixed
+        // number of statements are all facts about Postgres that no stub has.
+        // Same exclude-and-regate treatment as `readOverview.ts` above.
+        'apps/web/lib/admin/readSettingsScreen.ts',
+        'apps/web/lib/admin/readTrashScreen.ts',
         // `mint-lighthouse-session.ts` (Phase 4 Task 3) creates an account and
         // issues a session through this repository's own session service, both
         // of which are rows in a real Postgres, so its only test is an

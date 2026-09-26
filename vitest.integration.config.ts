@@ -253,6 +253,8 @@ export default defineConfig({
         // `vitest.config.ts`'s exclude: eight queries of its own plus the
         // Publish screen's own read, and nothing to execute without a database.
         'apps/web/lib/admin/readOverview.ts',
+        'apps/web/lib/admin/readSettingsScreen.ts',
+        'apps/web/lib/admin/readTrashScreen.ts',
         // Phase 4 Task 3's minting script, here for the reason stated in
         // `vitest.config.ts`'s exclude: it writes a `users` row and a
         // `sessions` row, so nothing without a database can execute it.
@@ -644,6 +646,8 @@ export default defineConfig({
         // `depth: 0`, and an id Postgres minted that will not brand — carry
         // `c8 ignore` hints with the reason at each, which is CLAUDE.md §2.1's
         // treatment rather than a lowered bar.
+        'apps/web/lib/admin/readSettingsScreen.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/admin/readTrashScreen.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/admin/readOverview.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/admin/publishSelection.ts': { lines: 100, branches: 100, functions: 100 },
         // mint-lighthouse-session.ts (Phase 4 Task 3): 100% on every axis. Its
