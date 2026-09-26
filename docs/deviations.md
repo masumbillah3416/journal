@@ -4331,3 +4331,50 @@ About page offers a reader.
 `apps/web/components/admin/trash/TrashCard.tsx`'s header, `docs/runbook.md`'s
 "Export everything" section, and the cases in `MaterialCard.test.tsx` that assert each
 inert control is drawn inert.
+
+## 104 · No admin form renders a refusal, so a Zod error is a 500 — owner: the screen it is on
+
+**What the sweep found.** `docs/qa/2026-09-27-settings-trash-sweep.md`, SET-003: typing
+`not-an-address` into §2.9's Reply-to and pressing Save answered **HTTP 500**, showed Next's error
+overlay, and lost all four typed values. Measured, verbatim, off the sweep's own listeners:
+`500 http://localhost:3000/admin/settings`, and a `pageerror` carrying
+`{"code":"custom","path":["replyTo"],"message":"that is not an email address"}`.
+
+**The parse is not the defect.** CLAUDE.md §3.1 asks for validation at every trust boundary and
+the parse is doing exactly that. What is missing is anything between the author and it.
+
+**It is a class, not an instance.** Every guarded form in this admin parses with Zod and none of
+them renders the refusal:
+
+- `saveAbout` refuses a reply-to that is not an address (`docs/api.md`'s own row says so) —
+  `/admin/cover`, `SCREENS.md` §2.7
+- `saveCover` refuses a cloth that is not a six-digit hex — the same screen
+- `createJourney` refuses an empty name, place or dates — `/admin/journeys`, §2.2
+- `setSlotFocalPoint` refuses a percentage outside 0–100 — `/admin/journeys/<id>`, §2.3
+- `saveBookSettings` refuses a slider value outside its declared range — `/admin/book`, §2.6
+
+Each posts a form with no client JavaScript, so each turns a refusal into an unhandled Server
+Action and a 500.
+
+**What was fixed here, and what was not.** §2.9's instance is closed by giving Reply-to
+`type="email"`: every browser enforces that natively, with no JavaScript, so the refusal happens
+in the field. That works because the constraint happens to be one HTML has. **It does not
+generalise** — HTML has no `pattern` for "a six-digit hex that names a cloth we offer", and a
+client that posts the form directly reaches the 500 either way.
+
+**Why this is recorded rather than fixed across the admin.** A defect report is not permission to
+reach into five other screens: the fix needs an error state §2.2, §2.3, §2.6 and §2.7 do not
+draw, a decision about whether that state is a client island or a server round trip, and a failing
+case on each screen. Each screen's own owner takes it.
+
+**What would reverse it:** a refusal that reaches the screen — the form-state shape React offers
+a client island, or a server round trip that re-renders the card with what was typed and why it
+was refused. Either one closes all five at once, and the second ships no JavaScript.
+
+**And why it has a number at all.** A finding recorded only in a dated sweep file has no carrier:
+nothing reads `docs/qa/2026-09-27-settings-trash-sweep.md` again. The numbered entries are what a
+task inherits.
+
+**Recorded as:** this entry, SET-003 in the sweep report, and the case
+`refuses a reply-to that is not an address in the field, not with a 500` (`e2e/admin.spec.ts`),
+which guards the one instance that is closed.

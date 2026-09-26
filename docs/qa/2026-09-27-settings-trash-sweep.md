@@ -64,15 +64,30 @@ sweep file has no carrier.
 
 ## Fixed in this task
 
-- **SET-001** — `MaterialCard`'s two controls get a row class of their own, without the Site
-  card's submit margin. Failing case first: `draws its two actions on one line, aligned`
-  (`MaterialCard.test.tsx`).
-- **SET-002** — the switch keeps its 46×24 track and gains a 44px hit area, which is what the
-  token asks for and what every other control on the screen already has. Failing case first:
-  `gives every switch this repository's own minimum hit area` (`ReadersCard.test.tsx`).
+Each fix has a case that was watched failing first, and each is measured in a REAL BROWSER
+rather than in jsdom, because all three defects are layout or platform behaviour that jsdom does
+not have.
+
+- **SET-001** — `MaterialCard`'s inert control gets a row class without the Site card's submit
+  margin, and the `<a>` beside it gets the `box-sizing` the admin stylesheet does not set.
+  Case: `draws §2.9’s two material actions on one line, with their tops aligned`
+  (`e2e/admin.spec.ts`). Watched failing: `Expected: 875, Received: 891`.
+- **SET-002** — the track keeps its 46×24, because a 44px-tall switch does not read as a switch,
+  and the button around it carries the hit area. Case:
+  `gives every reader switch this repository’s own minimum hit area` (`e2e/admin.spec.ts`),
+  which reads the floor off `--td-min-hit-target` rather than writing 44 into the assertion.
+  Watched failing: all five switches under the floor.
 - **SET-003** — the instance: Reply-to becomes `type="email"`, which every browser enforces
   natively with no JavaScript, so the refusal happens in the field rather than as a 500. The
-  server parse is unchanged and is still the real guard.
+  server parse is unchanged and is still the real guard. Case:
+  `refuses a reply-to that is not an address in the field, not with a 500`
+  (`e2e/admin.spec.ts`). Watched failing: `the save reached the server and was refused there`.
+
+**All three cases landed in one commit rather than three, and that is worth recording.** A
+scripted extraction meant to hold two of them back failed silently — `ValueError: substring not
+found` scrolled past inside a command whose later half succeeded — so `4fab53f` carries three
+cases and one fix, and the commit after it carries the other two fixes. The reds were watched and
+are pasted above; what was lost is one step of `git bisect` resolution, not the evidence.
 
 ## Clean
 

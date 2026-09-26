@@ -97,7 +97,12 @@ export const ReadersCard = ({
               aria-label={toggle.on ? `Turn off: ${toggle.label}` : `Turn on: ${toggle.label}`}
               className={styles.switch}
             >
-              <span aria-hidden="true" className={styles.knob} />
+              {/* THE TRACK IS A CHILD, so the button can carry the 44px hit
+               * area this repository's `--td-min-hit-target` asks for while
+               * the switch still looks like a switch (SET-002). */}
+              <span aria-hidden="true" className={styles.track}>
+                <span className={styles.knob} />
+              </span>
             </button>
           </form>
         </li>

@@ -40,6 +40,17 @@ interface SiteField {
   readonly hint: string
   /** Whether it is the multi-line one. */
   readonly long?: true
+  /**
+   * The input's own type, where it is not text.
+   *
+   * `email` ON REPLY-TO IS A FIX, NOT A FLOURISH (SET-002's neighbour,
+   * SET-003). `readSiteForm` refuses an address that is not one, which is
+   * CLAUDE.md §3.1's rule and stays the real guard — but a Server Action that
+   * throws answers 500 and loses the four typed values, and §2.9 draws no
+   * error state to put a message in. Every browser enforces `type="email"`
+   * natively, with no JavaScript, so the refusal happens in the field.
+   */
+  readonly type?: 'email'
 }
 
 /**
@@ -57,7 +68,12 @@ const FIELDS: readonly SiteField[] = [
     hint: 'the sentence a search result prints under the title',
     long: true,
   },
-  { name: 'replyTo', label: 'Reply-to', hint: 'the address the About page offers a reader; leave it empty for none' },
+  {
+    name: 'replyTo',
+    label: 'Reply-to',
+    hint: 'the address the About page offers a reader; leave it empty for none',
+    type: 'email',
+  },
 ]
 
 /**
@@ -81,7 +97,12 @@ export const SiteCard = ({ site, save }: SiteCardProps): React.JSX.Element => (
           {field.long === true ? (
             <textarea name={field.name} rows={3} defaultValue={site[field.name]} className={styles.textarea} />
           ) : (
-            <input type="text" name={field.name} defaultValue={site[field.name]} className={styles.input} />
+            <input
+              type={field.type ?? 'text'}
+              name={field.name}
+              defaultValue={site[field.name]}
+              className={styles.input}
+            />
           )}
           <span className={styles.hint}>{field.hint}</span>
         </label>

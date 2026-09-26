@@ -365,22 +365,41 @@
 
 /* The switch itself: a submit button drawn as a track and a knob, so the card
  * ships no client JavaScript. `shellShipsNoClientJs.test.ts` judges this
- * directory. */
+ * directory.
+ *
+ * THE BUTTON IS THE HIT AREA AND THE TRACK IS THE PICTURE, which is SET-002's
+ * fix. The track is 46x24 — it is a switch, and a 44px-tall one would not read
+ * as one — so the 44px `--td-min-hit-target` this repository sets, and which
+ * every other control on these two screens already meets, is carried by the
+ * button around it. WCAG 2.2's own minimum is 24x24, which the track alone
+ * met, so axe reported nothing: the rule this was missing is ours. */
 .switch {
-  position: relative;
+  display: inline-flex;
   flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   margin-left: auto;
-  border: 1px solid rgb(120 98 60 / 44%);
-  border-radius: 11px;
-  background: rgb(120 98 60 / 14%);
+  border: none;
+  background: transparent;
   cursor: pointer;
   padding: 0;
   width: 46px;
   min-width: 46px;
+  min-height: var(--td-min-hit-target);
+}
+
+.track {
+  display: block;
+  position: relative;
+  border: 1px solid rgb(120 98 60 / 44%);
+  border-radius: 11px;
+  background: rgb(120 98 60 / 14%);
+  width: 46px;
   height: 24px;
 }
 
-.switch[data-on='true'] {
+.switch[data-on='true'] .track {
   border-color: var(--td-status-published);
   background: var(--td-status-published);
 }

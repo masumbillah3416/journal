@@ -444,7 +444,7 @@ test('keeps every status chip reachable, at every width', async ({ page, viewpor
   expect((chip?.x ?? 0) + (chip?.width ?? 0)).toBeLessThanOrEqual(viewport?.width ?? 0)
 })
 
-test('draws the journey editor\u2019s three columns for a journey that exists', async ({ page }) => {
+test('draws the journey editor’s three columns for a journey that exists', async ({ page }) => {
   await page.goto(`/admin/journeys/${String(editorFixture.journey)}`)
   await expect(page.locator('[data-journey-editor]')).toBeVisible()
 
@@ -1900,7 +1900,7 @@ test.describe('the Overview’s prompts, walked into the screen they name', () =
   })
 })
 
-test('draws §2.9\u2019s two material actions on one line, with their tops aligned', async ({ page }) => {
+test('draws §2.9’s two material actions on one line, with their tops aligned', async ({ page }) => {
   // SET-001 (`docs/qa/2026-09-27-settings-trash-sweep.md`). SCREENS.md §2.9
   // draws them as a pair — "Export everything / Import a backup" — and the
   // second sat 16px lower and 16px shorter, because it reused the Site card's
@@ -1922,7 +1922,7 @@ test('draws §2.9\u2019s two material actions on one line, with their tops align
   expect(Math.round(imported?.height ?? -1)).toBe(Math.round(exported?.height ?? -2))
 })
 
-test('gives every reader switch this repository\u2019s own minimum hit area', async ({ page }) => {
+test('gives every reader switch this repository’s own minimum hit area', async ({ page }) => {
   // SET-002. `--td-min-hit-target` is 44px and every other control on this
   // screen measures exactly that; the switch measured 46x24. It meets WCAG
   // 2.2's 24x24 minimum, which is why axe reports nothing — the rule it

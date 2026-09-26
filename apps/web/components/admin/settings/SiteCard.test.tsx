@@ -57,7 +57,11 @@ describe('SiteCard', () => {
     const host = renderCard()
 
     expect(
-      [...host.querySelectorAll('input[type="text"], textarea')].map((input) => input.getAttribute('name')),
+      // EVERY CONTROL, whatever its input type. Reply-to is `type="email"`
+      // since SET-003 — the browser's own constraint validation is what keeps
+      // a bad address out of a Server Action that would answer 500 — so a
+      // selector naming `text` would silently stop counting it.
+      [...host.querySelectorAll('input, textarea')].map((input) => input.getAttribute('name')),
     ).toEqual(['name', 'domain', 'description', 'replyTo'])
   })
 
@@ -78,9 +82,7 @@ describe('SiteCard', () => {
     const host = renderCard({ name: '', domain: '', description: '', replyTo: '' })
 
     expect(
-      [...host.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[type="text"], textarea')].map(
-        (input) => input.value,
-      ),
+      [...host.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea')].map((input) => input.value),
     ).toEqual(['', '', '', ''])
   })
 
@@ -93,6 +95,16 @@ describe('SiteCard', () => {
       (field) => field.lastElementChild?.textContent ?? '',
     )
     expect(hints.filter((hint) => hint.length > 0)).toHaveLength(4)
+  })
+
+  it('gives reply-to the type a browser refuses a bad address on, rather than leaving it to a 500', () => {
+    // SET-003 (`docs/qa/2026-09-27-settings-trash-sweep.md`). `readSiteForm`
+    // is still the real guard; this is what stops the author reaching it with
+    // a typo and losing the other three fields to an unhandled Server Action.
+    const host = renderCard()
+
+    expect(host.querySelector('[data-site-field="replyTo"] input')?.getAttribute('type')).toBe('email')
+    expect(host.querySelector('[data-site-field="name"] input')?.getAttribute('type')).toBe('text')
   })
 
   it('draws the description as a textarea, because it is the one field that wraps', () => {
