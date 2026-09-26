@@ -57,6 +57,7 @@
  * exact path in vitest.config.ts's coverage exclude, which is the treatment
  * that actually holds here. Its runtime behaviour is covered in the browser
  * by e2e/gallery.spec.ts. */
+import { bookIsGated, readPublicAccess } from '../../../../../../lib/bookAccess'
 import { readGalleryDownload } from '../../../../../../lib/readGalleryDownload'
 
 /** The route's own parameters. Next 15+ hands them over as a promise. */
@@ -72,9 +73,23 @@ interface DownloadRouteContext {
  *   could not be cached. The gated/ungated split is not a variation by header
  *   either - it is one site-wide setting, read from the database.
  * @param context - The route's own parameters.
- * @returns The derivative's bytes, or 404 for any refusal at all.
+ * @returns The derivative's bytes; 401 when the author has closed the whole
+ *   book; 404 for every other refusal, all of them the same refusal.
  */
 export const GET = async (_request: Request, context: DownloadRouteContext): Promise<Response> => {
+  // THE SAME GATE THE PAGES ABOVE THIS ROUTE APPLY, AND IT BELONGS HERE TOO.
+  // A closed book whose photographs are still served by id is "the content
+  // fetchable", which is the sentence SECURITY.md's own requirement is
+  // written against. Task 11 made a gated download uncacheable so a proxy
+  // could not outlive the gate; this is the gate.
+  //
+  // A ROUTE HANDLER, SO IT ANSWERS RATHER THAN RAISES. `unauthorized()` is a
+  // page interrupt and would render a React view into a response whose body
+  // is meant to be a photograph.
+  if (bookIsGated(await readPublicAccess())) {
+    return new Response(null, { status: 401, headers: { 'Cache-Control': 'private, no-store' } })
+  }
+
   const { slug, id } = await context.params
   const attachment = await readGalleryDownload(slug, id)
 

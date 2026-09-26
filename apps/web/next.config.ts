@@ -24,6 +24,17 @@ const nextConfig: NextConfig = {
   // reasoning about gates), so the indicator is turned off rather than the
   // cases being taught to click around it.
   devIndicators: false,
+  // THE 401 THE PUBLIC GATE ANSWERS WITH. `SECURITY.md` requires the
+  // `password the whole book` setting to refuse server-side, and the only
+  // status that says "this is not yours to read" is 401 - which a Next.js
+  // page can raise only through `unauthorized()` (`next/navigation`), and
+  // only with this flag on. Without it that call throws at runtime with
+  // "`unauthorized()` is experimental and only allowed to be used when
+  // `experimental.authInterrupts` is enabled", so the gate would be a 500.
+  // `apps/web/app/(diary)/unauthorized.tsx` is the view it renders and
+  // `apps/web/lib/bookAccess.ts`'s header carries the decision, including
+  // why the refusal sends no `WWW-Authenticate` challenge.
+  experimental: { authInterrupts: true },
 }
 
 export default withPayload(nextConfig, { devBundleServerPackages: false })

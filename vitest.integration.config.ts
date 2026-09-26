@@ -169,6 +169,7 @@ export default defineConfig({
         'apps/web/lib/readBookBundle.ts',
         'apps/web/lib/readGalleryBundle.ts',
         'apps/web/lib/readGalleryDownload.ts',
+        'apps/web/lib/bookAccess.ts',
         'apps/web/lib/auth/otpService.ts',
         'apps/web/lib/auth/testing/otpProbes.ts',
         'apps/web/lib/auth/rateLimit.ts',
@@ -529,6 +530,7 @@ export default defineConfig({
         // deviations.md the place somebody NOT already looking will.
         'apps/web/lib/readGalleryBundle.ts': { lines: 100, branches: 78, functions: 100 },
         'apps/web/lib/readGalleryDownload.ts': { lines: 100, branches: 85, functions: 100 },
+        'apps/web/lib/bookAccess.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/auth/readCodeScreen.ts': { lines: 100, branches: 100, functions: 100 },
         // adminScope.ts (Phase 4 Task 2): 100% on every axis, and honestly so
         // rather than aspirationally. The module is one guard, one lookup and

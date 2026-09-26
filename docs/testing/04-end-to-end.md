@@ -452,15 +452,16 @@ data-leaf=2> subtree intercepts pointer events` — a leaf's stacking order is
   Every promise above is that a deep link is indexable, and until Phase 1's final review
   this repository served **no `robots.txt` at all** — permissive by omission rather than
   by a decision anyone can read, and not what `SECURITY.md` asks for ("respect
-  `indexGalleries` in `robots.txt` **and** with `X-Robots-Tag`"). `apps/web/public/robots.txt`
-  is now served, static, and consistent with `site.indexGalleries`'s `defaultValue:
-true` — the only honest content while nothing writes or reads that setting and the
-  Settings screen that would is Phase 4. The case requires a 200, requires `User-agent:
-*`, `Allow: /` and `Disallow: /cms`, and requires the file NOT to carry a bare
-  `Disallow: /` or `Disallow: /p` — a line that would quietly undo every other case in
-  the file without failing one of them. `docs/security.md`'s `indexGalleries` row records
-  the two halves Phase 4 still owes: a generated `app/robots.ts` that reads the setting,
-  and the `X-Robots-Tag` header on the gallery route.
+  `indexGalleries` in `robots.txt` **and** with `X-Robots-Tag`"). `apps/web/app/robots.ts`
+  is now served — a GENERATED route since Phase 4 Task 13, reading
+  `site.indexGalleries` per request, where it was a static file under `public/` for
+  three phases. The case requires a 200, requires `User-agent: *`, `Allow: /` and
+  `Disallow: /cms`, and requires the response NOT to carry a bare `Disallow: /` or
+  `Disallow: /p` — a line that would quietly undo every other case in the file without
+  failing one of them. It reads the PERMISSIVE default, which is the state every other
+  spec in this suite needs the diary to be in; the two sides of the toggle are
+  `e2e/bookGate.spec.ts`'s, which owns the `site` global for the length of its own run
+  and is a separate command for exactly that reason.
 
   **`e2e/serverWindow.spec.ts` (the server content window)** covers the other window,
   and its first case is the one the whole change stands or falls on: it fetches all

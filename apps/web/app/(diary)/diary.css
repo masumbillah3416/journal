@@ -48,8 +48,8 @@
  * `not-found.tsx` was preloaded on every page of the book and used by none of
  * them.
  * Depends on: packages/tokens/src/tokens.css, ./fonts.ts (via layout.tsx's
- * `.variable` classes on `<html>`). Read by: ./not-found.tsx, for the
- * `notFound*` classes.
+ * `.variable` classes on `<html>`). Read by: ./not-found.tsx and
+ * ./unauthorized.tsx, for the `diaryNotice*` classes.
  */
 @import '@travel-diary/tokens/tokens.css';
 
@@ -111,11 +111,14 @@ body {
  * the stylesheet this group already loads on every route, there is no second
  * chunk to preload, nothing to leave unused, and nothing to warn about.
  *
- * The class names carry a `notFound` prefix because these are GLOBAL names
- * now, not module-scoped ones. Nothing outside this route group can collide
- * with them - the diary group has its own root layout and Payload's admin
- * loads none of this - but the prefix is what makes that legible at the point
- * of use.
+ * The class names carry a `diaryNotice` prefix because these are GLOBAL
+ * names now, not module-scoped ones. Nothing outside this route group can
+ * collide with them - the diary group has its own root layout and Payload's
+ * admin loads none of this - but the prefix is what makes that legible at the
+ * point of use. The prefix was `notFound` until Phase 4 Task 13 gave this
+ * surface a SECOND view: `unauthorized.tsx`, which is what a reader gets when
+ * the author has closed the whole book. Two views, one surface, and a name
+ * that no longer claims one of them is the other.
  *
  * Every colour, font and radius below is a `--td-*` token, never a literal -
  * the same rule the page components follow, and what keeps
@@ -124,8 +127,8 @@ body {
  * object around a "no such page" message would be a second, half-working
  * book, and the design has no such screen (CLAUDE.md §4). What it takes from
  * the design is its surface - the desk gradient, the paper card, the hairline
- * and the three type families - so the 404 does not read as a different site. */
-.notFoundStage {
+ * and the three type families - so neither notice reads as a different site. */
+.diaryNoticeStage {
   display: grid;
   place-items: center;
   min-height: 100vh;
@@ -133,7 +136,7 @@ body {
   background: linear-gradient(160deg, var(--td-desk-from), var(--td-desk-to));
 }
 
-.notFoundCard {
+.diaryNoticeCard {
   max-width: 520px;
   padding: 48px 44px;
   border: 1px solid var(--td-hairline-border-max);
@@ -143,7 +146,7 @@ body {
   text-align: center;
 }
 
-.notFoundEyebrow {
+.diaryNoticeEyebrow {
   margin: 0;
   font-family: var(--td-font-courier);
   font-size: 12px;
@@ -152,7 +155,7 @@ body {
   color: var(--td-ink-muted);
 }
 
-.notFoundTitle {
+.diaryNoticeTitle {
   margin: 14px 0 0;
   font-family: var(--td-font-caveat);
   font-size: 58px;
@@ -161,7 +164,7 @@ body {
   color: var(--td-ink);
 }
 
-.notFoundRule {
+.diaryNoticeRule {
   width: 56px;
   height: 1px;
   margin: 20px auto;
@@ -169,7 +172,7 @@ body {
   background: var(--td-hairline-border-max);
 }
 
-.notFoundBody {
+.diaryNoticeBody {
   margin: 0;
   font-family: var(--td-font-garamond);
   font-size: 18px;
@@ -177,7 +180,7 @@ body {
   color: var(--td-ink-body);
 }
 
-.notFoundBack {
+.diaryNoticeBack {
   display: inline-block;
   margin-top: 28px;
   font-family: var(--td-font-courier);
@@ -187,6 +190,6 @@ body {
   color: var(--td-accent);
 }
 
-.notFoundBack:hover {
+.diaryNoticeBack:hover {
   color: var(--td-accent-hover);
 }

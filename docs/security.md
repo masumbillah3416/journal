@@ -57,8 +57,8 @@ both Postgres and the media bucket hold content worth restoring.
 | Media served from a separate origin                                               | NOT DISCHARGED — deploy-time, not code                       | [read](#media-served-from-a-separate-origin)                                             |
 | A hidden media item stays hidden from a signed-out reader                         | Discharged in Phase 1 Task 10                                | [read](#a-hidden-media-item-stays-hidden-from-a-signed-out-reader)                       |
 | Downloads through our handler                                                     | Discharged in Phase 1 Task 14                                | [read](#downloads-through-our-handler)                                                   |
-| `passwordProtect` gates server-side                                               | NOT DISCHARGED — the gate; its first reader exists           | [read](#passwordprotect-gates-server-side)                                               |
-| `indexGalleries` respected                                                        | HALF DISCHARGED                                              | [read](#indexgalleries-respected)                                                        |
+| `passwordProtect` gates server-side                                               | Discharged in Phase 4 Task 13 — the gate exists              | [read](#passwordprotect-gates-server-side)                                               |
+| `indexGalleries` respected                                                        | Discharged in Phase 4 Task 13 — one deviation on mechanism   | [read](#indexgalleries-respected)                                                        |
 | Secrets in the platform store                                                     | Phase 0 for repo hygiene; platform store at deploy           | [read](#secrets-in-the-platform-store)                                                   |
 | Offsite backups of Postgres **and** the bucket, restore tested                    | Phase 3                                                      | [read](#offsite-backups-of-postgres-and-the-bucket-restore-tested)                       |
 | Sniff the real type from magic bytes; reject SVG                                  | PARTLY DISCHARGED — the missing half is named in the section | [read](#sniff-the-real-type-from-magic-bytes-reject-svg)                                 |
@@ -813,30 +813,56 @@ allowlist, the derived filename, the root-relative path), and in the browser by
 
 **Discharged by.** a client-side check leaves the content fetchable
 
-**Discharged in.** **STILL NOT DISCHARGED: THERE IS NO GATE.** Nothing in this repository
-refuses a request because `site.passwordProtect` is on — no route, no bundle reader and no
-middleware — so a book with the setting on is served to anybody, exactly as `SECURITY.md` warns.
-That remains Phase 4's, for the same reason its neighbour `indexGalleries` is: the Settings
-screen that would let an author turn it on is Phase 4's, and a gate over a setting nothing can
-set is a gate nobody can test. Phase 2's final whole-branch review found this row claiming a
-completed server-side content gate that does not exist (finding 25); it is the reason the
-neighbouring row's honest **HALF DISCHARGED** treatment is the standard for this column, and why
-this one is not being relabelled now.
+**Discharged in.** **Discharged in Phase 4 Task 13**, the task that built the Settings screen the
+setting is set from — the two had been blocked on each other, because a gate over a setting
+nothing can set is a gate nobody can test.
 
-**What changed in Phase 3 Task 11, and it is not the gate.** The flag now has exactly one
-reader: `apps/web/lib/readGalleryDownload.ts` selects it (`depth: 0`, that one field) and
-`downloadCacheControl` (`packages/domain/src/galleryDownload.ts`) turns it into the download's
-`Cache-Control` — `private, no-store` when it is on, `public, max-age=3600` when it is not. That
-closes a debt the download route had carried in a comment since Phase 1: it sent a hard-coded
-`public`, which is cacheable by any proxy between us and the reader and would therefore OUTLIVE
-a gate. So the header is the half that would otherwise silently undo the gate on the day it
-lands, and it is now written and tested — `marks every download uncacheable once the whole book
-is password protected` (`apps/web/lib/readGalleryDownload.integration.test.ts`, which sets the
-global), `forbids a shared cache from keeping a gated one at all`
-(`packages/domain/src/galleryDownload.test.ts`) and `sends the download's cache policy rather
-than a literal of its own` (`e2e/gallery.spec.ts`, which reads the header off a real response).
-**A reader of the flag is not a gate over it, and this paragraph is not a discharge.** Phase 4
-still owes the refusal itself, and the route's own comment no longer says otherwise.
+**Where the gate runs.** `apps/web/lib/bookAccess.ts` reads `site.passwordProtect` from Postgres
+through the Local API (`depth: 0`, that one field beside `indexGalleries`, one round trip per
+request, wrapped in React's `cache`), and `bookIsGated` turns it into the decision. It is spent
+in **four** places, which is every address that serves a reader anything: the book's route entry
+(`apps/web/app/(diary)/p/[n]/page.tsx`), the mobile surface's own entry
+(`apps/web/app/(diary)/m/[n]/page.tsx` — two route entries for one address since ADR 0012, so a
+gate on one of them would leave every phone served the whole book), the gallery
+(`apps/web/app/(diary)/gallery/[slug]/page.tsx`) and the download handler beneath it
+(`apps/web/app/(diary)/gallery/[slug]/download/[id]/route.ts`). A closed book whose photographs
+are still served by id is precisely the content-fetchable state this requirement is written against.
+
+**Not the middleware**, for the reason `apps/web/lib/auth/guard.ts` gives about the session
+guard: `apps/web/middleware.ts` runs in the Edge runtime, where `pg` and Payload do not exist,
+and the setting lives in Postgres.
+
+**What a refused request gets.** HTTP **401**, through Next's `unauthorized()` interrupt, which
+renders `apps/web/app/(diary)/unauthorized.tsx` and needs `experimental.authInterrupts` in
+`apps/web/next.config.ts`. It carries **no `WWW-Authenticate` challenge**, and that is a decision
+with a measurement behind it rather than an omission: a Next.js page component cannot set a
+response header at all, and this data model stores no book password for a challenge to ask for.
+`docs/deviations.md` §100 carries both, and the screen, the notice and the module all say
+closed rather than passworded, because that is what the setting does.
+
+**Which cases prove it.** In the browser, against a running server, by TOGGLING the setting and
+reading the response back — `refuses the book to a reader with no password once the whole book is
+protected`, `serves the same address once the setting is off, so the gate is the setting and not
+the route`, `closes the galleries with the book, so the content is not left fetchable beside it`,
+`opens the galleries again with the book, so the gallery gate is the setting too`, and `refuses a
+photograph by its own address once the book is closed, because that is what leaving the content fetchable means` — all in
+`e2e/bookGate.spec.ts`. Two of them differ in one global and nothing else, so a gate refusing
+everything fails as loudly as one refusing nothing: measured, by making `bookIsGated` return each
+constant in turn and watching the matching case fail. What the route entries ASK is
+`apps/web/lib/bookAccess.integration.test.ts`'s subject, against a real Payload.
+
+**Why the browser and not the integration suite.** A Vitest integration run has Postgres and no
+Next server, so a status code is not observable there. `e2e/bookGate.spec.ts` is a command of its
+own (`npm run test:gate`) and runs one project: the setting is site-wide, and a case closing the
+book inside the parallel browser suite would refuse every other spec's `/p/<n>` mid-run.
+
+**What Phase 3 Task 11 had already built, and it was not the gate.**
+`apps/web/lib/readGalleryDownload.ts` selects this flag and `downloadCacheControl`
+(`packages/domain/src/galleryDownload.ts`) turns it into the download's `Cache-Control` —
+`private, no-store` when it is on, `public, max-age=3600` when it is not. That is the half that
+would otherwise have silently undone the gate on the day it landed, because a `public` response
+is cacheable by any proxy between us and the reader and would OUTLIVE the refusal. It is still
+there, and it now sits in front of a refusal rather than in front of nothing.
 
 ### `indexGalleries` respected
 
@@ -844,23 +870,40 @@ still owes the refusal itself, and the route's own comment no longer says otherw
 
 **Discharged by.** `robots.txt` **and** `X-Robots-Tag`, since pages are statically served
 
-**Discharged in.** **HALF DISCHARGED; the half that reads the setting is Phase 4's, named
-below.** `site.indexGalleries` is a setting nothing in this repository writes or reads yet
-(`apps/web/globals/site.ts`) and the Settings screen that would set it is Phase 4, so no route
-sets `X-Robots-Tag` from it — hard-coding a directive would be inventing the policy rather than
-respecting the setting. What the Phase 1 final review added is the file itself:
-`apps/web/public/robots.txt`, static, permissive, and consistent with `indexGalleries`'s
-`defaultValue: true`. Serving none at all was equally permissive but by omission rather than by
-a decision anyone can read, and `SECURITY.md` asks for the file by name. **Phase 4 owes two
-things, and they are one change:** replace the static file with `apps/web/app/robots.ts` (Next's
-own metadata route, which can read the global) so a `false` setting produces `Disallow:
-/gallery/`, and set `X-Robots-Tag: noindex` on `apps/web/app/(diary)/gallery/[slug]/page.tsx`
-from the same setting — a static file cannot consult a database, and a `robots.txt` alone does
-not stop an already-known URL being indexed, which is the whole reason `SECURITY.md` asks for
-both. `e2e/routing.spec.ts` asserts the file is served and does not forbid the diary; the
-download handler beneath the gallery sets `X-Robots-Tag: noindex` unconditionally, which is not
-this row — a downloaded file is never a result to index, whatever the author decides about the
-gallery page
+**Discharged in.** **Discharged in Phase 4 Task 13**, with one recorded deviation on the second
+half's mechanism.
+
+**`robots.txt` is generated now, not a file.** `apps/web/app/robots.ts` — Next's own metadata
+route, which can read the global — replaces `apps/web/public/robots.txt`, which was static,
+permissive and consistent with `indexGalleries`'s `defaultValue: true` for three phases because
+nothing could write or read that setting. It emits `Disallow: /gallery/` when the author turns
+indexing off, and leaves `/cms` and `/admin` disallowed either way. It declares
+`dynamic = 'force-dynamic'`, and that is load-bearing rather than defensive: **measured**, a
+build without it prints `○ /robots.txt (Static) prerendered as static content` and serves
+`x-nextjs-cache: HIT`, so the author's toggle would appear to work on a development server and do
+nothing in production. With it, the same build prints `ƒ /robots.txt`.
+
+**The second half is a `robots` meta tag whose content is `noindex`, not an `X-Robots-Tag` header**,
+derived from the same setting on `apps/web/app/(diary)/gallery/[slug]/page.tsx`. A Next.js page
+component cannot set a response header at all — measured on this app — and the two mechanisms
+that can are a Route Handler and the Edge middleware, which cannot reach Postgres. For an HTML
+document the directive and the header are equivalent to every major crawler; the header is in
+the requirement because the handoff assumed a static host, which can configure headers and
+cannot compute a tag. `docs/deviations.md` §101 carries the measurement, the option not taken,
+and what would reverse it. The header IS sent where a header can be sent:
+`apps/web/app/(diary)/gallery/[slug]/download/[id]/route.ts` is a Route Handler and sets
+`X-Robots-Tag: noindex` unconditionally — a downloaded file is never a result to index, whatever
+the author decides about the gallery page.
+
+**Which cases prove it.** `disallows the galleries in robots.txt when the author has turned
+indexing off`, `tells a crawler not to index a gallery page for the same setting, because
+robots.txt does not unindex a known URL`, `sends neither once indexing is allowed again`, and
+`still invites a crawler into the book itself while the galleries are closed to it` — all in
+`e2e/bookGate.spec.ts`, all against a running server with the setting toggled under it. The third
+is what stops this being a hard-coded `noindex`: it was watched failing with the directive
+hard-coded, and watched failing again with `force-dynamic` removed and the route prerendered.
+`e2e/routing.spec.ts` still reads the permissive default off the generated route, so the state
+every other browser spec depends on is asserted too.
 
 ### Secrets in the platform store
 

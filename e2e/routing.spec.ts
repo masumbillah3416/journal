@@ -37,10 +37,14 @@
  *   6. **There is a `robots.txt`, and it invites the diary in.** Every promise
  *      above is about being indexable; serving no robots.txt at all leaves
  *      that permissive by omission rather than by decision, which is not what
- *      `SECURITY.md` asks for. `apps/web/public/robots.txt` is the file, and
- *      its own header records what Phase 4 owes: a generated route that reads
- *      `site.indexGalleries`, plus the `X-Robots-Tag` half of the same
- *      requirement.
+ *      `SECURITY.md` asks for. `apps/web/app/robots.ts` is what serves it —
+ *      a GENERATED route since Phase 4 Task 13, reading `site.indexGalleries`
+ *      per request, where it was a static file under `public/` for three
+ *      phases. The case below reads the PERMISSIVE default, which is the
+ *      state every other spec in this suite needs the diary to be in; both
+ *      sides of the toggle are `e2e/bookGate.spec.ts`'s, which owns the
+ *      `site` global for the length of its own run and is a separate command
+ *      for that reason.
  *
  * THE GALLERY CASE IS THE ONE THAT WILL OUTLIVE THIS TASK. The spec calls it
  * out specifically — "returning from a gallery restores `/p/<n>`, not `/`" —
@@ -118,17 +122,26 @@ test('serves a robots.txt, and one that lets a crawler read the diary', async ({
   // Phase 1 final review this repository served no robots.txt at all. That is
   // permissive by omission rather than by decision, and it is not what
   // SECURITY.md asks for: it requires `site.indexGalleries` respected "in
-  // robots.txt AND with X-Robots-Tag". The setting defaults to true
-  // (apps/web/globals/site.ts) and the Settings screen that could change it is
-  // Phase 4, so the file that matches the default is the only honest one to
-  // serve today - and this case is what says so out loud, and what fails if the
-  // file is ever dropped. Phase 4 replaces the static file with a generated
-  // route that reads the setting; docs/security.md's own row records that debt.
+  // robots.txt AND with X-Robots-Tag".
+  //
+  // SINCE PHASE 4 TASK 13 THIS IS A GENERATED ROUTE (apps/web/app/robots.ts),
+  // not a file - so this case is now also what says the generated answer at
+  // the setting's default is the permissive one the three phases before it
+  // served. What it deliberately does NOT do is toggle the setting: the
+  // global is site-wide, this suite runs three viewport projects in parallel,
+  // and a case that closed the galleries here would change what every other
+  // spec in the run is served. e2e/bookGate.spec.ts owns that.
   const response = await request.get('/robots.txt')
   const body = await response.text()
 
   expect(response.status()).toBe(200)
-  expect(body).toContain('User-agent: *')
+  // CASE-INSENSITIVE, because the field name is: RFC 9309 §2.2.1 matches
+  // these names without regard to case, and Next's own serialiser writes
+  // `User-Agent` where the static file this route replaced wrote
+  // `User-agent`. A `toContain` of one spelling would have gone red on the
+  // commit that generated the file, for a difference no crawler can see -
+  // and the spelling is not the promise this case is here to keep.
+  expect(body).toMatch(/^user-agent: \*$/imu)
   expect(body).toContain('Allow: /')
   // The admin is authenticated, so nothing behind it is indexable anyway; it is
   // named so a crawler does not spend requests finding that out.

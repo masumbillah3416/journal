@@ -76,7 +76,7 @@ import { readSignInScreen } from '../../../../../lib/auth/readSignInScreen'
  *
  * `index: false` matters more here than on any other admin screen: this
  * address carries a live credential in its path, and a crawler that indexed
- * one would publish it. `public/robots.txt` already disallows `/admin`; this
+ * one would publish it. `app/robots.ts` already disallows `/admin`; this
  * is the half that asks an index not to keep an address it reached some other
  * way.
  */

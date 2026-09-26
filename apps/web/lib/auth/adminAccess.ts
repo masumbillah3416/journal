@@ -280,7 +280,7 @@ export const adminSecurityHeaders = ({ development }: AdminHeaderRequest): Reado
   'X-Content-Type-Options': 'nosniff',
   // The complement of every admin page's own `robots: { index: false }`: that
   // reaches a crawler which parsed the HTML, this one reaches a crawler which
-  // only made the request. `public/robots.txt` is the third, and asks a
+  // only made the request. `app/robots.ts` is the third, and asks a
   // well-behaved crawler not to fetch at all.
   'X-Robots-Tag': 'noindex, nofollow',
 })

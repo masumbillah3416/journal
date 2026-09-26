@@ -410,6 +410,15 @@ export default defineConfig({
         // reasoning as readBookBundle.ts above.
         'apps/web/lib/readGalleryBundle.ts',
         'apps/web/lib/readGalleryDownload.ts',
+        // Phase 4 Task 13's public gate. `bookAccess.ts` reads the `site`
+        // global through a real Payload, and the one thing its cases are
+        // actually about - what an UNWRITTEN checkbox column comes back as,
+        // which is `null` and not `false`, and which the two settings'
+        // OPPOSITE declared defaults then have to resolve in opposite
+        // directions - is a fact about Postgres that no stub has. Gated by
+        // vitest.integration.config.ts instead, same reasoning as
+        // readBookBundle.ts above.
+        'apps/web/lib/bookAccess.ts',
         // otpService.ts and its test-side probes (Phase 2 Task 3) are
         // reachable only from otpService.integration.test.ts - every one of
         // this module's operations reads or writes an `otpChallenges` row

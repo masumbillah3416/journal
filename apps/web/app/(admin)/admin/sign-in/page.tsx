@@ -58,12 +58,14 @@ import { readSignInScreen } from '../../../../lib/auth/readSignInScreen'
 /**
  * The screen's title, and the one instruction it gives a crawler.
  *
- * `index: false` rather than nothing: `public/robots.txt` already disallows
+ * `index: false` rather than nothing: `app/robots.ts` already disallows
  * `/admin`, but robots.txt asks a crawler not to FETCH a path, while a link
  * to it from elsewhere can still put the address in an index without one. The
  * two are complementary and neither replaces the other. This is not the
- * `indexGalleries` setting the site global owns (`public/robots.txt`'s own
- * header): nothing about a private sign-in door is an editorial choice.
+ * `indexGalleries` setting the site global owns (`app/robots.ts`'s own
+ * header): the `/admin` disallow is unconditional, while that setting is the
+ * author's editorial choice about the galleries, and nothing about a private
+ * sign-in door is an editorial choice.
  */
 export const metadata: Metadata = {
   title: 'Sign in — The back room',

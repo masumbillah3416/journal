@@ -100,8 +100,17 @@ import { expect, test } from 'vitest'
 const E2E_DIR = path.dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = path.resolve(E2E_DIR, '..')
 
-/** The npm scripts that count as a way to run a spec from a developer's machine. */
-const RUNNER_SCRIPTS = ['test:e2e', 'test:visual', 'test:a11y'] as const
+/**
+ * The npm scripts that count as a way to run a spec from a developer's
+ * machine.
+ *
+ * `test:gate` is the fourth, and it is separate for the reason
+ * `e2e/bookGate.spec.ts`'s own header gives: its cases toggle SITE-WIDE
+ * settings, and everything in `test:e2e` runs in parallel against the same
+ * server. Folding it into `test:e2e` — a plausible tidy-up — would 401 every
+ * other spec's `/p/<n>` mid-run.
+ */
+const RUNNER_SCRIPTS = ['test:e2e', 'test:visual', 'test:a11y', 'test:gate'] as const
 
 /** Every `*.spec.ts` in this directory, as the paths a Playwright command names them by. */
 const specFiles = (): readonly string[] =>

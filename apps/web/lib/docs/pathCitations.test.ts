@@ -201,14 +201,6 @@ const PATHS_THAT_NAME_NO_FILE: readonly { readonly citation: string; readonly wh
     why: 'a fix report in the same untracked SDD directory, named by docs/testing.md as the record of a round',
   },
   {
-    citation: 'app/robots.ts',
-    why: 'work Phase 4 owes: docs/testing.md names the file the crawl policy will live in, and says it is not written',
-  },
-  {
-    citation: 'apps/web/app/robots.ts',
-    why: 'the same unwritten file, named by docs/security.md at full path',
-  },
-  {
     citation: 'apps/web/scripts/emit-actions.ts',
     why: 'a probe written to disk and deleted, framed as one where it is cited',
   },

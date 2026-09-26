@@ -315,9 +315,12 @@ for a different reason — see its row.
   `startsOn`; a media item with no derivative of any tier).
 - **Auth requirement:** none. The public diary needs no authentication
   (`SECURITY.md`, "Sessions and access") — except that `site.passwordProtect`, when set,
-  must gate this route server-side; a client-side check leaves the content fetchable
-  (`docs/security.md`). **That gate is not built yet** and is tracked in
-  `docs/security.md`, not discharged here.
+  gates this route server-side, because a client-side check leaves the content
+  fetchable. **That gate is built as of Phase 4 Task 13**: `bookIsGated`
+  (`apps/web/lib/bookAccess.ts`) is asked before the bundle is read, and a closed book
+  answers `401`, rendering `app/(diary)/unauthorized.tsx`. It sends no
+  `WWW-Authenticate` challenge, for the two measured reasons in `docs/deviations.md`
+  §100. The same gate is applied at `/m/<n>`, which is this address's other route entry.
 - **Notes:** the URL is written on every turn (flip commit, bookmark jump) and read on
   load, so the reader's exact page survives a reload or a shared link. On the mobile
   surface there is nothing to write: a page change there IS a navigation to `/p/<n>`, so
@@ -383,6 +386,26 @@ for a different reason — see its row.
   all: the mobile surface changes page by navigating, so its document carries the ONE
   addressed page and never `servedContentWindow`'s seven.
 
+### `GET /robots.txt`
+
+- **Path:** `apps/web/app/robots.ts` — Next's own metadata route. It replaced the static
+  `apps/web/public/robots.txt` in Phase 4 Task 13, because a file under `public/` cannot
+  consult a database and `SECURITY.md` requires `site.indexGalleries` to be respected
+  here.
+- **Method:** `GET`.
+- **Input:** none from the request. One read of the `site` global (`readPublicAccess`,
+  `depth: 0`, two fields).
+- **Output:** `text/plain`. `User-Agent: *`, `Allow: /`, then `Disallow: /cms` and
+  `Disallow: /admin` always, plus `Disallow: /gallery/` while `site.indexGalleries` is
+  off. The route declares `dynamic = 'force-dynamic'`: without it Next prerenders the
+  answer at build time and the author's toggle does nothing in production (measured —
+  the build prints a static marker for this route and the server answers
+  `x-nextjs-cache: HIT`).
+- **Errors:** none a caller can observe. A database this route cannot reach is a
+  database the diary cannot be served from either.
+- **Auth requirement:** none. It is the one address whose whole purpose is to be fetched
+  by a stranger.
+
 ### `GET /gallery/<slug>`
 
 - **Method:** `GET`.
@@ -400,10 +423,13 @@ minmax({thumbSize}px, 1fr))` grid of one square tile per visible frame. Its cont
   `app/(diary)/not-found.tsx`. `hidden` media items are excluded from the grid
   regardless of slug validity, in the query rather than by access control (the Local API
   overrides access control, so a reader rule alone would not exclude them).
-- **Auth requirement:** none. Subject to the same `site.passwordProtect` gate as
-  `/p/<n>` once that setting exists, and to `site.indexGalleries` governing whether this
-  route is crawlable — neither setting is written by anything yet, so neither is wired
-  (`docs/security.md`).
+- **Auth requirement:** none for a reader, but **gated by `site.passwordProtect`** since
+  Phase 4 Task 13: `bookIsGated` (`apps/web/lib/bookAccess.ts`) is asked before the
+  bundle is read, and a closed book answers `401` here exactly as it does at `/p/<n>`.
+  `site.indexGalleries` governs whether this route is crawlable, and reaches it as a
+  `<meta name="robots" content="noindex">` from `generateMetadata` rather than as an
+  `X-Robots-Tag` header — a Next.js page component cannot set a response header
+  (`docs/deviations.md` §101).
 
 ### `GET /gallery/<slug>/download/<id>`
 
@@ -432,8 +458,14 @@ minmax({thumbSize}px, 1fr))` grid of one square tile per visible frame. Its cont
   has no derivative; the derivative's stored mime type is not on the allowlist; the
   bytes are missing from the store. **One response for all nine, deliberately** — a
   handler that distinguished them would be the enumeration oracle `SECURITY.md` requires
-  this route to close.
-- **Auth requirement:** none.
+  this route to close. Separately, `401` with `Cache-Control: private, no-store` and no
+  body when `site.passwordProtect` is on: that is not one of the nine and is answered
+  before any of them is asked, because it reveals nothing about which id was requested.
+- **Auth requirement:** none, unless the author has closed the whole book — in which
+  case this route refuses with `401` as of Phase 4 Task 13. A closed book whose
+  photographs are still served by id is the "content fetchable" the `passwordProtect`
+  requirement is written against, and this is a Route Handler, so it answers rather than
+  raising a page interrupt.
 - **Notes:** this is the handler `SECURITY.md` demands ("the gallery's download action
   must serve a derivative through your own handler, not a bucket URL"). The prototype's
   own lightbox links straight at the image; this route replaces that. A short-lived
@@ -1048,7 +1080,7 @@ follow: false }`.
   handoff's default, and an absent account — which is the seeded database's actual state
   — reads as "the code step is on", the same fail-closed answer `signIn.ts` gives the
   same column.
-- **Auth requirement:** none. It is the door. It is `Disallow`ed in `public/robots.txt`
+- **Auth requirement:** none. It is the door. It is `Disallow`ed in `app/robots.ts`
   and carries its own `noindex` for the reason that file's header gives.
 - **Notes:** the address is not a preference. `apps/web/payload.config.ts` moves
   Payload's own admin to `/cms` so this panel owns `/admin`, and `sessions.ts` scopes the
@@ -1106,7 +1138,7 @@ follow: false }`.
   does, and the pane itself has no failing path: it draws the same document for every
   caller.
 - **Auth requirement:** none. A reader here has no session by definition, which is why
-  `ADMIN_PUBLIC_PATHS` declares this address. It is `Disallow`ed in `public/robots.txt`
+  `ADMIN_PUBLIC_PATHS` declares this address. It is `Disallow`ed in `app/robots.ts`
   and carries its own `noindex`.
 - **Notes:** **the pending challenge is wired**, as of Task 10's fix round
   (`docs/deviations.md` §33 carries the closure). A browser holding a live challenge is

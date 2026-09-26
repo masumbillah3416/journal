@@ -191,6 +191,17 @@ jobs:
       # Postgres, and the CSS Module resolving — and a `'use client'` added
       # anywhere under the shell, which would pass every jsdom case and cost
       # the admin JS budget on all twelve screens.
+      # Phase 4 Task 13 adds `e2e/bookGate.spec.ts` as a STEP OF ITS OWN, and
+      # that is the whole point of it rather than an oversight: its cases
+      # toggle the SITE-WIDE `passwordProtect` and `indexGalleries` settings,
+      # and the step above runs three viewport projects with
+      # `fullyParallel: true`. A case closing the book inside that run would
+      # 401 every other spec's `/p/<n>` mid-flight, and the suite would fail
+      # for a reason none of those files could name. One project, run alone,
+      # after the rest — and it restores the global in a `finally` and diffs
+      # the whole dump either side, because the local `webServer` runs against
+      # the developer's own database.
+      - run: npx playwright test --project=desktop e2e/bookGate.spec.ts
       - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/signIn.spec.ts e2e/codeStep.spec.ts e2e/reset.spec.ts e2e/signInJourney.spec.ts e2e/upload.spec.ts e2e/admin.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
       # image: chrome-launcher's own auto-detection looks for a system

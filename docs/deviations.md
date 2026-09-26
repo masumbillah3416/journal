@@ -4142,3 +4142,85 @@ the ceiling, the over-quota branch becomes unreachable and this entry is closed 
 re-argued.
 
 **Recorded as:** this entry, `storageBar.ts`'s header, and the case named above.
+
+## 100 · The closed book answers 401 and offers no password, because this data model holds none
+
+**What `SECURITY.md` asks for.** "The `password the whole book` setting must gate server-side. A
+client-side check leaves the content fetchable." It names a SETTING and a PLACE, and says nothing
+about the refusal's shape.
+
+**What was built.** `site.passwordProtect` is read on the server by `apps/web/lib/bookAccess.ts`
+and spent by the diary's three public route entries and the download handler beneath them. A
+request for a closed book is answered **401**, through Next's `unauthorized()` interrupt, which
+renders `apps/web/app/(diary)/unauthorized.tsx`. It needs `experimental.authInterrupts` in
+`apps/web/next.config.ts`; that flag is there for this and for nothing else.
+
+**What is NOT sent: a `WWW-Authenticate: Basic` challenge.** The task brief named one, and it is
+not there, for two independent reasons — both measured rather than argued.
+
+1. **A Next.js page component cannot set a response header at all.** `next/headers`' `headers()`
+   returns a read-only object, `next/server` exports no header API to a page, and
+   `metadata.robots` emits a `<meta>` tag and no header (measured against this app on Next
+   16.3.3: `robots: { index: false }` added temporarily to the gallery route produced
+   `<meta name="robots" content="noindex"/>` and no `x-robots-tag` on the response). The only
+   places a per-request header can be set are a Route Handler and the middleware, and the
+   middleware runs in the Edge runtime, where the setting's database does not exist
+   (`apps/web/lib/auth/guard.ts`'s header carries the same argument for the session guard).
+2. **There is no password to check.** `DATA_MODEL.md`'s `site` global holds `passwordProtect` and
+   no credential, and `SCREENS.md` §2.9 draws five toggles and no password field. A `Basic`
+   challenge would therefore prompt a reader for a secret that cannot exist, reject every
+   attempt, and invite a brute force against nothing.
+
+**So the setting is honestly a CLOSED book rather than a passworded one**, and every surface says
+so in those words: the toggle's hint on `/admin/settings`, `unauthorized.tsx`'s copy, and
+`bookAccess.ts`'s header. Refusing with a status a reader's browser cannot act on would have been
+worse than refusing plainly.
+
+**What would reverse it:** a credential in the data model and a field on §2.9 to set it — at
+which point the refusal gains a challenge and `bookIsGated` gains the request it needs to read
+one. The signature the brief named (`bookIsGated(site, request)`) is that shape; this one takes
+no request because nothing in a request can currently open the gate, and a parameter nothing
+reads would say otherwise.
+
+**Recorded as:** this entry, `apps/web/lib/bookAccess.ts`'s header,
+`apps/web/app/(diary)/unauthorized.tsx`'s header, `apps/web/next.config.ts`'s comment on the
+flag, and `docs/security.md`'s `passwordProtect` row.
+
+## 101 · `indexGalleries` reaches a gallery page as a `<meta name="robots">`, not as `X-Robots-Tag`
+
+**What `SECURITY.md` asks for.** "Respect `indexGalleries` in `robots.txt` **and** with
+`X-Robots-Tag`, since the pages are statically served." Two mechanisms, because a `Disallow` asks
+a crawler not to FETCH a path and does not remove a URL it already knows from an index.
+
+**What was built.** Both halves read the setting, and the first is exactly what was asked for:
+`apps/web/app/robots.ts` replaces the static file and emits `Disallow: /gallery/` when the author
+turns indexing off. The second half is a `<meta name="robots" content="noindex">` on
+`apps/web/app/(diary)/gallery/[slug]/page.tsx`, derived from the same setting, rather than the
+`X-Robots-Tag` HTTP header the sentence names.
+
+**Why, and it is a measurement rather than a preference.** A Next.js page component cannot set a
+response header — see §100's first point, which was measured on this app. The two places that
+can are a Route Handler and the middleware; `/gallery/<slug>` is a page, and the middleware is
+Edge and cannot read Postgres. For an HTML document the two directives are equivalent to every
+major crawler; the header exists in the requirement because the handoff assumed a STATIC host,
+which can configure headers and cannot compute a tag. This deployment is the other way round.
+
+**Where the header IS sent, because that surface can send one.**
+`apps/web/app/(diary)/gallery/[slug]/download/[id]/route.ts` is a Route Handler and sets
+`X-Robots-Tag: noindex` unconditionally — a downloaded file is never a result to index, whatever
+the author decides about the gallery page.
+
+**What was considered and not taken.** Moving the diary's request interception to the Node.js
+runtime (Next 16 renames `middleware.ts` to `proxy.ts` and can run it in Node) would put a
+DB-reading interceptor in front of every page and allow the header. It was not taken: it moves
+the admin's whole request policy — its security headers, its cross-site refusal and its pre-auth
+identifier — onto a different runtime, in a task that is not about that, and the task's own
+ruling put the gate at the route entries for the reason `guard.ts` gives. **Whether it would
+actually work here is UNRESOLVED and was not measured**; this entry is the record of the option,
+not a claim about it.
+
+**What would reverse it:** a `proxy.ts` on the Node runtime, or any Next release that lets a page
+contribute a response header. Either turns this into one line.
+
+**Recorded as:** this entry, `app/robots.ts`'s header, the gallery route's header,
+`e2e/bookGate.spec.ts`'s header, and `docs/security.md`'s `indexGalleries` row.

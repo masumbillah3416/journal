@@ -29,14 +29,27 @@
  * header's `61 photos · 0 clips` and the grid's sixty-one tiles cannot
  * disagree.
  *
- * SCOPE. `robots`/`X-Robots-Tag` against the `indexGalleries` site setting
- * (SECURITY.md, Public site) is not wired here: nothing writes that setting
- * yet, and a hard-coded `noindex` would be a policy this task invented. The
- * download handler beneath this route sets its own - see its file.
+ * TWO SETTINGS REACH THIS ROUTE, AND THEY ARE DIFFERENT QUESTIONS.
+ * `passwordProtect` closes the whole diary, so this page raises
+ * `unauthorized()` for the same reason `/p/<n>` does - a gallery left open
+ * behind a closed book is the content still being fetchable, which is exactly
+ * what SECURITY.md warns about. `indexGalleries` is about a CRAWLER rather
+ * than a reader, so it changes the robots directive and serves the page
+ * unchanged.
+ *
+ * THE DIRECTIVE IS A `<meta name="robots">` TAG, NOT AN `X-Robots-Tag`
+ * HEADER, and that is a measured limitation rather than a choice: a Next.js
+ * page component cannot set a response header at all. `docs/deviations.md`
+ * §101 carries the measurement, the two mechanisms that were available and
+ * the one that was not taken. The download handler beneath this route is a
+ * ROUTE HANDLER, which can set headers, and sets its own unconditionally -
+ * a downloaded file is never a result to index.
  * Depends on: `returningPagePath` (@travel-diary/domain/pageAddress),
  * `readGalleryBundle` (../../../../lib/readGalleryBundle),
- * `GalleryHeader`/`Grid` (../../../../components/gallery/), `notFound`
- * (next/navigation).
+ * `bookIsGated`/`galleriesAreIndexable`/`readPublicAccess`
+ * (../../../../lib/bookAccess),
+ * `GalleryHeader`/`Grid` (../../../../components/gallery/),
+ * `notFound`/`unauthorized` (next/navigation).
  */
 /* c8 ignore start -- Framework passthrough with no authored logic: await the
  * route params, read the bundle, 404 when there is none, render the header
@@ -56,10 +69,11 @@
  * e2e/a11y.spec.ts. */
 import { returningPagePath } from '@travel-diary/domain/pageAddress'
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, unauthorized } from 'next/navigation'
 import type React from 'react'
 import { GalleryHeader } from '../../../../components/gallery/GalleryHeader'
 import { Grid } from '../../../../components/gallery/Grid'
+import { bookIsGated, galleriesAreIndexable, readPublicAccess } from '../../../../lib/bookAccess'
 import { readGalleryBundle } from '../../../../lib/readGalleryBundle'
 import styles from '../../../../components/gallery/gallery.module.css'
 
@@ -88,7 +102,7 @@ interface GalleryPageProps {
  */
 export const generateMetadata = async ({ params }: GalleryPageProps): Promise<Metadata> => {
   const { slug } = await params
-  const bundle = await readGalleryBundle(slug)
+  const [bundle, access] = await Promise.all([readGalleryBundle(slug), readPublicAccess()])
   if (bundle === null) return {}
 
   const { name, place, dates } = bundle.journey
@@ -96,11 +110,20 @@ export const generateMetadata = async ({ params }: GalleryPageProps): Promise<Me
     title: `${name} — Full gallery`,
     description: `Every frame from ${name}${place === '' ? '' : `, ${place}`}, ${dates}.`,
     alternates: { canonical: `/gallery/${slug}` },
+    // THE SETTING, NOT A LITERAL. `robots` is omitted entirely while the
+    // author allows indexing, so the inverse case can assert its ABSENCE -
+    // which is what stops this being a hard-coded `noindex` nobody could
+    // turn off.
+    ...(galleriesAreIndexable(access) ? {} : { robots: { index: false } }),
   }
 }
 
 /** Renders one journey's full gallery. */
 const GalleryPage = async ({ params, searchParams }: GalleryPageProps): Promise<React.JSX.Element> => {
+  // THE WHOLE DIARY'S GATE, BEFORE THE GALLERY IS READ. See this module's
+  // header: `passwordProtect` closes the galleries with the book.
+  if (bookIsGated(await readPublicAccess())) unauthorized()
+
   const [{ slug }, { from }] = await Promise.all([params, searchParams])
   const bundle = await readGalleryBundle(slug)
   if (bundle === null) notFound()

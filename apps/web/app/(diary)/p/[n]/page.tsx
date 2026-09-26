@@ -121,7 +121,8 @@
  * `Book` (../../../../components/book/Book),
  * `PageFace` (../../../../components/book/PageFace),
  * `SurfaceCorrection` (../../../../components/mobile/SurfaceCorrection),
- * `notFound` (next/navigation).
+ * `bookIsGated`/`readPublicAccess` (../../../../lib/bookAccess),
+ * `notFound`/`unauthorized` (next/navigation).
  */
 /* c8 ignore start -- Framework passthrough with no authored logic: await the
  * route params and the query, read the bundle, and render the book with one
@@ -153,11 +154,12 @@ import { rendersContent, servedContentWindow, type RouteQuery } from '@travel-di
 import { addressedPageIndex } from '@travel-diary/domain/pageAddress'
 import { addressedPageMetadata } from '@travel-diary/domain/pageMetadata'
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, unauthorized } from 'next/navigation'
 import type React from 'react'
 import { Book } from '../../../../components/book/Book'
 import { PageFace } from '../../../../components/book/PageFace'
 import { SurfaceCorrection } from '../../../../components/mobile/SurfaceCorrection'
+import { bookIsGated, readPublicAccess } from '../../../../lib/bookAccess'
 import { readBookBundle } from '../../../../lib/readBookBundle'
 
 /** The route's own parameters. Next 15+ hands them over as promises. */
@@ -204,6 +206,11 @@ export const generateMetadata = async ({ params }: DiaryPageProps): Promise<Meta
 
 /** Renders the book, opened at `<n>`, with a window of its pages' faces. */
 const DiaryPage = async ({ params, searchParams }: DiaryPageProps): Promise<React.JSX.Element> => {
+  // BEFORE ANYTHING IS READ OR DRAWN. `unauthorized()` raises, so no part of
+  // this page - and none of the bundle behind it - is assembled for a request
+  // the author has closed the book to. See `lib/bookAccess.ts`.
+  if (bookIsGated(await readPublicAccess())) unauthorized()
+
   const [{ n }, query, bundle] = await Promise.all([params, searchParams, readBookBundle()])
   const totalPages = bundle.pages.length
   const openIndex = addressedPageIndex(n, totalPages)

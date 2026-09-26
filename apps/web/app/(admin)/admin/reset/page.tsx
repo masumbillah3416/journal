@@ -73,7 +73,7 @@ import { readSignInScreen } from '../../../../lib/auth/readSignInScreen'
  * The screen's title, and the one instruction it gives a crawler.
  *
  * `index: false` for the same two complementary reasons the password step
- * gives: `public/robots.txt` asks a crawler not to FETCH `/admin`, while a
+ * gives: `app/robots.ts` asks a crawler not to FETCH `/admin`, while a
  * link from elsewhere could still put the address in an index without this.
  */
 export const metadata: Metadata = {

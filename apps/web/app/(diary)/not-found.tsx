@@ -25,7 +25,8 @@
  * Chrome logged a warning for on every cold load. `diary.css` is loaded on
  * every route of this group already, so folding the rules in leaves no second
  * chunk to preload and nothing to warn about; that file's own bottom block
- * carries the full reasoning and the `notFound` class-name prefix.
+ * carries the full reasoning and the `diaryNotice` class-name prefix, which
+ * `unauthorized.tsx` shares.
  *
  * `<main>` and the `<h1>` are load-bearing rather than decorative. axe's
  * `landmark-one-main` and `page-has-heading-one` are asserted on this route
@@ -33,7 +34,7 @@
  * every diary route is held to and one the `/cms` case has to be excused
  * from.
  * Depends on: `pagePath` (@travel-diary/domain/pageAddress), and the
- * `notFound*` classes in ./diary.css (loaded by ./layout.tsx).
+ * `diaryNotice*` classes in ./diary.css (loaded by ./layout.tsx).
  */
 /* c8 ignore start -- A Next.js convention file: it is never imported by any
  * test in either Vitest config (rendering one needs a real Next request and
@@ -53,16 +54,16 @@ const COVER = pagePath(0)
 
 /** Renders the diary's page-not-found view. */
 const DiaryNotFound = (): React.JSX.Element => (
-  <main className="notFoundStage">
-    <div className="notFoundCard">
-      <p className="notFoundEyebrow">No such page</p>
-      <h1 className="notFoundTitle">This page isn’t in the book</h1>
-      <hr className="notFoundRule" />
-      <p className="notFoundBody">
+  <main className="diaryNoticeStage">
+    <div className="diaryNoticeCard">
+      <p className="diaryNoticeEyebrow">No such page</p>
+      <h1 className="diaryNoticeTitle">This page isn’t in the book</h1>
+      <hr className="diaryNoticeRule" />
+      <p className="diaryNoticeBody">
         The address you followed doesn’t name a page of this diary. It may have been a typo, or the page may have been
         taken out since the link was made.
       </p>
-      <a className="notFoundBack" href={COVER}>
+      <a className="diaryNoticeBack" href={COVER}>
         Open the diary
       </a>
     </div>

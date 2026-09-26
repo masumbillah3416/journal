@@ -53,7 +53,8 @@
  * `addressedPageMetadata` (@travel-diary/domain/pageMetadata),
  * `deriveRail`/`mobileHeading`/`pageLabel` (@travel-diary/domain/bookBundle),
  * `MobileDiary`/`MobilePage`/`SurfaceCorrection`
- * (../../../../components/mobile/), `notFound` (next/navigation).
+ * (../../../../components/mobile/), `bookIsGated`/`readPublicAccess`
+ * (../../../../lib/bookAccess), `notFound`/`unauthorized` (next/navigation).
  */
 /* c8 ignore start -- Framework passthrough with no authored logic: await the
  * route params, read the bundle, and render the mobile surface with the one
@@ -80,11 +81,12 @@ import { deriveRail, mobileHeading, pageLabel } from '@travel-diary/domain/bookB
 import { addressedPageIndex } from '@travel-diary/domain/pageAddress'
 import { addressedPageMetadata } from '@travel-diary/domain/pageMetadata'
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, unauthorized } from 'next/navigation'
 import type React from 'react'
 import { MobileDiary } from '../../../../components/mobile/MobileDiary'
 import { MobilePage } from '../../../../components/mobile/MobilePage'
 import { SurfaceCorrection } from '../../../../components/mobile/SurfaceCorrection'
+import { bookIsGated, readPublicAccess } from '../../../../lib/bookAccess'
 import { readBookBundle } from '../../../../lib/readBookBundle'
 
 /** The route's own parameters. Next 15+ hands them over as promises. */
@@ -120,6 +122,11 @@ export const generateMetadata = async ({ params }: MobilePageProps): Promise<Met
 
 /** Renders the mobile reading surface, showing the one page `<n>` addresses. */
 const MobileDiaryPage = async ({ params }: MobilePageProps): Promise<React.JSX.Element> => {
+  // THE SAME GATE THE BOOK'S ENTRY APPLIES, AND IT HAS TO BE HERE TOO. These
+  // are two route ENTRIES for one address (ADR 0012), so a gate on one of
+  // them leaves the other serving the whole book to every phone.
+  if (bookIsGated(await readPublicAccess())) unauthorized()
+
   const [{ n }, bundle] = await Promise.all([params, readBookBundle()])
   const totalPages = bundle.pages.length
   const openIndex = addressedPageIndex(n, totalPages)
