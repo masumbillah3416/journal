@@ -2,8 +2,11 @@ import { typeScale } from '@travel-diary/tokens/type'
 import { describe, expect, it } from 'vitest'
 import {
   CAVEAT_EM_PER_CHARACTER,
+  CHIP_COVER_TITLE_AVAILABLE_PX,
+  CHIP_COVER_TITLE_SIZE,
   COVER_TITLE_AVAILABLE_PX,
   COVER_TITLE_SIZE,
+  fitChipTitleSize,
   fitMobileTitleSize,
   fitPreviewTitleSize,
   fitTitleSize,
@@ -209,5 +212,125 @@ describe('PREVIEW_COVER_TITLE_SIZE', () => {
 describe('PREVIEW_COVER_TITLE_AVAILABLE_PX', () => {
   it('is the 172px preview less its own 14px side padding, which is what the prototype passes', () => {
     expect(PREVIEW_COVER_TITLE_AVAILABLE_PX).toBe(144)
+  })
+})
+
+/**
+ * The longest title `fitChipTitleSize` can still fit inside SCREENS.md §2.1's
+ * 78x104px cloth chip, in characters.
+ *
+ * A MEASURED BOUNDARY, exactly as {@link LONGEST_FITTING_TITLE} is for the
+ * preview: the answer is already {@link CHIP_COVER_TITLE_SIZE}.min at 13
+ * characters and cannot go lower, so the width model crosses
+ * {@link CHIP_COVER_TITLE_AVAILABLE_PX} at 15 (15 x 0.4 x 11 = 66 against 62).
+ * Written here as a literal so the two cases either side of it move together
+ * and neither can be satisfied by reading the function it is guarding
+ * (CLAUDE.md §2.3).
+ */
+const LONGEST_FITTING_CHIP_TITLE = 14
+
+describe('fitChipTitleSize', () => {
+  it('renders the handoff default title at the size the admin prototype draws it in the chip', () => {
+    // The prototype's own chip call, `fitTitle(62, 19, {})`:
+    // floor(0.9 x 62 / (10 x 0.4)) = 13.
+    expect(fitChipTitleSize('Wanderings')).toBe(13)
+  })
+
+  it('holds a short title at the chip maximum, not the preview’s 36px', () => {
+    // floor(0.9 x 62 / (3 x 0.4)) = 46, clamped to 19 — a 36px title would be
+    // a third of the height of a 104px chip.
+    expect(fitChipTitleSize('Rio')).toBe(19)
+  })
+
+  it('still clamps at the last length the formula overshoots the maximum', () => {
+    // 6 characters: the formula answers floor(23.25) = 23, so the CLAMP is what
+    // returns 19 here. This is the case that moves when CHIP_COVER_TITLE_SIZE
+    // .max moves, which is what makes it a boundary rather than a sample —
+    // `a'.repeat(7)` below does not move with it, and an assertion that cannot
+    // move with the constant it claims to pin is pinning nothing (standing
+    // orders, species 2).
+    expect(fitChipTitleSize('a'.repeat(6))).toBe(19)
+  })
+
+  it('takes the formula’s own answer at the first length it fits under the maximum', () => {
+    // 7 characters: floor(19.92) = 19, which the clamp never touches — it is
+    // the maximum by arithmetic rather than by clamping. The permitted side of
+    // the boundary above.
+    expect(fitChipTitleSize('a'.repeat(7))).toBe(19)
+  })
+
+  it('drops below the maximum at the first length the formula does', () => {
+    // 8 characters: floor(17.43) = 17.
+    expect(fitChipTitleSize('a'.repeat(8))).toBe(17)
+  })
+
+  it('takes the formula’s own answer at the last length it stays above the floor', () => {
+    // 12 characters: floor(11.62) = 11, which is the minimum itself — reached
+    // by arithmetic, not by the clamp. The permitted side of the floor.
+    expect(fitChipTitleSize('a'.repeat(12))).toBe(11)
+  })
+
+  it('floors a very long title at the minimum rather than truncating it', () => {
+    // 13 characters would compute 10; the clamp holds it at 11. Pinned as a
+    // literal rather than as the constant it guards (CLAUDE.md §2.3).
+    expect(fitChipTitleSize('a'.repeat(13))).toBe(11)
+  })
+
+  it('returns the maximum for an empty title rather than a division-by-zero result', () => {
+    expect(fitChipTitleSize('')).toBe(19)
+  })
+
+  it('keeps every title up to the length the floor can still hold inside the chip', () => {
+    // THE FITTING PROPERTY ITSELF, driven over the whole range rather than
+    // sampled — the same shape `fitPreviewTitleSize`'s carries, against this
+    // box. It is the number the defect moves: a chip drawn with the PREVIEW's
+    // fitter answers 32px for a ten-character title, which this model puts at
+    // 128px wide inside 62px of room, and `overview.module.css`'s ellipsis
+    // would hide every pixel of the overflow.
+    const escaped = Array.from({ length: LONGEST_FITTING_CHIP_TITLE }, (_, index) => index + 1).filter((length) => {
+      const fitted = fitChipTitleSize('a'.repeat(length))
+      return length * CAVEAT_EM_PER_CHARACTER * fitted > CHIP_COVER_TITLE_AVAILABLE_PX
+    })
+
+    expect(escaped).toEqual([])
+  })
+
+  it('shrinks a title that needs shrinking, rather than holding it at the designed size', () => {
+    // The other half of "fits": without this, a function that returned the
+    // floor for everything would satisfy the case above.
+    expect(fitChipTitleSize('a'.repeat(LONGEST_FITTING_CHIP_TITLE))).toBeLessThan(CHIP_COVER_TITLE_SIZE.max)
+  })
+
+  it('stops fitting one character past the floor’s reach, which the stylesheet’s ellipsis then catches', () => {
+    // THE HONEST END OF THE PROPERTY, and it is not a defect — SCREENS.md
+    // §1.1's ellipsis is "a last-resort floor only". Pinned so that nobody
+    // reads the case above as a promise the module does not make.
+    const past = LONGEST_FITTING_CHIP_TITLE + 1
+    const fitted = fitChipTitleSize('a'.repeat(past))
+
+    expect({
+      atTheFloor: fitted === CHIP_COVER_TITLE_SIZE.min,
+      insideTheBox: past * CAVEAT_EM_PER_CHARACTER * fitted <= CHIP_COVER_TITLE_AVAILABLE_PX,
+    }).toEqual({ atTheFloor: true, insideTheBox: false })
+  })
+
+  it('is a narrower fit than the preview’s at the same title, because the chip is a narrower box', () => {
+    // THE TWO-OF-THE-THING-BEING-DISTINGUISHED CASE (standing order 14). A
+    // chip drawn through `fitPreviewTitleSize` is the defect this fitter
+    // exists to prevent, and only a comparison holding BOTH answers can say
+    // the chip took its own.
+    expect(fitChipTitleSize('Wanderings')).toBeLessThan(fitPreviewTitleSize('Wanderings'))
+  })
+})
+
+describe('CHIP_COVER_TITLE_SIZE', () => {
+  it('clamps between the admin prototype’s own 11px floor and its 19px chip maximum', () => {
+    expect(CHIP_COVER_TITLE_SIZE).toEqual({ min: 11, max: 19 })
+  })
+})
+
+describe('CHIP_COVER_TITLE_AVAILABLE_PX', () => {
+  it('is the 78px chip less its own 8px side padding, which is what the prototype passes', () => {
+    expect(CHIP_COVER_TITLE_AVAILABLE_PX).toBe(62)
   })
 })

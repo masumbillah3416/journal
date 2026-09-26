@@ -193,3 +193,55 @@ export const fitPreviewTitleSize = (text: string): number => {
 
   return Math.max(PREVIEW_COVER_TITLE_SIZE.min, Math.min(PREVIEW_COVER_TITLE_SIZE.max, fitted))
 }
+
+/**
+ * The admin Overview's cloth-chip clamp on the cover title (SCREENS.md §2.1).
+ *
+ * A THIRD BOX, AND IT IS NARROWER THAN ALL THE OTHERS. §2.1's "The book, live"
+ * card carries "a 78x104px cloth chip carrying the fitted title and years",
+ * which is roughly half the width of §2.7's 172x224px preview. Both bounds are
+ * the handoff prototype's, taken rather than derived exactly as
+ * {@link PREVIEW_COVER_TITLE_SIZE}'s are: `Travel Diary Admin.dc.html` sizes
+ * this chip's title with `fitTitle(62, 19, {})` against the preview's
+ * `fitTitle(144, 36, …)`.
+ *
+ * IT IS NOT {@link PREVIEW_COVER_TITLE_SIZE} REUSED, and that is a measurement
+ * rather than a preference: this module's own width model puts a ten-character
+ * title fitted by {@link fitPreviewTitleSize} at 128px wide, inside 62px of
+ * room. `overview.module.css` carries the same `nowrap` + `overflow: hidden` +
+ * ellipsis the preview does, so the overflow would be INVISIBLE — a chip whose
+ * title is clamped by CSS rather than fitted, which is precisely the defect
+ * `docs/standards/` and Task 10's third attempt were written about.
+ */
+export const CHIP_COVER_TITLE_SIZE = Object.freeze({ min: 11, max: 19 } as const)
+
+/**
+ * The horizontal room the Overview chip's title has, in CSS pixels.
+ *
+ * SCREENS.md §2.1's chip is 78px wide and the prototype pads it `10px 8px`, so
+ * the content box is 78 - 2 x 8 = 62 — which is the number the prototype passes
+ * its own fitter. Written as the arithmetic so the two cannot drift if the
+ * chip's padding ever changes.
+ */
+export const CHIP_COVER_TITLE_AVAILABLE_PX = 78 - 8 * 2
+
+/**
+ * The font size, in px, at which a cover title fits the Overview's 78x104px
+ * cloth chip (SCREENS.md §2.1).
+ *
+ * The same estimate-and-clamp shape as {@link fitTitleSize} - see that function
+ * for why the width is estimated rather than measured - against the chip's
+ * bounds and the chip's width instead of the design box's.
+ *
+ * @param text - The cover title, as the `book` global supplies it.
+ * @returns A font size in px, between {@link CHIP_COVER_TITLE_SIZE}.min and
+ *   its `.max` inclusive.
+ * @example
+ * fitChipTitleSize('Wanderings') // 13
+ * fitChipTitleSize('Rio') // 19 - the chip maximum, not the preview's 36
+ */
+export const fitChipTitleSize = (text: string): number => {
+  const fitted = Math.floor((FIT_MARGIN * CHIP_COVER_TITLE_AVAILABLE_PX) / (text.length * CAVEAT_EM_PER_CHARACTER))
+
+  return Math.max(CHIP_COVER_TITLE_SIZE.min, Math.min(CHIP_COVER_TITLE_SIZE.max, fitted))
+}
