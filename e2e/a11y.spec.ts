@@ -806,6 +806,88 @@ test('has no axe violations on the journey editor, the largest screen in the han
   await expectNoAxeViolations(page)
 })
 
+test('has no axe violations on /admin/settings, with all three of §2.9’s cards drawn', async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  // SCREENS.md §2.9, and a guarded screen like its neighbours above.
+  //
+  // IT READS AND DOES NOT WRITE. Every toggle on this screen writes a
+  // SITE-WIDE setting to the developer's own `diary` database, and two of them
+  // change what the public diary serves — so this case presses none of them. It
+  // only requires that they are DRAWN before axe looks, because a screen whose
+  // cards rendered empty would have no violations either.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`a11ysettings.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin/settings')
+  // All three cards, and the shapes axe has rules for inside them: four
+  // labelled fields, an anchor styled as a button, a DISABLED button, and five
+  // switches whose only accessible name is an `aria-label` — which is exactly
+  // the shape `button-name` exists for, and the one this screen would fail on
+  // if that label were ever dropped.
+  await expect(page.locator('[data-admin-settings]')).toBeVisible()
+  await expect(page.locator('[data-settings-site]')).toBeVisible()
+  await expect(page.locator('[data-settings-material]')).toBeVisible()
+  await expect(page.locator('[data-space-bar]')).toBeVisible()
+  await expect(page.locator('[data-settings-readers]')).toBeVisible()
+  await expect(page.locator('[data-setting]').first()).toBeVisible()
+  await expect(page.locator('[data-take-offline]')).toBeVisible()
+
+  await expectNoAxeViolations(page)
+})
+
+test('has no axe violations on /admin/trash, with a real row waiting in it', async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  // SCREENS.md §2.10. THE ROW IS THIS CASE'S OWN, created and removed here:
+  // the trash is usually empty, and a screen drawing its empty state has none
+  // of the shapes this case exists to judge — a 46px image, two ringed buttons
+  // per row and a countdown.
+  //
+  // THE JOURNEY IS CREATED ALREADY TRASHED AND DELETED IN A `finally`: this
+  // runs against the developer's own database, and a case that left a journey
+  // in the trash would change what every later run of this file draws.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`a11ytrash.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+
+  const payload = await getPayload()
+  const journey = await payload.create({
+    collection: 'journeys',
+    data: {
+      name: 'A11Y trash fixture',
+      place: 'Nowhere',
+      slug: `a11y-trash-${String(testInfo.workerIndex)}`,
+      dates: 'a day',
+      deletedAt: new Date().toISOString(),
+    },
+  })
+
+  try {
+    await page.goto('/admin/trash')
+    await expect(page.locator('[data-admin-trash]')).toBeVisible()
+    await expect(page.locator(`[data-trash-row="${String(journey.id)}"]`)).toBeVisible()
+    await expect(page.locator(`[data-put-back="${String(journey.id)}"]`)).toBeVisible()
+    await expect(page.locator(`[data-delete-for-good="${String(journey.id)}"]`)).toBeVisible()
+
+    await expectNoAxeViolations(page)
+  } finally {
+    await payload.delete({ collection: 'journeys', id: journey.id })
+  }
+})
+
 test('meets AA contrast on the sign-in cloth panel, which axe cannot judge', async ({ page, viewport }) => {
   test.skip((viewport?.width ?? 0) < 820, 'the cloth panel is drawn only above SCREENS.md §3’s breakpoint')
 

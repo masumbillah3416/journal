@@ -192,6 +192,16 @@
   background: rgb(51 64 60 / 8%);
 }
 
+/* THE SAME CONTROL WITHOUT THE SUBMIT'S OWN SPACING. `.save` carries
+ * `margin-top: 16px` because it is the Site card's submit and sits under a
+ * stack of fields; inside a flex ROW that margin pushed one control 16px below
+ * its neighbour (SET-001). Declared after `.save`, so the override wins by
+ * source order. */
+.rowAction {
+  composes: save;
+  margin-top: 0;
+}
+
 /* §2.9's Careful now button, and §2.10's Delete for good: a terracotta ring. */
 .danger {
   border-color: var(--td-accent);
@@ -231,6 +241,12 @@
 .export {
   display: inline-flex;
   align-items: center;
+  /* EXPLICIT, because this is an `<a>` and the admin stylesheet declares no
+   * `box-sizing` reset (the diary's own `*` rule is in `diary.css`, which this
+   * route group never loads). A `<button>` is border-box by default and an
+   * `<a>` is not, so the two controls in this row were 44px and 60px tall for
+   * the same declarations — SET-001's second half. */
+  box-sizing: border-box;
   border: 1px solid var(--td-ink);
   border-radius: var(--td-radius-control);
   padding: 8px 16px;

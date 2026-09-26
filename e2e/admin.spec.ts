@@ -1899,3 +1899,82 @@ test.describe('the Overview’s prompts, walked into the screen they name', () =
     await expect(page.locator('[data-crumb]')).toHaveText(/^\d+ changes? waiting$/u)
   })
 })
+
+test('draws §2.9\u2019s two material actions on one line, with their tops aligned', async ({ page }) => {
+  // SET-001 (`docs/qa/2026-09-27-settings-trash-sweep.md`). SCREENS.md §2.9
+  // draws them as a pair — "Export everything / Import a backup" — and the
+  // second sat 16px lower and 16px shorter, because it reused the Site card's
+  // submit class and that class carries the submit's own `margin-top`.
+  //
+  // MEASURED IN A BROWSER, because the defect is layout and jsdom performs
+  // none. The assertion is the behaviour (one line, same top, same height),
+  // not the property that fixes it today.
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/admin/settings')
+  await expect(page.locator('[data-settings-material]')).toBeVisible()
+
+  const exported = await page.locator('[data-export-everything]').boundingBox()
+  const imported = await page.locator('[data-import-backup]').boundingBox()
+
+  expect(exported, 'the export control was not drawn').not.toBeNull()
+  expect(imported, 'the import control was not drawn').not.toBeNull()
+  expect(Math.round(imported?.y ?? -1)).toBe(Math.round(exported?.y ?? -2))
+  expect(Math.round(imported?.height ?? -1)).toBe(Math.round(exported?.height ?? -2))
+})
+
+test('gives every reader switch this repository\u2019s own minimum hit area', async ({ page }) => {
+  // SET-002. `--td-min-hit-target` is 44px and every other control on this
+  // screen measures exactly that; the switch measured 46x24. It meets WCAG
+  // 2.2's 24x24 minimum, which is why axe reports nothing — the rule it
+  // misses is this repository's own, so only a measurement finds it.
+  //
+  // THE FLOOR IS READ OFF THE TOKEN, not written here, so the case follows the
+  // token wherever it moves.
+  await page.goto('/admin/settings')
+  await expect(page.locator('[data-settings-readers]')).toBeVisible()
+
+  const floor = await page.evaluate(() =>
+    Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--td-min-hit-target')),
+  )
+  expect(floor, 'the token that sets the floor was not readable, so this case would prove nothing').toBeGreaterThan(0)
+
+  const heights = await page
+    .locator('[data-setting]')
+    .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height))
+
+  expect(heights.length, 'no switches were drawn').toBeGreaterThan(0)
+  expect(heights.filter((height) => height < floor)).toEqual([])
+})
+
+test('refuses a reply-to that is not an address in the field, not with a 500', async ({ page }) => {
+  // SET-003, the instance. `readSiteForm`'s Zod refusal is correct and is
+  // still the real guard; what was missing is anything that stops the author
+  // reaching it. A bad address posted the form, the Server Action threw, and
+  // the screen answered 500 with all four typed values gone.
+  //
+  // THE ASSERTION IS THE BEHAVIOUR: the form does not submit, and the field
+  // says why. `type="email"` is how it is fixed today.
+  const failures: string[] = []
+  page.on('response', (response) => {
+    if (response.status() >= 400) failures.push(`${String(response.status())} ${response.url()}`)
+  })
+
+  await page.goto('/admin/settings')
+  await expect(page.locator('[data-settings-site]')).toBeVisible()
+
+  const name = page.locator('[data-site-field="name"] input')
+  await name.fill('SET-003 fixture name')
+  await page.locator('[data-site-field="replyTo"] input').fill('not-an-address')
+  await page.locator('[data-save-site]').click()
+  await page.waitForTimeout(1_000)
+
+  expect(failures, 'the save reached the server and was refused there').toEqual([])
+  // Still on the screen, with what was typed still in it.
+  await expect(name).toHaveValue('SET-003 fixture name')
+  expect(
+    await page.locator('[data-site-field="replyTo"] input').evaluate((node) => ({
+      typeMismatch: (node as HTMLInputElement).validity.typeMismatch,
+      valid: (node as HTMLInputElement).checkValidity(),
+    })),
+  ).toEqual({ typeMismatch: true, valid: false })
+})

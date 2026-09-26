@@ -97,7 +97,7 @@ export const MaterialCard = ({ storage, exportHref }: MaterialCardProps): React.
       {/* INERT, AND DRAWN INERT. See this module's header: restoring a backup
        * is a runbook procedure against a scratch database, and a live button
        * that did nothing would be worse than a disabled one that says why. */}
-      <button type="button" data-import-backup disabled className={styles.save}>
+      <button type="button" data-import-backup disabled className={styles.rowAction}>
         Import a backup
       </button>
     </div>
