@@ -1535,21 +1535,6 @@ test.describe('the Overview, SCREENS.md §2.1', () => {
     expect(onOverview).toEqual(onPublish)
   })
 
-  test('prints a crumb counting what is waiting, and no chip while every journey is published', async ({ page }) => {
-    // PUB-001 (`docs/deviations.md` §91): the chip counted journeys that have
-    // never been published while the crumb counted every waiting row, and both
-    // wore the word "unpublished". BOTH SIDES OF THE CHIP ARE STATED HERE
-    // rather than one guarded by an `if`: the seeded diary publishes all ten
-    // journeys, so the chip is WITHHELD — which is a definite claim about this
-    // data, not a conditional that passes either way. What the chip SAYS when
-    // it is drawn is `ScreenHeader.test.tsx`'s, against its own text.
-    await page.goto('/admin')
-    await expect(page.locator('[data-admin-overview]')).toBeVisible()
-
-    await expect(page.locator('[data-crumb]')).toHaveText(/^\d+ changes? waiting$/u)
-    await expect(page.locator('[data-control="unpublished"]')).toHaveCount(0)
-  })
-
   test('draws every card §2.1 specifies, so none of them can be quietly missing', async ({ page }) => {
     await page.goto('/admin')
 
@@ -1701,6 +1686,21 @@ test.describe('the Overview’s prompts, walked into the screen they name', () =
       id: waiting.id,
       draft: true,
       data: { note: 'an edit nobody has published' },
+    })
+
+    // A JOURNEY THAT HAS NEVER BEEN PUBLISHED, so the header's chip is DRAWN.
+    // It is created after the media fixtures on purpose: `aJourneyToPromptAbout`
+    // takes the first journey by name, and this one would otherwise take that
+    // place and hang the prompts off a journey with no frames.
+    await payload.create({
+      collection: 'journeys',
+      data: {
+        name: `${PROMPT_MARKER} Never`,
+        place: 'Nowhere',
+        slug: `${PROMPT_MARKER}-never`,
+        dates: 'one day',
+        _status: 'draft',
+      },
     })
   })
 
@@ -1866,5 +1866,36 @@ test.describe('the Overview’s prompts, walked into the screen they name', () =
     expect(railCounts, `the rail says ${JSON.stringify(railCounts)} beside Publish while ${crumb}`).toEqual(
       railCounts.map(() => waiting),
     )
+  })
+
+  test('prints a chip counting exactly what Postgres calls a journey never published', async ({ page }) => {
+    // The other half of PUB-001's resolution (`docs/deviations.md` §91): the
+    // chip's number was never wrong about itself, only about what its word
+    // implied. So the chip is checked against the DATABASE's own answer for the
+    // thing it names, not against the crumb — and the fixture guarantees the
+    // chip is DRAWN, because a case that only ever saw it withheld would be
+    // asserting nothing.
+    //
+    // An earlier shape of this case asserted "no chip while every journey is
+    // published", which passed alone and failed in the full run: another
+    // fixture in this file creates a draft journey, and a case resting on the
+    // state of the whole database is a case another case can break.
+    const payload = await getPayload()
+    const drafts = (
+      await payload.count({
+        collection: 'journeys',
+        where: { and: [{ deletedAt: { exists: false } }, { _status: { equals: 'draft' } }] },
+      })
+    ).totalDocs
+
+    expect(drafts, 'the fixture did not leave a journey that has never been published').toBeGreaterThan(0)
+
+    await page.goto('/admin')
+    await expect(page.locator('[data-admin-overview]')).toBeVisible()
+
+    await expect(page.locator('[data-control="unpublished"]')).toHaveText(
+      `${String(drafts)} ${drafts === 1 ? 'journey' : 'journeys'} never published`,
+    )
+    await expect(page.locator('[data-crumb]')).toHaveText(/^\d+ changes? waiting$/u)
   })
 })

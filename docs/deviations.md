@@ -1936,8 +1936,8 @@ on what Task 10 did not close.
 > `panel.module.css` were deleted in the same commit. **Nothing described below is in the
 > tree any more**, and the entry is kept rather than removed because the reasoning — why a
 > screen rather than a `404` or a redirect — is what a reader asking "why was there a holding
-> screen at all" needs, and because §53 and the §2.11 Account screen still cite the
-> `POST` sign-out decision it records. What replaces it: `SCREENS.md` §2.1's four cards, drawn
+> screen at all" needs, and because §53 still cites the `POST` sign-out decision it records —
+> "the same decision `PanelHome` already carries for the same reason". What replaces it: `SCREENS.md` §2.1's four cards, drawn
 > by `components/admin/overview/`, read by `lib/admin/readOverview.ts`, and documented in the
 > `GET /admin` row of `docs/api.md`.
 
@@ -3978,8 +3978,9 @@ affected paths only", and this repository's convention is that each actions modu
 admin screens whose reads its writes change. Applied strictly, the Overview is affected by
 every admin write there is: uploading a photograph moves the Photographs figure, captioning a
 frame removes a prompt, creating a journey moves two figures and the Lately card. Naming
-`/admin` in all six modules is eighteen more `revalidatePath` calls and six registration tests
-to keep two-sided, for a screen whose numbers are a summary rather than a control surface.
+`/admin` in all six modules is one more `revalidatePath` call in every export of every one of
+them, plus the registration tests that pin each set two-sided, for a screen whose numbers are a
+summary rather than a control surface.
 
 **What this entry does NOT claim.** It does not claim the staleness is unobservable. Admin
 routes call `requireAdminSession`, which reads cookies, and a route that reads cookies renders
