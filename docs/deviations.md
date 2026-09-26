@@ -4111,3 +4111,34 @@ which round found the gap.
 
 **Recorded as:** this entry, and Phase 4 Task 12's report, which names it as a residual rather
 than closing it.
+
+## 99 · `SCREENS.md` §2.9's storage bar has no rule for a library over its quota, so this one scales
+
+**What the handoff gives.** One bar, under quota: "a 7px segmented bar (photos `#2f6b68` 29%,
+clips `#845825` 12.2%, remainder the track)", above the line "41.2 GB of 100 GB". Both figures
+are percentages of the hundred, which is the only thing §2.9 settles about the arithmetic.
+
+**What it does not give.** What the bar draws once the two kinds together exceed the quota. Two
+answers both satisfy "the segments fill the bar and nothing is free", and they are visibly
+different bars: SCALE both kinds by the used total, so 90GB of stills and 40GB of clips draw at
+69.2% and 30.8%; or FILL IN ORDER and truncate, so the same library draws stills at 90% and
+clips at 10%.
+
+**What was chosen, and why.** Scaling. The legend beneath the bar names the two kinds, so a
+reader takes the two widths as the two kinds in proportion — and truncation would draw 40GB of
+clips as a tenth of the bar while 90GB of stills took nine tenths, understating the smaller one
+by a factor of three at exactly the moment the author is deciding what to delete. The quota is
+also not a hard limit anywhere in this repository: nothing refuses an upload at 100GB, so "over
+quota" is a state the bar has to be able to draw honestly rather than an impossible one.
+
+**Why it is an entry rather than a comment.** The brief's own over-quota case asserts that the
+segments sum to 100 and that `free` is 0 — which BOTH answers satisfy. A decision that a test
+cannot tell apart from its alternative is a decision nobody has made, so it is written down and
+pinned: `scales an over-quota bar proportionally rather than filling stills first`
+(`packages/domain/src/admin/storageBar.test.ts`) fails under fill-order truncation, measured.
+
+**What would reverse it:** a design note, or a real enforced quota. If uploads ever refuse at
+the ceiling, the over-quota branch becomes unreachable and this entry is closed rather than
+re-argued.
+
+**Recorded as:** this entry, `storageBar.ts`'s header, and the case named above.
