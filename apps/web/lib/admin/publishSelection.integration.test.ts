@@ -41,7 +41,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { readBookBundle } from '../readBookBundle'
 import { getTestPayload } from '../testPayload'
 import { adminScope, type AdminScope } from './adminScope'
-import { publishSelection, restoreEdition, revertChange } from './publishSelection'
+import { publishSelection, readEdition, readSelection, restoreEdition, revertChange } from './publishSelection'
 import { EDITIONS_SHOWN, readEditions, readPendingChanges } from './readPendingChanges'
 
 /** What every row this file writes carries, so cleanup can find them all. */
@@ -246,6 +246,44 @@ describe('publishSelection', () => {
     ['', 'an empty body'],
   ])('refuses %s — %s — rather than publishing something else', async (posted) => {
     await expect(publishSelection(payload, scope, [posted])).rejects.toThrow(/publishSelection/u)
+  })
+})
+
+describe('readSelection and readEdition', () => {
+  it('reads every ticked box, not only the last one', () => {
+    // FORM DATA, NOT AN OBJECT LITERAL, and the reason is the whole of this
+    // function: the Changes card posts one `change` field PER TICKED ROW, and
+    // `Object.fromEntries` keeps only the last of a repeated name — which would
+    // publish one change out of four and look like it worked.
+    const form = new FormData()
+    for (const id of ['journey:11', 'page:41', 'journey:12']) form.append('change', id)
+
+    expect(readSelection(form)).toEqual(['journey:11', 'page:41', 'journey:12'])
+  })
+
+  it('drops an entry that arrived as a file rather than a string', () => {
+    // A shape a crafted `POST` really sends. It is dropped here and would have
+    // been refused by the parse anyway, which is the belt this braces.
+    const form = new FormData()
+    form.append('change', 'journey:11')
+    form.append('change', new File([], 'not-an-id'))
+
+    expect(readSelection(form)).toEqual(['journey:11'])
+  })
+
+  it('answers an empty selection for a body with no ticks in it', () => {
+    expect(readSelection(new FormData())).toEqual([])
+  })
+
+  it('reads the edition id the Editions card posted', () => {
+    const form = new FormData()
+    form.append('edition', '904')
+
+    expect(readEdition(form)).toBe('904')
+  })
+
+  it('answers an empty id for a body that names no edition, which the read then refuses', () => {
+    expect(readEdition(new FormData())).toBe('')
   })
 })
 

@@ -211,17 +211,25 @@ describe('readPendingChanges', () => {
     // `title` is not `required` on the collection (DATA_MODEL.md), so a page
     // with none is a state an author can really produce — the editor's "Add
     // page with this layout" creates one before it is named.
+    // AND IT IS A DRAFT PAGE, which is the shape `addPageRow` really creates
+    // (`docs/deviations.md` §56: a page added from the editor is born a draft),
+    // so this case covers the `added` arm of a PAGE as well as the missing
+    // title. A published page with a later draft is the `edited` arm, and the
+    // case above it takes that one.
     const journey = await aJourney('untitled', 'published')
     const created = await payload.create({
       collection: 'pages',
       ...scope,
-      data: { journey, kind: 'notes', order: 1, _status: 'published' },
+      data: { journey, kind: 'notes', order: 1, _status: 'draft' },
     })
-    await payload.update({ collection: 'pages', id: created.id, ...scope, draft: true, data: { order: 2 } })
 
     const change = (await readPendingChanges(payload, scope)).find((row) => row.id === `page:${String(created.id)}`)
 
-    expect(change?.location).toBe(`${MARKER} untitled · A page`)
+    expect({ location: change?.location, tone: change?.tone, text: change?.text }).toEqual({
+      location: `${MARKER} untitled · A page`,
+      tone: 'added',
+      text: 'A page has never been published',
+    })
   })
 
   it('keys every change to the journey it belongs to, so a path can be computed for it', async () => {

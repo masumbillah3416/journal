@@ -595,6 +595,38 @@ different reasons, and a fix aimed at either one alone would move only one of th
 worse was NOT repeated, because this screen's own phase breakdown says discovery is not its
 constraint either.
 
+### `/admin/publish` IS MEASURED, PASSES EVERY ASSERTION, AND IS STILL NOT IN THE CONFIG
+
+Phase 4 Task 11 measured `http://localhost:3000/admin/publish` against the same matrix, the
+same five runs, the same production build and the same 1440x900 desktop emulation — by copying
+`lighthouserc.admin.json` to a scratch file with one URL in it, because that config was not
+this task's to edit.
+
+| `/admin/publish` as collected  | final URL        | `http-status-code` | script transfer | script requests | LCP median  | CLS | TBT  |
+| ------------------------------ | ---------------- | ------------------ | --------------- | --------------- | ----------- | --- | ---- |
+| as built, four changes waiting | `/admin/publish` | 1                  | 139,967         | 7               | **2,927ms** | 0   | 20ms |
+
+All five LCP runs: 2,933.5 / 2,926.2 / 2,927.0 / 2,928.2 / 2,927.0. **Every assertion passed**,
+and the final URL is the requested one, which is what says the collector's cookie was honoured
+rather than that the sign-in screen was measured under this screen's name.
+
+**It is the first admin screen since `/admin/journeys` to fit inside the LCP gate**, and the
+reason is the one both sections above give from the other side: it carries **no photographs**.
+`/admin/media` misses by 1,495ms on 1.26MB of thumbnails and `/admin/galleries` by 1,077ms on
+main-thread work behind a preview; this screen's heaviest element is a Caveat headline. At
+2,927ms against 3,085 it has **158ms of margin** — statistically the same as `/admin`'s 2,777ms
+and `/admin/journeys`' 2,930ms, and the same 20ms of total blocking time every admin route
+reports.
+
+**What the seventh client entry cost, measured rather than argued:** 139,967 bytes against
+`/admin`'s 137,986 and one more script request — **1,981 bytes** for `PublishSelection.tsx`,
+which is §2.8's live button label and its strike-through. That is 42.7% of the 327,680 ceiling.
+
+**It is not in `lighthouserc.admin.json`, and that is a scope decision rather than a
+measurement.** The config was fixed before this task and `lighthouserc.admin.json` was named as
+not this task's to change. A future task that adds the URL should expect it to pass: these are
+the numbers it would be judged on.
+
 Every URL **in `lighthouserc.admin.json`** is JUDGED and not merely collected, which was
 once a manual `lhci assert --includePassedAssertions` reading of the saved runs and is now
 `scripts/lighthouseJudged.test.js` — landed from the Task 3 review, run in the pre-commit

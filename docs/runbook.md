@@ -231,7 +231,15 @@ All provider credentials live in each platform's own secret store, never in the 
   migration the last `npm run db:migrate` applied together, not one file.
 - **Content:** Payload's `versions: { drafts: true }` on `journeys` and `pages` backs the
   admin's Publish screen restore feature (design spec §4, Phase 4) — an author-facing
-  rollback for content mistakes that never needs an engineer.
+  rollback for content mistakes that never needs an engineer. **Built in Phase 4 Task 11**,
+  and what it can and cannot do is worth knowing before somebody reaches for a backup. The
+  Editions card at `/admin/publish` lists every published version of every journey, newest
+  first, capped at twelve, and Restore puts one back on the page a reader is served. Revert
+  on a waiting change does the other half: it discards a pending draft by restoring the
+  newest PUBLISHED version, so the live row does not move. **Neither reaches `media` or the
+  three globals** — they carry no versions, so a caption, an upload, a bookmark reorder and a
+  cover title are live the moment they are saved and have no rollback but a backup
+  (`docs/deviations.md` §87).
 
 ## The sign-in surface, and the one thing that stops it working for a real reader
 
