@@ -25,7 +25,16 @@
 import type { Highlight } from '../admin/highlights'
 import type { RailPage } from '../admin/pageRail'
 import type { ChallengeRecord } from '../auth/otpChallenge'
-import type { AboutContent, BookChrome, Journey, Slot } from '../bookBundle'
+import {
+  deriveBookmarks,
+  deriveContents,
+  derivePages,
+  type AboutContent,
+  type BookBundle,
+  type BookChrome,
+  type Journey,
+  type Slot,
+} from '../bookBundle'
 import type { GalleryBundle, GalleryFrame } from '../gallery'
 import type { JourneyId, MediaId, PageId } from '../ids'
 
@@ -120,6 +129,36 @@ export const anAboutContent = (overrides: Partial<AboutContent> = {}): AboutCont
   replyTo: 'hello@wanderings.travel',
   ...overrides,
 })
+
+/**
+ * Builds a whole {@link BookBundle} for tests, ASSEMBLED rather than written
+ * down.
+ *
+ * The page order, the Contents index and the bookmark rail all come from
+ * `derivePages`, `deriveContents` and `deriveBookmarks` — the same three
+ * functions `readBookBundle` calls — so a fixture cannot encode a page order
+ * the book does not have. A hand-written `pages` array would agree with a copy
+ * of the arithmetic instead of with the arithmetic (standing orders, species
+ * 4), and every path a publish revalidates is an index into exactly this list.
+ * @param journeys - The journeys the book holds, in book order. Defaults to
+ *   one, which is the smallest book that still has a journey in it.
+ * @param overrides - Chrome and About overrides, merged shallowly.
+ * @returns A fresh bundle, shared with no other call's result.
+ */
+export const aBookBundle = (
+  journeys: readonly Journey[] = [aJourney()],
+  overrides: Partial<Pick<BookBundle, 'chrome' | 'about'>> = {},
+): BookBundle => {
+  const pages = derivePages(journeys)
+  return {
+    pages,
+    contents: deriveContents(pages),
+    bookmarks: deriveBookmarks(pages),
+    chrome: aBookChrome(),
+    about: anAboutContent(),
+    ...overrides,
+  }
+}
 
 /**
  * Builds a {@link GalleryFrame} for tests.

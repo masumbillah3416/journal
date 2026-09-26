@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  aBookBundle,
   aBookChrome,
   aGalleryBundle,
   aGalleryFrame,
@@ -161,5 +162,48 @@ describe('aRailPage', () => {
 
   it('gives every call its own object, never a shared reference', () => {
     expect(aRailPage('a', 0)).not.toBe(aRailPage('a', 0))
+  })
+})
+
+describe('aBookBundle', () => {
+  it('assembles the book rather than writing its page list down', () => {
+    // THE POINT OF THE FACTORY. `derivePages` puts the Cover first, the
+    // Contents second, three pages per journey and the About last; a fixture
+    // that listed pages itself could drift from that and take every path
+    // assertion with it.
+    const bundle = aBookBundle([aJourney({ slug: 'tokyo' }), aJourney({ slug: 'lisbon' })])
+
+    expect(bundle.pages.map((page) => page.kind)).toEqual([
+      'cover',
+      'contents',
+      'notes',
+      'frames-i',
+      'frames-ii',
+      'notes',
+      'frames-i',
+      'frames-ii',
+      'about',
+    ])
+  })
+
+  it('derives the contents index and the bookmark rail from that same page list', () => {
+    const bundle = aBookBundle([aJourney({ slug: 'tokyo' })])
+
+    expect(bundle.contents.map((entry) => entry.slug)).toEqual(['tokyo'])
+    expect(bundle.bookmarks.map((tab) => tab.kind)).toEqual(['cover', 'contents', 'journey', 'about'])
+  })
+
+  it('builds the smallest book that still has a journey in it when called with no arguments', () => {
+    expect(aBookBundle().pages).toHaveLength(6)
+  })
+
+  it('merges chrome and About overrides over the defaults', () => {
+    const bundle = aBookBundle([aJourney()], { chrome: aBookChrome({ title: 'Elsewhere' }) })
+
+    expect([bundle.chrome.title, bundle.about.replyTo]).toEqual(['Elsewhere', 'hello@wanderings.travel'])
+  })
+
+  it('gives every call its own bundle, never a shared reference', () => {
+    expect(aBookBundle()).not.toBe(aBookBundle())
   })
 })
