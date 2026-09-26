@@ -3774,3 +3774,38 @@ anyway for its "Waiting to go out" card — at which point the chip can take the
 the four queries are paid once for a screen that already needs them.
 
 **Recorded as:** this entry and PUB-001 in `docs/qa/2026-09-26-publish-sweep.md`.
+
+## 92 · `SCREENS.md` §2.5's "Apply captions" is disabled with no `:disabled` rule, and §2.5 owns the fix
+
+**What changed:** nothing yet, and that is what this entry is for. Phase 4 Task 11's browser
+sweep found that a control rendered `disabled` with no `:disabled` arm in its stylesheet paints
+and behaves exactly like a live one — same ink, same `cursor: pointer` — so a control that can
+do nothing invites a press. It fixed its own instance
+(`docs/qa/2026-09-26-publish-sweep.md`, PUB-002) and grepped the family. Every other admin
+stylesheet has the arm: `.arrow`, `.tool`, `.tile`, `.grip`, `.slotTool`, `.browse`.
+
+**One instance is left, on another screen.**
+`apps/web/components/admin/galleries/CaptionAll.tsx`'s "Apply captions" is `disabled` when the
+panel has no rows, and `apps/web/components/admin/galleries/galleries.module.css` declares no
+`:disabled` rule at all. Its sibling in the same file — `SelectedFrame.tsx`'s cover checkbox —
+is a native `<input type="checkbox">`, which the browser greys on its own, so that one signals
+without a rule and is not part of this.
+
+**Why it is recorded here rather than fixed there.** A defect report is not permission to reach
+into a neighbouring task's screen: the fix needs a failing browser case of its own on
+`/admin/galleries`, and a commit of its own, so that `git bisect` stays useful and the screen's
+owner reviews the change to their screen. The measurement that would drive it is the one PUB-002
+used: the disabled control must not offer a pointer cursor, and its contrast against the card
+must be lower than the enabled one's beside it.
+
+**And why it has a number at all.** A finding recorded only in a dated sweep file has no
+carrier. Nothing reads `docs/qa/2026-09-26-publish-sweep.md` again; the numbered entries are
+what a task inherits. This is the carrier.
+
+**What would reverse it:** a `:disabled` rule in `galleries.module.css` and a case on
+`/admin/galleries` that fails without it — at which point this entry is closed the way §39 and
+§38 were, with a banner rather than a deletion.
+
+**Recorded as:** this entry, the "class, not just the instance" table in
+`docs/qa/2026-09-26-publish-sweep.md`, and `publish.module.css`'s `.revert:disabled` comment,
+which names the shape.

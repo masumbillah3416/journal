@@ -151,6 +151,12 @@ thirty-three times over with no JavaScript run.
 - **On-demand revalidation on publish (design spec §8) is unaffected**, and
   arguably simpler: there is no prerendered artefact to invalidate. It is
   still unbuilt — nothing publishes yet.
+  **Built in Phase 4 Task 11**, and this consequence held: `/admin/publish`
+  registers each affected `/p/<n>`, the Contents page and each journey's
+  gallery, and because this route renders per request there is nothing cached
+  for those calls to drop. The set is correct and measured against the book's
+  own page list; what it buys is the day this route IS cached. See
+  `docs/api.md`'s `/p/<n>` row and `packages/domain/src/admin/affectedPaths.ts`.
 - **A second read of the bundle appeared and had to be deduplicated.** Adding
   `generateMetadata` gave the route two entry points that each need the
   `BookBundle`, which is twelve Payload queries per document instead of six —

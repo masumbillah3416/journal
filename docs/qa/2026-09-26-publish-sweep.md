@@ -121,7 +121,9 @@ on SCREENS.md §2.5. (Its sibling, `SelectedFrame.tsx`'s cover checkbox, is a na
 `<input type="checkbox">`, which the browser greys on its own, so that one signals without a
 rule.) It is **not fixed here**: it is another screen's, it needs its own failing browser case
 and its own commit, and a defect report is not permission to reach into a neighbouring task.
-Recorded so it is found on purpose rather than on the next sweep.
+**It carries a number now — `docs/deviations.md` §92** — because a finding recorded only in a
+dated sweep file has no carrier: nothing reads this file again, and the numbered entries are
+what a task inherits.
 
 ## Clean
 

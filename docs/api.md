@@ -975,9 +975,17 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   **An empty selection publishes nothing, and asks the database nothing.** The array is the
   selection; `[]` is "nothing was ticked" and never "everything".
 
-  **Revert is a submit button, not a second form.** A `<form>` inside a `<form>` is invalid
-  HTML, so each row's Revert carries `formAction` and `name="revert"` instead, and the action
-  that reads `revert` ignores the ticks entirely. It is withheld on a row that has never been
+  **Revert is a submit button, and its row id is a BOUND argument, not a posted field.** A
+  `<form>` inside a `<form>` is invalid HTML, so each row's Revert carries a `formAction` of its
+  own. It cannot carry the id in `name`/`value`: React uses the SUBMITTER's own `name` and
+  `value` to encode the action id when the `formAction` is a Server Action, so `name="revert"`
+  is overwritten with `$ACTION_ID_…` between the server render and the browser — a hydration
+  mismatch on screen and an empty field on the wire, which is what `e2e/admin.spec.ts`'s Revert
+  case caught. `revertOneChange` therefore takes `id: string` and the card calls
+  `revert.bind(null, change.id)`, which is the other shape Next.js documents for passing an
+  argument. `actions.ts`'s own header carries the measurement. The Editions card's Restore is a
+  real `<form>` with a hidden field, which is the same documented pair and has no submitter to
+  collide with. It is withheld on a row that has never been
   published, because there is nothing behind it to go back to and §2.8 draws no error surface
   (`docs/deviations.md` §60).
 

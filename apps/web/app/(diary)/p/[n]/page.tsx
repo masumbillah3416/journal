@@ -96,11 +96,23 @@
  * a reader the middleware decided was served the book. See its own header and
  * ADR 0011.
  *
- * SCOPE. On-demand revalidation on publish (design spec §8) is a later task's
- * - nothing publishes yet. The gallery-return behaviour is the address this
- * route writes plus `Book.tsx`'s `replaceState`, and is asserted by
- * `e2e/routing.spec.ts` today against the real `/gallery/<slug>` link the
- * page footers already carry.
+ * ON-DEMAND REVALIDATION ON PUBLISH (design spec §8) IS BUILT, as of Phase 4
+ * Task 11, and this paragraph used to say it was a later task's.
+ * `/admin/publish`'s `publishChanges` calls `revalidatePath` on each `/p/<n>`
+ * the published journeys occupy, on the Contents page and on each journey's
+ * `/gallery/<slug>` - and on nothing else
+ * (`packages/domain/src/admin/affectedPaths.ts`). It is REGISTERED rather than
+ * served differently: this route declares no `generateStaticParams` and
+ * renders per request, so there is no prerendered artefact to invalidate today
+ * and a reader already gets the current book. ADR 0010 said so in advance.
+ * What the call buys now is that the set is correct and measured; what it buys
+ * the day this route is cached - by ISR, or by a CDN honouring it - is that
+ * only the pages that changed are dropped. `docs/api.md`'s own `/p/<n>` row
+ * carries the same sentence.
+ *
+ * SCOPE. The gallery-return behaviour is the address this route writes plus
+ * `Book.tsx`'s `replaceState`, and is asserted by `e2e/routing.spec.ts` today
+ * against the real `/gallery/<slug>` link the page footers already carry.
  * Depends on: `readBookBundle` (../../../../lib/readBookBundle),
  * `addressedPageIndex` (@travel-diary/domain/pageAddress),
  * `addressedPageMetadata` (@travel-diary/domain/pageMetadata),

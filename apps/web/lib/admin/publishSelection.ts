@@ -55,6 +55,20 @@
  * unhandled Server Action error and a drop arrives as a screen that redraws
  * with the row gone.
  *
+ * ═══ THE EDITION ID IS THE ONE POSTED IDENTIFIER THAT IS NOT INVERTED ═══
+ *
+ * Said out loud because the asymmetry reads as an omission (review F7). A
+ * change id is parsed by `parsedChangeId` before it reaches Payload: it names
+ * a COLLECTION as well as a row, so an unparsed one would be a caller
+ * choosing which table to write. An edition id names no collection — this
+ * screen restores versions of `journeys` and nothing else, and the collection
+ * is written here — so there is nothing for a parse to decide. What is left is
+ * "does this id name a version of this book", which only the database can
+ * answer, and {@link restoreEdition}'s `findVersionByID` asks it before it
+ * writes: an id that names nothing is a refusal, not a write. Payload
+ * parameterises the query, so a crafted string is a row that does not exist
+ * rather than a query. Both refusals have cases.
+ *
  * PATTERNS (CLAUDE.md §3.3): Repository — the version tables stop here, and
  * the screen's actions speak in change ids and paths.
  *

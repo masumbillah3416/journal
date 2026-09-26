@@ -81,6 +81,23 @@ const COMPUTED = '(every path the write answered)'
 const SPENDS_THE_PATHS = 'for (const path of paths) revalidatePath(path)'
 
 /**
+ * How each write's answered paths reach the loop that spends them.
+ *
+ * ═══ THE SEAM BETWEEN THE TWO HALVES, WHICH NEITHER HALF READS ═══
+ *
+ * `publishSelection.integration.test.ts` measures WHICH paths come back, and
+ * {@link SPENDS_THE_PATHS} counts the loop that spends them. Any expression
+ * applied BETWEEN them is invisible to both: a reviewer appended
+ * `.slice(0, 1)` to the call and this file still reported five passing cases
+ * while the publish revalidated one path of four and left the rest stale
+ * (review F3).
+ *
+ * So the assignment is spelled out, in the same idiom the loop is. A
+ * transformation of the answer has to change one of these strings.
+ */
+const ANSWERS_THE_PATHS = ['const paths = await publishRows(', 'const paths = await restoreOne('] as const
+
+/**
  * Every address each exported action revalidates, by the export's name.
  *
  * THE ADDRESSES ARE SPELLED OUT rather than named by their constants, so a
@@ -169,6 +186,18 @@ describe('the publish screen’s writes and the caches they invalidate', () => {
     const loops = source().split(SPENDS_THE_PATHS).length - 1
 
     expect({ loops, any: loops > 0 }).toEqual({ loops: 2, any: true })
+  })
+
+  it('hands each loop the write’s own answer, with nothing applied in between', () => {
+    // BOTH SPELLINGS, COUNTED. The loop above proves the paths are spent; this
+    // proves they are the paths the write answered. `.slice()`, `.filter()`,
+    // a `??` or a second variable between the call and the loop all move one
+    // of these counts off 1 — which is the only direction the split between
+    // "which paths" and "spending them" does not otherwise cover.
+    const text = source()
+    const assignments = ANSWERS_THE_PATHS.map((spelling) => text.split(spelling).length - 1)
+
+    expect(assignments).toEqual([1, 1])
   })
 
   it('leaves the revert with no diary address at all, because a discarded draft was never served', () => {
