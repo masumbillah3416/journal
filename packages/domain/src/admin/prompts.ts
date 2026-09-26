@@ -37,7 +37,7 @@
  * asserts it against that function rather than against a second list of paths.
  * Depends on: `JourneyId`/`MediaId` (../ids).
  */
-import type { JourneyId, MediaId } from '../ids'
+import { mediaId, type JourneyId, type MediaId } from '../ids'
 
 /** Which of §2.1's four requests a prompt is. */
 export type PromptKind = 'pick-posters' | 'caption-them' | 'no-alt-text' | 'nothing-published'
@@ -197,4 +197,69 @@ export const prompts = (state: OverviewState): readonly Prompt[] => {
           },
         ]),
   ]
+}
+
+/**
+ * What one of this module's addresses asks the destination to open in.
+ *
+ * The other half of {@link prompts}: a link is only a deep link if the screen
+ * it lands on reads it, and a writer and a reader that disagree about a
+ * parameter's name are two modules that each look right on their own.
+ * `prompts.test.ts` round-trips one through the other rather than asserting a
+ * literal on both sides — `pendingChange.ts`'s `changeId`/`parsedChangeId`
+ * shape, for the same reason.
+ */
+export interface PromptedSelection {
+  /** The frame the destination selects, or `null` when none was named. */
+  readonly frame: MediaId | null
+  /** Whether §2.5's bulk caption panel opens expanded. */
+  readonly captionAll: boolean
+}
+
+/** A row id as Postgres writes one: digits, no sign, no leading zero, not zero. */
+const ROW = /^[1-9]\d*$/u
+
+/** The one value {@link prompts} writes for the bulk panel. */
+const CAPTION_ALL_ASKED = '1'
+
+/**
+ * The first value an address gives for a key.
+ *
+ * Next.js hands an ARRAY when a key repeats (`?frame=41&frame=67`), which is
+ * an address anybody can type. Taking the first is the same refusal-free
+ * reading `app/(admin)/admin/galleries/page.tsx` gives `?journey=`: a 500 for
+ * a malformed query string is worse than the default screen.
+ * @param value - The entry as Next.js parsed it.
+ * @returns The first value, or `undefined`.
+ */
+const first = (value: string | readonly string[] | undefined): string | undefined =>
+  typeof value === 'string' ? value : value?.[0]
+
+/**
+ * What one of §2.1's addresses asks §2.5's screen to open in.
+ *
+ * AN INVERSION (CLAUDE.md §3.3, `eslint-rules/guarded-server-actions.js`'s
+ * doctrine): the frame must BE a row id Postgres could have minted, rather
+ * than not be one of a list of spellings to reject — `041` is refused as well
+ * as `41x`, because a second spelling of one row is a second address for one
+ * frame. The bulk panel opens for exactly the value this module writes and for
+ * nothing else that happens to be truthy.
+ *
+ * @param query - The address's query string, as Next.js parsed it.
+ * @returns See {@link PromptedSelection}. Nothing here throws: every field has
+ *   an answer for an address that names nothing.
+ * @example
+ * promptedSelection({ frame: '41', captionAll: '1' }) // { frame: '41', captionAll: true }
+ * promptedSelection({ frame: 'media-41' }) // { frame: null, captionAll: false }
+ */
+export const promptedSelection = (
+  query: Readonly<Record<string, string | readonly string[] | undefined>>,
+): PromptedSelection => {
+  const asked = first(query['frame'])
+  const branded = asked !== undefined && ROW.test(asked) ? mediaId(asked) : null
+
+  return {
+    frame: branded !== null && branded.ok ? branded.value : null,
+    captionAll: first(query['captionAll']) === CAPTION_ALL_ASKED,
+  }
 }

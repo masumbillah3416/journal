@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { sectionColour } from './navigation'
-import { overviewStats, type OverviewFigures } from './overviewStats'
+import { bookSummary, overviewStats, type OverviewFigures } from './overviewStats'
 
 /**
  * A diary with nothing in it, so every case states the figures it is about.
@@ -101,5 +101,26 @@ describe('overviewStats', () => {
   it('keys each card by what it is, so the grid never addresses one by position', () => {
     // CLAUDE.md §0.9 applied to a list a component maps over.
     expect(overviewStats(figures()).map((stat) => stat.id)).toEqual(['journeys', 'pages', 'photographs', 'clips'])
+  })
+})
+
+describe('bookSummary', () => {
+  it('writes the prototype’s own line for the prototype’s own figures', () => {
+    expect(bookSummary({ pages: 33, bookmarks: 13, galleries: 4 })).toBe('33 pages · 13 bookmarks · 4 galleries open')
+  })
+
+  it('writes each of the three nouns in the singular when there is one of it', () => {
+    // Three arms, and in a repository read each is reachable only when the
+    // diary happens to hold exactly one of something — which is why the line
+    // is decided here rather than beside the query.
+    expect(bookSummary({ pages: 1, bookmarks: 1, galleries: 1 })).toBe('1 page · 1 bookmark · 1 gallery open')
+  })
+
+  it('writes zero in the plural, because "0 page" is a broken template', () => {
+    expect(bookSummary({ pages: 0, bookmarks: 0, galleries: 0 })).toBe('0 pages · 0 bookmarks · 0 galleries open')
+  })
+
+  it('keeps the three figures in the order §2.1 prints them, so none can be read for another', () => {
+    expect(bookSummary({ pages: 1, bookmarks: 2, galleries: 3 })).toBe('1 page · 2 bookmarks · 3 galleries open')
   })
 })

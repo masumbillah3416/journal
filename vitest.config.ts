@@ -608,6 +608,15 @@ export default defineConfig({
         // mutation modules above.
         'apps/web/lib/admin/readPendingChanges.ts',
         'apps/web/lib/admin/publishSelection.ts',
+        // Phase 4 Task 12's Overview. `readOverview.ts` is three `find`s, four
+        // `count`s and a `findGlobal`, and it calls `readPendingChanges` for
+        // the card the Publish screen also draws — so every one of the reasons
+        // directly above applies to it as well, plus its own: whether
+        // `photographs + clips` really is every row in the media library is a
+        // fact about how Postgres answers `kind not_equals 'clip'` on a column
+        // the ingest pipeline writes, and no stub has that. Same
+        // exclude-and-regate treatment.
+        'apps/web/lib/admin/readOverview.ts',
         // `mint-lighthouse-session.ts` (Phase 4 Task 3) creates an account and
         // issues a session through this repository's own session service, both
         // of which are rows in a real Postgres, so its only test is an

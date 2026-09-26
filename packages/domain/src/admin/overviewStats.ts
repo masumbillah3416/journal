@@ -103,6 +103,51 @@ const quantity = (count: number, none: string): string => {
 const draftNote = (drafts: number): string =>
   drafts === 0 ? 'all published' : `${quantity(drafts, 'none')} still a draft`
 
+/** The three figures SCREENS.md §2.1's "The book, live" summary line prints. */
+export interface BookReach {
+  /** Pages a reader can actually turn to — published ones. */
+  readonly pages: number
+  /** Journeys that get a bookmark in the rail. */
+  readonly bookmarks: number
+  /** Journeys with at least one frame in their gallery. */
+  readonly galleries: number
+}
+
+/**
+ * A count and its noun, in the number the count actually is.
+ * @param count - How many.
+ * @param singular - The noun for one.
+ * @param plural - The noun for any other number, including zero.
+ * @returns e.g. `'1 page'`, `'33 pages'`.
+ */
+const counted = (count: number, singular: string, plural: string): string =>
+  `${String(count)} ${count === 1 ? singular : plural}`
+
+/**
+ * SCREENS.md §2.1's summary line — the prototype's "33 pages · 13 bookmarks ·
+ * 4 galleries open".
+ *
+ * IT DESCRIBES WHAT A READER WOULD FIND, not what the author has: a line
+ * counting drafts would describe a book nobody can open, on the card whose
+ * whole heading is "The book, live".
+ *
+ * It lives here rather than in `readOverview.ts` because it is three
+ * singular/plural decisions and nothing else — and in a repository read those
+ * three arms are reachable only when the seeded diary happens to hold exactly
+ * one of something (CLAUDE.md §2.1: an arm no test can take is not a decision
+ * that has been made).
+ * @param reach - See {@link BookReach}.
+ * @returns The line, with its `·` separators.
+ * @example
+ * bookSummary({ pages: 33, bookmarks: 13, galleries: 4 }) // '33 pages · 13 bookmarks · 4 galleries open'
+ */
+export const bookSummary = (reach: BookReach): string =>
+  [
+    counted(reach.pages, 'page', 'pages'),
+    counted(reach.bookmarks, 'bookmark', 'bookmarks'),
+    `${counted(reach.galleries, 'gallery', 'galleries')} open`,
+  ].join(' · ')
+
 /**
  * SCREENS.md §2.1's four stat cards, in the order the grid prints them.
  *

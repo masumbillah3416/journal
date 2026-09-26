@@ -248,6 +248,10 @@ export default defineConfig({
         // publish, revert and restore operations.
         'apps/web/lib/admin/readPendingChanges.ts',
         'apps/web/lib/admin/publishSelection.ts',
+        // Phase 4 Task 12's Overview read, here for the reason stated in
+        // `vitest.config.ts`'s exclude: eight queries of its own plus the
+        // Publish screen's own read, and nothing to execute without a database.
+        'apps/web/lib/admin/readOverview.ts',
         // Phase 4 Task 3's minting script, here for the reason stated in
         // `vitest.config.ts`'s exclude: it writes a `users` row and a
         // `sessions` row, so nothing without a database can execute it.
@@ -633,6 +637,12 @@ export default defineConfig({
         // an empty book. The arms nothing can reach carry a `c8 ignore next`
         // with the reason at the line.
         'apps/web/lib/admin/readPendingChanges.ts': { lines: 100, branches: 100, functions: 100 },
+        // readOverview.ts (Phase 4 Task 12): 100% on every axis. Its
+        // unreachable arms — a relationship that is not a bare id at
+        // `depth: 0`, and an id Postgres minted that will not brand — carry
+        // `c8 ignore` hints with the reason at each, which is CLAUDE.md §2.1's
+        // treatment rather than a lowered bar.
+        'apps/web/lib/admin/readOverview.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/admin/publishSelection.ts': { lines: 100, branches: 100, functions: 100 },
         // mint-lighthouse-session.ts (Phase 4 Task 3): 100% on every axis. Its
         // two branches are the account that already exists and the account that

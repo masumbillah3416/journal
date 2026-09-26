@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { journeyId, mediaId, type JourneyId, type MediaId } from '../ids'
 import { activeNavId } from './navigation'
-import { prompts, type FrameNeed, type OverviewState } from './prompts'
+import { prompts, promptedSelection, type FrameNeed, type OverviewState } from './prompts'
 
 /**
  * A branded media id, for a test that is about the prompt rather than about
@@ -213,5 +213,70 @@ describe('prompts', () => {
     })
 
     expect(prompts(state).map((prompt) => prompt.kind)).toEqual(['pick-posters'])
+  })
+})
+
+describe('promptedSelection', () => {
+  /**
+   * The query a prompt's own href carries, as Next.js hands a page component.
+   * @param href - The prompt's href.
+   * @returns The parsed query, in Next's own shape.
+   */
+  const queryOf = (href: string): Record<string, string | string[] | undefined> =>
+    Object.fromEntries(new URL(href, 'https://example.test').searchParams.entries())
+
+  it('reads back the frame the "Pick posters" prompt named, without it being typed anywhere', () => {
+    // THE ROUND TRIP, which is the only thing that can say the writer and the
+    // reader agree — `changeId`/`parsedChangeId`'s shape one module along. A
+    // case asserting the literal `'41'` on both sides would pass for two
+    // modules that disagree about the parameter's NAME.
+    const state = anOverviewState({ clipsWithoutPosters: [aFrame('41', '9', 'Bergen')] })
+    const prompt = prompts(state).find((candidate) => candidate.kind === 'pick-posters')
+
+    expect(promptedSelection(queryOf(prompt?.href ?? '')).frame).toBe(aFrame('41').id)
+  })
+
+  it('opens the bulk panel for the "Caption them" prompt’s own address', () => {
+    const state = anOverviewState({ framesWithoutCaptions: [aFrame('12', '9', 'Bergen')] })
+    const prompt = prompts(state).find((candidate) => candidate.kind === 'caption-them')
+
+    expect(promptedSelection(queryOf(prompt?.href ?? '')).captionAll).toBe(true)
+  })
+
+  it('leaves the bulk panel shut for a prompt that did not ask for it', () => {
+    const state = anOverviewState({ clipsWithoutPosters: [aFrame('41')] })
+    const prompt = prompts(state).find((candidate) => candidate.kind === 'pick-posters')
+
+    expect(promptedSelection(queryOf(prompt?.href ?? '')).captionAll).toBe(false)
+  })
+
+  it('selects nothing for an address that names no frame', () => {
+    expect(promptedSelection({})).toEqual({ frame: null, captionAll: false })
+  })
+
+  it('refuses a frame that is not a row id Postgres could have minted', () => {
+    // AN INVERSION (standing orders, species 6): the value has to BE a row id
+    // rather than not be one of a list of bad spellings. `41x`, `-1`, `041`
+    // and the empty string are all addresses anybody can type.
+    expect(['41x', '-1', '041', '0', '', ' 41'].map((frame) => promptedSelection({ frame }).frame)).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ])
+  })
+
+  it('takes the first entry when a key repeats, because an address can say anything', () => {
+    // `?frame=41&frame=67` is an address anybody can type, and Next.js hands it
+    // over as an array. Refusing it outright would 500 on a typo.
+    expect(promptedSelection({ frame: ['41', '67'] }).frame).toBe(aFrame('41').id)
+  })
+
+  it('opens the bulk panel only for the value the prompt writes, not for any truthy string', () => {
+    expect(
+      [promptedSelection({ captionAll: '1' }), promptedSelection({ captionAll: 'yes' })].map((s) => s.captionAll),
+    ).toEqual([true, false])
   })
 })
