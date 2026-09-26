@@ -3631,7 +3631,19 @@ site-wide snapshots — "Edition 14 — Patagonia gallery recaptioned, cover clo
 a number and a summary of what each contained. Nothing records either: versions are per row and
 there is no publish log, so an edition number and its description would both be this
 repository's invention. The card lists every published version of every journey, newest first,
-with the newest marked live, capped at `EDITIONS_SHOWN`.
+capped at `EDITIONS_SHOWN`, with **each journey's own newest published version** marked live.
+
+**"Live" is per journey, and this entry used to say something weaker.** It read "with the
+newest marked live", which is true of a book with one journey and false of every other: a
+reader is served EACH journey's newest published version, so a book with ten journeys has ten
+live editions and the card draws as many filled marks as it has journeys in the list. The first
+implementation computed the flag over the whole listing — one live row per CARD — which drew
+nine of ten journeys' current editions as restorable history, with an enabled Restore and a
+title promising a change. Pressing one discarded that journey's pending draft for a published
+state that did not move. It is fixed (`readEditions` marks the first row of each `parent`, and
+`restoreEdition` refuses the row a reader is being served), and the sentence is corrected here
+because the vague version is what let it ship: an entry that describes a behaviour only in the
+abstract cannot be checked against the behaviour.
 
 **Rationale.** A media caption, an upload, a bookmark reorder and a cover title are written
 live by this repository's own writes — `mediaMutations.ts`, `galleryMutations.ts`,

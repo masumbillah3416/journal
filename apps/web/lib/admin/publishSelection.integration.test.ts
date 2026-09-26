@@ -338,6 +338,70 @@ describe('readEditions and restoreEdition', () => {
     expect(mine.map((edition) => edition.live)).toEqual([true, ...mine.slice(1).map(() => false)])
   })
 
+  it('marks the edition a reader is looking at for every journey, not only the most recently published one', async () => {
+    // TWO JOURNEYS, PUBLISHED ONE AFTER THE OTHER, and that is the whole
+    // point: a reader is served EACH journey's own newest published version,
+    // so "live" is per journey. The case above this one publishes a single
+    // journey and cannot see the difference — which is why a flag computed
+    // over the whole listing shipped.
+    const alpha = await aPublishedJourney('alpha')
+    const beta = await aPublishedJourney('beta')
+    await editJourney(alpha, 'alpha, second edition')
+    await publishSelection(payload, scope, [`journey:${String(alpha)}`])
+    await editJourney(beta, 'beta, second edition')
+    await publishSelection(payload, scope, [`journey:${String(beta)}`])
+
+    const editions = await readEditions(payload, scope)
+    const forOne = (label: string): readonly boolean[] =>
+      editions.filter((edition) => edition.what.includes(`${MARKER} ${label}`)).map((edition) => edition.live)
+
+    // BOTH JOURNEYS AND BOTH SIDES: each one's newest is live and each one's
+    // older is not, whichever of them was published last.
+    expect({ alpha: forOne('alpha'), beta: forOne('beta') }).toEqual({ alpha: [true, false], beta: [true, false] })
+  })
+
+  it('hands back each edition id as a string, which is what a hidden form field carries', async () => {
+    // ASSERTED AT RUNTIME, because the compiler cannot see this one: Payload
+    // TYPES the version id as a string and Postgres RETURNS a number, so
+    // `Edition.id` was typed `string` and held `724` (review F6). Everything
+    // downstream reads it as text — the hidden field, and the comparison
+    // `restoreEdition` makes against it.
+    const editions = await readEditions(payload, scope)
+
+    expect(editions.length).toBeGreaterThan(0)
+    expect(editions.map((edition) => typeof edition.id)).toEqual(editions.map(() => 'string'))
+  })
+
+  it('refuses to restore the edition a reader is already being served, and leaves the pending draft alone', async () => {
+    // WHAT THE LYING FLAG COST, and why the refusal is in the write as well as
+    // in the card. `restoreVersion` makes the restored version the latest one,
+    // so restoring the version a reader is ALREADY served changes nothing they
+    // can see and silently takes the author's unpublished draft off the
+    // Changes card. The card disables the control; this refuses the `POST`
+    // that reaches past it — the same pair `ChangesCard`'s Revert already has.
+    const gamma = await aPublishedJourney('gamma')
+    const delta = await aPublishedJourney('delta')
+    await editJourney(gamma, 'gamma, second edition')
+    await publishSelection(payload, scope, [`journey:${String(gamma)}`])
+    await editJourney(delta, 'delta, second edition')
+    await publishSelection(payload, scope, [`journey:${String(delta)}`])
+    await editJourney(gamma, 'gamma, third edition, unpublished')
+
+    const waitingBefore = (await readPendingChanges(payload, scope)).map((change) => change.id)
+    const gammas = (await readEditions(payload, scope)).filter((edition) => edition.what.includes(`${MARKER} gamma`))
+    const live = gammas[0]
+    if (live === undefined) throw new Error('the fixture published gamma twice and produced no edition')
+
+    expect(live.live, 'gamma is not the most recently published journey, and its newest edition is still live').toBe(
+      true,
+    )
+    await expect(restoreEdition(payload, scope, live.id)).rejects.toThrow(/already being served/u)
+
+    const waitingAfter = (await readPendingChanges(payload, scope)).map((change) => change.id)
+    expect(waitingBefore).toContain(`journey:${String(gamma)}`)
+    expect(waitingAfter, 'the pending draft is still waiting').toContain(`journey:${String(gamma)}`)
+  })
+
   it('puts an older edition back on the page a reader is looking at', async () => {
     const porto = await aPublishedJourney('porto-editions')
     await editJourney(porto, 'porto, second edition')
@@ -349,12 +413,22 @@ describe('readEditions and restoreEdition', () => {
     const first = older[0]
     if (first === undefined) throw new Error('the fixture published twice and produced one edition')
 
+    const elsewhere = await aPublishedJourney('porto-elsewhere')
+    const elsewherePages = await pagePathsOf(elsewhere)
+    const portoPages = await pagePathsOf(porto)
     const revalidated = await restoreEdition(payload, scope, first.id)
 
     // THE READER'S OWN PAGE, through the production mapper: a restore that
     // wrote a version nothing reads would pass any assertion about versions.
     expect(await publishedNote(porto)).toBe('porto-editions, as published')
-    expect(revalidated).toEqual(expect.arrayContaining([...(await pagePathsOf(porto))]))
+    expect(revalidated).toEqual(expect.arrayContaining([...portoPages]))
+    // AND NO OTHER JOURNEY'S, which is the side this case was missing (review
+    // F8). `restoreEdition` builds its own `PendingChange` — the journey, and
+    // the slug read off the version — and that construction was measured only
+    // on the inclusion side, on the very surface F1 then showed leaking
+    // across journeys.
+    expect(revalidated.filter((path) => elsewherePages.includes(path))).toEqual([])
+    expect(revalidated).not.toContain(`/gallery/${MARKER}-porto-elsewhere`)
   })
 
   it('lists at most as many editions as the card shows, and the boundary follows the constant', async () => {

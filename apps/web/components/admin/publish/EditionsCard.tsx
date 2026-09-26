@@ -18,15 +18,24 @@
  * both invented; and the diary serves the PUBLISHED row at every address, so a
  * version that is not the published one has no address for View to lead to.
  * What is real is every published version of every journey, newest first, with
- * the newest marked live — which is what this draws, and Restore is a real
- * write that puts an older one back.
+ * EACH JOURNEY'S newest marked live — which is what this draws, and Restore is
+ * a real write that puts an older one back.
  *
- * ═══ THE LIVE EDITION'S RESTORE IS OFF ═══
+ * ═══ EVERY LIVE EDITION'S RESTORE IS OFF, AND THERE IS ONE PER JOURNEY ═══
  *
  * Restoring the version a reader is already looking at writes a new version
- * identical to the live row and invalidates every path the journey occupies for
- * no change at all. The row is still drawn — it is the mark that says where the
- * book is — with its control disabled and a title saying why.
+ * identical to the live row, invalidates every path that journey occupies for
+ * no change at all, AND makes the restored version the latest one — which
+ * takes the journey's pending draft off the Changes card. The row is still
+ * drawn, because it is the mark that says where the book is, with its control
+ * disabled and a title saying why.
+ *
+ * THE FLAG IS PER JOURNEY, and this card believes it. It was computed over the
+ * whole listing once, which drew nine of ten journeys' CURRENT editions as
+ * restorable history with a title promising a change (review F1); the card was
+ * right and the flag was lying. `readEditions` marks the first row of each
+ * `parent` now, and `restoreEdition` refuses the same row, so a crafted `POST`
+ * meets the refusal this control only draws.
  *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. A list and one form per row.
  * Depends on: react, `Edition` (../../../lib/admin/readPendingChanges),

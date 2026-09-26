@@ -17,10 +17,21 @@ import { EditionsCard } from './EditionsCard'
 
 const roots: Root[] = []
 
-/** Three editions, newest first, as `readEditions` returns them. */
+/**
+ * Three editions across TWO journeys, newest first, as `readEditions` returns
+ * them.
+ *
+ * TWO OF THEM ARE LIVE, and that is the fixture's point. A reader is served
+ * EACH journey's own newest published version, so a real book has one live
+ * edition per journey — this fixture used to carry one live row in total,
+ * which is the shape that let `readEditions` mark one edition live for the
+ * whole diary and go unnoticed (review F1). The card spends the flag it is
+ * handed; what changed here is that the flag it is handed now looks like the
+ * real one.
+ */
 const THREE: readonly Edition[] = [
   { id: '904', at: '26 Aug 2026 · 19:04', what: 'Tokyo published', live: true },
-  { id: '903', at: '19 Aug 2026 · 08:22', what: 'Lisbon published', live: false },
+  { id: '903', at: '19 Aug 2026 · 08:22', what: 'Lisbon published', live: true },
   { id: '902', at: '2 Aug 2026 · 21:40', what: 'Tokyo published', live: false },
 ]
 
@@ -67,14 +78,16 @@ describe('EditionsCard', () => {
     expect(host.textContent).toContain('Lisbon published')
   })
 
-  it('fills the mark on the one edition readers are looking at, and rings the rest', () => {
+  it('fills the mark on every edition readers are being served, and rings the rest', () => {
     const host = renderCard()
 
     const marks = [...host.querySelectorAll('[data-edition-live]')].map((mark) =>
       mark.getAttribute('data-edition-live'),
     )
-    expect(marks).toEqual(['true', 'false', 'false'])
-    expect(marks.filter((mark) => mark === 'true')).toHaveLength(1)
+    // ONE PER JOURNEY, not one per card: two of these three rows are a
+    // journey's current edition. Both sides are present, so a card that
+    // filled every mark or none would fail here.
+    expect(marks).toEqual(['true', 'true', 'false'])
   })
 
   it('posts the version id a Restore would put back', () => {
@@ -87,15 +100,19 @@ describe('EditionsCard', () => {
     ])
   })
 
-  it('withholds Restore on the live edition and offers it on every other', () => {
+  it('withholds Restore on every live edition and offers it on the older ones', () => {
     // Restoring the version a reader is already looking at writes a new
-    // version identical to the live row and invalidates every path the journey
-    // occupies, for no change at all.
+    // version identical to the live row, invalidates every path that journey
+    // occupies for no change at all, AND takes the journey's pending draft off
+    // the Changes card — which is what made the flag's correctness a
+    // data-losing matter rather than a cosmetic one (review F1).
+    // `restoreEdition` refuses the same row, so a `POST` past this control is
+    // refused too.
     const host = renderCard()
 
     expect([...host.querySelectorAll<HTMLButtonElement>('button')].map((button) => button.disabled)).toEqual([
       true,
-      false,
+      true,
       false,
     ])
   })

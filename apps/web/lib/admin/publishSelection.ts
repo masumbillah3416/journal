@@ -170,6 +170,39 @@ export const publishSelection = async (
 }
 
 /**
+ * The newest PUBLISHED version of one row, which is the version a reader is
+ * being served.
+ *
+ * Shared by the two writes that both need it and would otherwise ask the same
+ * question twice: a revert restores it, and a restore of an OLDER edition must
+ * refuse it. `-updatedAt` with `limit: 1` rather than `latest: true`, because
+ * `latest` is the newest version of any status — on a row with a pending draft
+ * that is the draft, which is the opposite of what both callers want.
+ * @param payload - The Local API instance.
+ * @param scope - The hoisted {@link AdminScope}.
+ * @param collection - Which versioned collection the row is in.
+ * @param row - The row id.
+ * @returns The version, or `undefined` when the row has never been published.
+ */
+const newestPublishedVersion = async (
+  payload: Payload,
+  scope: AdminScope,
+  collection: 'journeys' | 'pages',
+  row: number,
+): Promise<{ readonly id: string | number } | undefined> => {
+  const published = await payload.findVersions({
+    collection,
+    ...scope,
+    depth: 0,
+    limit: 1,
+    sort: '-updatedAt',
+    select: { parent: true },
+    where: { and: [{ parent: { equals: row } }, { 'version._status': { equals: 'published' } }] },
+  })
+  return published.docs[0]
+}
+
+/**
  * Discards one pending change, putting the row back to the version readers are
  * already looking at.
  *
@@ -195,23 +228,12 @@ export const revertChange = async (payload: Payload, scope: AdminScope, id: stri
   const parsed = parsedChangeId(id)
   if (parsed === null) throw new Error(`revertChange: ${id} names nothing this screen can revert`)
 
-  const collection = COLLECTION[parsed.kind]
-  const published = await payload.findVersions({
-    collection,
-    ...scope,
-    depth: 0,
-    limit: 1,
-    sort: '-updatedAt',
-    select: { parent: true },
-    where: { and: [{ parent: { equals: parsed.row } }, { 'version._status': { equals: 'published' } }] },
-  })
-
-  const newest = published.docs[0]
+  const newest = await newestPublishedVersion(payload, scope, COLLECTION[parsed.kind], parsed.row)
   if (newest === undefined) {
     throw new Error(`revertChange: ${id} has never been published, so there is nothing behind it to go back to`)
   }
 
-  await payload.restoreVersion({ collection, id: newest.id, ...scope })
+  await payload.restoreVersion({ collection: COLLECTION[parsed.kind], id: String(newest.id), ...scope })
 }
 
 /**
@@ -246,6 +268,18 @@ export const restoreEdition = async (
   const branded = journeyId(String(parent))
   /* c8 ignore next -- `journeyId` refuses only the empty string and this id came from Postgres; guarded rather than asserted, because CLAUDE.md §0.8 bans the `!`. */
   if (!branded.ok) throw new Error(`restoreEdition: ${edition} names no journey`)
+
+  // THE LIVE EDITION IS REFUSED, and this is the write half of a pair.
+  // `restoreVersion` makes the restored version the LATEST one, so restoring
+  // the version a reader is already served changes nothing they can see and
+  // silently takes the author's pending draft off the Changes card.
+  // `EditionsCard.tsx` disables that row's control; this refuses the `POST`
+  // that reaches past it, exactly as `revertChange` refuses a row with nothing
+  // behind it. Review F1 is what this pair closes.
+  const newest = await newestPublishedVersion(payload, scope, 'journeys', parent)
+  if (newest !== undefined && String(newest.id) === edition) {
+    throw new Error(`restoreEdition: ${edition} is the edition readers are already being served`)
+  }
 
   const change: PendingChange = {
     id: changeId('journey', parent),

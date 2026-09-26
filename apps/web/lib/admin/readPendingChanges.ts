@@ -122,6 +122,22 @@ const WHEN = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', 
 const ownerOf = (journey: unknown): number | null => (typeof journey === 'number' ? journey : null)
 
 /**
+ * A version's own row id, as the string a hidden form field carries back.
+ *
+ * TAKES `unknown` ON PURPOSE. Payload TYPES `findVersions`' `id` as a string
+ * and Postgres HANDS BACK A NUMBER — a failing-run dump showed
+ * `{ id: 724, … }`, unquoted — so a `String()` applied to the typed value is a
+ * no-op to the compiler and the linter, and the conversion that is actually
+ * needed never happens. Widening to `unknown` first is what makes the call
+ * real. The mismatch is Payload's; the narrow type is this module's, because
+ * {@link Edition.id} is posted and `restoreEdition` compares it as text
+ * (review F6).
+ * @param id - The version's id, as Payload typed it and Postgres returned it.
+ * @returns The same id, as a string.
+ */
+const versionId = (id: unknown): string => String(id)
+
+/**
  * The row id a version's `parent` names.
  *
  * Payload types `parent` as `string | number`, because a Mongo adapter mints
@@ -339,7 +355,17 @@ export interface Edition {
   readonly at: string
   /** The description, Garamond 16.5px / 1.35. */
   readonly what: string
-  /** Whether this is the edition a reader is looking at, which gets the filled mark. */
+  /**
+   * Whether this is the edition a reader is looking at — which gets the filled
+   * mark, and whose Restore is withheld.
+   *
+   * PER JOURNEY, NOT PER LIST. A reader is served EACH journey's own newest
+   * published version, so every journey has exactly one live edition. The
+   * first version of this marked `index === 0` over the whole listing, which
+   * on a book with ten journeys drew nine current editions as restorable
+   * history — and pressing one of those discards that journey's pending draft
+   * for a published state that does not change (review F1).
+   */
   readonly live: boolean
 }
 
@@ -392,14 +418,25 @@ export const readEditions = async (payload: Payload, scope: AdminScope): Promise
     where: { 'version._status': { equals: 'published' } },
   })
 
-  return published.docs.map((version, index) => ({
-    // The version's own row id, as a string because that is what a hidden
-    // form field carries it back as.
-    id: version.id,
-    at: EDITION_WHEN.format(new Date(version.updatedAt)).replace(', ', ' · '),
-    what: `${version.version.name} published`,
-    // THE FIRST ROW IS THE LIVE ONE, because the list is sorted newest first
-    // and a reader is looking at the newest published version of the book.
-    live: index === 0,
-  }))
+  // THE FIRST ROW OF EACH JOURNEY IS THAT JOURNEY'S LIVE ONE, because the list
+  // is sorted newest first and a reader is served each journey's own newest
+  // published version. Not the first row of the LIST: that marks one edition
+  // live for the whole book and lies about every other journey — see
+  // {@link Edition.live}.
+  const seen = new Set<number>()
+
+  return published.docs.map((version) => {
+    const parent = parentRow(version.parent)
+    const live = !seen.has(parent)
+    seen.add(parent)
+
+    return {
+      // The version's own row id — see `versionId` for why the conversion is
+      // not the no-op the types make it look like.
+      id: versionId(version.id),
+      at: EDITION_WHEN.format(new Date(version.updatedAt)).replace(', ', ' · '),
+      what: `${version.version.name} published`,
+      live,
+    }
+  })
 }
