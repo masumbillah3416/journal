@@ -117,6 +117,22 @@ export interface FrameGridProps {
   readonly journeys: readonly GalleryChoice[]
   /** The journey's frames, in the order the public gallery reads them. */
   readonly frames: readonly FrameRow[]
+  /**
+   * The frame the ADDRESS names, or `null`.
+   *
+   * SCREENS.md §2.1's prompts deep-link here — "'Pick posters' resolves the
+   * first clip with no poster and selects it by id" — and a destination that
+   * ignored the parameter would land on its own first tile: a dead deep link
+   * that renders perfectly. It is an INITIAL value, not a controlled one: once
+   * an author presses a tile, the address has had its say.
+   */
+  readonly initialFrame: MediaId | null
+  /**
+   * Whether the address asked for §2.5's bulk caption panel.
+   *
+   * §2.1's other half: "'Caption them' opens the bulk panel already expanded".
+   */
+  readonly initialBulkOpen: boolean
   /** Whether this deployment draws clip affordances (design spec §9.3). */
   readonly showsClips: boolean
   /** Writes the whole arrangement. */
@@ -157,6 +173,8 @@ export const FrameGrid = ({
   journey,
   journeys,
   frames,
+  initialFrame,
+  initialBulkOpen,
   showsClips,
   setFrameOrder,
   setFrameText,
@@ -175,9 +193,13 @@ export const FrameGrid = ({
     setArrangement(frames)
   }
 
-  // AN ID, NEVER AN INDEX (CLAUDE.md §0.9, §2.5 in bold).
-  const [selected, setSelected] = useState<MediaId | null>(frames[0]?.id ?? null)
-  const [bulkOpen, setBulkOpen] = useState(false)
+  // AN ID, NEVER AN INDEX (CLAUDE.md §0.9, §2.5 in bold). THE ADDRESS GOES
+  // FIRST when it names one — an Overview prompt's `?frame=` — and the id is
+  // still RESOLVED against the list on screen below, so an address naming a
+  // frame this gallery does not hold falls back to the first rather than
+  // leaving the panel empty over a grid with tiles in it (GAL-001).
+  const [selected, setSelected] = useState<MediaId | null>(initialFrame ?? frames[0]?.id ?? null)
+  const [bulkOpen, setBulkOpen] = useState(initialBulkOpen)
   const [, startTransition] = useTransition()
   const router = useRouter()
 

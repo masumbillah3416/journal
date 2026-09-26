@@ -29,6 +29,7 @@ import { ADMIN_NAV, type NavEntry } from '@travel-diary/domain/admin/navigation'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { draftJourneysChipLabel } from '@travel-diary/domain/admin/journeyStatus'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -136,9 +137,26 @@ describe('ScreenHeader', () => {
     expect(drawn).toEqual([true, true, true])
   })
 
-  it('counts the journeys waiting to go out, rather than printing a fixed word', () => {
-    expect(renderHeader({ unpublished: 7, savedAt: null, previewHref: null }).textContent).toContain('7 unpublished')
-    expect(renderHeader({ unpublished: 1, savedAt: null, previewHref: null }).textContent).toContain('1 unpublished')
+  it('counts the journeys that have never gone out, rather than printing a fixed word', () => {
+    expect(renderHeader({ unpublished: 7, savedAt: null, previewHref: null }).textContent).toContain(
+      draftJourneysChipLabel(7),
+    )
+    expect(renderHeader({ unpublished: 1, savedAt: null, previewHref: null }).textContent).toContain(
+      draftJourneysChipLabel(1),
+    )
+  })
+
+  it('says what the chip counts, so it cannot be read as the number the Publish screen prints', () => {
+    // PUB-001 (`docs/deviations.md` §91): this chip and §2.8's headline count
+    // DIFFERENT things and were both labelled as if they counted one — "1
+    // unpublished" beside "4 changes waiting" on the same screen. Asserted
+    // against the literal here rather than only against the domain function, so
+    // a relabel that kept the ambiguous word fails at the surface a reader sees.
+    const chip = renderHeader({ unpublished: 4, savedAt: null, previewHref: null }).querySelector(
+      '[data-control="unpublished"]',
+    )
+
+    expect(chip?.textContent).toBe('4 journeys never published')
   })
 
   it('draws no control a screen did not hand it, so the shell invents no chrome', () => {

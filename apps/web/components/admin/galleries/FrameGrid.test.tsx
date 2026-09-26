@@ -115,6 +115,10 @@ interface GridOptions {
   readonly frames: readonly FrameRow[]
   /** Which frame the case wants on the panel. The harness presses its tile. */
   readonly selected?: MediaId
+  /** The frame the ADDRESS names, as §2.1's prompts write it. */
+  readonly initialFrame?: MediaId | null
+  /** Whether the address asked for the bulk caption panel. */
+  readonly initialBulkOpen?: boolean
   readonly showsClips?: boolean
   readonly setFrameOrder?: (journey: string, order: readonly string[]) => Promise<void>
   readonly setFrameText?: (id: string, caption: string, alt: string) => Promise<void>
@@ -133,6 +137,8 @@ const gridOf = (options: GridOptions): React.JSX.Element => (
     journey={aJourneyId('7')}
     journeys={JOURNEYS}
     frames={options.frames}
+    initialFrame={options.initialFrame ?? null}
+    initialBulkOpen={options.initialBulkOpen ?? false}
     showsClips={options.showsClips ?? true}
     setFrameOrder={options.setFrameOrder ?? noWrite}
     setFrameText={options.setFrameText ?? noWrite}
@@ -803,5 +809,59 @@ describe('FrameGrid — the panel’s writes', () => {
     const caption = host.querySelector('[data-frame-caption]')
 
     expect(caption instanceof HTMLInputElement ? caption.value : null).toBe('Second')
+  })
+})
+
+describe('FrameGrid, opened from an Overview prompt', () => {
+  it('selects the frame the address names, rather than the gallery’s first tile', () => {
+    // SCREENS.md §2.1 in bold: "'Pick posters' resolves the first clip with no
+    // poster and SELECTS IT BY ID". A destination that landed on its own first
+    // tile would be a dead deep link that renders perfectly.
+    const frames = [aFrame('1'), aFrame('2'), aFrame('3')]
+    const host = renderGalleries({ frames, initialFrame: anId('3') })
+
+    expect(host.querySelector('[data-selected-frame]')?.getAttribute('data-frame-id')).toBe('3')
+  })
+
+  it('highlights that same frame in the grid, so the panel and the tile agree', () => {
+    const frames = [aFrame('1'), aFrame('2'), aFrame('3')]
+    const host = renderGalleries({ frames, initialFrame: anId('3') })
+    const highlighted = [...host.querySelectorAll('[data-frame-id][data-highlighted="true"]')]
+
+    expect(highlighted.map((tile) => tile.getAttribute('data-frame-id'))).toEqual(['3'])
+  })
+
+  it('still leads with the first frame when the address names none', () => {
+    // The other side of the boundary: without this, a component that ALWAYS
+    // selected the last frame would satisfy the case above.
+    const frames = [aFrame('1'), aFrame('2'), aFrame('3')]
+    const host = renderGalleries({ frames, initialFrame: null })
+
+    expect(host.querySelector('[data-selected-frame]')?.getAttribute('data-frame-id')).toBe('1')
+  })
+
+  it('falls back to the first frame when the address names one this gallery does not hold', () => {
+    // An address anybody can type, and the state a prompt reaches after the
+    // frame has been moved to another journey. Resolving rather than trusting
+    // is GAL-001's own fix, applied to a value from outside.
+    const frames = [aFrame('1'), aFrame('2')]
+    const host = renderGalleries({ frames, initialFrame: anId('404') })
+
+    expect(host.querySelector('[data-selected-frame]')?.getAttribute('data-frame-id')).toBe('1')
+  })
+
+  it('opens the bulk caption panel when the address asks for it', () => {
+    // §2.1's other half: "'Caption them' opens the bulk panel already expanded".
+    const frames = [aFrame('1', { caption: '' })]
+    const host = renderGalleries({ frames, initialBulkOpen: true })
+
+    expect(host.querySelector('[data-caption-all]')?.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('leaves the bulk panel shut when the address does not ask for it', () => {
+    const frames = [aFrame('1', { caption: '' })]
+    const host = renderGalleries({ frames, initialBulkOpen: false })
+
+    expect(host.querySelector('[data-caption-all]')?.getAttribute('aria-expanded')).toBe('false')
   })
 })

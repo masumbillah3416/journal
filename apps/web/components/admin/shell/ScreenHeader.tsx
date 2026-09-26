@@ -8,6 +8,12 @@
  * avoid one address along. Each control is a nullable prop: a screen with
  * nothing to say passes `null` and the control is not rendered.
  *
+ * THE CHIP SAYS WHAT IT COUNTS, WHICH SCREENS.md §2's OWN WORDING DOES NOT.
+ * §2 writes it "n unpublished"; here that number and §2.8's "{n} changes
+ * waiting" count different things, so both wearing the same word put two
+ * disagreeing numbers on one screen. `draftJourneysChipLabel` carries the
+ * argument and `docs/deviations.md` §91 records it.
+ *
  * THE THREE HIDING WIDTHS ARE `shell.module.css`'S, NOT THIS FILE'S, and each
  * control carries the `data-control` name that stylesheet hides it by. A
  * server render has never seen a viewport (`readingSurface.ts`'s header), and
@@ -19,6 +25,7 @@
  * Depends on: react, `NavEntry` (@travel-diary/domain/admin/navigation),
  * ./shell.module.css.
  */
+import { draftJourneysChipLabel } from '@travel-diary/domain/admin/journeyStatus'
 import type { NavEntry } from '@travel-diary/domain/admin/navigation'
 import type React from 'react'
 import styles from './shell.module.css'
@@ -29,7 +36,16 @@ export interface ScreenHeaderProps {
   readonly screen: NavEntry
   /** The line above the title, in Courier at `.26em`. */
   readonly crumb: string
-  /** How many journeys are waiting to go out; no chip at zero. */
+  /**
+   * How many live journeys have NEVER been published; no chip at zero.
+   *
+   * NOT "how many changes are waiting", which is §2.8's headline and a bigger
+   * number: a journey edited after publishing is waiting and is not counted
+   * here. The two were both labelled "n unpublished" until Task 12, and drew
+   * "1 unpublished" beside "4 changes waiting" on one screen (PUB-001,
+   * `docs/deviations.md` §91). `draftJourneysChipLabel` is what the chip says
+   * now, and it says which of the two this is.
+   */
   readonly unpublished: number
   /** What the saved chip says, or `null` on a screen that saves nothing. */
   readonly savedAt: string | null
@@ -70,7 +86,7 @@ export const ScreenHeader = ({
       {unpublished === 0 ? null : (
         <span data-control="unpublished" className={styles.chipUnpublished}>
           <span className={styles.chipMark} aria-hidden="true" />
-          {`${String(unpublished)} unpublished`}
+          {draftJourneysChipLabel(unpublished)}
         </span>
       )}
 

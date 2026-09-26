@@ -141,6 +141,26 @@ const AN_IDENTIFIER_THAT_RESOLVES_NOWHERE = 'thereIsNoSuchSymbolAsThisOneAnywher
  */
 const PATHS_THAT_NAME_NO_FILE: readonly { readonly citation: string; readonly why: string }[] = [
   {
+    citation: 'admin-overview.png',
+    why: 'a visual baseline Phase 4 Task 12 OWES rather than holds: it must be generated in the pinned Playwright Linux container, and docs/deviations.md §86 says so at the citation. This exemption fails the moment Task 15 commits the file, which is the point',
+  },
+  {
+    citation: 'apps/web/components/admin/PanelHome.tsx',
+    why: 'deleted by Phase 4 Task 12; docs/deviations.md §44 is a REVERSED entry whose first paragraph says the file is gone, and the entry is kept because the reasoning it records is still cited',
+  },
+  {
+    citation: 'PanelHome.tsx',
+    why: 'the same deleted file, named by its basename in §44’s reversal note',
+  },
+  {
+    citation: 'PanelHome.test.tsx',
+    why: 'deleted with the component it covered; named by §44’s reversal note and its "Recorded as" line',
+  },
+  {
+    citation: 'panel.module.css',
+    why: 'deleted with PanelHome; §44 names it in the same two places and states that none of it survived',
+  },
+  {
     citation: '.superpowers/sdd/2026-09-01-phase-1-public-diary/lcp-floor-report.md',
     why: 'the SDD working directory is untracked and no commit ever held it; ADR 0008 says so at the citation and carries the reproduction method itself',
   },

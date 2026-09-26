@@ -394,8 +394,12 @@ test('opens the admin panel from the signed-in screen’s primary action', async
     page.getByRole('link', { name: 'Open the admin panel' }).click(),
   ])
 
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Still being furnished')
-  await expect(page.getByRole('link', { name: 'Read the diary' })).toHaveAttribute('href', '/p/1')
+  // Phase 4 Task 12 replaced the holding screen this case used to land on with
+  // SCREENS.md §2.1's Overview, so the heading is the shell's screen title and
+  // the way back to the diary is the book card's "Open live" — the same
+  // `pagePath(0)` the holding screen's "Read the diary" carried.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Overview')
+  await expect(page.getByRole('link', { name: 'Open live' })).toHaveAttribute('href', '/p/1')
   expect(failures, 'opening the admin panel produced console errors, page errors or 4xx/5xx responses').toEqual([])
 })
 

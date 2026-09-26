@@ -517,25 +517,31 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
 ### `GET /admin`
 
 - **Path:** `apps/web/app/(admin)/admin/page.tsx`; the frame is
-  `apps/web/components/admin/shell/AdminShell.tsx` and the pane inside it is
-  `apps/web/components/admin/PanelHome.tsx`.
-- **Method:** `GET`. This route answers nothing else.
+  `apps/web/components/admin/shell/AdminShell.tsx` and the screen inside it is
+  `apps/web/components/admin/overview/` — `StatGrid.tsx`, `WaitingCard.tsx`,
+  `LiveBookCard.tsx`, `PromptsCard.tsx`, `LatelyCard.tsx` and `CopyLink.tsx`.
+- **Method:** `GET`. This route answers nothing else; the Revert on each waiting row is
+  `app/(admin)/admin/publish/actions.ts`'s Server Action, with its own opaque `POST`
+  address.
 - **Input:** the session cookie, and nothing else. No path parameter, no query, no body.
 - **Output:** an HTML document: `SCREENS.md` §2's shell — the 238px rail with its nine
   buttons, the counts beside four of them, the profile block and the sign-out form; the
-  96px header with its crumb over the screen title "Overview" — around the pane, which is a
-  "The back room" eyebrow, the level-two heading "Still being furnished", a line saying
-  what is behind the door today, the four groups of screens `SCREENS.md` §2 specifies, a
-  primary "Read the diary" to `/p/1`, and a borderless "Sign out and start again" posting
-  to `/admin/sign-out`. `metadata` sets the document title and
+  96px header with its crumb ("4 changes waiting") over the screen title "Overview" —
+  around §2.1's Overview: a four-card stat grid (Journeys, Pages, Photographs, Clips, each
+  with a derived figure, a note and a coloured tick), "Waiting to go out" with one row per
+  pending change and a Revert, "The book, live" with a 78x104px cloth chip, the summary
+  line, the publish date and Open live / Copy link, "Needs a look" with one deep-linking
+  prompt per outstanding job, and "Lately". `metadata` sets the document title and
   `robots: { index: false, follow: false }`.
-- **Reads:** two call sites, five queries, under one hoisted `adminScope` —
-  `readNavCounts` (four `payload.count` calls, one per rail number) and one
-  `findGlobal('site')` selecting `name` for the masthead. Plus the one `users` row
+- **Reads:** three call sites, **eighteen queries**, under ONE hoisted `adminScope` —
+  `readNavCounts` (four `payload.count` calls, one per rail number), one
+  `findGlobal('site')` selecting `name` for the masthead, and `readOverview`
+  (`QUERIES_PER_READ`: three `find`s, four `count`s and one `findGlobal` of its own, plus
+  `readPendingChanges`' four and `readEditions`' one). Plus the one `users` row
   `adminScope` itself resolves, which is what the scope is. The scope is resolved ONCE and
   spread; resolving it per call site would be one `users` lookup per operation
   (CLAUDE.md §7).
-- **Errors:** none observable from the screen's own content. A refused count would throw
+- **Errors:** none observable from the screen's own content. A refused read would throw
   before anything is drawn, which is a bug in the guard that admitted the session rather
   than a state this screen draws.
 - **Auth requirement:** **signed in.** `requireAdminSession` runs before anything is
@@ -545,33 +551,36 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
 - **Notes:** **this address had nothing mounted at it, and that was blocker B2.**
   `SCREENS.md` §3.4's signed-in pane has a primary action, "Open the admin panel", pointing
   here; verified against the built route manifest, `/admin` had no entry, so a reader who
-  completed the entire sign-in journey and pressed the primary button got a `404`. There
-  was no row here for it, no `docs/deviations.md` entry and no e2e case walking it.
+  completed the entire sign-in journey and pressed the primary button got a `404`. Phase 2
+  answered it with a holding screen, "Still being furnished", and `docs/deviations.md` §44
+  named its own reversal. **Phase 4 Task 12 is that reversal**: the holding screen and its
+  stylesheet are deleted and this route draws §2.1.
 
-  **The screen itself is ours, not the handoff's** (`docs/deviations.md` §44): §2 describes
-  the panel, and Phase 4 builds it. The two alternatives were a `404` — the defect as found
-  — and a redirect back to `/admin/sign-in/done`, which makes the primary action a button
-  that visibly does nothing, the same silent-failure species as the resend that sent no
-  code. Phase 4 replaces the whole of this route.
+  **It is the first guarded address that is not part of signing in**, which is why
+  `e2e/signInJourney.spec.ts` walks it in both directions: from the signed-in screen's own
+  button, and from a browser with no session at all.
 
-  **It is the first guarded address on this surface that is not part of signing in**, which
-  is why `e2e/signInJourney.spec.ts` walks it in both directions: from the signed-in
-  screen's own button, and from a browser with no session at all.
+  **THE WAITING CARD AND `/admin/publish` REPORT ONE SET.** Both read
+  `apps/web/lib/admin/readPendingChanges.ts`, and `readOverview.integration.test.ts`
+  asserts the two answers are the same list — two screens counting the same thing
+  differently is the defect `journeyStatus.ts` exists to avoid. The header's chip is a
+  DIFFERENT number and now says so: it counts journeys that have never been published, and
+  reads "n journeys never published" (`docs/deviations.md` §91).
 
-  **ONLY THIS ADDRESS IS MOUNTED, of the nine the rail offers.** The rail is drawn from
-  `ADMIN_NAV`, which addresses every screen `SCREENS.md` §2 specifies, and Tasks 4-14 of
-  Phase 4 mount them one at a time — so until each lands, its button answers with Next's
-  own not-found page. That is an intermediate state of a phase, not a defect to file, and
-  it is written here because the panel is the one screen a reader meets and this row is the
-  one document describing it. It is behind the session guard, so no public reader reaches
-  it. `packages/domain/src/admin/navigation.ts`'s header says the same thing beside the
-  table itself.
+  **THE PROMPTS ARE DEEP LINKS, AND THE DESTINATION READS THEM.** "Pick posters" and "Add
+  alt text" carry `?journey=<id>&frame=<id>`, "Caption them" adds `&captionAll=1`, and
+  `app/(admin)/admin/galleries/page.tsx` parses all three with `promptedSelection` — the
+  inverse of the function that writes them. `e2e/admin.spec.ts` reads the id off the
+  prompt's own `href` BEFORE the click and compares it with the frame the gallery
+  highlighted.
 
-  **Phase 4 Task 3 put `SCREENS.md` §2's shell around it**, so this route is now what
-  proves the frame the next eleven screens hang in actually draws. Nothing under the shell
-  is a client component, and `e2e/admin.spec.ts` is what asserts the rail against the
-  domain's own entry table in a real browser. It is also the first guarded address with a
-  performance budget — see `docs/testing.md` §7.
+  **ONE CLIENT ENTRY**, `components/admin/overview/CopyLink.tsx`: putting an address on the
+  clipboard is a browser capability with no form post behind it. The other five files in
+  that directory ship nothing, and `lib/admin/shellShipsNoClientJs.test.ts` names the island
+  in an allowlist that is now **eight** entries and fails by name and by length.
+
+  **It carries a performance budget** — see `docs/testing.md` §7 and
+  `lighthouserc.admin.json`, which names this address.
 
 ### `GET /admin/journeys`
 

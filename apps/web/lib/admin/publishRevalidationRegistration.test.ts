@@ -111,11 +111,17 @@ const ANSWERS_THE_PATHS = ['const paths = await publishRows(', 'const paths = aw
  * move it — a publish and a revert obviously, and a restore because
  * `restoreVersion` makes the restored version the latest one, which takes a
  * pending draft off the list.
+ *
+ * `/admin` joined all three in Phase 4 Task 12, when `SCREENS.md` §2.1's
+ * Overview was mounted there: its "Waiting to go out" card reads this module's
+ * own `readPendingChanges`, and its crumb and stat grid count the same set. The
+ * ORDER matters here as well as the membership — this is a `toEqual` over the
+ * calls in source order, so a path added in the wrong write fails too.
  */
 const REVALIDATED: Readonly<Record<string, readonly string[]>> = {
-  publishChanges: [COMPUTED, '/admin/publish', '/admin/journeys', '/admin/sign-in/done'],
-  revertOneChange: ['/admin/publish', '/admin/journeys', '/admin/sign-in/done'],
-  restoreOneEdition: [COMPUTED, '/admin/publish', '/admin/journeys', '/admin/sign-in/done'],
+  publishChanges: [COMPUTED, '/admin/publish', '/admin', '/admin/journeys', '/admin/sign-in/done'],
+  revertOneChange: ['/admin/publish', '/admin', '/admin/journeys', '/admin/sign-in/done'],
+  restoreOneEdition: [COMPUTED, '/admin/publish', '/admin', '/admin/journeys', '/admin/sign-in/done'],
 }
 
 /** A `const NAME = '…'` binding at the top of the actions module. */

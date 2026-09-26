@@ -538,14 +538,17 @@ test('has no axe violations on /admin, the admin panel’s root', async ({ page,
     },
   ])
   await page.goto('/admin')
-  // The pane is drawn AND the heading is present before axe looks: a route
+  // The screen is drawn AND its headings are present before axe looks: a route
   // that rendered an empty shell would have no violations either. The level-one
   // heading is the SHELL's since Phase 4 Task 3 — the screen's own title, out
-  // of `ADMIN_NAV` — and the pane's "Still being furnished" is the level two
-  // beneath it, which is why both are asserted here rather than one.
-  await expect(page.locator('[data-admin-panel]')).toBeVisible()
+  // of `ADMIN_NAV` — and §2.1's cards are the level twos beneath it, which is
+  // why both are asserted here rather than one. FIVE of them, counted rather
+  // than sampled: a screen that drew one card would satisfy a `toBeVisible` on
+  // whichever one the case happened to name, and axe has nothing to say about a
+  // card that is missing.
+  await expect(page.locator('[data-admin-overview]')).toBeVisible()
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Overview')
-  await expect(page.getByRole('heading', { level: 2, name: 'Still being furnished' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(5)
 
   await expectNoAxeViolations(page)
 })

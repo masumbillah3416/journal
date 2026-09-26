@@ -71,3 +71,34 @@ export const JOURNEY_STATUS_FILTERS: readonly ('all' | JourneyStatus)[] = [
   'draft',
   'archived',
 ]
+
+/**
+ * What SCREENS.md §2's header chip reads.
+ *
+ * ═══ IT SAYS WHAT IT COUNTS, WHICH §2's OWN WORDING DOES NOT ═══
+ *
+ * HANDOFF-DEVIATION (docs/deviations.md §91): §2 writes the chip as "n
+ * unpublished", and the handoff's prototype computes it from the SAME list its
+ * Publish screen counts (`pending.length`, rendered twice), so the two numbers
+ * can never disagree there. Here they can. The chip is `readNavCounts`'
+ * `unpublished` — live journeys whose `_status` is `draft`, which is
+ * {@link journeyStatus}'s `'draft'` — and §2.8's headline is
+ * `readPendingChanges().length`, every ROW whose newest version is a draft. A
+ * diary with three journeys edited after publishing and one never published
+ * drew **"1 unpublished" beside "4 changes waiting"** on one screen
+ * (`docs/qa/2026-09-26-publish-sweep.md`, PUB-001).
+ *
+ * TWO NUMBERS ON ONE SCREEN DESCRIBING THE SAME THING DIFFERENTLY is the
+ * defect this module was written to avoid, so one of them had to move. Making
+ * the chip count the pending set is four more queries on twelve screens — the
+ * rail is drawn on every one — and the chip is chrome that no screen owns. So
+ * the LABEL moves instead: it is not wrong about anything once it says what it
+ * counts, and it costs nothing.
+ *
+ * @param count - Live journeys that have never been published.
+ * @returns The chip's copy, in the number the count actually is.
+ * @example
+ * draftJourneysChipLabel(1) // '1 journey never published'
+ */
+export const draftJourneysChipLabel = (count: number): string =>
+  `${String(count)} ${count === 1 ? 'journey' : 'journeys'} never published`

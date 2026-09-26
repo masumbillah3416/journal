@@ -33,6 +33,7 @@
  * ../testPayload, ./adminScope, ./readNavCounts, ./readPendingChanges,
  * ./readOverview.
  */
+import { fitChipTitleSize, fitPreviewTitleSize } from '@travel-diary/domain/coverTitle'
 import { userId, type UserId } from '@travel-diary/domain/ids'
 import type { Payload } from 'payload'
 import sharp from 'sharp'
@@ -381,7 +382,27 @@ describe('readOverview', () => {
     const book = await payload.findGlobal({ slug: 'book', ...scope, depth: 0 })
     const view = await readOverview(payload, scope)
 
-    expect([view.book.title, view.book.years]).toEqual([book.title ?? '', book.yearsShown ?? ''])
+    expect([view.book.title, view.book.years, view.book.cloth]).toEqual([
+      book.title ?? '',
+      book.yearsShown ?? '',
+      book.coverCloth ?? '',
+    ])
+  })
+
+  it('fits the title to the chip’s own 78px box, not to the cover preview’s 172px one', () => {
+    // The two answers held side by side, which is the only comparison that can
+    // say the chip took its own fit: a single reading agrees with whichever
+    // fitter produced it (standing order 14).
+    const title = 'Wanderings'
+
+    expect(fitChipTitleSize(title)).toBeLessThan(fitPreviewTitleSize(title))
+  })
+
+  it('takes the size the chip’s own fitter answers for the title the global holds', async () => {
+    const book = await payload.findGlobal({ slug: 'book', ...scope, depth: 0 })
+    const view = await readOverview(payload, scope)
+
+    expect(view.book.titleSizePx).toBe(fitChipTitleSize(book.title ?? ''))
   })
 
   it('prompts for the first clip with no poster, by its own id and its own journey', async () => {

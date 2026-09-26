@@ -565,11 +565,24 @@ test('matches the baseline screenshot of the signed-in screen', async ({ page, c
   await expect(page).toHaveScreenshot('admin-signed-in.png', { fullPage: true })
 })
 
-test('matches the baseline screenshot of the admin panel’s root', async ({ page, context, baseURL }, testInfo) => {
-  // The screen `/admin` draws, which had nothing mounted at it until Phase 2's
-  // final round (blocker B2). Guarded, so it needs a session first; the fixture
-  // account leaves `otp_required` at its default, so no `admin-sign-in-*`
-  // baseline is affected by it.
+test('matches the baseline screenshot of the Overview', async ({ page, context, baseURL }, testInfo) => {
+  // SCREENS.md §2.1 — the four-card stat grid, the main split, the washi strip
+  // and the 78x104px cloth chip, which is the one place on the admin surface
+  // where a title's FIT is a picture rather than a number.
+  //
+  // ITS BASELINE IS OWED, NOT MISSING BY ACCIDENT. Phase 4 Task 12 replaced the
+  // holding screen this case used to photograph and DELETED its three
+  // `admin-panel-*` images — pictures of markup nothing renders any more. The
+  // case is repointed here so the route is ready; the three new images are
+  // taken with the seven other admin screens that owe one, in Task 15, under
+  // `mcr.microsoft.com/playwright:v1.62.1-noble`. Nothing was generated on the
+  // Windows host: a host run asks for `-win32.png`, WRITES one, and every run
+  // after that compares the host against itself while the committed files go
+  // unread. `docs/deviations.md` §86 records the debt.
+  //
+  // Guarded, so it needs a session first; the fixture account leaves
+  // `otp_required` at its default, so no `admin-sign-in-*` baseline is affected
+  // by it.
   await context.addCookies([
     {
       name: 'td-session',
@@ -578,10 +591,10 @@ test('matches the baseline screenshot of the admin panel’s root', async ({ pag
     },
   ])
   await page.goto('/admin', { waitUntil: 'networkidle' })
-  await expect(page.locator('[data-admin-panel]')).toBeVisible()
+  await expect(page.locator('[data-admin-overview]')).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
 
-  await expect(page).toHaveScreenshot('admin-panel.png', { fullPage: true })
+  await expect(page).toHaveScreenshot('admin-overview.png', { fullPage: true })
 })
 
 test('matches the baseline screenshot of the journeys screen', async ({ page, context, baseURL }, testInfo) => {

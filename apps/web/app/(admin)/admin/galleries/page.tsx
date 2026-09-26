@@ -23,6 +23,17 @@
  * lives inside the island (`FrameGrid.tsx`), which changes nothing about what
  * it is: the screen survives a reload and can be sent to somebody.
  *
+ * ═══ AND SO ARE `?frame=` AND `?captionAll=`, WHICH SCREENS.md §2.1 WRITES ═══
+ *
+ * §2.1's prompts "must deep-link to the exact screen AND selection" — "'Pick
+ * posters' resolves the first clip with no poster and selects it by id;
+ * 'Caption them' opens the bulk panel already expanded". A deep link is only a
+ * deep link if the destination READS it, so this screen parses both with
+ * `promptedSelection`, which is the INVERSE of the function that writes them.
+ * One definition, round-tripped by one test, rather than two modules that each
+ * look right on their own. They are INITIAL values: once an author presses a
+ * tile, the address has had its say.
+ *
  * ═══ THE PIPELINE IS READ HERE, ON THE SERVER ═══
  *
  * Design spec §9.3 puts "does this deployment show clip affordances" behind
@@ -55,6 +66,7 @@
  * other screens that owe one in Task 15 rather than alone, so that the debt
  * stays one thing. `docs/deviations.md` §81 records it. */
 import { ADMIN_NAV, type NavEntry } from '@travel-diary/domain/admin/navigation'
+import { promptedSelection } from '@travel-diary/domain/admin/prompts'
 import { journeyId, type JourneyId } from '@travel-diary/domain/ids'
 import { showsClipAffordances } from '@travel-diary/domain/media/ingestPolicy'
 import type { Metadata } from 'next'
@@ -129,7 +141,14 @@ const GalleriesPage = async ({ searchParams }: GalleriesPageProps): Promise<Reac
 
   const scope = await adminScope(session)
   const payload = await getPayload()
-  const asked = namedJourney((await searchParams)['journey'])
+  const query = await searchParams
+  const asked = namedJourney(query['journey'])
+  // WHAT AN OVERVIEW PROMPT ASKED THIS SCREEN TO OPEN IN. `promptedSelection`
+  // is the INVERSE of the function that writes those addresses
+  // (`@travel-diary/domain/admin/prompts`), so the parameter §2.1 writes and
+  // the parameter this screen reads are one definition round-tripped by one
+  // test — rather than two modules that each look right on their own.
+  const opening = promptedSelection(query)
   const [counts, site, view] = await Promise.all([
     readNavCounts(payload, scope),
     payload.findGlobal({ slug: 'site', ...scope, depth: 0, select: { name: true } }),
@@ -153,6 +172,8 @@ const GalleriesPage = async ({ searchParams }: GalleriesPageProps): Promise<Reac
             journey={view.journey}
             journeys={view.journeys}
             frames={view.frames}
+            initialFrame={opening.frame}
+            initialBulkOpen={opening.captionAll}
             showsClips={showsClipAffordances(env.MEDIA_PIPELINE)}
             setFrameOrder={setFrameOrder}
             setFrameText={setFrameText}

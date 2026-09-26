@@ -1,0 +1,547 @@
+/**
+ * overview.module.css — SCREENS.md §2.1's Overview: the stat grid, the main
+ * split, and the four cards inside it.
+ *
+ * A CSS MODULE, NOT A RULE IN `admin.css`, for the reason every other admin
+ * screen's stylesheet gives: `admin.css` is loaded by the route group's root
+ * layout, so every byte in it is a byte `/admin/sign-in` fetches before it can
+ * paint, and that route carries a Lighthouse LCP gate.
+ *
+ * ═══ THE RUNGS ARE 776 AND 1120, WHICH IS 820 AND 1180 IN THE UNITS THE
+ *     PROTOTYPE MEASURES IN ═══
+ *
+ * `galleries.module.css` carries the arithmetic in full and this is the same
+ * conversion: the prototype's `w` is the viewport less the 238px rail, and a
+ * `@container` on this screen measures that less `.content`'s own gutter — 60
+ * above viewport 1179, 44 at or below it — with the gutter decided by where
+ * the rung TRANSITIONS.
+ *
+ * - §2.1's stat grid goes to four columns at `w >= 820`: viewport
+ *   `776 + 238 + 44 = 1058`, at or below 1179, so the rung is **776**.
+ * - The main split and the Lately card's two columns are the prototype's
+ *   `mode === 'wide'`, which is `w >= 1180`: viewport
+ *   `1120 + 238 + 60 = 1418`, above 1179, so the rung is **1120**.
+ *
+ * Transcribing 820 and 1180 raw is GAL-004 one screen along — at the design's
+ * own 1440 reference the container is about 1142px, so a raw 1180 would make
+ * the main split unreachable at every viewport this project tests.
+ *
+ * THE CONTAINER QUERY GOES ON A WRAPPER. An element cannot be its own query
+ * container — `journeys.module.css` learned it, `book.module.css` re-learned it
+ * in a browser, and `containerQueries.test.ts` now checks it — so `.screen`
+ * declares `container-type` and everything queried is a descendant.
+ *
+ * ═══ THE CHIP TITLE'S `nowrap` AND ELLIPSIS ARE A LAST RESORT, NOT THE FIT ═══
+ *
+ * `.chipTitle` carries `overflow: hidden` and `text-overflow: ellipsis`, which
+ * SCREENS.md §1.1 calls "a last-resort floor only" — for a title so long that
+ * `fitChipTitleSize`'s own floor cannot hold it. It is ALSO the mechanism that
+ * hides a wrong fit from every measurement but one: a rect is clamped to the
+ * chip at any font size, so `e2e/admin.spec.ts` asserts `scrollWidth <=
+ * clientWidth` instead, which is the number a wrong fit actually moves
+ * (Task 10's cover preview, three attempts).
+ *
+ * Depends on: packages/tokens/src/tokens.css, loaded by the admin layout.
+ */
+
+/* ── The screen ────────────────────────────────────────────────────────── */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1320px;
+  container-name: td-overview;
+  container-type: inline-size;
+}
+
+/* ── The stat grid (§2.1: gap 16px, `repeat(2, …)` then `repeat(4, …)`) ── */
+
+.stats {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@container td-overview (min-width: 776px) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.stat {
+  position: relative;
+  border-radius: 3px;
+  background: var(--td-paper-mount);
+  box-shadow:
+    0 0 0 1px var(--td-hairline-border-min),
+    0 10px 24px -20px rgb(60 44 20 / 55%);
+  padding: 18px 20px 17px;
+}
+
+/* §2.1: "a 3px full-height coloured tick at the left edge". The tone is a
+ * custom property rather than a `background` written inline, the shape
+ * `ChangesCard.tsx` already uses: it is the card's own datum, and it is the
+ * only spelling a jsdom case can read back — a `background` is normalised
+ * there. */
+.tick {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 0;
+  width: 3px;
+  background: var(--td-stat-tone);
+  opacity: 0.8;
+}
+
+.statLabel {
+  margin: 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.statValue {
+  display: block;
+  margin-top: 3px;
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-size: 52px;
+  line-height: 1;
+}
+
+.statNote {
+  margin: 2px 0 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 15px;
+  font-style: italic;
+}
+
+/* ── The main split (§2.1: `1.35fr minmax(0,1fr)`, gap 20px) ───────────── */
+
+.columns {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+/* `minmax(0, 1fr)` on the right rather than `1fr`, because a grid track's
+ * automatic minimum is its content and a long change text would otherwise push
+ * the right column off the screen. */
+@container td-overview (min-width: 1120px) {
+  .columns {
+    grid-template-columns: 1.35fr minmax(0, 1fr);
+  }
+}
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* ── Cards ─────────────────────────────────────────────────────────────── */
+
+.card {
+  position: relative;
+  min-width: 0;
+  border-radius: 3px;
+  background: var(--td-paper-mount);
+  box-shadow:
+    0 0 0 1px var(--td-hairline-border-min),
+    0 12px 26px -22px rgb(60 44 20 / 55%);
+  padding: 20px 22px 18px;
+}
+
+/* §2.1: the washi strip at `top: -12px; left: 34px`. Decorative, so it is
+ * `aria-hidden` in the markup. */
+.washi {
+  position: absolute;
+  top: -12px;
+  left: 34px;
+  width: 112px;
+  height: 26px;
+  background: repeating-linear-gradient(120deg, rgb(196 150 120 / 80%) 0 7px, rgb(196 150 120 / 38%) 7px 14px);
+  clip-path: polygon(0 9%, 5% 0, 100% 5%, 96% 98%, 4% 100%);
+  opacity: 0.72;
+  transform: rotate(-2.5deg);
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  border-bottom: 1px solid rgb(120 98 60 / 22%);
+  padding-bottom: 11px;
+}
+
+.cardTitle {
+  margin: 0;
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-size: var(--td-admin-card-heading);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.reviewAll {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--td-accent);
+  font-family: var(--td-font-courier);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.reviewAll:hover {
+  color: var(--td-accent-hover);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* §2.1: the "Needs a look" eyebrow is terracotta. */
+.eyebrowAccent {
+  color: var(--td-accent);
+}
+
+.empty {
+  margin: 13px 0 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 16.5px;
+  font-style: italic;
+}
+
+/* ── Waiting to go out (§2.1: rows `13px 0`, dotted separator) ──────────── */
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px dotted var(--td-hairline-dotted-max);
+  padding: 13px 0;
+}
+
+/* §2.1: "a 64px fixed-width kind chip (Courier 9px `.16em`, colour-coded by
+ * tone with a 55%-alpha ring)". §2.8's chip is the same box with a FULL-alpha
+ * ring, which is the one number that differs between the two screens' rows. */
+.chip {
+  flex: none;
+  box-sizing: border-box;
+  width: 64px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--td-chip-tone) 55%, transparent);
+  padding: 4px 8px;
+  color: var(--td-chip-tone);
+  font-family: var(--td-font-courier);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.rowText {
+  flex: 1;
+  min-width: 0;
+}
+
+.what {
+  display: block;
+  margin: 0;
+  color: var(--td-ink);
+  font-family: var(--td-font-garamond);
+  font-size: 17px;
+}
+
+.where {
+  display: block;
+  margin: 2px 0 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.when {
+  flex: none;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+}
+
+.revertForm {
+  flex: none;
+  margin: 0;
+}
+
+.revert {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.revert:hover {
+  color: var(--td-accent);
+}
+
+/* A control that can do nothing must not invite a press. Without this arm a
+ * `disabled` button paints and behaves exactly like a live one — same ink,
+ * same pointer (`docs/deviations.md` §92, PUB-002). */
+.revert:disabled {
+  color: #8f836d;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* ── The book, live (§2.1: a 78x104px cloth chip) ──────────────────────── */
+
+.bookBody {
+  display: flex;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.chipCover {
+  display: flex;
+  flex: none;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 78px;
+  height: 104px;
+  border-radius: 2px 4px 4px 2px;
+  background: linear-gradient(160deg, var(--td-overview-cloth), rgb(0 0 0 / 30%));
+  box-shadow:
+    0 8px 18px -12px rgb(60 44 20 / 70%),
+    inset 0 0 0 1px rgb(232 210 161 / 28%);
+  padding: 10px 8px;
+}
+
+/* The ellipsis §1.1 calls "a last-resort floor only" — see this file's header
+ * for why it is also what `e2e/admin.spec.ts` has to measure around. */
+.chipTitle {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--td-cream);
+  font-family: var(--td-font-caveat);
+  font-size: var(--td-overview-chip-title);
+  line-height: 1.3;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipYears {
+  margin-top: 6px;
+  color: rgb(238 220 180 / 78%);
+  font-family: var(--td-font-courier);
+  font-size: 7px;
+  letter-spacing: 0.24em;
+}
+
+.bookFacts {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.bookSummary {
+  margin: 0;
+  color: var(--td-ink);
+  font-family: var(--td-font-garamond);
+  font-size: 17px;
+}
+
+.bookPublished {
+  margin: 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+}
+
+.bookActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+/* SCREENS.md §2's secondary button. */
+.secondary {
+  border: 1.5px solid var(--td-ink-body);
+  border-radius: 2px;
+  background: transparent;
+  padding: 7px 14px;
+  color: var(--td-ink-body);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.secondary:hover {
+  background: var(--td-ink-body);
+  color: var(--td-cream-alt);
+}
+
+/* SCREENS.md §2's tertiary button, which "Copy link" is drawn as. */
+.tertiary {
+  border: 1.5px solid rgb(120 98 60 / 40%);
+  border-radius: 2px;
+  background: transparent;
+  padding: 7px 14px;
+  color: var(--td-ink-muted);
+  cursor: pointer;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.tertiary:hover {
+  border-color: var(--td-ink-body);
+  color: var(--td-ink-body);
+}
+
+/* ── Needs a look (§2.1: an 8px rotated square, Garamond 16.5px / 1.35) ── */
+
+.prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prompt {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+
+.promptMark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 8px;
+  background: var(--td-accent);
+  transform: rotate(45deg);
+}
+
+.promptBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.promptText {
+  margin: 0;
+  color: var(--td-ink-body);
+  font-family: var(--td-font-garamond);
+  font-size: 16.5px;
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+
+.promptAction {
+  display: inline-block;
+  margin-top: 3px;
+  color: var(--td-accent);
+  font-family: var(--td-font-courier);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.promptAction:hover {
+  color: var(--td-accent-hover);
+}
+
+/* ── Lately (§2.1: two columns at `0 40px`, an 82px timestamp) ──────────── */
+
+.latelyCard {
+  padding: 20px 22px 8px;
+}
+
+.lately {
+  display: grid;
+  gap: 0 40px;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@container td-overview (min-width: 1120px) {
+  .lately {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.latelyRow {
+  display: flex;
+  align-items: baseline;
+  gap: 13px;
+  border-bottom: 1px dotted var(--td-hairline-dotted-min);
+  padding: 11px 0;
+}
+
+.latelyWhen {
+  flex: none;
+  width: 82px;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.latelyWhat {
+  flex: 1;
+  min-width: 0;
+  color: var(--td-ink-body);
+  font-family: var(--td-font-garamond);
+  font-size: 16.5px;
+}

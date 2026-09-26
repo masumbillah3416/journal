@@ -64,6 +64,7 @@
  * `GALLERY_FRAME_SORT` (../galleryFrames), `readEditions`/`readPendingChanges`
  * (./readPendingChanges), `payload` (types), `AdminScope` (./adminScope).
  */
+import { fitChipTitleSize } from '@travel-diary/domain/coverTitle'
 import type { PendingChange } from '@travel-diary/domain/admin/pendingChange'
 import { bookSummary, overviewStats, type OverviewStat } from '@travel-diary/domain/admin/overviewStats'
 import { prompts, type FrameNeed, type Prompt } from '@travel-diary/domain/admin/prompts'
@@ -99,6 +100,19 @@ export interface LiveBook {
   readonly title: string
   /** The years line under it, from `book.yearsShown`. `''` when unset. */
   readonly years: string
+  /** The cloth the chip is drawn in, from `book.coverCloth`. */
+  readonly cloth: string
+  /**
+   * The size, in px, the chip draws {@link LiveBook.title} at.
+   *
+   * COMPUTED HERE rather than in the card, which is `readCoverScreen.ts`'s
+   * decision arriving for its own reason: the fit is a property of the TITLE
+   * and the box, so one module owns which box a title is being fitted to.
+   * §2.1's box is 78x104px, which is `fitChipTitleSize`'s — NOT §2.7's
+   * preview's, whose bounds would draw a ten-character title at 32px inside
+   * 62px of room.
+   */
+  readonly titleSizePx: number
   /** The summary line — "33 pages · 13 bookmarks · 4 galleries open". */
   readonly summary: string
   /** When the book last went out, already formatted, or `null` for never. */
@@ -256,7 +270,12 @@ export const readOverview = async (payload: Payload, scope: AdminScope): Promise
     payload.count({ collection: 'media', ...scope, where: libraryWhere(false, { inBook: { equals: true } }) }),
     payload.count({ collection: 'media', ...scope, where: libraryWhere(true) }),
     payload.count({ collection: 'media', ...scope, where: libraryWhere(true, { posterAt: { exists: true } }) }),
-    payload.findGlobal({ slug: 'book', ...scope, depth: 0, select: { title: true, yearsShown: true } }),
+    payload.findGlobal({
+      slug: 'book',
+      ...scope,
+      depth: 0,
+      select: { title: true, yearsShown: true, coverCloth: true },
+    }),
     // THE PUBLISH SCREEN'S OWN READ, called rather than re-derived. See this
     // module's header.
     readPendingChanges(payload, scope),
@@ -350,9 +369,11 @@ export const readOverview = async (payload: Payload, scope: AdminScope): Promise
     }),
     waiting,
     book: {
-      /* c8 ignore next 2 -- a `book` global with no title and no years at all is a fresh install; `diary_test` is shared and seeded, so no case can reach these arms without emptying a global three other integration files read. `readPendingChanges.ts` carries the same treatment for the same reason. */
+      /* c8 ignore next 4 -- a `book` global with no title, no years and no cloth at all is a fresh install; `diary_test` is shared and seeded, so no case can reach these arms without emptying a global three other integration files read. `readPendingChanges.ts` carries the same treatment for the same reason. */
       title: book.title ?? '',
       years: book.yearsShown ?? '',
+      cloth: book.coverCloth ?? '',
+      titleSizePx: fitChipTitleSize(book.title ?? ''),
       // WHAT A READER WOULD FIND, not what the author has — see `bookSummary`.
       summary: bookSummary({
         pages: publishedPages.length,

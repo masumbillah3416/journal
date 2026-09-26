@@ -1928,10 +1928,21 @@ the mailer's.
 `POST /admin/sign-in/code/resend` rows in `docs/api.md`, and `docs/security.md`'s section
 on what Task 10 did not close.
 
-## 44 · `/admin` draws a screen the handoff never describes, because the handoff describes the panel
+## 44 · `/admin` drew a screen the handoff never describes — REVERSED by Phase 4 Task 12
+
+> **REVERSED, 2026-09-26.** This entry's own reversal condition — "Phase 4, which replaces
+> the route's body with the panel `SCREENS.md` §2 describes" — has happened. Phase 4 Task 12
+> mounted §2.1's Overview at `/admin`, and `PanelHome.tsx`, `PanelHome.test.tsx` and
+> `panel.module.css` were deleted in the same commit. **Nothing described below is in the
+> tree any more**, and the entry is kept rather than removed because the reasoning — why a
+> screen rather than a `404` or a redirect — is what a reader asking "why was there a holding
+> screen at all" needs, and because §53 and the §2.11 Account screen still cite the
+> `POST` sign-out decision it records. What replaces it: `SCREENS.md` §2.1's four cards, drawn
+> by `components/admin/overview/`, read by `lib/admin/readOverview.ts`, and documented in the
+> `GET /admin` row of `docs/api.md`.
 
 **What changed:** `apps/web/app/(admin)/admin/page.tsx` and
-`apps/web/components/admin/PanelHome.tsx` mount a guarded screen at `/admin`: a
+`apps/web/components/admin/PanelHome.tsx` mounted a guarded screen at `/admin`: a
 "The back room" eyebrow, the heading "Still being furnished", the line
 
 > The editing screens are still being built. Everything the diary shows is already
@@ -1974,14 +1985,15 @@ seam ADR 0019 measures. It is a module rather than a rule in `admin.css` for a m
 reason too: `admin.css` is loaded by the group's root layout, so every byte in it is a byte
 `/admin/sign-in` fetches before it can paint, and that route carries a Lighthouse LCP gate.
 
-**What would reverse this:** Phase 4, which replaces the route's body with the panel
-`SCREENS.md` §2 describes. Nothing here is meant to survive it.
+**What would have reversed this, and did:** Phase 4, which replaces the route's body with the
+panel `SCREENS.md` §2 describes. Nothing here was meant to survive it, and none of it did.
 
-**Recorded as:** `apps/web/components/admin/PanelHome.tsx` and its header,
-`PanelHome.test.tsx`, `apps/web/app/(admin)/admin/page.tsx`, the `GET /admin` row in
-`docs/api.md`, the two `e2e/signInJourney.spec.ts` cases that walk it from the signed-in
-screen's button and from a browser with no session, the `/admin` case in `e2e/a11y.spec.ts`
-and the three `admin-panel-*` baselines in `e2e/visual.spec.ts-snapshots/`.
+**Recorded as:** this entry. The files it named — `apps/web/components/admin/PanelHome.tsx`,
+`PanelHome.test.tsx`, `panel.module.css` and the three `admin-panel-*` baselines in
+`e2e/visual.spec.ts-snapshots/` — are deleted. What survived and moved: the `GET /admin` row
+in `docs/api.md` now describes the Overview, the two `e2e/signInJourney.spec.ts` cases that
+walk this address from the signed-in screen's button and from a browser with no session now
+look for the Overview, and so does the `/admin` case in `e2e/a11y.spec.ts`.
 
 ## 45 · Postgres is published on host port 5433, not 5432
 
@@ -3598,10 +3610,19 @@ rather than by a photograph.
 **Rationale.** It is `docs/deviations.md` §81's, unchanged and now larger: baselines are
 generated in the pinned Playwright Linux container and committed as `-linux.png` only, this
 task was implemented on Windows, and a run on a developer's host writes a `-win32` baseline and
-then compares the host against itself for ever. **Seven** admin screens now owe a baseline —
-Phase 4 Task 11's Publish screen is the latest. They are being taken together in Task 15 under
-the container, because adding them one at a time is how the others came to be missing without
-anybody counting.
+then compares the host against itself for ever. **Eight** admin screens now owe a baseline.
+They are being taken together in Task 15 under the container, because adding them one at a time
+is how the others came to be missing without anybody counting.
+
+**PHASE 4 TASK 12 ADDED `/admin` TO THE LIST, AND DELETED THREE COMMITTED BASELINES TO DO IT.**
+The three `admin-panel-*-linux.png` files photographed the holding screen §44
+records, which that task deleted; they are pictures of a screen that no longer exists, and
+leaving them would have failed the next container run against markup nothing renders. The case
+in `e2e/visual.spec.ts` is kept and repointed at the Overview under the name
+`admin-overview.png`, so the route is ready for Task 15's run and the debt is one line in this
+entry rather than a missing case nobody counted. **No baseline was generated on the host**: a
+Windows run asks for `-win32.png`, writes one, and every run after that compares the host
+against itself while the committed files go unread — 31 such files were found untracked once.
 
 **What IS pinned meanwhile**, so the gap is bounded rather than open: `e2e/admin.spec.ts`
 measures both screens' column shapes and their controls' boxes in a real engine;
@@ -3769,11 +3790,36 @@ changing what every other screen's header prints on the way past.
 its own field documentation, and it is the number the Journeys screen's `draft` chip filters
 to. What is wrong is that one screen prints both.
 
-**What would reverse it:** Task 12 (`SCREENS.md` §2.1), which reads `readPendingChanges`
-anyway for its "Waiting to go out" card — at which point the chip can take the same count, and
-the four queries are paid once for a screen that already needs them.
+**What would have reversed it:** Task 12 (`SCREENS.md` §2.1), which reads
+`readPendingChanges` anyway for its "Waiting to go out" card — at which point the chip could
+take the same count, and the four queries would be paid once for a screen that already needs
+them.
 
-**Recorded as:** this entry and PUB-001 in `docs/qa/2026-09-26-publish-sweep.md`.
+**RESOLVED BY TASK 12, THE OTHER WAY ROUND, AND THE MEASUREMENT IS WHY.** The reversal above
+only works on the two screens that read the pending set. The chip is in `ScreenHeader`, which
+every one of the twelve admin screens draws — so "the chip takes the same count" is either
+four more queries on all twelve, or the SAME chip printing 4 on `/admin` and `/admin/publish`
+and 1 on `/admin/journeys`, which is the original defect with more screens in it. Making the
+chip's number right everywhere costs the journeys, their latest versions, their pages and
+those pages' latest versions, on every screen, for a number no screen but two acts on.
+
+**So the LABEL moved instead.** The chip now reads **"n journeys never published"**
+(`draftJourneysChipLabel`, `packages/domain/src/admin/journeyStatus.ts`), which is exactly
+what `readNavCounts.unpublished` counts and exactly what the Journeys screen's `draft` chip
+filters to. The two numbers on the Overview are now "4 changes waiting" in the crumb and
+"1 journey never published" in the chip: different labels for different facts, neither
+ambiguous, at no query cost. **This is a HANDOFF-DEVIATION**: `SCREENS.md` §2 writes the chip
+"n unpublished", and the prototype can afford that word because it renders `pending.length`
+twice.
+
+**What would reverse THAT:** a `SCREENS.md` revision that defines which number the chip
+carries, or a decision that the chrome should pay four queries a screen — in which case the
+label goes back and `readNavCounts` grows a fifth count.
+
+**Recorded as:** this entry, PUB-001 in `docs/qa/2026-09-26-publish-sweep.md`,
+`draftJourneysChipLabel` and its three cases, `ScreenHeader.tsx`'s header and its
+`unpublished` prop documentation, the two `ScreenHeader.test.tsx` cases that read the chip's
+own text, and the `GET /admin` row in `docs/api.md`.
 
 ## 92 · `SCREENS.md` §2.5's "Apply captions" is disabled with no `:disabled` rule, and §2.5 owns the fix
 
@@ -3809,3 +3855,149 @@ what a task inherits. This is the carrier.
 **Recorded as:** this entry, the "class, not just the instance" table in
 `docs/qa/2026-09-26-publish-sweep.md`, and `publish.module.css`'s `.revert:disabled` comment,
 which names the shape.
+
+## 93 · The Overview ships an eighth client island, and it is one button
+
+**What changed:** `apps/web/components/admin/overview/CopyLink.tsx` carries `'use client'`.
+Every other file `SCREENS.md` §2.1 needs — `StatGrid.tsx`, `WaitingCard.tsx`,
+`LiveBookCard.tsx`, `PromptsCard.tsx`, `LatelyCard.tsx` — is a Server Component, and every
+Revert on the waiting list is a `<form>` of its own.
+
+**Rationale.** §2.1 puts "Copy link" beside "Open live" on the book card. Putting an address
+on the clipboard is `navigator.clipboard.writeText`: there is no form post, no link and no
+server render that does it, and the control is the whole capability. The alternatives were
+worse rather than cheaper — printing the address as selectable text is a control the handoff
+does not draw, and dropping it is dropping a control it does.
+
+**It is the smallest island on this surface.** One `useState` holding a label and one call.
+The confirmation is what makes it worth shipping at all: a copy that says nothing is
+indistinguishable from a copy that failed, which is §43's silent-failure species, so the
+button's own label becomes "Copied" and returns. A page without a secure context has no
+`clipboard` property at all — which the DOM types say cannot happen — and that arm says
+"Press the copy key" rather than throwing on the press.
+
+**The count is now eight**, asserted by `apps/web/lib/admin/shellShipsNoClientJs.test.ts` from
+both sides — by name and by length — with `components/admin/overview` in the scanned
+directories, so a second directive in there fails by name.
+
+**What would reverse this:** a `SCREENS.md` revision that drops "Copy link", or a browser API
+for it that a form post can reach.
+
+**Recorded as:** this entry, `CopyLink.tsx`'s header, its six cases, the `ISLANDS` entry and
+the length assertion in `shellShipsNoClientJs.test.ts`, and the `GET /admin` row in
+`docs/api.md`.
+
+## 94 · `SCREENS.md` §2.1's "Lately" lists what CHANGED, not what happened
+
+**What changed:** the Lately card's rows are the six most recently updated journeys, pages and
+gallery frames, each printed as what the row IS — "The Tokyo journey", "Frames I, in Tokyo",
+"IMG_0412.jpg" — beside the date it last changed. The prototype's rows are events: "Rewrote
+the Tokyo note", "Placed four Tokyo frames in the book", "Uploaded 37 files to Marrakech",
+"Published edition 14".
+
+**Rationale.** `DATA_MODEL.md` records no event log. There is no table of what an author did,
+no column saying which field of a journey moved, and nothing attributing a change to a
+session. A row reading "Rewrote the Tokyo note" would be a sentence this repository invented
+about a diff it never computed — §87's finding one screen along, in the same shape: the
+Publish card's text "names the state, not the edit" for the same reason.
+
+What IS recorded is every row's `updatedAt`, which is what `readOverview` sorts on and what
+this prints. So the card answers "what has been touched most recently", honestly, rather than
+"what was done", plausibly.
+
+**Three consequences an author can see.** Six rows rather than a scrolling history
+(`LATELY_SHOWN`, a chosen ceiling taken from the prototype's own fixture, pinned from both
+sides). No publish events, because a publish is a version row rather than a change to the row
+it publishes — the Publish screen's own Editions card is where those live. And a `media` row
+the ingest pipeline has not finished is not listed, because the card reads gallery frames
+through `galleryFrameWhere`, which is the one definition of "a gallery frame" and excludes an
+unfinished upload for everybody.
+
+**The timestamp is a date, not a relative string.** §54's decision, inherited: a relative
+string is a function of the current instant, this screen renders once on the server and never
+re-renders, and CLAUDE.md §2.3 requires an injected clock that a read signature the phase
+fixed has nowhere to take one from.
+
+**What would reverse this:** an activity log in the data model — a table written on every
+admin write, with the actor, the collection, the row and what moved. It would also make the
+prototype's "Published edition 14" possible, which §87 records as missing for the same reason.
+
+**Recorded as:** this entry, `LatelyCard.tsx`'s header, `readOverview.ts`'s `aLatelyRow` and
+`LATELY_SHOWN`, and the three `readOverview.integration.test.ts` cases that pin the order, the
+cap and the keys.
+
+## 95 · Two of `SCREENS.md` §2.1's four stat notes are replaced, because this data model cannot answer them
+
+**What changed:** the stat grid's four notes read "{n} still a draft" / "all published"
+(Journeys), the same (Pages), "{n} placed in the book" (Photographs) and "{n} with a poster
+chosen" (Clips). The prototype's are "one in draft", "cover, index, about", "96 placed in the
+book" and "9 loop on a page".
+
+**Rationale.** Two of the prototype's four are fixture strings describing facts this schema
+does not hold.
+
+1. **"cover, index, about"** names three fixed leaves of the book. There are no such ROWS:
+   `DATA_MODEL.md` has `pages` belonging to journeys, and the cover, contents and about leaves
+   are COMPOSED by `readBookBundle` rather than stored. Counting them would mean counting
+   something that is not in the table the figure above the note counts.
+2. **"9 loop on a page"** needs a column saying that a clip loops. `media` has `kind`,
+   `posterAt`, `durationSec`, `inBook` and `hidden`, and nothing about looping.
+
+Each is replaced with the nearest fact the schema CAN answer, in the prototype's own register:
+the pages note becomes the draft count, which is the same question the journeys note asks one
+level down, and the clips note becomes the poster count — which is also what §2.1's own "Pick
+posters" prompt acts on, so the card and the prompt beside it describe one thing.
+
+**The two that were computable are kept**, and both are derived on every read
+(`DATA_MODEL.md`, "Derived, not stored"). Zero and one are written as words — "none placed in
+the book", "one still a draft" — because "0 placed in the book" reads as a broken template.
+
+**`photographs + clips` is every row in the media library**, which is the number the rail
+prints beside its Media button, and `readOverview.integration.test.ts` asserts the three
+against each other. That is why `photographs` is spelled `kind not_equals 'clip'` rather than
+`kind equals 'still'`: `media.kind` is written by the ingest pipeline, so a row it has not
+reached has no kind at all, and counting `'still'` would leave such a row in neither column
+while the rail still counted it.
+
+**What would reverse this:** a `loops` column on `media`, or a `SCREENS.md` revision naming
+what the Pages note should count.
+
+**Recorded as:** this entry, `packages/domain/src/admin/overviewStats.ts`'s header, its
+twenty cases, and the `GET /admin` row in `docs/api.md`.
+
+## 96 · Only the Publish screen's writes name `/admin`, so the Overview's figures can be stale behind a cache
+
+**What changed:** `app/(admin)/admin/publish/actions.ts`'s three exports —
+`publishChanges`, `revertOneChange` and `restoreOneEdition` — now call
+`revalidatePath('/admin')`, because `SCREENS.md` §2.1's Waiting card lists exactly the rows
+they change. The five other admin actions modules (`journeys`, `media`, `galleries`, `book`,
+`cover`) do **not**, and they move the Overview's stat grid, its prompts and its Lately card.
+
+**Rationale, and what is honestly known.** Design spec §8 asks for "on-demand revalidation of
+affected paths only", and this repository's convention is that each actions module names the
+admin screens whose reads its writes change. Applied strictly, the Overview is affected by
+every admin write there is: uploading a photograph moves the Photographs figure, captioning a
+frame removes a prompt, creating a journey moves two figures and the Lately card. Naming
+`/admin` in all six modules is eighteen more `revalidatePath` calls and six registration tests
+to keep two-sided, for a screen whose numbers are a summary rather than a control surface.
+
+**What this entry does NOT claim.** It does not claim the staleness is unobservable. Admin
+routes call `requireAdminSession`, which reads cookies, and a route that reads cookies renders
+per request — so there may be no full route cache entry for `/admin` to invalidate at all, and
+these calls may be documentary on every admin screen rather than only this one. **That has not
+been measured here**, and the entry says so rather than resting on it: Task 11 named three
+admin addresses on the same reasoning and measured none of them either.
+
+**The one that IS named is named for a reason that survives either answer**: the Publish
+screen and the Overview draw the SAME list from the SAME module, and a Revert pressed on one
+must not leave the other listing what it discarded. That is the smallest set which keeps the
+two screens agreeing, which is the property `readOverview.integration.test.ts` asserts.
+
+**What would reverse this:** a measurement showing an admin route IS cached between requests —
+at which point every actions module names `/admin` — or a cache-tag scheme that makes the
+question moot.
+
+**Recorded as:** this entry, `OVERVIEW_PATH` in `app/(admin)/admin/publish/actions.ts` with
+the reason at the constant, and the `REVALIDATED` table in
+`apps/web/lib/admin/publishRevalidationRegistration.test.ts`, which pins the addresses and
+their order for all three exports.

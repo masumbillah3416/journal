@@ -94,6 +94,19 @@ const JOURNEYS_PATH = '/admin/journeys'
 const SIGNED_IN_PATH = '/admin/sign-in/done'
 
 /**
+ * The Overview, which lists the same rows this screen does.
+ *
+ * Phase 4 Task 12 mounted `SCREENS.md` §2.1 at `/admin`, and its "Waiting to go
+ * out" card reads THIS module's own `readPendingChanges` — so a publish, a
+ * revert or a restore that did not name this address would leave the screen an
+ * author lands on listing changes that have gone out. Its stat grid and its
+ * crumb count the same set. `docs/deviations.md` §93 records what is NOT here:
+ * the writes on the other admin screens, which move this screen's figures too
+ * and do not name it.
+ */
+const OVERVIEW_PATH = '/admin'
+
+/**
  * Publishes the ticked changes.
  *
  * @param session - The account the guard admitted, resolved to a scope.
@@ -106,6 +119,7 @@ export const publishChanges = guardedAction(async (session, form: FormData): Pro
   // spec §8, and the only computed revalidation in this repository.
   for (const path of paths) revalidatePath(path)
   revalidatePath(PUBLISH_PATH)
+  revalidatePath(OVERVIEW_PATH)
   revalidatePath(JOURNEYS_PATH)
   revalidatePath(SIGNED_IN_PATH)
 })
@@ -137,6 +151,7 @@ export const revertOneChange = guardedAction(async (session, id: string): Promis
   // nothing published changes and nothing served is stale. Only the three
   // screens that count what is waiting redraw.
   revalidatePath(PUBLISH_PATH)
+  revalidatePath(OVERVIEW_PATH)
   revalidatePath(JOURNEYS_PATH)
   revalidatePath(SIGNED_IN_PATH)
 })
@@ -157,6 +172,7 @@ export const restoreOneEdition = guardedAction(async (session, form: FormData): 
   // and stops being waiting. The count moves.
   for (const path of paths) revalidatePath(path)
   revalidatePath(PUBLISH_PATH)
+  revalidatePath(OVERVIEW_PATH)
   revalidatePath(JOURNEYS_PATH)
   revalidatePath(SIGNED_IN_PATH)
 })

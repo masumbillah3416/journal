@@ -76,8 +76,18 @@
  * allowlist — a module imported by a client entry is part of that entry, and
  * the allowlist counts entries — and `EditionsCard.tsx` beside them is a server
  * component whose every Restore is a `<form>`, which is what putting the
- * directory in the scan buys here. **The count is now seven**, and
- * `docs/api.md` says the same number.
+ * directory in the scan buys here.
+ *
+ * ═══ TASK 12 ADDED AN EIGHTH, AND IT IS THE SMALLEST OF THEM ═══
+ *
+ * `components/admin/overview/CopyLink.tsx`. SCREENS.md §2.1 puts "Copy link"
+ * beside "Open live" on the book card, and putting an address on the clipboard
+ * is `navigator.clipboard.writeText` — a browser capability, with no form post,
+ * link or server render that reaches it. Its four siblings on that screen carry
+ * no directive: the stat grid, the waiting list, the book card, the prompts and
+ * the Lately card are server-rendered, and every Revert is a `<form>` of its
+ * own, which is what putting `components/admin/overview` in the scan buys.
+ * **The count is now eight**, and `docs/api.md` says the same number.
  *
  * The task's phase-shaping claim is that nothing in the SHELL's own directory
  * is a client component, which is why
@@ -206,6 +216,10 @@ const ISLANDS: readonly { readonly file: string; readonly why: string }[] = [
     file: 'components/admin/publish/PublishSelection.tsx',
     why: "SCREENS.md §2.8's button reads 'Publish 2 of 4' and its rows strike through as boxes are cleared",
   },
+  {
+    file: 'components/admin/overview/CopyLink.tsx',
+    why: "SCREENS.md §2.1's 'Copy link' is a clipboard write, which is a browser capability and no form post",
+  },
 ]
 
 /**
@@ -261,6 +275,10 @@ const NO_CLIENT_JS: readonly { readonly directory: string; readonly why: string 
     directory: 'app/(admin)/admin/publish',
     why: 'the publish route itself, and the three actions its two forms dispatch',
   },
+  {
+    directory: 'components/admin/overview',
+    why: "SCREENS.md §2.1's one island is declared above, and its five cards are not: the stat grid, the waiting list, the book card, the prompts and the Lately card are all server-rendered, and every Revert is a form",
+  },
 ]
 
 /** The directive that turns a module into a client entry point. */
@@ -309,6 +327,6 @@ describe('the declared client islands', () => {
     // header claiming it. `docs/api.md` says the editor ships ONE client entry
     // and the media screen two; a further island has to change those
     // sentences, and this is what makes it.
-    expect(ISLANDS).toHaveLength(7)
+    expect(ISLANDS).toHaveLength(8)
   })
 })

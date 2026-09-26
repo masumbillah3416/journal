@@ -16,7 +16,7 @@
  * Depends on: vitest, ./journeyStatus.
  */
 import { describe, expect, it } from 'vitest'
-import { JOURNEY_STATUS_FILTERS, journeyStatus } from './journeyStatus'
+import { JOURNEY_STATUS_FILTERS, draftJourneysChipLabel, journeyStatus } from './journeyStatus'
 
 describe('journeyStatus', () => {
   it('is draft while a journey has never been published', () => {
@@ -70,5 +70,31 @@ describe('JOURNEY_STATUS_FILTERS', () => {
     expect(JOURNEY_STATUS_FILTERS.filter((filter) => filter !== 'all').every((filter) => reachable.has(filter))).toBe(
       true,
     )
+  })
+})
+
+describe('draftJourneysChipLabel', () => {
+  it('says what the chip actually counts, which is journeys that have never gone out', () => {
+    // SCREENS.md §2's header writes this chip "n unpublished", and the
+    // prototype computes it from the same list its Publish screen counts, so
+    // the two numbers are always equal there. HERE THEY ARE NOT: the chip is
+    // `readNavCounts.unpublished` — live journeys whose `_status` is `draft` —
+    // and §2.8's headline is every row whose newest version is a draft. A diary
+    // with three journeys edited after publishing and one never published drew
+    // "1 unpublished" beside "4 changes waiting" (PUB-001,
+    // `docs/deviations.md` §91). The chip is relabelled rather than recounted;
+    // see that entry for why recounting costs four queries on twelve screens.
+    expect(draftJourneysChipLabel(3)).toBe('3 journeys never published')
+  })
+
+  it('writes the single journey in the singular, because "1 journeys" is a broken template', () => {
+    expect(draftJourneysChipLabel(1)).toBe('1 journey never published')
+  })
+
+  it('still writes the plural at zero, for a caller that draws the chip anyway', () => {
+    // The header withholds the chip at zero, so this arm is not reachable from
+    // the screen — and is pinned anyway, because a label that only ever ran on
+    // the numbers a screen happens to pass is a label nobody has read.
+    expect(draftJourneysChipLabel(0)).toBe('0 journeys never published')
   })
 })

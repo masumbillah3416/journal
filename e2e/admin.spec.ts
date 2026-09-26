@@ -262,14 +262,14 @@ test.beforeEach(async ({ context, baseURL }, testInfo) => {
 
 test('draws one rail button per entry the domain declares', async ({ page }) => {
   await page.goto('/admin')
-  await expect(page.locator('[data-admin-panel]')).toBeVisible()
+  await expect(page.locator('[data-admin-overview]')).toBeVisible()
 
   await expect(page.locator('a[data-nav-id]')).toHaveCount(ADMIN_NAV.length)
 })
 
 test('marks the overview button current on /admin, and only that one', async ({ page }) => {
   await page.goto('/admin')
-  await expect(page.locator('[data-admin-panel]')).toBeVisible()
+  await expect(page.locator('[data-admin-overview]')).toBeVisible()
 
   const current = page.locator('a[aria-current="page"]')
   await expect(current).toHaveCount(1)
@@ -278,7 +278,7 @@ test('marks the overview button current on /admin, and only that one', async ({ 
 
 test('titles the screen with the overview entry’s own label, once', async ({ page }) => {
   await page.goto('/admin')
-  await expect(page.locator('[data-admin-panel]')).toBeVisible()
+  await expect(page.locator('[data-admin-overview]')).toBeVisible()
 
   const heading = page.getByRole('heading', { level: 1 })
   await expect(heading).toHaveCount(1)
@@ -287,7 +287,7 @@ test('titles the screen with the overview entry’s own label, once', async ({ p
 
 test('prints a real number beside the media button, from the database rather than the markup', async ({ page }) => {
   await page.goto('/admin')
-  await expect(page.locator('[data-admin-panel]')).toBeVisible()
+  await expect(page.locator('[data-admin-overview]')).toBeVisible()
 
   // The seeded diary has media rows and journeys; what matters here is that
   // the rail printed digits at all, which a count that failed to reach
@@ -1490,5 +1490,127 @@ test.describe('the publish screen (SCREENS.md §2.8)', () => {
     } finally {
       await payload.delete({ collection: 'journeys', where: { name: { like: stem } } })
     }
+  })
+})
+
+test.describe('the Overview, SCREENS.md §2.1', () => {
+  test('the overview’s "Pick posters" prompt opens the gallery with that frame already selected', async ({ page }) => {
+    await page.goto('/admin')
+    await expect(page.locator('[data-admin-overview]')).toBeVisible()
+
+    const prompt = page.locator('[data-prompt="pick-posters"] [data-prompt-action]')
+    await expect(prompt, 'the seeded diary has no clip without a poster, so this prompt cannot be walked').toHaveCount(
+      1,
+    )
+
+    // THE ID IS NEVER TYPED HERE, AND IT IS READ BEFORE THE CLICK. Reading
+    // `page.url()` afterwards compares the destination against its OWN address,
+    // which agrees with itself however wrong it is; reading the prompt's `href`
+    // first is what makes this a statement about the two screens agreeing.
+    const href = await prompt.getAttribute('href')
+    const expected = new URL(href ?? '', 'https://example.test').searchParams.get('frame')
+    expect(expected, 'the prompt carried no frame, so there is nothing for the gallery to select').not.toBeNull()
+
+    await prompt.click()
+    await page.waitForURL('**/admin/galleries?**')
+
+    await expect(page.locator('[data-selected-frame]')).toHaveAttribute('data-frame-id', expected ?? '')
+    // AND THE TILE, not only the panel: a panel drawn over a grid highlighting
+    // another frame is the desync §2.5 states its id rule to prevent.
+    await expect(page.locator(`[data-frame-id="${expected ?? ''}"][data-highlighted="true"]`)).toHaveCount(1)
+  })
+
+  test('the "Caption them" prompt opens the bulk panel already expanded', async ({ page }) => {
+    await page.goto('/admin')
+    const prompt = page.locator('[data-prompt="caption-them"] [data-prompt-action]')
+    await expect(prompt, 'the seeded diary has no uncaptioned frame, so this prompt cannot be walked').toHaveCount(1)
+
+    await prompt.click()
+    await page.waitForURL('**/admin/galleries?**')
+
+    await expect(page.locator('[data-caption-all]')).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  test('fits the book title inside the 78px cloth chip, measured by the number a wrong fit moves', async ({ page }) => {
+    // `scrollWidth <= clientWidth`, NOT a bounding rect. `.chipTitle` carries
+    // `nowrap`, `overflow: hidden` and an ellipsis, so its rect is clamped to
+    // the chip at ANY font size — a rect assertion here cannot fail, which is
+    // exactly how Task 10's cover preview passed at rect 144 while
+    // `scrollWidth` was 817. `scrollWidth` is the number a wrong fitter moves.
+    await page.goto('/admin')
+    const title = page.locator('[data-book-chip-title]')
+    await expect(title).toHaveCount(1)
+    await page.evaluate(() => document.fonts.ready)
+
+    const box = await title.evaluate((element) => ({
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+      text: element.textContent,
+    }))
+
+    expect(box.text.length, 'an empty chip title cannot overflow, so this case would prove nothing').toBeGreaterThan(0)
+    expect(box.clientWidth, 'the chip drew no box at all, so nothing was measured').toBeGreaterThan(0)
+    expect(
+      box.scrollWidth,
+      `"${box.text}" overflows the chip: ${String(box.scrollWidth)} into ${String(box.clientWidth)}`,
+    ).toBeLessThanOrEqual(box.clientWidth)
+  })
+
+  test('lists the same waiting rows the Publish screen lists, on both screens', async ({ page }) => {
+    // The two screens read ONE module (`readPendingChanges`), and the
+    // integration suite asserts that. This is the browser's half: what is drawn.
+    await page.goto('/admin')
+    const onOverview = await page
+      .locator('[data-waiting-row]')
+      .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-waiting-row') ?? ''))
+
+    await page.goto('/admin/publish')
+    const onPublish = await page
+      .locator('[data-change-row]')
+      .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-change-row') ?? ''))
+
+    expect(onOverview).toEqual(onPublish)
+  })
+
+  test('prints a chip that says what it counts, beside a crumb that counts something else', async ({ page }) => {
+    // PUB-001 (`docs/deviations.md` §91): the chip counted journeys that have
+    // never been published while the headline counted every waiting row, and
+    // both were labelled "unpublished". The chip now names its own subject.
+    await page.goto('/admin')
+    await expect(page.locator('[data-admin-overview]')).toBeVisible()
+
+    const chip = page.locator('[data-control="unpublished"]')
+    if ((await chip.count()) > 0) await expect(chip).toHaveText(/^\d+ journeys? never published$/u)
+    await expect(page.locator('[data-crumb]')).toHaveText(/^\d+ changes? waiting$/u)
+  })
+
+  test('draws every card §2.1 specifies, so none of them can be quietly missing', async ({ page }) => {
+    await page.goto('/admin')
+
+    // FOUR STAT CARDS AND FOUR SECTIONS, counted rather than sampled.
+    await expect(page.locator('[data-stat-id]')).toHaveCount(4)
+    await expect(page.locator('[data-stat-tick]')).toHaveCount(4)
+    for (const card of ['waiting', 'book', 'prompts', 'lately']) {
+      await expect(page.locator(`[data-overview-${card}]`)).toHaveCount(1)
+    }
+  })
+
+  test('puts the stat grid on four columns above its rung and two below it', async ({ page }) => {
+    // §2.1: `repeat(4, minmax(0,1fr))` above 820px in the prototype's units,
+    // `repeat(2, …)` below. The rung this stylesheet declares is 776, which is
+    // the container conversion `overview.module.css` carries in full — a raw
+    // 820 is GAL-004's shape, where a transcribed number made a rung
+    // unreachable at every viewport this project tests.
+    await page.goto('/admin')
+    const columnsAt = async (): Promise<number> =>
+      await page
+        .locator('[data-overview-stats]')
+        .evaluate((element) => window.getComputedStyle(element).gridTemplateColumns.split(' ').length)
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await expect.poll(columnsAt).toBe(4)
+
+    await page.setViewportSize({ width: 900, height: 900 })
+    await expect.poll(columnsAt).toBe(2)
   })
 })
