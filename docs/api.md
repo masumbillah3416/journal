@@ -787,10 +787,18 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   `CaptionAll.tsx` drawn by it.
 - **Method:** `GET`. This route answers nothing else; its five mutations are Server Actions
   with their own opaque `POST` addresses.
-- **Input:** the session cookie, plus one optional query parameter — `journey`, the row id of
-  the gallery being arranged. A repeated parameter takes its first value, and a journey that
-  is not there (a typo, a trashed journey somebody bookmarked) falls back to the first
-  offered rather than drawing a grid with nothing in it and no way out.
+- **Input:** the session cookie, plus three optional query parameters. `journey` is the row id
+  of the gallery being arranged. `frame` is the `media` row this screen opens with SELECTED,
+  and `captionAll=1` opens §2.5's bulk caption panel already expanded — both written by
+  `SCREENS.md` §2.1's prompts and parsed here by `promptedSelection`
+  (`@travel-diary/domain/admin/prompts`), which is the inverse of the function that writes
+  them, so the two screens share one definition rather than two spellings. A repeated
+  parameter takes its first value on all three; a journey that is not there (a typo, a trashed
+  journey somebody bookmarked) falls back to the first offered rather than drawing a grid with
+  nothing in it and no way out; a `frame` that is not a row id Postgres could have minted, or
+  that names a frame this gallery does not hold, falls back to the first frame the same way.
+  All three are INITIAL values — once an author presses a tile or the "Caption all" button,
+  the address has had its say.
 - **Output:** an HTML document: `SCREENS.md` §2's shell — with the screen title "Galleries"
   and a crumb reading "{n} frames" — around §2.5's screen: the journey select with its
   "{name} — {n} frames" labels, the line "Drag to reorder. The first frame is the gallery

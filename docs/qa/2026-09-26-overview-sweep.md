@@ -3,7 +3,8 @@
 **Build:** `26a1594` **Engine:** playwright (chromium, headless, `desktop` project driving its own viewports)
 **Routes walked:** 1 (`/admin`) at three viewports, plus `/admin/publish` and `/admin/galleries` as
 comparison surfaces
-**Result:** 3 defects — S1:0 S2:0 S3:3 S4:0
+**Result:** 3 defects — S1:0 S2:0 S3:3 S4:0. **All three fixed in this task**, each with its own
+failing test and its own commit; see the `Fixed` line on each.
 
 ## What was instrumented
 
@@ -43,6 +44,11 @@ matching the fixture marker.
   at all: **"…gallery has no alt text.ADD ALT TEXT"**. `.promptText` is a `<span>` and the
   stylesheet leaves it `display: inline`, so the `margin-top: 3px` on the inline-block action
   does nothing to separate them.
+- **Fixed:** `59ac29e`. `.promptText` takes `display: block`, the rule
+  `publish.module.css`'s `.what` already carries with the reason beside it. The case asserts
+  the LEFT EDGE of every action rather than the top of one, because an inline sentence runs on
+  only when the action fits on its last line — the first shape of the test passed on its first
+  run for that reason and was rewritten.
 - **Evidence:** `getComputedStyle('[data-prompt-text]').display` is **`"inline"`**;
   `test-results/sweep-admin-desktop.png` and `sweep-admin-mobile.png` show the run-on in all
   three prompt rows. `publish.module.css`'s `.what` carries the note this file needed and did not
@@ -65,6 +71,9 @@ matching the fixture marker.
   half the height — because §2.8 puts `{location} · {when}` on the second line instead of giving
   the timestamp a column of its own. So this is §2.1's own shape rather than a family defect, and
   it is this screen's to hold.
+- **Fixed:** `a11f5ff`. The timestamp and Revert travel together in one `.rowMeta`, the row
+  wraps, and the text asks for half the row — so when the pair cannot fit beside it they take
+  their own line. No breakpoint: the row answers whatever width it is given.
 - **Evidence:** `test-results/sweep-admin-mobile.png`; `ROWCMP /admin {"row":302,"rowHeight":238,"text":63}`
   against `ROWCMP /admin/publish {"row":302,"rowHeight":128,"text":131}`.
 
@@ -81,8 +90,13 @@ matching the fixture marker.
   published — while the crumb, the Waiting card and `/admin/publish` all count **2**. This is
   PUB-001 (`docs/deviations.md` §91) in its third instance: the chip was relabelled by this task
   and the rail's digit has no label to fix.
+- **Fixed:** `458200e`, `docs/deviations.md` §97. `navCountFor` returns `undefined` for
+  `publish`; the datum stays on `NavCounts` and the header chip prints it in words. The browser
+  case asserts the PROPERTY — any Publish count is allowed as long as the rest of the screen
+  agrees with it — so it stays green the day the chrome can afford the real count.
 - **Evidence:** `STATES {"railPublish":"1","crumb":"2 changes waiting","chip":"1 journey never published"}`,
-  read off one render at one instant.
+  read off one render at one instant; and, on the fixture this task's own e2e run builds,
+  `the rail says [0] beside Publish while 1 change waiting`.
 
 ## What was measured and found correct
 

@@ -376,19 +376,27 @@ That record quotes figures that have since been superseded — the 2,500ms LCP b
 above all. **No figure beneath this section is the current gate unless this table says
 so.**
 
-| Gate                           | Config                    | Route                                                                                | Limit                                                                                                                  |
-| ------------------------------ | ------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `largest-contentful-paint`     | `lighthouserc.book.json`  | `/p/1`, book surface (1350x940, `Cookie: td-reading-surface=book`)                   | **≤3085ms**                                                                                                            |
-| `largest-contentful-paint`     | `lighthouserc.json`       | `/p/1`, mobile surface (Lighthouse phone emulation, no cookie)                       | **≤3085ms**                                                                                                            |
-| `largest-contentful-paint`     | `lighthouserc.json`       | `/gallery/patagonia`                                                                 | ≤4000ms                                                                                                                |
-| `resource-summary:script:size` | both                      | `/p/1` (both surfaces), `/gallery/<slug>`                                            | ≤184320 bytes (180KB, `CLAUDE.md` §6)                                                                                  |
-| `resource-summary:image:size`  | `lighthouserc.json`       | `/gallery/<slug>`                                                                    | ≤680000 bytes                                                                                                          |
-| `largest-contentful-paint`     | `lighthouserc.admin.json` | `/admin/sign-in`, `/admin/sign-in/code`, `/admin/reset`, `/admin` (1440x900 desktop) | **≤3085ms**                                                                                                            |
-| `resource-summary:script:size` | `lighthouserc.admin.json` | the same four admin routes                                                           | ≤327680 bytes (320KB, `CLAUDE.md` §6)                                                                                  |
-| `cumulative-layout-shift`      | all three                 | every collected URL                                                                  | ≤0.1                                                                                                                   |
-| `http-status-code`             | all three                 | every collected URL                                                                  | `minScore: 1`                                                                                                          |
-| —                              | `lighthouserc.json`       | `/cms`                                                                               | `http-status-code` and CLS only: no LCP, no script budget                                                              |
-| **none**                       | —                         | **`/admin/sign-in/done`, `/admin/reset/<token>`**                                    | **NOT GATED** — behind the guard or behind a live token; the paragraphs under this table say why, and what bounds each |
+| Gate                           | Config                    | Route                                                                  | Limit                                                                                                                  |
+| ------------------------------ | ------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `largest-contentful-paint`     | `lighthouserc.book.json`  | `/p/1`, book surface (1350x940, `Cookie: td-reading-surface=book`)     | **≤3085ms**                                                                                                            |
+| `largest-contentful-paint`     | `lighthouserc.json`       | `/p/1`, mobile surface (Lighthouse phone emulation, no cookie)         | **≤3085ms**                                                                                                            |
+| `largest-contentful-paint`     | `lighthouserc.json`       | `/gallery/patagonia`                                                   | ≤4000ms                                                                                                                |
+| `resource-summary:script:size` | both                      | `/p/1` (both surfaces), `/gallery/<slug>`                              | ≤184320 bytes (180KB, `CLAUDE.md` §6)                                                                                  |
+| `resource-summary:image:size`  | `lighthouserc.json`       | `/gallery/<slug>`                                                      | ≤680000 bytes                                                                                                          |
+| `largest-contentful-paint`     | `lighthouserc.admin.json` | the **eight** URLs that config collects (1440x900 desktop) — see below | **≤3085ms**                                                                                                            |
+| `resource-summary:script:size` | `lighthouserc.admin.json` | the same eight admin routes                                            | ≤327680 bytes (320KB, `CLAUDE.md` §6)                                                                                  |
+| `cumulative-layout-shift`      | all three                 | every collected URL                                                    | ≤0.1                                                                                                                   |
+| `http-status-code`             | all three                 | every collected URL                                                    | `minScore: 1`                                                                                                          |
+| —                              | `lighthouserc.json`       | `/cms`                                                                 | `http-status-code` and CLS only: no LCP, no script budget                                                              |
+| **none**                       | —                         | **`/admin/sign-in/done`, `/admin/reset/<token>`**                      | **NOT GATED** — behind the guard or behind a live token; the paragraphs under this table say why, and what bounds each |
+
+**THE EIGHT ADMIN URLs**, as `lighthouserc.admin.json` lists them: `/admin/sign-in`,
+`/admin/sign-in/code`, `/admin/reset`, `/admin`, `/admin/journeys`, `/admin/book`,
+`/admin/cover` and `/admin/publish`. This row said "four" until Phase 4 Task 12, which is when
+somebody counted: Tasks 4, 10 and 11 each added a URL to that config and left this table
+naming the four it started with. `/admin/media` and `/admin/galleries` are deliberately NOT
+among them (`docs/deviations.md` §73 and §80), and the four screens Tasks 13-15 mount are not
+there yet.
 
 **BOTH OF THE GATES THAT WERE RED AS THIS PHASE CLOSED WERE RULED ON BY THE REPOSITORY
 OWNER ON 2026-09-14, ON THE MEASUREMENTS BELOW.** Neither was an agent adjusting a
