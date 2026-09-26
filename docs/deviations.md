@@ -4224,3 +4224,56 @@ contribute a response header. Either turns this into one line.
 
 **Recorded as:** this entry, `app/robots.ts`'s header, the gallery route's header,
 `e2e/bookGate.spec.ts`'s header, and `docs/security.md`'s `indexGalleries` row.
+
+## 102 · "Delete for good" takes the photographs, and "Take the book offline" is one column
+
+**What `SCREENS.md` §2.10 gives.** A row with "Put back (dark ring) and Delete for good (terracotta
+ring)", under a header that says "Kept for thirty days" and "nothing here is gone until you say
+so". It says what the buttons are called and nothing about what the second one reaches.
+
+**What "for good" was decided to reach, and why.** The journey, its pages, and its photographs.
+
+- **Its pages** because a page's `journey` is `required`, so a page cannot mean anything without
+  one — and because the foreign key does NOT remove them:
+  `pages_journey_id_journeys_id_fk` is `ON DELETE SET NULL` (`confdeltype = 'n'`, read out of
+  `pg_constraint`), so deleting the journey alone leaves every page in the table with a null
+  owner. Orphan rows that violate the collection's own `required` and that no screen in this
+  repository can reach or remove.
+- **Its photographs** because deleting them is the only way `SCREENS.md` §2.9's "Space used" can
+  ever go DOWN. Nothing else in this repository removes a `media` row: there is no delete on the
+  Media screen, and the local store's own unbounded growth is already a documented condition
+  (`docs/runbook.md`). A "Delete for good" that freed no space would leave an author with a
+  storage bar they cannot move and a button whose name is a lie.
+
+**The alternative that was considered and not taken:** detaching the photographs instead —
+`journey: null`, `inBook: false` — so nothing irreplaceable is destroyed. `SECURITY.md` is
+explicit that losing 40GB of photographs is the worst realistic outcome for this site, which is a
+real argument for it. It was rejected because it makes every photograph in the diary permanently
+undeletable through the admin, which is a worse version of the same problem: an author who cannot
+delete cannot manage their own storage, and the only remaining remedy is a database console.
+The screen says what the button does before it is pressed, which is the mitigation that fits a
+design with one button.
+
+**What clears the references to those photographs is Postgres, and that sentence is a
+measurement rather than a belief.** Two references to a `media` row exist from outside a journey:
+`pages.slots[].media` and `about.portrait`. Code was written here to clear both before the delete;
+**both mutations that removed that code left their cases green**, because
+`pages_slots_media_id_media_id_fk` and `about_portrait_id_media_id_fk` are `ON DELETE SET NULL`
+too. The code is gone and the cases are not — a slot that held a deleted photograph comes back
+holding nothing, which is the state Task 7 spent a step making survivable.
+
+**"Take the book offline" writes `passwordProtect`, and there is nothing else it could write.**
+§2.9's "Careful now" block gives a ringed button and an explanation, and `DATA_MODEL.md` declares
+exactly one column that stops a reader being served: `passwordProtect`, which
+`apps/web/lib/bookAccess.ts` turns into a 401 at every public address. A second column would be a
+second idea of what offline means, and there is no second idea in the data model. So the button
+and the fourth toggle write the same thing, and the screen says so rather than pretending they
+are different actions: the button is the one-press version, and the toggle is how the book is
+opened again.
+
+**What would reverse either:** a `deletedAt` on `media` (which would make a photograph
+recoverable and change the first decision into a soft delete), or a column in `DATA_MODEL.md`
+that means offline without meaning closed.
+
+**Recorded as:** this entry, `apps/web/lib/admin/journeyMutations.ts`'s header,
+`apps/web/lib/admin/siteMutations.ts`'s `takeBookOffline`, and the cases named in both.

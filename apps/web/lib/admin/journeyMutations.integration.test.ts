@@ -28,6 +28,8 @@ import { getTestPayload } from '../testPayload'
 import { adminScope, type AdminScope } from './adminScope'
 import {
   createJourneyRow,
+  deleteJourneyForGood,
+  restoreJourney,
   duplicateJourneyRow,
   NEW_JOURNEY_PAGES,
   readJourneyRef,
@@ -688,5 +690,202 @@ describe('softDeleteJourney', () => {
 
     const pages = await payload.count({ collection: 'pages', ...scope, where: { journey: { equals: id } } })
     expect(pages.totalDocs).toBe(NEW_JOURNEY_PAGES.length)
+  })
+})
+
+describe('restoreJourney', () => {
+  it('clears deletedAt, putting a journey back where the journeys screen lists it', async () => {
+    const id = await createJourneyRow(payload, scope, { name: `${MARKER} Returns`, place: 'Iceland', dates: 'a day' })
+    await softDeleteJourney(payload, scope, id)
+
+    await restoreJourney(payload, scope, id)
+
+    // BOTH HALVES, for `softDeleteJourney`'s reason one describe above: the
+    // column is cleared AND the screen that reads it lists the journey again.
+    const row = await payload.findByID({ collection: 'journeys', id, ...scope, depth: 0 })
+    expect(row.deletedAt ?? null).toBeNull()
+    expect(
+      (await readJourneysScreen(payload, scope, { search: `${MARKER} Returns`, filter: 'all' })).map((r) => r.name),
+    ).toEqual([`${MARKER} Returns`])
+  })
+
+  it('does not publish a journey that was in draft, and does not overwrite its pending rewrite', async () => {
+    // THE VERSIONED-WRITE TRAP, on the one write this task adds to a versioned
+    // collection. `restoreJourney` goes through `writeJourneyFlag` for exactly
+    // this reason (standing orders §13): a bare `payload.update` merges from
+    // the NEWEST version, so a journey with an unpublished rewrite comes back
+    // with that rewrite in its main row and its status changed — which is the
+    // defect fix round 2 found on `archived`.
+    const id = await createJourneyRow(payload, scope, {
+      name: `${MARKER} Pending`,
+      place: 'Wales',
+      dates: 'a day',
+    })
+    await payload.update({
+      collection: 'journeys',
+      id,
+      ...scope,
+      draft: true,
+      data: { name: `${MARKER} Pending REWRITTEN` },
+    })
+    await softDeleteJourney(payload, scope, id)
+
+    await restoreJourney(payload, scope, id)
+
+    const live = await payload.findByID({ collection: 'journeys', id, ...scope, depth: 0 })
+    const newest = await payload.findVersions({
+      collection: 'journeys',
+      ...scope,
+      depth: 0,
+      pagination: false,
+      where: { and: [{ parent: { equals: id } }, { latest: { equals: true } }] },
+    })
+
+    expect(live.name).toBe(`${MARKER} Pending`)
+    expect(newest.docs[0]?.version.name).toBe(`${MARKER} Pending REWRITTEN`)
+    expect(newest.docs[0]?.version.deletedAt ?? null).toBeNull()
+  })
+})
+
+describe('deleteJourneyForGood', () => {
+  /**
+   * A stored photograph belonging to one journey, already placed in the book.
+   * @param journey - Its owner.
+   * @param label - What to call it.
+   * @returns Its row id.
+   */
+  const aPhotograph = async (journey: number, label: string): Promise<number> => {
+    const png = await sharp({ create: { width: 400, height: 400, channels: 3, background: '#4a6b3c' } })
+      .png()
+      .toBuffer()
+    const created = await payload.create({
+      collection: 'media',
+      ...scope,
+      data: { journey, kind: 'still', alt: `${MARKER} ${label}`, state: 'ready', inBook: true },
+      file: { name: `${MARKER}-${label}.png`, data: png, mimetype: 'image/png', size: png.length },
+    })
+    return created.id
+  }
+
+  it('removes the journey itself, which is the only hard delete in this phase', async () => {
+    const id = await createJourneyRow(payload, scope, { name: `${MARKER} Gone`, place: 'Iceland', dates: 'a day' })
+    await softDeleteJourney(payload, scope, id)
+
+    await deleteJourneyForGood(payload, scope, id)
+
+    expect((await payload.count({ collection: 'journeys', ...scope, where: { id: { equals: id } } })).totalDocs).toBe(0)
+  })
+
+  it('takes the journey’s pages with it, by their own row ids and not by their owner', async () => {
+    // THE IDS ARE HELD BEFORE THE DELETE, and that is the whole difference.
+    // This case counted pages `where journey equals <id>` at first, and a
+    // mutation that removed the page delete left it GREEN: the foreign key is
+    // `ON DELETE SET NULL`, so the journey's pages survive with a null owner
+    // and that clause matches none of them. Orphan pages violate the
+    // collection's own `required` and no screen in this repository can reach
+    // them.
+    const id = await createJourneyRow(payload, scope, { name: `${MARKER} Paged`, place: 'Iceland', dates: 'a day' })
+    const before = await payload.find({
+      collection: 'pages',
+      ...scope,
+      depth: 0,
+      pagination: false,
+      select: { order: true },
+      where: { journey: { equals: id } },
+    })
+    const pages = before.docs.map((page) => page.id)
+    expect(pages.length).toBe(NEW_JOURNEY_PAGES.length)
+    await softDeleteJourney(payload, scope, id)
+
+    await deleteJourneyForGood(payload, scope, id)
+
+    expect((await payload.count({ collection: 'pages', ...scope, where: { id: { in: pages } } })).totalDocs).toBe(0)
+  })
+
+  it('takes the journey’s photographs with it, which is the only way an author reclaims space', async () => {
+    const id = await createJourneyRow(payload, scope, { name: `${MARKER} Filed`, place: 'Iceland', dates: 'a day' })
+    const photograph = await aPhotograph(id, 'filed')
+    await softDeleteJourney(payload, scope, id)
+
+    await deleteJourneyForGood(payload, scope, id)
+
+    expect(
+      (await payload.count({ collection: 'media', ...scope, where: { id: { equals: photograph } } })).totalDocs,
+    ).toBe(0)
+  })
+
+  it('clears the slot a deleted photograph was in, rather than leaving a page pointing at nothing', async () => {
+    // THE CASE THE WHOLE DECISION TURNS ON. `media.inBook` has had a writer
+    // since Task 8, and Task 7 spent a step making a slot-pointing-at-nothing
+    // SURVIVABLE rather than impossible — so a hard delete that left one would
+    // be a defect nothing else in this repository fails on. The slot here is on
+    // ANOTHER journey's page, which is the half a cascade keyed on the deleted
+    // journey's own pages would miss.
+    const doomed = await createJourneyRow(payload, scope, {
+      name: `${MARKER} Lender`,
+      place: 'Iceland',
+      dates: 'a day',
+    })
+    const keeper = await createJourneyRow(payload, scope, {
+      name: `${MARKER} Borrower`,
+      place: 'Norway',
+      dates: 'a day',
+    })
+    const photograph = await aPhotograph(doomed, 'lent')
+    // TWO SLOTS, AND THAT IS THE POINT OF THE FIXTURE (standing orders §14):
+    // one holds the doomed photograph and one holds the keeper's own, so the
+    // assertion can tell "cleared the slot that pointed at a deleted row" from
+    // "cleared every slot on the page".
+    const kept = await aPhotograph(keeper, 'keptslot')
+    const page = await payload.create({
+      collection: 'pages',
+      ...scope,
+      data: {
+        journey: keeper,
+        kind: 'frames',
+        order: 9,
+        slots: [
+          { role: 'frame', media: photograph },
+          { role: 'frame', media: kept },
+        ],
+      },
+    })
+    await softDeleteJourney(payload, scope, doomed)
+
+    await deleteJourneyForGood(payload, scope, doomed)
+
+    const after = await payload.findByID({ collection: 'pages', id: page.id, ...scope, depth: 0 })
+    expect([after.slots?.[0]?.media ?? null, after.slots?.[1]?.media ?? null]).toEqual([null, kept])
+  })
+
+  it('clears the About portrait when it was one of the deleted photographs', async () => {
+    // The other reference this schema allows from outside a journey. An About
+    // page whose portrait is a row id that no longer exists renders as a broken
+    // mount on the public diary.
+    const before = await payload.findGlobal({ slug: 'about', ...scope, depth: 0 })
+    const id = await createJourneyRow(payload, scope, { name: `${MARKER} Portrait`, place: 'Peru', dates: 'a day' })
+    const photograph = await aPhotograph(id, 'portrait')
+    await payload.updateGlobal({ slug: 'about', ...scope, data: { portrait: photograph } })
+    await softDeleteJourney(payload, scope, id)
+
+    try {
+      await deleteJourneyForGood(payload, scope, id)
+
+      expect((await payload.findGlobal({ slug: 'about', ...scope, depth: 0 })).portrait ?? null).toBeNull()
+    } finally {
+      await payload.updateGlobal({ slug: 'about', ...scope, data: { portrait: before.portrait ?? null } })
+    }
+  })
+
+  it('refuses a journey that is not in the trash, so nothing is destroyed from a stale form', async () => {
+    // THE PERMITTED SIDE IS EVERY CASE ABOVE. This is the refused one: the only
+    // route to this mutation is §2.10, which lists nothing but trashed
+    // journeys — so a request naming a live one is a stale page, a typed id or
+    // a replayed POST, and none of those may destroy a journey.
+    const id = await createJourneyRow(payload, scope, { name: `${MARKER} Live`, place: 'Iceland', dates: 'a day' })
+
+    await expect(deleteJourneyForGood(payload, scope, id)).rejects.toThrow(/trash/u)
+
+    expect((await payload.count({ collection: 'journeys', ...scope, where: { id: { equals: id } } })).totalDocs).toBe(1)
   })
 })

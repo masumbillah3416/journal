@@ -636,6 +636,11 @@ export default defineConfig({
         // Same exclude-and-regate treatment as `readOverview.ts` above.
         'apps/web/lib/admin/readSettingsScreen.ts',
         'apps/web/lib/admin/readTrashScreen.ts',
+        // Phase 4 Task 13's writes. `siteMutations.ts` is three partial
+        // `updateGlobal`s, and the only thing worth asserting about them is
+        // what Payload does with the columns they were NOT given — which is a
+        // fact about Postgres. Same exclude-and-regate treatment.
+        'apps/web/lib/admin/siteMutations.ts',
         // `mint-lighthouse-session.ts` (Phase 4 Task 3) creates an account and
         // issues a session through this repository's own session service, both
         // of which are rows in a real Postgres, so its only test is an
