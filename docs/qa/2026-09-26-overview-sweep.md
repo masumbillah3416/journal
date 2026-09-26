@@ -25,8 +25,18 @@ So three of the four cards would have drawn their empty lines and the sweep woul
 nothing. The run seeds two journeys (one published-then-edited, one never published) and three
 `media` rows (a posterless clip, an uncaptioned still, a still with no alt text), and removes
 them afterwards. **The dev database was dumped before and after** — journeys 10, pages 30, media
-143, `_journeys_v` 610, `_pages_v` 546 — and every count came back identical, with zero rows
-matching the fixture marker.
+143, `_journeys_v` 610, `_pages_v` 546 — and the three COLLECTION counts came back identical,
+with zero rows matching either fixture marker.
+
+**The version tables did not, and it is worth saying exactly why rather than rounding it to
+"clean".** After the full `e2e/admin.spec.ts` run `_journeys_v` reads 650: the orphan count
+(rows whose `parent_id` is null, which Payload leaves behind when a journey is deleted) went
+42 → 56, and all ten seeded journeys carry a new version row and a fresh `updated_at`. Their
+names, places and `_status` are unchanged, and the cause is Task 10's own bookmark-order case,
+which says so at the top of itself — "IT WRITES THE DEVELOPER'S OWN DATABASE, so it reads every
+journey's `order` AND `_status` first and writes them all back at the end" — through
+`writeJourneyPlace`, which is the versioned-write path that makes the restore safe. Nothing this
+sweep did touches a seeded row: its fixtures are rows it created and deleted.
 
 ## Defects
 
@@ -50,8 +60,11 @@ matching the fixture marker.
   only when the action fits on its last line — the first shape of the test passed on its first
   run for that reason and was rewritten.
 - **Evidence:** `getComputedStyle('[data-prompt-text]').display` is **`"inline"`**;
-  `test-results/sweep-admin-desktop.png` and `sweep-admin-mobile.png` show the run-on in all
-  three prompt rows. `publish.module.css`'s `.what` carries the note this file needed and did not
+  the run-on was visible in all three prompt rows at all three viewports, and
+  the geometry says which: of three prompts on one render, the first read
+  `{"text":{"top":492,"bottom":536,"lines":2},"action":{"top":524,"left":1061},"bodyLeft":974}`
+  — the action starting 87px right of the body's own edge, on the sentence's last line — while
+  the other two happened to wrap and looked correct. `publish.module.css`'s `.what` carries the note this file needed and did not
   copy: "`display: block` because both lines are `<span>`s inside the row's `<label>` — an inline
   element takes no top margin and the two would share a line."
 
@@ -74,8 +87,9 @@ matching the fixture marker.
 - **Fixed:** `a11f5ff`. The timestamp and Revert travel together in one `.rowMeta`, the row
   wraps, and the text asks for half the row — so when the pair cannot fit beside it they take
   their own line. No breakpoint: the row answers whatever width it is given.
-- **Evidence:** `test-results/sweep-admin-mobile.png`; `ROWCMP /admin {"row":302,"rowHeight":238,"text":63}`
-  against `ROWCMP /admin/publish {"row":302,"rowHeight":128,"text":131}`.
+- **Evidence:** `ROWCMP /admin {"row":302,"rowHeight":238,"text":63}` against
+  `ROWCMP /admin/publish {"row":302,"rowHeight":128,"text":131}`, both read in one pass at the
+  same 390px viewport.
 
 ### OVR-003 · S3 · The rail's Publish count says 1 beside a crumb that says 2
 
@@ -150,7 +164,9 @@ Every §2.1 value, read off `getComputedStyle` and `getBoundingClientRect` at al
   the three labels are asserted in jsdom against a stubbed clipboard instead
   (`CopyLink.test.tsx`), including the refusal and the no-clipboard arms.
 - **A visual baseline.** Owed, and generated only in the pinned Linux container
-  (`docs/deviations.md` §86). This sweep's screenshots are host-generated evidence, not baselines.
+  (`docs/deviations.md` §86). This sweep's own screenshots were written to `test-results/`,
+  which later runs clean, so the evidence recorded here is the NUMBERS rather than the pictures
+  — which is the stronger record anyway: a screenshot cannot be re-read against a threshold.
 - **The `nothing-published` prompt.** It needs a diary with no published journey at all, which
   cannot be produced in the developer's database without unpublishing ten seeded journeys. Its
   own case is in `packages/domain/src/admin/prompts.test.ts`.
