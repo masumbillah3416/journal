@@ -50,7 +50,7 @@
  * walk that has stopped finding routes at all.
  * Depends on: node:fs, node:path, node:url, vitest.
  */
-import { readFileSync, readdirSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -58,8 +58,62 @@ import { describe, expect, it } from 'vitest'
 /** Where the route tree is resolved from — `apps/web`. */
 const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 
-/** The files Next.js serves an address from. */
-const ROUTE_FILES = new Set(['page.tsx', 'route.ts'])
+/**
+ * The basenames Next.js serves an address from.
+ *
+ * ═══ IT WAS `page.tsx` AND `route.ts`, AND THAT MISSED A WHOLE CLASS ═══
+ *
+ * Next.js also serves a **metadata route** from a module: `sitemap`, `robots`,
+ * `manifest`, `opengraph-image`, `twitter-image`, `icon` and `apple-icon`.
+ * `app/robots.ts` IS one, which is why the first version of this file had to
+ * hand-add it to {@link publicRouteFiles} — and that hand-add was the signal
+ * that the walk could not see its own population.
+ *
+ * MEASURED: a planted, ungated `apps/web/app/sitemap.ts` — a file that would
+ * enumerate every journey slug on a closed book — left all six cases green.
+ * The hand-add is gone now, because the walk finds `app/robots.ts` by itself.
+ *
+ * An `icon.png` or an `opengraph-image.jpg` is a static FILE rather than a
+ * module: it applies no gate and can hold no call, so only the code spellings
+ * are collected ({@link ROUTE_EXTENSIONS}).
+ */
+const ROUTE_BASENAMES = new Set([
+  'page',
+  'route',
+  'sitemap',
+  'robots',
+  'manifest',
+  'opengraph-image',
+  'twitter-image',
+  'icon',
+  'apple-icon',
+])
+
+/** The extensions Next.js accepts for any of {@link ROUTE_BASENAMES}. */
+const ROUTE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx'])
+
+/**
+ * Whether a file name is one Next.js serves an address from.
+ * @param name - The file's basename, with its extension.
+ * @returns `true` for a route or metadata-route module.
+ * @example
+ *   isRouteFile('sitemap.ts') // true
+ *   isRouteFile('icon.png')   // false — a static file, not a module
+ */
+const isRouteFile = (name: string): boolean => {
+  const dot = name.lastIndexOf('.')
+  if (dot < 1) return false
+  return ROUTE_BASENAMES.has(name.slice(0, dot)) && ROUTE_EXTENSIONS.has(name.slice(dot))
+}
+
+/**
+ * Where the metadata-route case below plants its file, relative to
+ * {@link APP}.
+ *
+ * Under the diary's own route group, so its address is public and its removal
+ * cannot disturb anything else; the directory is created and removed with it.
+ */
+const PLANTED_METADATA_ROUTE = 'app/(diary)/zz-book-gate-registration-probe/sitemap.ts'
 
 /** The call that spends the gate. A call, never a mention. */
 const APPLIES_THE_GATE = /bookIsGated\(/u
@@ -134,25 +188,26 @@ const routeFiles = (): readonly string[] =>
   readdirSync(path.join(APP, 'app'), { recursive: true })
     .map(String)
     .map((entry) => `app/${entry.split(path.sep).join('/')}`)
-    .filter((entry) => ROUTE_FILES.has(entry.split('/').slice(-1)[0] ?? ''))
+    .filter((entry) => isRouteFile(entry.split('/').slice(-1)[0] ?? ''))
     .sort()
 
 /**
  * Every route file this repository serves to a signed-out reader.
  *
- * `app/robots.ts` is not under a directory, so it is added by name: it is a
- * metadata route rather than a `route.ts`, and it is as public as anything
- * here.
+ * NOTHING IS ADDED BY HAND. The first version appended `app/robots.ts`,
+ * because the walk only collected `page.tsx` and `route.ts` and a metadata
+ * route is neither — and that hand-add was what hid a whole class of public
+ * address from this guard. {@link ROUTE_BASENAMES} carries the class now, so
+ * `app/robots.ts` arrives through the walk like everything else.
  * @returns The paths, sorted.
  */
 const publicRouteFiles = (): readonly string[] =>
-  [
-    ...routeFiles().filter((file) => {
+  routeFiles()
+    .filter((file) => {
       const address = addressOf(file)
       return !address.startsWith(ADMIN_PREFIX) && !address.startsWith(PAYLOAD_ADMIN_PREFIX)
-    }),
-    'app/robots.ts',
-  ].sort()
+    })
+    .sort()
 
 /**
  * One route file's source.
@@ -215,6 +270,36 @@ describe('the addresses a signed-out reader can ask for', () => {
     expect(body).toContain("slug: 'site'")
     expect(body).toContain('passwordProtect')
     expect(body).toContain('return false')
+  })
+
+  it('finds app/robots.ts through the walk, rather than because somebody remembered it', () => {
+    // The hand-add is gone. If the walk stops collecting metadata routes, this
+    // fails here rather than silently shrinking the population every other
+    // case in this file is measured against.
+    expect(publicRouteFiles()).toContain('app/robots.ts')
+  })
+
+  it('sees a metadata route a later task adds, which is the class it used to be blind to', () => {
+    // PLANTED AND REMOVED IN A `finally`. A `sitemap.ts` would enumerate every
+    // journey slug on a closed book, and the walk reported six green cases
+    // with exactly this file on disk before `ROUTE_BASENAMES` existed.
+    const planted = path.join(APP, PLANTED_METADATA_ROUTE)
+    mkdirSync(path.dirname(planted), { recursive: true })
+    writeFileSync(planted, 'const sitemap = () => []\nexport default sitemap\n', 'utf8')
+
+    try {
+      const found = publicRouteFiles()
+      expect(found, 'the walk did not collect a planted metadata route').toContain(PLANTED_METADATA_ROUTE)
+
+      const classified = new Set(PUBLIC_WITHOUT_THE_GATE.map((route) => route.file))
+      const unclassified = found.filter((file) => !classified.has(file) && !APPLIES_THE_GATE.test(sourceOf(file)))
+
+      expect(unclassified, 'a planted ungated metadata route was not reported').toEqual([PLANTED_METADATA_ROUTE])
+    } finally {
+      rmSync(path.dirname(planted), { recursive: true, force: true })
+    }
+
+    expect(publicRouteFiles(), 'the planted route outlived its own case').not.toContain(PLANTED_METADATA_ROUTE)
   })
 
   it('names a reason for every classification, so none is a bare filename', () => {
