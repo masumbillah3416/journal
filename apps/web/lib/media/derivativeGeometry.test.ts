@@ -232,10 +232,23 @@ const codeOf = (file: string): string =>
  * five years widens what counts as a read without anybody editing this.
  * @returns Repository-relative paths of every consumer.
  */
+/**
+ * The one file that names tier paths without drawing a photograph.
+ *
+ * `exportEverything.ts` lists every field path the dump may carry —
+ * `sizes.thumb.url` among sixty others — and draws nothing at all: it has no
+ * `<img>`, no ladder and no preference order, so neither list above could
+ * classify it honestly. Excluded by PATH rather than by a pattern over its
+ * contents, so a file that started DRAWING would have to be named here
+ * deliberately. One path rather than a list because one file has ever needed
+ * it (CLAUDE.md §4).
+ */
+const NAMES_TIERS_WITHOUT_DRAWING_ONE = 'apps/web/lib/admin/exportEverything.ts'
+
 const derivativeReaders = (): readonly string[] => {
   const tiers = configuredDerivatives().map((tier) => tier.name)
   const readsATier = new RegExp(`sizes\\??\\.(\\[|${tiers.join('|')})`)
-  return sourceFiles().filter((file) => readsATier.test(codeOf(file)))
+  return sourceFiles().filter((file) => file !== NAMES_TIERS_WITHOUT_DRAWING_ONE && readsATier.test(codeOf(file)))
 }
 
 /**

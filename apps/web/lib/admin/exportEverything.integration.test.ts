@@ -26,7 +26,17 @@ import { userId } from '@travel-diary/domain/ids'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getTestPayload } from '../testPayload'
 import { adminScope, type AdminScope } from './adminScope'
-import { CONTENT, GLOBALS, WITHHELD, exportEverything } from './exportEverything'
+import {
+  ALWAYS_EXPORTED,
+  CONTENT,
+  EXPORTED_FIELDS,
+  GLOBALS,
+  WITHHELD,
+  WITHHELD_FIELDS,
+  declaredFieldPaths,
+  exportEverything,
+  onlyExportedFields,
+} from './exportEverything'
 
 /** What every row this file writes carries, so cleanup can find them all. */
 const MARKER = 'test-export-everything'
@@ -140,6 +150,144 @@ describe('exportEverything', () => {
 
   it('stamps the dump from the clock it was given, not from one of its own', async () => {
     expect((await exportEverything(payload, scope, AT)).takenAt).toBe('2026-09-27T10:00:00.000Z')
+  })
+
+  it('classifies every FIELD the config declares on an exported collection or global', () => {
+    // THE REVIEW'S F5, AT THE LEVEL IT WAS MISSED. The first version of this
+    // guard classified COLLECTIONS and never FIELDS, and a `webhookSecret`
+    // column planted on `journeys` reached the dump with all twelve cases
+    // green. A collection is not a unit of sensitivity.
+    const sources = [
+      ...payload.config.collections
+        .filter((collection) => CONTENT.includes(collection.slug))
+        .map((collection) => ({ slug: collection.slug, fields: collection.fields })),
+      ...payload.config.globals.map((global) => ({ slug: global.slug, fields: global.fields })),
+    ]
+    expect(sources.length, 'no exported collections or globals were found').toBe(CONTENT.length + GLOBALS.length)
+
+    const unclassified = sources.flatMap(({ slug, fields }) =>
+      declaredFieldPaths(fields)
+        .filter((path) => !(EXPORTED_FIELDS[slug] ?? []).includes(path) && WITHHELD_FIELDS[slug]?.[path] === undefined)
+        .map((path) => `${slug}.${path}`),
+    )
+
+    expect(unclassified, 'these fields are declared and classified in neither list').toEqual([])
+  })
+
+  it('refuses a config declaring a FIELD nobody has classified, and names it', async () => {
+    // THE REVIEWER'S PROBE, DRIVEN RATHER THAN DESCRIBED — planted on the real
+    // config, in the real collection, and put back in a `finally`. The
+    // reviewer planted the same field with a real column and a real
+    // `sk-live-…` value and watched it reach the dump; this is what now stops
+    // it, one commit earlier than a database migration.
+    const journeys = payload.config.collections.find((collection) => collection.slug === 'journeys')
+    expect(journeys, 'the journeys collection is not in the config').toBeDefined()
+    const declared = journeys?.fields ?? []
+    const planted = { name: 'webhookSecret', type: 'text' } as unknown as (typeof declared)[number]
+    if (journeys !== undefined) journeys.fields = [...declared, planted]
+
+    try {
+      await expect(exportEverything(payload, scope, AT)).rejects.toThrow(/journeys\.webhookSecret/u)
+    } finally {
+      if (journeys !== undefined) journeys.fields = declared
+    }
+  })
+
+  it('refuses a field planted on a GLOBAL too, which is where the next credential lands', async () => {
+    // `docs/deviations.md` §100 names a book password on the `site` global as
+    // exactly what would reverse its no-challenge decision. A guard that only
+    // watched collections would ship it whole.
+    const site = payload.config.globals.find((global) => global.slug === 'site')
+    expect(site, 'the site global is not in the config').toBeDefined()
+    const declared = site?.fields ?? []
+    const planted = { name: 'bookPassword', type: 'text' } as unknown as (typeof declared)[number]
+    if (site !== undefined) site.fields = [...declared, planted]
+
+    try {
+      await expect(exportEverything(payload, scope, AT)).rejects.toThrow(/site\.bookPassword/u)
+    } finally {
+      if (site !== undefined) site.fields = declared
+    }
+  })
+
+  it('drops a key no classification names, however deep it sits, and keeps its siblings', () => {
+    // THE PROJECTION IS POSITIVE, and this is the case that says so. The first
+    // attempt at this fix stripped a blocklist instead; that list is empty, so
+    // the call site was a no-op — bypassing it entirely left all eighteen
+    // cases green. A positive projection is doing work on every row of every
+    // dump, and it fails CLOSED.
+    const projected = onlyExportedFields(
+      {
+        id: 41,
+        name: 'Reykjavik',
+        webhookSecret: 'sk-live-REVIEW-PROBE-SECRET',
+        furniture: { accent: '#3d817e', signoff: 'S', apiKey: 'sk-live-NESTED' },
+        highlights: [
+          { text: 'kept', id: '1' },
+          { text: 'also kept', id: '2' },
+        ],
+      },
+      ['name', 'furniture.accent', 'furniture.signoff', 'highlights.text', 'highlights.id'],
+    )
+
+    expect(JSON.stringify(projected)).not.toContain('sk-live-')
+    expect(projected).toEqual({
+      id: 41,
+      name: 'Reykjavik',
+      furniture: { accent: '#3d817e', signoff: 'S' },
+      highlights: [
+        { text: 'kept', id: '1' },
+        { text: 'also kept', id: '2' },
+      ],
+    })
+  })
+
+  it('keeps an array element’s own keys on every element, because an index is not part of a path', () => {
+    const projected = onlyExportedFields(
+      {
+        tally: [
+          { key: 'a', value: 'kept', secret: 'sk-live-ONE' },
+          { key: 'b', value: 'kept', secret: 'sk-live-TWO' },
+        ],
+      },
+      ['tally.key', 'tally.value'],
+    )
+
+    expect(JSON.stringify(projected)).not.toContain('sk-live-')
+    expect(projected).toEqual({
+      tally: [
+        { key: 'a', value: 'kept' },
+        { key: 'b', value: 'kept' },
+      ],
+    })
+  })
+
+  it('carries every row through that projection, so a real dump holds only classified keys', async () => {
+    // AT THE CALL SITE, not at the function: every key of every exported row,
+    // compared against the classification. It is what fails if a row ever
+    // arrives carrying something nobody named.
+    const dump = await exportEverything(payload, scope, AT)
+    const stray: string[] = []
+    for (const [slug, rows] of Object.entries(dump.collections)) {
+      for (const row of rows) {
+        for (const key of Object.keys(row as Record<string, unknown>)) {
+          const classified =
+            ALWAYS_EXPORTED.includes(key) ||
+            (EXPORTED_FIELDS[slug] ?? []).some((path) => path === key || path.startsWith(`${key}.`))
+          if (!classified) stray.push(`${slug}.${key}`)
+        }
+      }
+    }
+
+    expect(stray, 'these keys reached the dump and no classification names them').toEqual([])
+  })
+
+  it('carries Payload’s own two row keys, which no field list declares', () => {
+    // `id` is what a restore re-points a relationship with and `globalType` is
+    // how Payload labels a global's row, so a dump without them is not a
+    // restore. They are named rather than left to be noticed missing from the
+    // field lists.
+    expect(ALWAYS_EXPORTED).toEqual(['id', 'globalType'])
   })
 
   it('refuses a config declaring a collection nobody has classified', async () => {
