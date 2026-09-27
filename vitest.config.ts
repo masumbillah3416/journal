@@ -967,15 +967,39 @@ export default defineConfig({
         },
         // The three Phase 2 Task 10 modules the admin's request policy is
         // made of. They are named individually, at the number they actually
-        // achieve, rather than left under `apps/web/lib/**`'s 95%: each is pure
-        // (no I/O, no framework, no database), each is imported by
-        // `apps/web/middleware.ts` and therefore runs in the Edge runtime where
-        // a mistake cannot be caught by anything else, and each decides
-        // something a security requirement names - which addresses answer
-        // without a session, whether a mutation came from our own pages, and
-        // what a session cookie says. 95% would leave one uncovered branch in
-        // any of them acceptable, and there is no branch here whose behaviour
-        // is not a real one.
+        // achieve, rather than left under `apps/web/lib/**`'s 95%.
+        //
+        // THE REASON IS RE-DERIVED HERE, because one of the three this comment
+        // used to give had evaporated. It said each "runs in the Edge runtime
+        // where a mistake cannot be caught by anything else". The middleware
+        // runs on NODE (docs/deviations.md 101), and the identical sentence in
+        // docs/testing/08-security.md was corrected a round before this one -
+        // this copy, in the file that actually DEFINES the gate, was missed,
+        // because the grep that found the others was case-sensitive and never
+        // looked outside apps/ and docs/.
+        //
+        // The three reasons that hold, none of which is a runtime:
+        //
+        // 1. WHY 100 IS POSSIBLE AT ALL: each is pure - no I/O, no framework,
+        //    no database - so every branch is reachable from a plain unit case
+        //    with no fixture. That is not true of most of `apps/web/lib/**`,
+        //    which is why 95% is the bar there and 100 is affordable here.
+        // 2. WHY IT SHOULD BE 100: these three ARE the admin's request policy.
+        //    `apps/web/middleware.ts` takes no decision of its own (its own
+        //    entry below says so, and is also at 100%), so every admin request
+        //    is decided by this code before any route file runs.
+        // 3. WHY NOTHING ELSE WOULD CATCH IT: this pass is their only MEASURED
+        //    coverage. vitest.integration.config.ts gates their database-facing
+        //    siblings (`guard.ts` and the endpoints) and not these, and no
+        //    browser spec asserts the admin's header set - e2e reads
+        //    `x-robots-tag`, `content-disposition` and `cache-control`, never
+        //    the CSP. An uncovered branch here is a branch nothing runs.
+        //
+        // And each decides something a security requirement names - which
+        // addresses answer without a session, whether a mutation came from our
+        // own pages, and what a session cookie says. 95% would make one
+        // uncovered branch in any of them acceptable, and there is no branch
+        // here whose behaviour is not a real one.
         // The Server Action rule: 100 across, and it has to be. It is the only
         // thing standing between Phase 4's ten screens of mutations and an
         // unguarded POST endpoint, it replaced nine text scans that were

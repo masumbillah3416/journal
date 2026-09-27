@@ -175,7 +175,7 @@ nobody.
 ```
 request for /admin/…
   │
-  ├─ apps/web/middleware.ts  (EDGE runtime: no pg, no Payload, no node:crypto)
+  ├─ apps/web/middleware.ts  (NODE runtime — but asks no database anything on THIS path)
   │    ├─ isCrossSiteMutation → 403, empty body, admin headers on it
   │    ├─ adminSecurityHeaders({ development }) on every response
   │    └─ mints a pre-auth td-session for an anonymous browser on a public GET
@@ -186,15 +186,20 @@ request for /admin/…
 ```
 
 **The split is by where the answer belongs.** Whether an identifier names a LIVE row is a
-question only Postgres can answer. This document said the middleware could not ask it because
-it runs on the Edge runtime; it runs on Node since `docs/deviations.md` §101 and could, so the
-split is a decision rather than a constraint — one authority on who a request is, at the route
-that needs the answer. Substituting "is a
-cookie present" is not a weaker version of the same check — it is a different one, and it
-would pass for every revoked session, every expired one, and every anonymous visitor, since
-the pre-auth identifier this surface mints for browsers that have not signed in is carried
-in the same cookie. `docs/adr/0018-admin-request-policy-and-the-guard-split.md` records the
-five arrangements considered.
+question only Postgres can answer, and this page said twice — in the box above and in this
+paragraph — that the middleware could not ask it, because it ran on the Edge runtime. It runs on
+Node since `docs/deviations.md` §101 and it CAN. Task 13's second fix round corrected the prose
+and **left the box**, so for one round this page asserted the premise as fact eleven lines above
+the paragraph striking it. Both are corrected now.
+
+So the split is a decision rather than a constraint: **one authority on who a request is, at the
+route that needs the answer.** Substituting "is a cookie present" is not a weaker version of that
+check — it is a different one, and it would pass for every revoked session, every expired one,
+and every anonymous visitor, since the pre-auth identifier this surface mints for browsers that
+have not signed in is carried in the same cookie. That is what a middleware could add cheaply,
+and it is worth nothing; reading the row properly there would buy no safety the route does not
+already give. `docs/adr/0018-admin-request-policy-and-the-guard-split.md` records the five
+arrangements considered, under a note saying which of its premises stopped being true.
 
 **The path policy is default-deny.** `apps/web/lib/auth/adminAccess.ts` lists the addresses
 that answer without a session — the steps of signing in and of getting back in — and
