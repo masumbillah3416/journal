@@ -33,24 +33,47 @@
  *
  * ═══ THIS FILE RUNS ON THE NODE RUNTIME, AND THAT IS A MEASURED CORRECTION ═══
  *
- * This repository used to say, in module headers, a test header, an ADR, an
- * architecture document and this very file, that the middleware "runs in
- * Next.js's Edge runtime, where `pg` and Payload do not exist". On Next 16.3.3
- * that is false: `config.runtime = 'nodejs'` is honoured, and the Task 13
+ * This repository used to say, in source and in documents, that the middleware
+ * "runs in Next.js's Edge runtime, where `pg` and Payload do not exist" —
+ * where, and how many, is the grep below and not a sentence here. On Next
+ * 16.3.3 it is false: `config.runtime = 'nodejs'` is honoured, and the Task 13
  * review measured it — `require('pg')` connected and read the `site` row from
  * inside this file. `docs/deviations.md` §101 carries the measurement.
  *
- * NO COUNT IS GIVEN HERE, deliberately. This said FOUR places, because four is
- * what the first fix round corrected; the re-review then found a fifth in this
- * file, and the grep that followed found the rest. A figure written beside a
- * correction made place by place is a claim about thoroughness nobody checked
- * (CLAUDE.md §0). What CAN be checked is the grep itself: `Edge runtime` now
- * turns up only sentences saying the premise WAS believed and is not — with
- * two deliberate exceptions, both records rather than reasons.
- * `docs/adr/0018-admin-request-policy-and-the-guard-split.md` keeps its
- * original wording under a superseding note, because an ADR records what was
- * believed; and the phase plan under `docs/superpowers/plans/` is a spent
- * document nobody builds from twice.
+ * NO COUNT IS GIVEN HERE, deliberately, and this paragraph has now been wrong
+ * twice for giving one. It said FOUR places, which was what the first fix
+ * round corrected rather than what existed; the re-review found a fifth in
+ * this file. It then said the phrase survived in only two named exceptions,
+ * and the re-review ran that grep and found two more. A figure beside a
+ * correction is a claim about thoroughness that nobody checked (CLAUDE.md
+ * §0) — and so, it turns out, is a prose description of a search.
+ *
+ * SO THE SEARCH IS WRITTEN OUT INSTEAD OF DESCRIBED. Run it:
+ *
+ *     git grep -in 'edge runtime'
+ *
+ * `-i` because `docs/architecture.md` spelled it `EDGE runtime` in an ASCII
+ * box and a case-sensitive grep walked past it for a round. `git grep` with no
+ * path because `vitest.config.ts` carried a copy and sits outside `apps/`,
+ * `docs/`, `e2e/` and `packages/`, which is every root the last search named.
+ * Both of those are how the previous version of this paragraph came to be
+ * false.
+ *
+ * WHAT EVERY HIT MUST BE — a property, not a list, because a list is a count
+ * wearing a different hat:
+ *
+ *   - a sentence saying the premise WAS believed and is not; or
+ *   - the original wording of a RECORD, kept deliberately, with its correction
+ *     beside it in the same file. No record is a reason anybody acts on:
+ *     `docs/adr/0018-admin-request-policy-and-the-guard-split.md` keeps its
+ *     text under a superseding note, because an ADR records what was believed
+ *     at the time, and the phase plan under `docs/superpowers/plans/` is a
+ *     spent document whose step carries a bracketed correction.
+ *
+ *   - a line of THIS paragraph, which cannot write the search out without
+ *     containing it.
+ *
+ * A hit that is none of those is a copy nobody struck.
  *
  * WHAT THAT BOUGHT IS ONE HEADER AND NOTHING ELSE. `SECURITY.md` asks for
  * `site.indexGalleries` to be respected "in `robots.txt` **and** with
