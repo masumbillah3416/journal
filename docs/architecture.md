@@ -185,8 +185,11 @@ request for /admin/…
        └─ POST  → authenticateAdminRequest()  ┘  reads the sessions row
 ```
 
-**The split is by what each half can know.** Whether an identifier names a LIVE row is a
-question only Postgres can answer, and the Edge runtime cannot ask it. Substituting "is a
+**The split is by where the answer belongs.** Whether an identifier names a LIVE row is a
+question only Postgres can answer. This document said the middleware could not ask it because
+it runs on the Edge runtime; it runs on Node since `docs/deviations.md` §101 and could, so the
+split is a decision rather than a constraint — one authority on who a request is, at the route
+that needs the answer. Substituting "is a
 cookie present" is not a weaker version of the same check — it is a different one, and it
 would pass for every revoked session, every expired one, and every anonymous visitor, since
 the pre-auth identifier this surface mints for browsers that have not signed in is carried

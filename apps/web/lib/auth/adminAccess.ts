@@ -5,12 +5,20 @@
  *
  * ═══ WHY THESE THREE LIVE TOGETHER, AND WHY THEY LIVE HERE ═══
  *
- * They are the whole of what `apps/web/middleware.ts` needs, and the
- * middleware runs in Next.js's Edge runtime, where `node:crypto`, `pg` and
- * Payload cannot be imported at all. So the decisions that must be taken for
- * EVERY admin request — including one for a screen Phase 4 has not written
- * yet — have to be expressible without touching any of them. All three are:
- * a path, a method and two origins.
+ * They are the whole of what `apps/web/middleware.ts` needs, and all three are
+ * answerable from a path, a method and two origins — no `node:crypto`, no
+ * `pg`, no Payload. So the decisions taken for EVERY admin request, including
+ * one for a screen no task has written yet, cost nothing but string work on
+ * the path every admin request takes.
+ *
+ * THIS SAID THE MIDDLEWARE RUNS IN THE EDGE RUNTIME, WHERE THOSE THREE CANNOT
+ * BE IMPORTED AT ALL, AND THAT IS NO LONGER TRUE. Phase 4 Task 13's first fix
+ * round measured it false on Next 16.3.3 and moved the middleware to the Node
+ * runtime for one header (`docs/deviations.md` §101). The shape below does not
+ * change and is still right — three pure decisions are cheaper to take and
+ * easier to prove than three that reach a database — but it is a CHOICE now
+ * rather than a wall, and a reason that has stopped being true is worse than
+ * no reason at all.
  *
  * The decision that DOES need a database — whether the identifier in the
  * cookie names a live session — is `./guard.ts`'s, and it runs in the Node
@@ -145,8 +153,10 @@
  * no visitor-supplied HTML in Phase 2.
  *
  * Depends on: `RESET_PATH` (./resetPath). Nothing else, deliberately: this
- * module is imported by `apps/web/middleware.ts`, which runs in the Edge
- * runtime.
+ * module sits on the path of every admin request, and three pure functions are
+ * what keep that path cheap. (This said the middleware runs in the Edge
+ * runtime; it runs on Node since `docs/deviations.md` §101, and the
+ * deliberateness rather than the runtime is the point.)
  */
 import {
   CODE_STEP_PATH,

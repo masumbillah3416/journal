@@ -685,8 +685,10 @@ of signing in and of getting back in — and every other address under `/admin` 
 including ones nobody has written yet; written the other way round, every screen Phase 4 forgot
 to list would be public and the failure would be invisible, because the screen works and it
 works for everybody. The check itself is `apps/web/lib/auth/guard.ts` and it runs in the Node
-server rather than the middleware, because knowing whether an identifier names a LIVE row means
-reading the `sessions` table and the Edge runtime cannot; a cookie-PRESENCE check would admit
+server rather than the middleware. This row said the middleware could not read the `sessions`
+table because it runs on the Edge runtime; since `docs/deviations.md` §101 it runs on Node and
+could, and the guard stays in the route anyway, because one authority on who a request is beats
+two. The cheap thing a middleware could add is the worthless one: a cookie-PRESENCE check admits
 every revoked session, every expired one, and every anonymous visitor carrying the pre-auth
 identifier this surface mints into the same cookie. **What stops a Phase 4 screen forgetting the
 call is a test, not a layer:** `apps/web/lib/auth/adminGuardRegistration.test.ts` walks the

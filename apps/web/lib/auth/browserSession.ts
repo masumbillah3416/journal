@@ -27,14 +27,19 @@
  *
  * ═══ WHY THIS MODULE TOUCHES NO NODE BUILT-IN ═══
  *
- * `apps/web/middleware.ts` imports it, and the middleware runs in Next.js's
- * Edge runtime, where `node:crypto` does not exist. The identifier is drawn
- * from `crypto.getRandomValues` — the Web Crypto API, present in both the
- * Edge runtime and Node 18+ — rather than from `randomBytes`, which is what
- * `sessions.ts` uses on the server side for the same 32 bytes. That is two
- * spellings of one idea, and it is the cost of the split; the property that
- * matters (a CSPRNG, 32 bytes) is identical, and neither is ever compared
- * against the other.
+ * `apps/web/middleware.ts` imports it, and when this was written the
+ * middleware ran in Next.js's Edge runtime, where `node:crypto` does not
+ * exist. The identifier is drawn from `crypto.getRandomValues` — the Web
+ * Crypto API, present in every runtime this repository targets — rather than
+ * from `randomBytes`, which is what `sessions.ts` uses on the server side for
+ * the same 32 bytes. That is two spellings of one idea, and neither is ever
+ * compared against the other; the property that matters (a CSPRNG, 32 bytes)
+ * is identical.
+ *
+ * THE CONSTRAINT IS NOW A CHOICE. The middleware runs on the Node runtime
+ * since `docs/deviations.md` §101, so `randomBytes` would work here. Nothing
+ * changes: Web Crypto is available either way, and rewriting a CSPRNG call to
+ * win nothing is a diff to review for no reason.
  *
  * ═══ WHY "KEEP ME SIGNED IN" NEEDS A COOKIE OF ITS OWN ═══
  *
@@ -159,8 +164,10 @@ export const newBrowserSession = (): SessionId => {
   const drawn = crypto.getRandomValues(new Uint8Array(IDENTIFIER_BYTES))
 
   // `btoa` over a binary string, then the two base64url substitutions and the
-  // padding dropped. `Buffer` would be one call and is not available in the
-  // Edge runtime, which is the whole reason this module exists in this shape.
+  // padding dropped. `Buffer` would be one call; this shape was chosen when
+  // the middleware ran on the Edge runtime, where `Buffer` does not exist, and
+  // is kept now that it runs on Node (`docs/deviations.md` §101) because `btoa`
+  // works in both and the header above says so.
   const base64 = btoa(String.fromCharCode(...drawn))
   const branded = sessionId(base64.replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', ''))
 

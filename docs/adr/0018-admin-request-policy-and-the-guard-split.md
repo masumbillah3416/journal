@@ -1,5 +1,18 @@
 # 0018 — The admin's request policy runs in the middleware, its guard runs in the Node server
 
+> **Superseded in part, 2026-09-27 (Phase 4 Task 13, fix round 1).** This record's load-bearing
+> premise — that `apps/web/middleware.ts` runs in Next.js's Edge runtime, where `pg`, Payload and
+> `node:crypto` do not exist — was measured FALSE on Next 16.3.3. A middleware may declare
+> `runtime: 'nodejs'`, and this one now does, so that `indexGalleries` can reach a gallery
+> response as `X-Robots-Tag` (`docs/deviations.md` §101). The DECISION below is unchanged and
+> still held: the guard stays in the Node server at the route that needs the answer, because one
+> authority on who a request is beats two, and moving an authorization boundary onto another
+> runtime is not a thing to do because it became possible. What changed is that it is a choice
+> rather than a wall — the reasoning recorded under "Context" and the fifth option under
+> "Decision" should be read with that correction applied, and the live reasons live in
+> `apps/web/lib/auth/guard.ts`'s header rather than here. The text is left as written, because an
+> ADR is a record of what was decided and why it was believed.
+
 ## Context
 
 Phase 2 built the whole server side of signing in — the rate limiter, the one-time-code

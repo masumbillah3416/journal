@@ -328,8 +328,11 @@ database.
 - **`apps/web/lib/auth/adminAccess.test.ts`, `browserSession.test.ts`, `httpForm.test.ts`
   (unit).** Pure: a path, a method, two origins, a `Cookie` header, a `Request`. All three
   are gated at **100/100/100 by name** in `vitest.config.ts` rather than left under
-  `apps/web/lib/**`'s 95%, because each is imported by `apps/web/middleware.ts` and
-  therefore runs in the Edge runtime, where a mistake is caught by nothing else.
+  `apps/web/lib/**`'s 95%, because each is imported by `apps/web/middleware.ts` and therefore
+  runs before any route file on every admin request, where a mistake is caught by nothing else.
+  (This said "runs in the Edge runtime"; the middleware runs on Node since
+  `docs/deviations.md` §101, and it is the position rather than the runtime that earns these
+  three their 100%.)
 
   The cases worth knowing about are the negative ones. `isCrossSiteMutation` has a case
   named for an **absent** `Origin`, because a check written as `origin !== target` refuses

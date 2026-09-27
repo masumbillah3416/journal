@@ -10,16 +10,28 @@
  * ═══ WHY THE GUARD IS HERE AND NOT IN THE MIDDLEWARE ═══
  *
  * `apps/web/middleware.ts` runs on every admin request and would be the
- * obvious home for it. It cannot be: the middleware runs in Next.js's Edge
- * runtime, and the only way to know whether an identifier names a LIVE row is
- * to read the row — which means Postgres, `pg`, and `node:crypto` to hash the
- * lookup key, none of which exist there. A guard that could only check
- * whether a cookie was PRESENT would admit every revoked and every expired
- * session, and would admit a pre-auth identifier, which is exactly the value
- * this repository mints for browsers that have not signed in.
+ * obvious home for it. It is not — and the reason this header gave for three
+ * phases has stopped being true.
  *
- * So the split is by what each half can know, and it is written down here so
- * neither is mistaken for the other:
+ * IT SAID IT CANNOT BE: THAT THE MIDDLEWARE RUNS IN NEXT.JS'S EDGE RUNTIME,
+ * where Postgres, `pg` and `node:crypto` do not exist. Phase 4 Task 13's first
+ * fix round measured that false on Next 16.3.3 and moved the middleware to the
+ * Node runtime for one header (`docs/deviations.md` §101). It COULD read a
+ * `sessions` row from there now.
+ *
+ * IT STILL SHOULD NOT, and this is the reason that does hold: the question is
+ * where the authority over who a request is should SIT, and two authorities
+ * are two things to keep right on a path every request takes. What a
+ * middleware could add cheaply is the one thing worth nothing — a check that a
+ * cookie is PRESENT would admit every revoked and every expired session, and
+ * would admit a pre-auth identifier, which is exactly the value this
+ * repository mints for browsers that have not signed in. Reading the row
+ * properly in the middleware buys no safety the route does not already give,
+ * and moving an authorization boundary onto another runtime is not a thing to
+ * do because it became possible.
+ *
+ * So the split is by where the answer belongs, and it is written down here so
+ * neither half is mistaken for the other:
  *
  *   - `adminAccess.ts` + the middleware decide, without touching a database,
  *     which addresses are public, refuse a cross-site mutation, and set the

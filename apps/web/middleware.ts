@@ -33,11 +33,20 @@
  *
  * ═══ THIS FILE RUNS ON THE NODE RUNTIME, AND THAT IS A MEASURED CORRECTION ═══
  *
- * Four places in this repository used to say the middleware "runs in Next.js's
- * Edge runtime, where `pg` and Payload do not exist". On Next 16.3.3 that is
- * false: `config.runtime = 'nodejs'` is honoured, and the Task 13 review
- * measured it — `require('pg')` connected and read the `site` row from inside
- * this file. `docs/deviations.md` §101 carries the measurement.
+ * This repository used to say, in module headers, a test header, an ADR, an
+ * architecture document and this very file, that the middleware "runs in
+ * Next.js's Edge runtime, where `pg` and Payload do not exist". On Next 16.3.3
+ * that is false: `config.runtime = 'nodejs'` is honoured, and the Task 13
+ * review measured it — `require('pg')` connected and read the `site` row from
+ * inside this file. `docs/deviations.md` §101 carries the measurement.
+ *
+ * NO COUNT IS GIVEN HERE, deliberately. This said FOUR places, because four is
+ * what the first fix round corrected; the re-review then found a fifth in this
+ * file, and the grep that followed found the rest. A figure written beside a
+ * correction made place by place is a claim about thoroughness nobody checked
+ * (CLAUDE.md §0). What CAN be checked is the grep itself: `Edge runtime`
+ * should now turn up only sentences saying the premise was believed and is
+ * not.
  *
  * WHAT THAT BOUGHT IS ONE HEADER AND NOTHING ELSE. `SECURITY.md` asks for
  * `site.indexGalleries` to be respected "in `robots.txt` **and** with
@@ -169,8 +178,18 @@ const CROSS_SITE_REFUSED_STATUS = 403
  * THE DEVELOPMENT FLAG IS READ HERE AND NOWHERE ELSE. `adminSecurityHeaders`
  * takes it, so a test can ask for either policy without touching the process,
  * and this is the one place `NODE_ENV` decides anything about them. Next
- * inlines that value at build time in the Edge runtime, so the shipped
- * middleware carries one policy rather than a branch.
+ * inlines that value at build time, so the shipped middleware carries one
+ * policy rather than a branch — verified in the built chunk, which carries
+ * `adminSecurityHeaders({development:!1})` and no branch at all.
+ *
+ * THIS SENTENCE SAID "in the Edge runtime", INSIDE THE VERY FILE WHOSE RUNTIME
+ * CHANGED, and the first fix round — which struck that premise from four
+ * places — missed it. The re-review found it, and finding it was what showed
+ * the correction had been made place by place rather than to the class: a grep
+ * for the phrase then turned up the rest of that class, every one of which is
+ * corrected in the same commit as this one. The behavioural half here was always true and still
+ * is; only the runtime it named was wrong, so it is corrected rather than
+ * deleted.
  *
  * @param response - The response so far.
  * @returns The same object, for chaining.
@@ -276,8 +295,9 @@ export const middleware = async (request: NextRequest): Promise<NextResponse> =>
  */
 export const config = {
   // NODE, NOT EDGE. `withGalleryCrawlPolicy` reads Postgres through Payload,
-  // which the Edge runtime cannot do — and which four documents in this
-  // repository wrongly said this file could never do. See the header.
+  // which the Edge runtime cannot do — and which this repository wrongly said
+  // this file could never do, everywhere it explained the split. See the
+  // header.
   runtime: 'nodejs',
   matcher: ['/p/:path*', '/m/:path*', '/admin/:path*', '/gallery/:path*'],
 }

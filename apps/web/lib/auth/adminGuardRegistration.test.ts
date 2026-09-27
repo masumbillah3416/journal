@@ -13,10 +13,13 @@
  * anybody who types the address.
  *
  * The layer that would make forgetting impossible does not exist here, and the
- * reasons are written down where they belong — `apps/web/middleware.ts` runs
- * in the Edge runtime and cannot read a `sessions` row, and a shared layout
- * cannot cover `/admin/sign-in/done` without also covering the sign-in screens
- * beside it, which must answer to a reader who has no session. So the thing
+ * reasons are written down where they belong — `apps/web/middleware.ts` is
+ * deliberately not an authority on who a request is (this said it runs in the
+ * Edge runtime and CANNOT read a `sessions` row; since `docs/deviations.md`
+ * §101 it runs on Node and could, and `apps/web/lib/auth/guard.ts`'s header
+ * carries the reason it still does not), and a shared layout cannot cover
+ * `/admin/sign-in/done` without also covering the sign-in screens beside it,
+ * which must answer to a reader who has no session. So the thing
  * that stands in for that layer is this test, and it fails on the commit that
  * forgets rather than on the day somebody notices. Not "makes forgetting
  * impossible", which is what this said for six rounds: it is a check, checks
