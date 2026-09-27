@@ -14,6 +14,14 @@
  * flag exists for this file and `apps/web/lib/bookAccess.ts`'s header carries
  * the reasoning, including why the 401 sends no `WWW-Authenticate` challenge.
  *
+ * ITS COPY IS A SECURITY CLAIM, AND IT IS CHECKED. "not the photographs behind
+ * them" was FALSE when this file was written: a closed book still served every
+ * photograph through Payload's own REST, GraphQL and file routes, which the
+ * first fix round closed at `apps/web/collections/media.ts`'s `read` rule.
+ * `apps/web/lib/bookGateRegistration.test.ts` is what now counts the surfaces,
+ * and `e2e/bookGate.spec.ts` asks a running server for each of them. Do not
+ * widen this sentence without widening that file first.
+ *
  * IT IS NOT A BOOK, and it offers no way in, which is the one way it differs
  * from its twin. The 404 links to `/p/1` because a reader who mistyped an
  * address has somewhere to go; a reader of a closed book has nowhere, and a

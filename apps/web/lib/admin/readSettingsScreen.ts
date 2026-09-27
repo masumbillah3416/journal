@@ -145,6 +145,17 @@ export const READER_COPY: Readonly<Record<string, { readonly label: string; read
     hint: 'off adds a Disallow to robots.txt and a noindex to every gallery page',
   },
   passwordProtect: {
+    // THIS HINT IS A SECURITY CLAIM, AND IT IS CHECKED. It was false when it
+    // was written: a closed book still served every photograph through
+    // Payload's own REST, GraphQL and file routes. The first fix round closed
+    // that at `apps/web/collections/media.ts`'s `read` rule;
+    // `apps/web/lib/bookGateRegistration.test.ts` counts the surfaces and
+    // `e2e/bookGate.spec.ts` asks a running server for each of them.
+    //
+    // THE LABEL IS NOT SCREENS.md's. §2.9 words it "password the whole book";
+    // there is no password in this data model and none can be set from this
+    // screen, so the toggle says what the column does. `docs/deviations.md`
+    // §103 records the change with the Site card's three hints.
     label: 'Close the whole book',
     hint: 'nothing is served to a reader at all — not a page, not a gallery, not a photograph',
   },

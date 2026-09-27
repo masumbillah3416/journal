@@ -443,6 +443,69 @@ describe('the content collections and globals, for a caller with no session', ()
   })
 })
 
+describe('the media rule, once the whole book is closed', () => {
+  /**
+   * Runs one assertion with `site.passwordProtect` held at a known value, and
+   * puts the whole global back whatever happens.
+   *
+   * `diary_test` is shared by every integration file in this run and this
+   * setting changes what the PUBLIC diary serves, so a case that threw while
+   * the book was closed would leave every later case reading a gated site.
+   * @param closed - What to hold the setting at.
+   * @param body - The assertion to run while it is held there.
+   */
+  const withTheBook = async (closed: boolean, body: () => Promise<void>): Promise<void> => {
+    const before = await payload.findGlobal({ slug: 'site', depth: 0 })
+    await payload.updateGlobal({ slug: 'site', depth: 0, data: { passwordProtect: closed } })
+    try {
+      await body()
+    } finally {
+      await payload.updateGlobal({ slug: 'site', depth: 0, data: before })
+    }
+  }
+
+  it('refuses a signed-out listing, which is what every public caller of this rule turns into a 403', async () => {
+    // F1 OF THE TASK 13 REVIEW, at the level the fix is made. Payload's REST
+    // route, its GraphQL route and `/api/media/file/<name>` are three callers
+    // of ONE predicate, and before this clause a closed book still handed an
+    // anonymous caller a paginated index of every non-hidden photograph and
+    // then the bytes. `e2e/bookGate.spec.ts` asks all three over HTTP; this
+    // case asks the rule itself, so the reason a route answers 403 is pinned
+    // where the decision is taken.
+    await withTheBook(true, async () => {
+      await expect(payload.find({ collection: 'media', overrideAccess: false, depth: 0 })).rejects.toThrow()
+    })
+  })
+
+  it('narrows rather than refuses while the book is open, so the diary is not taken dark by its own gate', async () => {
+    // THE OTHER HALF, and the one that makes the first mean something: a rule
+    // that refused every signed-out caller would pass the case above and stop
+    // every `<img>` in the public book.
+    await withTheBook(false, async () => {
+      const listed = await payload.find({ collection: 'media', overrideAccess: false, depth: 0, limit: 1 })
+
+      expect(listed.totalDocs).toBeGreaterThan(0)
+    })
+  })
+
+  it('leaves the author’s own listing alone either way, because an editor is not a reader', async () => {
+    // The `user` arm returns before the setting is read at all — which is why
+    // the Media screen still works on a closed book, and why an editor pays no
+    // extra statement for this clause.
+    await withTheBook(true, async () => {
+      const listed = await payload.find({
+        collection: 'media',
+        overrideAccess: false,
+        user: accountA,
+        depth: 0,
+        limit: 1,
+      })
+
+      expect(listed.totalDocs).toBeGreaterThan(0)
+    })
+  })
+})
+
 describe('the content collections and globals, for the signed-in author', () => {
   it('lets the author read and write a journey, so the editor is not locked out by its own rule', async () => {
     const created = await payload.create({

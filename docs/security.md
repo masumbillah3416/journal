@@ -817,16 +817,29 @@ allowlist, the derived filename, the root-relative path), and in the browser by
 setting is set from — the two had been blocked on each other, because a gate over a setting
 nothing can set is a gate nobody can test.
 
-**Where the gate runs.** `apps/web/lib/bookAccess.ts` reads `site.passwordProtect` from Postgres
-through the Local API (`depth: 0`, that one field beside `indexGalleries`, one round trip per
-request, wrapped in React's `cache`), and `bookIsGated` turns it into the decision. It is spent
-in **four** places, which is every address that serves a reader anything: the book's route entry
-(`apps/web/app/(diary)/p/[n]/page.tsx`), the mobile surface's own entry
-(`apps/web/app/(diary)/m/[n]/page.tsx` — two route entries for one address since ADR 0012, so a
-gate on one of them would leave every phone served the whole book), the gallery
-(`apps/web/app/(diary)/gallery/[slug]/page.tsx`) and the download handler beneath it
-(`apps/web/app/(diary)/gallery/[slug]/download/[id]/route.ts`). A closed book whose photographs
-are still served by id is precisely the content-fetchable state this requirement is written against.
+**Where the gate runs, and the count is no longer a sentence.** There are **two** mechanisms and
+`apps/web/lib/bookGateRegistration.test.ts` is what enumerates them, by walking the route tree off
+disk: a public route that neither applies the gate nor is classified there fails by name, on the
+commit that adds it.
+
+1. **Four routes this repository wrote** spend `bookIsGated` in their own bodies, before anything
+   is read: `apps/web/app/(diary)/p/[n]/page.tsx`, `apps/web/app/(diary)/m/[n]/page.tsx` (two
+   route entries for one address since ADR 0012, so a gate on one of them would leave every phone
+   served the whole book), `apps/web/app/(diary)/gallery/[slug]/page.tsx` and the download handler
+   beneath it. `apps/web/lib/bookAccess.ts` reads the setting once per request — `depth: 0`, that
+   one field beside `indexGalleries`, wrapped in React's `cache`.
+2. **Three routes Payload wrote** cannot be edited here, and all three are callers of one
+   predicate: `apps/web/collections/media.ts`'s `read` rule, which consults `passwordProtect` and
+   answers `false` for a signed-out caller once the book is closed. REST, GraphQL and
+   `/api/media/file/<name>` each turn that into a 403.
+
+**THIS ROW ENUMERATED FOUR PLACES AND CALLED THEM EVERY ADDRESS THAT SERVES A READER ANYTHING, AND
+IT WAS WRONG BY ONE.** The first fix round's review measured a closed book: `/p/1` answered 401 while
+`GET /api/media` answered 200 with a paginated index of every non-hidden photograph — id,
+filename, caption, alt — `POST /api/graphql`'s `allMedia` did the same, and
+`GET /api/media/file/<name>` returned the bytes, at the very URL the diary's own `<img>` tags
+resolve to. Journeys, pages and this global were already refused; media was the hole. The count is
+a measurement now precisely because that sentence was not.
 
 **Not the middleware**, for the reason `apps/web/lib/auth/guard.ts` gives about the session
 guard: `apps/web/middleware.ts` runs in the Edge runtime, where `pg` and Payload do not exist,
@@ -844,12 +857,21 @@ closed rather than passworded, because that is what the setting does.
 reading the response back — `refuses the book to a reader with no password once the whole book is
 protected`, `serves the same address once the setting is off, so the gate is the setting and not
 the route`, `closes the galleries with the book, so the content is not left fetchable beside it`,
-`opens the galleries again with the book, so the gallery gate is the setting too`, and `refuses a
-photograph by its own address once the book is closed, because that is what leaving the content fetchable means` — all in
-`e2e/bookGate.spec.ts`. Two of them differ in one global and nothing else, so a gate refusing
-everything fails as loudly as one refusing nothing: measured, by making `bookIsGated` return each
-constant in turn and watching the matching case fail. What the route entries ASK is
-`apps/web/lib/bookAccess.integration.test.ts`'s subject, against a real Payload.
+`opens the galleries again with the book, so the gallery gate is the setting too`, `refuses a
+photograph by its own address once the book is closed, because that is what leaving the content fetchable means`,
+`refuses the media index once the book is closed, because a list of every photograph is content`,
+`refuses the same index through GraphQL, which is a second door onto one rule`, `refuses the
+photograph’s own bytes, at the URL the book’s markup prints` and `serves that same photograph
+again once the book is open, so the refusal is the setting` — all in `e2e/bookGate.spec.ts`. The
+URL the last two ask for is HARVESTED from the open book's own markup rather than written into the
+fixture, so it is the address a reader actually holds. Several pairs differ in one global and
+nothing else, so a gate refusing everything fails as loudly as one refusing nothing: measured, by
+making `bookIsGated` return each constant in turn, and by making the media rule refuse every
+signed-out caller and watching `narrows rather than refuses while the book is open, so the diary
+is not taken dark by its own gate` fail. What the route entries ASK is
+`apps/web/lib/bookAccess.integration.test.ts`'s subject; what the media rule answers is
+`refuses a signed-out listing, which is what every public caller of this rule turns into a 403`
+(`apps/web/collections/adminAccess.integration.test.ts`), both against a real Payload.
 
 **Why the browser and not the integration suite.** A Vitest integration run has Postgres and no
 Next server, so a status code is not observable there. `e2e/bookGate.spec.ts` is a command of its

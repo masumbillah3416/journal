@@ -70,13 +70,18 @@ Phase 4 Task 1 added a sixth, so the count is deleted rather than corrected a th
   any signed-in caller clear any account's lockout counter (measured — the call resolved
   `true`) and the second answered `canAccessAdmin` with "is anybody signed in". Added by Phase 4 Task 1; before it, any signed-in account could `PATCH`
   any other account's row, `otpRequired` included (`docs/deviations.md` §52).
-- `media` declares a **public-read** rule: a signed-out caller gets
-  `{ hidden: { not_equals: true } }` rather than a refusal, so unhidden media is
+- `media` declares a **public-read** rule **while the book is open**: a signed-out caller
+  gets `{ hidden: { not_equals: true } }` rather than a refusal, so unhidden media is
   **served, not refused** — including through `/api/media/file/<name>`. That is
   deliberate and is what the public diary depends on (`docs/security.md`'s
-  "A hidden media item stays hidden from a signed-out reader" row). Its `create`,
-  `update` and `delete` are **signed in, or refused**, written out in Phase 4 Task 1
-  rather than inherited.
+  "A hidden media item stays hidden from a signed-out reader" row).
+  **Once `site.passwordProtect` is on, the same rule refuses outright**, and that clause
+  is the fifth surface of the book gate: Payload's REST route, its GraphQL route and
+  `/api/media/file/<name>` are three callers of this one predicate, so the refusal is
+  written once rather than at three routes. Added in Task 13's first fix round, after a
+  review measured a closed book still serving a paginated index of every non-hidden
+  photograph and then the bytes. Its `create`, `update` and `delete` are **signed in, or
+  refused**, written out in Phase 4 Task 1 rather than inherited.
 - `journeys` and `pages` are **signed in, or refused** on all four operations **and on
   `readVersions`**, which is a fifth routed operation Payload does not fill in and which
   `read` says nothing about — narrow `read` and version history stays open. The `book`,

@@ -192,6 +192,73 @@ test.describe('the settings a reader is served', () => {
     })
   })
 
+  test('refuses the media index once the book is closed, because a list of every photograph is content', async ({
+    request,
+  }) => {
+    // F1. The gate was spent at four ADDRESSES and the fifth is not an address
+    // this repository wrote: `/api/media` is Payload's own REST route, and
+    // `apps/web/collections/media.ts`'s `read` rule is what stands there. A
+    // closed book that still hands an anonymous caller a paginated index of
+    // every non-hidden photograph — id, filename, caption, alt — leaves the
+    // content fetchable, which is SECURITY.md's sentence verbatim.
+    await withSetting({ passwordProtect: true }, async () => {
+      const index = await request.get('/api/media?limit=3', { maxRedirects: 0 })
+
+      expect(index.status()).toBe(403)
+    })
+  })
+
+  test('refuses the same index through GraphQL, which is a second door onto one rule', async ({ request }) => {
+    // THE SECOND SURFACE, and the reason the fix belongs at the access rule
+    // rather than at a route: REST and GraphQL are two callers of one
+    // predicate, and a per-route fix would leave whichever one nobody
+    // remembered.
+    await withSetting({ passwordProtect: true }, async () => {
+      const graphql = await request.post('/api/graphql', {
+        data: { query: '{ allMedia(limit: 2) { docs { id filename url caption } } }' },
+        headers: { 'content-type': 'application/json' },
+        maxRedirects: 0,
+      })
+
+      expect(await graphql.text()).not.toContain('"filename"')
+    })
+  })
+
+  test('refuses the photograph’s own bytes, at the URL the book’s markup prints', async ({ request }) => {
+    // THE THIRD SURFACE, AND THE ONE THAT MATTERS MOST. The URL is HARVESTED
+    // from the open book rather than written here: `/api/media/file/<name>` is
+    // what the diary's own `<img>` tags resolve to, so a fixture that invented
+    // a filename would be testing an address no reader ever holds.
+    const open = await request.get('/p/1')
+    const printed = [...(await open.text()).matchAll(/\/api\/media\/file\/[A-Za-z0-9._-]+/gu)].map((match) => match[0])
+    const bytes = printed[0]
+    expect(bytes, 'the open book printed no media file URL, so this case would prove nothing').toBeTruthy()
+
+    await withSetting({ passwordProtect: true }, async () => {
+      const refused = await request.get(bytes ?? '', { maxRedirects: 0 })
+
+      expect(refused.status()).toBe(403)
+    })
+  })
+
+  test('serves that same photograph again once the book is open, so the refusal is the setting', async ({
+    request,
+  }) => {
+    // THE OTHER HALF. A media rule that refused every signed-out caller would
+    // pass the three cases above and take the whole public diary dark.
+    const open = await request.get('/p/1')
+    const printed = [...(await open.text()).matchAll(/\/api\/media\/file\/[A-Za-z0-9._-]+/gu)].map((match) => match[0])
+    const bytes = printed[0]
+    expect(bytes, 'the open book printed no media file URL').toBeTruthy()
+
+    await withSetting({ passwordProtect: false }, async () => {
+      const served = await request.get(bytes ?? '', { maxRedirects: 0 })
+
+      expect(served.status()).toBe(200)
+      expect(served.headers()['content-type']).toContain('image/')
+    })
+  })
+
   test('disallows the galleries in robots.txt when the author has turned indexing off', async ({ request }) => {
     await withSetting({ indexGalleries: false }, async () => {
       const body = await (await request.get('/robots.txt')).text()

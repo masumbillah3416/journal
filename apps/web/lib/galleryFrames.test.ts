@@ -90,27 +90,57 @@ describe('ephemeraMediaIds', () => {
 })
 
 /**
- * The `where` `Media.access.read` answers an unauthenticated reader with.
+ * The `where` `Media.access.read` answers an unauthenticated reader with,
+ * while the book is open.
+ *
+ * ═══ IT STANDS IN FOR THE `site` GLOBAL, AND THAT IS THE WHOLE STUB ═══
+ *
+ * The rule became ASYNC in Task 13's first fix round: a signed-out caller is
+ * refused outright once `site.passwordProtect` is on, which is the clause that
+ * closed Payload's REST, GraphQL and file routes on a closed book. So the
+ * `Where` this parity case is about only exists while the book is OPEN, and
+ * the stub says so — one `findGlobal` answering the one column the rule reads.
+ * Mocking the boundary rather than our own module (CLAUDE.md §2.3); what the
+ * rule does with a CLOSED book is
+ * `apps/web/collections/adminAccess.integration.test.ts`'s, against a real
+ * Payload.
  *
  * @returns The constraint Payload applies to `/api/media/file/<name>` and to
- *   every access-controlled listing.
+ *   every access-controlled listing, for an open book.
  * @throws When the collection defines no `read` rule, or answers a signed-out
  *   reader with something that is not a `Where` — either of which would mean
  *   the parity case below was comparing against nothing.
  */
-const signedOutReadWhere = (): Where => {
+const signedOutReadWhere = async (): Promise<Where> => {
   const read = Media.access?.read
   if (read === undefined) throw new Error('the media collection defines no read access rule')
-  // The rule reads `req.user` and nothing else - that is the whole of its body -
-  // so a real `PayloadRequest` is neither available in a pure test nor needed.
-  // Cast to the parameter type of the function actually being called, so a
-  // signature change breaks this line rather than widening past it silently
-  // (CLAUDE.md §3.1: a cast carries its justification).
-  const answered = read({ req: { user: null } } as unknown as Parameters<typeof read>[0])
-  if (typeof answered === 'boolean' || answered instanceof Promise) {
+  // The rule reads `req.user` and one column of the `site` global, and nothing
+  // else - that is the whole of its body - so a real `PayloadRequest` is
+  // neither available in a pure test nor needed. Cast to the parameter type of
+  // the function actually being called, so a signature change breaks this line
+  // rather than widening past it silently (CLAUDE.md §3.1: a cast carries its
+  // justification).
+  const answered = await read({
+    req: { user: null, payload: { findGlobal: (): Promise<unknown> => Promise.resolve({ passwordProtect: false }) } },
+  } as unknown as Parameters<typeof read>[0])
+  if (typeof answered === 'boolean') {
     throw new Error('the media collection answered a signed-out reader with something that is not a Where')
   }
   return answered
+}
+
+/**
+ * What the same rule answers once the book is closed.
+ *
+ * @returns Whatever the rule returned — `false` while the gate holds.
+ * @throws When the collection defines no `read` rule.
+ */
+const closedBookRead = async (): Promise<unknown> => {
+  const read = Media.access?.read
+  if (read === undefined) throw new Error('the media collection defines no read access rule')
+  return read({
+    req: { user: null, payload: { findGlobal: (): Promise<unknown> => Promise.resolve({ passwordProtect: true }) } },
+  } as unknown as Parameters<typeof read>[0])
 }
 
 /**
@@ -125,7 +155,7 @@ const stateClausesOf = (where: Where): readonly unknown[] =>
   (where.and ?? []).filter((clause) => JSON.stringify(clause).includes('"state"'))
 
 describe('the two places the unfinished-row filter is spelled', () => {
-  it('spell it identically, since nothing but this case makes them agree', () => {
+  it('spell it identically, since nothing but this case makes them agree', async () => {
     // ═══ A COMMENT IS NOT A GUARD ═══
     //
     // `collections/media.ts`'s reader rule gates the access-controlled read -
@@ -145,13 +175,24 @@ describe('the two places the unfinished-row filter is spelled', () => {
     // `notEmpty` is the positive control: without it, a future edit that
     // removed the clause from BOTH would leave two empty lists, and this case
     // would pass while the filter it exists for had gone.
-    const fromCollection = stateClausesOf(signedOutReadWhere())
+    const fromCollection = stateClausesOf(await signedOutReadWhere())
     const fromGallery = stateClausesOf(galleryFrameWhere([7], []))
 
     expect({ clauses: fromGallery, notEmpty: fromGallery.length > 0 }).toEqual({
       clauses: fromCollection,
       notEmpty: true,
     })
+  })
+
+  it('answer a closed book with a refusal rather than with either spelling', async () => {
+    // THE CLAUSE THAT CLOSED THE FIFTH SURFACE, asserted here because this is
+    // the file that compares the two spellings and a reader of it would
+    // otherwise conclude the collection rule is only ever a `Where`. The
+    // gallery's own filter is NOT gated and must not be: its three callers
+    // override access and are reached only from routes that ask `bookIsGated`
+    // themselves.
+    expect(await closedBookRead()).toBe(false)
+    expect(galleryFrameWhere([7], [])).toHaveProperty('and')
   })
 })
 

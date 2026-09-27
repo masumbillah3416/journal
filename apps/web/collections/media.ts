@@ -98,60 +98,99 @@ export const Media: CollectionConfig = {
     // that the three predicates are now this repository's, and a future
     // Payload whose default differs cannot alter them silently. A public diary
     // must be able to SHOW a photograph, never to add or change one.
-    read: ({ req: { user } }) =>
+    // ═══ IT IS ASYNC BECAUSE THE GATE LIVES IN THE DATABASE ═══
+    //
+    // `site.passwordProtect` closes the whole book (SECURITY.md, Public site:
+    // "A client-side check leaves the content fetchable"). Phase 4 Task 13
+    // spent that setting at the four ADDRESSES this repository writes —
+    // `/p/<n>`, `/m/<n>`, `/gallery/<slug>` and the download handler — and
+    // missed the fifth, which is not an address anybody here wrote:
+    // **Payload's own REST and GraphQL routes, and the file route the diary's
+    // own `<img>` tags resolve to.** Measured on a closed book, before this
+    // clause existed: `GET /api/media` answered 200 with a paginated index of
+    // every non-hidden photograph — id, filename, caption, alt — `POST
+    // /api/graphql`'s `allMedia` did the same, and `GET
+    // /api/media/file/<name>` returned the bytes. Journeys, pages and the
+    // `site` global were already refused; media was the hole.
+    //
+    // THE FIX IS HERE AND NOT AT A ROUTE, because all three of those callers
+    // pass through this one predicate. A per-route fix would have left
+    // whichever caller nobody remembered, which is precisely how the hole this
+    // clause closes came to exist.
+    //
+    // ONE EXTRA STATEMENT PER SIGNED-OUT READ, and it is the narrowest one
+    // Payload offers: `depth: 0` and a single-column `select` against a
+    // one-row global. An editor never pays it at all — the `user` arm returns
+    // before it.
+    read: async ({ req }) => {
+      const { user } = req
       // An editor sees everything, including what they have hidden, so the
       // admin's own Media screen is not lying to them about what exists.
-      user
-        ? true
-        : // A signed-out reader is a Where constraint rather than `true`:
-          // SECURITY.md's objection to direct media URLs is precisely that
-          // they "invite enumeration of everything in the bucket, including
-          // anything marked hidden", so `hidden` has to withhold the row from
-          // the file route as well as from a listing. Payload applies this
-          // constraint to `/api/media/file/<name>` too, which is the URL the
-          // diary's own <img> tags resolve to.
-          {
-            and: [
-              { hidden: { not_equals: true } },
-              // ═══ `state` IS A SECURITY CONSTRAINT HERE, NOT A UI ONE ═══
-              //
-              // A row that is not `ready` may be holding bytes NOTHING HAS
-              // STRIPPED. Under `MEDIA_PIPELINE=worker`,
-              // `apps/web/lib/media/ingestUpload.ts` records the staged
-              // ORIGINAL - GPS EXIF intact - at `processing` and leaves the
-              // strip to a worker, and `failed` is that same worker's other
-              // answer.
-              //
-              // `inline` REACHES NEITHER STATE, and this comment said it did
-              // (whole-branch review F2): `ingestInline` creates the row in
-              // one `payload.create` at `state: 'ready'` and a refusal creates
-              // no row, so there is no crashed-`inline` window. Re-examined
-              // rather than re-worded, because a control resting on a false
-              // premise has to earn its place again: what justifies this
-              // clause is that `processing` and `failed` are `worker`'s, and
-              // `worker` is one deleted `.refine` away in `lib/env.ts`. The
-              // clause is written BEFORE that day rather than with it, which
-              // is the only ordering that makes it a control at all. Without
-              // it Payload serves either at `/api/media/file/<name>`, which is
-              // SECURITY.md's "shoot anything at home and you have published
-              // your home address" reached by a signed-out stranger.
-              //
-              // It is the SECOND of two controls and is deliberately not the
-              // only one: `apps/web/lib/env.ts` refuses `worker` at boot. That
-              // guard is a line somebody can delete; this one holds if they
-              // do, which is the whole argument for having both (Task 8 review
-              // finding 1).
-              //
-              // **NULL IS ALLOWED, and that is not an oversight.**
-              // `20260910_171154_add_media_state` deliberately did not backfill
-              // (docs/deviations.md §48): a NULL means "ingested before there
-              // was a state to record", which is every row the seed wrote
-              // before this change and no row any pipeline has touched.
-              // Withholding those would take the public diary dark to fix a
-              // hole they cannot be in.
-              { or: [{ state: { equals: 'ready' } }, { state: { exists: false } }] },
-            ],
-          },
+      if (user) return true
+
+      const site = await req.payload.findGlobal({
+        slug: 'site',
+        depth: 0,
+        select: { passwordProtect: true },
+      })
+      // A CLOSED BOOK REFUSES, rather than narrowing. There is no `Where` that
+      // means "nothing" and also reads honestly; `false` is Payload's own
+      // spelling and it is what every one of the three callers turns into a
+      // 403.
+      if (site.passwordProtect === true) return false
+
+      return (
+        // A signed-out reader is a Where constraint rather than `true`:
+        // SECURITY.md's objection to direct media URLs is precisely that
+        // they "invite enumeration of everything in the bucket, including
+        // anything marked hidden", so `hidden` has to withhold the row from
+        // the file route as well as from a listing. Payload applies this
+        // constraint to `/api/media/file/<name>` too, which is the URL the
+        // diary's own <img> tags resolve to.
+        {
+          and: [
+            { hidden: { not_equals: true } },
+            // ═══ `state` IS A SECURITY CONSTRAINT HERE, NOT A UI ONE ═══
+            //
+            // A row that is not `ready` may be holding bytes NOTHING HAS
+            // STRIPPED. Under `MEDIA_PIPELINE=worker`,
+            // `apps/web/lib/media/ingestUpload.ts` records the staged
+            // ORIGINAL - GPS EXIF intact - at `processing` and leaves the
+            // strip to a worker, and `failed` is that same worker's other
+            // answer.
+            //
+            // `inline` REACHES NEITHER STATE, and this comment said it did
+            // (whole-branch review F2): `ingestInline` creates the row in
+            // one `payload.create` at `state: 'ready'` and a refusal creates
+            // no row, so there is no crashed-`inline` window. Re-examined
+            // rather than re-worded, because a control resting on a false
+            // premise has to earn its place again: what justifies this
+            // clause is that `processing` and `failed` are `worker`'s, and
+            // `worker` is one deleted `.refine` away in `lib/env.ts`. The
+            // clause is written BEFORE that day rather than with it, which
+            // is the only ordering that makes it a control at all. Without
+            // it Payload serves either at `/api/media/file/<name>`, which is
+            // SECURITY.md's "shoot anything at home and you have published
+            // your home address" reached by a signed-out stranger.
+            //
+            // It is the SECOND of two controls and is deliberately not the
+            // only one: `apps/web/lib/env.ts` refuses `worker` at boot. That
+            // guard is a line somebody can delete; this one holds if they
+            // do, which is the whole argument for having both (Task 8 review
+            // finding 1).
+            //
+            // **NULL IS ALLOWED, and that is not an oversight.**
+            // `20260910_171154_add_media_state` deliberately did not backfill
+            // (docs/deviations.md §48): a NULL means "ingested before there
+            // was a state to record", which is every row the seed wrote
+            // before this change and no row any pipeline has touched.
+            // Withholding those would take the public diary dark to fix a
+            // hole they cannot be in.
+            { or: [{ state: { equals: 'ready' } }, { state: { exists: false } }] },
+          ],
+        }
+      )
+    },
     create: ({ req: { user } }) => Boolean(user),
     update: ({ req: { user } }) => Boolean(user),
     delete: ({ req: { user } }) => Boolean(user),
