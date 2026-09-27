@@ -551,20 +551,21 @@ const exportedFieldSources = (
 /**
  * One row, reduced to what its slug's classification lets out.
  *
- * WHAT IS PROVEN HERE AND WHAT IS NOT, stated rather than implied.
- * {@link onlyExportedFields} is mutation-killed — making it keep every key
- * fails two cases. THIS CALL SITE IS NOT: bypassing it leaves every case
- * green, because every key a real row carries today is classified, so the
- * projection drops nothing from a real dump. Measured, by printing the raw row
- * keys of all three collections and all three globals and comparing them
- * against {@link EXPORTED_FIELDS}.
+ * THIS CALL SITE IS MUTATION-KILLED, AND THE FIX ROUND 1 REPORT SAID IT COULD
+ * NOT BE. That claim was wrong and the re-review showed how in one line:
+ * reclassify a path a REAL row already carries from {@link EXPORTED_FIELDS}
+ * into {@link WITHHELD_FIELDS} for the length of a case, exactly as the
+ * planted-field cases reclassify the config. {@link refuseTheUnclassified}
+ * stays quiet — the path IS classified — so the only thing left that can keep
+ * it out of the dump is this call. Bypassing it now fails
+ * `leaves a reclassified path out of every row, which is the call site doing
+ * the work` with `expected 10 to be +0`, and its sibling on a GLOBAL.
  *
- * Driving it would need a row carrying an unclassified key, and Payload's
- * Postgres adapter selects the columns its schema knows — so a field declared
- * on the config at runtime does not come back, and a real one needs a
- * migration. `carries every row through that projection, so a real dump holds
- * only classified keys` is the invariant that WOULD fire on the day such a key
- * exists, and it is what this call site rests on until then.
+ * What the report reached for instead — "no row carries an unclassified key,
+ * so nothing can drive it" — was true and beside the point: the mechanism is
+ * reachable through its own classification, which is the thing a test can
+ * change. {@link onlyExportedFields} is killed separately by making it keep
+ * every key.
  * @param slug - The collection or global the row belongs to.
  * @param row - The row, as Payload returned it.
  * @returns The row the dump carries.

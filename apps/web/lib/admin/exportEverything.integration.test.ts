@@ -276,24 +276,92 @@ describe('exportEverything', () => {
     expect(() => declaredFieldPaths([{ fields: [{ name: 'hidden' }] }])).toThrow(/no name/u)
   })
 
-  it('carries every row through that projection, so a real dump holds only classified keys', async () => {
-    // AT THE CALL SITE, not at the function: every key of every exported row,
-    // compared against the classification. It is what fails if a row ever
-    // arrives carrying something nobody named.
+  it('leaves a reclassified path out of every row, which is the call site doing the work', async () => {
+    // ═══ THE FIX ROUND 1 REPORT CALLED THIS UNKILLABLE, AND IT WAS WRONG ═══
+    //
+    // It said driving the projection's CALL SITE needed a row carrying an
+    // unclassified key, which needs a migration. It does not: move a path a
+    // REAL row already carries out of `EXPORTED_FIELDS` and into
+    // `WITHHELD_FIELDS`, exactly as the two planted-field cases above move the
+    // config. `refuseTheUnclassified` stays quiet, because the path is
+    // classified — so the ONLY thing that can keep `note` out of the dump is
+    // the projection at its call site. The reviewer's probe, landed.
+    const exported = EXPORTED_FIELDS['journeys'] as string[]
+    const withheld = WITHHELD_FIELDS as Record<string, Record<string, string>>
+    const at = exported.indexOf('note')
+    expect(at, 'journeys.note is no longer an exported path, so this case proves nothing').toBeGreaterThan(-1)
+
+    exported.splice(at, 1)
+    withheld['journeys'] = { note: 'reclassified for the length of this case' }
+    try {
+      const dump = await exportEverything(payload, scope, AT)
+      const rows = (dump.collections['journeys'] ?? []) as Record<string, unknown>[]
+      expect(rows.length, 'no journeys rows, so this case proves nothing').toBeGreaterThan(0)
+
+      expect(rows.filter((row) => 'note' in row).length, 'these rows carried a withheld path into the dump').toBe(0)
+    } finally {
+      exported.splice(at, 0, 'note')
+      delete withheld['journeys']
+    }
+  })
+
+  it('leaves a reclassified path out of a GLOBAL too, which is where §100 says the next one lands', async () => {
+    // THE HALF THE STOPGAP OMITTED. `docs/deviations.md` §100 names a book
+    // password on the `site` global as this mechanism's reversal condition —
+    // a FIELD on a GLOBAL — and the invariant this case replaces walked
+    // `dump.collections` and not `dump.globals`, so it omitted precisely the
+    // case the mechanism exists for.
+    const exported = EXPORTED_FIELDS['site'] as string[]
+    const withheld = WITHHELD_FIELDS as Record<string, Record<string, string>>
+    const at = exported.indexOf('analyticsId')
+    expect(at, 'site.analyticsId is no longer an exported path, so this case proves nothing').toBeGreaterThan(-1)
+
+    exported.splice(at, 1)
+    withheld['site'] = { analyticsId: 'reclassified for the length of this case' }
+    try {
+      const dump = await exportEverything(payload, scope, AT)
+
+      expect(Object.keys((dump.globals['site'] ?? {}) as Record<string, unknown>)).not.toContain('analyticsId')
+    } finally {
+      exported.splice(at, 0, 'analyticsId')
+      delete withheld['site']
+    }
+  })
+
+  it('carries every row AND every global through that projection, by full path', async () => {
+    // THE INVARIANT, CORRECTED TWICE OVER. It walked `dump.collections` and
+    // not `dump.globals`, and it compared TOP-LEVEL keys only — so a stray
+    // `furniture.apiKey` was as invisible to it as anything on a global. It
+    // walks both now, and to the leaf.
     const dump = await exportEverything(payload, scope, AT)
     const stray: string[] = []
-    for (const [slug, rows] of Object.entries(dump.collections)) {
-      for (const row of rows) {
-        for (const key of Object.keys(row as Record<string, unknown>)) {
-          const classified =
-            ALWAYS_EXPORTED.includes(key) ||
-            (EXPORTED_FIELDS[slug] ?? []).some((path) => path === key || path.startsWith(`${key}.`))
-          if (!classified) stray.push(`${slug}.${key}`)
+
+    const walk = (slug: string, value: unknown, prefix: string): void => {
+      if (Array.isArray(value)) {
+        for (const item of value) walk(slug, item, prefix)
+        return
+      }
+      if (typeof value !== 'object' || value === null) return
+      for (const [key, held] of Object.entries(value)) {
+        const path = `${prefix}${key}`
+        const classified =
+          (prefix === '' && ALWAYS_EXPORTED.includes(key)) ||
+          (EXPORTED_FIELDS[slug] ?? []).some((candidate) => candidate === path || candidate.startsWith(`${path}.`))
+        if (!classified) {
+          stray.push(`${slug}.${path}`)
+          continue
         }
+        walk(slug, held, `${path}.`)
       }
     }
 
-    expect(stray, 'these keys reached the dump and no classification names them').toEqual([])
+    for (const [slug, rows] of Object.entries(dump.collections)) for (const row of rows) walk(slug, row, '')
+    for (const [slug, global] of Object.entries(dump.globals)) walk(slug, global, '')
+
+    expect(stray, 'these paths reached the dump and no classification names them').toEqual([])
+    expect(Object.keys(dump.globals).length, 'no globals were walked, so this case would prove nothing').toBe(
+      GLOBALS.length,
+    )
   })
 
   it('carries Payload’s own two row keys, which no field list declares', () => {
