@@ -262,6 +262,20 @@ describe('exportEverything', () => {
     })
   })
 
+  it('hands a leaf back unchanged, because a string is not a row to walk into', () => {
+    expect(onlyExportedFields('a caption', [])).toBe('a caption')
+    expect(onlyExportedFields(null, [])).toBeNull()
+  })
+
+  it('refuses a field with no name rather than skipping what is inside it', () => {
+    // The walk had arms for Payload's unnamed containers and for `tabs`. This
+    // config declares neither, so both were speculative code nothing could
+    // drive — and a walk that SILENTLY skipped one would hide every field
+    // inside it from the classification, which is the hole this module exists
+    // to close.
+    expect(() => declaredFieldPaths([{ fields: [{ name: 'hidden' }] }])).toThrow(/no name/u)
+  })
+
   it('carries every row through that projection, so a real dump holds only classified keys', async () => {
     // AT THE CALL SITE, not at the function: every key of every exported row,
     // compared against the classification. It is what fails if a row ever

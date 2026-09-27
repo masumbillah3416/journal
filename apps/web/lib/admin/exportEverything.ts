@@ -340,15 +340,23 @@ interface DeclaredField {
 export const declaredFieldPaths = (fields: readonly DeclaredField[], prefix = ''): readonly string[] => {
   const paths: string[] = []
   for (const field of fields) {
-    if (typeof field.name === 'string') {
-      const path = `${prefix}${field.name}`
-      if (field.fields === undefined) paths.push(path)
-      else paths.push(...declaredFieldPaths(field.fields, `${path}.`))
-    } else if (field.fields !== undefined) {
-      paths.push(...declaredFieldPaths(field.fields, prefix))
-    } else if (field.tabs !== undefined) {
-      for (const tab of field.tabs) paths.push(...declaredFieldPaths(tab.fields ?? [], prefix))
+    // A SHAPE THIS WALK DOES NOT UNDERSTAND IS A REFUSAL, NOT A SKIP. The
+    // first version had arms for Payload's unnamed containers (`row`,
+    // `collapsible`) and for `tabs`; this config declares none of them, so
+    // both arms were speculative code nothing could drive — and a walk that
+    // SILENTLY skipped an unnamed container would hide every field inside it
+    // from the classification, which is the hole this module exists to close.
+    // A `tabs` field added later breaks the export until somebody teaches
+    // this function about it, which is the fail-safe direction (standing
+    // orders, species 6).
+    if (typeof field.name !== 'string') {
+      throw new Error(
+        'export: the Payload config declares a field with no name — an unnamed container or a tabs field — and this walk cannot enumerate what is inside it. Teach declaredFieldPaths about it before anything inside it is exported.',
+      )
     }
+    const path = `${prefix}${field.name}`
+    if (field.fields === undefined) paths.push(path)
+    else paths.push(...declaredFieldPaths(field.fields, `${path}.`))
   }
   return paths
 }
@@ -447,6 +455,7 @@ export interface DiaryExport {
 const EXCLUDES: readonly string[] = [
   'the photographs and clips themselves — only their keys, sizes and hashes are here; the files are backed up where they are stored (docs/runbook.md)',
   ...Object.entries(WITHHELD).map(([slug, why]) => `the ${slug} collection — ${why}`),
+  /* c8 ignore next 3 -- the inner map runs once `WITHHELD_FIELDS` names a path, and it names none: nothing this schema declares on an exported collection or global is a credential today. The arm is here so that the day one IS classified, the dump says so in its own `excludes` rather than shrinking silently. */
   ...Object.entries(WITHHELD_FIELDS).flatMap(([slug, fields]) =>
     Object.entries(fields).map(([path, why]) => `${slug}.${path} — ${why}`),
   ),
@@ -507,6 +516,7 @@ const refuseTheUnclassified = (payload: Payload): void => {
   // content. See this module's header.
   const unclassifiedFields = exportedFieldSources(payload).flatMap(({ slug, fields }) =>
     declaredFieldPaths(fields)
+      /* c8 ignore next -- both fallbacks are unreachable: `exportedFieldSources` yields only slugs in CONTENT or GLOBALS, every one of those has an `EXPORTED_FIELDS` entry, and `WITHHELD_FIELDS` names no slug at all. `noUncheckedIndexedAccess` is what requires them to be written. */
       .filter((path) => !(EXPORTED_FIELDS[slug] ?? []).includes(path) && WITHHELD_FIELDS[slug]?.[path] === undefined)
       .map((path) => `${slug}.${path}`),
   )
@@ -559,6 +569,7 @@ const exportedFieldSources = (
  * @param row - The row, as Payload returned it.
  * @returns The row the dump carries.
  */
+/* c8 ignore next 2 -- the `?? []` is unreachable for the same reason as the one in `refuseTheUnclassified`: every slug reaching here is in CONTENT or GLOBALS, and every one of those has an entry. `noUncheckedIndexedAccess` requires it to be written. */
 const exportable = (slug: string, row: unknown): unknown => onlyExportedFields(row, EXPORTED_FIELDS[slug] ?? [])
 
 /**
