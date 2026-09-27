@@ -248,11 +248,13 @@ describe('the Trash screen', () => {
     const at = Date.parse(stamped.deletedAt ?? '')
 
     // NOTHING SWEEPS THE TRASH, so the row is still listed and still
-    // restorable. A screen printing "goes for good in 0 days" would be
-    // promising a sweep this repository does not run.
+    // restorable — and the line must name no mechanism. It read "goes for
+    // good on the next sweep" until the Task 13 review pointed out that it
+    // promised a job this repository does not run (`docs/deviations.md`
+    // §105).
     const row = await rowFor(journey, at + (TRASH_WINDOW_DAYS + 5) * DAY)
 
-    expect([row?.goesForGood, row?.daysLeft]).toEqual(['goes for good on the next sweep', 0])
+    expect([row?.goesForGood, row?.daysLeft]).toEqual(['still here until you delete it', 0])
   })
 
   it('draws the journey’s cover at thumb size, never the original', async () => {

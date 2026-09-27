@@ -45,7 +45,7 @@ const TWO: readonly TrashRow[] = [
     id: aJourney('42'),
     name: 'Porto',
     summary: 'Portugal · 1 page · 0 photographs',
-    goesForGood: 'goes for good on the next sweep',
+    goesForGood: 'still here until you delete it',
     daysLeft: 0,
     thumbSrc: null,
   },
@@ -102,7 +102,7 @@ describe('TrashCard', () => {
     // countdown on every row passes any single-row fixture.
     expect([countdownOf('41'), countdownOf('42')]).toEqual([
       'goes for good in 30 days',
-      'goes for good on the next sweep',
+      'still here until you delete it',
     ])
   })
 
