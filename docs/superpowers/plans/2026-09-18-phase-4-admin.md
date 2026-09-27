@@ -2828,6 +2828,31 @@ The refusal's shape is a decision: **`401` with a `WWW-Authenticate: Basic` chal
 
 The gate lives in `apps/web/lib/bookAccess.ts` and is called from the diary's route entries — **not** from a client component, and not from the middleware, for the same reason the session guard is not in the middleware (`apps/web/lib/auth/guard.ts`'s header): the Edge runtime cannot read Postgres, and the setting lives there.
 
+> **[Corrected in Task 13, not rewritten — this step is spent, and the record of
+> what was decided and why is worth more than a tidy page.]** Two claims above
+> are false, and Tasks 14 and 15 read this file:
+>
+> 1. **"The Edge runtime cannot read Postgres" is not true on Next 16.3.3.** A
+>    Task 13 reviewer set `runtime: 'nodejs'` on `apps/web/middleware.ts`,
+>    connected `pg` and read the `site` global from it. The premise was alive in
+>    **thirteen** places across source and documents, each justifying a real
+>    decision with a constraint that had stopped existing; all are corrected and
+>    **no decision changed** — each now carries a reason that holds. Measured,
+>    the Node runtime costs nothing: `/admin/sign-in` 6.7 → 5.9ms, `/p/3`
+>    48.7 → 44.1ms, `/gallery/tokyo` +1.1ms for the query that produces the
+>    header.
+> 2. **The `401` carries no `WWW-Authenticate: Basic` challenge**, because
+>    `site` has no password field — `passwordProtect` is a bare checkbox — so
+>    there is no secret to challenge for, and a challenge would invite a brute
+>    force against nothing. The setting closes the book to everyone; §2.9's
+>    label ships as "Close the whole book" for that reason. See
+>    `docs/deviations.md` §100, §101.
+>
+> **The gate's placement stands** on a better reason than the one given here: it
+> is enforced at the `media` collection's access rule, where REST, GraphQL and
+> the file route all pass through one predicate — a per-route gate is what let
+> the photographs stay fetchable through a 401'd book in the first place.
+
 - [ ] **Step 3: Write the failing tests for `indexGalleries`**
 
 `docs/security.md` names the two things owed, and says they are one change: "replace the static file with `apps/web/app/robots.ts` (Next's own metadata route, which can read the global) so a `false` setting produces `Disallow: /gallery/`, and set `X-Robots-Tag: noindex` on `apps/web/app/(diary)/gallery/[slug]/page.tsx` from the same setting".
