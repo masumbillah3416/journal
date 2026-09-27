@@ -44,9 +44,13 @@
  * what the first fix round corrected; the re-review then found a fifth in this
  * file, and the grep that followed found the rest. A figure written beside a
  * correction made place by place is a claim about thoroughness nobody checked
- * (CLAUDE.md §0). What CAN be checked is the grep itself: `Edge runtime`
- * should now turn up only sentences saying the premise was believed and is
- * not.
+ * (CLAUDE.md §0). What CAN be checked is the grep itself: `Edge runtime` now
+ * turns up only sentences saying the premise WAS believed and is not — with
+ * two deliberate exceptions, both records rather than reasons.
+ * `docs/adr/0018-admin-request-policy-and-the-guard-split.md` keeps its
+ * original wording under a superseding note, because an ADR records what was
+ * believed; and the phase plan under `docs/superpowers/plans/` is a spent
+ * document nobody builds from twice.
  *
  * WHAT THAT BOUGHT IS ONE HEADER AND NOTHING ELSE. `SECURITY.md` asks for
  * `site.indexGalleries` to be respected "in `robots.txt` **and** with
