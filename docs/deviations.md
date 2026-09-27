@@ -4057,7 +4057,7 @@ the `AdminShell` `counts` prop documentation, `docs/api.md`'s `GET /admin` row, 
 waiting" — which asserts the PROPERTY rather than the fix, so it stays green the day the chrome
 can afford the real count.
 
-## 98 · Nothing checks that a cited `§N` resolves to the entry it means — owner: Task 15
+## 98 · Two kinds of citation resolve to nothing and nothing says so — owner: Task 15
 
 **What changed:** nothing, and that is what this entry is for.
 `apps/web/lib/docs/pathCitations.test.ts` checks two kinds of citation: a backticked **path**
@@ -4111,6 +4111,43 @@ which round found the gap.
 
 **Recorded as:** this entry, and Phase 4 Task 12's report, which names it as a residual rather
 than closing it.
+
+### The second gap, found the same way: a case name in BACKTICKS is checked by nothing
+
+**What changed:** nothing, again, and for the same reason — this is the second half of the guard
+Task 15 owns, recorded so it is built knowing about it.
+
+`apps/web/lib/auth/securityCitations.test.ts` requires every case name `docs/security.md` quotes
+to be a real `it(...)` declaration, spelled exactly. Its header calls that a hundred and thirteen
+quotations whose entire value is that a reader can take one and search for it. But the run it
+extracts is `QUOTED_RUN`, which matches a curly run and a straight-double run and nothing else —
+so a case name written inside **backticks**, which is how this document's prose (as opposed to
+its table) spells most of them, is not checked at all. Not checked silently, which is the exact
+failure mode that file's own header says it exists to end.
+
+**How it was found.** Phase 4 Task 13's fix round 1 closed a finding by renaming an `e2e`
+case, and the same commit left `docs/security.md`'s prose citing the OLD name —
+`` `tells a crawler not to index a gallery page for the same setting, because robots.txt does not
+unindex a known URL` ``, against a case now named `sends X-Robots-Tag noindex on a gallery page
+for the same setting, because robots.txt does not unindex a known URL`. Every gate stayed green,
+including the guard whose whole subject is that citation. The re-review found it by hand, which
+is what a guard is for.
+
+**Why it belongs with the entry above.** Both are the same species: a citation that LOOKS
+resolved, in a document whose value is that its citations resolve. A reader who follows a
+backticked case name and finds nothing concludes the case was deleted, or that they mistyped —
+the same misattribution §N causes. And both are fixed in one place by one decision about what
+counts as a citation, which is why widening `QUOTED_RUN` here, inside a screen task, would be
+the wrong hand doing it: three of the four backticked runs in that same paragraph name real
+cases, and a fourth names `e2e/routing.spec.ts`, a PATH — so the widening has to separate a
+backticked case name from a backticked path, a backticked field and a backticked identifier
+before it can fail closed, and `pathCitations.test.ts` already owns three of those four kinds.
+
+**Scope for Task 15**, added to the one above: make a backticked run in `docs/security.md` that
+is not a path, not an identifier and not a `§N` resolve to a declared case name, with the same
+two-sided exemption list; or state, in that file's header, that prose citations are out of scope
+and why. The stale citation itself is fixed (fix round 2) — this entry is about the guard, not
+the string.
 
 ## 99 · `SCREENS.md` §2.9's storage bar has no rule for a library over its quota, so this one scales
 

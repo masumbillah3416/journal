@@ -927,7 +927,7 @@ both directions. The header is also sent by
 is never a result to index, whatever the author decides about the gallery page.
 
 **Which cases prove it.** `disallows the galleries in robots.txt when the author has turned
-indexing off`, `tells a crawler not to index a gallery page for the same setting, because
+indexing off`, `sends X-Robots-Tag noindex on a gallery page for the same setting, because
 robots.txt does not unindex a known URL`, `sends neither once indexing is allowed again`, and
 `still invites a crawler into the book itself while the galleries are closed to it` — all in
 `e2e/bookGate.spec.ts`, all against a running server with the setting toggled under it. The third
