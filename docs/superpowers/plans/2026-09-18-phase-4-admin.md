@@ -2834,11 +2834,17 @@ The gate lives in `apps/web/lib/bookAccess.ts` and is called from the diary's ro
 >
 > 1. **"The Edge runtime cannot read Postgres" is not true on Next 16.3.3.** A
 >    Task 13 reviewer set `runtime: 'nodejs'` on `apps/web/middleware.ts`,
->    connected `pg` and read the `site` global from it. The premise was alive in
->    **thirteen** places across source and documents, each justifying a real
->    decision with a constraint that had stopped existing; all are corrected and
->    **no decision changed** — each now carries a reason that holds. Measured,
->    the Node runtime costs nothing: `/admin/sign-in` 6.7 → 5.9ms, `/p/3`
+>    connected `pg` and read the `site` global from it. The premise was alive
+>    across source and documents, each copy justifying a real decision with a
+>    constraint that had stopped existing; all are corrected and **no decision
+>    changed** — each now carries a reason that holds. **This note gave a
+>    figure and the figure was wrong** — two copies survived the round it was
+>    written in, one of them in an ASCII box a case-sensitive grep walked past
+>    and one in `vitest.config.ts`, outside every root that grep searched. The
+>    figure is deleted rather than corrected, the way `docs/deviations.md`
+>    §98's was: run `git grep -in 'edge runtime'`, and
+>    `apps/web/middleware.ts`'s header says what every hit is allowed to be.
+>    Measured, the Node runtime costs nothing: `/admin/sign-in` 6.7 → 5.9ms, `/p/3`
 >    48.7 → 44.1ms, `/gallery/tokyo` +1.1ms for the query that produces the
 >    header.
 > 2. **The `401` carries no `WWW-Authenticate: Basic` challenge**, because
