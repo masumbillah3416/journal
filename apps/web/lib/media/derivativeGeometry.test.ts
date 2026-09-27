@@ -223,16 +223,6 @@ const codeOf = (file: string): string =>
     .replace(/(^|[^:])\/\/.*$/gm, '$1')
 
 /**
- * Every source file that reads a media row's derivative map BY TIER — which is
- * the one shape a ladder walk takes, whether it indexes with a variable
- * (`sizes?.[tier]`) or names a rung outright (`sizes?.frame`).
- *
- * THE TIER NAMES COME FROM THE COLLECTION, not from a literal here, so the
- * census inverts on the same axis the rest of this file does: a rung added in
- * five years widens what counts as a read without anybody editing this.
- * @returns Repository-relative paths of every consumer.
- */
-/**
  * The one file that names tier paths without drawing a photograph.
  *
  * `exportEverything.ts` lists every field path the dump may carry —
@@ -245,6 +235,16 @@ const codeOf = (file: string): string =>
  */
 const NAMES_TIERS_WITHOUT_DRAWING_ONE = 'apps/web/lib/admin/exportEverything.ts'
 
+/**
+ * Every source file that reads a media row's derivative map BY TIER — which is
+ * the one shape a ladder walk takes, whether it indexes with a variable
+ * (`sizes?.[tier]`) or names a rung outright (`sizes?.frame`).
+ *
+ * THE TIER NAMES COME FROM THE COLLECTION, not from a literal here, so the
+ * census inverts on the same axis the rest of this file does: a rung added in
+ * five years widens what counts as a read without anybody editing this.
+ * @returns Repository-relative paths of every consumer.
+ */
 const derivativeReaders = (): readonly string[] => {
   const tiers = configuredDerivatives().map((tier) => tier.name)
   const readsATier = new RegExp(`sizes\\??\\.(\\[|${tiers.join('|')})`)
