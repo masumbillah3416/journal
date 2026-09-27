@@ -17,11 +17,20 @@
  * and only an instant at or past the deadline says none. Both sides are
  * pinned by `trashCountdown.test.ts`.
  *
- * NOTHING HERE DELETES ANYTHING. The countdown is what the screen prints;
- * `deleteJourneyForGood` (`apps/web/lib/admin/journeyMutations.ts`) is the
- * only thing in this repository that removes a journey, and it runs because
- * an author pressed a button — there is no sweep. A row past the window is
- * therefore still listed, still restorable, and says so.
+ * NOTHING HERE DELETES ANYTHING, AND NOTHING ELSE DOES EITHER. The countdown
+ * is what the screen prints; `deleteJourneyForGood`
+ * (`apps/web/lib/admin/journeyMutations.ts`) is the only thing in this
+ * repository that removes a journey, and it runs because an author pressed a
+ * button. There is no job, no cron and no hook that acts when a window
+ * closes.
+ *
+ * SO THE THIRTY DAYS ARE ADVISORY, AND THE COPY MUST NOT SAY OTHERWISE. A row
+ * past the window is still listed, still restorable, and its line says `still
+ * here until you delete it` — not "goes for good on the next sweep", which is
+ * what it said until the Task 13 review pointed out that it named a mechanism
+ * that does not exist. `docs/deviations.md` §105 carries the decision: the
+ * right answer to a promise the product cannot keep is to stop making it, not
+ * to build a scheduler nobody asked for.
  *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. Two pure functions over an
  * instant and a clock.
@@ -78,9 +87,12 @@ export const daysUntilGone = (deletedAt: string, now: number): number => {
  * goesForGoodLine(30) // 'goes for good in 30 days'
  */
 export const goesForGoodLine = (days: number): string => {
-  // PAST THE WINDOW IS ITS OWN SENTENCE. Nothing sweeps the trash (see this
-  // module's header), so "goes for good in 0 days" would be a promise this
-  // repository does not keep.
-  if (days <= 0) return 'goes for good on the next sweep'
+  // PAST THE WINDOW IS ITS OWN SENTENCE, and it names no mechanism. This line
+  // read "goes for good on the next sweep" until the Task 13 review pointed
+  // out that there IS no sweep — no job, no cron and no hook removes a row
+  // when its thirty days are up — so the sentence promised an event nothing in
+  // this repository produces. It says what is true instead.
+  // `docs/deviations.md` §105 records that the window is advisory.
+  if (days <= 0) return 'still here until you delete it'
   return `goes for good in ${String(days)} ${days === 1 ? 'day' : 'days'}`
 }

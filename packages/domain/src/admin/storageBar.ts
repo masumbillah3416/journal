@@ -37,6 +37,14 @@
  * including an empty library and one twice its quota. The bar is drawn as
  * three widths in a row, so anything else leaves a gap or overflows the
  * track.
+ *
+ * THAT INCLUDES A QUOTA OF ZERO, and the answer there is worth stating because
+ * it reads oddly: an empty library against a zero quota draws `free: 100` —
+ * 100% free of nothing. The Task 13 review noticed it. It is the only answer
+ * that keeps the invariant: `free: 0` with nothing used sums to 0, and a bar
+ * whose three widths sum to 0 is a gap the length of the track. Unreachable
+ * today, because {@link STORAGE_QUOTA_BYTES} is a constant, and pinned by a
+ * case so it is a decision rather than a consequence of statement order.
  * Depends on: nothing.
  */
 

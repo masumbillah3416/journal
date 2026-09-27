@@ -267,13 +267,19 @@ test.describe('the settings a reader is served', () => {
     })
   })
 
-  test('tells a crawler not to index a gallery page for the same setting, because robots.txt does not unindex a known URL', async ({
+  test('sends X-Robots-Tag noindex on a gallery page for the same setting, because robots.txt does not unindex a known URL', async ({
     request,
   }) => {
+    // `SECURITY.md` asks for this header by name, and Task 13 first shipped a
+    // `<meta>` tag instead on the premise that the middleware could not read a
+    // database. The review measured that premise false on Next 16.3.3, so the
+    // header is set — and the tag is kept, because it is what the page can say
+    // on its own if the middleware ever stops running. Both are asserted.
     await withSetting({ indexGalleries: false }, async () => {
-      const html = await (await request.get(A_GALLERY)).text()
+      const response = await request.get(A_GALLERY)
 
-      expect(robotsMeta(html)).toBe('noindex')
+      expect(response.headers()['x-robots-tag']).toBe('noindex')
+      expect(robotsMeta(await response.text())).toBe('noindex')
     })
   })
 
@@ -285,10 +291,11 @@ test.describe('the settings a reader is served', () => {
     // froze it.
     await withSetting({ indexGalleries: true }, async () => {
       const body = await (await request.get('/robots.txt')).text()
-      const html = await (await request.get(A_GALLERY)).text()
+      const response = await request.get(A_GALLERY)
 
       expect(body).not.toContain('Disallow: /gallery/')
-      expect(robotsMeta(html)).toBeNull()
+      expect(response.headers()['x-robots-tag']).toBeUndefined()
+      expect(robotsMeta(await response.text())).toBeNull()
     })
   })
 

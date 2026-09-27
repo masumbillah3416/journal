@@ -14,11 +14,23 @@
  * ═══ WHY THE GATE IS HERE AND NOT IN THE MIDDLEWARE ═══
  *
  * `apps/web/middleware.ts` runs on every `/p/` and `/m/` request and would be
- * the obvious home. It cannot be, for exactly the reason
- * `apps/web/lib/auth/guard.ts` gives for the session guard: the middleware
- * runs in Next.js's Edge runtime, where `pg` and Payload do not exist, and
- * the setting lives in Postgres. A gate that could only read a cookie would
- * refuse nobody.
+ * the obvious home.
+ *
+ * THIS HEADER SAID IT "CANNOT BE, BECAUSE THE MIDDLEWARE RUNS IN THE EDGE
+ * RUNTIME, WHERE `pg` AND PAYLOAD DO NOT EXIST". That was measured false by
+ * the Task 13 review: on Next 16.3.3 the middleware runs on the Node runtime
+ * when it asks to, and `apps/web/middleware.ts` now reads Postgres from there
+ * for one header (`docs/deviations.md` §101). A reason that is not true is
+ * worse than no reason, so it is struck.
+ *
+ * THE GATE IS STILL NOT THERE, and the true reason is a smaller one: a
+ * middleware in front of every address is the wrong shape for a rule that
+ * three of Payload's own routes also have to obey. The gap this gate actually
+ * had was those three — REST, GraphQL and `/api/media/file/<name>` — and it
+ * was closed at `apps/web/collections/media.ts`'s `read` rule, one predicate
+ * behind all three, rather than by an interceptor in front of them. Moving an
+ * authorization boundary onto another runtime is not a thing to do because it
+ * became possible.
  *
  * ═══ THE REFUSAL IS A 401, AND IT CARRIES NO `WWW-Authenticate` ═══
  *

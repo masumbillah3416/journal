@@ -37,7 +37,12 @@
  * `TrashCard` (jsdom). It cannot be measured by either Vitest config, so a
  * per-file c8 ignore is CLAUDE.md §2.1's honest treatment, and this file is
  * NOT under a bracketed directory, so the hint is read. Its runtime behaviour
- * is covered in the browser by e2e/admin.spec.ts and e2e/a11y.spec.ts. IT IS
+ * is covered in the browser by e2e/a11y.spec.ts, whose case for this screen
+ * creates its own trashed journey and removes it again. IT NAMED
+ * e2e/admin.spec.ts TOO AND THAT WAS FALSE — that file never visits
+ * /admin/trash, and this file's whole-file `c8 ignore` rests on the coverage
+ * this sentence claims, so the citation is corrected rather than the
+ * justification stretched (Task 13 review, F8). IT IS
  * NOT IN e2e/visual.spec.ts: a baseline for this screen is OWED and is being
  * taken with the other screens that owe one in Task 15 (docs/deviations.md
  * §86). */

@@ -191,6 +191,7 @@ jobs:
       # Postgres, and the CSS Module resolving — and a `'use client'` added
       # anywhere under the shell, which would pass every jsdom case and cost
       # the admin JS budget on all twelve screens.
+      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/signIn.spec.ts e2e/codeStep.spec.ts e2e/reset.spec.ts e2e/signInJourney.spec.ts e2e/upload.spec.ts e2e/admin.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # Phase 4 Task 13 adds `e2e/bookGate.spec.ts` as a STEP OF ITS OWN, and
       # that is the whole point of it rather than an oversight: its cases
       # toggle the SITE-WIDE `passwordProtect` and `indexGalleries` settings,
@@ -198,11 +199,18 @@ jobs:
       # `fullyParallel: true`. A case closing the book inside that run would
       # 401 every other spec's `/p/<n>` mid-flight, and the suite would fail
       # for a reason none of those files could name. One project, run alone,
-      # after the rest — and it restores the global in a `finally` and diffs
-      # the whole dump either side, because the local `webServer` runs against
-      # the developer's own database.
+      # after the rest, WHICH IS WHERE THIS STEP NOW IS. It was placed BEFORE
+      # the suite for its first two rounds while this comment said otherwise,
+      # and the review named the failure that makes the order load-bearing: a
+      # Playwright worker KILLED between `updateGlobal({passwordProtect:true})`
+      # and the `finally` — OOM, a runner timeout, a `--max-failures` abort —
+      # leaves the book closed, and every later spec's `/p/<n>` answers 401
+      # with no file in that run able to say why. `withSetting`'s `finally`
+      # covers a throw and cannot cover a kill; the ordering is what makes the
+      # blast radius zero instead of 22 specs. It also diffs the whole `site`
+      # dump either side, because the local `webServer` runs against the
+      # developer's own database.
       - run: npx playwright test --project=desktop e2e/bookGate.spec.ts
-      - run: npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/signIn.spec.ts e2e/codeStep.spec.ts e2e/reset.spec.ts e2e/signInJourney.spec.ts e2e/upload.spec.ts e2e/admin.spec.ts e2e/a11y.spec.ts e2e/visual.spec.ts
       # lhci's Lighthouse launch needs an explicit CHROME_PATH inside this
       # image: chrome-launcher's own auto-detection looks for a system
       # `google-chrome`/`chromium-browser` binary, which this image does not

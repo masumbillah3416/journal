@@ -17,7 +17,8 @@
  */
 import { adminSecurityHeaders } from './lib/auth/adminAccess'
 import { describe, expect, it } from 'vitest'
-import { NextRequest } from 'next/server'
+import { NextRequest, type NextResponse } from 'next/server'
+import { vi } from 'vitest'
 import { middleware } from './middleware'
 
 /** The origin every request in this file is made to. */
@@ -47,42 +48,99 @@ const requestFor = (path: string, headers: Record<string, string> = {}, method =
   new NextRequest(`${ORIGIN}${path}`, { headers, method })
 
 /** The path the middleware sent this request to, whether by rewrite or by redirect. */
-const destination = (path: string, headers: Record<string, string> = {}): string | null => {
-  const response = middleware(requestFor(path, headers))
+const destination = async (path: string, headers: Record<string, string> = {}): Promise<string | null> => {
+  const response = await middleware(requestFor(path, headers))
   const sent = response.headers.get('x-middleware-rewrite') ?? response.headers.get('location')
   if (sent === null) return null
   const url = new URL(sent)
   return url.pathname + url.search
 }
 
+/**
+ * What the `site` global answers while a case runs.
+ *
+ * THE BOUNDARY IS MOCKED, NOT OUR OWN MODULE (CLAUDE.md §2.3): the gallery
+ * branch reads one column through Payload, and Payload is the boundary. What
+ * it does with a REAL database is `e2e/bookGate.spec.ts`'s, against a running
+ * server.
+ */
+let indexGalleries: boolean | null = true
+
+vi.mock('./lib/payload', () => ({
+  getPayload: (): Promise<unknown> =>
+    Promise.resolve({ findGlobal: (): Promise<unknown> => Promise.resolve({ indexGalleries }) }),
+}))
+
 describe('middleware', () => {
+  describe('the crawl directive it puts on a gallery', () => {
+    it('sends X-Robots-Tag: noindex once the author has turned indexing off', async () => {
+      // `SECURITY.md`: "Respect `indexGalleries` in `robots.txt` AND with
+      // `X-Robots-Tag`". A Next.js page component cannot set a response header
+      // at all, so this is the only place the second half can be met.
+      indexGalleries = false
+
+      expect((await middleware(requestFor('/gallery/tokyo'))).headers.get('X-Robots-Tag')).toBe('noindex')
+    })
+
+    it('sends none while the author allows indexing, so the header is the setting', async () => {
+      // THE OTHER HALF, and what stops this being a hard-coded directive.
+      indexGalleries = true
+
+      expect((await middleware(requestFor('/gallery/tokyo'))).headers.get('X-Robots-Tag')).toBeNull()
+    })
+
+    it('takes an unwritten column as the default the field declares, which is indexable', async () => {
+      // Postgres hands back `null` for a checkbox nobody has written, and
+      // `apps/web/globals/site.ts` declares this one `defaultValue: true`. A
+      // coercion that read `null` as "off" would stop indexing a fresh
+      // install's galleries.
+      indexGalleries = null
+
+      expect((await middleware(requestFor('/gallery/tokyo'))).headers.get('X-Robots-Tag')).toBeNull()
+    })
+
+    it('puts it on no other address, because it is the galleries the setting names', async () => {
+      indexGalleries = false
+
+      expect((await middleware(requestFor('/p/3', { 'user-agent': DESKTOP }))).headers.get('X-Robots-Tag')).toBeNull()
+    })
+
+    it('leaves the gallery on its own route rather than rewriting it', async () => {
+      indexGalleries = false
+      const response = await middleware(requestFor('/gallery/tokyo'))
+
+      expect(response.headers.get('x-middleware-rewrite')).toBeNull()
+      expect(response.headers.get('location')).toBeNull()
+    })
+  })
+
   describe('the reading surface a `/p/<n>` request is served', () => {
-    it('serves the book route itself to a desktop browser', () => {
-      expect(destination('/p/3', { 'user-agent': DESKTOP })).toBeNull()
+    it('serves the book route itself to a desktop browser', async () => {
+      expect(await destination('/p/3', { 'user-agent': DESKTOP })).toBeNull()
     })
 
-    it('serves the book route itself when there is no user agent to go on at all', () => {
-      expect(destination('/p/3')).toBeNull()
+    it('serves the book route itself when there is no user agent to go on at all', async () => {
+      expect(await destination('/p/3')).toBeNull()
     })
 
-    it('sends a phone to the mobile route without changing the address it asked for', () => {
-      expect(destination('/p/3', { 'user-agent': IPHONE })).toBe('/m/3')
+    it('sends a phone to the mobile route without changing the address it asked for', async () => {
+      expect(await destination('/p/3', { 'user-agent': IPHONE })).toBe('/m/3')
     })
 
-    it('sends a reader whose browser measured a narrow window to the mobile route', () => {
-      expect(destination('/p/3', { 'user-agent': DESKTOP, cookie: 'td-reading-surface=mobile' })).toBe('/m/3')
+    it('sends a reader whose browser measured a narrow window to the mobile route', async () => {
+      expect(await destination('/p/3', { 'user-agent': DESKTOP, cookie: 'td-reading-surface=mobile' })).toBe('/m/3')
     })
 
-    it('keeps a phone on the book route when that reader’s browser measured a wide one', () => {
-      expect(destination('/p/3', { 'user-agent': IPHONE, cookie: 'td-reading-surface=book' })).toBeNull()
+    it('keeps a phone on the book route when that reader’s browser measured a wide one', async () => {
+      expect(await destination('/p/3', { 'user-agent': IPHONE, cookie: 'td-reading-surface=book' })).toBeNull()
     })
 
-    it('carries the query across the rewrite, since the book asks for itself with one', () => {
-      expect(destination('/p/3?pages=all', { 'user-agent': IPHONE })).toBe('/m/3?pages=all')
+    it('carries the query across the rewrite, since the book asks for itself with one', async () => {
+      expect(await destination('/p/3?pages=all', { 'user-agent': IPHONE })).toBe('/m/3?pages=all')
     })
 
-    it('rewrites rather than redirects, so the reader’s address stays the one they can share', () => {
-      const response = middleware(requestFor('/p/3', { 'user-agent': IPHONE }))
+    it('rewrites rather than redirects, so the reader’s address stays the one they can share', async () => {
+      const response = await middleware(requestFor('/p/3', { 'user-agent': IPHONE }))
 
       expect(response.headers.get('location')).toBeNull()
       expect(response.headers.get('x-middleware-rewrite')).not.toBeNull()
@@ -90,65 +148,65 @@ describe('middleware', () => {
   })
 
   describe('the mobile route’s own path, which is not an address', () => {
-    it('redirects a direct request for it onto the page’s one public address', () => {
-      expect(destination('/m/3', { 'user-agent': IPHONE })).toBe('/p/3')
+    it('redirects a direct request for it onto the page’s one public address', async () => {
+      expect(await destination('/m/3', { 'user-agent': IPHONE })).toBe('/p/3')
     })
 
-    it('redirects permanently, so no crawler keeps the internal path as a second address', () => {
-      expect(middleware(requestFor('/m/3', { 'user-agent': IPHONE })).status).toBe(308)
+    it('redirects permanently, so no crawler keeps the internal path as a second address', async () => {
+      expect((await middleware(requestFor('/m/3', { 'user-agent': IPHONE }))).status).toBe(308)
     })
 
-    it('redirects a desktop browser too, since the path is internal to the rewrite either way', () => {
-      expect(destination('/m/3', { 'user-agent': DESKTOP })).toBe('/p/3')
+    it('redirects a desktop browser too, since the path is internal to the rewrite either way', async () => {
+      expect(await destination('/m/3', { 'user-agent': DESKTOP })).toBe('/p/3')
     })
   })
 
   describe('the headers every admin response carries, and no diary response does', () => {
-    it('puts the admin’s content security policy on an admin response', () => {
-      const response = middleware(requestFor('/admin/sign-in'))
+    it('puts the admin’s content security policy on an admin response', async () => {
+      const response = await middleware(requestFor('/admin/sign-in'))
 
       expect(response.headers.get('Content-Security-Policy')).toBe(EXPECTED_HEADERS['Content-Security-Policy'])
     })
 
-    it('puts the admin’s referrer policy on it too, so a reset token never leaves in a Referer', () => {
+    it('puts the admin’s referrer policy on it too, so a reset token never leaves in a Referer', async () => {
       // `same-origin`, not `no-referrer`: the token still never leaves in a
       // cross-origin `Referer`, and a form-navigation POST keeps an `Origin`
       // the cross-site check can read. Under `no-referrer` it sends
       // `Origin: null` and every form on this surface answered 403.
-      expect(middleware(requestFor('/admin/reset/deadbeef')).headers.get('Referrer-Policy')).toBe('same-origin')
+      expect((await middleware(requestFor('/admin/reset/deadbeef'))).headers.get('Referrer-Policy')).toBe('same-origin')
     })
 
-    it('puts every one of them on, not merely the policy', () => {
+    it('puts every one of them on, not merely the policy', async () => {
       // Asserted as a set rather than one by one: a header added to
       // `adminSecurityHeaders` and not applied here would otherwise be a
       // header nothing notices is missing.
-      const response = middleware(requestFor('/admin/sign-in'))
+      const response = await middleware(requestFor('/admin/sign-in'))
 
       for (const [name, value] of Object.entries(EXPECTED_HEADERS)) {
         expect(response.headers.get(name)).toBe(value)
       }
     })
 
-    it('leaves the book’s own response carrying none of them', () => {
+    it('leaves the book’s own response carrying none of them', async () => {
       // The diary is thirty-three pages this task does not own. A CSP added to
       // them would be a behaviour change nothing in this task asked for.
-      const response = middleware(requestFor('/p/3', { 'user-agent': DESKTOP }))
+      const response = await middleware(requestFor('/p/3', { 'user-agent': DESKTOP }))
 
       for (const name of Object.keys(EXPECTED_HEADERS)) {
         expect(response.headers.get(name)).toBeNull()
       }
     })
 
-    it('leaves the mobile surface’s rewrite carrying none of them either', () => {
-      const response = middleware(requestFor('/p/3', { 'user-agent': IPHONE }))
+    it('leaves the mobile surface’s rewrite carrying none of them either', async () => {
+      const response = await middleware(requestFor('/p/3', { 'user-agent': IPHONE }))
 
       for (const name of Object.keys(EXPECTED_HEADERS)) {
         expect(response.headers.get(name)).toBeNull()
       }
     })
 
-    it('leaves the redirect off the internal mobile path carrying none of them', () => {
-      const response = middleware(requestFor('/m/3', { 'user-agent': IPHONE }))
+    it('leaves the redirect off the internal mobile path carrying none of them', async () => {
+      const response = await middleware(requestFor('/m/3', { 'user-agent': IPHONE }))
 
       for (const name of Object.keys(EXPECTED_HEADERS)) {
         expect(response.headers.get(name)).toBeNull()
@@ -157,63 +215,65 @@ describe('middleware', () => {
   })
 
   describe('the cross-site mutations it refuses', () => {
-    it('admits a post carrying our own origin', () => {
-      const response = middleware(requestFor('/admin/sign-in/password', { origin: ORIGIN }, 'POST'))
+    it('admits a post carrying our own origin', async () => {
+      const response = await middleware(requestFor('/admin/sign-in/password', { origin: ORIGIN }, 'POST'))
 
       expect(response.status).toBe(200)
     })
 
-    it('refuses a post carrying somebody else’s origin', () => {
-      const response = middleware(requestFor('/admin/sign-in/password', { origin: 'https://attacker.example' }, 'POST'))
+    it('refuses a post carrying somebody else’s origin', async () => {
+      const response = await middleware(
+        requestFor('/admin/sign-in/password', { origin: 'https://attacker.example' }, 'POST'),
+      )
 
       expect(response.status).toBe(403)
     })
 
-    it('refuses a post carrying no origin at all', () => {
+    it('refuses a post carrying no origin at all', async () => {
       // The case that makes the check real rather than decorative — see
       // `adminAccess.ts`. Every browser sends `Origin` on a form POST.
-      expect(middleware(requestFor('/admin/sign-in/password', {}, 'POST')).status).toBe(403)
+      expect((await middleware(requestFor('/admin/sign-in/password', {}, 'POST'))).status).toBe(403)
     })
 
-    it('refuses a forged post to the endpoint that authorises by a cookie', () => {
+    it('refuses a forged post to the endpoint that authorises by a cookie', async () => {
       // `SameSite=Lax` already withholds the session cookie from a cross-site
       // POST, so this is the second layer — and the one that also covers a
       // sibling host under the same registrable domain, which `Lax` treats as
       // same-site.
-      const response = middleware(
+      const response = await middleware(
         requestFor('/admin/sign-out', { origin: 'https://evil.localhost', cookie: 'td-session=stolen' }, 'POST'),
       )
 
       expect(response.status).toBe(403)
     })
 
-    it('still carries the admin’s headers on what it refuses', () => {
-      const response = middleware(requestFor('/admin/sign-out', {}, 'POST'))
+    it('still carries the admin’s headers on what it refuses', async () => {
+      const response = await middleware(requestFor('/admin/sign-out', {}, 'POST'))
 
       expect(response.headers.get('Content-Security-Policy')).toBe(EXPECTED_HEADERS['Content-Security-Policy'])
     })
 
-    it('refuses nothing on the diary, which sets no cookie a forgery could spend', () => {
+    it('refuses nothing on the diary, which sets no cookie a forgery could spend', async () => {
       // The matcher reaches `/p/<n>` too. A cross-origin `POST` there is not
       // this policy's business, and refusing one would be a behaviour change
       // to a surface that authenticates nobody.
-      expect(middleware(requestFor('/p/3', { 'user-agent': DESKTOP }, 'POST')).status).toBe(200)
+      expect((await middleware(requestFor('/p/3', { 'user-agent': DESKTOP }, 'POST'))).status).toBe(200)
     })
   })
 
   describe('the identifier it mints for a browser that has none', () => {
     /** The `Set-Cookie` values a response carries. */
-    const cookiesOf = (response: ReturnType<typeof middleware>): string => response.headers.getSetCookie().join('\n')
+    const cookiesOf = (response: NextResponse): string => response.headers.getSetCookie().join('\n')
 
-    it('gives a browser arriving at the sign-in screen something to bind a code to', () => {
+    it('gives a browser arriving at the sign-in screen something to bind a code to', async () => {
       // `signIn.ts` requires a non-null `browserSession`, and
       // `otpService.issueChallenge` binds the code to it. A browser that has
       // never been here has none.
-      expect(cookiesOf(middleware(requestFor('/admin/sign-in')))).toContain('td-session=')
+      expect(cookiesOf(await middleware(requestFor('/admin/sign-in')))).toContain('td-session=')
     })
 
-    it('scopes and withholds it exactly as a signed-in session’s cookie is', () => {
-      const cookies = cookiesOf(middleware(requestFor('/admin/sign-in')))
+    it('scopes and withholds it exactly as a signed-in session’s cookie is', async () => {
+      const cookies = cookiesOf(await middleware(requestFor('/admin/sign-in')))
 
       expect(cookies).toContain('Path=/admin')
       expect(cookies).toContain('HttpOnly')
@@ -221,59 +281,60 @@ describe('middleware', () => {
       expect(cookies).toContain('SameSite=Lax')
     })
 
-    it('gives a browser arriving at the reset screen one as well', () => {
-      expect(cookiesOf(middleware(requestFor('/admin/reset')))).toContain('td-session=')
+    it('gives a browser arriving at the reset screen one as well', async () => {
+      expect(cookiesOf(await middleware(requestFor('/admin/reset')))).toContain('td-session=')
     })
 
-    it('leaves a browser that already carries one alone', () => {
+    it('leaves a browser that already carries one alone', async () => {
       // THE CASE THAT KEEPS THIS FROM BEING A SESSION-DESTROYER. Overwriting
       // the cookie on every GET would replace a signed-in reader’s session
       // with a pre-auth identifier the moment they loaded any admin page.
-      const response = middleware(requestFor('/admin/sign-in', { cookie: 'td-session=already-holding-one' }))
+      const response = await middleware(requestFor('/admin/sign-in', { cookie: 'td-session=already-holding-one' }))
 
       expect(cookiesOf(response)).not.toContain('td-session=')
     })
 
-    it('mints nothing on a guarded address, where an identifier would answer nothing', () => {
-      expect(cookiesOf(middleware(requestFor('/admin/sign-in/done')))).not.toContain('td-session=')
+    it('mints nothing on a guarded address, where an identifier would answer nothing', async () => {
+      expect(cookiesOf(await middleware(requestFor('/admin/sign-in/done')))).not.toContain('td-session=')
     })
 
-    it('mints nothing on a POST, which is answered by a handler that mints its own', () => {
+    it('mints nothing on a POST, which is answered by a handler that mints its own', async () => {
       // The handler has to set the cookie on its response anyway, so a second
       // one here would be a second identifier and the challenge would be bound
       // to whichever won.
-      const response = middleware(requestFor('/admin/sign-in/password', { origin: ORIGIN }, 'POST'))
+      const response = await middleware(requestFor('/admin/sign-in/password', { origin: ORIGIN }, 'POST'))
 
       expect(cookiesOf(response)).not.toContain('td-session=')
     })
 
-    it('mints nothing for the diary, which is served to readers who never sign in', () => {
-      expect(cookiesOf(middleware(requestFor('/p/3', { 'user-agent': DESKTOP })))).not.toContain('td-session=')
+    it('mints nothing for the diary, which is served to readers who never sign in', async () => {
+      expect(cookiesOf(await middleware(requestFor('/p/3', { 'user-agent': DESKTOP })))).not.toContain('td-session=')
     })
 
-    it('mints a different identifier for every browser that asks', () => {
-      const first = cookiesOf(middleware(requestFor('/admin/sign-in')))
-      const second = cookiesOf(middleware(requestFor('/admin/sign-in')))
+    it('mints a different identifier for every browser that asks', async () => {
+      const first = cookiesOf(await middleware(requestFor('/admin/sign-in')))
+      const second = cookiesOf(await middleware(requestFor('/admin/sign-in')))
 
       expect(first).not.toBe(second)
     })
   })
 
   describe('what it does not do to the admin', () => {
-    it('leaves an admin request on its own route rather than rewriting it', () => {
-      const response = middleware(requestFor('/admin/sign-in'))
+    it('leaves an admin request on its own route rather than rewriting it', async () => {
+      const response = await middleware(requestFor('/admin/sign-in'))
 
       expect(response.headers.get('x-middleware-rewrite')).toBeNull()
       expect(response.headers.get('location')).toBeNull()
     })
 
-    it('admits an unauthenticated request for a guarded screen, which the guard refuses instead', () => {
+    it('admits an unauthenticated request for a guarded screen, which the guard refuses instead', async () => {
       // NOT a hole, and it is stated so nobody adds a second, weaker check
-      // here: whether an identifier names a LIVE row needs Postgres, which the
-      // Edge runtime cannot reach. `lib/auth/guard.ts` is the authority, and a
-      // cookie-presence test here would admit every revoked session and every
-      // pre-auth identifier anyway.
-      expect(middleware(requestFor('/admin/sign-in/done')).status).toBe(200)
+      // here. This file CAN reach Postgres — it runs on the Node runtime and
+      // reads the `site` global for one header — so the reason is not
+      // capability: `lib/auth/guard.ts` is the authority on who a request is,
+      // and a cookie-presence test here would admit every revoked session and
+      // every pre-auth identifier anyway.
+      expect((await middleware(requestFor('/admin/sign-in/done'))).status).toBe(200)
     })
   })
 })

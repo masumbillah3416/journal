@@ -841,9 +841,12 @@ filename, caption, alt — `POST /api/graphql`'s `allMedia` did the same, and
 resolve to. Journeys, pages and this global were already refused; media was the hole. The count is
 a measurement now precisely because that sentence was not.
 
-**Not the middleware**, for the reason `apps/web/lib/auth/guard.ts` gives about the session
-guard: `apps/web/middleware.ts` runs in the Edge runtime, where `pg` and Payload do not exist,
-and the setting lives in Postgres.
+**Not the middleware**, and the reason is smaller than the one this row used to give. It said the
+middleware ran in the Edge runtime, where `pg` and Payload do not exist — measured false by the
+Task 13 review, and `apps/web/middleware.ts` now reads Postgres from the Node runtime for one
+header (`docs/deviations.md` §101). What is true is that an interceptor in front of every address
+is the wrong shape for a rule three of Payload's own routes also have to obey: the gap was those
+three, and one predicate behind them is a better answer than a gate in front of them.
 
 **What a refused request gets.** HTTP **401**, through Next's `unauthorized()` interrupt, which
 renders `apps/web/app/(diary)/unauthorized.tsx` and needs `experimental.authInterrupts` in
@@ -905,17 +908,23 @@ build without it prints `○ /robots.txt (Static) prerendered as static content`
 `x-nextjs-cache: HIT`, so the author's toggle would appear to work on a development server and do
 nothing in production. With it, the same build prints `ƒ /robots.txt`.
 
-**The second half is a `robots` meta tag whose content is `noindex`, not an `X-Robots-Tag` header**,
-derived from the same setting on `apps/web/app/(diary)/gallery/[slug]/page.tsx`. A Next.js page
-component cannot set a response header at all — measured on this app — and the two mechanisms
-that can are a Route Handler and the Edge middleware, which cannot reach Postgres. For an HTML
-document the directive and the header are equivalent to every major crawler; the header is in
-the requirement because the handoff assumed a static host, which can configure headers and
-cannot compute a tag. `docs/deviations.md` §101 carries the measurement, the option not taken,
-and what would reverse it. The header IS sent where a header can be sent:
-`apps/web/app/(diary)/gallery/[slug]/download/[id]/route.ts` is a Route Handler and sets
-`X-Robots-Tag: noindex` unconditionally — a downloaded file is never a result to index, whatever
-the author decides about the gallery page.
+**The second half is the `X-Robots-Tag` header the requirement names**, set on a gallery response
+by `apps/web/middleware.ts` from the same setting. It is there and not on the page because a
+Next.js page component cannot set a response header at all — measured on this app — and the only
+two places that can are a Route Handler and the middleware.
+
+**THIS ROW FIRST SHIPPED A `robots` META TAG INSTEAD**, on the premise that the
+middleware was Edge and could not reach Postgres. The Task 13 review measured that premise false
+on Next 16.3.3 and the first fix round met the requirement as written: the middleware runs on the
+Node runtime, its matcher covers `/gallery/:path*`, and it reads one column for one header — for
+gallery paths only, so nothing else pays the query. `docs/deviations.md` §101 carries the
+measurement, what the runtime change cost, and what deliberately did NOT move.
+
+**The tag is kept beside the header.** The header is what the requirement asks for; the tag is
+what the page can say on its own if the middleware ever stops running, and both are asserted in
+both directions. The header is also sent by
+`apps/web/app/(diary)/gallery/[slug]/download/[id]/route.ts`, unconditionally — a downloaded file
+is never a result to index, whatever the author decides about the gallery page.
 
 **Which cases prove it.** `disallows the galleries in robots.txt when the author has turned
 indexing off`, `tells a crawler not to index a gallery page for the same setting, because

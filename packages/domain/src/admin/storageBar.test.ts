@@ -71,6 +71,29 @@ describe('storageSegments', () => {
     ])
   })
 
+  it('draws an empty bar for an empty library against a quota of nothing, which is the only sum that works', () => {
+    // The Task 13 review's F10. `used <= 0` answers before the quota is
+    // consulted, so this is 100% free of nothing — and it is the only answer
+    // that keeps the invariant: three widths summing to 0 is a gap the length
+    // of the track. Unreachable while the quota is a constant; pinned so it is
+    // a decision rather than a consequence of statement order.
+    expect(storageSegments({ stills: 0, clips: 0 }, 0)).toEqual([
+      { kind: 'stills', percent: 0 },
+      { kind: 'clips', percent: 0 },
+      { kind: 'free', percent: 100 },
+    ])
+  })
+
+  it('still fills the bar for a library against a quota of nothing, which is every byte over it', () => {
+    // The other side of the same corner: something against nothing is over
+    // quota, so the two kinds scale against each other and nothing is free.
+    expect(storageSegments({ stills: 3, clips: 1 }, 0)).toEqual([
+      { kind: 'stills', percent: 75 },
+      { kind: 'clips', percent: 25 },
+      { kind: 'free', percent: 0 },
+    ])
+  })
+
   it('gives the three segments in the order the bar prints them', () => {
     expect(storageSegments({ stills: 1, clips: 2 }, 100).map((segment) => segment.kind)).toEqual([
       'stills',

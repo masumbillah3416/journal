@@ -66,7 +66,18 @@ describe('goesForGoodLine', () => {
     expect(goesForGoodLine(1)).toBe('goes for good in 1 day')
   })
 
-  it('says the window has closed rather than counting down to nothing', () => {
-    expect(goesForGoodLine(0)).toBe('goes for good on the next sweep')
+  it('names no mechanism once the window has closed, because there is no sweep', () => {
+    // The Task 13 review's F6. This asserted "goes for good on the next
+    // sweep", which named a job that does not exist: nothing in this
+    // repository removes a journey but an author pressing Delete for good.
+    expect(goesForGoodLine(0)).toBe('still here until you delete it')
+  })
+
+  it('promises no sweep in any line it can print, at any number of days', () => {
+    // THE WHOLE POPULATION, not the one line that was wrong. A future edit
+    // that reintroduced the word anywhere in this module's copy fails here.
+    const everyLine = [0, 1, 2, TRASH_WINDOW_DAYS].map((days) => goesForGoodLine(days))
+
+    expect(everyLine.filter((line) => line.includes('sweep'))).toEqual([])
   })
 })

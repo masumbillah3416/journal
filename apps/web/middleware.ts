@@ -20,15 +20,44 @@
  * decided from a path, a method and two origins.
  *
  * ONE THING DOES NOT BELONG HERE AND IS DELIBERATELY ABSENT: deciding whether
- * a request is authenticated. This file runs in Next.js's Edge runtime, where
- * `pg`, Payload and `node:crypto` do not exist, so the only question it could
- * answer is whether a cookie is PRESENT — and the answer would be worthless,
- * because the value this very file mints for an anonymous browser is carried
- * in that same cookie. A presence check would admit every revoked session,
- * every expired one, and every visitor who has ever loaded the sign-in page.
- * `lib/auth/guard.ts` is the authority, it runs in the Node server, and
- * `lib/auth/adminGuardRegistration.test.ts` is what stops a later screen
- * forgetting to call it. Do not add a second, weaker check here.
+ * a request is authenticated. NOT because this file cannot reach a database —
+ * it can, see the runtime note below — but because a second authority on
+ * "who is this request" is a second thing to keep right. `lib/auth/guard.ts`
+ * is that authority, it runs in the Node server from the page or route that
+ * needs the answer, and `lib/auth/adminGuardRegistration.test.ts` is what
+ * stops a later screen forgetting to call it. A check here could only be
+ * weaker — the value this very file mints for an anonymous browser rides in
+ * the same cookie a real session does, so a presence check would admit every
+ * revoked session, every expired one, and every visitor who has ever loaded
+ * the sign-in page. Do not add a second, weaker check here.
+ *
+ * ═══ THIS FILE RUNS ON THE NODE RUNTIME, AND THAT IS A MEASURED CORRECTION ═══
+ *
+ * Four places in this repository used to say the middleware "runs in Next.js's
+ * Edge runtime, where `pg` and Payload do not exist". On Next 16.3.3 that is
+ * false: `config.runtime = 'nodejs'` is honoured, and the Task 13 review
+ * measured it — `require('pg')` connected and read the `site` row from inside
+ * this file. `docs/deviations.md` §101 carries the measurement.
+ *
+ * WHAT THAT BOUGHT IS ONE HEADER AND NOTHING ELSE. `SECURITY.md` asks for
+ * `site.indexGalleries` to be respected "in `robots.txt` **and** with
+ * `X-Robots-Tag`", and an `X-Robots-Tag` on a page response is a thing only a
+ * middleware can set — a Next.js page component cannot set a response header
+ * at all (measured: `metadata.robots` emits a `<meta>` and no header). So the
+ * gallery's crawl directive is set here, and it is the ONLY thing here that
+ * touches a database.
+ *
+ * WHAT IT DELIBERATELY DID NOT BUY: the book gate did not move here, and
+ * neither did the session guard. Both stay at the routes that need them.
+ * Moving an authorization boundary onto a different runtime is not a thing to
+ * do because it became possible; `apps/web/collections/media.ts`'s `read`
+ * rule is where the gate's fifth surface was closed, and one predicate behind
+ * three of Payload's own routes is a better answer than an interceptor in
+ * front of all of them.
+ *
+ * THE DATABASE IS READ FOR `/gallery/…` AND FOR NOTHING ELSE. Every other
+ * path returns before it, so `/p/<n>`, `/m/<n>` and `/admin` pay the runtime
+ * and not the query.
  *
  * THE DIARY'S OWN HEADERS ARE UNTOUCHED, and the negative cases in
  * `middleware.test.ts` are what keep them that way: none of the admin's
@@ -88,6 +117,44 @@ const MOBILE_ROUTE_PREFIX = '/m/'
 
 /** Where the book's route entry lives, and the only address either surface is served at. */
 const PAGE_ROUTE_PREFIX = '/p/'
+
+/** Where a journey's gallery is served. */
+const GALLERY_ROUTE_PREFIX = '/gallery/'
+
+/** What a gallery response says to a crawler once the author has turned indexing off. */
+const NOINDEX = 'noindex'
+
+/**
+ * The same response, carrying the gallery's crawl directive when the author
+ * has asked for one.
+ *
+ * ═══ THIS IS THE `X-Robots-Tag` HALF OF `SECURITY.md`'s REQUIREMENT ═══
+ *
+ * "Respect `indexGalleries` in `robots.txt` **and** with `X-Robots-Tag`, since
+ * the pages are statically served." `app/robots.ts` is the first half. This is
+ * the second, and it is here because a Next.js page component cannot set a
+ * response header at all — see this file's header, and `app/(diary)/gallery/
+ * [slug]/page.tsx`, which ALSO emits a `<meta name="robots">` from the same
+ * setting. Two mechanisms for one directive is deliberate: the header is what
+ * the requirement asks for, and the tag is what the page can say on its own if
+ * this file ever stops running.
+ *
+ * THE IMPORT IS DYNAMIC so that a `/p/<n>` request, which returns long before
+ * this function, does not pull Payload into its own path.
+ * @param response - The response so far.
+ * @returns The same object, for chaining.
+ */
+const withGalleryCrawlPolicy = async (response: NextResponse): Promise<NextResponse> => {
+  const { getPayload } = await import('./lib/payload')
+  const payload = await getPayload()
+  const site = await payload.findGlobal({ slug: 'site', depth: 0, select: { indexGalleries: true } })
+  // `!== false` rather than `=== true`, because an unwritten checkbox column
+  // comes back `null` and `apps/web/globals/site.ts` declares this one
+  // `defaultValue: true`. The same coercion `lib/bookAccess.ts` makes, for
+  // the same reason.
+  if (site.indexGalleries === false) response.headers.set('X-Robots-Tag', NOINDEX)
+  return response
+}
 
 /** What a cross-site mutation is answered with: nothing, under a 403. */
 const CROSS_SITE_REFUSED_STATUS = 403
@@ -161,10 +228,14 @@ const admittedAdminRequest = (request: NextRequest): NextResponse => {
  *   a 308 back onto `/p/<n>` for a direct request for the internal path, and
  *   an untouched pass-through for everyone else.
  */
-export const middleware = (request: NextRequest): NextResponse => {
+export const middleware = async (request: NextRequest): Promise<NextResponse> => {
   const { pathname } = request.nextUrl
 
   if (isAdminPath(pathname)) return admittedAdminRequest(request)
+
+  // THE ONE PATH THAT READS A DATABASE, and it reads one column. Everything
+  // below returns without touching one.
+  if (pathname.startsWith(GALLERY_ROUTE_PREFIX)) return withGalleryCrawlPolicy(NextResponse.next())
 
   if (pathname.startsWith(MOBILE_ROUTE_PREFIX)) {
     const address = request.nextUrl.clone()
@@ -193,9 +264,20 @@ export const middleware = (request: NextRequest): NextResponse => {
  * `:path*` allows zero segments — which matters because `/admin` is the panel
  * Phase 4 builds and it must not be the one address the policy misses.
  *
+ * `/gallery/:path*` IS THE NEWEST ENTRY and it is here for one header: the
+ * `X-Robots-Tag` half of `SECURITY.md`'s `indexGalleries` requirement, which
+ * no page component can set. It is also the only matched prefix whose handling
+ * reads a database.
+ *
  * PAYLOAD'S OWN ADMIN IS NOT UNDER THIS PREFIX and is deliberately left out:
  * `payload.config.ts` moved it to `/cms`, it authenticates with Payload's own
  * cookie rather than this one, and it serves a bundled application whose
  * scripts this file's CSP was not written for.
  */
-export const config = { matcher: ['/p/:path*', '/m/:path*', '/admin/:path*'] }
+export const config = {
+  // NODE, NOT EDGE. `withGalleryCrawlPolicy` reads Postgres through Payload,
+  // which the Edge runtime cannot do — and which four documents in this
+  // repository wrongly said this file could never do. See the header.
+  runtime: 'nodejs',
+  matcher: ['/p/:path*', '/m/:path*', '/admin/:path*', '/gallery/:path*'],
+}

@@ -4163,9 +4163,17 @@ not there, for two independent reasons — both measured rather than argued.
    `metadata.robots` emits a `<meta>` tag and no header (measured against this app on Next
    16.3.3: `robots: { index: false }` added temporarily to the gallery route produced
    `<meta name="robots" content="noindex"/>` and no `x-robots-tag` on the response). The only
-   places a per-request header can be set are a Route Handler and the middleware, and the
-   middleware runs in the Edge runtime, where the setting's database does not exist
-   (`apps/web/lib/auth/guard.ts`'s header carries the same argument for the session guard).
+   places a per-request header can be set are a Route Handler and the middleware.
+
+   **THIS ENTRY ORIGINALLY ADDED "and the middleware runs in the Edge runtime, where the
+   setting's database does not exist". THAT WAS FALSE**, and the first fix round struck it: on
+   Next 16.3.3 the middleware runs on the Node runtime when it asks to, and
+   `apps/web/middleware.ts` now reads Postgres from there for one header (§101). It changes
+   nothing about this entry's conclusion — a page still cannot set a header, and a middleware
+   that answered 401 for the book would be an authorization boundary moved onto another runtime,
+   which is not a thing to do because it became possible — but a reason that is not true is not
+   a reason.
+
 2. **There is no password to check.** `DATA_MODEL.md`'s `site` global holds `passwordProtect` and
    no credential, and `SCREENS.md` §2.9 draws five toggles and no password field. A `Basic`
    challenge would therefore prompt a reader for a secret that cannot exist, reject every
@@ -4186,44 +4194,54 @@ reads would say otherwise.
 `apps/web/app/(diary)/unauthorized.tsx`'s header, `apps/web/next.config.ts`'s comment on the
 flag, and `docs/security.md`'s `passwordProtect` row.
 
-## 101 · `indexGalleries` reaches a gallery page as a `<meta name="robots">`, not as `X-Robots-Tag`
+## 101 · CLOSED — `indexGalleries` now reaches a gallery page as `X-Robots-Tag`, as `SECURITY.md` asks
 
-**What `SECURITY.md` asks for.** "Respect `indexGalleries` in `robots.txt` **and** with
-`X-Robots-Tag`, since the pages are statically served." Two mechanisms, because a `Disallow` asks
-a crawler not to FETCH a path and does not remove a URL it already knows from an index.
+**This entry recorded a deviation that no longer exists, and it is kept rather than deleted
+because the reason it was wrong is worth more than the entry was.**
 
-**What was built.** Both halves read the setting, and the first is exactly what was asked for:
-`apps/web/app/robots.ts` replaces the static file and emits `Disallow: /gallery/` when the author
-turns indexing off. The second half is a `<meta name="robots" content="noindex">` on
-`apps/web/app/(diary)/gallery/[slug]/page.tsx`, derived from the same setting, rather than the
-`X-Robots-Tag` HTTP header the sentence names.
+**What it said.** That `SECURITY.md`'s "respect `indexGalleries` in `robots.txt` **and** with
+`X-Robots-Tag`" could only be half met: `apps/web/app/robots.ts` served the first half, and the
+second arrived as a `<meta name="robots" content="noindex">` on the gallery page, because a
+Next.js page component cannot set a response header and "the middleware is Edge and cannot reach
+Postgres". It flagged the middleware half as **UNRESOLVED and not measured**, which is the only
+reason this correction was cheap.
 
-**Why, and it is a measurement rather than a preference.** A Next.js page component cannot set a
-response header — see §100's first point, which was measured on this app. The two places that
-can are a Route Handler and the middleware; `/gallery/<slug>` is a page, and the middleware is
-Edge and cannot read Postgres. For an HTML document the two directives are equivalent to every
-major crawler; the header exists in the requirement because the handoff assumed a STATIC host,
-which can configure headers and cannot compute a tag. This deployment is the other way round.
+**What was measured.** The Task 13 review resolved it against the deviation. With
+`runtime: 'nodejs'` in `apps/web/middleware.ts`'s `config`, `require('node:fs')` resolved and a
+`require('pg')` connected to `DATABASE_URL` and read `{"index_galleries":true,
+"password_protect":false}` — so it is genuinely Node, not Edge. Next's own dev output already
+calls `middleware.ts` a deprecated spelling of `proxy.ts` and times it as `proxy.ts: …ms`.
 
-**Where the header IS sent, because that surface can send one.**
-`apps/web/app/(diary)/gallery/[slug]/download/[id]/route.ts` is a Route Handler and sets
-`X-Robots-Tag: noindex` unconditionally — a downloaded file is never a result to index, whatever
-the author decides about the gallery page.
+**What the first fix round did.** Met the requirement as written. `apps/web/middleware.ts` runs
+on the Node runtime, its matcher gained `/gallery/:path*`, and it sets `X-Robots-Tag: noindex` on
+a gallery response when the author has turned indexing off. **The database is read for
+`/gallery/…` and for nothing else** — every other matched path returns before it, so `/p/<n>`,
+`/m/<n>` and `/admin` pay the runtime and not the query.
 
-**What was considered and not taken.** Moving the diary's request interception to the Node.js
-runtime (Next 16 renames `middleware.ts` to `proxy.ts` and can run it in Node) would put a
-DB-reading interceptor in front of every page and allow the header. It was not taken: it moves
-the admin's whole request policy — its security headers, its cross-site refusal and its pre-auth
-identifier — onto a different runtime, in a task that is not about that, and the task's own
-ruling put the gate at the route entries for the reason `guard.ts` gives. **Whether it would
-actually work here is UNRESOLVED and was not measured**; this entry is the record of the option,
-not a claim about it.
+**What did NOT move, and that is the standing decision.** The book gate stays at the route
+entries and the session guard stays in `lib/auth/guard.ts`. Moving an authorization boundary onto
+another runtime is not a thing to do because it became possible, and the gate's real gap was
+never a placement problem — it was Payload's own three routes, closed at
+`apps/web/collections/media.ts`'s `read` rule (§100's neighbour, and `docs/security.md`'s
+`passwordProtect` row). One predicate behind three routes beats an interceptor in front of all of
+them.
 
-**What would reverse it:** a `proxy.ts` on the Node runtime, or any Next release that lets a page
-contribute a response header. Either turns this into one line.
+**The `<meta>` tag is kept beside the header**, and that is deliberate rather than leftover: the
+header is what the requirement asks for and only the middleware can send it; the tag is what the
+page can say on its own if the middleware ever stops running. `e2e/bookGate.spec.ts` asserts both,
+in both directions.
 
-**Recorded as:** this entry, `app/robots.ts`'s header, the gallery route's header,
-`e2e/bookGate.spec.ts`'s header, and `docs/security.md`'s `indexGalleries` row.
+**What this cost, stated rather than implied.** The whole middleware — the admin's security
+headers, its cross-site refusal and its pre-auth identifier — now runs on the Node runtime rather
+than at the edge. That is a real change to a security-critical file's execution environment, made
+for one header, and it is written here so nobody has to infer it from a `config` key.
+
+**Recorded as:** this entry, `apps/web/middleware.ts`'s header and its `config` comment,
+`apps/web/lib/bookAccess.ts`'s header, `docs/security.md`'s `indexGalleries` row, and the cases
+`sends X-Robots-Tag: noindex once the author has turned indexing off` and `sends none while the
+author allows indexing, so the header is the setting` (`apps/web/middleware.test.ts`), plus
+`sends X-Robots-Tag noindex on a gallery page for the same setting, because robots.txt does not
+unindex a known URL` (`e2e/bookGate.spec.ts`).
 
 ## 102 · "Delete for good" takes the photographs, and "Take the book offline" is one column
 
@@ -4326,13 +4344,21 @@ four fields and gives words for none of them, so they say what the field does in
 repository: where the diary is served, what a search result prints, and which address the
 About page offers a reader.
 
+**And the fourth toggle is relabelled.** §2.9 words it "password the whole book"; the screen says
+**"Close the whole book"**. There is no password in this data model and none can be set from this
+screen (§100 has the substance), so the handoff's own label would name a mechanism the product
+does not have — the same objection §105 makes about the trash's sweep. The change is recorded
+here because §100 explains the behaviour and not the wording, and a relabel of the handoff's own
+copy is a deviation whoever reads §2.9 next needs to find. `readSettingsScreen.ts`'s
+`READER_COPY` carries the note at the label itself.
+
 **Recorded as:** this entry, `apps/web/lib/admin/exportEverything.ts`'s header,
 `apps/web/components/admin/settings/MaterialCard.tsx`'s header,
 `apps/web/components/admin/trash/TrashCard.tsx`'s header, `docs/runbook.md`'s
 "Export everything" section, and the cases in `MaterialCard.test.tsx` that assert each
 inert control is drawn inert.
 
-## 104 · No admin form renders a refusal, so a Zod error is a 500 — owner: the screen it is on
+## 104 · No admin form renders a refusal, so a Zod error is a 500 — owner: Task 15
 
 **What the sweep found.** `docs/qa/2026-09-27-settings-trash-sweep.md`, SET-003: typing
 `not-an-address` into §2.9's Reply-to and pressing Save answered **HTTP 500**, showed Next's error
@@ -4365,11 +4391,23 @@ client that posts the form directly reaches the 500 either way.
 **Why this is recorded rather than fixed across the admin.** A defect report is not permission to
 reach into five other screens: the fix needs an error state §2.2, §2.3, §2.6 and §2.7 do not
 draw, a decision about whether that state is a client island or a server round trip, and a failing
-case on each screen. Each screen's own owner takes it.
+case on each screen.
 
-**What would reverse it:** a refusal that reaches the screen — the form-state shape React offers
-a client island, or a server round trip that re-renders the card with what was typed and why it
-was refused. Either one closes all five at once, and the second ships no JavaScript.
+**OWNER: TASK 15, and the first version of this entry said "the screen it is on", which named
+nobody.** All five screens were built by Tasks 6, 7, 10 and 12, and all four are closed, so an
+entry addressed to them is a phase-wide defect assigned to no one — the Task 13 review said so
+(F7), and §98 is the shape that works: a number.
+
+**AND THE DECISION IS MADE HERE RATHER THAN LEFT AS A FORK**, so its owner inherits one job
+instead of two. This is ONE decision applied five times, not five decisions, and the preferred
+shape is **the server round trip**: the action re-renders the card with what was typed and why it
+was refused. It ships no JavaScript, which is the property all five of these screens currently
+have and which `lib/admin/shellShipsNoClientJs.test.ts` holds them to; a client island would give
+each of them an entry in that allowlist for an error state. Take the other shape only if a
+measurement says the round trip loses something.
+
+**What would reverse it:** a refusal that reaches the screen, in the shape named above. Either
+candidate closes all five at once.
 
 **And why it has a number at all.** A finding recorded only in a dated sweep file has no carrier:
 nothing reads `docs/qa/2026-09-27-settings-trash-sweep.md` again. The numbered entries are what a
@@ -4378,3 +4416,37 @@ task inherits.
 **Recorded as:** this entry, SET-003 in the sweep report, and the case
 `refuses a reply-to that is not an address in the field, not with a 500` (`e2e/admin.spec.ts`),
 which guards the one instance that is closed.
+
+## 105 · The thirty-day window is advisory: nothing sweeps the trash
+
+**What the screen says.** `SCREENS.md` §2.10 heads the card "Kept for thirty days" and prints
+"goes for good in 30 days" on every row. Both are drawn as the design asks.
+
+**What the product does.** Nothing. There is no job, no cron and no hook that removes a journey
+when its window closes: `deleteJourneyForGood`
+(`apps/web/lib/admin/journeyMutations.ts`) is the only thing in this repository that removes one,
+and it runs because an author pressed Delete for good. A journey thrown away on day one is still
+in Postgres, and its photographs are still in the bucket, on day three hundred.
+
+**What was wrong, and it is the copy rather than the absence.** The past-window line read **"goes
+for good on the next sweep"** — naming a mechanism that does not exist, in the one place on these
+two screens where the words are a data-retention claim. The Task 13 review found it (F6). An
+author could read "Kept for thirty days · goes for good in 30 days", want a journey of
+photographs gone, and be wrong about what happened.
+
+**What was done.** The line says `still here until you delete it`. The countdown itself is kept,
+because it is what the design asks for and it is true about the window the author was promised;
+what it no longer does is promise an event.
+
+**Why not build the sweep.** This is the staged-upload sweep's shape exactly
+(`docs/runbook.md`, "The local media store grows without bound"): the honest answer to a promise
+the product cannot keep is to stop making it, not to add a scheduler nobody asked for — a job
+that deleted photographs on a timer is the single most destructive thing this codebase could
+grow, and `SECURITY.md` is explicit that losing them is the worst realistic outcome here.
+
+**What would reverse it:** a retention job with its own runbook section, a dry run, and a way for
+the author to see what it is about to remove — at which point the copy can promise it again.
+
+**Recorded as:** this entry, `packages/domain/src/admin/trashCountdown.ts`'s header, and the cases
+`names no mechanism once the window has closed, because there is no sweep` and `promises no sweep
+in any line it can print, at any number of days`.
