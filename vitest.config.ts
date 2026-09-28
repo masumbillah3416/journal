@@ -648,6 +648,12 @@ export default defineConfig({
         // whether the screen costs a fixed number of statements are all facts
         // about Postgres. Same exclude-and-regate treatment.
         'apps/web/lib/admin/readAccountScreen.ts',
+        // And its writes. `accountMutations.ts` verifies a password through
+        // Payload's own credential store — which owns the PBKDF2 comparison
+        // and the lockout counter — and its one measured surprise (an empty
+        // password that `update` silently discards) is a fact about Payload,
+        // not about a stub. Same exclude-and-regate treatment.
+        'apps/web/lib/admin/accountMutations.ts',
         // `exportEverything.ts` enumerates the Payload CONFIG's collections
         // and reads every row of the content ones, and the one thing it is
         // actually about — that no account's stored hash reaches the output —
