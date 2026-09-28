@@ -25,6 +25,17 @@
  * §104 is NOT closed by this card — the Zod refusals on the other five screens
  * are still its own, and so is the Zod refusal on this screen's own toggles.
  *
+ * ═══ THE ORDER IS §2.11's, AND THE SAVE BUTTON SITS OUTSIDE ITS OWN FORM ═══
+ *
+ * §2.11: "sign-in email; Current / New password in two columns above 900px;
+ * the 'One-time code at sign-in' toggle whose hint switches …; then Save
+ * changes." Because the toggle is a `<form>` of its own, a Save button INSIDE
+ * the password form can only be drawn above it — which is what this card did
+ * until review round 1 (F2), leaving an author reading top to bottom with a
+ * Save sitting directly above a control it does not write. {@link PASSWORD_FORM}
+ * and `<button form="…">` put the three controls in the handoff's order with no
+ * client JavaScript and no nested `<form>`, which HTML does not allow.
+ *
  * ═══ THE TWO BOXES ARE NOT PREFILLED, AND CARRY NO `autoComplete` GUESS ═══
  *
  * A password field the browser fills is a password the author did not type,
@@ -75,6 +86,14 @@ const PASSWORD_NOTICES: Readonly<Record<PasswordNotice, { readonly line: string;
   'empty-password': { line: 'Type the new password you want. An empty box changes nothing.', done: false },
 }
 
+/**
+ * The password form's id, which its Save button reaches it by.
+ *
+ * ONE CARD PER PAGE, so a constant id is safe: `/admin/account` draws this
+ * section once, and nothing else in the admin uses the name.
+ */
+const PASSWORD_FORM = 'account-password'
+
 /** What SCREENS.md §2.11's third card needs to draw itself. */
 export interface GettingInCardProps {
   /** The address and the state of the code step. */
@@ -123,7 +142,7 @@ export const GettingInCard = ({
         </div>
       </div>
 
-      <form action={changePassword}>
+      <form id={PASSWORD_FORM} action={changePassword}>
         <div className={styles.fields}>
           <div className={styles.passwords}>
             <label data-account-field="current" className={styles.field}>
@@ -151,10 +170,6 @@ export const GettingInCard = ({
             {said.line}
           </p>
         )}
-
-        <button type="submit" data-save-password className={styles.save}>
-          Save changes
-        </button>
       </form>
 
       <ul className={styles.toggles}>
@@ -187,6 +202,19 @@ export const GettingInCard = ({
           </form>
         </li>
       </ul>
+
+      {/* OUTSIDE THE FORM IT SUBMITS, and that is what puts §2.11's controls in
+       * §2.11's order. The section reads "Current / New password …; the
+       * 'One-time code at sign-in' toggle …; then Save changes", and the toggle
+       * is a `<form>` of its own — so a Save inside the password form can only
+       * sit ABOVE it, which is what this card drew until review round 1 (F2).
+       * HTML has one answer that needs no JavaScript and no nested `<form>`
+       * (which it does not allow): a submit button associated with a form by
+       * id. `GettingInCard.test.tsx` asserts both halves — the drawn order, and
+       * that this button's `form` really is the password form. */}
+      <button type="submit" form={PASSWORD_FORM} data-save-password className={styles.save}>
+        Save changes
+      </button>
     </section>
   )
 }

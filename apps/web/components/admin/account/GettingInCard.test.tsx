@@ -121,6 +121,34 @@ describe('GettingInCard', () => {
     expect(toggleForm?.querySelector('input[type="password"]')).toBeNull()
   })
 
+  it('draws §2.11’s controls in §2.11’s order: the passwords, then the toggle, then Save changes', () => {
+    // THE HANDOFF'S ORDER IS DELIBERATE and this card had it wrong until review
+    // round 1 (F2): it drew passwords → Save changes → toggle, so an author
+    // reading top to bottom met a Save that sat above the control it does not
+    // write. §2.11: "Current / New password in two columns above 900px; the
+    // 'One-time code at sign-in' toggle with its two hints; then Save changes."
+    const host = renderCard(GUARDED)
+
+    expect(
+      [
+        ...host.querySelectorAll('[data-account-field="current"], [data-setting="otpRequired"], [data-save-password]'),
+      ].map((node) => node.getAttribute('data-account-field') ?? node.getAttribute('data-setting') ?? 'save'),
+    ).toEqual(['current', 'otpRequired', 'save'])
+  })
+
+  it('still submits the password form from below the toggle, without nesting one form in another', () => {
+    // The Save button is OUTSIDE the form it submits — `<button form="…">` is
+    // how the order above is reached with no client JavaScript and no nested
+    // `<form>`, which HTML does not allow and which is the only other way to
+    // put a submit below a sibling form.
+    const host = renderCard(GUARDED)
+    const save = host.querySelector<HTMLButtonElement>('[data-save-password]')
+    const passwords = host.querySelector<HTMLInputElement>('input[name="current"]')?.closest('form')
+
+    expect(save?.closest('form')).toBeNull()
+    expect(save?.form).toBe(passwords)
+  })
+
   it('prints nothing about a password until one has been attempted', () => {
     expect(renderCard(GUARDED).querySelector('[data-password-notice]')).toBeNull()
   })
