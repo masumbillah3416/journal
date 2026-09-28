@@ -310,6 +310,31 @@ describe('the Account screen’s writes', () => {
       expect(outcomeOf(await aSignInWith(account.email, CORRECT_PASSWORD))).toBe('signed-in')
     })
 
+    it('leaves the account’s other devices signed in, which is what the card tells the author', async () => {
+      // THE CARD SAYS SO IN WORDS — "That is your password from now on. Your
+      // other devices stay signed in." — and a sentence on a screen about who
+      // can still reach the diary is a claim, not copy. Nothing in this
+      // repository revokes a session when a password changes, and the author's
+      // way to do that is the control on the card below; this is what makes
+      // that division of labour true rather than assumed.
+      const account = await anAccount({ otpRequired: false })
+      const issued = await sessions.startSession({
+        user: account.id,
+        previous: null,
+        keepSignedIn: false,
+        device: 'another device',
+        location: null,
+      })
+      if (!issued.ok) throw new Error(issued.error)
+
+      await changePassword(payload, await scopeFor(account.id), {
+        current: CORRECT_PASSWORD,
+        next: NEW_PASSWORD,
+      })
+
+      expect((await sessions.authenticate(issued.value.session)).ok).toBe(true)
+    })
+
     it('locks the account after five wrong current passwords, exactly as five at the sign-in screen do', async () => {
       // A PREDICTION ABOUT A LIBRARY, MEASURED. `changePassword` verifies
       // through `payload.login`, which owns `maxLoginAttempts` and `lockTime`
