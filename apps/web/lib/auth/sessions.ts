@@ -12,10 +12,7 @@
  *
  * PATTERNS (CLAUDE.md §3.3). Repository: this is the only place a `sessions`
  * row is written or read by the application, so nothing above it learns what
- * the table looks like — the account screen reaches the same rows through
- * Payload's own access rules (`apps/web/collections/sessions.ts`), which is
- * asserted to meet this module on the same row rather than assumed to.
- * Result type: every operation returns a `Result`, so a caller cannot reach
+ * the table looks like. Result type: every operation returns a `Result`, so a caller cannot reach
  * an account id without handling the refusal. Value objects: `SessionId` and
  * `UserId` are branded, so an identifier cannot be passed where an account
  * belongs.
@@ -77,6 +74,23 @@
  * screen's list — "Reykjavik, Iceland" — and must never be handed a raw IP:
  * the row already names the account, and `SECURITY.md`'s prohibition is on
  * the two appearing together.
+ *
+ * ═══ SCREENS.md §2.11's LIST AND ITS REVOKE ARE BOTH HERE, AND HAVE TO BE ═══
+ *
+ * {@link SessionService.listSessions} and
+ * {@link SessionService.revokeSessionRow} were added by Phase 4 Task 14, and
+ * neither could live in the screen's own read module. `sessions.tokenHash`
+ * refuses `read` AND every field refuses `update` through the API
+ * (`apps/web/collections/sessions.ts`), so Payload's Local API can neither see
+ * the column that decides which row is CURRENT nor write the column that
+ * revokes one. What the screen holds is a row id; what the request carries is
+ * an identifier; and {@link hashIdentifier} is the only thing in this
+ * repository that turns the second into the first's stored form.
+ *
+ * THE CURRENT ROW IS THE ONE WHOSE HASH MATCHES THE COOKIE, NEVER THE NEWEST.
+ * The two agree on every account holding one session, which is why a fixture
+ * has to hold two to tell them apart, and the cost of the wrong one is that
+ * the author presses Revoke beside the wrong device and signs themselves out.
  *
  * THE TABLE IS BOUNDED BY A SWEEP THAT RIDES ALONG WITH `startSession`. See
  * the comment on that statement; the policy and its one number are
@@ -172,6 +186,64 @@ export interface RevokeAllSessionsRequest {
   readonly owner: UserId
 }
 
+/** What {@link SessionService.listSessions} is asked. */
+export interface ListSessionsRequest {
+  /** The account whose sessions are being listed. */
+  readonly owner: UserId
+  /**
+   * The identifier THIS request is carrying, or `null` when it carries none.
+   *
+   * It is what decides which row is marked current, and it is the reason this
+   * listing lives in this module: the comparison is against the row's stored
+   * hash, and {@link hashIdentifier} is the only place that hash is computed.
+   */
+  readonly carried: SessionId | null
+}
+
+/** One row of SCREENS.md 2.11's "Where you are signed in". */
+export interface ListedSession {
+  /** The row's own id - how the screen addresses it (CLAUDE.md 0.9). */
+  readonly row: number
+  /** The device label recorded when the session was minted, or `null`. */
+  readonly device: string | null
+  /** The place recorded beside it, or `null`. A place, never an address. */
+  readonly location: string | null
+  /** When the session was minted, in epoch milliseconds. */
+  readonly startedAt: number
+  /**
+   * When it last authenticated, or `null` when nothing has yet.
+   *
+   * `null` RATHER THAN THE START TIME. `authenticate` stamps this column only
+   * once a session is known live, so a row that has never been presented has
+   * no last-seen - and printing its creation time instead would tell the
+   * author a device was in use when it was not.
+   */
+  readonly lastSeenAt: number | null
+  /**
+   * Whether this is the row the request came in on.
+   *
+   * DECIDED BY THE HASH, NEVER BY "THE NEWEST ROW". The two agree on every
+   * account holding one session and disagree the moment one holds two, and
+   * the consequence of getting it wrong is that the author revokes the
+   * session they are sitting in while believing they are revoking another
+   * device's.
+   */
+  readonly isCurrent: boolean
+}
+
+/** What {@link SessionService.revokeSessionRow} is asked. */
+export interface RevokeSessionRowRequest {
+  /** The session ROW to revoke, as the screen addresses it. */
+  readonly row: number
+  /**
+   * The account it must belong to. Not decoration, and more load-bearing here
+   * than on {@link RevokeSessionRequest}: a row id is a small integer anybody
+   * can type, where an identifier is 32 bytes of CSPRNG. This clause is the
+   * whole of what stops one account revoking another's session.
+   */
+  readonly owner: UserId
+}
+
 /** What {@link createSessionService} needs from the world outside this module. */
 export interface SessionServiceDependencies {
   /** The Payload Local API instance the `sessions` rows live behind. */
@@ -221,6 +293,41 @@ export interface SessionService {
   revokeSession(request: RevokeSessionRequest): Promise<Result<void, RevokeFailure>>
 
   /**
+   * Every live session an account holds, newest first, with the one this
+   * request came in on marked.
+   *
+   * IT IS HERE RATHER THAN IN THE SCREEN'S OWN READ MODULE for two reasons
+   * that resolve to one: `sessions.tokenHash` refuses `read` through the API
+   * (`apps/web/collections/sessions.ts`), so a Local API `find` cannot see the
+   * column the comparison needs; and {@link hashIdentifier} is private to this
+   * module, so a second reader would be a second definition of how a session
+   * identifier is stored.
+   *
+   * @param request - See {@link ListSessionsRequest}.
+   * @returns One entry per live row. An account id that names no row lists
+   *   nothing, which is what an account with no sessions looks like - there is
+   *   nothing for a screen to do differently.
+   */
+  listSessions(request: ListSessionsRequest): Promise<readonly ListedSession[]>
+
+  /**
+   * Revokes one of an account's own sessions, addressed by its ROW.
+   *
+   * THE SCREEN CANNOT CALL {@link SessionService.revokeSession}, and that is a
+   * property of the store rather than a convenience: only the identifier's
+   * HASH is kept, so a screen that lists a reader's sessions holds a row id
+   * and can never hold the identifier. Revoking by row is how SCREENS.md
+   * 2.11's Revoke reaches the same row `authenticate` reads.
+   *
+   * @param request - See {@link RevokeSessionRowRequest}.
+   * @returns `ok` when a live session of `owner`'s was revoked, or
+   *   `err('unknown')` when there was none - which covers a row belonging to
+   *   another account, one already revoked, and one that never existed, for
+   *   {@link SessionService.revokeSession}'s reason.
+   */
+  revokeSessionRow(request: RevokeSessionRowRequest): Promise<Result<void, RevokeFailure>>
+
+  /**
    * Revokes every live session an account holds — "Sign out everywhere".
    *
    * The current session is included, deliberately: a reader who presses it
@@ -245,6 +352,16 @@ interface AuthenticatingSession {
   readonly user_id: number
   readonly expires_at: Date
   readonly revoked_at: Date | null
+}
+
+/** The columns SCREENS.md 2.11's list is drawn from. */
+interface ListableSession {
+  readonly id: number
+  readonly device: string | null
+  readonly location: string | null
+  readonly created_at: Date
+  readonly last_seen_at: Date | null
+  readonly is_current: boolean
 }
 
 /**
@@ -441,6 +558,60 @@ export const createSessionService = ({ payload, now }: SessionServiceDependencie
         WHERE token_hash = $1 AND user_id = $2 AND revoked_at IS NULL
       RETURNING id`,
       [hashIdentifier(session), accountId, new Date(now())],
+    )
+
+    return revoked.rows.length === 0 ? err('unknown') : ok(undefined)
+  },
+
+  async listSessions({ owner, carried }) {
+    const accountId = accountRowId(owner)
+    if (accountId === undefined) return []
+
+    // THE COMPARISON IS DONE BY POSTGRES, against a bound parameter, rather
+    // than by reading `token_hash` out and comparing it here. The hash of a
+    // live session is the nearest thing this table holds to a credential, and
+    // a query that selected it would put every device's digest into a view
+    // object one render away from a page - which is the same reason the
+    // collection refuses `read` on that column. `IS NOT DISTINCT FROM` rather
+    // than `=` so that a request carrying no identifier ($2 NULL) marks
+    // nothing, instead of comparing to NULL and marking nothing by accident.
+    //
+    // LIVE MEANS WHAT `authenticate` MEANS BY IT - not revoked, not expired,
+    // read from the same two columns `sessionState` judges. A row this list
+    // showed but `authenticate` refused would be a device the author is told
+    // they are signed in on and is not.
+    const listed = await payload.db.pool.query<ListableSession>(
+      `SELECT id, device, location, created_at, last_seen_at,
+              (token_hash IS NOT DISTINCT FROM $2) AS is_current
+         FROM sessions
+        WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > $3
+        ORDER BY created_at DESC, id DESC`,
+      [accountId, carried === null ? null : hashIdentifier(carried), new Date(now())],
+    )
+
+    return listed.rows.map((row) => ({
+      row: row.id,
+      device: row.device,
+      location: row.location,
+      startedAt: row.created_at.getTime(),
+      lastSeenAt: row.last_seen_at === null ? null : row.last_seen_at.getTime(),
+      isCurrent: row.is_current,
+    }))
+  },
+
+  async revokeSessionRow({ row, owner }) {
+    const accountId = accountRowId(owner)
+    if (accountId === undefined) return err('unknown')
+
+    // `user_id` IS IN THE `WHERE`, for `revokeSession`'s reason and with more
+    // weight: the row id came off a form, so this clause is the whole of what
+    // stops a typed integer revoking somebody else's session.
+    const revoked = await payload.db.pool.query<{ id: number }>(
+      `UPDATE sessions
+          SET revoked_at = $3, updated_at = $3
+        WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+      RETURNING id`,
+      [row, accountId, new Date(now())],
     )
 
     return revoked.rows.length === 0 ? err('unknown') : ok(undefined)

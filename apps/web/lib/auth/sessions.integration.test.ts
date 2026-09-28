@@ -33,11 +33,18 @@
  * passes all three.
  *
  * REVOCATION IS EXERCISED THROUGH THE ACCOUNT SCREEN'S OWN ROUTE as well as
- * through this module. `SECURITY.md` asks for real rows so that "Revoke" and
- * "Sign out everywhere" are not decorative, and the account screen revokes by
- * updating the row through Payload with the signed-in reader's own access
- * (`apps/web/collections/sessions.ts`). A test that only ever revoked through
- * this module would not notice if those two paths stopped meeting.
+ * through this module's identifier-keyed one. `SECURITY.md` asks for real rows
+ * so that "Revoke" and "Sign out everywhere" are not decorative, and the
+ * screen holds a ROW ID rather than an identifier — only the hash is stored —
+ * so it presses `revokeSessionRow`. Two cases here also drive Payload's own
+ * update path at the same rows, because `apps/web/collections/sessions.ts`
+ * refusing every field is what stops a revocation being written back.
+ *
+ * THE LIST'S "CURRENT" MARK IS ASSERTED WITH TWO LIVE SESSIONS, NEVER ONE.
+ * A fixture holding one session cannot distinguish "the row whose hash matches
+ * the cookie" from "the newest row" — every reading agrees with every other —
+ * and the defect that distinction hides is the author revoking the session
+ * they are sitting in. So the case mints two and carries the OLDER.
  *
  * Uses `getTestPayload()`, not `getPayload()` directly, so this file connects
  * to the isolated `diary_test` database rather than a developer's own — see
@@ -177,6 +184,24 @@ const ageSessionPastItsExpiry = async (session: SessionId): Promise<void> => {
 const onlySessionRowOf = async (account: number): Promise<number> => {
   const { rows } = await payload.db.pool.query<{ id: number }>(`SELECT id FROM sessions WHERE user_id = $1`, [account])
   return rows.reduce((highest, found) => Math.max(highest, found.id), 0)
+}
+
+/**
+ * The row id a session identifier was issued under.
+ *
+ * Found by `pgcrypto`'s own `digest()`, never by the module under test's
+ * `hashIdentifier`, for `storedExpiryOf`'s reason: a probe that reused the
+ * implementation's hashing would agree with it by construction. Folded rather
+ * than indexed, so there is no arm no case could take.
+ * @param session - The identifier the row was issued under.
+ * @returns The row's id, or 0 when no row was issued under it.
+ */
+const rowIdOf = async (session: SessionId): Promise<number> => {
+  const { rows } = await payload.db.pool.query<{ id: number }>(
+    `SELECT id FROM sessions WHERE token_hash = encode(digest($1, 'sha256'), 'hex')`,
+    [session],
+  )
+  return rows.reduce((highest, row) => Math.max(highest, row.id), 0)
 }
 
 /**
@@ -637,5 +662,155 @@ describe('revocation', () => {
     const again = await sessions.revokeSession({ session: issued.session, owner: account.id })
 
     expect(again).toEqual({ ok: false, error: 'unknown' })
+  })
+})
+
+describe('the account screen’s own list', () => {
+  it('lists the reader’s own live sessions, and nobody else’s', async () => {
+    const mine = await anAccount()
+    const theirs = await anAccount()
+    const ours = await aSessionFor(mine.id)
+    const somebodyElse = await aSessionFor(theirs.id)
+
+    const listed = await sessions.listSessions({ owner: mine.id, carried: ours.session })
+
+    expect(listed.map((row) => row.row)).toEqual([await onlySessionRowOf(mine.row)])
+    expect(listed.map((row) => row.row)).not.toContain(await onlySessionRowOf(theirs.row))
+    expect(somebodyElse.session).not.toBe(ours.session)
+  })
+
+  it('leaves out a session that has been revoked, since the list is where you are signed in', async () => {
+    const account = await anAccount()
+    const kept = await aSessionFor(account.id)
+    const gone = await aSessionFor(account.id)
+    await sessions.revokeSession({ session: gone.session, owner: account.id })
+
+    const listed = await sessions.listSessions({ owner: account.id, carried: kept.session })
+
+    expect(listed).toHaveLength(1)
+  })
+
+  it('leaves out a session whose row has expired, for the same reason', async () => {
+    const account = await anAccount()
+    const kept = await aSessionFor(account.id)
+    const stale = await aSessionFor(account.id)
+    await ageSessionPastItsExpiry(stale.session)
+
+    const listed = await sessions.listSessions({ owner: account.id, carried: kept.session })
+
+    expect(listed).toHaveLength(1)
+  })
+
+  it('marks the row whose hash matches the cookie, NOT the newest row', async () => {
+    // TWO LIVE SESSIONS FOR ONE ACCOUNT, and the request carries the OLDER of
+    // them. A fixture holding one session cannot tell "the current row" from
+    // "the only row" (standing orders §14), and an implementation that marked
+    // the newest row would be right on every single-session fixture and wrong
+    // on the one that matters: the author would revoke the session they are
+    // sitting in while believing they were revoking another device's.
+    const account = await anAccount()
+    const carried = await aSessionFor(account.id)
+    const newer = await aSessionFor(account.id)
+
+    const listed = await sessions.listSessions({ owner: account.id, carried: carried.session })
+
+    const current = listed.filter((row) => row.isCurrent).map((row) => row.row)
+    expect(current).toEqual([await rowIdOf(carried.session)])
+    expect(current).not.toContain(await rowIdOf(newer.session))
+  })
+
+  it('marks nothing current for a request carrying no identifier at all', async () => {
+    const account = await anAccount()
+    await aSessionFor(account.id)
+
+    const listed = await sessions.listSessions({ owner: account.id, carried: null })
+
+    expect(listed.filter((row) => row.isCurrent)).toEqual([])
+  })
+
+  it('reports the device and the place the row was minted with, which is what the row prints', async () => {
+    const account = await anAccount()
+    const issued = await aSessionFor(account.id)
+
+    const listed = await sessions.listSessions({ owner: account.id, carried: issued.session })
+
+    expect(listed.map((row) => ({ device: row.device, location: row.location }))).toEqual([
+      { device: FIXTURE_DEVICE, location: FIXTURE_LOCATION },
+    ])
+  })
+
+  it('reports no last-seen for a row nothing has authenticated yet, rather than inventing one', async () => {
+    const account = await anAccount()
+    const issued = await aSessionFor(account.id)
+
+    const before = await sessions.listSessions({ owner: account.id, carried: issued.session })
+    await sessions.authenticate(issued.session)
+    const after = await sessions.listSessions({ owner: account.id, carried: issued.session })
+
+    expect(before.map((row) => row.lastSeenAt)).toEqual([null])
+    expect(after.every((row) => typeof row.lastSeenAt === 'number')).toBe(true)
+  })
+
+  it('lists nothing for an account id that is not a row id at all', async () => {
+    const notARow = userId('not-a-row-id')
+    if (!isOk(notARow)) throw new Error('the fixture account id is empty')
+
+    expect(await sessions.listSessions({ owner: notARow.value, carried: null })).toEqual([])
+  })
+
+  it('orders the newest first, so the list reads the way the screen prints it', async () => {
+    const account = await anAccount()
+    const first = await aSessionFor(account.id)
+    const second = await aSessionFor(account.id)
+
+    const listed = await sessions.listSessions({ owner: account.id, carried: first.session })
+
+    expect(listed.map((row) => row.row)).toEqual([await rowIdOf(second.session), await rowIdOf(first.session)])
+  })
+})
+
+describe('revoking by row id, which is how the screen addresses a session', () => {
+  it('stops a revoked row authenticating, which is what makes Revoke not decorative', async () => {
+    const account = await anAccount()
+    const doomed = await aSessionFor(account.id)
+    expect((await sessions.authenticate(doomed.session)).ok).toBe(true)
+
+    await sessions.revokeSessionRow({ row: await rowIdOf(doomed.session), owner: account.id })
+
+    // Before and after, asked of the same production `authenticate` the guard
+    // asks. The "before" half is what makes the "after" half mean something.
+    expect(await sessions.authenticate(doomed.session)).toEqual({ ok: false, error: 'revoked' })
+  })
+
+  it('refuses to revoke a row belonging to another account, and leaves it working', async () => {
+    const mine = await anAccount()
+    const theirs = await anAccount()
+    const notMine = await aSessionFor(theirs.id)
+
+    const refused = await sessions.revokeSessionRow({ row: await rowIdOf(notMine.session), owner: mine.id })
+
+    expect(refused).toEqual({ ok: false, error: 'unknown' })
+    expect((await sessions.authenticate(notMine.session)).ok).toBe(true)
+  })
+
+  it('reports a second revocation of the same row as unknown, since there is nothing left to revoke', async () => {
+    const account = await anAccount()
+    const issued = await aSessionFor(account.id)
+    const row = await rowIdOf(issued.session)
+    await sessions.revokeSessionRow({ row, owner: account.id })
+
+    expect(await sessions.revokeSessionRow({ row, owner: account.id })).toEqual({ ok: false, error: 'unknown' })
+  })
+
+  it('revokes nothing for an account id that is not a row id at all', async () => {
+    const account = await anAccount()
+    const issued = await aSessionFor(account.id)
+    const notARow = userId('not-a-row-id')
+    if (!isOk(notARow)) throw new Error('the fixture account id is empty')
+
+    const refused = await sessions.revokeSessionRow({ row: await rowIdOf(issued.session), owner: notARow.value })
+
+    expect(refused).toEqual({ ok: false, error: 'unknown' })
+    expect((await sessions.authenticate(issued.session)).ok).toBe(true)
   })
 })
