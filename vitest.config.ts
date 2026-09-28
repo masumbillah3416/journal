@@ -641,6 +641,13 @@ export default defineConfig({
         // what Payload does with the columns they were NOT given — which is a
         // fact about Postgres. Same exclude-and-regate treatment.
         'apps/web/lib/admin/siteMutations.ts',
+        // Phase 4 Task 14's Account screen. `readAccountScreen.ts` reads a
+        // `sessions` list through the production session service — the one
+        // place that knows how an identifier is stored — and what an unwritten
+        // `users` checkbox column comes back as, which row a cookie names, and
+        // whether the screen costs a fixed number of statements are all facts
+        // about Postgres. Same exclude-and-regate treatment.
+        'apps/web/lib/admin/readAccountScreen.ts',
         // `exportEverything.ts` enumerates the Payload CONFIG's collections
         // and reads every row of the content ones, and the one thing it is
         // actually about — that no account's stored hash reaches the output —

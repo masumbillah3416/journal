@@ -256,6 +256,10 @@ export default defineConfig({
         'apps/web/lib/admin/readSettingsScreen.ts',
         'apps/web/lib/admin/readTrashScreen.ts',
         'apps/web/lib/admin/siteMutations.ts',
+        // Phase 4 Task 14's Account screen, here for the reason stated in
+        // `vitest.config.ts`'s exclude: a session list and a `users` row that
+        // only a real database holds.
+        'apps/web/lib/admin/readAccountScreen.ts',
         'apps/web/lib/admin/exportEverything.ts',
         // Phase 4 Task 3's minting script, here for the reason stated in
         // `vitest.config.ts`'s exclude: it writes a `users` row and a
@@ -651,6 +655,7 @@ export default defineConfig({
         'apps/web/lib/admin/readSettingsScreen.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/admin/readTrashScreen.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/admin/siteMutations.ts': { lines: 100, branches: 100, functions: 100 },
+        'apps/web/lib/admin/readAccountScreen.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/admin/exportEverything.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/admin/readOverview.ts': { lines: 100, branches: 100, functions: 100 },
         'apps/web/lib/admin/publishSelection.ts': { lines: 100, branches: 100, functions: 100 },

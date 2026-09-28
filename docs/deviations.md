@@ -4487,3 +4487,30 @@ the author to see what it is about to remove — at which point the copy can pro
 **Recorded as:** this entry, `packages/domain/src/admin/trashCountdown.ts`'s header, and the cases
 `names no mechanism once the window has closed, because there is no sweep` and `promises no sweep
 in any line it can print, at any number of days`.
+
+## 106 · The Account screen draws a monogram, because this data model holds no avatar
+
+**What the design asks for.** `SCREENS.md` §2.11's "Who is keeping this" opens with "a 132px
+avatar with **Replace**", beside the name, the sign-off and the time zone.
+
+**What the data model holds.** `DATA_MODEL.md`'s `users` section declares six fields —
+`displayName`, `signoffDefault`, `timeZone`, `otpRequired`, `notifyOnPublish`, `notifyWeekly` —
+and none of them is an image or a relationship to one. There is nothing to draw and nothing for
+Replace to write.
+
+**What the screen does instead.** It draws the account's initial at 132px, in the same ring the
+rail's own profile block already uses, and offers no Replace. The circle is the design's shape
+and size; what is inside it is what this repository can answer.
+
+**Why not add the field.** CLAUDE.md §4: the handoff specifies the data model as well as the
+screens, and an `avatar` relationship would be a new column, a new migration, a new upload path
+on a screen whose other three cards are plain forms, and a derivative tier for a picture nobody
+has asked to store. `DATA_MODEL.md` is as much the specification as `SCREENS.md` is, and where
+the two disagree the smaller change is to draw what exists. It is the same treatment
+`docs/deviations.md` §102 gives §2.9's "last backup date" and §103 gives four other controls.
+
+**What would reverse it:** an `avatar` field in `DATA_MODEL.md`'s `users` section. The card's
+markup already has the 132px circle to put it in.
+
+**Recorded as:** this entry and `apps/web/lib/admin/readAccountScreen.ts`'s header, where
+`AccountProfile.initial` is the letter the card draws in place of the picture.
