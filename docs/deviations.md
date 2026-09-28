@@ -4512,5 +4512,7 @@ the two disagree the smaller change is to draw what exists. It is the same treat
 **What would reverse it:** an `avatar` field in `DATA_MODEL.md`'s `users` section. The card's
 markup already has the 132px circle to put it in.
 
-**Recorded as:** this entry and `apps/web/lib/admin/readAccountScreen.ts`'s header, where
-`AccountProfile.initial` is the letter the card draws in place of the picture.
+**Recorded as:** this entry, `apps/web/lib/admin/readAccountScreen.ts`'s header (where
+`AccountProfile.initial` is the letter the card draws in place of the picture),
+`apps/web/components/admin/account/ProfileCard.tsx`'s header, and the case `draws the account's
+initial where §2.11 asks for an avatar, and offers no Replace`.

@@ -20,10 +20,15 @@
  * contained by landmarks" on `/admin` (e2e/a11y.spec.ts). The `<nav>` inside
  * covers only the buttons.
  *
- * THE PROFILE BLOCK IS NOT A LINK YET. SCREENS.md §2.11's Account screen is a
- * later task, and a primary control pointing at an unmounted address is the
- * defect this repository already paid for once (`PanelHome.tsx`'s header,
- * blocker B2). It prints who is signed in and waits.
+ * THE PROFILE BLOCK IS THE ONLY WAY INTO THE ACCOUNT SCREEN. It was not a link
+ * until Phase 4 Task 14 mounted SCREENS.md §2.11 — "a primary control pointing
+ * at an unmounted address is the defect this repository already paid for once"
+ * (`PanelHome.tsx`'s header, blocker B2) — and it now carries
+ * {@link ACCOUNT_PATH} and §2's terracotta ring when that is the address being
+ * drawn. Account is NOT one of the nine entries
+ * (`@travel-diary/domain/admin/navigation`'s header says why), so on that
+ * screen no nav button is current and this block is what tells the reader where
+ * they are.
  *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. It is a table rendered.
  * Depends on: react, `ADMIN_NAV`/`activeNavId`/`sectionColour`
@@ -36,6 +41,14 @@ import type React from 'react'
 import type { NavCounts } from '../../../lib/admin/readNavCounts'
 import { SIGN_OUT_ENDPOINT } from '../SignedInStep'
 import styles from './shell.module.css'
+
+/**
+ * Where the profile button points.
+ *
+ * Written here rather than imported from `ADMIN_NAV`, because Account is
+ * deliberately not in that table — see this module's header.
+ */
+const ACCOUNT_PATH = '/admin/account'
 
 /** What the rail needs from the screen that draws it. */
 export interface NavRailProps {
@@ -189,7 +202,12 @@ export const NavRail = ({
       </nav>
 
       <div className={styles.railFooter}>
-        <div data-profile className={styles.profile}>
+        <a
+          data-profile
+          href={ACCOUNT_PATH}
+          className={[styles.profile, pathname === ACCOUNT_PATH ? styles.profileCurrent : ''].join(' ')}
+          {...(pathname === ACCOUNT_PATH ? { 'aria-current': 'page' as const } : {})}
+        >
           <span className={styles.avatar} aria-hidden="true">
             {accountName.slice(0, 1).toUpperCase()}
           </span>
@@ -197,7 +215,7 @@ export const NavRail = ({
             <span className={styles.profileName}>{accountName}</span>
             <span className={styles.profileRole}>Your account</span>
           </span>
-        </div>
+        </a>
 
         {lastPublished === null ? null : (
           <p data-last-published className={styles.lastPublished}>

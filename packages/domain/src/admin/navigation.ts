@@ -12,11 +12,11 @@
  * `scripts/lighthouseJudged.test.js` performs, and that is a question about the
  * configuration's own assert matrix rather than about this table.
  *
- * ONLY `/admin` HAS A ROUTE TODAY. The other entries address screens Tasks 4-14
- * of this phase mount, so until each lands its button answers with Next's own
- * not-found page. The panel is behind the session guard, so no public reader
- * meets it; `docs/api.md`'s `GET /admin` entry says the same thing where a
- * reader who is not in this file will meet it.
+ * EVERY ENTRY HAS A ROUTE. That was not true while this phase was being built —
+ * the header said so, and said "Tasks 4-14 of this phase mount" them — and
+ * Phase 4 Task 13 mounted the last of the nine. Task 14's own screen is the one
+ * that still has no button, and that is by design rather than by schedule: see
+ * the paragraph below.
  *
  * ACCOUNT IS NOT AN ENTRY. SCREENS.md §2 reaches it from the rail's profile
  * button, not from the nav list. THE JOURNEY EDITOR IS NOT AN ENTRY EITHER: it

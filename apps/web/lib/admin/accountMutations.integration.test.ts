@@ -55,8 +55,11 @@ import { getTestPayload } from '../testPayload'
 import {
   changePassword,
   readNotificationToggle,
+  passwordNotice,
   readOtpToggle,
+  readPasswordChange,
   readProfileForm,
+  readSessionRow,
   saveNotifications,
   saveProfile,
   setOtpRequired,
@@ -423,6 +426,60 @@ describe('the Account screen’s writes', () => {
       // a notification toggle that accepted any column name would be a second
       // way to switch off the second factor.
       expect(() => readNotificationToggle(aForm({ setting: 'otpRequired', on: 'false' }))).toThrow()
+    })
+  })
+
+  describe('the two password boxes', () => {
+    it('reads both, exactly as they were typed', () => {
+      // NEITHER IS TRIMMED: a leading space is a character somebody may have
+      // chosen, and trimming it would refuse a password the account could have.
+      expect(readPasswordChange(aForm({ current: ' old ', next: ' new ' }))).toEqual({
+        current: ' old ',
+        next: ' new ',
+      })
+    })
+
+    it('refuses a body with no boxes in it at all', () => {
+      // `FormData.get` answers `File | string | null`, and `String(…)` of a file
+      // part is `[object Object]` — which would otherwise be offered to Payload
+      // as a password.
+      expect(() => readPasswordChange(new FormData())).toThrow()
+    })
+  })
+
+  describe('the row id a Revoke button posts', () => {
+    it('reads the row the button named', () => {
+      expect(readSessionRow(aForm({ row: '412' }))).toBe(412)
+    })
+
+    it('refuses everything a hand-typed form can put there instead', () => {
+      // `Number('')` is 0 and `Number('3x')` is NaN, and both would otherwise
+      // reach a `WHERE id = …` as a value Postgres has an opinion about.
+      for (const typed of ['', '0', '-3', '3x', '2.5']) {
+        expect(() => readSessionRow(aForm({ row: typed })), `row=${typed}`).toThrow()
+      }
+      expect(() => readSessionRow(new FormData())).toThrow()
+    })
+  })
+
+  describe('the notice the card prints after a password attempt', () => {
+    it('reads back every value this screen writes, so the card can say what happened', () => {
+      expect(['changed', 'wrong-password', 'empty-password'].map(passwordNotice)).toEqual([
+        'changed',
+        'wrong-password',
+        'empty-password',
+      ])
+    })
+
+    it('refuses anything else a typed address can carry, rather than printing it', () => {
+      // SPECIES 6: the parse refuses what it does not recognise. The value is
+      // a query parameter, so a hand-typed address reaches it — including a
+      // repeated parameter, which Next.js hands over as an ARRAY.
+      expect([passwordNotice(undefined), passwordNotice('anything'), passwordNotice(['changed', 'changed'])]).toEqual([
+        null,
+        null,
+        null,
+      ])
     })
   })
 

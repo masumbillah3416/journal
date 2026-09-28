@@ -89,6 +89,18 @@
  * own, which is what putting `components/admin/overview` in the scan buys.
  * **The count is now eight**, and `docs/api.md` says the same number.
  *
+ * ═══ TASK 14 ADDED NO ISLAND AT ALL, WHICH IS THE POINT OF PUTTING IT HERE ═══
+ *
+ * `components/admin/account` and `app/(admin)/admin/account` join the scan in
+ * the commit that creates them, and the count below is UNCHANGED. SCREENS.md
+ * §2.11 looks like it needs one — its code-step toggle has a hint that
+ * "switches between" two sentences — and it does not: the toggle is a form of
+ * its own, so a press IS the write and the next render draws the other
+ * sentence. The password refusal takes the same road, as a redirect with a
+ * query rather than as state the page holds. Both are recorded in
+ * `GettingInCard.tsx`'s header, and what putting the directories in the scan
+ * buys is that the next `useState` reached for there fails this file by name.
+ *
  * The task's phase-shaping claim is that nothing in the SHELL's own directory
  * is a client component, which is why
  * `/admin` ships one script request fewer than any sign-in pane and why the
@@ -289,6 +301,14 @@ const NO_CLIENT_JS: readonly { readonly directory: string; readonly why: string 
   },
   { directory: 'app/(admin)/admin/trash', why: 'the trash route itself, and the two actions its rows dispatch' },
   { directory: 'app/(admin)/admin/export', why: 'the export route, which answers with bytes and renders nothing' },
+  {
+    directory: 'components/admin/account',
+    why: "SCREENS.md §2.11's four cards are forms: the toggles post the value they switch TO, and the password refusal arrives as a redirect rather than as state",
+  },
+  {
+    directory: 'app/(admin)/admin/account',
+    why: 'the account route itself, and the six actions its forms dispatch',
+  },
   {
     directory: 'components/admin/overview',
     why: "SCREENS.md §2.1's one island is declared above, and its five cards are not: the stat grid, the waiting list, the book card, the prompts and the Lately card are all server-rendered, and every Revert is a form",

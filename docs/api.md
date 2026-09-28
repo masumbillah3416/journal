@@ -1090,6 +1090,35 @@ rules; `signIn.ts` discards the JWT `payload.login` mints, so signing in here is
   a row past the window is still listed, still restorable, and says so rather than counting
   down to a promise this repository does not keep.
 
+### `GET /admin/account`
+
+- **Path:** `apps/web/app/(admin)/admin/account/page.tsx`.
+- **Method:** `GET` — a React Server Component route.
+- **Input:** an optional `?password=` query, carrying `changed`, `wrong-password` or
+  `empty-password`. `passwordNotice` refuses any other value, so a hand-typed address can
+  only produce one of the card's own three lines.
+- **Output:** an HTML document: `SCREENS.md` §2.11 — two equal columns and four cards.
+  "Who is keeping this" (a 132px monogram, Name on the cover, Sign-off used on pages, and a
+  Time zone select whose options carry an example date), "Tell me when" (two toggles),
+  "Getting in" (the sign-in address, Current / New password in two columns above 900px, and
+  the "One-time code at sign-in" toggle with its two hints), and "Where you are signed in"
+  (a row per live session with a 9px mark filled for the current one, then Sign out
+  everywhere and Sign out). Its content is
+  `apps/web/lib/admin/readAccountScreen.ts`'s `AccountView`, read in ONE statement — the
+  profile comes off the row `adminScope` already resolved. `metadata` sets the document
+  title and `robots: { index: false, follow: false }`.
+- **Errors:** as `/admin/settings` above. A refused password change is NOT a `500`: the
+  action redirects here with the query above and the card prints the line.
+- **Auth requirement:** **signed in.** `requireAdminSession()` is applied in this file.
+- **Notes:** the screen is reached from the rail's profile button and is deliberately not a
+  nav entry (`packages/domain/src/admin/navigation.ts`). The row marked **Current** is the
+  one whose stored hash matches THIS request's cookie, never the newest row. Revoke
+  addresses a session by its ROW id, because only the identifier's hash is stored. A wrong
+  current password spends one of `maxLoginAttempts`, so five of them lock the account for
+  fifteen minutes exactly as five at the sign-in screen do — and the session the author is
+  already in keeps working. §2.11's avatar has nothing to draw in this data model; see
+  `docs/deviations.md` §106.
+
 ### `GET /admin/export`
 
 - **Path:** `apps/web/app/(admin)/admin/export/route.ts` —

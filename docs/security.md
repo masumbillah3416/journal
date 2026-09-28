@@ -478,15 +478,31 @@ authenticates afterwards rather than asserting on `revokedAt`: a test that check
 written passes while nothing reads it, and one that checks it was written passes while somebody
 can write it back
 
-**Discharged in.** **Phase 2 Task 6** (rows, revocation, per-user access); Phase 4 (Account
-screen lists them). `apps/web/lib/auth/sessions.ts` and `apps/web/collections/sessions.ts`; the
-verdict itself is `sessionState` in `packages/domain/src/auth/session.ts`. Asserted by
+**Discharged in.** **Phase 2 Task 6** (rows, revocation, per-user access); **Phase 4 Task 14**
+(the Account screen lists them, at `/admin/account`). `apps/web/lib/auth/sessions.ts` and
+`apps/web/collections/sessions.ts`; the verdict itself is `sessionState` in
+`packages/domain/src/auth/session.ts`.
+
+**What Task 14 added, and why it is in `sessions.ts` rather than on the screen.** The screen
+holds a ROW ID and the request holds an IDENTIFIER, and only the identifier's SHA-256 is stored —
+so `listSessions` and `revokeSessionRow` were added beside the other four operations, where
+`hashIdentifier` already lives. Neither could be done through the Local API: `tokenHash` refuses
+`read` and every field refuses `update`, which is the same pair of refusals review round 1 put
+there. The row marked **Current** is the one whose stored hash matches the request's own cookie,
+never the newest row — the two agree on every account holding one session, so the case that
+pins it mints TWO and carries the older, and the defect it guards is an author revoking the
+session they are sitting in while believing they are revoking a lost device.
+
+Asserted by
 `apps/web/lib/auth/sessions.integration.test.ts` — “refuses a session revoked through this
 module, immediately”, “refuses to un-revoke a session by writing revokedAt back to null through
 the API”, “refuses every one of an account’s sessions after signing out everywhere”, “signs out
 only the account asked for, so one reader cannot sign another out” and “refuses to revoke a
 session belonging to another account, and leaves it working” — every one of which authenticates
-afterwards rather than asserting on the column. The domain half by
+afterwards rather than asserting on the column. Task 14's own cases in the same file — “marks
+the row whose hash matches the cookie, NOT the newest row”, “stops a revoked row authenticating,
+which is what makes Revoke not decorative” and “refuses to revoke a row belonging to another
+account, and leaves it working”. The domain half by
 `packages/domain/src/auth/session.test.ts` — “reports a revoked session as revoked, so revoking
 is not merely a field that was written”
 

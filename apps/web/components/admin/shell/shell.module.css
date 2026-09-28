@@ -158,7 +158,22 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 0;
+  padding: 6px 8px;
+  border-radius: var(--td-radius-control);
+  min-height: var(--td-min-hit-target);
+  box-sizing: border-box;
+  text-decoration: none;
+}
+
+.profile:hover {
+  background: rgb(243 231 205 / 8%);
+}
+
+/* SCREENS.md §2's rail footer: "a profile button with a terracotta ring when
+ * active". The ring is on the BLOCK, and the avatar's own transparent border
+ * below is what keeps the two from stacking. */
+.profileCurrent {
+  box-shadow: inset 0 0 0 1px var(--td-accent);
 }
 
 .avatar {

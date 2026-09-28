@@ -1,0 +1,468 @@
+/**
+ * account.module.css — SCREENS.md §2.11's Account screen: two equal columns
+ * and four cards.
+ *
+ * A CSS MODULE, NOT A RULE IN `admin.css`, for the reason every other admin
+ * screen's stylesheet gives: `admin.css` is loaded by the route group's root
+ * layout, so every byte in it is a byte `/admin/sign-in` fetches before it can
+ * paint, and that route carries a Lighthouse LCP gate.
+ *
+ * ═══ THE CARD VOCABULARY IS §2.9's, RESTATED RATHER THAN SHARED ═══
+ *
+ * `settings.module.css` holds the same card, the same ruled head and the same
+ * ringed button, and `TrashCard.tsx` imports it across directories. That was
+ * one card in one component; this is four cards on a screen of its own, and
+ * importing a stylesheet named for §2.9 into §2.11 would make every later edit
+ * to either screen a question about the other. What the two share is TOKENS —
+ * `--td-paper-mount`, `--td-radius-card`, `--td-min-hit-target` — so what is
+ * repeated here is layout, never palette.
+ *
+ * ═══ TWO RUNGS, AND BOTH CONVERT THE PROTOTYPE'S OWN NUMBERS ═══
+ *
+ * "Two equal columns" is the same two-column mode §2.9 transitions at, so the
+ * container rung is the same **776**: `settings.module.css` carries the
+ * arithmetic that turns the prototype's viewport 820 into the units a
+ * `@container` on an admin screen measures in, and transcribing 820 raw would
+ * put the transition at a viewport this project does not test. §2.11's second
+ * rung is its own — "Current / New password in two columns **above 900px**" —
+ * and converts the same way: 900 less the 238px rail less `.content`'s 44px
+ * gutter is **618**.
+ *
+ * THE CONTAINER QUERY GOES ON A WRAPPER. An element cannot be its own query
+ * container — `containerQueries.test.ts` is the check that says so — so
+ * `.screen` declares `container-type` and everything queried is a descendant.
+ *
+ * Depends on: packages/tokens/src/tokens.css, loaded by the admin layout.
+ */
+
+/* ── The screen ────────────────────────────────────────────────────────── */
+
+.screen {
+  max-width: 1320px;
+  container-name: td-account;
+  container-type: inline-size;
+}
+
+.columns {
+  display: grid;
+  gap: var(--td-gap-admin-cards);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--td-gap-admin-cards);
+  min-width: 0;
+}
+
+@container td-account (min-width: 776px) {
+  .columns {
+    /* §2.11: "Two equal columns; four cards." */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+/* ── The card ──────────────────────────────────────────────────────────── */
+
+.card {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--td-radius-card);
+  background: var(--td-paper-mount);
+  box-shadow:
+    0 0 0 1px var(--td-hairline-border-min),
+    0 12px 26px -22px rgb(60 44 20 / 55%);
+  padding: 20px 22px 18px;
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  border-bottom: 1px solid rgb(120 98 60 / 22%);
+  padding-bottom: 11px;
+}
+
+.cardTitle {
+  margin: 0;
+  color: var(--td-ink);
+  font-family: var(--td-font-caveat);
+  font-size: var(--td-admin-card-heading);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--td-gap-card-inner);
+  margin-top: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.eyebrow {
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: var(--td-admin-label-max);
+  letter-spacing: var(--td-letter-spacing-min);
+  text-transform: uppercase;
+}
+
+.hint {
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 15px;
+  font-style: italic;
+}
+
+.input,
+.select {
+  box-sizing: border-box;
+  border: 1px solid rgb(120 98 60 / 34%);
+  border-radius: var(--td-radius-control);
+  background: var(--td-paper);
+  padding: 8px 10px;
+  width: 100%;
+  min-height: var(--td-min-hit-target);
+  color: var(--td-ink-body);
+  font-family: var(--td-font-garamond);
+  font-size: var(--td-admin-body-max);
+}
+
+/* §2.11: the name on the cover is Caveat 26px; the sign-off Caveat 24px in
+ * `#736247`, which is `--td-ink-muted`'s own value rather than a second copy
+ * of it. */
+.nameInput {
+  font-family: var(--td-font-caveat);
+  font-size: 26px;
+}
+
+.signoffInput {
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-caveat);
+  font-size: 24px;
+}
+
+.save {
+  margin-top: 16px;
+  border: 1px solid var(--td-ink);
+  border-radius: var(--td-radius-control);
+  background: transparent;
+  cursor: pointer;
+  padding: 8px 16px;
+  min-height: var(--td-min-hit-target);
+  color: var(--td-ink);
+  font-family: var(--td-font-courier);
+  font-size: var(--td-admin-label-max);
+  letter-spacing: var(--td-letter-spacing-min);
+  text-transform: uppercase;
+}
+
+.save:hover {
+  background: rgb(51 64 60 / 8%);
+}
+
+/* The same control without the submit's own spacing — `settings.module.css`'s
+ * `.rowAction`, for its reason (SET-001): inside a flex row that `margin-top`
+ * pushes one control below its neighbour. */
+.rowAction {
+  composes: save;
+  margin-top: 0;
+}
+
+.danger {
+  border-color: var(--td-accent);
+  color: var(--td-accent);
+}
+
+.danger:hover {
+  background: rgb(163 68 52 / 10%);
+}
+
+/* THE DISABLED ARM IS NOT OPTIONAL — `settings.module.css`'s reason
+ * (docs/deviations.md §92, PUB-002): a control rendered `disabled` with no
+ * `:disabled` rule paints and behaves exactly like a live one. */
+.save:disabled,
+.danger:disabled {
+  border-color: rgb(120 98 60 / 34%);
+  cursor: not-allowed;
+  color: var(--td-ink-muted);
+}
+
+.save:disabled:hover,
+.danger:disabled:hover {
+  background: transparent;
+}
+
+/* ── Who is keeping this (§2.11) ───────────────────────────────────────── */
+
+.identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 18px;
+  margin-top: 14px;
+}
+
+/* §2.11 asks for "a 132px avatar with Replace". This data model holds no
+ * image, so the circle is the design's and what is inside it is a monogram —
+ * docs/deviations.md §106. */
+.avatar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgb(120 98 60 / 12%);
+  box-shadow: inset 0 0 0 1px var(--td-hairline-border-max);
+  width: 132px;
+  height: 132px;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-caveat);
+  font-size: 58px;
+  line-height: 1;
+}
+
+.identityFields {
+  display: flex;
+  flex: 1 1 240px;
+  flex-direction: column;
+  gap: var(--td-gap-card-inner);
+  min-width: 0;
+}
+
+/* ── Tell me when (§2.11: two toggles) ─────────────────────────────────── */
+
+.toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.toggleRow {
+  border-bottom: 1px dotted rgb(120 98 60 / 26%);
+  padding: 11px 0;
+}
+
+.toggleRow:last-child {
+  border-bottom: none;
+}
+
+.toggleForm {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toggleText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.toggleLabel {
+  color: var(--td-ink);
+  font-family: var(--td-font-garamond);
+  font-size: var(--td-admin-body-max);
+}
+
+/* The switch: a submit button drawn as a track and a knob, so these cards ship
+ * no client JavaScript. The button is the 44px hit area and the track is the
+ * picture — `settings.module.css`'s SET-002 fix, for its reason. */
+.switch {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  width: 46px;
+  min-width: 46px;
+  min-height: var(--td-min-hit-target);
+}
+
+.track {
+  display: block;
+  position: relative;
+  border: 1px solid rgb(120 98 60 / 44%);
+  border-radius: 11px;
+  background: rgb(120 98 60 / 14%);
+  width: 46px;
+  height: 24px;
+}
+
+.switch[data-on='true'] .track {
+  border-color: var(--td-status-published);
+  background: var(--td-status-published);
+}
+
+.knob {
+  display: block;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transform: translateX(0);
+  border-radius: 50%;
+  background: var(--td-paper-mount);
+  width: 18px;
+  height: 18px;
+}
+
+.switch[data-on='true'] .knob {
+  transform: translateX(22px);
+}
+
+/* ── Getting in (§2.11) ────────────────────────────────────────────────── */
+
+.address {
+  margin: 4px 0 0;
+  color: var(--td-ink);
+  font-family: var(--td-font-garamond);
+  font-size: var(--td-admin-body-max);
+}
+
+.passwords {
+  display: grid;
+  gap: var(--td-gap-card-inner);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container td-account (min-width: 618px) {
+  /* §2.11: "Current / New password in two columns above 900px" — the viewport
+   * number converted into this container's own units. See this file's header. */
+  .passwords {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* The line the card prints when a password change was refused or made. It is a
+ * server round trip — the action redirects and this screen redraws — which is
+ * the shape docs/deviations.md §104 names as the preferred one. */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 0 0;
+  border-radius: var(--td-radius-control);
+  background: rgb(152 57 43 / 7%);
+  box-shadow: inset 0 0 0 1px rgb(152 57 43 / 30%);
+  padding: 10px 12px;
+  color: var(--td-accent-hover);
+  font-family: var(--td-font-garamond);
+  font-size: 15.5px;
+}
+
+.noticeDone {
+  background: rgb(47 107 104 / 7%);
+  box-shadow: inset 0 0 0 1px rgb(47 107 104 / 30%);
+  color: var(--td-status-published);
+}
+
+.noticeMark {
+  flex: none;
+  transform: rotate(45deg);
+  margin-top: 5px;
+  background: currentcolor;
+  width: 8px;
+  height: 8px;
+}
+
+/* ── Where you are signed in (§2.11) ───────────────────────────────────── */
+
+.sessions {
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sessionRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px dotted rgb(120 98 60 / 26%);
+  padding: 12px 0;
+}
+
+.sessionRow:last-child {
+  border-bottom: none;
+}
+
+/* §2.11: "rows of a 9px mark (filled for the current session)". */
+.mark {
+  flex: none;
+  transform: rotate(45deg);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--td-hairline-border-max);
+  width: 9px;
+  height: 9px;
+}
+
+.markCurrent {
+  background: var(--td-accent);
+  box-shadow: none;
+}
+
+.sessionText {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sessionDevice {
+  color: var(--td-ink);
+  font-family: var(--td-font-garamond);
+  font-size: var(--td-admin-body-max);
+}
+
+.sessionWhere {
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-garamond);
+  font-size: 15px;
+}
+
+.sessionCurrent {
+  flex: none;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-courier);
+  font-size: var(--td-admin-label-max);
+  letter-spacing: var(--td-letter-spacing-min);
+  text-transform: uppercase;
+}
+
+.sessionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+  border-top: 1px solid rgb(120 98 60 / 22%);
+  padding-top: 14px;
+}
+
+.sessionsEmpty {
+  margin: 14px 0 0;
+  color: var(--td-ink-muted);
+  font-family: var(--td-font-garamond);
+  font-size: var(--td-admin-body-max);
+  font-style: italic;
+}

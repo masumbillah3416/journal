@@ -188,6 +188,36 @@ describe('NavRail', () => {
     expect(rail?.querySelector('nav')).not.toBeNull()
   })
 
+  it('points the profile button at the Account screen', () => {
+    // SCREENS.md §2's rail footer gives the profile block a target. Task 3
+    // built it with none, deliberately — "a primary control pointing at an
+    // unmounted address is the defect this repository already paid for once" —
+    // and Task 14 mounted §2.11, so it has one.
+    const host = renderRail({ pathname: '/admin' })
+
+    expect(host.querySelector('[data-profile]')?.getAttribute('href')).toBe('/admin/account')
+  })
+
+  it('rings the profile button on the Account screen and nowhere else', () => {
+    // BOTH SIDES. §2 gives it "a terracotta ring when active", and a class
+    // applied unconditionally looks identical on the one screen anybody would
+    // check it on.
+    const onAccount = renderRail({ pathname: '/admin/account' })
+    const elsewhere = renderRail({ pathname: '/admin' })
+
+    expect(onAccount.querySelector('[data-profile]')?.getAttribute('aria-current')).toBe('page')
+    expect(elsewhere.querySelector('[data-profile]')?.getAttribute('aria-current')).toBeNull()
+    expect(onAccount.querySelector('[data-profile]')?.className).not.toBe(
+      elsewhere.querySelector('[data-profile]')?.className,
+    )
+  })
+
+  it('leaves every nav button unlit on the Account screen, because Account is not a nav entry', () => {
+    const host = renderRail({ pathname: '/admin/account' })
+
+    expect(host.querySelectorAll('a[aria-current="page"][data-nav-id]')).toHaveLength(0)
+  })
+
   it('signs out by POST, never by a link a prefetch can follow', () => {
     const host = renderRail({ pathname: '/admin' })
     const form = host.querySelector('form')

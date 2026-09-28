@@ -134,6 +134,44 @@ export type ChangePasswordRefusal =
   | 'empty-password'
 
 /**
+ * What the Getting in card says happened to a password change.
+ *
+ * The two refusals, plus the one success — a change that WORKED needs a line
+ * as much as one that did not, because the form clears either way and an
+ * author who sees an empty box and no message cannot tell which happened.
+ */
+export type PasswordNotice = ChangePasswordRefusal | 'changed'
+
+/**
+ * The query parameter the Account screen's address carries that notice in.
+ *
+ * A REDIRECT AND A QUERY, NOT A RETURNED VALUE. A Server Action that returned
+ * a refusal would need the page to hold it, which is state, which is a client
+ * island (`shellShipsNoClientJs.test.ts`). Redirecting re-renders the whole
+ * screen on the server — the shape `docs/deviations.md` §104 names as the
+ * preferred one — and leaves the address shareable and the Back button honest.
+ */
+export const PASSWORD_NOTICE_PARAM = 'password'
+
+/** Every value {@link PASSWORD_NOTICE_PARAM} is allowed to carry. */
+const PASSWORD_NOTICES: readonly PasswordNotice[] = ['changed', 'wrong-password', 'empty-password']
+
+/**
+ * The notice an address is carrying, if it is carrying one this screen wrote.
+ *
+ * REFUSES WHAT IT DOES NOT RECOGNISE (standing orders, species 6). Anything a
+ * hand-typed address puts in the parameter — a sentence, a script, a repeated
+ * parameter, which Next.js hands over as an array — is `null`, so the card can
+ * only ever print one of its own three lines.
+ * @param value - Whatever `searchParams` held under {@link PASSWORD_NOTICE_PARAM}.
+ * @returns The notice, or `null`.
+ * @example
+ * passwordNotice(query[PASSWORD_NOTICE_PARAM]) // 'wrong-password'
+ */
+export const passwordNotice = (value: string | readonly string[] | undefined): PasswordNotice | null =>
+  PASSWORD_NOTICES.find((notice) => notice === value) ?? null
+
+/**
  * A toggle's value, which arrives as the word it is switching TO.
  *
  * A toggle posts the value it is switching to rather than a checkbox's
@@ -182,6 +220,42 @@ export const readNotificationToggle = (form: FormData): NotificationToggleForm =
  */
 export const readOtpToggle = (form: FormData): OtpToggleForm =>
   z.object({ on: TOGGLE_VALUE }).parse(Object.fromEntries(form))
+
+/**
+ * Reads the two password boxes §2.11's Getting in card posts.
+ *
+ * PARSED RATHER THAN COERCED, for {@link readSessionRow}'s reason and one of
+ * its own: `FormData.get` answers `File | string | null`, so a hand-built
+ * request can put a file part where a password belongs — and `String(…)` of one
+ * is `[object Object]`, which would then be offered to Payload as a password.
+ * Neither box is trimmed: a leading space is a character somebody may have
+ * chosen, and trimming it would refuse a password the account could have.
+ * @param form - The posted body.
+ * @returns The two values, as typed.
+ * @throws {z.ZodError} When either field is absent or is not text.
+ * @example
+ * await changePassword(payload, scope, readPasswordChange(form))
+ */
+export const readPasswordChange = (form: FormData): PasswordChange =>
+  z.object({ current: z.string(), next: z.string() }).parse(Object.fromEntries(form))
+
+/**
+ * Reads the row id one Revoke button posts.
+ *
+ * A ROW ID IS A SMALL INTEGER ANYBODY CAN TYPE, which is exactly why it is
+ * parsed rather than coerced: `Number('')` is `0` and `Number('3x')` is `NaN`,
+ * and both would reach a `WHERE id = …` as a value Postgres has an opinion
+ * about. What stops a typed id revoking somebody else's session is the account
+ * in `revokeSessionRow`'s own `WHERE` clause; this parse is what stops a
+ * malformed one reaching the database at all.
+ * @param form - The posted body.
+ * @returns The row id.
+ * @throws {z.ZodError} When the field is absent, empty, not a number, or not a
+ *   positive integer.
+ * @example
+ * await sessions.revokeSessionRow({ row: readSessionRow(form), owner: session.user })
+ */
+export const readSessionRow = (form: FormData): number => z.coerce.number().int().positive().parse(form.get('row'))
 
 /**
  * Writes SCREENS.md §2.11's three profile fields, and nothing else.
