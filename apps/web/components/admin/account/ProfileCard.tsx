@@ -87,7 +87,21 @@ export const ProfileCard = ({ profile, save }: ProfileCardProps): React.JSX.Elem
 
           <label data-account-field="timeZone" className={styles.field}>
             <span className={styles.eyebrow}>Time zone</span>
-            <select name="timeZone" defaultValue={profile.timeZone} className={styles.select}>
+            {/* KEYED BY THE STORED ZONE, which is ACC-001's fix rather than a
+             * React idiom reached for. An uncontrolled `<select>` has its
+             * selection RESTORED from the value it was mounted with whenever
+             * React reconciles it — so after a Save the control read the zone
+             * the card was drawn with while the row and the server markup both
+             * held the new one, and the next press of Save posted that stale
+             * value back over the author's choice
+             * (`docs/qa/2026-09-29-account-sweep.md`). A `key` that moves with
+             * the datum makes the control a NEW node whenever the datum
+             * changes, so there is nothing to restore from; a key that moved
+             * with every render would instead throw away an author's
+             * in-progress choice, which is why it is the stored zone and not a
+             * counter. Its sibling text inputs need none of this: React does
+             * not restore them. */}
+            <select key={profile.timeZone} name="timeZone" defaultValue={profile.timeZone} className={styles.select}>
               {profile.timeZoneOptions.map((option) => (
                 // KEYED BY THE ZONE, never by position (CLAUDE.md §0.9).
                 <option key={option.zone} value={option.zone}>

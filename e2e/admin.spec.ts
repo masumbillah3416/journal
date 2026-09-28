@@ -2020,8 +2020,11 @@ test.describe('the account screen (SCREENS.md §2.11)', () => {
    */
   const REVOKE_LABEL = 'account-revoke'
 
+  /** The time-zone case's own account, for the row-counting reason above. */
+  const ZONE_LABEL = 'account-zone'
+
   test.afterAll(async ({}, testInfo) => {
-    for (const label of [ACCOUNT_LABEL, REVOKE_LABEL]) {
+    for (const label of [ACCOUNT_LABEL, REVOKE_LABEL, ZONE_LABEL]) {
       await removeSignedInFixture(`${label}.${fixtureLabel(testInfo)}@${SESSION_FIXTURE_DOMAIN}`)
     }
   })
@@ -2067,6 +2070,68 @@ test.describe('the account screen (SCREENS.md §2.11)', () => {
     await expect(page.locator('[data-admin-account]')).toBeVisible()
     await expect(page.locator('a[aria-current="page"][data-nav-id]')).toHaveCount(0)
     await expect(page.locator('[data-profile][aria-current="page"]')).toHaveCount(1)
+  })
+
+  test('keeps the saved time zone on screen, so pressing Save twice does not revert it', async ({
+    page,
+    context,
+    baseURL,
+  }, testInfo) => {
+    // ACC-001 (`docs/qa/2026-09-29-account-sweep.md`), AND IT IS A BROWSER CASE
+    // BECAUSE NOTHING SMALLER REPRODUCES IT. The write was always correct and
+    // the server markup always carried the new zone; what was wrong was the
+    // live control, which React restores from the value it was MOUNTED with
+    // while reconciling an uncontrolled `<select>`. A jsdom re-render of the
+    // component does not reproduce it — measured, two cases green against the
+    // defect — so the only instrument that can fail is a real Server Action
+    // re-render.
+    //
+    // THE CONSEQUENCE IS THE SECOND SAVE. An author who changes their zone and
+    // then corrects their name presses Save again, and the stale value in the
+    // select is posted back over the one they chose.
+    const label = `${ZONE_LABEL}.${fixtureLabel(testInfo)}`
+    await context.addCookies([
+      { name: 'td-session', value: await aSignedInSession(label), url: `${baseURL ?? ''}/admin` },
+    ])
+    const payload = await getPayload()
+    // The zone has to CHANGE for the restore to be visible: with the stored
+    // value already equal to the chosen one, the stale value and the right one
+    // are the same string.
+    await payload.db.pool.query(`UPDATE users SET time_zone = NULL WHERE email LIKE $1`, [
+      `${label}@${SESSION_FIXTURE_DOMAIN}`,
+    ])
+
+    await page.goto('/admin/account')
+    const zone = page.locator('[data-account-field="timeZone"] select')
+    await expect(zone).toHaveValue('UTC')
+    await zone.selectOption('Asia/Tokyo')
+
+    // WAITED FOR THE ACTION'S OWN RESPONSE, never for a duration. The defect is
+    // what the re-render does to the control, so an assertion made before the
+    // re-render lands reads the author's own selection and passes for the wrong
+    // reason — which is exactly what the first draft of this case did (standing
+    // orders §15).
+    const saved = async (): Promise<void> => {
+      const posted = page.waitForResponse(
+        (response) => response.request().method() === 'POST' && response.url().includes('/admin/account'),
+      )
+      await page.locator('[data-save-profile]').click()
+      await posted
+      await page.waitForLoadState('networkidle')
+    }
+
+    await saved()
+    // The control, and then the row the NEXT save writes from it.
+    await expect(zone).toHaveValue('Asia/Tokyo')
+    await saved()
+    await expect(zone).toHaveValue('Asia/Tokyo')
+    const after = await payload.find({
+      collection: 'users',
+      where: { email: { equals: `${label}@${SESSION_FIXTURE_DOMAIN}` } },
+      limit: 1,
+      depth: 0,
+    })
+    expect(after.docs[0]?.timeZone).toBe('Asia/Tokyo')
   })
 
   test('revokes another browser’s session, and that browser is turned away on its next navigation', async ({
