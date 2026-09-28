@@ -104,7 +104,7 @@ const OFFERED_TIME_ZONES: readonly string[] = [
 const DEFAULT_TIME_ZONE = 'UTC'
 
 /** How the session list writes "{place} · {when}"'s second half. */
-const WHEN = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+const WHEN = { day: 'numeric', month: 'short', year: 'numeric' } as const
 
 /** What a session row says when it recorded no device label. */
 const UNRECORDED_DEVICE = 'An unnamed device'
@@ -203,6 +203,39 @@ const text = (value: unknown): string => (typeof value === 'string' ? value.trim
  * @returns The setting's state.
  */
 const flag = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback)
+
+/**
+ * The day an instant falls on, written in one account's own zone.
+ *
+ * ═══ THE ZONE IS THE ACCOUNT'S, NEVER THE DEPLOYMENT HOST'S ═══
+ *
+ * This formatter carried no `timeZone` at all until review round 1 (F3), so
+ * every "{place} · {when}" on SCREENS.md §2.11's session list was written in
+ * whatever zone the server happened to be in — on a host in `Asia/Dhaka` a
+ * session last seen 19:00 UTC on the 28th printed "29 Sept 2026" for an author
+ * stored as `UTC`. That is a fact about where the server is rather than about
+ * the reader, it moves when the server moves, and it sat directly beside a card
+ * whose stated purpose (§2.11) is that its "options state how dates are
+ * written".
+ *
+ * AN UNKNOWN ZONE FALLS BACK TO {@link DEFAULT_TIME_ZONE}, NOT TO THE HOST.
+ * `users.timeZone` is a plain `text` column and `Intl` throws a `RangeError`
+ * for a zone its ICU has never heard of ({@link dateWrittenIn} records how that
+ * was found). Falling back to the host would reinstate the defect above for
+ * exactly the rows nobody could explain; UTC is an answer that does not change
+ * when the deployment does.
+ *
+ * @param instant - The epoch milliseconds to write.
+ * @param zone - The account's stored zone.
+ * @returns The day, as "28 Sept 2026".
+ */
+const dayWrittenIn = (instant: number, zone: string): string => {
+  try {
+    return new Intl.DateTimeFormat('en-GB', { ...WHEN, timeZone: zone }).format(instant)
+  } catch {
+    return new Intl.DateTimeFormat('en-GB', { ...WHEN, timeZone: DEFAULT_TIME_ZONE }).format(instant)
+  }
+}
 
 /**
  * What {@link TIME_ZONE_SAMPLE} looks like written in one zone, or `null` when
@@ -329,7 +362,7 @@ export const readAccountScreen = async (
     sessions: listed.map((session) => ({
       row: session.row,
       device: session.device ?? UNRECORDED_DEVICE,
-      where: `${session.location ?? UNRECORDED_PLACE} · ${WHEN.format(session.lastSeenAt ?? session.startedAt)}`,
+      where: `${session.location ?? UNRECORDED_PLACE} · ${dayWrittenIn(session.lastSeenAt ?? session.startedAt, timeZone)}`,
       isCurrent: session.isCurrent,
     })),
   }

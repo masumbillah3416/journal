@@ -359,6 +359,49 @@ describe('the Account screen', () => {
       expect(view.sessions.map((row) => row.where.startsWith('Somewhere unrecorded · '))).toEqual([true])
     })
 
+    it('writes each row’s date in the account’s OWN time zone, not the server host’s', async () => {
+      // §2.11 puts a Time zone select on the card beside this list and states
+      // its purpose as "options state how dates are written". Until this case
+      // existed, every session date was written in the DEPLOYMENT HOST's zone:
+      // measured on a host in `Asia/Dhaka`, a session last seen 19:00 UTC on
+      // the 28th printed "29 Sept 2026" for an author stored as `UTC`. That is
+      // a fact about where the server is, and it changes if the server moves.
+      //
+      // THE INSTANT IS PINNED AND SO ARE BOTH ZONES, so this case is decided by
+      // the account's column rather than by the machine it runs on: 19:00 UTC
+      // is the 28th in `UTC` and the 29th in `Asia/Tokyo`, on every host.
+      const owner = await anAccount({ timeZone: 'UTC' })
+      const carried = await aSessionFor(owner.id)
+      await payload.db.pool.query(`UPDATE sessions SET last_seen_at = $2 WHERE user_id = $1`, [
+        owner.row,
+        new Date(Date.UTC(2026, 8, 28, 19, 0)),
+      ])
+
+      const inUtc = await readAccountScreen(payload, await scopeFor(owner.id), carried)
+      await payload.db.pool.query(`UPDATE users SET time_zone = 'Asia/Tokyo' WHERE id = $1`, [owner.row])
+      const inTokyo = await readAccountScreen(payload, await scopeFor(owner.id), carried)
+
+      expect(inUtc.sessions.map((row) => row.where)).toEqual([`${FIXTURE_PLACE} · 28 Sept 2026`])
+      expect(inTokyo.sessions.map((row) => row.where)).toEqual([`${FIXTURE_PLACE} · 29 Sept 2026`])
+    })
+
+    it('falls back to a defined zone when the account’s is one no runtime knows, rather than to the host’s', async () => {
+      // `users.timeZone` is a plain `text` column, so the formatter can be
+      // handed a zone `Intl` refuses. Falling back to the HOST would put the
+      // defect above back for exactly the rows nobody can explain; UTC is an
+      // answer that does not move when the server does.
+      const owner = await anAccount({ timeZone: 'Europe/Reykjavik' })
+      const carried = await aSessionFor(owner.id)
+      await payload.db.pool.query(`UPDATE sessions SET last_seen_at = $2 WHERE user_id = $1`, [
+        owner.row,
+        new Date(Date.UTC(2026, 8, 28, 19, 0)),
+      ])
+
+      const view = await readAccountScreen(payload, await scopeFor(owner.id), carried)
+
+      expect(view.sessions.map((row) => row.where)).toEqual([`${FIXTURE_PLACE} · 28 Sept 2026`])
+    })
+
     it('dates a row by when it was last seen once it has been, not by when it was minted', async () => {
       // `authenticate` stamps `last_seen_at` only on a live session, so a row
       // that has never been presented has none and the line falls back to the
