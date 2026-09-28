@@ -4425,6 +4425,18 @@ in the field. That works because the constraint happens to be one HTML has. **It
 generalise** — HTML has no `pattern` for "a six-digit hex that names a cloth we offer", and a
 client that posts the form directly reaches the 500 either way.
 
+**A sixth screen, and it is the lowest priority within the same class.** `/admin/account`
+(`SCREENS.md` §2.11, Phase 4 Task 14) parses four bodies with Zod — `readOtpToggle`,
+`readNotificationToggle`, `readSessionRow` and `readPasswordChange`
+(`apps/web/lib/admin/accountMutations.ts`) — and each still throws a `ZodError` into an unhandled
+Server Action. It is listed last on purpose: **every value those four read comes from a hidden
+input or a `<select>` that this screen itself wrote**, so unlike the five above there is no
+sequence of keystrokes that reaches them — only a hand-built `POST`. That screen's own PASSWORD
+refusal is NOT an instance: it is a `Result`, and the action redirects to
+`?password=…` and the card draws the line, which is exactly the server round trip this entry
+prefers. It is the worked example of the shape, and the reason it is named here is so that
+whoever closes the five can see one already built.
+
 **Why this is recorded rather than fixed across the admin.** A defect report is not permission to
 reach into five other screens: the fix needs an error state §2.2, §2.3, §2.6 and §2.7 do not
 draw, a decision about whether that state is a client island or a server round trip, and a failing
@@ -4452,7 +4464,8 @@ task inherits.
 
 **Recorded as:** this entry, SET-003 in the sweep report, and the case
 `refuses a reply-to that is not an address in the field, not with a 500` (`e2e/admin.spec.ts`),
-which guards the one instance that is closed.
+which guards the one instance that is closed. §2.11's four parses are named above rather than in
+a task report, because a report is not a carrier a later task inherits.
 
 ## 105 · The thirty-day window is advisory: nothing sweeps the trash
 

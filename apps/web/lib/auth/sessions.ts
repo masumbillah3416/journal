@@ -335,8 +335,15 @@ export interface SessionService {
    * front of them signed in makes the count on the screen wrong.
    *
    * @param request - See {@link RevokeAllSessionsRequest}.
-   * @returns How many sessions were revoked, for the confirmation the screen
-   *   shows.
+   * @returns How many sessions were revoked. NOTHING READS IT TODAY, and that
+   *   is worth saying because this sentence used to promise "the confirmation
+   *   the screen shows": Phase 4 Task 14 built that screen, and the screen
+   *   cannot show one — pressing "Sign out everywhere" revokes the presser's
+   *   own session too (deliberately, see above), so the very next render is a
+   *   redirect to the sign-in page and there is nowhere for a count to be
+   *   drawn. The number is returned because a caller that did NOT revoke its
+   *   own session could use it, and because a revocation that reported nothing
+   *   could not be told from one that matched no rows.
    */
   revokeAllSessions(request: RevokeAllSessionsRequest): Promise<{ revoked: number }>
 }

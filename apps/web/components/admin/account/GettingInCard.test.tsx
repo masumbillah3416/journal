@@ -177,6 +177,18 @@ describe('GettingInCard', () => {
     expect(said?.getAttribute('role')).toBeNull()
   })
 
+  it('tells the author their other devices stay signed in, which is the promise the row backs', () => {
+    // THE SENTENCE IS THE CLAIM, and until review round 1 (F6) nothing read it:
+    // `accountMutations.integration.test.ts`'s `leaves the account's other
+    // devices signed in…` was written to back a promise the card could have
+    // stopped making without a single test going red. The words are asserted
+    // here, where they are drawn, and the behaviour behind them is asserted
+    // there, against a real Payload.
+    expect(renderCard(GUARDED, 'changed').querySelector('[data-password-notice]')?.textContent).toContain(
+      'Your other devices stay signed in.',
+    )
+  })
+
   it('draws a refusal and a confirmation differently, so the two are not one line in two colours of prose', () => {
     const refused = renderCard(GUARDED, 'wrong-password').querySelector('[data-password-notice]')?.className
     const done = renderCard(GUARDED, 'changed').querySelector('[data-password-notice]')?.className

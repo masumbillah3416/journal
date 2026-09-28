@@ -155,7 +155,16 @@ export const changePassword = guardedAction(async (session, form: FormData): Pro
 export const revokeOneSession = guardedAction(async (session, form: FormData): Promise<void> => {
   const payload = await getPayload()
   const sessions = createSessionService({ payload, now: Date.now })
-  await sessions.revokeSessionRow({ row: readSessionRow(form), owner: session.user })
+  // THE REFUSAL IS DELIBERATELY NOT SURFACED, and this line says so because the
+  // module it comes from promises the opposite ("a caller cannot reach an
+  // account id without handling the refusal"). `err('unknown')` here means the
+  // row is already revoked, or is not this account's — and in both cases the
+  // honest thing to draw is the list as it now stands, which is what the
+  // re-render below does. The author reached this action by pressing a button
+  // beside a row on their own screen, so the only way to reach the refusal is a
+  // hand-built POST, and telling its author which row ids exist is not
+  // something this screen owes them.
+  void (await sessions.revokeSessionRow({ row: readSessionRow(form), owner: session.user }))
   revalidatePath(ACCOUNT_PATH)
   revalidatePath(ADMIN_LAYOUT, 'layout')
 })
