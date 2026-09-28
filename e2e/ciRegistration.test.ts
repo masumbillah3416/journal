@@ -216,25 +216,74 @@ const REMOVED_LABEL = /removeSignedInFixture\(`([A-Za-z0-9-]+)\./gu
 const LISTED_LABEL = /'([A-Za-z0-9-]+)'/gu
 
 /**
- * The labels one named `readonly string[]` declares.
+ * Everything a `const <name>: readonly string[] = …` is initialised with, with
+ * brackets and parentheses balanced.
+ *
+ * READ AS A WHOLE INITIALISER rather than as one bracketed run, because a list
+ * can be built from more than one: `['a'].concat(OTHERS)` has two, and taking
+ * the first was re-review round 2's ND-1 — the guard reported a leak that was
+ * not there. It keeps consuming while a `.` follows the balanced run, which is
+ * what a chained call looks like.
+ * @param source - The spec's whole source.
+ * @param name - The constant to read.
+ * @returns The initialiser's text, or `null` when there is no such declaration
+ *   or it never closes.
+ */
+const initialiserOf = (source: string, name: string): string | null => {
+  const declaration = `const ${name}: readonly string[] = `
+  const at = source.indexOf(declaration)
+  if (at < 0) return null
+
+  const from = at + declaration.length
+  let depth = 0
+  for (let index = from; index < source.length; index += 1) {
+    const character = source[index]
+    if (character === '[' || character === '(') depth += 1
+    else if (character === ']' || character === ')') {
+      depth -= 1
+      // A chained call reopens it: `['a'].concat(['b'])` closes twice.
+      if (depth === 0 && !/^\s*\./u.test(source.slice(index + 1))) return source.slice(from, index + 1)
+    }
+  }
+  return null
+}
+
+/**
+ * The labels one named `readonly string[]` declares, or `null` when this guard
+ * cannot read the declaration.
  *
  * ANCHORED TO THE DECLARATION the cleanup loop actually names, rather than to
  * indentation. The pattern this replaces was `^ {2}'…',$`, which any unrelated
  * two-space-indented string array in the file satisfied (review round 1, F1).
+ *
+ * ═══ `null` IS NOT `[]`, AND THAT DISTINCTION IS THE WHOLE OF ND-1 ═══
+ *
+ * An empty array is a VERDICT ABOUT THE SPEC — "this list spends nothing" — and
+ * a guard that reaches it by failing to parse is a guard that reports a leak
+ * which is not there. That is the more expensive direction to be wrong in than
+ * the one F1 fixed: a false red is deleted by whoever is trying to land an
+ * unrelated change, and the real leak returns with it. So anything this
+ * function cannot account for is `null`, which the case below turns into a
+ * failure naming THIS GUARD rather than the file it was pointed at.
+ *
+ * WHAT IT CAN ACCOUNT FOR is array literals of quoted labels, joined by
+ * `.concat(…)`. It proves that by subtraction rather than by pattern-matching a
+ * shape it expects: the labels, the brackets, the commas, the `.concat` tokens
+ * and the whitespace are removed, and ANY remaining character means there is
+ * something here it has not understood — a spread, an identifier, a `.map`.
  * @param source - The spec's whole source.
  * @param name - The constant the loop iterates.
- * @returns Its entries, or nothing when it declares no such constant.
+ * @returns Its entries, or `null` when the declaration is absent or is a shape
+ *   this guard does not understand.
  */
-const declaredListIn = (source: string, name: string): readonly string[] => {
-  const declaration = `const ${name}: readonly string[] = [`
-  const opens = source.indexOf(declaration)
-  if (opens < 0) return []
-  // PAST THE DECLARATION'S OWN TEXT before looking for the closing bracket: the
-  // first `]` at or after `opens` is the one in `readonly string[]`, so a naive
-  // `indexOf(']', opens)` slices a window with no labels in it at all. That is
-  // how this function first came back empty against a list it had found.
-  const closes = source.indexOf(']', opens + declaration.length)
-  return [...source.slice(opens, closes).matchAll(LISTED_LABEL)].map((found) => found[1] ?? '')
+const labelsDeclaredIn = (source: string, name: string): readonly string[] | null => {
+  const initialiser = initialiserOf(source, name)
+  if (initialiser === null) return null
+
+  const unaccountedFor = initialiser.replaceAll(LISTED_LABEL, '').replaceAll(/\.concat|[[\](),]|\s/gu, '')
+  if (unaccountedFor !== '') return null
+
+  return [...initialiser.matchAll(LISTED_LABEL)].map((found) => found[1] ?? '')
 }
 
 /**
@@ -260,7 +309,9 @@ const declaredListIn = (source: string, name: string): readonly string[] => {
  * @param spec - The spec file's name under `e2e/`.
  * @returns The labels minted, and the labels a live cleanup removes.
  */
-const fixtureLabelsOf = (spec: string): { readonly minted: readonly string[]; readonly removed: readonly string[] } => {
+const fixtureLabelsOf = (
+  spec: string,
+): { readonly minted: readonly string[]; readonly removed: readonly string[]; readonly readable: boolean } => {
   const source = readFileSync(path.join(REPO_ROOT, 'e2e', spec), 'utf8')
   const minted = [...source.matchAll(MINTED_LABEL)].map((found) => found[1] ?? '')
   const cleanup = cleanupBlockOf(source)
@@ -278,10 +329,45 @@ const fixtureLabelsOf = (spec: string): { readonly minted: readonly string[]; re
   // it did: the first version of this line shipped an unescaped pattern that
   // threw `Lone quantifier brackets` at run time.
   const spendsTheList = variable !== '' && (loop?.[3] ?? '').includes('removeSignedInFixture(`${' + variable + '}')
-  const listed = spendsTheList ? declaredListIn(source, loop?.[2] ?? '') : []
+  const listed = spendsTheList ? labelsDeclaredIn(source, loop?.[2] ?? '') : []
 
-  return { minted: [...new Set(minted)].sort(), removed: [...new Set([...named, ...listed])].sort() }
+  return {
+    minted: [...new Set(minted)].sort(),
+    removed: [...new Set([...named, ...(listed ?? [])])].sort(),
+    // `null` only when a loop names a list this guard could not parse — which
+    // is a fact about the guard and is reported as one. A spec with no loop at
+    // all is readable and simply spends nothing.
+    readable: listed !== null || !spendsTheList,
+  }
 }
+
+/**
+ * Three shapes a label list can be declared in, and the one this guard must
+ * refuse rather than misread.
+ *
+ * A LIST BUILT WITH `.concat()` IS THE CASE THAT MATTERS, and it is the defect
+ * re-review round 2 found (ND-1): reading only the first bracket reported a
+ * LEAK THAT WAS NOT THERE, which is the more expensive direction to be wrong
+ * in. A guard that cries wolf is deleted by whoever is trying to land an
+ * unrelated refactor, and the real leak comes back with it.
+ */
+const A_PLAIN_LIST = `const LABELS: readonly string[] = [\n  'one',\n  'two',\n]\n`
+const A_CONCATENATED_LIST = `const LABELS: readonly string[] = ['one'].concat(['two', 'three'])\n`
+const A_LIST_THIS_GUARD_CANNOT_READ = `const LABELS: readonly string[] = [...ELSEWHERE, 'one']\n`
+
+test('reads a label list however it is spelled, including one built with concat', () => {
+  expect(labelsDeclaredIn(A_PLAIN_LIST, 'LABELS')).toEqual(['one', 'two'])
+  expect(labelsDeclaredIn(A_CONCATENATED_LIST, 'LABELS')).toEqual(['one', 'two', 'three'])
+})
+
+test('refuses a list it cannot read, instead of quietly deciding there is a leak', () => {
+  // `null` IS NOT `[]`. An empty answer is a verdict about the spec — "this
+  // list deletes nothing" — and it would be a false one. `null` says "this
+  // guard cannot read this", which the case below turns into a failure that
+  // names the guard rather than blaming the file it was pointed at.
+  expect(labelsDeclaredIn(A_LIST_THIS_GUARD_CANNOT_READ, 'LABELS')).toBeNull()
+  expect(labelsDeclaredIn(A_PLAIN_LIST, 'SOME_OTHER_NAME')).toBeNull()
+})
 
 test('deletes every fixture account e2e/a11y.spec.ts creates, so a run leaves no accounts behind', () => {
   // THE ACCOUNTS ARE REAL ROWS IN THE DEVELOPER'S OWN DATABASE, not in
@@ -292,8 +378,23 @@ test('deletes every fixture account e2e/a11y.spec.ts creates, so a run leaves no
   // WHAT MAKES A LABEL "REMOVED" IS A CLEANUP THAT SPENDS IT, not a list that
   // names it — see {@link fixtureLabelsOf}, and review round 1's F1 for the
   // round where that difference was the whole defect.
-  const { minted, removed } = fixtureLabelsOf('a11y.spec.ts')
+  //
+  // ═══ WHAT THIS GUARD CANNOT SEE, WRITTEN HERE RATHER THAN DISCOVERED ═══
+  //
+  // It reads source. So a label minted through a WRAPPER
+  // (`mint(label) => aSignedInSession(label)`) is invisible to `MINTED_LABEL`
+  // and leaks silently, and a `removeSignedInFixture` wrapped in a swallowing
+  // `try/catch` counts as a deletion while deleting nothing. The second is
+  // inherent to a static check — only a live database assertion after a real
+  // run can tell a cleanup that ran from one that worked — and both are
+  // `docs/deviations.md` §108 with an owner, so that the next person to trust
+  // this file inherits its limits rather than finding them.
+  const { minted, removed, readable } = fixtureLabelsOf('a11y.spec.ts')
 
+  expect(
+    readable,
+    'THIS GUARD cannot read that spec’s label list — see labelsDeclaredIn. Nothing is claimed here about whether the spec leaks; the guard has to be taught the shape first',
+  ).toBe(true)
   expect(
     minted.length,
     'no aSignedInSession labels found — the extraction, not the spec, is what broke',

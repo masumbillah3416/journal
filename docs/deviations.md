@@ -4570,3 +4570,44 @@ registration case extended to name it.
 
 **Recorded as:** this entry, `e2e/a11y.spec.ts`'s `A11Y_FIXTURE_LABELS`, and the
 `ciRegistration.test.ts` case named above.
+
+## 108 · What the fixture-leak guard cannot see, and the debris that predates it — owner: Task 15
+
+**What the guard is.** `e2e/ciRegistration.test.ts`'s case `deletes every fixture account
+e2e/a11y.spec.ts creates, so a run leaves no accounts behind`. It reads a spec's SOURCE and pairs
+every label handed to `aSignedInSession` with a cleanup that spends it, so that a run leaves no
+real accounts in the developer's own `diary` database (`docs/deviations.md` §107).
+
+**Two things it cannot see, both found by review rather than by use.**
+
+1. **A label minted through a wrapper is invisible.** `MINTED_LABEL` matches
+   `aSignedInSession(\`label.`at the call site, so`const mint = (label: string) => aSignedInSession(label)` mints accounts this guard never
+   counts, and they leak in silence. It is a real hole on the _minted_ side and predates the
+   guard's round-1 rewrite.
+2. **A deletion inside a swallowing `try/catch` counts as a deletion.** The guard can see that
+   `removeSignedInFixture` is called with the loop's own variable; it cannot see whether the call
+   _worked_. This is inherent to a static check — only an assertion against a live database after
+   a real run can tell a cleanup that ran from one that deleted anything — and it is written at
+   the guard as well as here.
+
+**Why neither is fixed here.** The first needs the guard to resolve a call graph rather than
+match a call site, and the second needs a live-database assertion in a place that today has none
+of the fixtures to make one. Both are larger than the round that found them, and a guard that
+half-resolves a call graph is a guard whose limits nobody can state — which is the failure this
+entry exists to prevent.
+
+**And the debris, which is neither guard's.** Sixty-six accounts remain under
+`session.task-ten-fixture.example` in the developer's `diary`. Thirty-five are `visual*` — §107's
+open half, still leaking on every container run. Five are `a11y*` left by runs that predate the
+cleanup loop and which no rerun has reused. The rest — `sweep`, `sweeps`, `probe2`, `probe3`,
+`cmp`, `recheck-*`, `overflow-*`, `class-*` — are under labels **no current spec mints anywhere**:
+sweep and review probes whose specs are long deleted. Nothing will ever clean them, because a
+cleanup is keyed to a label a spec still names.
+
+**What would reverse it:** for the two holes, a guard that resolves through a wrapper and an
+after-the-run assertion against `diary`; for the debris, one sweep that deletes every row under
+the fixture domain, run when no browser suite is in flight. `npm run db:seed` also resets that
+database.
+
+**Recorded as:** this entry, and the paragraph at
+`e2e/ciRegistration.test.ts`'s own case naming both limits.
