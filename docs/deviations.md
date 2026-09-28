@@ -4516,3 +4516,44 @@ markup already has the 132px circle to put it in.
 `AccountProfile.initial` is the letter the card draws in place of the picture),
 `apps/web/components/admin/account/ProfileCard.tsx`'s header, and the case `draws the account's
 initial where §2.11 asks for an avatar, and offers no Replace`.
+
+## 107 · Browser fixtures leave real accounts in the developer's database — owner: Task 15
+
+**What was measured.** Ninety-three rows in the developer's own `diary` database, all under
+`session.task-ten-fixture.example`, grouped by the label that created them:
+
+```text
+ visualpanel     | 12      a11ymedia      |  4
+ visualjourneys  | 11      a11ygalleries  |  4
+ visualcreate    | 10      a11yjourneys   |  4
+ a11ypanel       |  6      a11ybook       |  4
+ a11ycover       |  4      a11yeditor     |  3
+```
+
+**Why.** `e2e/support/adminSession.ts` mints fixture accounts through `getPayload()`, which is
+the DEVELOPER'S database and not `diary_test` — deliberately, because the browser suite drives
+the running app. Each spec's `test.afterAll` then deletes ONE label, while the file mints a
+dozen: `e2e/a11y.spec.ts` removed `a11y.` and left eleven others, and `e2e/visual.spec.ts` does
+the same. Nothing fails, because an orphaned account is invisible to every assertion.
+
+**What was closed here.** `e2e/a11y.spec.ts`'s half: its cleanup now loops over every label it
+mints, and `e2e/ciRegistration.test.ts`'s case `deletes every fixture account e2e/a11y.spec.ts
+creates, so a run leaves no accounts behind` reads both lists off that spec's own source, so a
+case that mints a thirteenth label fails on the commit that adds it.
+
+**What is left, and why it is not fixed here.** `e2e/visual.spec.ts` has the same shape and
+three of the four largest offenders. That file SKIPS off Linux (`docs/deviations.md` §86), so
+its cleanup cannot be exercised on this machine at all — a fix written here would be a fix
+nothing could run, which is the species this phase keeps finding. It belongs with the visual
+baselines, which is Task 15's work.
+
+**Nothing is deleted retrospectively by this entry.** The ninety-three rows are a developer's
+local state, not a checked-in artefact, and a sweeping delete is exactly what
+`SESSION_FIXTURE_DOMAIN`'s own header records a flake for. `npm run db:seed` is what resets that
+database.
+
+**What would reverse it:** `e2e/visual.spec.ts` cleaning up every label it mints, with the same
+registration case extended to name it.
+
+**Recorded as:** this entry, `e2e/a11y.spec.ts`'s `A11Y_FIXTURE_LABELS`, and the
+`ciRegistration.test.ts` case named above.

@@ -1978,3 +1978,144 @@ test('refuses a reply-to that is not an address in the field, not with a 500', a
     })),
   ).toEqual({ typeMismatch: true, valid: false })
 })
+
+test.describe('the account screen (SCREENS.md §2.11)', () => {
+  /**
+   * TWO BROWSERS, ONE ACCOUNT, and that is the whole shape of this block.
+   *
+   * Everything about revocation that a Vitest project can reach is already
+   * reached — `sessions.integration.test.ts` revokes a row and asks
+   * `authenticate`. What no Vitest project can reach is the half a reader
+   * experiences: a browser that was signed in a moment ago, holding a cookie it
+   * still believes in, being turned away by the guard on its NEXT navigation.
+   * The redirect is Next's, the cookie is Chromium's, and neither is this
+   * test's.
+   *
+   * IT ALSO NEEDS TWO SESSIONS TO SAY ANYTHING ABOUT THE LIST. A single-session
+   * fixture cannot distinguish the row whose hash matches this request's cookie
+   * from the newest row (standing orders §14), and the Revoke this case presses
+   * is the one beside the row that is NOT marked Current — so a screen that
+   * marked the wrong one would revoke the wrong browser and the assertion would
+   * fail on the browser that was supposed to keep working.
+   *
+   * WHAT IT WRITES, AND WHAT IT DOES NOT. It revokes a session of a fixture
+   * account created by `aSignedInSession`, under this file's own domain, and
+   * deletes the account in `afterAll`. It changes NO password and presses NO
+   * toggle: `changePassword` spends one of `maxLoginAttempts` on a wrong
+   * current password, and five would lock a fixture account for fifteen minutes
+   * — a browser test that can lock an account is a browser test that can make
+   * the next one flake.
+   */
+  const ACCOUNT_LABEL = 'account-screen'
+
+  /**
+   * The revoke case's own account, separate from the two read-only cases'.
+   *
+   * IT COUNTS ROWS, so it cannot share an account with cases that mint
+   * sessions of their own: each `aSignedInSession` call for a label adds a live
+   * row to that label's account, and the count this case asserts on would then
+   * be a fact about how many other cases had run. That is standing orders §16's
+   * shape inside one file — a shared fixture producing a failure that reads as
+   * a defect in the screen.
+   */
+  const REVOKE_LABEL = 'account-revoke'
+
+  test.afterAll(async ({}, testInfo) => {
+    for (const label of [ACCOUNT_LABEL, REVOKE_LABEL]) {
+      await removeSignedInFixture(`${label}.${fixtureLabel(testInfo)}@${SESSION_FIXTURE_DOMAIN}`)
+    }
+  })
+
+  test('draws §2.11’s four cards behind the guard', async ({ page, context, baseURL }, testInfo) => {
+    await context.addCookies([
+      {
+        name: 'td-session',
+        value: await aSignedInSession(`${ACCOUNT_LABEL}.${fixtureLabel(testInfo)}`),
+        url: `${baseURL ?? ''}/admin`,
+      },
+    ])
+
+    await page.goto('/admin/account')
+
+    await expect(page.locator('[data-admin-account]')).toBeVisible()
+    await expect(page.locator('[data-account-profile]')).toBeVisible()
+    await expect(page.locator('[data-account-notify]')).toBeVisible()
+    await expect(page.locator('[data-account-getting-in]')).toBeVisible()
+    await expect(page.locator('[data-account-sessions]')).toBeVisible()
+    // The session the browser is holding is one of the rows, and it is marked.
+    await expect(page.locator('[data-session-current]')).toHaveCount(1)
+  })
+
+  test('is what the rail’s profile button reaches, with no nav button lit', async ({
+    page,
+    context,
+    baseURL,
+  }, testInfo) => {
+    await context.addCookies([
+      {
+        name: 'td-session',
+        value: await aSignedInSession(`${ACCOUNT_LABEL}.${fixtureLabel(testInfo)}`),
+        url: `${baseURL ?? ''}/admin`,
+      },
+    ])
+    await page.goto('/admin')
+    await expect(page.locator('[data-admin-overview]')).toBeVisible()
+
+    await page.locator('[data-profile]').click()
+
+    await expect(page).toHaveURL(/\/admin\/account$/)
+    await expect(page.locator('[data-admin-account]')).toBeVisible()
+    await expect(page.locator('a[aria-current="page"][data-nav-id]')).toHaveCount(0)
+    await expect(page.locator('[data-profile][aria-current="page"]')).toHaveCount(1)
+  })
+
+  test('revokes another browser’s session, and that browser is turned away on its next navigation', async ({
+    browser,
+    baseURL,
+  }, testInfo) => {
+    // TWO CONTEXTS, TWO SESSIONS, ONE ACCOUNT. `aSignedInSession` mints a fresh
+    // session for the same fixture account each time it is called with the same
+    // label.
+    const label = `${REVOKE_LABEL}.${fixtureLabel(testInfo)}`
+    const first = await browser.newContext({ baseURL: baseURL ?? '' })
+    const second = await browser.newContext({ baseURL: baseURL ?? '' })
+    await first.addCookies([
+      { name: 'td-session', value: await aSignedInSession(label), url: `${baseURL ?? ''}/admin` },
+    ])
+    const doomed = await aSignedInSession(label)
+    await second.addCookies([{ name: 'td-session', value: doomed, url: `${baseURL ?? ''}/admin` }])
+
+    const keeper = await first.newPage()
+    const other = await second.newPage()
+
+    try {
+      // BEFORE: the second browser reaches the admin. Without this half the
+      // assertion below is satisfied by a browser that was never signed in.
+      await other.goto('/admin')
+      await expect(other.locator('[data-admin-overview]')).toBeVisible()
+
+      await keeper.goto('/admin/account')
+      await expect(keeper.locator('[data-admin-account]')).toBeVisible()
+      // The row this browser is NOT sitting on. `:not([data-session-current])`
+      // is read off the rendered row rather than from a row index, because
+      // which row is current is exactly the fact under test.
+      const theirs = keeper.locator('[data-session-row]').filter({ hasNot: keeper.locator('[data-session-current]') })
+      await expect(theirs).toHaveCount(1)
+      await theirs.locator('[data-revoke-session]').click()
+
+      // The keeper is still here, and now holds the only row.
+      await expect(keeper.locator('[data-admin-account]')).toBeVisible()
+      await expect(keeper.locator('[data-session-row]')).toHaveCount(1)
+      await expect(keeper.locator('[data-session-current]')).toHaveCount(1)
+
+      // AFTER: the redirect is the browser's, not this test's — `other` asks
+      // for the same address it reached a moment ago and is sent to sign in.
+      await other.goto('/admin')
+      await expect(other).toHaveURL(/\/admin\/sign-in$/)
+      await expect(other.locator('a[data-nav-id]')).toHaveCount(0)
+    } finally {
+      await first.close()
+      await second.close()
+    }
+  })
+})

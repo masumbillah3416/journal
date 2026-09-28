@@ -502,7 +502,10 @@ session belonging to another account, and leaves it working” — every one of 
 afterwards rather than asserting on the column. Task 14's own cases in the same file — “marks
 the row whose hash matches the cookie, NOT the newest row”, “stops a revoked row authenticating,
 which is what makes Revoke not decorative” and “refuses to revoke a row belonging to another
-account, and leaves it working”. The domain half by
+account, and leaves it working”; and in a real browser by `e2e/admin.spec.ts` — “revokes
+another browser’s session, and that browser is turned away on its next navigation”, which signs
+two contexts in as one account, revokes the one that is NOT marked Current, and watches the other
+browser be redirected to `/admin/sign-in` on its next navigation. The domain half by
 `packages/domain/src/auth/session.test.ts` — “reports a revoked session as revoked, so revoking
 is not merely a field that was written”
 

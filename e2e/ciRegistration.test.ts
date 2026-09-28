@@ -188,3 +188,42 @@ test('gives every browser spec an npm script a developer can run it with', () =>
     `these spec files are named by none of ${RUNNER_SCRIPTS.join(', ')}, so nobody can run them before pushing`,
   ).toEqual([])
 })
+
+/**
+ * Every label a spec hands `aSignedInSession`, and every label its `afterAll`
+ * removes.
+ *
+ * READ OFF THE SPEC'S OWN SOURCE, which is what makes this a check rather than
+ * a second list: a case that mints a label nobody deletes leaves a real account
+ * in the developer's own `diary` database, on every run, for ever. Measured
+ * before this existed: 93 of them (`docs/deviations.md` §107).
+ * @param spec - The spec file's name under `e2e/`.
+ * @returns The labels minted, and the labels the cleanup names.
+ */
+const fixtureLabelsOf = (spec: string): { readonly minted: readonly string[]; readonly removed: readonly string[] } => {
+  const source = readFileSync(path.join(REPO_ROOT, 'e2e', spec), 'utf8')
+  const minted = [...source.matchAll(/aSignedInSession\(`([A-Za-z0-9-]+)\./gu)].map((found) => found[1] ?? '')
+  const removed = [
+    ...[...source.matchAll(/removeSignedInFixture\(`([A-Za-z0-9-]+)\./gu)].map((found) => found[1] ?? ''),
+    // A cleanup that loops over a declared list names its labels there instead.
+    ...[...source.matchAll(/^ {2}'([A-Za-z0-9-]+)',$/gmu)].map((found) => found[1] ?? ''),
+  ]
+  return { minted: [...new Set(minted)].sort(), removed: [...new Set(removed)].sort() }
+}
+
+test('deletes every fixture account e2e/a11y.spec.ts creates, so a run leaves no accounts behind', () => {
+  // THE ACCOUNTS ARE REAL ROWS IN THE DEVELOPER'S OWN DATABASE, not in
+  // `diary_test`: `e2e/support/adminSession.ts` uses `getPayload()`. A label
+  // minted and never removed is a row that accumulates on every run, and eleven
+  // of this file's twelve labels were doing exactly that until Phase 4 Task 14.
+  const { minted, removed } = fixtureLabelsOf('a11y.spec.ts')
+
+  expect(
+    minted.length,
+    'no aSignedInSession labels found — the extraction, not the spec, is what broke',
+  ).toBeGreaterThan(1)
+  expect(
+    minted.filter((label) => !removed.includes(label)),
+    'these labels create an account that nothing deletes',
+  ).toEqual([])
+})

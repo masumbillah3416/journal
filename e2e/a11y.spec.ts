@@ -129,11 +129,45 @@ import { expectNoAxeViolations } from './support/axe'
 import { measureContrastOverGradient } from './support/coverContrast'
 import { drawsMobileReadingMode } from './support/surface'
 
+/**
+ * Every label this file hands `aSignedInSession`, so the cleanup below can
+ * remove each account it creates.
+ *
+ * A LIST RATHER THAN A SWEEPING PREDICATE. `removeSignedInFixture` matches by
+ * SUBSTRING, so there is no pattern that means "every `a11y*` account of THIS
+ * worker" without also meaning "every `a11y*` account of every worker" — and
+ * that is the sweeping delete `SESSION_FIXTURE_DOMAIN` records a flake for. A
+ * case that mints a label missing from this list leaks its account, which is
+ * checked by `e2e/ciRegistration.test.ts` rather than left to a reader.
+ */
+const A11Y_FIXTURE_LABELS: readonly string[] = [
+  'a11y',
+  'a11yaccount',
+  'a11ybook',
+  'a11ycover',
+  'a11yeditor',
+  'a11ygalleries',
+  'a11yjourneys',
+  'a11ymedia',
+  'a11ypanel',
+  'a11ypublish',
+  'a11ysettings',
+  'a11ytrash',
+]
+
 test.afterAll(async ({}, testInfo) => {
-  // This project's own account, never the whole domain: the three viewports
+  // This project's own accounts, never the whole domain: the three viewports
   // run in parallel and a sweeping delete takes another one's session away
   // mid-run (see `SESSION_FIXTURE_DOMAIN`).
-  await removeSignedInFixture(`a11y.${fixtureLabel(testInfo)}@${SESSION_FIXTURE_DOMAIN}`)
+  //
+  // ONE ENTRY PER LABEL THIS FILE MINTS, and until Phase 4 Task 14 there was
+  // exactly one — `a11y.` — while eleven other labels were being created and
+  // never removed. Measured in the developer's own `diary` database: 93 fixture
+  // accounts left behind by this file and `visual.spec.ts`. The rest of that
+  // leak is `docs/deviations.md` §107; what is closed here is this file's half.
+  for (const label of A11Y_FIXTURE_LABELS) {
+    await removeSignedInFixture(`${label}.${fixtureLabel(testInfo)}@${SESSION_FIXTURE_DOMAIN}`)
+  }
 })
 
 test('has no axe violations on /cms', async ({ page }) => {
@@ -886,6 +920,44 @@ test('has no axe violations on /admin/trash, with a real row waiting in it', asy
   } finally {
     await payload.delete({ collection: 'journeys', id: journey.id })
   }
+})
+
+test('has no axe violations on /admin/account, with all four of §2.11’s cards drawn', async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  // SCREENS.md §2.11, and a guarded screen like its neighbours above.
+  //
+  // IT READS AND DOES NOT WRITE. Every control here writes the account's own
+  // row: the toggles change what the next sign-in does, and the password form
+  // spends one of `maxLoginAttempts` on a wrong current password — five of
+  // which lock a fixture account for fifteen minutes. So this case presses
+  // nothing. It only requires that the cards are DRAWN before axe looks,
+  // because a screen whose cards rendered empty would have no violations
+  // either.
+  await context.addCookies([
+    {
+      name: 'td-session',
+      value: await aSignedInSession(`a11yaccount.${fixtureLabel(testInfo)}`),
+      url: `${baseURL ?? ''}/admin`,
+    },
+  ])
+  await page.goto('/admin/account')
+
+  // All four cards, and the shapes axe has rules for inside them: three
+  // labelled fields including a `<select>`, three switches whose only
+  // accessible name is an `aria-label`, two password inputs, and a session row
+  // whose mark is a coloured square with no text.
+  await expect(page.locator('[data-admin-account]')).toBeVisible()
+  await expect(page.locator('[data-account-field="timeZone"] select')).toBeVisible()
+  await expect(page.locator('[data-setting="notifyOnPublish"]')).toBeVisible()
+  await expect(page.locator('[data-setting="otpRequired"]')).toBeVisible()
+  await expect(page.locator('[data-account-field="current"] input')).toBeVisible()
+  await expect(page.locator('[data-session-row]').first()).toBeVisible()
+  await expect(page.locator('[data-sign-out-everywhere]')).toBeVisible()
+
+  await expectNoAxeViolations(page)
 })
 
 test('meets AA contrast on the sign-in cloth panel, which axe cannot judge', async ({ page, viewport }) => {
