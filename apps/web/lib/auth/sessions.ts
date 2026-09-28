@@ -335,15 +335,21 @@ export interface SessionService {
    * front of them signed in makes the count on the screen wrong.
    *
    * @param request - See {@link RevokeAllSessionsRequest}.
-   * @returns How many sessions were revoked. NOTHING READS IT TODAY, and that
-   *   is worth saying because this sentence used to promise "the confirmation
-   *   the screen shows": Phase 4 Task 14 built that screen, and the screen
-   *   cannot show one — pressing "Sign out everywhere" revokes the presser's
-   *   own session too (deliberately, see above), so the very next render is a
-   *   redirect to the sign-in page and there is nowhere for a count to be
-   *   drawn. The number is returned because a caller that did NOT revoke its
-   *   own session could use it, and because a revocation that reported nothing
-   *   could not be told from one that matched no rows.
+   * @returns How many sessions were revoked. THE COUNT IS FOR A CALLER THAT
+   *   OUTLIVES THE REVOCATION, which is the property rather than a census —
+   *   and this sentence has now been wrong in both directions, so it says which
+   *   caller that is. `revokeLighthouseSessions`
+   *   (`apps/web/scripts/mint-lighthouse-session.ts`) reads it and hands it to
+   *   `run-revoke-lighthouse-session.ts`, which prints
+   *   `revoked N collector session(s)` for whoever ran the performance gate;
+   *   that caller revokes somebody ELSE's sessions and is still running
+   *   afterwards. SCREENS.md §2.11's "Sign out everywhere" is the other kind:
+   *   it revokes the presser's own session too, so its next render is a
+   *   redirect to the sign-in screen and there is nowhere to draw a number —
+   *   `app/(admin)/admin/account/actions.ts` discards it for that reason. An
+   *   earlier version of this line promised "the confirmation the screen
+   *   shows" (there is none) and its correction claimed "nothing reads it
+   *   today" (the script does).
    */
   revokeAllSessions(request: RevokeAllSessionsRequest): Promise<{ revoked: number }>
 }
