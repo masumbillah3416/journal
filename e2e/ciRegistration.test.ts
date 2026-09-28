@@ -190,25 +190,97 @@ test('gives every browser spec an npm script a developer can run it with', () =>
 })
 
 /**
- * Every label a spec hands `aSignedInSession`, and every label its `afterAll`
- * removes.
+ * The `test.afterAll` block of one spec, as written.
+ *
+ * READ AS A BLOCK rather than searched for a phrase, because the property that
+ * matters is where the deletion RUNS: a `removeSignedInFixture` call sitting in
+ * a helper nobody invokes reads exactly like one in a cleanup that fires.
+ * @param source - The spec's whole source.
+ * @returns The block's text, or the empty string when the spec declares none.
+ */
+const cleanupBlockOf = (source: string): string => CLEANUP_BLOCK.exec(source)?.[0] ?? ''
+
+/** A `test.afterAll(async … })` block, from its opening to its own closer. */
+const CLEANUP_BLOCK = /test\.afterAll\(async[\s\S]*?\n\}\)/u
+
+/** A `for (const x of LIST) { … }` inside a cleanup, with its body. */
+const CLEANUP_LOOP = /for \(const (\w+) of (\w+)\) \{([\s\S]*?)\n {2,6}\}/u
+
+/** One label a spec mints. */
+const MINTED_LABEL = /aSignedInSession\(`([A-Za-z0-9-]+)\./gu
+
+/** One label a cleanup removes by name. */
+const REMOVED_LABEL = /removeSignedInFixture\(`([A-Za-z0-9-]+)\./gu
+
+/** One entry of a declared label list. */
+const LISTED_LABEL = /'([A-Za-z0-9-]+)'/gu
+
+/**
+ * The labels one named `readonly string[]` declares.
+ *
+ * ANCHORED TO THE DECLARATION the cleanup loop actually names, rather than to
+ * indentation. The pattern this replaces was `^ {2}'…',$`, which any unrelated
+ * two-space-indented string array in the file satisfied (review round 1, F1).
+ * @param source - The spec's whole source.
+ * @param name - The constant the loop iterates.
+ * @returns Its entries, or nothing when it declares no such constant.
+ */
+const declaredListIn = (source: string, name: string): readonly string[] => {
+  const declaration = `const ${name}: readonly string[] = [`
+  const opens = source.indexOf(declaration)
+  if (opens < 0) return []
+  // PAST THE DECLARATION'S OWN TEXT before looking for the closing bracket: the
+  // first `]` at or after `opens` is the one in `readonly string[]`, so a naive
+  // `indexOf(']', opens)` slices a window with no labels in it at all. That is
+  // how this function first came back empty against a list it had found.
+  const closes = source.indexOf(']', opens + declaration.length)
+  return [...source.slice(opens, closes).matchAll(LISTED_LABEL)].map((found) => found[1] ?? '')
+}
+
+/**
+ * Every label a spec hands `aSignedInSession`, and every label its cleanup
+ * actually spends.
  *
  * READ OFF THE SPEC'S OWN SOURCE, which is what makes this a check rather than
  * a second list: a case that mints a label nobody deletes leaves a real account
  * in the developer's own `diary` database, on every run, for ever. Measured
  * before this existed: 93 of them (`docs/deviations.md` §107).
+ *
+ * ═══ THE SECOND HALF READS THE DELETION, NOT THE DECLARATION ═══
+ *
+ * Review round 1 (F1) caught this file checking only that every minted label
+ * appeared in a declared LIST — which stayed green with the cleanup loop
+ * deleted and the list kept, reinstating the whole leak it was written to stop.
+ * Two changes. A list counts for nothing unless the loop that spends it is
+ * INSIDE the `afterAll` block and removes BY ITS OWN VARIABLE, so neither a
+ * deleted loop nor one that removes a single fixed label twelve times passes.
+ * And the list is extracted from that loop's own named declaration rather than
+ * from anything two-space indented — the old pattern would have been satisfied
+ * by any unrelated string array in the file.
  * @param spec - The spec file's name under `e2e/`.
- * @returns The labels minted, and the labels the cleanup names.
+ * @returns The labels minted, and the labels a live cleanup removes.
  */
 const fixtureLabelsOf = (spec: string): { readonly minted: readonly string[]; readonly removed: readonly string[] } => {
   const source = readFileSync(path.join(REPO_ROOT, 'e2e', spec), 'utf8')
-  const minted = [...source.matchAll(/aSignedInSession\(`([A-Za-z0-9-]+)\./gu)].map((found) => found[1] ?? '')
-  const removed = [
-    ...[...source.matchAll(/removeSignedInFixture\(`([A-Za-z0-9-]+)\./gu)].map((found) => found[1] ?? ''),
-    // A cleanup that loops over a declared list names its labels there instead.
-    ...[...source.matchAll(/^ {2}'([A-Za-z0-9-]+)',$/gmu)].map((found) => found[1] ?? ''),
-  ]
-  return { minted: [...new Set(minted)].sort(), removed: [...new Set(removed)].sort() }
+  const minted = [...source.matchAll(MINTED_LABEL)].map((found) => found[1] ?? '')
+  const cleanup = cleanupBlockOf(source)
+
+  // Named one at a time, in the cleanup itself.
+  const named = [...cleanup.matchAll(REMOVED_LABEL)].map((found) => found[1] ?? '')
+
+  // Or spent by a loop over a declared list, which counts only when the loop is
+  // in the cleanup AND removes by the variable it binds.
+  const loop = CLEANUP_LOOP.exec(cleanup)
+  const variable = loop?.[1] ?? ''
+  // SUBSTRINGS, NOT A BUILT REGULAR EXPRESSION. The needle is a template
+  // literal — backticks, `$` and braces — and every escape it would need in a
+  // `new RegExp(…)` string is one Prettier is entitled to normalise away, which
+  // it did: the first version of this line shipped an unescaped pattern that
+  // threw `Lone quantifier brackets` at run time.
+  const spendsTheList = variable !== '' && (loop?.[3] ?? '').includes('removeSignedInFixture(`${' + variable + '}')
+  const listed = spendsTheList ? declaredListIn(source, loop?.[2] ?? '') : []
+
+  return { minted: [...new Set(minted)].sort(), removed: [...new Set([...named, ...listed])].sort() }
 }
 
 test('deletes every fixture account e2e/a11y.spec.ts creates, so a run leaves no accounts behind', () => {
@@ -216,6 +288,10 @@ test('deletes every fixture account e2e/a11y.spec.ts creates, so a run leaves no
   // `diary_test`: `e2e/support/adminSession.ts` uses `getPayload()`. A label
   // minted and never removed is a row that accumulates on every run, and eleven
   // of this file's twelve labels were doing exactly that until Phase 4 Task 14.
+  //
+  // WHAT MAKES A LABEL "REMOVED" IS A CLEANUP THAT SPENDS IT, not a list that
+  // names it — see {@link fixtureLabelsOf}, and review round 1's F1 for the
+  // round where that difference was the whole defect.
   const { minted, removed } = fixtureLabelsOf('a11y.spec.ts')
 
   expect(
@@ -224,6 +300,6 @@ test('deletes every fixture account e2e/a11y.spec.ts creates, so a run leaves no
   ).toBeGreaterThan(1)
   expect(
     minted.filter((label) => !removed.includes(label)),
-    'these labels create an account that nothing deletes',
+    'these labels create an account that nothing deletes when the suite finishes',
   ).toEqual([])
 })
