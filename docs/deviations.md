@@ -4654,3 +4654,33 @@ refusal, set the flag — with Amendment 2 §4's end-to-end pass run and recorde
 
 **Recorded as:** this entry, `docs/adr/0004-media-pipeline-mode.md`'s Amendment 3, and the two
 cases in `apps/web/lib/env.test.ts` named above.
+
+## 110 · REVERSED — all three `admin-signed-in-*` baselines pictured a line the code no longer had
+
+**What was measured, in the container run that took Task 15's baselines.** The three committed
+`admin-signed-in-*-linux.png` files showed "Everything you change in here stays a draft until
+you publish it." `apps/web/components/admin/SignedInStep.tsx` has not rendered that sentence
+since Phase 4 Task 11 gave the screen a real count: it now says "Nothing is waiting to go out.",
+"1 change is still unpublished." or "{n} changes are still unpublished.", which
+`SignedInStep.test.tsx` pins to the literal. §38 records the replacement. The baselines were
+pictures of markup that no longer existed.
+
+**Why nobody had noticed, which is the part worth keeping.** Only `mobile` ever failed. The old
+sentence wraps to two lines at 390px and to one at 1000px and 1440px, so at `mid` and `desktop`
+the changed pixels came in UNDER `toHaveScreenshot`'s `maxDiffPixelRatio: 0.01` and the
+comparison run reported a pass over a stale image — for the whole of Tasks 11 to 14. This is the
+same failure mode `docs/deviations.md` §12 records for the `mobile` cover, and it is the reason
+Task 15's `admin-shell` baseline masks the screen's content instead of photographing a twelfth
+full page: a frame regression measured against a full-page denominator is a frame regression
+that passes.
+
+**What closed it.** All three were regenerated with `--update-snapshots=all` — the mode
+`npm run test:visual:container:update:all`'s compose service passes, and the one case its own
+comment names: a baseline whose diff is under the ratio and is nonetheless wrong. The run was
+scoped to that case by `-g`, so nothing else in the directory was rewritten.
+
+**What would reverse it:** nothing. It is fixed. The general risk it is an instance of — a real
+change hiding under the ratio on a tall full-page image — is not fixed, and is bounded only by
+somebody looking at the picture.
+
+**Recorded as:** this entry and the three regenerated files in `e2e/visual.spec.ts-snapshots/`.
