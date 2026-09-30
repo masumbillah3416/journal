@@ -1083,14 +1083,16 @@ export default defineConfig({
         // excluded here and re-gated by vitest.integration.config.ts.
         //
         // `placeholder.ts` is gated at the numbers it measures - 100 lines, 100
-        // functions, 87.5 branches - rather than a number rounded up to meet it.
-        // The missing branch is `parseHex`'s `if (!isSixDigitHex)` guard, whose
-        // `/* c8 ignore next -- … */` hint spans three comment lines, so "next"
-        // names the comment's own second line and not the statement beneath it.
-        // The hint therefore suppresses nothing and the branch is counted. That
-        // is a defect in the hint, not in the file, and it is left standing here
-        // rather than repaired inside a standards commit: repairing it raises
-        // this entry to 100/100/100 and is its own change with its own test.
+        // functions, 100 branches - rather than a number rounded up to meet it.
+        // IT SAT AT 87.5 BRANCHES FOR TWO PHASES, and the reason was a comment
+        // rather than a gap in the tests: `parseHex`'s `if (!isSixDigitHex)`
+        // guard carried a `/* c8 ignore next -- … */` hint whose reason WRAPPED,
+        // so "next" named the comment's own second line and not the statement
+        // beneath it, and the branch was counted. Phase 4 Task 15 Step 5 split
+        // the reason off onto its own comment above a one-line directive and
+        // re-measured: 100/100/100, which is what this entry now says. Both of
+        // this file's directives are one line each, and deleting either one of
+        // them puts this entry back at 87.5 - measured, not assumed.
         //
         // `run-seed.ts` carries a whole-file `c8 ignore start`/`stop` with its
         // reason (a CLI entry point whose body is top-level `await` ending in
@@ -1114,7 +1116,7 @@ export default defineConfig({
         // is its own decision.
         'apps/web/scripts/placeholder.ts': {
           lines: 100,
-          branches: 87.5,
+          branches: 100,
           functions: 100,
         },
         'apps/web/scripts/run-seed.ts': {

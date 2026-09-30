@@ -51,9 +51,16 @@ const escapeMarkup = (value: string): string =>
  */
 const parseHex = (hex: string): { r: number; g: number; b: number } | undefined => {
   const isSixDigitHex = /^#[0-9a-fA-F]{6}$/.test(hex)
-  /* c8 ignore next -- every real caller passes a valid `#rrggbb` accent, either
-   * a journey's own or one of packages/tokens' journeyAccents; this guards a
-   * malformed value defensively rather than throwing. */
+  /* WHY THE REASON IS NOT ON THE DIRECTIVE'S OWN LINES: `c8 ignore next`
+   * suppresses the line after the one the directive STARTS on, so a reason that
+   * wraps names the comment's own second line and the guard beneath it stays
+   * counted. This file's branch gate sat at 87.5 for two phases because of
+   * exactly that (Phase 4 Task 15 Step 5). Every real caller passes a valid
+   * `#rrggbb` accent — a journey's own, or one of packages/tokens'
+   * journeyAccents — so this guard exists to answer a malformed value
+   * defensively rather than to throw, and no test can reach it through a
+   * caller. */
+  /* c8 ignore next -- a malformed `#rrggbb` is unreachable from any real caller; see above. */
   if (!isSixDigitHex) return undefined
   const digits = hex.slice(1)
   return {
