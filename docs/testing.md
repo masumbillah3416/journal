@@ -13,11 +13,10 @@ tree cites `docs/testing.md` §1, §3, §4, §6, §7, §7.0, §7.1, §9, §10.2 
 headings stayed where they were and only the bodies moved. **§10's subsection numbers are
 the exception and are not frozen:** the documentation guards gained entries of their own in
 the same work, so the old §10.5 (how to run them) is §10.9 now, and §10.5 to §10.8 name
-four guards that did not exist before. TWO §10.x numbers are cited from outside this file —
-§10.2 by `apps/web/lib/docs/pathCitations.test.ts`'s header and §10.3 by
-`apps/web/lib/docs/configCitations.test.ts`'s — and neither has moved. (The claim here was
-"nothing cites a §10.x number except §10.3" until Phase 4 Task 15's review read the tree
-rather than the sentence.)
+four guards that did not exist before. The §10.x numbers cited from outside this file are
+§10.2 and §10.3, and neither has moved. Which numbers are cited is the fact a renumbering
+has to respect; how many places cite each is not, and a count of those places would be one
+more thing to keep true.
 
 ## Coverage gates
 
@@ -1052,20 +1051,31 @@ tree does not hold — a screenshot under `test-results/`, say — puts the file
 different corpus — four phases of documents, some of whose citations cannot resolve and
 should not.)
 
-**The date has a ceiling as well as an ordering**, which is the half the first version of
-this guard was missing. A filename pattern alone accepts `2026-13-45-…`, which sorts above
-every real report and would become "the newest" for ever — every genuine report written
-afterwards unchecked, the non-vacuity floor still met by that one file's backticks, and the
-guard green while guarding nothing. So a date must be a day the calendar has, and must not
-be more than one day past the runner's own; one day rather than zero because the author's
-zone and the runner's are up to 26 hours apart, and the day after tomorrow is not a real
-report date anywhere on earth. A report failing either test is named in a failure rather
-than skipped.
+**The date has a ceiling as well as an ordering.** A filename pattern alone accepts
+`2026-13-45-…`, which sorts above every real report and would become "the newest" for ever —
+every genuine report written afterwards unchecked, the non-vacuity floor still met by that
+one file's backticks, and the guard green while guarding nothing. So a date must be a day
+the calendar has, and must not be more than **two** days past the runner's own.
 
-It is proved able to fail rather than assumed to be: a report dated 2099 naming a module
-and a symbol that do not exist turns both resolution cases red and names the planted file;
-one with no backticked run in it turns the non-vacuity case red; and a selection that stops
-comparing dates turns the selection case red.
+Two rather than one, and the arithmetic is the reason rather than a hedge: a report is named
+by its author's calendar and checked on the runner's, the inhabited offsets run from UTC−12
+to UTC+14, and 26 hours is MORE than a day — 01:30 on the 3rd at UTC+14 is 23:30 on the 1st
+at UTC−12, two calendar dates apart. A one-day ceiling refuses a real report written on a
+real machine. Two is the whole of that spread and costs nothing, because what the ceiling is
+for is a typo — `2099-`, `2062-`, `2026-13-45` — and every one of those is months or years
+out, not days. The constant is pinned to that arithmetic by a case rather than to a literal,
+so setting it to one or three fails. A report failing either test is named in a failure
+rather than skipped.
+
+It is proved able to fail rather than assumed to be, and the proofs below were re-run after
+the ceiling was added rather than carried over from before it. A report dated **today**
+naming a module and a symbol that do not exist turns both resolution cases red and names the
+planted file (6 pass, 2 fail). The same file dated **2099** turns exactly one case red, and
+it is the impossible-date one (7 pass, 1 fail) — the ceiling refuses it before the citations
+are read, which is the whole point of the ceiling and is why the proof of the resolution
+cases has to use a date inside it. A report with no backticked run in it turns the
+non-vacuity case red; a selection that stops comparing dates turns the selection case red;
+and the ceiling constant set to one or three fails the case that derives it.
 
 ### 10.9 · How to run them
 

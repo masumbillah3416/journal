@@ -117,7 +117,7 @@ const READING_MODE_ROOT = '[data-mobile-page]'
  * ═══ WHICH SURFACE IS READ OFF THE RENDERER'S OWN MARKER, NOT OFF A COUNT ═══
  *
  * This chose between the two by asking whether the book's selector matched
- * exactly one element, which is a diagnosis defect (review round 1, finding 9):
+ * exactly one element, which is a diagnosis defect:
  * any regression in `[data-page="notes"]`, in `[data-hero]` or in the name
  * filter makes the book branch count zero, and the reading-mode branch would
  * then be silently substituted rather than the case failing where the defect
@@ -176,7 +176,7 @@ const fixture: { journey: number; notes: number; media: number } = { journey: 0,
  * simply stops having a journey on it. `workers` is 1 locally
  * (`playwright.config.ts`) and Playwright's default in CI, which is a function
  * of the runner's core count and is not something this file should be betting
- * on (review round 1, finding 10).
+ * on.
  * @param name - The journey name this run owns.
  */
 const removeFixtureRows = async (name: string): Promise<void> => {

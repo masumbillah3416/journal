@@ -39,11 +39,11 @@
  * or a fat-fingered `2062-` — sorts above every real report and becomes "the
  * newest" FOR EVER. Every genuine report written afterwards would go unchecked,
  * the non-vacuity floor would still be met by that one file's own backticks,
- * and this whole guard would report green while guarding nothing (review round
- * 1, finding 5). So a date must be a day the calendar has, and must not be more
- * than {@link DAYS_AHEAD_A_REPORT_MAY_BE_DATED} past the runner's own — and a
- * report whose date fails either test is REPORTED by name rather than quietly
- * skipped, because skipping it is the same silence one layer down.
+ * and this whole guard would report green while guarding nothing. So a date
+ * must be a day the calendar has, and must not be more than
+ * {@link DAYS_AHEAD_A_REPORT_MAY_BE_DATED} past the runner's own — and a report
+ * whose date fails either test is REPORTED by name rather than quietly skipped,
+ * because skipping it is the same silence one layer down.
  *
  * ═══ A DAY CAN HOLD MORE THAN ONE REPORT, AND ALL OF THEM ARE CHECKED ═══
  *
@@ -112,20 +112,24 @@ const isARealDay = (date: string): boolean => {
 /**
  * How far past the runner's own day a report may still be dated.
  *
- * ═══ WHY THIS IS NOT ZERO, AND WHY IT IS NOT A WIDENED MARGIN ═══
+ * ═══ WHY THIS IS NOT ZERO, AND WHY IT IS TWO RATHER THAN ONE ═══
  *
  * A report is named by its AUTHOR'S calendar and this check runs on the
- * RUNNER'S. Those are up to 26 hours apart — UTC−12 to UTC+14 — so a report
- * written on the morning of the 2nd in Auckland is still the 1st in CI, and a
- * ceiling of "not after today" would fail it for being honest. One day is the
- * whole of that span expressed in whole days; two days is not reachable
- * anywhere on earth, so a report dated the day after tomorrow is a typo.
+ * RUNNER'S. The inhabited offsets run from UTC−12 to UTC+14, which is 26 hours,
+ * and 26 hours is MORE THAN A DAY — so the two calendars can read two different
+ * dates apart, not one: 01:30 on the 3rd at UTC+14 is 23:30 on the 1st at
+ * UTC−12. A one-day ceiling therefore refuses a real report written on a real
+ * machine, which is a guard going red at an honest author.
+ *
+ * TWO IS THE WHOLE OF THAT SPREAD, and it costs nothing this constant exists to
+ * buy: what it is here to catch is a TYPO — `2099-`, `2062-`, `2026-13-45` —
+ * and every one of those is years or months out, not days.
  *
  * This is a semantic bound and not a race (standing orders §15): nothing here
- * is waiting for a clock to catch up, and widening it further would not make
- * anything rarer — it would admit more typos.
+ * is waiting for a clock to catch up. Widening it past the inhabited spread
+ * would make it admit typos; narrowing it below makes it refuse reports.
  */
-const DAYS_AHEAD_A_REPORT_MAY_BE_DATED = 1
+const DAYS_AHEAD_A_REPORT_MAY_BE_DATED = 2
 
 /**
  * The runner's own day, in its own zone.
@@ -232,6 +236,12 @@ const citationsOf = (
 /** One day, in milliseconds, for the ceiling cases below. */
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/** The westernmost inhabited UTC offset (Baker Island), in hours. */
+const EARLIEST_OFFSET_HOURS = -12
+
+/** The easternmost inhabited UTC offset (Line Islands), in hours. */
+const LATEST_OFFSET_HOURS = 14
+
 /**
  * The instant the pure cases below are asked about.
  *
@@ -257,7 +267,7 @@ describe('the newest report under docs/qa', () => {
     // ONE FLOOR PER PREDICATE, NOT ONE OVER THE UNION. A floor over the two
     // together is satisfied by either, so a newest report holding identifiers
     // and no path would leave the path case vacuously green with this case
-    // still passing (review round 1, finding 11). A sweep report that names no
+    // still passing. A sweep report that names no
     // file and one that names no symbol are each worth a second look, which is
     // what these two messages say.
     expect(
@@ -340,8 +350,8 @@ describe('the newest report under docs/qa', () => {
   })
 
   it('refuses a date the calendar has no such day for, so one typo cannot capture the corpus', () => {
-    // WITHOUT THIS, A TYPO RETIRES THE WHOLE GUARD SILENTLY (review round 1,
-    // finding 5): `2026-13-45` sorts above every real date, becomes "the
+    // WITHOUT THIS, A TYPO RETIRES THE WHOLE GUARD SILENTLY: `2026-13-45`
+    // sorts above every real date, becomes "the
     // newest" for ever, and every genuine report written afterwards goes
     // unchecked while the suite stays green.
     const withATypo = ['docs/qa/2026-13-45-typo-sweep.md', 'docs/qa/2026-02-30-also-typo-sweep.md', REAL]
@@ -353,27 +363,56 @@ describe('the newest report under docs/qa', () => {
     ])
   })
 
-  it('accepts a report dated up to one day ahead of the runner and refuses one dated further', () => {
+  it('accepts a report dated as far ahead as the inhabited time zones reach, and refuses one dated further', () => {
     // BOTH SIDES OF THE CEILING, and the boundary MOVES with `now` rather than
     // with a literal — a hard-coded date here would pass for a while and then
-    // start refusing every real report. DAYS_AHEAD_A_REPORT_MAY_BE_DATED is 1
-    // because the author's zone and the runner's are up to 26 hours apart; see
-    // that constant.
+    // start refusing every real report. The last accepted day is
+    // DAYS_AHEAD_A_REPORT_MAY_BE_DATED past the runner's; see that constant for
+    // why that number is the spread between UTC−12 and UTC+14 and not one day.
     const on = (date: string): string => `docs/qa/${date}-ahead-sweep.md`
-    const today = dayOf(A_MONDAY)
-    const tomorrow = dayOf(new Date(A_MONDAY.getTime() + DAY_MS))
-    const dayAfter = dayOf(new Date(A_MONDAY.getTime() + 2 * DAY_MS))
+    const dayFrom = (days: number): string => dayOf(new Date(A_MONDAY.getTime() + days * DAY_MS))
+    const lastAccepted = dayFrom(DAYS_AHEAD_A_REPORT_MAY_BE_DATED)
+    const firstRefused = dayFrom(DAYS_AHEAD_A_REPORT_MAY_BE_DATED + 1)
 
-    // The last accepted value, and the first refused one.
-    expect(newestOf([REAL, on(today)], A_MONDAY)).toEqual([on(today)])
-    expect(newestOf([REAL, on(tomorrow)], A_MONDAY)).toEqual([on(tomorrow)])
-    expect(newestOf([REAL, on(dayAfter)], A_MONDAY)).toEqual([REAL])
-    expect(datedReports([REAL, on(dayAfter)], A_MONDAY).impossible.map((entry) => entry.file)).toEqual([on(dayAfter)])
+    // Every day up to and including the ceiling.
+    for (let ahead = 0; ahead <= DAYS_AHEAD_A_REPORT_MAY_BE_DATED; ahead += 1) {
+      expect(newestOf([REAL, on(dayFrom(ahead))], A_MONDAY)).toEqual([on(dayFrom(ahead))])
+    }
+    expect(newestOf([REAL, on(lastAccepted)], A_MONDAY)).toEqual([on(lastAccepted)])
+
+    // And the first day past it, which is refused and named.
+    expect(newestOf([REAL, on(firstRefused)], A_MONDAY)).toEqual([REAL])
+    expect(datedReports([REAL, on(firstRefused)], A_MONDAY).impossible.map((entry) => entry.file)).toEqual([
+      on(firstRefused),
+    ])
 
     // And the same filename is accepted once the runner's own day has caught
     // up, which is what says the ceiling is read from `now` and not from a
     // constant hiding in the comparison.
-    expect(newestOf([REAL, on(dayAfter)], new Date(A_MONDAY.getTime() + DAY_MS))).toEqual([on(dayAfter)])
+    expect(newestOf([REAL, on(firstRefused)], new Date(A_MONDAY.getTime() + DAY_MS))).toEqual([on(firstRefused)])
+  })
+
+  it('sets that ceiling at the calendar span the inhabited offsets actually reach', () => {
+    // THE CASES ABOVE COMPUTE THEIR EXPECTATIONS FROM THE CONSTANT, so none of
+    // them can tell a right constant from a wrong one — the boundary moves with
+    // the value and the assertions move with it. This is the case that pins the
+    // value, and it does it by deriving it from the reason rather than by
+    // writing the number down a second time: set the constant to 1 or 3 and
+    // this fails, which is what standing order §2 asks of a gating constant.
+    //
+    // 26 hours is more than one day, so the two extremes read dates TWO apart:
+    // 01:30 on the 3rd at UTC+14 is 23:30 on the 1st at UTC−12. A one-day
+    // ceiling refuses a real report written on a real machine.
+    expect(DAYS_AHEAD_A_REPORT_MAY_BE_DATED).toBe(Math.ceil((LATEST_OFFSET_HOURS - EARLIEST_OFFSET_HOURS) / 24))
+
+    // And the arithmetic in that sentence, so the sentence cannot drift from it:
+    // one instant, read as a local date at each extreme, two days apart.
+    const instant = Date.UTC(2026, 5, 2, 11, 30)
+    const localDay = (offsetHours: number): string =>
+      new Date(instant + offsetHours * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+    expect(localDay(LATEST_OFFSET_HOURS)).toBe('2026-06-03')
+    expect(localDay(EARLIEST_OFFSET_HOURS)).toBe('2026-06-01')
   })
 
   it('holds no report this repository dated impossibly, which is the state the two cases above protect', () => {

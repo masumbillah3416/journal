@@ -9,10 +9,7 @@
  * enumeration of the same thing per guard, and this phase has now watched five separate
  * enumerations drift away from what they enumerate. It is written once, here,
  * and the guards import it — the second real use, which is when CLAUDE.md §4
- * lets an abstraction exist at all ("No abstraction for a single caller"). This
- * cited §3.3 until Phase 4 Task 15's review read the section it names: §3.3 is
- * "Design patterns — deliberate, named, documented", which is the citation on
- * the PATTERN line below and not this one.
+ * lets an abstraction exist at all ("No abstraction for a single caller").
  *
  * PATTERN (CLAUDE.md §3.3): none of the seven. Two file reads and a filter.
  * Naming a pattern for it would be cargo cult.
