@@ -3598,46 +3598,51 @@ save posts what is IN the card rather than what was rendered into it — the mut
 
 **Recorded as:** this entry and the two islands' own headers.
 
-## 86 · Neither of Task 10's screens has a visual baseline, and that is a debt
+## 86 · REVERSED — the admin screens had no visual baselines, and now all twelve do
 
-**What changed:** `e2e/visual.spec.ts` photographs `/admin`, `/admin/journeys` and the sign-in
-family. `/admin/book` and `/admin/cover` are not among them, so `SCREENS.md` §2.6's and §2.7's
-high-fidelity values — the 340px settings column, the 66px page cell, the 9px rotated square,
-the 26px arrows, the 44px swatches, the 172x224px preview with its `inset: 9px` rule, the 140px
-portrait and the Caveat 26px reply-to line — are pinned by declarations and by measured boxes
-rather than by a photograph.
+**Reversed by Phase 4 Task 15.** Thirty-three `-linux.png` files were generated in
+`mcr.microsoft.com/playwright:v1.62.1-noble` and committed: eleven screens plus the shell, at
+`desktop`, `mid` and `mobile`. `e2e/visualBaselines.test.ts` is what holds them there — it asks
+`SCREENS.md`'s own §2.x headings which screens exist, requires the exact triple for each, and
+separately requires a `toHaveScreenshot` call that would regenerate it, so a committed image
+cannot outlive the case that took it.
 
-**Rationale.** It is `docs/deviations.md` §81's, unchanged and now larger: baselines are
-generated in the pinned Playwright Linux container and committed as `-linux.png` only, this
-task was implemented on Windows, and a run on a developer's host writes a `-win32` baseline and
-then compares the host against itself for ever. **Eight** admin screens now owe a baseline.
-They are being taken together in Task 15 under the container, because adding them one at a time
-is how the others came to be missing without anybody counting.
+**What the entry used to say, and what was wrong with it.** It said **eight** admin screens
+owed a baseline. That was the count when it was written, of Task 10's two screens and the six
+then foreseen. Measured at Task 15: eleven screens owed a complete triple and ten had no
+`toHaveScreenshot` case at all — **thirty-three files**, not eight. The figure is corrected
+here rather than left for the next reader to re-derive.
+
+**The debt was real while it lasted.** `SCREENS.md` §2.6's and §2.7's high-fidelity values —
+the 340px settings column, the 66px page cell, the 9px rotated square, the 26px arrows, the
+44px swatches, the 172x224px preview with its `inset: 9px` rule, the 140px portrait and the
+Caveat 26px reply-to line — were pinned by declarations and by measured boxes rather than by a
+photograph. They are now pinned by both.
 
 **PHASE 4 TASK 12 ADDED `/admin` TO THE LIST, AND DELETED THREE COMMITTED BASELINES TO DO IT.**
-The three `admin-panel-*-linux.png` files photographed the holding screen §44
-records, which that task deleted; they are pictures of a screen that no longer exists, and
-leaving them would have failed the next container run against markup nothing renders. The case
-in `e2e/visual.spec.ts` is kept and repointed at the Overview, so the route is ready for Task 15's
-run and the debt is one line in this entry rather than a missing case nobody counted. The three
-files that run will commit are `admin-overview-desktop-linux.png`,
-`admin-overview-mid-linux.png` and `admin-overview-mobile-linux.png` — **named here in the
-spelling Playwright actually writes**, which is what makes `pathCitations.test.ts`'s exemption
-for them fail on the day each one lands. Cited by the bare stem the case hands
-`toHaveScreenshot`, the exemption could never fire: Playwright appends the project and the
-platform, so that spelling never becomes a file, and the guard telling Task 15 it had succeeded
-would have stayed green for ever. **No baseline was generated on the host**: a
-Windows run asks for `-win32.png`, writes one, and every run after that compares the host
-against itself while the committed files go unread — 31 such files were found untracked once.
+The three `admin-panel-*-linux.png` files photographed the holding screen §44 records, which
+that task deleted; they are pictures of a screen that no longer exists, and leaving them would
+have failed the next container run against markup nothing renders. The case in
+`e2e/visual.spec.ts` was kept and repointed at the Overview, and this entry named the three
+files that run would commit — `admin-overview-desktop-linux.png`, `admin-overview-mid-linux.png`
+and `admin-overview-mobile-linux.png` — **in the spelling Playwright actually writes**, so that
+`pathCitations.test.ts`'s exemption for them would fail on the day each one landed. It did:
+that list went red naming all three, and the three entries were deleted with them. Cited by the
+bare stem the case hands `toHaveScreenshot`, the exemption could never have fired, because
+Playwright appends the project and the platform and that spelling never becomes a file.
 
-**What IS pinned meanwhile**, so the gap is bounded rather than open: `e2e/admin.spec.ts`
-measures both screens' column shapes and their controls' boxes in a real engine;
-`e2e/a11y.spec.ts` runs the full axe ruleset on both; and every literal §2.6 and §2.7 name is
-asserted by a jsdom case or declared in `book.module.css`. What none of those can see is a
-colour, a weight or a spacing that is declared correctly and drawn wrongly.
+**No baseline was generated on the host, then or now**: a Windows run asks for `-win32.png`,
+writes one, and every run after that compares the host against itself while the committed files
+go unread — 31 such files were found untracked once.
 
-**Recorded as:** this entry, both routes' `c8 ignore` headers, `docs/api.md`'s two new route
-sections and Task 10's report.
+**What is NOT in the thirty-three, said plainly rather than left to be discovered.** Trash is
+photographed empty, because a trashed row prints a countdown that is a function of the current
+time; Publish is photographed with nothing waiting, because that is what `npm run db:seed`
+leaves and a fixture's name in a committed image is a fixture that can never change shape. Both
+are real states of real screens, and both are covered with rows by `e2e/a11y.spec.ts`.
+
+**Recorded as:** this entry, `e2e/visualBaselines.test.ts`, the thirty-three files in
+`e2e/visual.spec.ts-snapshots/`, and the screen cases `e2e/visual.spec.ts` gained for them.
 
 ## 87 · The Publish screen lists only what this data model can hold back, which is two kinds of thing and not six
 
@@ -4530,7 +4535,7 @@ markup already has the 132px circle to put it in.
 `apps/web/components/admin/account/ProfileCard.tsx`'s header, and the case `draws the account's
 initial where §2.11 asks for an avatar, and offers no Replace`.
 
-## 107 · Browser fixtures leave real accounts in the developer's database — owner: Task 15
+## 107 · REVERSED — browser fixtures left real accounts in the developer's database
 
 **What was measured.** Ninety-three rows in the developer's own `diary` database, all under
 `session.task-ten-fixture.example`, grouped by the label that created them:
@@ -4554,19 +4559,22 @@ mints, and `e2e/ciRegistration.test.ts`'s case `deletes every fixture account e2
 creates, so a run leaves no accounts behind` reads both lists off that spec's own source, so a
 case that mints a thirteenth label fails on the commit that adds it.
 
-**What is left, and why it is not fixed here.** `e2e/visual.spec.ts` has the same shape and
-three of the four largest offenders. That file SKIPS off Linux (`docs/deviations.md` §86), so
-its cleanup cannot be exercised on this machine at all — a fix written here would be a fix
-nothing could run, which is the species this phase keeps finding. It belongs with the visual
-baselines, which is Task 15's work.
+**What was left, and where it was closed.** `e2e/visual.spec.ts` had the same shape and three
+of the four largest offenders. That file SKIPS off Linux (§86), so its cleanup could not be
+exercised on this machine at all — a fix written there would have been a fix nothing could run,
+which is the species this phase keeps finding. **Task 15 closed it**, in the commit that
+produced the baselines, because that task is the one that runs the container: its cleanup now
+loops over `VISUAL_FIXTURE_LABELS`, fifteen entries, and the same registration case reads both
+lists off that spec's own source. The loop ran in the container run that took the thirty-three
+images.
 
 **Nothing is deleted retrospectively by this entry.** The ninety-three rows are a developer's
 local state, not a checked-in artefact, and a sweeping delete is exactly what
 `SESSION_FIXTURE_DOMAIN`'s own header records a flake for. `npm run db:seed` is what resets that
 database.
 
-**What would reverse it:** `e2e/visual.spec.ts` cleaning up every label it mints, with the same
-registration case extended to name it.
+**Reversed by:** `e2e/visual.spec.ts` cleaning up every label it mints, with the registration
+case extended to name it — both done in Phase 4 Task 15.
 
 **Recorded as:** this entry, `e2e/a11y.spec.ts`'s `A11Y_FIXTURE_LABELS`, and the
 `ciRegistration.test.ts` case named above.

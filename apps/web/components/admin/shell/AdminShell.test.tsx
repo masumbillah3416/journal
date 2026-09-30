@@ -144,6 +144,20 @@ describe('AdminShell', () => {
     expect(content?.closest('main')).not.toBeNull()
   })
 
+  it('names the box the screen is drawn in, so a picture of the shell can leave the screen out', () => {
+    // `e2e/visual.spec.ts`'s `admin-shell` case masks this box, which is what
+    // makes that baseline a picture of the FRAME rather than a second copy of
+    // whichever screen it was taken on. Without a name of its own the mask
+    // would have to be spelled as a position (`main > div`), and a baseline
+    // keyed on a position is one refactor away from photographing the header.
+    const host = renderShell(JOURNEYS)
+
+    const box = host.querySelector('[data-admin-content]')
+    expect(box).not.toBeNull()
+    expect(box?.querySelector('[data-screen-content]')).not.toBeNull()
+    expect(box?.querySelector('h1')).toBeNull()
+  })
+
   it('lights the rail button for the screen it was given, without being told the address twice', () => {
     const current = renderShell(JOURNEYS).querySelector('a[aria-current="page"]')
 

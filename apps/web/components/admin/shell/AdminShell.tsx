@@ -84,7 +84,13 @@ export const AdminShell = ({
           the header `null` for both rather than inventing a control. */}
       <ScreenHeader screen={screen} crumb={crumb} unpublished={counts.unpublished} savedAt={null} previewHref={null} />
 
-      <div className={styles.content}>{children}</div>
+      {/* NAMED SO A PICTURE OF THE SHELL CAN LEAVE THE SCREEN OUT.
+          `e2e/visual.spec.ts`'s `admin-shell` case masks this box, which is
+          what stops that baseline being a second copy of whichever screen it
+          was taken on — and stops any screen's content moving it. */}
+      <div data-admin-content className={styles.content}>
+        {children}
+      </div>
     </main>
   </div>
 )

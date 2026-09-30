@@ -91,6 +91,17 @@ describe('SessionsCard', () => {
     expect(first?.textContent).toContain('Reykjavik, Iceland · 3 Sep 2026')
   })
 
+  it('names the line that carries the date, so a screenshot can mask the one thing that moves daily', () => {
+    // `e2e/visual.spec.ts`'s `admin-account` case masks this line. The date is
+    // `lastSeenAt`, which the guard stamps on the request that draws this
+    // screen — so it is ALWAYS today, and a baseline carrying it would be red
+    // tomorrow. Masking the whole row instead would take §2.11's mark, device
+    // and Revoke out of the picture with it, which is most of the row.
+    const first = renderCard().querySelector('[data-session-row="412"]')
+
+    expect(first?.querySelector('[data-session-where]')?.textContent).toBe('Reykjavik, Iceland · 3 Sep 2026')
+  })
+
   it('gives every row a Revoke that posts that row’s own id', () => {
     const host = renderCard()
 

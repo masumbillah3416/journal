@@ -188,6 +188,19 @@ describe('NavRail', () => {
     expect(rail?.querySelector('nav')).not.toBeNull()
   })
 
+  it('names the line the address is printed on, so a screenshot can mask the one worker-dependent string in the frame', () => {
+    // The rail prints `scope.user.email` on every admin screen, and in the
+    // browser suite that address ends in `fixtureLabel`'s WORKER INDEX — which
+    // Playwright hands out differently from one run to the next. Committed
+    // baselines already carry one (`admin-journeys-mobile-linux.png` reads
+    // `visualjourneys.mobile.w32@…`); they survive only because a few glyphs
+    // fall under `maxDiffPixelRatio`. `e2e/visual.spec.ts` masks this line so
+    // the eleven screens and the shell do not rest on that margin.
+    const host = renderRail({ pathname: '/admin' })
+
+    expect(host.querySelector('[data-profile-name]')?.textContent).toBe('keeper@example.test')
+  })
+
   it('points the profile button at the Account screen', () => {
     // SCREENS.md §2's rail footer gives the profile block a target. Task 3
     // built it with none, deliberately — "a primary control pointing at an

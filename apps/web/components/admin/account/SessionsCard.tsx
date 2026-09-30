@@ -84,7 +84,13 @@ export const SessionsCard = ({ sessions, revokeOne, signOutEverywhere }: Session
             />
             <span className={styles.sessionText}>
               <span className={styles.sessionDevice}>{session.device}</span>
-              <span className={styles.sessionWhere}>{session.where}</span>
+              {/* NAMED SO A SCREENSHOT CAN MASK IT: this line ends in
+                  `lastSeenAt`, which the guard stamps on the very request that
+                  draws this screen, so it is always today's date and would put
+                  a daily expiry on `admin-account`'s baseline. */}
+              <span data-session-where className={styles.sessionWhere}>
+                {session.where}
+              </span>
             </span>
             {session.isCurrent ? (
               <span data-session-current className={styles.sessionCurrent}>

@@ -404,3 +404,32 @@ test('deletes every fixture account e2e/a11y.spec.ts creates, so a run leaves no
     'these labels create an account that nothing deletes when the suite finishes',
   ).toEqual([])
 })
+
+test('deletes every fixture account e2e/visual.spec.ts creates, so a run leaves no accounts behind', () => {
+  // THE OTHER HALF OF `docs/deviations.md` §107, and the larger half: three of
+  // the four biggest offenders that entry measured are this file's —
+  // `visualpanel` at twelve rows, `visualjourneys` at eleven, `visualcreate` at
+  // ten. §107 left it open on the argument that a fix nothing could run is the
+  // species this phase keeps finding: this suite skips off Linux, so its
+  // cleanup can only be exercised inside the pinned container. Task 15's
+  // baseline run is that exercise, which is why the fix lands with it.
+  //
+  // THE LIMITS ARE THE CASE ABOVE'S, unchanged: this reads source, so a label
+  // minted through a wrapper is invisible and a swallowed `removeSignedInFixture`
+  // counts as a deletion (`docs/deviations.md` §108). The first of those two is
+  // why `signedInAs` in that spec takes a session rather than a label.
+  const { minted, removed, readable } = fixtureLabelsOf('visual.spec.ts')
+
+  expect(
+    readable,
+    'THIS GUARD cannot read that spec’s label list — see labelsDeclaredIn. Nothing is claimed here about whether the spec leaks; the guard has to be taught the shape first',
+  ).toBe(true)
+  expect(
+    minted.length,
+    'no aSignedInSession labels found — the extraction, not the spec, is what broke',
+  ).toBeGreaterThan(1)
+  expect(
+    minted.filter((label) => !removed.includes(label)),
+    'these labels create an account that nothing deletes when the suite finishes',
+  ).toEqual([])
+})

@@ -212,7 +212,12 @@ export const NavRail = ({
             {accountName.slice(0, 1).toUpperCase()}
           </span>
           <span className={styles.navText}>
-            <span className={styles.profileName}>{accountName}</span>
+            {/* NAMED SO A SCREENSHOT CAN MASK IT: in the browser suite this
+                address ends in the worker index `fixtureLabel` builds, which
+                Playwright hands out differently from run to run. */}
+            <span data-profile-name className={styles.profileName}>
+              {accountName}
+            </span>
             <span className={styles.profileRole}>Your account</span>
           </span>
         </a>

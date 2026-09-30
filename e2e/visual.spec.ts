@@ -226,7 +226,7 @@
  * Depends on: @playwright/test, the running app from playwright.config.ts's
  * `webServer`, and the seeded diary (`npm run db:seed`).
  */
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 import { aSignedInSession, fixtureLabel, removeSignedInFixture, SESSION_FIXTURE_DOMAIN } from './support/adminSession'
 import { drawsMobileReadingMode } from './support/surface'
 
@@ -316,11 +316,53 @@ test.beforeAll(async ({}, testInfo) => {
   await aSignedInSession(`visual.${fixtureLabel(testInfo)}`)
 })
 
+/**
+ * Every label this file hands `aSignedInSession`, so the cleanup below can
+ * remove each account it creates.
+ *
+ * A LIST RATHER THAN A SWEEPING PREDICATE, for `e2e/a11y.spec.ts`'s reason:
+ * `removeSignedInFixture` matches by SUBSTRING, so no pattern means "every
+ * `visual*` account of THIS worker" without also meaning "every `visual*`
+ * account of every worker" — and that is the sweeping delete
+ * `SESSION_FIXTURE_DOMAIN` records a flake for.
+ *
+ * THIS IS THE OTHER HALF OF `docs/deviations.md` §107. That entry closed
+ * `e2e/a11y.spec.ts`'s leak and left this file's open, with three of the four
+ * largest offenders in it, because the fix could not be exercised on a Windows
+ * host — this suite skips off Linux. It is exercised in the container run that
+ * produced the baselines below. A case that mints a label missing from this
+ * list leaks its account, which `e2e/ciRegistration.test.ts` checks rather
+ * than leaving to a reader.
+ */
+const VISUAL_FIXTURE_LABELS: readonly string[] = [
+  'visual',
+  'visualaccount',
+  'visualbook',
+  'visualcover',
+  'visualcreate',
+  'visualeditor',
+  'visualgalleries',
+  'visualjourneys',
+  'visualmedia',
+  'visualpanel',
+  'visualpublish',
+  'visualrungs',
+  'visualsettings',
+  'visualshell',
+  'visualtrash',
+]
+
 test.afterAll(async ({}, testInfo) => {
-  // This project's own account, never the whole domain: the three viewports
+  // This project's own accounts, never the whole domain: the three viewports
   // run in parallel and a sweeping delete takes another one's session away
   // mid-run (see `SESSION_FIXTURE_DOMAIN`).
-  await removeSignedInFixture(`visual.${fixtureLabel(testInfo)}@${SESSION_FIXTURE_DOMAIN}`)
+  //
+  // ONE ENTRY PER LABEL THIS FILE MINTS. Until this task there was exactly
+  // one — `visual.` — while five labels were being created; §107 measured 33
+  // accounts left behind by three of them.
+  for (const label of VISUAL_FIXTURE_LABELS) {
+    await removeSignedInFixture(`${label}.${fixtureLabel(testInfo)}@${SESSION_FIXTURE_DOMAIN}`)
+  }
 })
 
 /**
@@ -594,7 +636,14 @@ test('matches the baseline screenshot of the Overview', async ({ page, context, 
   await expect(page.locator('[data-admin-overview]')).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
 
-  await expect(page).toHaveScreenshot('admin-overview.png', { fullPage: true })
+  // The rail's address is masked for the reason the ten cases below give: it
+  // ends in `fixtureLabel`'s worker index, which Playwright hands out
+  // differently from one run to the next. This screen's three images are being
+  // taken for the first time here, so they are taken without it.
+  await expect(page).toHaveScreenshot('admin-overview.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
 })
 
 test('matches the baseline screenshot of the journeys screen', async ({ page, context, baseURL }, testInfo) => {
@@ -679,4 +728,367 @@ test('matches the baseline screenshot of the sign-in screen', async ({ page }) =
   await page.evaluate(() => document.fonts.ready)
 
   await expect(page).toHaveScreenshot('admin-sign-in.png', { fullPage: true })
+})
+
+// ══ SCREENS.md §2's ELEVEN SCREENS, AND THE SHELL AROUND THEM ══════════════
+//
+// Phase 4's first exit criterion is "every screen matches SCREENS.md", and
+// what makes that checkable rather than asserted is a photograph of each at
+// each of `playwright.config.ts`'s three projects.
+// `e2e/visualBaselines.test.ts` is what counts them; these are the cases it
+// counts.
+//
+// EVERY ONE OF THEM READS AND NONE OF THEM WRITES. These run against the
+// developer's own `diary` database, not `diary_test`, for the reason
+// `e2e/support/adminSession.ts` gives — so a case that pressed Publish, sorted
+// a gallery or trashed a journey would change what every later run of this
+// file photographs. The only rows any of them creates are their own fixture
+// accounts, which `VISUAL_FIXTURE_LABELS` deletes.
+//
+// WHICH MEANS THE SEED IS PART OF THE BASELINE. `npm run db:seed` is the state
+// these were taken in, and a screen whose content is a function of the data —
+// Publish's waiting list, Trash's rows — photographs what that seed leaves,
+// which is an empty one for both. That is stated rather than hidden: a picture
+// of an empty state is a real picture of a real state, and it is the state a
+// reader reproduces by seeding.
+
+/**
+ * Carries a minted session into the browser, which is what every guarded
+ * screen needs before it draws anything.
+ *
+ * IT TAKES THE SESSION, NOT THE LABEL, AND THAT IS NOT A STYLE CHOICE. The
+ * first version took the label and called `aSignedInSession` itself — which is
+ * exactly the WRAPPER `e2e/ciRegistration.test.ts` names as the hole in its
+ * own leak check (`docs/deviations.md` §108): its `MINTED_LABEL` reads a
+ * literal off the call site, so ten labels minted inside a helper would have
+ * been invisible to it and could have leaked an account each, silently.
+ * Minting at the call site keeps every label where that guard can read it.
+ * @param context - The case's browser context.
+ * @param baseURL - Playwright's own, for the cookie's URL.
+ * @param session - What `aSignedInSession` returned at the call site.
+ * @example
+ * await signedInAs(context, baseURL, await aSignedInSession(`visualmedia.${fixtureLabel(testInfo)}`))
+ */
+const signedInAs = async (context: BrowserContext, baseURL: string | undefined, session: string): Promise<void> => {
+  await context.addCookies([{ name: 'td-session', value: session, url: `${baseURL ?? ''}/admin` }])
+}
+
+/**
+ * Waits for an admin screen to be typed and decoded before it is photographed.
+ *
+ * NOT `settled`, WHICH IS THE DIARY'S. There is no scaled design box on this
+ * surface and nothing measures a viewport, so the two things that can still be
+ * mid-flight when `networkidle` fires are the self-hosted faces
+ * (`font-display: swap` paints a fallback first) and any photograph that has
+ * been fetched and not yet decoded — a repaint during the capture, which reads
+ * as a flaky case rather than as drift.
+ *
+ * ═══ IT WAITS ON `currentSrc`, NOT ON `src`, AND THAT IS THE WHOLE FIX ═══
+ *
+ * `settled`'s spelling — decode every image whose `src` is non-empty — HUNG
+ * this surface, measured rather than reasoned: four cases timed out at thirty
+ * seconds inside `image.decode()`, the Media library at all three projects and
+ * the journey editor at `mid`. Both screens draw lazily-loaded tiles, and a
+ * lazy image the viewport has not reached has an `src` attribute and has never
+ * been fetched: `decode()` on it neither resolves nor rejects, so awaiting it
+ * is awaiting the scroll position. `currentSrc` is empty until the browser has
+ * actually SELECTED a source, which is the moment a load begins — so it is the
+ * difference between "this element names a picture" and "this element is
+ * fetching one", and only the second can be waited for.
+ *
+ * An image that is mid-flight is waited out through its own `load`; one that
+ * fails is waited out through its `error` and left to draw its alt text, which
+ * is a real state of the screen and not something this helper should hide.
+ * @param page - The page, already navigated and asserted on.
+ * @example
+ * await adminSettled(page)
+ */
+const adminSettled = async (page: Page): Promise<void> => {
+  await page.evaluate(() => document.fonts.ready)
+  await page.evaluate(async () => {
+    const started = [...document.images].filter((image) => image.currentSrc !== '')
+    await Promise.all(
+      started.map(async (image) => {
+        if (!image.complete) {
+          await new Promise((settle) => {
+            image.addEventListener('load', settle, { once: true })
+            image.addEventListener('error', settle, { once: true })
+          })
+        }
+        await image.decode().catch(() => undefined)
+      }),
+    )
+  })
+}
+
+test('matches the baseline screenshot of the shell itself, with the screen masked out', async ({
+  page,
+  context,
+  baseURL,
+}, testInfo) => {
+  // ═══ THE ONE SUBJECT IN THIS SET THAT IS NOT A ROUTE ═══
+  //
+  // SCREENS.md §2's preamble specifies the shell before §2.1 begins — the
+  // 238px rail with its masthead, nine buttons and footer, and the 96px header
+  // over the content — and the phase's exit line counts it ("eleven screens
+  // plus the shell"). It has no address of its own, so it is photographed on
+  // `/admin` with `[data-admin-content]` MASKED: the frame at full fidelity,
+  // the Overview's own content painted flat.
+  //
+  // WHY THE MASK IS THE POINT AND NOT A CONVENIENCE. The eleven screen
+  // baselines each contain this frame already, so an unmasked shot here would
+  // be a second copy of `admin-overview` and would guard nothing new. What
+  // none of the eleven gives is a baseline that CANNOT MOVE FOR A CONTENT
+  // REASON: each of them is regenerated whenever its own screen changes, and a
+  // shell change riding along inside that regeneration is invisible. Masked,
+  // this file moves when the frame moves and at no other time.
+  //
+  // AND THE VIEWPORT, NOT `fullPage`. A full-page shot's HEIGHT is the
+  // screen's, not the shell's, so the one baseline meant to be independent of
+  // the content would be sized by it.
+  //
+  // THE THREE PROJECTS ARE THE THREE WIDTH MODES `adminWidthMode` names —
+  // 1440 wide, 1000 mid, 390 narrow — so this one case photographs all three
+  // forms SCREENS.md §2 gives the frame: the rail as a 238px column beside the
+  // header at wide and at mid, with §2's tightened padding below 1180, and at
+  // 390 the band above it, which is the one width where the rail stops being a
+  // column at all.
+  await signedInAs(context, baseURL, await aSignedInSession(`visualshell.${fixtureLabel(testInfo)}`))
+  await page.goto('/admin', { waitUntil: 'networkidle' })
+  // The frame's own parts, asserted rather than left to the picture: a masked
+  // shot of a screen that failed to draw its rail is still a picture.
+  await expect(page.locator('[data-admin-content]')).toBeVisible()
+  await expect(page.locator('[data-profile]')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Overview')
+  await adminSettled(page)
+
+  await expect(page).toHaveScreenshot('admin-shell.png', {
+    mask: [page.locator('[data-admin-content]'), page.locator('[data-profile-name]')],
+  })
+})
+
+test('matches the baseline screenshot of the journey editor', async ({ page, context, baseURL }, testInfo) => {
+  // SCREENS.md §2.3, the largest screen in the handoff, reached the way an
+  // author reaches it: through the Edit link on a journeys row, which is also
+  // what proves that link resolves to a route rather than to Next's own
+  // not-found page (`e2e/a11y.spec.ts` walks it the same way).
+  //
+  // ITS THREE COLUMNS ARE THE PICTURE. §2.3 gives it `184 | 1fr | 250` above
+  // 1180, `168 | 1fr` with the pool spanning both above 860, and a single
+  // column below — so this is the one screen in the set where the three
+  // projects photograph three different column counts rather than three widths
+  // of one.
+  await signedInAs(context, baseURL, await aSignedInSession(`visualeditor.${fixtureLabel(testInfo)}`))
+  await page.goto('/admin/journeys', { waitUntil: 'networkidle' })
+  await page.locator('[data-journey-id]').first().locator('[data-cell="actions"] a').first().click()
+  await expect(page.locator('[data-journey-editor]')).toBeVisible()
+  // All three columns, and the tool row only a selected card reveals: a
+  // baseline of two of the three is still a baseline.
+  await expect(page.locator('[data-page-tools]')).toBeVisible()
+  await expect(page.locator('[data-layout-picker]')).toBeVisible()
+  await expect(page.locator('[data-journey-pool]')).toBeVisible()
+  await adminSettled(page)
+
+  await expect(page).toHaveScreenshot('admin-journey-editor.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
+})
+
+test('matches the baseline screenshot of the Media library', async ({ page, context, baseURL }, testInfo) => {
+  // SCREENS.md §2.4 — the tile grid, its chips and its dropzone.
+  //
+  // THE VIEWPORT, NOT `fullPage`, AND THAT IS THE GRID'S DOING. `MediaGrid` is
+  // virtualized (`readMediaScreen.ts`'s header says why the read is not
+  // paginated and what bounds the DOM instead), so the tiles that exist are
+  // the tiles in view. A full-page shot asks for a document taller than the
+  // window the virtualizer is filling, and what it photographed would be a
+  // function of how far ahead that window had run — a race, not a screen.
+  await signedInAs(context, baseURL, await aSignedInSession(`visualmedia.${fixtureLabel(testInfo)}`))
+  await page.goto('/admin/media', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-admin-media]')).toBeVisible()
+  await expect(page.locator('[data-media-tile]').first()).toBeVisible()
+  await adminSettled(page)
+
+  await expect(page).toHaveScreenshot('admin-media.png', { mask: [page.locator('[data-profile-name]')] })
+})
+
+test('matches the baseline screenshot of the Galleries screen', async ({ page, context, baseURL }, testInfo) => {
+  // SCREENS.md §2.5 — the frame grid with its grips on the left and the
+  // selected frame's caption panel beside it.
+  //
+  // IT READS AND DOES NOT WRITE. Every control that rearranges a gallery — the
+  // grips' arrow keys, "Sort by date", a drag — persists to the developer's own
+  // `diary` database, so this case presses none of them, and the panel it
+  // photographs is the one the screen selects for itself.
+  await signedInAs(context, baseURL, await aSignedInSession(`visualgalleries.${fixtureLabel(testInfo)}`))
+  await page.goto('/admin/galleries', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-admin-galleries]')).toBeVisible()
+  await expect(page.locator('[data-frame-grid]')).toBeVisible()
+  await expect(page.locator('[data-frame-id]').first()).toBeVisible()
+  await expect(page.locator('[data-selected-frame]')).toBeVisible()
+  await adminSettled(page)
+
+  await expect(page).toHaveScreenshot('admin-galleries.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
+})
+
+test('matches the baseline screenshot of the Book screen', async ({ page, context, baseURL }, testInfo) => {
+  // SCREENS.md §2.6 — the bookmark order on the left and the book's own
+  // settings beside it: four cloth swatches, two range inputs and three
+  // checkboxes, which are shapes no number in a component test can say look
+  // right.
+  //
+  // IT READS AND DOES NOT WRITE: every arrow on this screen reorders the live
+  // book, so none is pressed.
+  await signedInAs(context, baseURL, await aSignedInSession(`visualbook.${fixtureLabel(testInfo)}`))
+  await page.goto('/admin/book', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-admin-book]')).toBeVisible()
+  await expect(page.locator('[data-bookmark-order]')).toBeVisible()
+  await expect(page.locator('[data-bookmark-kind="journey"]').first()).toBeVisible()
+  await expect(page.locator('[data-book-settings]')).toBeVisible()
+  await expect(page.locator('[data-flip-slider]')).toBeVisible()
+  await adminSettled(page)
+
+  await expect(page).toHaveScreenshot('admin-book.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
+})
+
+test('matches the baseline screenshot of the Cover screen', async ({ page, context, baseURL }, testInfo) => {
+  // SCREENS.md §2.7 — the live cover preview over its cloth gradient, and the
+  // About form beside it. The preview is the one place on this surface where a
+  // title's FIT is a picture rather than a number, and its five lines are the
+  // ones `docs/deviations.md` §12 records a contrast failure on.
+  //
+  // IT READS AND DOES NOT WRITE: neither save button is pressed and the
+  // portrait select is left at its "keep the current portrait" default.
+  await signedInAs(context, baseURL, await aSignedInSession(`visualcover.${fixtureLabel(testInfo)}`))
+  await page.goto('/admin/cover', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-admin-cover]')).toBeVisible()
+  await expect(page.locator('[data-cover-preview]')).toBeVisible()
+  await expect(page.locator('[data-about-card]')).toBeVisible()
+  await expect(page.locator('[data-portrait-choices]')).toBeVisible()
+  await adminSettled(page)
+
+  await expect(page).toHaveScreenshot('admin-cover.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
+})
+
+test('matches the baseline screenshot of the Publish screen', async ({ page, context, baseURL }, testInfo) => {
+  // SCREENS.md §2.8 — the headline, the changes card and the editions list.
+  //
+  // WHAT IT PHOTOGRAPHS IS WHAT THE SEED LEAVES, WHICH IS NOTHING WAITING, and
+  // that is a decision rather than an omission. `e2e/a11y.spec.ts`'s case
+  // creates a journey, edits it and deletes it again to put a row in front of
+  // axe; a baseline taken that way would carry a fixture's name and its dates
+  // into a committed image and would move the day that fixture's shape
+  // changed. The empty state is a real state of a real screen — it is what an
+  // author sees the moment after publishing — and it is the one a reader
+  // reproduces with `npm run db:seed`.
+  //
+  // IT PRESSES NOTHING. A publish cannot be undone.
+  await signedInAs(context, baseURL, await aSignedInSession(`visualpublish.${fixtureLabel(testInfo)}`))
+  await page.goto('/admin/publish', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-admin-publish]')).toBeVisible()
+  await expect(page.locator('[data-publish-headline]')).toBeVisible()
+  await expect(page.locator('[data-publish-editions]')).toBeVisible()
+  await adminSettled(page)
+
+  await expect(page).toHaveScreenshot('admin-publish.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
+})
+
+test('matches the baseline screenshot of the Settings screen', async ({ page, context, baseURL }, testInfo) => {
+  // SCREENS.md §2.9 — all three cards, and the five switches inside them,
+  // which are 34x19px tracks with a 14px knob at one of two offsets: a
+  // difference of fourteen pixels a component test can only assert as a class
+  // name.
+  //
+  // IT READS AND DOES NOT WRITE. Every toggle here writes a site-wide setting
+  // and two of them change what the public diary serves, so none is pressed.
+  await signedInAs(context, baseURL, await aSignedInSession(`visualsettings.${fixtureLabel(testInfo)}`))
+  await page.goto('/admin/settings', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-admin-settings]')).toBeVisible()
+  await expect(page.locator('[data-settings-site]')).toBeVisible()
+  await expect(page.locator('[data-settings-material]')).toBeVisible()
+  await expect(page.locator('[data-settings-readers]')).toBeVisible()
+  await adminSettled(page)
+
+  await expect(page).toHaveScreenshot('admin-settings.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
+})
+
+test('matches the baseline screenshot of the Trash screen', async ({ page, context, baseURL }, testInfo) => {
+  // SCREENS.md §2.10, EMPTY, WHICH IS THE ONLY STATE OF IT THAT CAN BE
+  // BASELINED. A trashed row prints `trashCountdown`'s "{n} days left", which
+  // is a function of the current time: a fixture created to fill this screen
+  // would put a number in a committed image that is wrong by the next day, and
+  // one backdated to fix that number would be a row this suite then had to
+  // delete out of the developer's own database. The empty state is what the
+  // seed leaves and what an author sees on twenty-nine days out of thirty.
+  //
+  // WHAT THAT COSTS IS STATED RATHER THAN HIDDEN: the row's 46px image, its
+  // two ringed buttons and its countdown are NOT in this baseline. They are
+  // covered by `e2e/a11y.spec.ts`'s trash case, which does create a row, and
+  // by the screen's own component tests.
+  await signedInAs(context, baseURL, await aSignedInSession(`visualtrash.${fixtureLabel(testInfo)}`))
+  await page.goto('/admin/trash', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-admin-trash]')).toBeVisible()
+  await adminSettled(page)
+
+  await expect(page).toHaveScreenshot('admin-trash.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
+})
+
+test('matches the baseline screenshot of the Account screen', async ({ page, context, baseURL }, testInfo) => {
+  // SCREENS.md §2.11 — all four cards: who you are, tell me when, the password
+  // form and the session list.
+  //
+  // TWO THINGS ARE MASKED, AND BOTH WERE FOUND BY LOOKING AT THE PICTURE
+  // RATHER THAN BY READING THE SCREEN. A session row ends in the date it was
+  // last seen, and `authenticate` stamps that on the very request that draws
+  // this screen — so it is always TODAY, and a baseline carrying it would be
+  // red tomorrow morning for no reason anybody changed. `data-session-where`
+  // exists so the mask can be that line rather than the row: masking the row
+  // would take §2.11's mark, its device line and its Revoke out of the picture
+  // with it, which is most of what the row is.
+  //
+  // And "Sign-in email" prints the fixture account's own address, which ends in
+  // `fixtureLabel`'s worker index — the same string the rail's masked line
+  // carries, arriving a second time through a card that spells it in full
+  // rather than truncating it. The one thing on this screen that IS a clock,
+  // the time-zone option's example date, is not masked and does not need to
+  // be: `TIME_ZONE_SAMPLE` is a fixed `Date.UTC(2026, 8, 28, 22, 5)`.
+  //
+  // IT READS AND DOES NOT WRITE. Every control here writes the account's own
+  // row, and a wrong current password spends one of five login attempts before
+  // the fixture locks for fifteen minutes.
+  await signedInAs(context, baseURL, await aSignedInSession(`visualaccount.${fixtureLabel(testInfo)}`))
+  await page.goto('/admin/account', { waitUntil: 'networkidle' })
+  await expect(page.locator('[data-admin-account]')).toBeVisible()
+  await expect(page.locator('[data-account-field="timeZone"] select')).toBeVisible()
+  await expect(page.locator('[data-account-field="current"] input')).toBeVisible()
+  await expect(page.locator('[data-session-row]').first()).toBeVisible()
+  await adminSettled(page)
+
+  await expect(page).toHaveScreenshot('admin-account.png', {
+    fullPage: true,
+    mask: [
+      page.locator('[data-session-where]'),
+      page.locator('[data-profile-name]'),
+      page.locator('[data-account-field="email"]'),
+    ],
+  })
 })
