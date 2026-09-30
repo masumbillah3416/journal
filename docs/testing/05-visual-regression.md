@@ -121,10 +121,14 @@ numbers are `docs/testing.md`'s and do not change.
     does not need to be: `TIME_ZONE_SAMPLE` is a fixed instant.
   - **`admin-shell`** masks the whole content box — that is what makes it a picture of the
     frame rather than a second copy of `admin-overview` — and the rail's counts, the
-    header's crumb and the "Last published" line, so no change to the diary's data moves it.
-    A mask cannot hold a place for an element that is absent, so two lines that appear and
-    disappear with the data still move it: the rail's site-name eyebrow and the header's
-    "n unpublished" chip. Both are named in the case.
+    header's crumb and the "Last published" line, so **no change to the diary's data changes
+    what this picture says**. That is not the same as immunity to the data, and the
+    difference is the one worth carrying away: **a mask covers an element's content, never
+    its existence.** Three lines in this frame are drawn conditionally, and each of them
+    arriving or leaving moves the baseline whatever is masked — the rail's site-name eyebrow
+    (only when Settings holds a name), the header's "n unpublished" chip (only above zero),
+    and the rail's "Last published" line itself (only when the diary has a published
+    edition). All three are named in the case.
 
   Masking is for a string that is a function of the worker, the clock or the seed — never
   for a region that is merely inconvenient. A mask is a region this suite has stopped

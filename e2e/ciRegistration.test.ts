@@ -177,6 +177,65 @@ test('runs every Lighthouse configuration from npm run test:perf', () => {
   ).toEqual([])
 })
 
+/**
+ * The specs one `docker compose` service's command names.
+ *
+ * READ OUT OF THE SERVICE'S OWN BLOCK, not out of the file, because
+ * `docker-compose.yml` names specs in three services and in prose about them.
+ * The block runs to the next top-level service key.
+ * @param service - The service name, as the file spells it.
+ * @returns The spec paths that service's command runs, sorted.
+ * @example
+ * composeSpecs('e2e') // ['e2e/about.spec.ts', …]
+ */
+const composeSpecs = (service: string): readonly string[] => {
+  const compose = readFileSync(path.join(REPO_ROOT, 'docker-compose.yml'), 'utf8')
+  const at = compose.indexOf(`\n  ${service}:`)
+  if (at < 0) return []
+
+  const rest = compose.slice(at + 1)
+  const next = /\n {2}[a-z][a-z-]*:/u.exec(rest)
+  const block = next === null ? rest : rest.slice(0, next.index)
+
+  return [...new Set([...block.matchAll(/e2e\/[A-Za-z]+\.spec\.ts/gu)].map((found) => found[0]))].sort()
+}
+
+test('runs the same browser specs in the container as npm run test:e2e does', () => {
+  // THE CONTAINER IS HOW THE FULL SUITE IS ACTUALLY RUN — it is the only path
+  // with Playwright's default worker count, which is the difference between
+  // roughly four minutes and roughly four hours — and the service's own
+  // comment promises it names the same specs as the script. It did not:
+  // `e2e/upload.spec.ts`, `e2e/admin.spec.ts` and `e2e/focalPoint.spec.ts`
+  // were added to the script and to `ci.yml` and never here, so "run the whole
+  // suite in the container" excluded the admin panel and Phase 4's second exit
+  // criterion while a comment said it could not.
+  //
+  // THE TWO GUARDS ABOVE COULD NOT SEE IT. One holds the spec DIRECTORY to
+  // `ci.yml`, the other holds it to the npm scripts; neither reads
+  // `docker-compose.yml`, and a list can be complete in both and missing three
+  // entries here. This is the third edge of that triangle.
+  const script = rootScripts()['test:e2e'] ?? ''
+  const named = [...new Set([...script.matchAll(/e2e\/[A-Za-z]+\.spec\.ts/gu)].map((found) => found[0]))].sort()
+  expect(named.length, 'no specs were read out of npm run test:e2e, so this comparison checks nothing').toBeGreaterThan(
+    1,
+  )
+
+  const inContainer = composeSpecs('e2e')
+  expect(
+    inContainer.length,
+    'no specs were read out of docker-compose.yml’s e2e service, so this comparison checks nothing',
+  ).toBeGreaterThan(1)
+
+  expect(
+    named.filter((spec) => !inContainer.includes(spec)),
+    'npm run test:e2e runs these specs and docker-compose.yml’s e2e service does not, so the container run is not the suite it says it is',
+  ).toEqual([])
+  expect(
+    inContainer.filter((spec) => !named.includes(spec)),
+    'docker-compose.yml’s e2e service runs these specs and npm run test:e2e does not, so the two measure different things',
+  ).toEqual([])
+})
+
 test('gives every browser spec an npm script a developer can run it with', () => {
   const scripts = rootScripts()
   const runners = RUNNER_SCRIPTS.map((name) => scripts[name] ?? '')

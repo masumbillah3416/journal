@@ -3649,11 +3649,13 @@ and the fourth is the one a reader consulting this record would otherwise never 
   what rules it out; the parallel fixtures are.)
 - **Publish is photographed with nothing waiting**, which is what `npm run db:seed` leaves. A
   fixture would carry its own name and dates into a committed image.
-- **`admin-media` at `mobile` holds the grid and not the dropzone.** It is a viewport shot, the
-  rail band takes most of 844px, and only one of the two fits. The case scrolls the grid into
-  frame and asserts `toBeInViewport`, because the first version of it asserted `toBeVisible` —
-  which an element below the fold satisfies — and committed a picture of the screen without its
-  subject in it.
+- **`admin-media` at `mobile` holds no rail band, and holds the dropzone only in part.** It is a
+  viewport shot of a screen whose rail band alone takes most of 844px, so the case scrolls the
+  grid into frame — which moves the band off the top entirely. What the committed picture holds,
+  read off the file rather than predicted: the dropzone's "Add to" select and its BROWSE button,
+  the search field, the chip row, and two tiles. The scroll and the `toBeInViewport` assertion
+  replace a `toBeVisible` that an element below the fold satisfies, which had committed a
+  picture of the screen with none of its subject in it.
 - **Every one of these baselines MASKS the rail's account address**, which ends in the worker
   index Playwright assigns; `admin-account` masks two regions more (the address again, printed
   in full by §2.11's card, and the session row's date, which is stamped by the request that
@@ -3670,12 +3672,21 @@ Both of the first two are real states of real screens, and both are covered with
 **no screen's content can move it** — which is the gap the other eleven leave, since each of them
 is regenerated when its own screen changes and a frame change rides along unseen. It is not
 immune to the diary's data in general: a mask covers an element's content, never its existence,
-and two lines in the frame appear and disappear with the data — the rail's site-name eyebrow,
-drawn only when Settings holds a name, and `ScreenHeader`'s "n unpublished" chip, drawn only
-above zero. Either arriving moves this baseline. The first revision of this entry and of the
-case's own comment claimed it "moves when the frame moves and at no other time"; that was false
-of the picture it was written above, which printed the rail's nine counts, the crumb and the
-publish stamp outside the mask.
+and **three** lines in the frame are rendered conditionally, so each of them arriving or leaving
+moves this baseline —
+
+- the rail's site-name eyebrow, drawn only when Settings holds a name;
+- `ScreenHeader`'s "n unpublished" chip, drawn only above zero;
+- the rail's "Last published" line, drawn only when `lastPublished !== null`, which on `/admin`
+  is `view.book.publishedAt` — `editions[0]?.at ?? null`, so a diary with nothing published
+  draws no line at all and the rail footer shrinks.
+
+The third is the line this baseline masks, and masking is exactly why it still belongs on the
+list: a mask makes an element's CONTENT stop mattering and says nothing about whether it is
+drawn. Two earlier revisions of this claim were wrong in the same direction — the first said the
+picture "moves when the frame moves and at no other time" while printing the counts, the crumb
+and the publish stamp outside the mask; the second named two of these three conditionals while
+looking straight at the mask for the third.
 
 **Recorded as:** this entry, `e2e/visualBaselines.test.ts`, the thirty-three files in
 `e2e/visual.spec.ts-snapshots/`, and the screen cases `e2e/visual.spec.ts` gained for them.
@@ -4738,3 +4749,50 @@ change hiding under the ratio on a tall full-page image — is not fixed, and is
 somebody looking at the picture.
 
 **Recorded as:** this entry and the three regenerated files in `e2e/visual.spec.ts-snapshots/`.
+
+## 111 · The empty-Trash baseline depends on a row another spec creates, and only CI runs the two together
+
+**What was measured.** `admin-trash-{desktop,mid,mobile}-linux.png` photograph SCREENS.md §2.10's
+EMPTY state: the rail reads "Trash 0" and the card draws "Nothing thrown away". Three facts put
+that at risk, and all three are in the tree rather than inferred:
+
+- `.github/workflows/ci.yml`'s `browser` job runs `e2e/a11y.spec.ts` **and** `e2e/visual.spec.ts`
+  in one `npx playwright test` invocation.
+- `e2e/a11y.spec.ts`'s trash case creates a journey with `deletedAt` stamped, holds it across a
+  page load and a full axe run, and deletes it in a `finally`.
+- `playwright.config.ts` sets `fullyParallel: true` and leaves the worker count at Playwright's
+  default when `CI` is set, and both specs read the one `diary` database.
+
+So in CI a live trashed row can exist while any of the three shots is taken, and the diff against
+an empty-state baseline would be far over `maxDiffPixelRatio`.
+
+**Why it has not been seen.** The local `visual` compose service runs `e2e/layout.spec.ts` and
+`e2e/visual.spec.ts` only, so a11y is never alongside it on a developer's machine — no container
+run on this machine can reproduce it, and none has. CI's `retries: 1` would absorb an occasional
+collision without anyone reading it.
+
+**Why it is not fixed here, said plainly.** Nothing available to the visual case closes it. A mask
+cannot hold the place of a row that is not there, so the masking that makes `admin-account` and
+`admin-shell` deterministic does not transfer: a concurrent row changes the card's HEIGHT, which
+is geometry and is what a mask preserves. Waiting for an empty list only narrows the window that
+is then photographed. Giving the case its own trash fixture is worse, not better — the three
+viewport projects run in parallel and each worker mints its own, so the list would hold one, two
+or three rows depending on timing (that argument is `e2e/visual.spec.ts`'s Trash case in full).
+
+**What was done instead.** The case now ASSERTS the empty state before it photographs it. That
+does not remove the race; it changes what a collision looks like from an unexplained pixel diff
+on a screenshot — the shape a reader blames on the baseline — into a run that says the trash was
+not empty. The failure names its cause.
+
+**`retries: 1` IS NOT THE FIX AND MUST NOT BE TREATED AS ONE.** A retry would make this collision
+disappear from the record permanently while leaving the coupling in place, which is strictly
+worse than a red that says what happened.
+
+**What would reverse it:** the two specs not sharing a database, or `e2e/a11y.spec.ts`'s trash
+fixture not being visible to a concurrent read — a per-worker scope on the admin reads would do
+it, and nothing in `DATA_MODEL.md` offers one today. Failing that, splitting `visual.spec.ts` out
+of that `run:` step the way `e2e/bookGate.spec.ts` is already split out, and for the same reason:
+a spec that mutates shared state cannot share an invocation with one that photographs it.
+
+**Recorded as:** this entry, the assertion and comment in `e2e/visual.spec.ts`'s Trash case, and
+§86's note on what the Trash baseline holds.

@@ -163,15 +163,25 @@ services:
   # rather than a longer timeout.
   #
   # It runs the SAME spec list `npm run test:e2e` names, so the two cannot drift into
-  # measuring different things; `e2e/ciRegistration.test.ts` is what holds that list to
-  # CI's own.
+  # measuring different things — and that sentence was false for three specs until Phase 4
+  # Task 15 was reviewed. `e2e/upload.spec.ts`, `e2e/admin.spec.ts` and
+  # `e2e/focalPoint.spec.ts` were added to the script and to `ci.yml` and never to this
+  # list, so "run the whole suite in the container" quietly excluded the admin panel and
+  # the focal-point seam, which is Phase 4's second exit criterion. The list is corrected
+  # here rather than the claim, because the claim is what the service is FOR.
+  #
+  # `e2e/ciRegistration.test.ts` now holds this list to the script's, in the case
+  # `runs the same browser specs in the container as npm run test:e2e does`. There were two
+  # guards over that script already — one against `ci.yml` and one against the spec
+  # directory — and neither could see this file, which is how three specs went missing from
+  # a list whose comment said they could not.
   e2e:
     <<: *visual
     command:
       [
         'sh',
         '-c',
-        'npm ci --no-audit --no-fund && npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/signIn.spec.ts e2e/codeStep.spec.ts e2e/reset.spec.ts e2e/signInJourney.spec.ts',
+        'npm ci --no-audit --no-fund && npx playwright test e2e/smoke.spec.ts e2e/book.spec.ts e2e/flip.spec.ts e2e/layout.spec.ts e2e/chrome.spec.ts e2e/pages.spec.ts e2e/notes.spec.ts e2e/frames.spec.ts e2e/about.spec.ts e2e/imageWindow.spec.ts e2e/serverWindow.spec.ts e2e/routing.spec.ts e2e/gallery.spec.ts e2e/mobile.spec.ts e2e/signIn.spec.ts e2e/codeStep.spec.ts e2e/reset.spec.ts e2e/signInJourney.spec.ts e2e/upload.spec.ts e2e/admin.spec.ts e2e/focalPoint.spec.ts',
       ]
 
 volumes:

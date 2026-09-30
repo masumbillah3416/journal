@@ -258,7 +258,7 @@ const unattributableDeclarationsIn = (source: string): readonly string[] =>
  * these baselines from resting on `maxDiffPixelRatio` swallowing a few glyphs
  * — the margin `docs/deviations.md` §110 records a stale baseline surviving on.
  */
-const REQUIRED_MASK = 'data-profile-name'
+const REQUIRED_MASK = '[data-profile-name]'
 
 /**
  * The text of the `toHaveScreenshot(…)` call naming a baseline, or `null`.
@@ -267,11 +267,18 @@ const REQUIRED_MASK = 'data-profile-name'
  * a pattern, because the options object holds nested calls — `page.locator(…)`
  * — and a non-greedy match stops at the first of them.
  *
- * ITS ONE BLIND SPOT FAILS CLOSED. A parenthesis inside a string literal in
+ * ITS OWN BLIND SPOT FAILS CLOSED — and that is a claim about THIS function,
+ * not about the check built on it. A parenthesis inside a string literal in
  * the call (a selector like `:not(x)`) miscounts the depth, and both ways of
  * being wrong end in a refusal: the scan either closes early, returning a
  * slice too short to hold the mask, or runs off the end and returns `null`.
- * Neither can invent a mask that is not there.
+ *
+ * WHAT IT CANNOT DO IS SAY WHETHER A SELECTOR IN THAT TEXT MATCHES ANYTHING,
+ * and a substring test over the text alone therefore FAILS OPEN: a mask
+ * written `[data-profile-nameXYZ]` names no element, paints nothing, and
+ * satisfies a search for `data-profile-name`. That was measured on this file,
+ * not imagined. {@link dataAttributesDrawn} is what closes it, by asking the
+ * components whether each selector names an attribute they actually draw.
  * @param source - A spec file's text, comments included.
  * @param baseline - The baseline stem whose call to find.
  * @returns The call from `(` to its matching `)`, or `null`.
@@ -295,6 +302,43 @@ const screenshotCallFor = (source: string, baseline: string): string | null => {
   }
   return null
 }
+
+/** Where the admin's markup lives, and therefore where a mask's selector has to resolve. */
+const COMPONENTS_DIR = 'apps/web/components'
+
+/** Every `.tsx` under a directory, recursively. */
+const tsxFilesUnder = (directory: string): readonly string[] =>
+  readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(directory, entry.name)
+    if (entry.isDirectory()) return tsxFilesUnder(full)
+    return entry.name.endsWith('.tsx') && !entry.name.endsWith('.test.tsx') ? [full] : []
+  })
+
+/**
+ * Every `data-*` attribute this repository's components actually draw.
+ *
+ * WHY A MASK NEEDS THIS AND A SUBSTRING TEST IS NOT ENOUGH. A `mask` whose
+ * locator matches nothing is accepted by Playwright in silence — it paints
+ * nothing and the baseline carries the string the mask was supposed to hide.
+ * So the question "is the mask there" has to be asked of the MARKUP and not
+ * only of the spec's own text, or the guard vouches for a selector nobody
+ * could have typed correctly. Test files are excluded: a `data-*` that exists
+ * only in a fixture's own JSX is not an attribute the app draws.
+ * @returns The attribute names, without brackets.
+ * @example
+ * dataAttributesDrawn().has('data-profile-name') // true
+ */
+const dataAttributesDrawn = (): ReadonlySet<string> => {
+  const drawn = new Set<string>()
+  for (const file of tsxFilesUnder(path.join(REPO_ROOT, COMPONENTS_DIR))) {
+    for (const found of readFileSync(file, 'utf8').matchAll(/\bdata-[a-z][a-z-]*/gu)) drawn.add(found[0])
+  }
+  return drawn
+}
+
+/** Every `[data-…]` attribute selector a call's text names. */
+const dataSelectorsIn = (call: string): readonly string[] =>
+  [...call.matchAll(/\[(data-[a-z][a-z-]*)[\]=]/gu)].map((found) => found[1] ?? '')
 
 /** The spec this guard reads, as text. */
 const visualSpecSource = (): string => readFileSync(path.join(REPO_ROOT, VISUAL_SPEC), 'utf8')
@@ -526,7 +570,31 @@ describe('the admin screens’ visual baselines', () => {
 
     expect(
       unmasked,
-      `these baselines’ toHaveScreenshot calls do not mask [${REQUIRED_MASK}], so they carry the fixture account’s worker index and pass only while the diff stays under maxDiffPixelRatio`,
+      `these baselines’ toHaveScreenshot calls do not mask ${REQUIRED_MASK}, so they carry the fixture account’s worker index and pass only while the diff stays under maxDiffPixelRatio`,
+    ).toEqual([])
+
+    // AND THE SELECTOR HAS TO NAME SOMETHING, which the line above cannot ask.
+    // A `mask` whose locator matches nothing is accepted by Playwright in
+    // silence, so `[data-profile-nameXYZ]` would satisfy a text search and
+    // paint nothing — measured on this file, `8 passed`, before this half
+    // existed. Every `data-*` selector in every one of these calls is put to
+    // the components, not only the required one: a typo in the Account mask
+    // costs exactly as much as a typo in this one.
+    const drawn = dataAttributesDrawn()
+    expect(
+      drawn.size,
+      'no data-* attributes were read out of the components, so the check below is vacuous',
+    ).toBeGreaterThan(10)
+
+    const unresolved = asked.flatMap((baseline) =>
+      dataSelectorsIn(screenshotCallFor(source, baseline) ?? '')
+        .filter((selector) => !drawn.has(selector))
+        .map((selector) => `${baseline}: [${selector}]`),
+    )
+
+    expect(
+      unresolved,
+      `these mask selectors name no data-* attribute ${COMPONENTS_DIR} draws, so the mask matches nothing and the baseline carries what it was meant to hide`,
     ).toEqual([])
   })
 

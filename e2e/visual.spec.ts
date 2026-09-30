@@ -9,9 +9,15 @@
  * SCREENS.md §2's eleven admin screens plus the shell around them. The admin
  * half is introduced by its own banner comment further down, which is where
  * the arguments about it live; `e2e/visualBaselines.test.ts` is what counts
- * the set and fails when a screen is added without one. NO COUNT IS WRITTEN
- * HERE ON PURPOSE: every previous revision of this paragraph carried one, and
- * each was true for exactly one task.
+ * the set and fails when a screen is added without one.
+ *
+ * THE TWO COUNTS ABOVE ARE THE SPECIFICATION'S, NOT THIS FILE'S, and that is
+ * the only kind that belongs in a header. "Six" is `SCREENS.md` §1.1-§1.6 and
+ * "eleven" is its §2.1-§2.11; `visualBaselines.test.ts` reads those §2.x
+ * headings off the document itself, so a twelfth screen fails a case rather
+ * than quietly outdating this sentence. What this paragraph no longer carries
+ * is a count of what this FILE happens to photograph — every previous revision
+ * had one, and each was true for exactly one task.
  *
  * A VIEW THAT IS NOT A PAGE OF THE BOOK: Task 13's page-not-found
  * view (`app/(diary)/not-found.tsx`), which an address naming no page now
@@ -885,14 +891,24 @@ test('matches the baseline screenshot of the shell itself, with the screen maske
   // exists not to be. So they are masked, and what this picture SAYS is then
   // `ADMIN_NAV`'s own labels, the stylesheet and the boxes.
   //
-  // WHAT A MASK CANNOT REACH IS EXISTENCE, which is why the claim is still
-  // bounded rather than absolute. A mask paints an element that is there; it
-  // cannot hold a place for one that is not. Two lines in this frame appear and
-  // disappear with the data — the rail's site-name eyebrow, drawn only when
-  // Settings holds a name, and `ScreenHeader`'s "n unpublished" chip, drawn
-  // only above zero — and either arriving would move this baseline for a
-  // reason no frame change caused. Neither is maskable; both are named here so
-  // the next reader meets them in the comment rather than in a diff.
+  // WHAT A MASK CANNOT REACH IS EXISTENCE, which is why the claim is bounded
+  // rather than absolute. A mask paints an element that is there; it cannot
+  // hold a place for one that is not. THREE lines in this frame are rendered
+  // conditionally, and each of them arriving or leaving moves this baseline
+  // for a reason no frame change caused:
+  //
+  //   - the rail's site-name eyebrow, `NavRail.tsx`, drawn only when Settings
+  //     holds a name;
+  //   - `ScreenHeader`'s "n unpublished" chip, drawn only above zero;
+  //   - the rail's "Last published" line, `NavRail.tsx`, drawn only when
+  //     `lastPublished !== null` — which on `/admin` is `view.book.publishedAt`,
+  //     `editions[0]?.at ?? null`, so a diary with nothing published draws no
+  //     line, the footer shrinks and "Sign out" moves up.
+  //
+  // THE THIRD IS THE ONE THIS CASE MASKS, and it is on the list anyway: a mask
+  // makes its CONTENT stop mattering and does nothing about whether the
+  // element is drawn at all. An earlier count of two here looked straight at
+  // that mask and still missed the conditional eleven lines above it.
   //
   // THE AVATAR'S LETTER IS NOT MASKED AND DOES NOT NEED TO BE. It is
   // `accountName.slice(0, 1)`, and this case's account is always
@@ -1124,9 +1140,31 @@ test('matches the baseline screenshot of the Trash screen', async ({ page, conte
   // two ringed buttons and its line are NOT in this baseline. They are covered
   // by `e2e/a11y.spec.ts`'s trash case, which does create a row, and by the
   // screen's own component tests.
+  //
+  // ═══ AND THAT SPEC IS WHY THE EMPTY STATE IS ASSERTED, NOT ASSUMED ═══
+  //
+  // The argument above is about THIS file's fixtures; it does not stop at
+  // them. `.github/workflows/ci.yml`'s `browser` job runs `e2e/a11y.spec.ts`
+  // and this file in ONE `npx playwright test` invocation, that spec's trash
+  // case holds a live trashed row across a page load and a full axe run, and
+  // both share the one `diary` database. So in CI a row can exist while this
+  // shot is taken, and this baseline is the empty state.
+  //
+  // NOTHING HERE CAN PREVENT THAT — a mask cannot hold the place of a row that
+  // is not there, and waiting for an empty list only narrows the window it
+  // then photographs. What this assertion buys is a failure that NAMES the
+  // cause: without it the collision arrives as an unexplained pixel diff on a
+  // screenshot, which is the shape a reader blames on the baseline. With it
+  // the run says the trash was not empty. `docs/deviations.md` §111 records
+  // the coupling, and records that CI's `retries: 1` must not be read as the
+  // fix: a retry would hide this permanently rather than close it.
   await signedInAs(context, baseURL, await aSignedInSession(`visualtrash.${fixtureLabel(testInfo)}`))
   await page.goto('/admin/trash', { waitUntil: 'networkidle' })
   await expect(page.locator('[data-admin-trash]')).toBeVisible()
+  await expect(
+    page.locator('[data-trash-row]'),
+    'a trashed row exists while the empty-state baseline is being taken — see this case’s comment and docs/deviations.md §111',
+  ).toHaveCount(0)
   await adminSettled(page)
 
   await expect(page).toHaveScreenshot('admin-trash.png', {
