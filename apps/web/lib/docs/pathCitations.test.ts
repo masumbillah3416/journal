@@ -21,6 +21,12 @@
  *
  * ═══ WHAT COUNTS AS A CITATION ═══
  *
+ * THE RULES THEMSELVES NOW LIVE IN `apps/web/lib/docs/citations.ts`, because
+ * `newestSweep.test.ts` (Phase 4 Task 15 Step 4) asks the same two questions of
+ * the newest `docs/qa/` report — see the hole named below, which that file
+ * closes. What follows describes them; the module is where they are written,
+ * once, so a report's citations cannot be checked by rules these are not.
+ *
  * **A path** is a backticked run of `/`-separated segments whose last segment
  * carries a source extension. Never a leading `/` — that is a route, and routes
  * are `docs/api.md`'s subject, not this file's. Never a bare suffix (`-linux.png`,
@@ -59,6 +65,11 @@
  * a write-time check over the NEWEST report alone. It does not exist.
  * `docs/testing.md` §10.2 carries the reasoning.
  *
+ * THE HOLE IS CLOSED AS OF PHASE 4 TASK 15 STEP 4, in exactly the shape the
+ * paragraph above prescribes: `apps/web/lib/docs/newestSweep.test.ts` resolves
+ * the newest report's citations, with these rules, and this corpus is still
+ * the living documentation alone. The record stays a record.
+ *
  * ═══ THE TWO EXEMPTION LISTS ═══
  *
  * {@link PATHS_THAT_NAME_NO_FILE} and {@link IDENTIFIERS_THAT_NAME_NOTHING_HERE}
@@ -80,45 +91,21 @@
  * PATTERNS (CLAUDE.md §3.3): none of the seven. Two extractions and two set
  * comparisons.
  *
- * Depends on: vitest, node:fs, ./markdownCorpus.
+ * Depends on: vitest, node:fs, node:url, ./citations, ./markdownCorpus.
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { REPOSITORY_ROOT, livingDocuments, repositoryFiles } from './markdownCorpus'
-
-/** Extensions that make a backticked run a citation of a file rather than prose. */
-const SOURCE_EXTENSION = '(?:ts|tsx|js|mjs|cjs|json|md|css|yml|yaml|sql|sh|html|png|ico|woff2)'
-
-/** A backticked run shaped like a repository-relative path to a file. */
-const FILE_PATH = new RegExp(
-  `^(?!/)(?:\\.\\.?/)*[\\w@.()\\[\\]-]+(?:/[\\w@.()\\[\\]{}+-]+)*\\.${SOURCE_EXTENSION}$`,
-  'u',
-)
-
-/** A bare suffix (`-linux.png`, `.module.css`): a naming convention, not a path. */
-const SUFFIX_CONVENTION = /^[.-][^/]*$/u
-
-/** A content-hashed build output (`1g8qu58aprhre.css`), which no source tree holds. */
-const BUILD_OUTPUT = /^[a-z0-9][a-z0-9_-]{8,}\.(?:js|css)$/u
-
-/** A token shaped like an identifier rather than an English word. */
-const IDENTIFIER = /^[A-Za-z_$][\w$]{3,}$/u
-
-/** Which files hold this repository's own source, for resolving identifiers. */
-const SOURCE_FILE = /\.(?:ts|tsx|js|mjs|cjs|json|css|yml|yaml)$/u
-
-/** Directories whose contents are not this repository's own authored source. */
-const NOT_OUR_SOURCE = [
-  'node_modules',
-  '.next',
-  'coverage',
-  'dist',
-  'test-results',
-  'lhci-reports',
-  'playwright-report',
-]
+import {
+  backtickedRuns,
+  isIdentifierCitation,
+  isPathCitation,
+  listedFiles,
+  resolvesToAFile,
+  sourceCorpus as wholeSourceCorpus,
+} from './citations'
+import { REPOSITORY_ROOT, livingDocuments } from './markdownCorpus'
 
 /** A floor on the path citations found, so an extractor that stopped matching fails here. */
 const AT_LEAST_THIS_MANY_PATH_CITATIONS = 800
@@ -292,48 +279,9 @@ const IDENTIFIERS_THAT_NAME_NOTHING_HERE: readonly { readonly citation: string; 
   },
 ]
 
-/** Every backticked run in a document, with the line it sits on. */
-const backtickedRuns = (text: string): readonly { readonly run: string; readonly line: number }[] =>
-  text.split('\n').flatMap((line, index) =>
-    [...line.matchAll(/`([^`\n]+)`/gu)].map((match) => ({
-      run: (match[1] ?? '').trim(),
-      line: index + 1,
-    })),
-  )
-
 /** The living documentation, read once, as `[path, text]`. */
 const documents = (): readonly (readonly [string, string])[] =>
   livingDocuments().map((file) => [file, readFileSync(path.join(REPOSITORY_ROOT, file), 'utf8')] as const)
-
-/** Whether a backticked run is a citation of a file rather than prose or a route. */
-const isPathCitation = (run: string): boolean =>
-  FILE_PATH.test(run) &&
-  !/[*]|\.\.\./u.test(run) &&
-  !SUFFIX_CONVENTION.test(run) &&
-  !BUILD_OUTPUT.test(run) &&
-  !run.startsWith('node_modules/') &&
-  !run.startsWith('@')
-
-/** Whether a backticked run is shaped like an identifier rather than an English word. */
-const isIdentifierCitation = (run: string): boolean =>
-  IDENTIFIER.test(run) && (run.includes('_') || (/[a-z]/u.test(run) && /[A-Z]/u.test(run)))
-
-/**
- * Whether git lists a file this citation could name.
- *
- * The `.js` rewrite is what an ESM specifier needs: `./payload.js` is how
- * TypeScript wants `payload.ts` imported, and a document quoting an import line
- * is quoting it correctly.
- * @param citation - The backticked path.
- * @param files - Every path git lists.
- * @param basenames - Every basename git lists.
- * @returns Whether it resolves.
- */
-const resolvesToAFile = (citation: string, files: ReadonlySet<string>, basenames: ReadonlySet<string>): boolean => {
-  const cleaned = citation.replace(/^(?:\.\.?\/)+/u, '')
-  const spellings = [cleaned, cleaned.replace(/\.js$/u, '.ts'), cleaned.replace(/\.js$/u, '.tsx')]
-  return spellings.some((spelling) => files.has(spelling) || basenames.has(spelling.split('/').pop() ?? ''))
-}
 
 /**
  * This repository's own source, concatenated, for resolving identifiers.
@@ -349,26 +297,11 @@ const resolvesToAFile = (citation: string, files: ReadonlySet<string>, basenames
  * that assertion pass by accident either.
  * @returns Every source file's text, joined.
  */
-const sourceCorpus = (): string =>
-  repositoryFiles()
-    .filter((file) => path.join(REPOSITORY_ROOT, file) !== fileURLToPath(import.meta.url))
-    .filter((file) => SOURCE_FILE.test(file) && !file.split('/').some((segment) => NOT_OUR_SOURCE.includes(segment)))
-    .map((file) => {
-      try {
-        return readFileSync(path.join(REPOSITORY_ROOT, file), 'utf8')
-      } catch {
-        // A file git lists and this process cannot read is a nested repository
-        // or a race, not a citation problem; it must not silently shrink the
-        // corpus, so it becomes a marker the assertions below can see.
-        return ` UNREADABLE:${file} `
-      }
-    })
-    .join('\n')
+const sourceCorpus = (): string => wholeSourceCorpus([fileURLToPath(import.meta.url)])
 
 describe('the paths and identifiers the living documentation quotes', () => {
   it('name files that exist in this repository', () => {
-    const files = new Set(repositoryFiles())
-    const basenames = new Set([...files].map((file) => file.split('/').pop() ?? ''))
+    const { files, basenames } = listedFiles()
     const excused = new Set(PATHS_THAT_NAME_NO_FILE.map((entry) => entry.citation))
 
     const citations = documents().flatMap(([file, text]) =>
@@ -422,8 +355,7 @@ describe('the paths and identifiers the living documentation quotes', () => {
     const prose = documents()
       .map(([, text]) => text)
       .join('\n')
-    const files = new Set(repositoryFiles())
-    const basenames = new Set([...files].map((file) => file.split('/').pop() ?? ''))
+    const { files, basenames } = listedFiles()
     const corpus = sourceCorpus()
 
     const stalePaths = PATHS_THAT_NAME_NO_FILE.filter((entry) => !prose.includes(entry.citation)).map((e) => e.citation)
@@ -455,8 +387,7 @@ describe('the paths and identifiers the living documentation quotes', () => {
     // Without this, a resolver that accidentally matched everything - an empty
     // needle, a basename set holding '' - would report every citation resolvable
     // and prove nothing.
-    const files = new Set(repositoryFiles())
-    const basenames = new Set([...files].map((file) => file.split('/').pop() ?? ''))
+    const { files, basenames } = listedFiles()
 
     expect(resolvesToAFile(A_PATH_THAT_RESOLVES_NOWHERE, files, basenames)).toBe(false)
     expect(resolvesToAFile('apps/web/lib/auth/sessions.ts', files, basenames)).toBe(true)

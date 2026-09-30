@@ -824,10 +824,11 @@ second record. Both are worse than the gap.
 
 **What would close it honestly: a write-time check over the NEWEST report only** — the
 one the author is looking at, whose citations are claims about the tree as it is now,
-rather than over the archive behind it. Nothing like that exists today, and Task 13
-deliberately did not build one: it is a check with its own design decisions (which report
-is "newest", what happens on a branch that adds two) and it is not a documentation task's
-to smuggle in. Stated so the next person meets the analysis rather than the silence.
+rather than over the archive behind it. Task 13 deliberately did not build one: it is a
+check with its own design decisions (which report is "newest", what happens on a branch
+that adds two) and it was not a documentation task's to smuggle in. **Phase 4 Task 15
+built it — see §10.3 — because this phase writes four reports into that directory, which
+is what makes the gap worth a module.** The two design decisions are answered there.
 
 A path resolves if git lists it, or lists a file with that basename; an ESM specifier's
 `.js` is rewritten to `.ts` first. An identifier is a backticked token that is camelCase,
@@ -838,6 +839,34 @@ this repository's own source.
 `packages/ui` was listed as a package of this workspace for two phases and has never
 existed (F9-6); `RESET_PATH` was attributed to the module that imports it rather than the
 one that declares it (F9-11). Neither survives this.
+
+### 10.3 · `newestSweep.test.ts` — the newest `docs/qa/` report's citations resolve
+
+The write-time check §10.2 asked for, over the newest report alone, so the archive behind
+it stays a record. It shares §10.2's rules rather than copying them: both import
+`apps/web/lib/docs/citations.ts`, which is where `isPathCitation`, `isIdentifierCitation`,
+`resolvesToAFile` and `sourceCorpus` now live. A second copy of those regexes drifting
+from the first would mean a report checked by rules the documentation is not.
+
+**Which report is "newest": the date in the name, not `mtime`.** `CLAUDE.md` §10's
+convention puts it there, and a checkout cannot lose it — a fresh clone gives every file
+the same modification time, and checking out an old branch would make a two-phase-old
+report the newest thing on disk.
+
+**A branch that adds two: both are checked, and so is a third.** §10 asks for one sweep
+per screen group, so a phase closing out writes several on one day. Every report carrying
+the newest DATE is checked, which needs no tiebreak — and a tiebreak is exactly what would
+have dropped three of this phase's four reports on the floor.
+
+**No exemption list**, deliberately: this corpus is one day old, so a citation in it that
+names nothing is one its author can still correct. A report wanting to name something this
+tree does not hold — a screenshot under `test-results/`, say — puts the file in
+`docs/qa/assets/` and cites that.
+
+It is proved able to fail rather than assumed to be: a report dated 2099 naming a module
+and a symbol that do not exist turns both resolution cases red and names the planted file;
+one with no backticked run in it turns the non-vacuity case red; and a selection that stops
+comparing dates turns the selection case red.
 
 Two exemption lists in that file — one for paths, one for identifiers, each named and
 explained in its own TSDoc — carry what cannot resolve and should not: a report in the
