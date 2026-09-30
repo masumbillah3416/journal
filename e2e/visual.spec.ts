@@ -877,12 +877,13 @@ test('matches the baseline screenshot of the shell itself, with the screen maske
   //
   // ═══ SO THE FRAME'S OWN DATA IS MASKED TOO, AND THE REST IS NAMED ═══
   //
-  // An earlier revision of this comment claimed the file "moves when the frame
-  // moves and at no other time". That was false of the picture it was written
-  // above: outside the mask it printed the rail's nine counts, the header's
-  // crumb and the "Last published" stamp — all of them data, all of them moved
-  // by adding a journey or pressing Publish once. Three more masks make it
-  // true of everything this picture SAYS.
+  // MASKING THE SCREEN IS NOT ENOUGH ON ITS OWN, because the FRAME prints data
+  // too: the rail's nine counts, the header's crumb and the "Last published"
+  // stamp are all functions of the diary, and all three move when a journey is
+  // added or Publish is pressed once. Unmasked they make this picture
+  // content-driven in the same way as the eleven, which is the whole thing it
+  // exists not to be. So they are masked, and what this picture SAYS is then
+  // `ADMIN_NAV`'s own labels, the stylesheet and the boxes.
   //
   // WHAT A MASK CANNOT REACH IS EXISTENCE, which is why the claim is still
   // bounded rather than absolute. A mask paints an element that is there; it
