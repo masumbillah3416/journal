@@ -210,3 +210,45 @@ turns a missing binary into a failed build rather than a quieter run. **On the a
 machine `ffmpeg` and `ffprobe` are absent, so those three arms have never run locally and
 that is UNRESOLVED** (`CLAUDE.md` §7.1); nothing was sent anywhere to close it.
 `docs/testing/03-contract.md` carries the rule.
+
+## Amendment 3 — Phase 4 Task 15, the refusal is kept, and this is the decision
+
+The same convention as Amendments 1 and 2. Amendment 2 §4 recorded that the commit removing
+`WORKER_NOT_DEPLOYED` owes an end-to-end pass and named no owner for it. Phase 4 closed every
+residual it inherited with either a task or a written decision, and this is the written one.
+
+**The decision: Phase 4 does not remove the refusal.** Not an omission, and not "no time". Three
+reasons, none of which is scheduling:
+
+1. **Video is deferred by this ADR itself**, and nothing in Phase 4 asks for it back. The admin
+   builds eleven screens over the media this repository already ingests.
+2. **No Fly.io app exists**, so `worker` binds an adapter whose three success arms need `ffmpeg`
+   and `ffprobe` on a `PATH` that has neither here — Amendment 2 §5 records that as UNRESOLVED
+   on this machine, and it still is.
+3. **Removing a refusal this phase cannot exercise end to end is exactly the outcome this ADR
+   exists to prevent** — flip one flag, then debug for three days. Amendment 2 §4 names the
+   composition no test has ever run; deleting the `.refine()` clause would make that composition
+   reachable in production while still being unreachable in CI.
+
+**The owner is whichever phase provisions the worker.** Not a date, and not a person: the pass is
+owed by the commit that makes it runnable, and no earlier commit can run it. Until then, the debt
+is visible in the one place an operator meets it — a failed boot whose message names its own
+removal condition.
+
+**What already stands over this, and it is stronger than a new case would be.**
+`apps/web/lib/env.test.ts` already stands over it from both sides, in cases Phase 3 wrote:
+
+- `refuses worker, because no worker exists to strip what that mode stores` pins the whole
+  refusal, message included, against `WORKER_NOT_DEPLOYED`;
+- `names its own removal condition in the refusal, so nobody deletes the guard for the wrong
+reason` pins the string `Delete this refusal in the commit that deploys one` inside it.
+
+Phase 4 adds no third case. A case asserting only that the parse fails would pass against a
+refusal that had lost its message, which is the half that tells the operator what is owed; adding
+one beside the two above would be a weaker assertion sitting next to a stronger one about the
+same boundary. What Phase 4 adds is this amendment and `docs/deviations.md` §109, which is where
+the decision is recorded rather than inferred.
+
+**What would reverse this:** a provisioned Fly.io app with the worker container deployed, then
+the order Amendment 2 §3 states — deploy first, delete the refusal second, set the flag third —
+with Amendment 2 §4's end-to-end pass run and its result recorded here.

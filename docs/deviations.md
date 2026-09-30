@@ -4611,3 +4611,46 @@ database.
 
 **Recorded as:** this entry, and the paragraph at
 `e2e/ciRegistration.test.ts`'s own case naming both limits.
+
+## 109 · `MEDIA_PIPELINE=worker` is left refused, and the owed pass is named rather than scheduled
+
+**What the residual was.** Phase 3 shipped with `apps/web/lib/env.ts` refusing
+`MEDIA_PIPELINE=worker` at `parseEnv`, and recorded that "the commit that removes the refusal
+owes an end-to-end pass". `docs/adr/0004-media-pipeline-mode.md`'s Amendment 2 §4 names the exact
+composition that pass has to run: `apps/web/app/(admin)/admin/media/actions.ts` building
+`mediaProcessor()` and `env.MEDIA_PIPELINE` side by side under `worker`. No phase owned it.
+
+**What Phase 4 decided.** Not to remove it, and to say so. Video is deferred by ADR 0004; no
+Fly.io app exists; `ffmpeg` and `ffprobe` are absent from this machine, so the `worker` adapter's
+three success arms have never run here (ADR 0004 Amendment 2 §5, still UNRESOLVED under
+`CLAUDE.md` §7.1). Deleting a refusal that this phase cannot exercise end to end would make the
+untested composition reachable in production while leaving it unreachable in CI — the
+"flip one config, then debug for three days" outcome the ADR exists to prevent.
+
+**Why this is a deviation at all.** ADR 0004's own Consequences promise that "enabling video
+later is: provision a Fly.io app, deploy the worker container to it, and set
+`MEDIA_PIPELINE=worker`" — one configuration change. It is a code change, and has been since the
+refusal landed. Amendment 2 §3 recorded that; what was still missing was an owner for the pass,
+and a place a reader could find the decision instead of inferring it from a guard's continued
+existence.
+
+**The owner is whichever phase provisions the worker.** The pass is owed by the commit that makes
+it runnable, and no earlier commit can run it — which is why this entry names a condition rather
+than a date.
+
+**What stands over it, and what Phase 4 deliberately did NOT add.** `apps/web/lib/env.test.ts`
+already carries both sides: `refuses worker, because no worker exists to strip what that mode
+stores` asserts the whole refusal against `WORKER_NOT_DEPLOYED`, and `names its own removal
+condition in the refusal, so nobody deletes the guard for the wrong reason` pins the sentence
+`Delete this refusal in the commit that deploys one` inside that message. Phase 4's plan asked
+for a third case asserting only that the parse fails. It is not written: it would pass against a
+refusal that had lost the half of its message telling an operator what is owed, so adding it
+beside the two above would put a weaker assertion next to a stronger one about the same boundary.
+A test this phase would have had to write to look diligent is not a test.
+
+**What would reverse this:** a provisioned Fly.io app with the worker container deployed
+(`ffmpeg` and `ffprobe` on its `PATH`), then ADR 0004 Amendment 2 §3's order — deploy, delete the
+refusal, set the flag — with Amendment 2 §4's end-to-end pass run and recorded.
+
+**Recorded as:** this entry, `docs/adr/0004-media-pipeline-mode.md`'s Amendment 3, and the two
+cases in `apps/web/lib/env.test.ts` named above.
