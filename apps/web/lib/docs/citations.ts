@@ -11,14 +11,15 @@
  * over the NEWEST sweep report alone, and it has to ask the same two questions
  * of a backticked run: is this a citation, and does it resolve?
  *
- * Two askers is when `markdownCorpus.ts`'s own argument applies — a second real
- * use is where CLAUDE.md §3.3 says an abstraction earns its place — and the
- * alternative is the failure this directory exists to refuse: a second copy of
+ * Two askers is when `markdownCorpus.ts`'s own argument applies — CLAUDE.md §4
+ * bans an abstraction for a SINGLE caller, so a second real caller is where one
+ * earns its place — and the alternative is the failure this directory exists to
+ * refuse: a second copy of
  * `FILE_PATH` drifting away from the first, so that a report's citations are
  * checked by rules the documentation's are not.
  *
- * PATTERNS (CLAUDE.md §3.3): none of the seven. Two predicates, an extraction
- * and two lookups.
+ * PATTERNS (CLAUDE.md §3.3): none of the seven. Predicates over a backticked
+ * run, an extraction, and lookups against what git lists.
  *
  * INVARIANT — {@link sourceCorpus} must never include the file asking it a
  * question. Every caller writes its probe strings and its exemptions as string

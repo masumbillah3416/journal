@@ -9,12 +9,15 @@ see the **Status** column.
 **Read this file; read a suite's `docs/testing/` detail only when your task touches that
 suite.** This was one 291KB document that every dispatched agent read in full whatever it
 was working on. The suite numbers are frozen the way `CLAUDE.md`'s sections are — this
-tree cites `docs/testing.md` §1, §3, §4, §6, §7, §7.0, §7.1, §9 and §10.3 — so those
+tree cites `docs/testing.md` §1, §3, §4, §6, §7, §7.0, §7.1, §9, §10.2 and §10.3 — so those
 headings stayed where they were and only the bodies moved. **§10's subsection numbers are
 the exception and are not frozen:** the documentation guards gained entries of their own in
 the same work, so the old §10.5 (how to run them) is §10.9 now, and §10.5 to §10.8 name
-four guards that did not exist before. Nothing cites a §10.x number except §10.3, which is
-unchanged.
+four guards that did not exist before. TWO §10.x numbers are cited from outside this file —
+§10.2 by `apps/web/lib/docs/pathCitations.test.ts`'s header and §10.3 by
+`apps/web/lib/docs/configCitations.test.ts`'s — and neither has moved. (The claim here was
+"nothing cites a §10.x number except §10.3" until Phase 4 Task 15's review read the tree
+rather than the sentence.)
 
 ## Coverage gates
 
@@ -848,6 +851,19 @@ this repository's own source.
 existed (F9-6); `RESET_PATH` was attributed to the module that imports it rather than the
 one that declares it (F9-11). Neither survives this.
 
+Two exemption lists in that file — one for paths, one for identifiers, each named and
+explained in its own TSDoc — carry what cannot resolve and should not: a report in the
+untracked `.superpowers/` directory, a probe written to disk and deleted, a browser API, a
+symbol a document says in its own next paragraph is gone. Each entry carries its reason,
+and both lists are fail-closed in both directions: an entry no document quotes any more
+fails, and an entry that starts resolving fails, so a list can neither rot into a hole nor
+quietly excuse something real.
+
+Note what that costs, because it is a real edge: the file excludes ITSELF from the source
+corpus, so that its own exemption entries cannot resolve by quoting themselves. A constant
+declared only in that file is therefore not resolvable from prose, which is why this
+section describes the two lists rather than naming them in backticks.
+
 ### 10.3 · `configCitations.test.ts` — every quoted configuration value is read back
 
 Each citation names the config, an extractor that READS THE VALUE OUT OF IT, and the
@@ -1032,25 +1048,14 @@ have dropped three of this phase's four reports on the floor.
 **No exemption list**, deliberately: this corpus is one day old, so a citation in it that
 names nothing is one its author can still correct. A report wanting to name something this
 tree does not hold — a screenshot under `test-results/`, say — puts the file in
-`docs/qa/assets/` and cites that.
+`docs/qa/assets/` and cites that. (§10.2's own two lists are a different problem on a
+different corpus — four phases of documents, some of whose citations cannot resolve and
+should not.)
 
 It is proved able to fail rather than assumed to be: a report dated 2099 naming a module
 and a symbol that do not exist turns both resolution cases red and names the planted file;
 one with no backticked run in it turns the non-vacuity case red; and a selection that stops
 comparing dates turns the selection case red.
-
-Two exemption lists in that file — one for paths, one for identifiers, each named and
-explained in its own TSDoc — carry what cannot resolve and should not: a report in the
-untracked `.superpowers/` directory, a probe written to disk and deleted, a browser API, a
-symbol a document says in its own next paragraph is gone. Each entry carries its reason,
-and both lists are fail-closed in both directions: an entry no document quotes any more
-fails, and an entry that starts resolving fails, so a list can neither rot into a hole nor
-quietly excuse something real.
-
-Note what that costs, because it is a real edge: the file excludes ITSELF from the source
-corpus, so that its own exemption entries cannot resolve by quoting themselves. A constant
-declared only in that file is therefore not resolvable from prose, which is why this
-section describes the two lists rather than naming them in backticks.
 
 ### 10.9 · How to run them
 
