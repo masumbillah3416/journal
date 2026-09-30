@@ -94,18 +94,50 @@ const CLICK_AT = { across: 0.2, down: 0.8 } as const
 const THE_DEFAULT_CROP = '50% 50%'
 
 /**
+ * The handle `SCREENS.md` §1.10's reading mode puts on its root element, and
+ * the book never does.
+ *
+ * `MobilePage.tsx` writes `data-mobile-page={page.kind}` on the `<section>` it
+ * renders; `apps/web/app/(diary)/p/[n]/page.tsx`'s book has no such attribute
+ * anywhere. Which of the two answered is therefore readable off the document
+ * itself, without asking anything about the elements under assertion.
+ */
+const READING_MODE_ROOT = '[data-mobile-page]'
+
+/**
  * The photograph the diary draws for this journey's hero, whichever of the two
  * public surfaces this project's browser was served.
  *
  * `SCREENS.md` §1.10's mobile reading mode is a different renderer, not a
  * narrower one: the middleware sends a 390px browser to `/m/<n>`, where
  * `MobilePage.tsx` draws one page per address and its hero carries
- * `data-photo="hero"`. The book draws every leaf of the served window, so the
- * one this journey owns has to be picked out by its own name. Both handles are
- * the product's own — `Photograph.tsx` and `MobilePage.tsx` each publish
- * theirs for exactly this kind of assertion.
+ * `data-photo="hero"`. Both handles are the product's own — `Photograph.tsx` and
+ * `MobilePage.tsx` each publish theirs for exactly this kind of assertion.
+ *
+ * ═══ WHICH SURFACE IS READ OFF THE RENDERER'S OWN MARKER, NOT OFF A COUNT ═══
+ *
+ * This chose between the two by asking whether the book's selector matched
+ * exactly one element, which is a diagnosis defect (review round 1, finding 9):
+ * any regression in `[data-page="notes"]`, in `[data-hero]` or in the name
+ * filter makes the book branch count zero, and the reading-mode branch would
+ * then be silently substituted rather than the case failing where the defect
+ * is. It now keys on {@link READING_MODE_ROOT}, which no assertion below reads,
+ * so a broken hero handle fails inside its own branch.
+ *
+ * NOT ON THE ADDRESS, and that was measured rather than assumed: the first fix
+ * for this finding branched on `page.url()` starting `/m/`, and it sent the
+ * `mobile` project down the BOOK branch every time. `apps/web/middleware.ts`
+ * REWRITES rather than redirects — its header says `/m/<n>` "IS NOT AN ADDRESS,
+ * and this file is what keeps it from becoming one" — so the browser's address
+ * stays `/p/<n>` while the reading mode answers it.
+ *
+ * BOTH BRANCHES ARE SCOPED TO THIS JOURNEY'S PAGE. The reading-mode branch was
+ * not, which made the two readings unequal in a way the case did not say: it
+ * would have found a hero on whatever page `/m/<n>` served. `MobilePage.tsx`
+ * publishes `data-mobile-page={page.kind}` around the same `<h1>{page.name}</h1>`
+ * the book prints, so the same `hasText` filter scopes both.
  * @param page - A page already navigated to the journey's address.
- * @param name - The journey's name, which the book prints on the page.
+ * @param name - The journey's name, which both surfaces print on the page.
  * @returns The one element whose `object-position` is the crop.
  */
 const heroOnTheDiary = async (page: Page, name: string): Promise<Locator> => {
@@ -114,9 +146,11 @@ const heroOnTheDiary = async (page: Page, name: string): Promise<Locator> => {
   // mode's single page is the other shape entirely. What is being waited for is
   // that this document has drawn its photographs at all.
   await page.waitForSelector('[data-hero], [data-photo="hero"]', { state: 'attached' })
-  const inTheBook = page.locator('[data-page="notes"]', { hasText: name }).locator('[data-hero]')
-  const inReadingMode = page.locator('[data-photo="hero"]')
-  return (await inTheBook.count()) === 1 ? inTheBook : inReadingMode
+
+  const servedReadingMode = (await page.locator(READING_MODE_ROOT).count()) > 0
+  return servedReadingMode
+    ? page.locator('[data-mobile-page="notes"]', { hasText: name }).locator('[data-photo="hero"]')
+    : page.locator('[data-page="notes"]', { hasText: name }).locator('[data-hero]')
 }
 
 /** This run's row ids, filled in by `beforeAll`. */
@@ -130,13 +164,26 @@ const fixture: { journey: number; notes: number; media: number } = { journey: 0,
  * gives: a predicate that now matches nothing is not an error, so this is safe
  * to run before a run as well as after one — which is what stops a crashed
  * previous run colliding with the unique `slug`.
+ *
+ * ═══ `equals`, NOT `like`, AND THAT IS NOT TIDINESS ═══
+ *
+ * Payload's `like` is a SUBSTRING match, and {@link fixtureLabel} ends the name
+ * with `w<workerIndex>` with nothing after it — so `Focal focalpoint.desktop.w1`
+ * is a substring of `Focal focalpoint.desktop.w10`. At eleven or more workers,
+ * one worker's `beforeAll` would delete another worker's LIVE fixture mid-run:
+ * the exact shared-fixture race `e2e/support/adminSession.ts`'s header was
+ * written about, and it does not announce itself — the other worker's page
+ * simply stops having a journey on it. `workers` is 1 locally
+ * (`playwright.config.ts`) and Playwright's default in CI, which is a function
+ * of the runner's core count and is not something this file should be betting
+ * on (review round 1, finding 10).
  * @param name - The journey name this run owns.
  */
 const removeFixtureRows = async (name: string): Promise<void> => {
   const payload = await getPayload()
   const mine = await payload.find({
     collection: 'journeys',
-    where: { name: { like: name } },
+    where: { name: { equals: name } },
     pagination: false,
     depth: 0,
   })
@@ -144,7 +191,7 @@ const removeFixtureRows = async (name: string): Promise<void> => {
     await payload.delete({ collection: 'pages', where: { journey: { equals: journey.id } } })
     await payload.delete({ collection: 'media', where: { journey: { equals: journey.id } } })
   }
-  await payload.delete({ collection: 'journeys', where: { name: { like: name } } })
+  await payload.delete({ collection: 'journeys', where: { name: { equals: name } } })
 }
 
 test.beforeAll(async ({}, testInfo) => {
@@ -226,7 +273,7 @@ test.afterAll(async ({}, testInfo) => {
   // the developer's `diary` is a journey in the book every screenshot taken
   // afterwards photographs.
   const payload = await getPayload()
-  const left = await payload.count({ collection: 'journeys', where: { name: { like: journeyName(testInfo) } } })
+  const left = await payload.count({ collection: 'journeys', where: { name: { equals: journeyName(testInfo) } } })
   expect(left.totalDocs, 'this run left its fixture journey in the developer’s database').toBe(0)
 })
 
