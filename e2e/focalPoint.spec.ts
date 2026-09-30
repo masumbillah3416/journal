@@ -114,28 +114,24 @@ const READING_MODE_ROOT = '[data-mobile-page]'
  * `data-photo="hero"`. Both handles are the product's own — `Photograph.tsx` and
  * `MobilePage.tsx` each publish theirs for exactly this kind of assertion.
  *
- * ═══ WHICH SURFACE IS READ OFF THE RENDERER'S OWN MARKER, NOT OFF A COUNT ═══
+ * ═══ WHICH SURFACE IS READ OFF THE RENDERER'S OWN MARKER ═══
  *
- * This chose between the two by asking whether the book's selector matched
- * exactly one element, which is a diagnosis defect:
- * any regression in `[data-page="notes"]`, in `[data-hero]` or in the name
- * filter makes the book branch count zero, and the reading-mode branch would
- * then be silently substituted rather than the case failing where the defect
- * is. It now keys on {@link READING_MODE_ROOT}, which no assertion below reads,
- * so a broken hero handle fails inside its own branch.
+ * {@link READING_MODE_ROOT} is a handle no assertion below reads, and that is
+ * the point of choosing on it. Choosing instead on whether the book's own
+ * selector matched — its element count — would mean that any regression in
+ * `[data-page="notes"]`, in `[data-hero]` or in the name filter silently sent
+ * this down the reading-mode branch rather than failing where the defect is.
  *
- * NOT ON THE ADDRESS, and that was measured rather than assumed: the first fix
- * for this finding branched on `page.url()` starting `/m/`, and it sent the
- * `mobile` project down the BOOK branch every time. `apps/web/middleware.ts`
- * REWRITES rather than redirects — its header says `/m/<n>` "IS NOT AN ADDRESS,
- * and this file is what keeps it from becoming one" — so the browser's address
- * stays `/p/<n>` while the reading mode answers it.
+ * NOT ON THE ADDRESS. `apps/web/middleware.ts` REWRITES rather than redirects —
+ * its header says `/m/<n>` "IS NOT AN ADDRESS, and this file is what keeps it
+ * from becoming one" — so a browser served the reading mode still shows
+ * `/p/<n>`, and a branch on `page.url()` puts every `mobile` run in the book.
  *
- * BOTH BRANCHES ARE SCOPED TO THIS JOURNEY'S PAGE. The reading-mode branch was
- * not, which made the two readings unequal in a way the case did not say: it
- * would have found a hero on whatever page `/m/<n>` served. `MobilePage.tsx`
- * publishes `data-mobile-page={page.kind}` around the same `<h1>{page.name}</h1>`
- * the book prints, so the same `hasText` filter scopes both.
+ * BOTH BRANCHES ARE SCOPED TO THIS JOURNEY'S PAGE, and the reading-mode one has
+ * to be: `/m/<n>` serves a single page, so an unscoped selector there would
+ * read whatever hero that address happened to hold rather than this fixture's.
+ * `MobilePage.tsx` publishes `data-mobile-page={page.kind}` around the same
+ * `<h1>{page.name}</h1>` the book prints, so one `hasText` filter scopes both.
  * @param page - A page already navigated to the journey's address.
  * @param name - The journey's name, which both surfaces print on the page.
  * @returns The one element whose `object-position` is the crop.

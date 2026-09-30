@@ -33,7 +33,7 @@
  * newest thing on disk. The name is the report's own statement of when it was
  * written.
  *
- * ═══ AND THE DATE HAS A CEILING, WHICH IS THE HALF THAT WAS MISSING ═══
+ * ═══ AND THE DATE HAS A CEILING AS WELL AS AN ORDERING ═══
  *
  * The pattern alone accepts any `\d{4}-\d{2}-\d{2}`, so `2026-13-45-foo.md` —
  * or a fat-fingered `2062-` — sorts above every real report and becomes "the
@@ -415,7 +415,7 @@ describe('the newest report under docs/qa', () => {
     expect(localDay(EARLIEST_OFFSET_HOURS)).toBe('2026-06-01')
   })
 
-  it('holds no report this repository dated impossibly, which is the state the two cases above protect', () => {
+  it('holds no report this repository dated impossibly, which is the state the bounds above protect', () => {
     // The check over the real tree. Without it the ceiling would quietly drop a
     // mis-dated report instead of dropping the guard, which is a second silence
     // rather than a fix.
