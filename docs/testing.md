@@ -12,8 +12,8 @@ was working on. The suite numbers are frozen the way `CLAUDE.md`'s sections are 
 tree cites `docs/testing.md` §1, §3, §4, §6, §7, §7.0, §7.1, §9 and §10.3 — so those
 headings stayed where they were and only the bodies moved. **§10's subsection numbers are
 the exception and are not frozen:** the documentation guards gained entries of their own in
-the same work, so the old §10.5 (how to run them) is §10.8 now, and §10.5 to §10.7 name
-three guards that did not exist before. Nothing cites a §10.x number except §10.3, which is
+the same work, so the old §10.5 (how to run them) is §10.9 now, and §10.5 to §10.8 name
+four guards that did not exist before. Nothing cites a §10.x number except §10.3, which is
 unchanged.
 
 ## Coverage gates
@@ -345,7 +345,15 @@ enough to stay here whole.
 
 - **Tool:** Playwright (`playwright.config.ts`, Task 12).
 - **Scope:** real journeys — page flip, bookmark jump, gallery, lightbox, mobile swipe,
-  sign-in + OTP, upload round-trip.
+  sign-in + OTP, upload round-trip, and the admin-to-diary seam below.
+- **`e2e/focalPoint.spec.ts` discharges Phase 4's second exit criterion**, which no
+  other suite can: a focal point is clicked in the editor with coordinates taken from
+  the browser's own bounding box, and the crop the DIARY renders is read back out of
+  `getComputedStyle` on a public route. Between the two sit Postgres, `readBookBundle`
+  and a different component tree, and a break anywhere along that path leaves every
+  jsdom case green. Both halves of the assertion are load-bearing: the two readings must
+  agree, AND they must not be `50% 50%` — `focalX`/`focalY` both default to 50, so a
+  control that stored nothing would satisfy agreement perfectly.
 
 **Detail:** `docs/testing/04-end-to-end.md`
 
@@ -827,7 +835,7 @@ one the author is looking at, whose citations are claims about the tree as it is
 rather than over the archive behind it. Task 13 deliberately did not build one: it is a
 check with its own design decisions (which report is "newest", what happens on a branch
 that adds two) and it was not a documentation task's to smuggle in. **Phase 4 Task 15
-built it — see §10.3 — because this phase writes four reports into that directory, which
+built it — see §10.8 — because this phase writes four reports into that directory, which
 is what makes the gap worth a module.** The two design decisions are answered there.
 
 A path resolves if git lists it, or lists a file with that basename; an ESM specifier's
@@ -839,47 +847,6 @@ this repository's own source.
 `packages/ui` was listed as a package of this workspace for two phases and has never
 existed (F9-6); `RESET_PATH` was attributed to the module that imports it rather than the
 one that declares it (F9-11). Neither survives this.
-
-### 10.3 · `newestSweep.test.ts` — the newest `docs/qa/` report's citations resolve
-
-The write-time check §10.2 asked for, over the newest report alone, so the archive behind
-it stays a record. It shares §10.2's rules rather than copying them: both import
-`apps/web/lib/docs/citations.ts`, which is where `isPathCitation`, `isIdentifierCitation`,
-`resolvesToAFile` and `sourceCorpus` now live. A second copy of those regexes drifting
-from the first would mean a report checked by rules the documentation is not.
-
-**Which report is "newest": the date in the name, not `mtime`.** `CLAUDE.md` §10's
-convention puts it there, and a checkout cannot lose it — a fresh clone gives every file
-the same modification time, and checking out an old branch would make a two-phase-old
-report the newest thing on disk.
-
-**A branch that adds two: both are checked, and so is a third.** §10 asks for one sweep
-per screen group, so a phase closing out writes several on one day. Every report carrying
-the newest DATE is checked, which needs no tiebreak — and a tiebreak is exactly what would
-have dropped three of this phase's four reports on the floor.
-
-**No exemption list**, deliberately: this corpus is one day old, so a citation in it that
-names nothing is one its author can still correct. A report wanting to name something this
-tree does not hold — a screenshot under `test-results/`, say — puts the file in
-`docs/qa/assets/` and cites that.
-
-It is proved able to fail rather than assumed to be: a report dated 2099 naming a module
-and a symbol that do not exist turns both resolution cases red and names the planted file;
-one with no backticked run in it turns the non-vacuity case red; and a selection that stops
-comparing dates turns the selection case red.
-
-Two exemption lists in that file — one for paths, one for identifiers, each named and
-explained in its own TSDoc — carry what cannot resolve and should not: a report in the
-untracked `.superpowers/` directory, a probe written to disk and deleted, a browser API, a
-symbol a document says in its own next paragraph is gone. Each entry carries its reason,
-and both lists are fail-closed in both directions: an entry no document quotes any more
-fails, and an entry that starts resolving fails, so a list can neither rot into a hole nor
-quietly excuse something real.
-
-Note what that costs, because it is a real edge: the file excludes ITSELF from the source
-corpus, so that its own exemption entries cannot resolve by quoting themselves. A constant
-declared only in that file is therefore not resolvable from prose, which is why this
-section describes the two lists rather than naming them in backticks.
 
 ### 10.3 · `configCitations.test.ts` — every quoted configuration value is read back
 
@@ -1044,7 +1011,48 @@ too.
 Written by the Phase 3 standards review. The task that removed the floor stated this gap in
 its report as an open concern; a stated hole is reviewable, and it is still a hole.
 
-### 10.8 · How to run them
+### 10.8 · `newestSweep.test.ts` — the newest `docs/qa/` report’s citations resolve
+
+The write-time check §10.2 asked for, over the newest report alone, so the archive behind
+it stays a record. It shares §10.2's rules rather than copying them: both import
+`apps/web/lib/docs/citations.ts`, which is where `isPathCitation`, `isIdentifierCitation`,
+`resolvesToAFile` and `sourceCorpus` now live. A second copy of those regexes drifting
+from the first would mean a report checked by rules the documentation is not.
+
+**Which report is "newest": the date in the name, not `mtime`.** `CLAUDE.md` §10's
+convention puts it there, and a checkout cannot lose it — a fresh clone gives every file
+the same modification time, and checking out an old branch would make a two-phase-old
+report the newest thing on disk.
+
+**A branch that adds two: both are checked, and so is a third.** §10 asks for one sweep
+per screen group, so a phase closing out writes several on one day. Every report carrying
+the newest DATE is checked, which needs no tiebreak — and a tiebreak is exactly what would
+have dropped three of this phase's four reports on the floor.
+
+**No exemption list**, deliberately: this corpus is one day old, so a citation in it that
+names nothing is one its author can still correct. A report wanting to name something this
+tree does not hold — a screenshot under `test-results/`, say — puts the file in
+`docs/qa/assets/` and cites that.
+
+It is proved able to fail rather than assumed to be: a report dated 2099 naming a module
+and a symbol that do not exist turns both resolution cases red and names the planted file;
+one with no backticked run in it turns the non-vacuity case red; and a selection that stops
+comparing dates turns the selection case red.
+
+Two exemption lists in that file — one for paths, one for identifiers, each named and
+explained in its own TSDoc — carry what cannot resolve and should not: a report in the
+untracked `.superpowers/` directory, a probe written to disk and deleted, a browser API, a
+symbol a document says in its own next paragraph is gone. Each entry carries its reason,
+and both lists are fail-closed in both directions: an entry no document quotes any more
+fails, and an entry that starts resolving fails, so a list can neither rot into a hole nor
+quietly excuse something real.
+
+Note what that costs, because it is a real edge: the file excludes ITSELF from the source
+corpus, so that its own exemption entries cannot resolve by quoting themselves. A constant
+declared only in that file is therefore not resolvable from prose, which is why this
+section describes the two lists rather than naming them in backticks.
+
+### 10.9 · How to run them
 
 ```
 npx vitest run --project unit apps/web/lib/docs        # all of them
