@@ -84,15 +84,14 @@
  * `tells a live screenshot call from prose about one…`, which asks them about
  * sources this repository does not hold.
  *
- * ═══ THIS FILE IS EXPECTED TO BE RED UNTIL THE BASELINES LAND ═══
+ * ═══ THE ONLY HONEST WAY TO TURN THIS FILE GREEN ═══
  *
- * Most of the thirty-six files do not exist. That is the point of it and not a
- * defect in it: the baselines must be produced inside the pinned Playwright
- * Linux container (`npm run test:visual:container:update`),
- * which is why every filename ends `-linux.png`, and a machine that cannot run
- * that container cannot honestly produce one. Narrowing this guard to the
- * screens that happen to have files, or marking it `.skip`, would turn the
- * phase's first exit criterion back into a sentence.
+ * Every filename it asks for ends `-linux.png` because the baselines are
+ * produced inside the pinned Playwright Linux container
+ * (`npm run test:visual:container:update`), and a machine that cannot run that
+ * container cannot honestly produce one. Narrowing this guard to the screens
+ * that happen to have files, or marking it `.skip`, would turn the phase's
+ * first exit criterion back into a sentence.
  *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. A directory listing, some
  * extractions and set comparisons over what they find.
@@ -250,6 +249,53 @@ const screenshotNamesIn = (source: string): readonly string[] =>
 const unattributableDeclarationsIn = (source: string): readonly string[] =>
   [...withoutComments(source).matchAll(UNATTRIBUTABLE_DECLARATION)].map((found) => found[0].trim())
 
+/**
+ * The selector every admin `toHaveScreenshot` call has to mask.
+ *
+ * The rail prints `scope.user.email` on all eleven admin routes, and in this
+ * suite that address ends in `fixtureLabel`'s WORKER INDEX, which Playwright
+ * hands out differently from one run to the next. Masking it is what keeps
+ * these baselines from resting on `maxDiffPixelRatio` swallowing a few glyphs
+ * — the margin `docs/deviations.md` §110 records a stale baseline surviving on.
+ */
+const REQUIRED_MASK = 'data-profile-name'
+
+/**
+ * The text of the `toHaveScreenshot(…)` call naming a baseline, or `null`.
+ *
+ * Parentheses are balanced from the call's own opener rather than matched with
+ * a pattern, because the options object holds nested calls — `page.locator(…)`
+ * — and a non-greedy match stops at the first of them.
+ *
+ * ITS ONE BLIND SPOT FAILS CLOSED. A parenthesis inside a string literal in
+ * the call (a selector like `:not(x)`) miscounts the depth, and both ways of
+ * being wrong end in a refusal: the scan either closes early, returning a
+ * slice too short to hold the mask, or runs off the end and returns `null`.
+ * Neither can invent a mask that is not there.
+ * @param source - A spec file's text, comments included.
+ * @param baseline - The baseline stem whose call to find.
+ * @returns The call from `(` to its matching `)`, or `null`.
+ * @example
+ * screenshotCallFor("toHaveScreenshot('a.png', { fullPage: true })", 'a') // "('a.png', { fullPage: true })"
+ */
+const screenshotCallFor = (source: string, baseline: string): string | null => {
+  const scanned = withoutComments(source)
+  const at = scanned.indexOf(`toHaveScreenshot('${baseline}.png'`)
+  if (at < 0) return null
+
+  const from = at + 'toHaveScreenshot'.length
+  let depth = 0
+  for (let index = from; index < scanned.length; index += 1) {
+    const character = scanned[index]
+    if (character === '(') depth += 1
+    else if (character === ')') {
+      depth -= 1
+      if (depth === 0) return scanned.slice(from, index + 1)
+    }
+  }
+  return null
+}
+
 /** The spec this guard reads, as text. */
 const visualSpecSource = (): string => readFileSync(path.join(REPO_ROOT, VISUAL_SPEC), 'utf8')
 
@@ -264,6 +310,57 @@ const visualSpecSource = (): string => readFileSync(path.join(REPO_ROOT, VISUAL_
  * screenshotCalls() // ['admin-overview', 'admin-journeys', 'diary-cover', …]
  */
 const screenshotCalls = (): readonly string[] => screenshotNamesIn(visualSpecSource())
+
+/**
+ * Every `admin-*` baseline in this directory that is deliberately NOT one of
+ * {@link SCREENS}, with the reason it is there.
+ *
+ * ═══ WHY THE SET IS CHECKED IN THIS DIRECTION TOO ═══
+ *
+ * Asking each screen for its three files never asks whether a committed file
+ * still belongs to a screen — and that is not a hypothetical gap. It is
+ * `docs/deviations.md` §86's own defect: three `admin-panel-*-linux.png` files
+ * went on sitting in this directory photographing a screen Task 12 had
+ * deleted, and nothing failed until somebody happened to look. An enumeration
+ * where an inversion was needed, in the guard written to catch that class.
+ *
+ * FAIL-CLOSED IN BOTH DIRECTIONS, which is the shape `pathCitations.test.ts`
+ * uses for the same job: a committed file matching no entry here fails, AND an
+ * entry here matching no committed file fails. Without the second half this
+ * list is where a deleted baseline's exemption goes to outlive it, which is
+ * the same defect one level up.
+ *
+ * THE SIGN-IN FAMILY IS HERE BECAUSE IT IS `SCREENS.md` §3, NOT §2. Those
+ * screens are specified, photographed and axe-checked; they are simply not
+ * what "eleven screens plus the shell" counts. The two `admin-journeys-*`
+ * entries are STATES of a screen that has its own triple.
+ */
+const NOT_A_SCREEN: readonly { readonly stem: string; readonly why: string }[] = [
+  {
+    stem: 'admin-journeys-create',
+    why: 'a STATE of §2.2, not a screen: the create panel is a client island only on screen once New journey has been pressed, and `admin-journeys` holds §2.2 itself',
+  },
+  {
+    stem: 'admin-journeys-rungs',
+    why: 'a STATE of §2.2 at a width no project sits at — the case sets 1200 itself to reach the three column rungs between the projects, and runs at `desktop` alone because the other two would photograph that same width again',
+  },
+  {
+    stem: 'admin-sign-in',
+    why: 'SCREENS.md §3.1, the password step — specified under §3 and not among §2’s eleven',
+  },
+  { stem: 'admin-sign-in-code', why: 'SCREENS.md §3.2, the one-time-code step' },
+  { stem: 'admin-signed-in', why: 'SCREENS.md §3.4, the signed-in pane' },
+  { stem: 'admin-reset', why: 'SCREENS.md §3.3, the reset request' },
+  { stem: 'admin-reset-sent', why: 'the same screen once the link is on its way' },
+  { stem: 'admin-reset-expired', why: 'the screen a spent reset link lands on' },
+]
+
+/** The `admin-` stem of every committed baseline, with the project and platform dropped. */
+const committedAdminStems = (committed: ReadonlySet<string>): readonly string[] =>
+  [...committed].flatMap((file) => {
+    const matched = /^(admin-.+)-(?:desktop|mid|mobile)-linux\.png$/u.exec(file)
+    return matched === null ? [] : [matched[1] ?? '']
+  })
 
 describe('the admin screens’ visual baselines', () => {
   it('are asked for against SCREENS.md’s own §2 headings, so a twelfth screen cannot be missed', () => {
@@ -376,6 +473,60 @@ describe('the admin screens’ visual baselines', () => {
     expect(
       unphotographed,
       'these admin screens have no toHaveScreenshot case in e2e/visual.spec.ts, so nothing would ever regenerate their baselines',
+    ).toEqual([])
+  })
+
+  it('belong to a screen, so a baseline cannot outlive the screen it photographed', () => {
+    // THE INVERSE OF THE CASE ABOVE, and the one `docs/deviations.md` §86
+    // needed: three `admin-panel-*-linux.png` files sat here photographing a
+    // screen Task 12 had deleted, and a guard that only asks each screen for
+    // its files never notices. See {@link NOT_A_SCREEN} for why the exemptions
+    // are checked in both directions.
+    const committed = new Set(existsSync(SNAPSHOT_DIR) ? readdirSync(SNAPSHOT_DIR) : [])
+    const stems = committedAdminStems(committed)
+    expect(
+      stems.length,
+      'no admin baselines were read out of the snapshot directory, so this checks nothing',
+    ).toBeGreaterThanOrEqual(SCREENS.length)
+
+    const named = new Set(SCREENS.map((entry) => entry.screen))
+    const excused = new Set(NOT_A_SCREEN.map((entry) => entry.stem))
+
+    expect(
+      [...new Set(stems)].filter((stem) => !named.has(stem) && !excused.has(stem)).sort(),
+      'these committed baselines photograph no screen this guard knows and no state NOT_A_SCREEN excuses; delete them, or say in NOT_A_SCREEN what they are',
+    ).toEqual([])
+    expect(
+      NOT_A_SCREEN.filter((entry) => !stems.includes(entry.stem)).map((entry) => entry.stem),
+      'these exemptions excuse a baseline that is no longer committed, so they have outlived the file they were written for',
+    ).toEqual([])
+  })
+
+  it('each mask the one string in the frame that changes with the worker, so no baseline rests on the ratio', () => {
+    // STANDING ORDER §17, TURNED ON THIS SEGMENT'S OWN NEW MECHANISM. Three
+    // jsdom cases pin the three `data-*` hooks' EXISTENCE; without this one,
+    // deleting `mask: [page.locator('[data-profile-name]')]` from any case
+    // left every committed guard green — and restored the sub-threshold flake
+    // the masks were added to remove, in a diff of a few glyphs that §110 has
+    // just finished documenting as invisible.
+    //
+    // EVERY `admin-*` BASELINE IS ASKED, NOT ONLY THE TWELVE SCREENS —
+    // CLAUDE.md §10's rule that a defect is fixed as a class. This case found
+    // `admin-journeys` unmasked on the commit that added it, and that is a
+    // screen in the set; `admin-journeys-create` and `admin-journeys-rungs`
+    // carried the index for the same reason. The sign-in family draws no rail
+    // at all, which this case does not have to know: those calls mask the
+    // selector, the mask matches nothing, and the rule stays uniform.
+    const source = visualSpecSource()
+    const asked = [...SCREENS.map((entry) => entry.screen), ...NOT_A_SCREEN.map((entry) => entry.stem)]
+
+    const unmasked = asked.filter(
+      (baseline) => !(screenshotCallFor(source, baseline)?.includes(REQUIRED_MASK) ?? false),
+    )
+
+    expect(
+      unmasked,
+      `these baselines’ toHaveScreenshot calls do not mask [${REQUIRED_MASK}], so they carry the fixture account’s worker index and pass only while the diff stays under maxDiffPixelRatio`,
     ).toEqual([])
   })
 

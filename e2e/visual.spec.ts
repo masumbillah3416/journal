@@ -3,13 +3,17 @@
  * every breakpoint.
  *
  * CLAUDE.md §2 requires a visual-regression suite covering "every page type
- * and every admin screen, at each breakpoint". Seven exist today: `/cms`
- * (Payload's own admin, which the bespoke admin replaces in a later phase)
- * and all six of the diary's page kinds - Cover, Contents and Notes from
- * Phase 1 Tasks 9 and 10, and Frames I, Frames II and About from Task 11
- * (SCREENS.md §1.1-§1.6). Every page type the book has is now covered.
+ * and every admin screen, at each breakpoint". Both halves are here: all six
+ * of the diary's page kinds (SCREENS.md §1.1-§1.6), `/cms` — Payload's own
+ * admin, which the bespoke admin replaces — the sign-in family, and
+ * SCREENS.md §2's eleven admin screens plus the shell around them. The admin
+ * half is introduced by its own banner comment further down, which is where
+ * the arguments about it live; `e2e/visualBaselines.test.ts` is what counts
+ * the set and fails when a screen is added without one. NO COUNT IS WRITTEN
+ * HERE ON PURPOSE: every previous revision of this paragraph carried one, and
+ * each was true for exactly one task.
  *
- * AN EIGHTH VIEW THAT IS NOT A PAGE OF THE BOOK: Task 13's page-not-found
+ * A VIEW THAT IS NOT A PAGE OF THE BOOK: Task 13's page-not-found
  * view (`app/(diary)/not-found.tsx`), which an address naming no page now
  * renders instead of clamping onto page 33. The design has no 404 screen, so
  * this one is assembled from the design's own surface - desk gradient, paper
@@ -357,9 +361,11 @@ test.afterAll(async ({}, testInfo) => {
   // run in parallel and a sweeping delete takes another one's session away
   // mid-run (see `SESSION_FIXTURE_DOMAIN`).
   //
-  // ONE ENTRY PER LABEL THIS FILE MINTS. Until this task there was exactly
-  // one — `visual.` — while five labels were being created; §107 measured 33
-  // accounts left behind by three of them.
+  // ONE ENTRY PER LABEL THIS FILE MINTS, which is what makes the loop a
+  // cleanup rather than a gesture: a label missing from the list leaves a real
+  // account in the developer's own `diary` database on every run
+  // (`docs/deviations.md` §107 measured 33 of them). The registration case in
+  // `e2e/ciRegistration.test.ts` is what holds the two together.
   for (const label of VISUAL_FIXTURE_LABELS) {
     await removeSignedInFixture(`${label}.${fixtureLabel(testInfo)}@${SESSION_FIXTURE_DOMAIN}`)
   }
@@ -550,7 +556,10 @@ test('matches the baseline screenshot of the one-time-code screen', async ({ pag
   await expect(page.locator('[data-code-cell]')).toHaveCount(6)
   await page.evaluate(() => document.fonts.ready)
 
-  await expect(page).toHaveScreenshot('admin-sign-in-code.png', { fullPage: true })
+  await expect(page).toHaveScreenshot('admin-sign-in-code.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
 })
 
 test('matches the baseline screenshot of the reset request screen', async ({ page }) => {
@@ -562,7 +571,10 @@ test('matches the baseline screenshot of the reset request screen', async ({ pag
   await expect(page.locator('[data-reset-step]')).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
 
-  await expect(page).toHaveScreenshot('admin-reset.png', { fullPage: true })
+  await expect(page).toHaveScreenshot('admin-reset.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
 })
 
 test('matches the baseline screenshot of the reset screen once the link is sent', async ({ page }) => {
@@ -573,7 +585,10 @@ test('matches the baseline screenshot of the reset screen once the link is sent'
   await expect(page.locator('[data-reset-sent]')).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
 
-  await expect(page).toHaveScreenshot('admin-reset-sent.png', { fullPage: true })
+  await expect(page).toHaveScreenshot('admin-reset-sent.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
 })
 
 test('matches the baseline screenshot of the screen a spent link lands on', async ({ page }) => {
@@ -586,7 +601,10 @@ test('matches the baseline screenshot of the screen a spent link lands on', asyn
   await expect(page.locator('[data-new-password-step]')).toHaveAttribute('data-new-password-view', 'expired')
   await page.evaluate(() => document.fonts.ready)
 
-  await expect(page).toHaveScreenshot('admin-reset-expired.png', { fullPage: true })
+  await expect(page).toHaveScreenshot('admin-reset-expired.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
 })
 
 test('matches the baseline screenshot of the signed-in screen', async ({ page, context, baseURL }, testInfo) => {
@@ -604,7 +622,10 @@ test('matches the baseline screenshot of the signed-in screen', async ({ page, c
   await expect(page.locator('[data-signed-in-mark]')).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
 
-  await expect(page).toHaveScreenshot('admin-signed-in.png', { fullPage: true })
+  await expect(page).toHaveScreenshot('admin-signed-in.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
 })
 
 test('matches the baseline screenshot of the Overview', async ({ page, context, baseURL }, testInfo) => {
@@ -661,7 +682,10 @@ test('matches the baseline screenshot of the journeys screen', async ({ page, co
   await expect(page.locator('[data-admin-journeys]')).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
 
-  await expect(page).toHaveScreenshot('admin-journeys.png', { fullPage: true })
+  await expect(page).toHaveScreenshot('admin-journeys.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
 })
 
 test('matches the baseline screenshot of the journeys table at its middle rungs', async ({
@@ -696,7 +720,10 @@ test('matches the baseline screenshot of the journeys table at its middle rungs'
   await expect(page.locator('[data-journey-id]').first().locator('[data-cell="dates"]')).toBeHidden()
   await page.evaluate(() => document.fonts.ready)
 
-  await expect(page).toHaveScreenshot('admin-journeys-rungs.png', { fullPage: true })
+  await expect(page).toHaveScreenshot('admin-journeys-rungs.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
 })
 
 test('matches the baseline screenshot of the journeys create panel', async ({ page, context, baseURL }, testInfo) => {
@@ -715,7 +742,10 @@ test('matches the baseline screenshot of the journeys create panel', async ({ pa
   await expect(page.locator('[data-create-panel]')).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
 
-  await expect(page).toHaveScreenshot('admin-journeys-create.png', { fullPage: true })
+  await expect(page).toHaveScreenshot('admin-journeys-create.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
 })
 
 test('matches the baseline screenshot of the sign-in screen', async ({ page }) => {
@@ -727,7 +757,10 @@ test('matches the baseline screenshot of the sign-in screen', async ({ page }) =
   await expect(page.locator('[data-password-step]')).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
 
-  await expect(page).toHaveScreenshot('admin-sign-in.png', { fullPage: true })
+  await expect(page).toHaveScreenshot('admin-sign-in.png', {
+    fullPage: true,
+    mask: [page.locator('[data-profile-name]')],
+  })
 })
 
 // ══ SCREENS.md §2's ELEVEN SCREENS, AND THE SHELL AROUND THEM ══════════════
@@ -756,13 +789,12 @@ test('matches the baseline screenshot of the sign-in screen', async ({ page }) =
  * Carries a minted session into the browser, which is what every guarded
  * screen needs before it draws anything.
  *
- * IT TAKES THE SESSION, NOT THE LABEL, AND THAT IS NOT A STYLE CHOICE. The
- * first version took the label and called `aSignedInSession` itself — which is
- * exactly the WRAPPER `e2e/ciRegistration.test.ts` names as the hole in its
- * own leak check (`docs/deviations.md` §108): its `MINTED_LABEL` reads a
- * literal off the call site, so ten labels minted inside a helper would have
- * been invisible to it and could have leaked an account each, silently.
- * Minting at the call site keeps every label where that guard can read it.
+ * IT TAKES THE SESSION, NOT THE LABEL, AND THAT IS NOT A STYLE CHOICE. A
+ * helper that minted the session itself would be the WRAPPER
+ * `e2e/ciRegistration.test.ts` names as the hole in its own leak check
+ * (`docs/deviations.md` §108): its `MINTED_LABEL` reads a literal off the call
+ * site, so a label minted inside a helper is invisible to it and leaks an
+ * account silently. Minting at the call site keeps every label readable.
  * @param context - The case's browser context.
  * @param baseURL - Playwright's own, for the cookie's URL.
  * @param session - What `aSignedInSession` returned at the call site.
@@ -838,10 +870,33 @@ test('matches the baseline screenshot of the shell itself, with the screen maske
   // WHY THE MASK IS THE POINT AND NOT A CONVENIENCE. The eleven screen
   // baselines each contain this frame already, so an unmasked shot here would
   // be a second copy of `admin-overview` and would guard nothing new. What
-  // none of the eleven gives is a baseline that CANNOT MOVE FOR A CONTENT
-  // REASON: each of them is regenerated whenever its own screen changes, and a
-  // shell change riding along inside that regeneration is invisible. Masked,
-  // this file moves when the frame moves and at no other time.
+  // none of the eleven gives is a baseline that NO SCREEN'S CONTENT CAN MOVE:
+  // each of them is regenerated whenever its own screen changes, and a frame
+  // change riding along inside that regeneration is invisible. That is not
+  // hypothetical — `docs/deviations.md` §110 is an instance of it.
+  //
+  // ═══ SO THE FRAME'S OWN DATA IS MASKED TOO, AND THE REST IS NAMED ═══
+  //
+  // An earlier revision of this comment claimed the file "moves when the frame
+  // moves and at no other time". That was false of the picture it was written
+  // above: outside the mask it printed the rail's nine counts, the header's
+  // crumb and the "Last published" stamp — all of them data, all of them moved
+  // by adding a journey or pressing Publish once. Three more masks make it
+  // true of everything this picture SAYS.
+  //
+  // WHAT A MASK CANNOT REACH IS EXISTENCE, which is why the claim is still
+  // bounded rather than absolute. A mask paints an element that is there; it
+  // cannot hold a place for one that is not. Two lines in this frame appear and
+  // disappear with the data — the rail's site-name eyebrow, drawn only when
+  // Settings holds a name, and `ScreenHeader`'s "n unpublished" chip, drawn
+  // only above zero — and either arriving would move this baseline for a
+  // reason no frame change caused. Neither is maskable; both are named here so
+  // the next reader meets them in the comment rather than in a diff.
+  //
+  // THE AVATAR'S LETTER IS NOT MASKED AND DOES NOT NEED TO BE. It is
+  // `accountName.slice(0, 1)`, and this case's account is always
+  // `visualshell.…`, so the glyph is fixed by the case rather than by the
+  // diary — unlike the address beneath it, which carries the worker index.
   //
   // AND THE VIEWPORT, NOT `fullPage`. A full-page shot's HEIGHT is the
   // screen's, not the shell's, so the one baseline meant to be independent of
@@ -863,7 +918,13 @@ test('matches the baseline screenshot of the shell itself, with the screen maske
   await adminSettled(page)
 
   await expect(page).toHaveScreenshot('admin-shell.png', {
-    mask: [page.locator('[data-admin-content]'), page.locator('[data-profile-name]')],
+    mask: [
+      page.locator('[data-admin-content]'),
+      page.locator('[data-profile-name]'),
+      page.locator('[data-nav-count]'),
+      page.locator('[data-crumb]'),
+      page.locator('[data-last-published]'),
+    ],
   })
 })
 
@@ -904,10 +965,21 @@ test('matches the baseline screenshot of the Media library', async ({ page, cont
   // the tiles in view. A full-page shot asks for a document taller than the
   // window the virtualizer is filling, and what it photographed would be a
   // function of how far ahead that window had run — a race, not a screen.
+  //
+  // WHICH IS WHY THE GRID IS SCROLLED TO AND `toBeInViewport` IS ASSERTED. A
+  // viewport shot only contains its subject if the subject is in the viewport,
+  // and `toBeVisible` does not say that: it is satisfied by an element below
+  // the fold. The first `admin-media-mobile-linux.png` passed that assertion
+  // and held the rail band, the header and the dropzone — and not one tile, no
+  // chip row and no search field, on a case whose stated subject is the grid.
+  // At 390px the band alone takes most of the viewport. So the grid is brought
+  // into frame and the assertion is the one that would have caught it.
   await signedInAs(context, baseURL, await aSignedInSession(`visualmedia.${fixtureLabel(testInfo)}`))
   await page.goto('/admin/media', { waitUntil: 'networkidle' })
   await expect(page.locator('[data-admin-media]')).toBeVisible()
   await expect(page.locator('[data-media-tile]').first()).toBeVisible()
+  await page.locator('[data-media-tile]').first().scrollIntoViewIfNeeded()
+  await expect(page.locator('[data-media-tile]').first()).toBeInViewport()
   await adminSettled(page)
 
   await expect(page).toHaveScreenshot('admin-media.png', { mask: [page.locator('[data-profile-name]')] })
@@ -1029,18 +1101,28 @@ test('matches the baseline screenshot of the Settings screen', async ({ page, co
 })
 
 test('matches the baseline screenshot of the Trash screen', async ({ page, context, baseURL }, testInfo) => {
-  // SCREENS.md §2.10, EMPTY, WHICH IS THE ONLY STATE OF IT THAT CAN BE
-  // BASELINED. A trashed row prints `trashCountdown`'s "{n} days left", which
-  // is a function of the current time: a fixture created to fill this screen
-  // would put a number in a committed image that is wrong by the next day, and
-  // one backdated to fix that number would be a row this suite then had to
-  // delete out of the developer's own database. The empty state is what the
-  // seed leaves and what an author sees on twenty-nine days out of thirty.
+  // SCREENS.md §2.10, EMPTY, AND THE REASON IS THE THREE PROJECTS RATHER THAN
+  // THE CLOCK. An earlier version of this comment said empty was the only
+  // state that could be baselined, on the ground that a row's line is a
+  // function of the current time. That is only half true and the half it
+  // states is not the blocker: `goesForGoodLine` prints
+  // `goes for good in {n} days` inside the window, which does move daily, but
+  // `still here until you delete it` once the thirty days are past — and
+  // `readTrashScreen` filters on `deletedAt: { exists: true }` and on nothing
+  // else, so a row backdated past the window lists and prints a fixed line.
+  //
+  // WHAT ACTUALLY RULES IT OUT is that this file's three projects run in
+  // PARALLEL and each worker mints its own fixtures. A trash fixture per
+  // worker means the list holds one, two or three rows depending on which
+  // workers are mid-run when the shot is taken, which is a racy picture rather
+  // than a screen — the same shape `SESSION_FIXTURE_DOMAIN`'s header records a
+  // flake for. `e2e/a11y.spec.ts` can create a row because axe does not count
+  // them; a baseline does.
   //
   // WHAT THAT COSTS IS STATED RATHER THAN HIDDEN: the row's 46px image, its
-  // two ringed buttons and its countdown are NOT in this baseline. They are
-  // covered by `e2e/a11y.spec.ts`'s trash case, which does create a row, and
-  // by the screen's own component tests.
+  // two ringed buttons and its line are NOT in this baseline. They are covered
+  // by `e2e/a11y.spec.ts`'s trash case, which does create a row, and by the
+  // screen's own component tests.
   await signedInAs(context, baseURL, await aSignedInSession(`visualtrash.${fixtureLabel(testInfo)}`))
   await page.goto('/admin/trash', { waitUntil: 'networkidle' })
   await expect(page.locator('[data-admin-trash]')).toBeVisible()
@@ -1068,7 +1150,13 @@ test('matches the baseline screenshot of the Account screen', async ({ page, con
   // And "Sign-in email" prints the fixture account's own address, which ends in
   // `fixtureLabel`'s worker index — the same string the rail's masked line
   // carries, arriving a second time through a card that spells it in full
-  // rather than truncating it. The one thing on this screen that IS a clock,
+  // rather than truncating it. The mask is `[data-account-email]`, the address
+  // alone, and NOT `[data-account-field="email"]`, which is the whole field:
+  // masking the field took §2.11's "Sign-in email" eyebrow with it and left
+  // the only labelled field in the picture with no label. Same rule as
+  // `data-session-where` above — mask the line, never the thing around it.
+  //
+  // The one thing on this screen that IS a clock,
   // the time-zone option's example date, is not masked and does not need to
   // be: `TIME_ZONE_SAMPLE` is a fixed `Date.UTC(2026, 8, 28, 22, 5)`.
   //
@@ -1088,7 +1176,7 @@ test('matches the baseline screenshot of the Account screen', async ({ page, con
     mask: [
       page.locator('[data-session-where]'),
       page.locator('[data-profile-name]'),
-      page.locator('[data-account-field="email"]'),
+      page.locator('[data-account-email]'),
     ],
   })
 })

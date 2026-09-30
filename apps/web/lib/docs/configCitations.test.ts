@@ -297,6 +297,18 @@ const unitIncludeGlobs = (): readonly string[] => {
  */
 const DOCUMENTS_DESCRIBING_THE_LIGHTHOUSE_GATE = ['docs/testing.md', '.github/workflows/ci.yml'] as const
 
+/**
+ * Every living document a `test:visual:container:update*` sentence can appear
+ * in, which is every one that argues about a baseline.
+ *
+ * `docs/testing.md` is where F9-2 happened. `docs/deviations.md` is where the
+ * NEXT one would: an entry explaining why a baseline was regenerated is
+ * exactly the shape that names a script and a mode in one sentence, and §110
+ * is the first to do it. A guard whose corpus is the document the defect
+ * happened in once is a guard against history.
+ */
+const DOCUMENTS_THAT_CAN_PAIR_A_SNAPSHOT_MODE = ['docs/testing.md', 'docs/deviations.md'] as const
+
 /** Every `lighthouserc*.json` at the repository root, read off disk. */
 const lighthouseConfigs = (): readonly string[] =>
   readdirSync(REPOSITORY_ROOT)
@@ -449,7 +461,14 @@ describe('the configured values the documentation quotes', () => {
   })
 
   it('never pair a baseline-regeneration script with the flag the other one passes', () => {
-    const testing = text('docs/testing.md')
+    // EVERY DOCUMENT THAT CAN CARRY SUCH A PAIRING, not only the one where F9-2
+    // happened. This read `docs/testing.md` alone until a Phase 4 Task 15
+    // review pointed out that the segment had just written the first such
+    // pairing into `docs/deviations.md` §110 — a guard against a recurrence,
+    // blind to where the sentence had moved. Both are living documents and
+    // both are read here; the function is over TEXT, so widening the corpus
+    // costs a line.
+    const documents = DOCUMENTS_THAT_CAN_PAIR_A_SNAPSHOT_MODE.map((name) => ({ name, body: text(name) }))
     const changed = snapshotMode('test:visual:container:update')
     const all = snapshotMode('test:visual:container:update:all')
 
@@ -463,9 +482,15 @@ describe('the configured values the documentation quotes', () => {
     ])
 
     expect(
-      contradictedSnapshotPairings(testing, modes),
+      documents.flatMap(({ name, body }) =>
+        contradictedSnapshotPairings(body, modes).map((wrong) => `${name}: ${wrong}`),
+      ),
       'these sentences pair a baseline-regeneration script with the flag the OTHER one passes; a reader regenerates believing every baseline was rewritten and ships a stale one that can never fail again',
     ).toEqual([])
+    expect(
+      documents.filter(({ body }) => body.includes('test:visual:container:update')).map(({ name }) => name),
+      'no document in the corpus names a regeneration script at all, so the pairing check above reads nothing',
+    ).not.toEqual([])
 
     // Proved able to answer YES, on the sentence that shipped the defect,
     // rather than only on the document as it stands corrected.

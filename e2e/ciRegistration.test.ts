@@ -389,6 +389,13 @@ test('deletes every fixture account e2e/a11y.spec.ts creates, so a run leaves no
   // run can tell a cleanup that ran from one that worked — and both are
   // `docs/deviations.md` §108 with an owner, so that the next person to trust
   // this file inherits its limits rather than finding them.
+  //
+  // BOTH DIRECTIONS, since Phase 4 Task 15. A label minted and never removed
+  // leaks an account; a label removed and never minted is a no-op delete that
+  // makes the list look like it covers more than it does, and it is how a
+  // renamed case quietly stops being cleaned up. The lists are hand-maintained
+  // — fifteen entries in `visual.spec.ts` — so the second direction is what
+  // stops one going stale without a word.
   const { minted, removed, readable } = fixtureLabelsOf('a11y.spec.ts')
 
   expect(
@@ -402,6 +409,10 @@ test('deletes every fixture account e2e/a11y.spec.ts creates, so a run leaves no
   expect(
     minted.filter((label) => !removed.includes(label)),
     'these labels create an account that nothing deletes when the suite finishes',
+  ).toEqual([])
+  expect(
+    removed.filter((label) => !minted.includes(label)),
+    'these labels are deleted by the cleanup and minted by no case, so the list has outlived a case that was removed or renamed',
   ).toEqual([])
 })
 
@@ -431,5 +442,9 @@ test('deletes every fixture account e2e/visual.spec.ts creates, so a run leaves 
   expect(
     minted.filter((label) => !removed.includes(label)),
     'these labels create an account that nothing deletes when the suite finishes',
+  ).toEqual([])
+  expect(
+    removed.filter((label) => !minted.includes(label)),
+    'these labels are deleted by the cleanup and minted by no case, so the list has outlived a case that was removed or renamed',
   ).toEqual([])
 })

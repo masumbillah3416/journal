@@ -90,12 +90,46 @@ numbers are `docs/testing.md`'s and do not change.
   admin screen that exists, at the three breakpoints `mobile`, `mid` and `desktop`: the
   diary's Cover, Contents, Notes, Frames I and II, About, gallery, lightbox and
   not-found; its mobile drawer, which is a `mobile` baseline alone because the drawer
-  exists at no other width; Payload's own `/cms`; and the bespoke panel — sign-in, its
-  code step, the signed-in state, the panel itself, and the reset screen in its sent,
-  live and expired states. **The directory is the authority, not this sentence**: the
-  baselines are committed at `e2e/visual.spec.ts-snapshots/*.png`, one file per screen
-  per breakpoint, and this list drifted a whole phase behind them once (final review 9,
-  F9-10). A snapshot suite with no baseline to compare against protects nothing.
+  exists at no other width; Payload's own `/cms`; `SCREENS.md` §3's sign-in family —
+  sign-in, its code step, the signed-in state, and the reset screen in its sent, live and
+  expired states; and since Phase 4 Task 15, **§2's eleven admin screens plus the shell
+  around them**, with `admin-journeys` in two further states (the create panel, and the
+  column ladder at a width no project sits at). **The directory is the authority, not
+  this sentence**: the baselines are committed at `e2e/visual.spec.ts-snapshots/*.png`,
+  one file per screen per breakpoint, and this list drifted a whole phase behind them
+  once (final review 9, F9-10). A snapshot suite with no baseline to compare against
+  protects nothing.
+- **What now stops that drift recurring, rather than this bullet being rewritten again.**
+  `e2e/visualBaselines.test.ts` runs in `npm run verify` and reads the directory. It takes
+  the screen list from `SCREENS.md`'s own §2.x headings, so a screen added to the
+  specification fails before a screen added to the app does; it requires the exact triple
+  `admin-<screen>-{desktop,mid,mobile}-linux.png` rather than a prefix; it requires a live
+  `toHaveScreenshot` call that would regenerate each one, so an image cannot outlive its
+  case; and it checks the set in BOTH directions, so a committed baseline belonging to no
+  screen fails too — which is the shape that let three `admin-panel-*` files go on
+  photographing a deleted screen (`docs/deviations.md` §86).
+- **These baselines MASK parts of the picture, and a masked region is compared for its
+  geometry and not its content.** Three things move on their own and are therefore held
+  outside the comparison:
+  - **The rail's account address**, on every `admin-*` baseline. It is `scope.user.email`,
+    which in this suite ends in the worker index Playwright assigns — different from run to
+    run. `visualBaselines.test.ts` requires this mask on every `admin-*` call, so a
+    baseline cannot quietly stop carrying it.
+  - **`admin-account`** masks that address a second time where §2.11's card prints it in
+    full, and masks the session row's date, which the guard stamps on the very request that
+    draws the screen and is therefore always today. Its time-zone example is NOT masked and
+    does not need to be: `TIME_ZONE_SAMPLE` is a fixed instant.
+  - **`admin-shell`** masks the whole content box — that is what makes it a picture of the
+    frame rather than a second copy of `admin-overview` — and the rail's counts, the
+    header's crumb and the "Last published" line, so no change to the diary's data moves it.
+    A mask cannot hold a place for an element that is absent, so two lines that appear and
+    disappear with the data still move it: the rail's site-name eyebrow and the header's
+    "n unpublished" chip. Both are named in the case.
+
+  Masking is for a string that is a function of the worker, the clock or the seed — never
+  for a region that is merely inconvenient. A mask is a region this suite has stopped
+  guarding, and each one above says which.
+
 - **The former gap, closed:** Playwright's screenshot baselines are keyed by OS and font
   rendering, so the Windows-generated baselines Task 12 committed (suffixed `-win32.png`)
   never honestly compared against CI's Ubuntu `browser` job, regardless of whether a page

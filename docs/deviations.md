@@ -3600,9 +3600,12 @@ save posts what is IN the card rather than what was rendered into it — the mut
 
 ## 86 · REVERSED — the admin screens had no visual baselines, and now all twelve do
 
-**Reversed by Phase 4 Task 15.** Thirty-three `-linux.png` files were generated in
-`mcr.microsoft.com/playwright:v1.62.1-noble` and committed: eleven screens plus the shell, at
-`desktop`, `mid` and `mobile`. `e2e/visualBaselines.test.ts` is what holds them there — it asks
+**Reversed by Phase 4 Task 15.** Eleven screens plus the shell now each hold a baseline at
+`desktop`, `mid` and `mobile` — **thirty-six** files for twelve subjects, of which **thirty-three
+were new**: `admin-journeys` already had its three. Both numbers are written here because the
+first is what the exit criterion asks for and the second is what the commit added, and an entry
+that gives one where the reader expects the other is how this figure went wrong the first time.
+All thirty-three were generated in `mcr.microsoft.com/playwright:v1.62.1-noble`. `e2e/visualBaselines.test.ts` is what holds them there — it asks
 `SCREENS.md`'s own §2.x headings which screens exist, requires the exact triple for each, and
 separately requires a `toHaveScreenshot` call that would regenerate it, so a committed image
 cannot outlive the case that took it.
@@ -3635,11 +3638,44 @@ Playwright appends the project and the platform and that spelling never becomes 
 writes one, and every run after that compares the host against itself while the committed files
 go unread — 31 such files were found untracked once.
 
-**What is NOT in the thirty-three, said plainly rather than left to be discovered.** Trash is
-photographed empty, because a trashed row prints a countdown that is a function of the current
-time; Publish is photographed with nothing waiting, because that is what `npm run db:seed`
-leaves and a fixture's name in a committed image is a fixture that can never change shape. Both
-are real states of real screens, and both are covered with rows by `e2e/a11y.spec.ts`.
+**What is NOT in these pictures, said plainly rather than left to be discovered.** Four things,
+and the fourth is the one a reader consulting this record would otherwise never learn:
+
+- **Trash is photographed empty**, because this file's three projects run in parallel and each
+  worker would mint its own trash fixture — a list holding one, two or three rows depending on
+  timing is a racy picture rather than a screen. (A backdated row's line _is_ fixed:
+  `goesForGoodLine` returns `still here until you delete it` past the window, and
+  `readTrashScreen` filters on `deletedAt: { exists: true }` and nothing else. The clock is not
+  what rules it out; the parallel fixtures are.)
+- **Publish is photographed with nothing waiting**, which is what `npm run db:seed` leaves. A
+  fixture would carry its own name and dates into a committed image.
+- **`admin-media` at `mobile` holds the grid and not the dropzone.** It is a viewport shot, the
+  rail band takes most of 844px, and only one of the two fits. The case scrolls the grid into
+  frame and asserts `toBeInViewport`, because the first version of it asserted `toBeVisible` —
+  which an element below the fold satisfies — and committed a picture of the screen without its
+  subject in it.
+- **Every one of these baselines MASKS the rail's account address**, which ends in the worker
+  index Playwright assigns; `admin-account` masks two regions more (the address again, printed
+  in full by §2.11's card, and the session row's date, which is stamped by the request that
+  draws the screen and is therefore always today); and `admin-shell` masks the whole content
+  box plus the rail's counts, the header's crumb and the "Last published" line. A masked region
+  is compared for its GEOMETRY and not its content, so those strings are outside the
+  comparison. `e2e/visualBaselines.test.ts` requires the address mask on every `admin-*` call,
+  so a baseline cannot quietly stop carrying it.
+
+Both of the first two are real states of real screens, and both are covered with rows by
+`e2e/a11y.spec.ts`.
+
+**What `admin-shell` does and does not promise.** It is the frame with the screen masked out, so
+**no screen's content can move it** — which is the gap the other eleven leave, since each of them
+is regenerated when its own screen changes and a frame change rides along unseen. It is not
+immune to the diary's data in general: a mask covers an element's content, never its existence,
+and two lines in the frame appear and disappear with the data — the rail's site-name eyebrow,
+drawn only when Settings holds a name, and `ScreenHeader`'s "n unpublished" chip, drawn only
+above zero. Either arriving moves this baseline. The first revision of this entry and of the
+case's own comment claimed it "moves when the frame moves and at no other time"; that was false
+of the picture it was written above, which printed the rail's nine counts, the crumb and the
+publish stamp outside the mask.
 
 **Recorded as:** this entry, `e2e/visualBaselines.test.ts`, the thirty-three files in
 `e2e/visual.spec.ts-snapshots/`, and the screen cases `e2e/visual.spec.ts` gained for them.
@@ -4673,14 +4709,24 @@ since Phase 4 Task 11 gave the screen a real count: it now says "Nothing is wait
 `SignedInStep.test.tsx` pins to the literal. §38 records the replacement. The baselines were
 pictures of markup that no longer existed.
 
-**Why nobody had noticed, which is the part worth keeping.** Only `mobile` ever failed. The old
-sentence wraps to two lines at 390px and to one at 1000px and 1440px, so at `mid` and `desktop`
-the changed pixels came in UNDER `toHaveScreenshot`'s `maxDiffPixelRatio: 0.01` and the
-comparison run reported a pass over a stale image — for the whole of Tasks 11 to 14. This is the
-same failure mode `docs/deviations.md` §12 records for the `mobile` cover, and it is the reason
-Task 15's `admin-shell` baseline masks the screen's content instead of photographing a twelfth
-full page: a frame regression measured against a full-page denominator is a frame regression
-that passes.
+**What was measured, and what is not claimed.** In Task 15's comparison run, with the committed
+files in place, **`mobile` failed and `mid` and `desktop` passed over an equally stale image**.
+The old sentence wraps to two lines at 390px and to one at 1000px and 1440px, so at the two
+wider projects the changed pixels came in UNDER `toHaveScreenshot`'s `maxDiffPixelRatio: 0.01`.
+That is one run's result and the arithmetic behind it.
+
+**What is NOT established is the history.** An earlier draft of this entry said the comparison
+run "reported a pass over a stale image — for the whole of Tasks 11 to 14". It cannot have: the
+`browser` job in `.github/workflows/ci.yml` runs `e2e/visual.spec.ts` in the pinned image, so
+either a comparison ran in that window and `mobile` was RED in it — in which case a pass was not
+reported and why it survived is unexplained — or none ran, in which case the ratio is not what
+carried it. Which of those happened is not recorded anywhere this entry can read, and the
+sentence is withdrawn rather than repaired. What survives is the measurement above, which is
+enough to make the point.
+
+It is the same failure mode §12 records for the `mobile` cover, and it is why Task 15's
+`admin-shell` baseline masks the screen's content instead of photographing a twelfth full page:
+a frame regression measured against a full-page denominator is a frame regression that passes.
 
 **What closed it.** All three were regenerated with `--update-snapshots=all` — the mode
 `npm run test:visual:container:update:all`'s compose service passes, and the one case its own
