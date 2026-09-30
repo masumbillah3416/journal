@@ -33,6 +33,18 @@
  * newest thing on disk. The name is the report's own statement of when it was
  * written.
  *
+ * ═══ AND THE DATE HAS A CEILING, WHICH IS THE HALF THAT WAS MISSING ═══
+ *
+ * The pattern alone accepts any `\d{4}-\d{2}-\d{2}`, so `2026-13-45-foo.md` —
+ * or a fat-fingered `2062-` — sorts above every real report and becomes "the
+ * newest" FOR EVER. Every genuine report written afterwards would go unchecked,
+ * the non-vacuity floor would still be met by that one file's own backticks,
+ * and this whole guard would report green while guarding nothing (review round
+ * 1, finding 5). So a date must be a day the calendar has, and must not be more
+ * than {@link DAYS_AHEAD_A_REPORT_MAY_BE_DATED} past the runner's own — and a
+ * report whose date fails either test is REPORTED by name rather than quietly
+ * skipped, because skipping it is the same silence one layer down.
+ *
  * ═══ A DAY CAN HOLD MORE THAN ONE REPORT, AND ALL OF THEM ARE CHECKED ═══
  *
  * `CLAUDE.md` §10 asks for one sweep per screen group, so a phase closing out
@@ -81,36 +93,131 @@ import { REPOSITORY_ROOT, markdownFiles } from './markdownCorpus'
 const DATED_REPORT = /^docs\/qa\/(\d{4}-\d{2}-\d{2})-[^/]+\.md$/u
 
 /**
- * The reports written on the latest day any report was written on.
+ * Whether a `YYYY-MM-DD` run is a day that exists.
+ *
+ * The pattern above is arithmetic-free, so `2026-13-45` satisfies it. The
+ * round trip through `Date` is what refuses that AND `2026-02-30`, which rolls
+ * forward to March rather than failing — a string that comes back different is
+ * a day the calendar does not have.
+ * @param date - The run captured from a filename.
+ * @returns Whether it names a real day.
+ * @example
+ * isARealDay('2026-02-30') // false — Date rolls it to 2026-03-02
+ */
+const isARealDay = (date: string): boolean => {
+  const parsed = new Date(`${date}T00:00:00.000Z`)
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(date)
+}
+
+/**
+ * How far past the runner's own day a report may still be dated.
+ *
+ * ═══ WHY THIS IS NOT ZERO, AND WHY IT IS NOT A WIDENED MARGIN ═══
+ *
+ * A report is named by its AUTHOR'S calendar and this check runs on the
+ * RUNNER'S. Those are up to 26 hours apart — UTC−12 to UTC+14 — so a report
+ * written on the morning of the 2nd in Auckland is still the 1st in CI, and a
+ * ceiling of "not after today" would fail it for being honest. One day is the
+ * whole of that span expressed in whole days; two days is not reachable
+ * anywhere on earth, so a report dated the day after tomorrow is a typo.
+ *
+ * This is a semantic bound and not a race (standing orders §15): nothing here
+ * is waiting for a clock to catch up, and widening it further would not make
+ * anything rarer — it would admit more typos.
+ */
+const DAYS_AHEAD_A_REPORT_MAY_BE_DATED = 1
+
+/**
+ * The runner's own day, in its own zone.
+ *
+ * LOCAL AND NOT UTC, because that is the calendar whoever names the next report
+ * will read off their own machine. The offset is subtracted before the ISO
+ * spelling is taken, which is the only way to get a local calendar date out of
+ * `Date` without a formatter.
+ * @param now - The instant to read, injected so a case can move it.
+ * @returns `YYYY-MM-DD`.
+ */
+const dayOf = (now: Date): string =>
+  new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+
+/**
+ * The latest day a report may claim, given when this runs.
+ *
+ * @param now - The instant this check runs at.
+ * @returns `YYYY-MM-DD`, inclusive.
+ */
+const latestDatePermitted = (now: Date): string =>
+  dayOf(new Date(now.getTime() + DAYS_AHEAD_A_REPORT_MAY_BE_DATED * 24 * 60 * 60 * 1000))
+
+/** One report's path and the day its name claims. */
+interface DatedReport {
+  readonly file: string
+  readonly date: string
+}
+
+/**
+ * Every dated report, split into the ones whose date is usable and the ones
+ * whose date cannot be believed.
+ *
+ * ═══ WHY THE IMPOSSIBLE ONES ARE RETURNED RATHER THAN DROPPED ═══
+ *
+ * Dropping them silently is the defect this split exists to close. A file
+ * committed as `docs/qa/2099-01-01-…` or `2026-13-45-…` would otherwise become
+ * "the newest" for ever: every genuine report written afterwards would go
+ * unchecked, the non-vacuity case would still be satisfied by that one file's
+ * own backticks, and the whole guard would report green while guarding nothing.
+ * Excluding them from the selection fixes the capture; REPORTING them is what
+ * stops the exclusion being a second silence.
+ * @param files - Repository-relative paths, in any order.
+ * @param now - The instant this check runs at.
+ * @returns The usable reports and the unbelievable ones, each sorted by path.
+ */
+const datedReports = (
+  files: readonly string[],
+  now: Date,
+): { readonly usable: readonly DatedReport[]; readonly impossible: readonly DatedReport[] } => {
+  const ceiling = latestDatePermitted(now)
+  const all = files
+    .flatMap((file) => {
+      const matched = DATED_REPORT.exec(file)
+      return matched === null ? [] : [{ file, date: matched[1] ?? '' }]
+    })
+    .sort((left, right) => (left.file < right.file ? -1 : 1))
+
+  return {
+    usable: all.filter((entry) => isARealDay(entry.date) && entry.date <= ceiling),
+    impossible: all.filter((entry) => !isARealDay(entry.date) || entry.date > ceiling),
+  }
+}
+
+/**
+ * The reports written on the latest day any believable report was written on.
  *
  * Pure, and taking the list rather than reading the tree, so the selection can
  * be asked about a set of names this repository does not hold — which is the
  * only way to prove it prefers a later date over an earlier one rather than
  * preferring whatever sorts last.
  * @param files - Repository-relative paths, in any order.
- * @returns Every dated report carrying the newest date, sorted; empty when the
- *   list holds no dated report at all.
+ * @param now - The instant this check runs at.
+ * @returns Every usable report carrying the newest date, sorted; empty when the
+ *   list holds no usable report at all.
  * @example
- * newestOf(['docs/qa/2026-01-02-a-sweep.md', 'docs/qa/2026-01-03-b-sweep.md'])
+ * newestOf(['docs/qa/2026-01-02-a-sweep.md', 'docs/qa/2026-01-03-b-sweep.md'], new Date())
  * // ['docs/qa/2026-01-03-b-sweep.md']
  */
-const newestOf = (files: readonly string[]): readonly string[] => {
-  const dated = files.flatMap((file) => {
-    const matched = DATED_REPORT.exec(file)
-    return matched === null ? [] : [{ file, date: matched[1] ?? '' }]
-  })
+const newestOf = (files: readonly string[], now: Date): readonly string[] => {
+  const { usable } = datedReports(files, now)
   // ISO dates sort lexicographically, which is the whole reason the convention
-  // writes them that way; no parsing, and therefore no time zone.
-  const newest = dated.reduce((latest, entry) => (entry.date > latest ? entry.date : latest), '')
-  return dated
-    .filter((entry) => entry.date === newest)
-    .map((entry) => entry.file)
-    .sort()
+  // writes them that way; the calendar check above is what earns that shortcut.
+  const newest = usable.reduce((latest, entry) => (entry.date > latest ? entry.date : latest), '')
+  return usable.filter((entry) => entry.date === newest).map((entry) => entry.file)
 }
 
 /** The newest reports this repository actually holds, as `[path, text]`. */
 const newestReports = (): readonly (readonly [string, string])[] =>
-  newestOf(markdownFiles()).map((file) => [file, readFileSync(path.join(REPOSITORY_ROOT, file), 'utf8')] as const)
+  newestOf(markdownFiles(), new Date()).map(
+    (file) => [file, readFileSync(path.join(REPOSITORY_ROOT, file), 'utf8')] as const,
+  )
 
 /** Every backticked run of the newest reports, with where it was found. */
 const citationsOf = (
@@ -122,6 +229,21 @@ const citationsOf = (
       .map(({ run, line }) => ({ run, where: `${file}:${String(line)}` })),
   )
 
+/** One day, in milliseconds, for the ceiling cases below. */
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * The instant the pure cases below are asked about.
+ *
+ * Injected rather than `new Date()` (CLAUDE.md §2.3): every literal date in
+ * those cases is fixed against it, so they cannot start failing on a particular
+ * day of the year.
+ */
+const A_MONDAY = new Date('2026-06-15T09:00:00.000Z')
+
+/** A report whose date is unremarkable, for the cases about the other kind. */
+const REAL = 'docs/qa/2026-03-04-real-sweep.md'
+
 describe('the newest report under docs/qa', () => {
   it('was found, and holds citations, so a green result below is a result', () => {
     // THE NON-VACUITY CASE, and it guards two different silences. An empty
@@ -131,9 +253,20 @@ describe('the newest report under docs/qa', () => {
     const reports = newestReports()
 
     expect(reports.map(([file]) => file)).not.toEqual([])
+
+    // ONE FLOOR PER PREDICATE, NOT ONE OVER THE UNION. A floor over the two
+    // together is satisfied by either, so a newest report holding identifiers
+    // and no path would leave the path case vacuously green with this case
+    // still passing (review round 1, finding 11). A sweep report that names no
+    // file and one that names no symbol are each worth a second look, which is
+    // what these two messages say.
     expect(
-      [...citationsOf(isPathCitation), ...citationsOf(isIdentifierCitation)].length,
-      'the newest report was found but nothing in it parsed as a citation',
+      citationsOf(isPathCitation).length,
+      'the newest report quotes no file path at all, so the path case below checks nothing — either the extractor broke or the report cites no file',
+    ).toBeGreaterThanOrEqual(1)
+    expect(
+      citationsOf(isIdentifierCitation).length,
+      'the newest report quotes no identifier at all, so the identifier case below checks nothing — either the extractor broke or the report names no symbol',
     ).toBeGreaterThanOrEqual(1)
   })
 
@@ -170,33 +303,88 @@ describe('the newest report under docs/qa', () => {
     // A selection that took the last name alphabetically would pass every
     // assertion above against whichever report happened to sort last, forever.
     // The `zzz`/`aaa` pair is the one that tells the two apart.
-    expect(newestOf(['docs/qa/2026-01-03-zzz-sweep.md', 'docs/qa/2026-02-01-aaa-sweep.md'])).toEqual([
+    expect(newestOf(['docs/qa/2026-01-03-zzz-sweep.md', 'docs/qa/2026-02-01-aaa-sweep.md'], A_MONDAY)).toEqual([
       'docs/qa/2026-02-01-aaa-sweep.md',
     ])
 
     // Every report of the newest day, not one of them.
     expect(
-      newestOf([
-        'docs/qa/2026-02-01-desk-sweep.md',
-        'docs/qa/2026-01-09-old-sweep.md',
-        'docs/qa/2026-02-01-authoring-sweep.md',
-      ]),
+      newestOf(
+        [
+          'docs/qa/2026-02-01-desk-sweep.md',
+          'docs/qa/2026-01-09-old-sweep.md',
+          'docs/qa/2026-02-01-authoring-sweep.md',
+        ],
+        A_MONDAY,
+      ),
     ).toEqual(['docs/qa/2026-02-01-authoring-sweep.md', 'docs/qa/2026-02-01-desk-sweep.md'])
 
     // Things that are not a dated report directly under `docs/qa/`: a
     // screenshot's directory, an undated note, and a document somewhere else
     // whose name happens to start with a date.
     expect(
-      newestOf([
-        'docs/qa/assets/2026-09-30-shot.md',
-        'docs/qa/notes.md',
-        'docs/superpowers/2026-12-31-plan.md',
-        'docs/qa/2026-01-02-only-sweep.md',
-      ]),
+      newestOf(
+        [
+          'docs/qa/assets/2026-09-30-shot.md',
+          'docs/qa/notes.md',
+          'docs/superpowers/2026-12-31-plan.md',
+          'docs/qa/2026-01-02-only-sweep.md',
+        ],
+        A_MONDAY,
+      ),
     ).toEqual(['docs/qa/2026-01-02-only-sweep.md'])
 
     // And a list with no report in it selects nothing rather than everything,
     // which is what the non-vacuity case above is standing over.
-    expect(newestOf(['README.md'])).toEqual([])
+    expect(newestOf(['README.md'], A_MONDAY)).toEqual([])
+  })
+
+  it('refuses a date the calendar has no such day for, so one typo cannot capture the corpus', () => {
+    // WITHOUT THIS, A TYPO RETIRES THE WHOLE GUARD SILENTLY (review round 1,
+    // finding 5): `2026-13-45` sorts above every real date, becomes "the
+    // newest" for ever, and every genuine report written afterwards goes
+    // unchecked while the suite stays green.
+    const withATypo = ['docs/qa/2026-13-45-typo-sweep.md', 'docs/qa/2026-02-30-also-typo-sweep.md', REAL]
+
+    expect(newestOf(withATypo, A_MONDAY)).toEqual([REAL])
+    expect(datedReports(withATypo, A_MONDAY).impossible.map((entry) => entry.file)).toEqual([
+      'docs/qa/2026-02-30-also-typo-sweep.md',
+      'docs/qa/2026-13-45-typo-sweep.md',
+    ])
+  })
+
+  it('accepts a report dated up to one day ahead of the runner and refuses one dated further', () => {
+    // BOTH SIDES OF THE CEILING, and the boundary MOVES with `now` rather than
+    // with a literal — a hard-coded date here would pass for a while and then
+    // start refusing every real report. DAYS_AHEAD_A_REPORT_MAY_BE_DATED is 1
+    // because the author's zone and the runner's are up to 26 hours apart; see
+    // that constant.
+    const on = (date: string): string => `docs/qa/${date}-ahead-sweep.md`
+    const today = dayOf(A_MONDAY)
+    const tomorrow = dayOf(new Date(A_MONDAY.getTime() + DAY_MS))
+    const dayAfter = dayOf(new Date(A_MONDAY.getTime() + 2 * DAY_MS))
+
+    // The last accepted value, and the first refused one.
+    expect(newestOf([REAL, on(today)], A_MONDAY)).toEqual([on(today)])
+    expect(newestOf([REAL, on(tomorrow)], A_MONDAY)).toEqual([on(tomorrow)])
+    expect(newestOf([REAL, on(dayAfter)], A_MONDAY)).toEqual([REAL])
+    expect(datedReports([REAL, on(dayAfter)], A_MONDAY).impossible.map((entry) => entry.file)).toEqual([on(dayAfter)])
+
+    // And the same filename is accepted once the runner's own day has caught
+    // up, which is what says the ceiling is read from `now` and not from a
+    // constant hiding in the comparison.
+    expect(newestOf([REAL, on(dayAfter)], new Date(A_MONDAY.getTime() + DAY_MS))).toEqual([on(dayAfter)])
+  })
+
+  it('holds no report this repository dated impossibly, which is the state the two cases above protect', () => {
+    // The check over the real tree. Without it the ceiling would quietly drop a
+    // mis-dated report instead of dropping the guard, which is a second silence
+    // rather than a fix.
+    const { impossible } = datedReports(markdownFiles(), new Date())
+
+    expect(
+      impossible.map((entry) => entry.file),
+      'these reports under docs/qa carry a date that is not a day, or one too far ahead to be a record; rename them',
+    ).toEqual([])
   })
 })

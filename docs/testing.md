@@ -1052,6 +1052,16 @@ tree does not hold — a screenshot under `test-results/`, say — puts the file
 different corpus — four phases of documents, some of whose citations cannot resolve and
 should not.)
 
+**The date has a ceiling as well as an ordering**, which is the half the first version of
+this guard was missing. A filename pattern alone accepts `2026-13-45-…`, which sorts above
+every real report and would become "the newest" for ever — every genuine report written
+afterwards unchecked, the non-vacuity floor still met by that one file's backticks, and the
+guard green while guarding nothing. So a date must be a day the calendar has, and must not
+be more than one day past the runner's own; one day rather than zero because the author's
+zone and the runner's are up to 26 hours apart, and the day after tomorrow is not a real
+report date anywhere on earth. A report failing either test is named in a failure rather
+than skipped.
+
 It is proved able to fail rather than assumed to be: a report dated 2099 naming a module
 and a symbol that do not exist turns both resolution cases red and names the planted file;
 one with no backticked run in it turns the non-vacuity case red; and a selection that stops
