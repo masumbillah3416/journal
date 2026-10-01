@@ -386,27 +386,37 @@ That record quotes figures that have since been superseded — the 2,500ms LCP b
 above all. **No figure beneath this section is the current gate unless this table says
 so.**
 
-| Gate                           | Config                    | Route                                                                  | Limit                                                                                                                  |
-| ------------------------------ | ------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `largest-contentful-paint`     | `lighthouserc.book.json`  | `/p/1`, book surface (1350x940, `Cookie: td-reading-surface=book`)     | **≤3085ms**                                                                                                            |
-| `largest-contentful-paint`     | `lighthouserc.json`       | `/p/1`, mobile surface (Lighthouse phone emulation, no cookie)         | **≤3085ms**                                                                                                            |
-| `largest-contentful-paint`     | `lighthouserc.json`       | `/gallery/patagonia`                                                   | ≤4000ms                                                                                                                |
-| `resource-summary:script:size` | both                      | `/p/1` (both surfaces), `/gallery/<slug>`                              | ≤184320 bytes (180KB, `CLAUDE.md` §6)                                                                                  |
-| `resource-summary:image:size`  | `lighthouserc.json`       | `/gallery/<slug>`                                                      | ≤680000 bytes                                                                                                          |
-| `largest-contentful-paint`     | `lighthouserc.admin.json` | the **eight** URLs that config collects (1440x900 desktop) — see below | **≤3085ms**                                                                                                            |
-| `resource-summary:script:size` | `lighthouserc.admin.json` | the same eight admin routes                                            | ≤327680 bytes (320KB, `CLAUDE.md` §6)                                                                                  |
-| `cumulative-layout-shift`      | all three                 | every collected URL                                                    | ≤0.1                                                                                                                   |
-| `http-status-code`             | all three                 | every collected URL                                                    | `minScore: 1`                                                                                                          |
-| —                              | `lighthouserc.json`       | `/cms`                                                                 | `http-status-code` and CLS only: no LCP, no script budget                                                              |
-| **none**                       | —                         | **`/admin/sign-in/done`, `/admin/reset/<token>`**                      | **NOT GATED** — behind the guard or behind a live token; the paragraphs under this table say why, and what bounds each |
+| Gate                           | Config                    | Route                                                              | Limit                                                                                                                           |
+| ------------------------------ | ------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `largest-contentful-paint`     | `lighthouserc.book.json`  | `/p/1`, book surface (1350x940, `Cookie: td-reading-surface=book`) | **≤3085ms**                                                                                                                     |
+| `largest-contentful-paint`     | `lighthouserc.json`       | `/p/1`, mobile surface (Lighthouse phone emulation, no cookie)     | **≤3085ms**                                                                                                                     |
+| `largest-contentful-paint`     | `lighthouserc.json`       | `/gallery/patagonia`                                               | ≤4000ms                                                                                                                         |
+| `resource-summary:script:size` | both                      | `/p/1` (both surfaces), `/gallery/<slug>`                          | ≤184320 bytes (180KB, `CLAUDE.md` §6)                                                                                           |
+| `resource-summary:image:size`  | `lighthouserc.json`       | `/gallery/<slug>`                                                  | ≤680000 bytes                                                                                                                   |
+| `largest-contentful-paint`     | `lighthouserc.admin.json` | every URL that config collects (1440x900 desktop) — see below      | **≤3085ms**                                                                                                                     |
+| `resource-summary:script:size` | `lighthouserc.admin.json` | the same admin routes                                              | ≤327680 bytes (320KB, `CLAUDE.md` §6)                                                                                           |
+| `cumulative-layout-shift`      | all three                 | every collected URL                                                | ≤0.1                                                                                                                            |
+| `http-status-code`             | all three                 | every collected URL                                                | `minScore: 1`                                                                                                                   |
+| —                              | `lighthouserc.json`       | `/cms`                                                             | `http-status-code` and CLS only: no LCP, no script budget                                                                       |
+| **none**                       | —                         | **`/admin/reset/<token>`, `/admin/journeys/<id>`**                 | **NOT GATED** — a parameter has no literal URL for a collector to ask for; the paragraphs under this table say what bounds each |
 
-**THE EIGHT ADMIN URLs**, as `lighthouserc.admin.json` lists them: `/admin/sign-in`,
-`/admin/sign-in/code`, `/admin/reset`, `/admin`, `/admin/journeys`, `/admin/book`,
-`/admin/cover` and `/admin/publish`. This row said "four" until Phase 4 Task 12, which is when
-somebody counted: Tasks 4, 10 and 11 each added a URL to that config and left this table
-naming the four it started with. `/admin/media` and `/admin/galleries` are deliberately NOT
-among them (`docs/deviations.md` §73 and §80), and the four screens Tasks 13-15 mount are not
-there yet.
+**EVERY ADMIN SCREEN WITH A LITERAL ADDRESS IS COLLECTED, and a test says so rather than a
+count in this paragraph.** `scripts/lighthouseCollects.test.js` walks `apps/web/app/`, computes
+each page's address the way Next.js does, and refuses any address under `/admin` that
+`lighthouserc.admin.json` does not collect — excusing only an address carrying a bracketed
+segment, because a `lighthouserc*.json` holds URLs rather than patterns. It runs in the
+pre-commit gate and reads the configuration back the other way too, so a URL whose page has
+been deleted fails it.
+
+That guard is Phase 4 Task 15c, and what it found when it was first run is why it exists:
+**six** admin screens were mounted, reachable and collected by nothing — `/admin/media`,
+`/admin/galleries` (deliberately, `docs/deviations.md` §73 and §80), and `/admin/settings`,
+`/admin/trash`, `/admin/account` and `/admin/sign-in/done` because nobody had said. A screen
+absent from the collector is not a budget that is red; it is a budget nobody measured, and
+Phase 4's seventh exit criterion — phrased "every collected screen" — was satisfiable by
+omission. All six were added. `/admin/sign-in/done`'s own exemption had already expired
+without being noticed: this document gave as its reason that Lighthouse "sends no cookie", and
+Phase 4 Task 3 made the runner mint one.
 
 **BOTH OF THE GATES THAT WERE RED AS THIS PHASE CLOSED WERE RULED ON BY THE REPOSITORY
 OWNER ON 2026-09-14, ON THE MEASUREMENTS BELOW.** Neither was an agent adjusting a
@@ -451,15 +461,19 @@ a third config rather than three more URLs in an existing one for exactly the re
 gives for the book's: lhci's collect settings are per-run, not per-URL, and the admin is an
 authoring surface measured at a desktop viewport rather than under phone emulation.
 
-**Three of the five reachable admin addresses are collected, and the other two are bounded
-rather than guessed.** `/admin/sign-in/done` is behind the session guard, so Lighthouse —
-which sends no cookie — collects the redirect rather than the screen. Rather than fabricate a
-session for the collector it is left out, with the bound recorded: it ships strictly fewer
-client modules than the three that are collected, because `SignedInStep` is not a
-`'use client'` component and the other three panes are, so its script total cannot exceed
-theirs. `/admin/reset/<token>` renders `NewPasswordStep`, which IS a client component and so
-is not covered by that argument; its address needs a live token that changes every run, so it
-was measured directly instead — 8 scripts, 176,211 bytes gzipped, against the 320KB ceiling.
+**The two addresses that carry a parameter are bounded rather than guessed, because a
+collector cannot ask for them.** `/admin/reset/<token>` renders `NewPasswordStep` and needs a
+live token that changes every run, so it was measured directly instead — 8 scripts, 176,211
+bytes gzipped, against the 320KB ceiling. `/admin/journeys/<id>` is the journey editor and
+needs a live journey id; it has never been collected, and nothing here has measured it.
+Under `CLAUDE.md` §7.1 that is **UNRESOLVED** rather than inferred from its neighbours.
+
+**`/admin/sign-in/done` used to be in this paragraph and is now collected.** The reason given
+for leaving it out was that Lighthouse "sends no cookie" and would collect the redirect — true
+when it was written and false since Phase 4 Task 3, which made `scripts/run-lighthouse.mjs`
+mint a session before any configuration collecting an `/admin…` address. Task 15c measured it
+rather than continuing to bound it: 137,907 bytes in 6 script requests, LCP 2,925.9ms, CLS 0 —
+and its final URL is `/admin/sign-in/done`, which is what says the cookie reached the guard.
 
 **`/admin` HAS A LIGHTHOUSE BUDGET NOW, and Phase 4 Task 3 is where it got one.** This
 file said for seven rounds that it did not, and the reason it gave was the right one:
@@ -550,68 +564,143 @@ screens are not the worry. **LCP is:** 2,930ms against the 3,085ms gate is **95%
 without shipping a byte of JavaScript — one more query, one uncached font, one image above
 the fold. Read the LCP column first when this gate goes red.
 
-### `/admin/media` IS MEASURED AND IS NOT IN THE CONFIG, AND THAT IS THE MOST IMPORTANT ROW HERE
+### EVERY ADMIN SCREEN MEASURED IN ONE RUN — Phase 4 Task 15c, and the gate is RED
 
-Phase 4 Task 8 added `http://localhost:3000/admin/media` to `lighthouserc.admin.json`, ran the
-gate, and **took it out again**. What follows is why, with every number measured on this machine
-at five runs per configuration.
+One `npm run test:perf` on this Windows host, production `next build` + `next start`, five runs
+per URL, medians, 1440x900 desktop emulation at DPR 1, against the developer `diary` database.
+**The final URL is the requested one in every row**, which is what says the collector's session
+survived into the run rather than that the sign-in pane was measured fourteen times.
 
-| `/admin/media` as collected             | script transfer | image requests | image transfer | LCP median  | CLS |
-| --------------------------------------- | --------------- | -------------- | -------------- | ----------- | --- |
-| as built (every tile lazy)              | 143,108         | 70             | 1,260,054      | **4,580ms** | 0   |
-| first twelve tiles `loading="eager"`    | 143,142         | 70             | 1,260,054      | **5,312ms** | 0   |
-| the same screen with **no tile images** | 143,142         | 0              | 0              | **2,929ms** | 0   |
+| URL                   | script transfer | script req | image transfer | image req | LCP median    | CLS | TBT  |
+| --------------------- | --------------- | ---------- | -------------- | --------- | ------------- | --- | ---- |
+| `/admin/sign-in`      | 140,684         | 7          | 0              | 0         | 2,926.8ms     | 0   | 20ms |
+| `/admin/sign-in/code` | 141,445         | 7          | 0              | 0         | 2,924.5ms     | 0   | 19ms |
+| `/admin/sign-in/done` | 137,907         | 6          | 0              | 0         | 2,925.9ms     | 0   | 20ms |
+| `/admin/reset`        | 140,527         | 7          | 0              | 0         | 2,925.4ms     | 0   | 20ms |
+| `/admin`              | 139,360         | 7          | 0              | 0         | 2,927.5ms     | 0   | 21ms |
+| `/admin/journeys`     | 140,075         | 7          | 0              | 0         | 2,927.2ms     | 0   | 20ms |
+| `/admin/media`        | 143,035         | 7          | 1,260,054      | 70        | **4,180.2ms** | 0   | 13ms |
+| `/admin/galleries`    | 142,827         | 7          | 194,346        | 9         | **3,762.1ms** | 0   | 16ms |
+| `/admin/book`         | 141,922         | 7          | 0              | 0         | 2,927.5ms     | 0   | 21ms |
+| `/admin/cover`        | 140,873         | 7          | 19,632         | 1         | 3,003.8ms     | 0   | 11ms |
+| `/admin/publish`      | 139,888         | 7          | 0              | 0         | 2,926.9ms     | 0   | 21ms |
+| `/admin/settings`     | 137,907         | 6          | 0              | 0         | 2,925.5ms     | 0   | 20ms |
+| `/admin/trash`        | 137,907         | 6          | 0              | 0         | 2,926.6ms     | 0   | 21ms |
+| `/admin/account`      | 137,907         | 6          | 0              | 0         | 2,925.8ms     | 0   | 22ms |
 
-**The script budget is fine.** 143,108 bytes against 327,680 is 43.7%, and the two client islands
-SCREENS.md §2.4 needs — the dropzone and the grid's selection — cost about 3,000 bytes over
-`/admin/journeys`. Nothing about this screen threatens the byte ceiling.
+`http-status-code` scored 1 on all seventy runs and CLS measured 0.0000 on all seventy.
 
-**The LCP budget is not, and it is not this screen's arrangement that breaks it.** With the tile
-images removed and nothing else changed, the screen measures 2,929ms — statistically the same as
-`/admin/journeys`'s 2,930ms, and inside the 3,085ms gate. Every millisecond of the overage is the
-photographs: 70 requests and 1.26MB of `thumb` derivatives, at roughly 1.3ms of simulated LCP per
-kilobyte. **The margin this document already called the binding one — 155ms — buys about 120KB,
-which is six or seven thumbnails.** A grid of photographs does not fit in it.
+**THE SCRIPT BUDGET IS NOT THE CONSTRAINT AND HAS NEVER BEEN CLOSE.** The heaviest screen in
+the admin is `/admin/media` at **143,035 bytes against 327,680 — 43.6%**, and the lightest four
+share one number, 137,907 in six requests, because `/admin/settings`, `/admin/trash`,
+`/admin/account` and `/admin/sign-in/done` carry **no `'use client'` module at all**: the whole
+spread across fourteen screens is 5,128 bytes, which is the fourteen client islands this phase
+shipped. Eleven screens were predicted free before they were collected, and a prediction is not
+a number — these are the numbers.
 
-**THE OBVIOUS FIX WAS TRIED AND IS WORSE, which is why the middle row is here.** The Lighthouse
-trace attributed 2,553ms of the first run's LCP — 56% — to _Load Delay_ on the LCP element, a
-grid tile: a `loading="lazy"` image is invisible to the preload scanner. Making the first twelve
-tiles eager cut that phase to 1,405ms and made the LCP itself **worse by 732ms**, tightly
-clustered across five runs. Under the gate's simulated connection the constraint is BANDWIDTH,
-not discovery, and twelve high-priority photographs take it from the fonts and the document. The
-change was reverted; `MediaGrid.tsx` carries the measurement at the `<img>` so nobody re-derives
-it.
+**LCP IS THE CONSTRAINT, AND THE SHAPE OF IT IS A FLOOR PLUS THE PHOTOGRAPHS.** Eleven of the
+fourteen screens draw no image and measure between **2,924.5ms and 2,927.5ms** — a 3ms spread
+across eleven different screens, which is ADR 0008's framework floor and five font faces, not
+anything a screen did. Against the 3,085ms gate that floor leaves **about 159ms for everything
+a screen puts on top of it**, and what it is spent on here is photographs:
 
-**What would close it** is a derivative smaller than `thumb`'s 400×400 — the tile is 217px at
-DPR 1, so the grid is fetching about three and a half times the pixels it draws — which is an
-`imageSizes` rung, a migration and a `npm run media:rederive` over the whole library; or a
-revised LCP budget for admin screens that draw images. Neither is Task 8's, and pretending
-otherwise by leaving a red URL in the config would have blocked the gate for every later task.
-The shortfall is `docs/deviations.md` §73.
+| screen             | image bytes | ms over the 2,926ms floor | ms per KB of image |
+| ------------------ | ----------- | ------------------------- | ------------------ |
+| `/admin/cover`     | 19,632      | +78                       | 3.99               |
+| `/admin/galleries` | 194,346     | +836                      | 4.30               |
+| `/admin/media`     | 1,260,054   | +1,254                    | 1.00               |
 
-### `/admin/galleries` IS MEASURED THE SAME WAY, AND ITS OVERAGE HAS A DIFFERENT SHAPE
+At the margin — which is where the gate is — an image costs about **4ms per kilobyte**, and the
+rate falls to 1.00 only once the screen is a megabyte past caring. **159ms of headroom is
+therefore about 40KB of photographs for a whole screen.** `/admin/cover` draws ONE 140px
+portrait and spends half of it: at 3,003.8ms it has **81ms of margin**, and it is the screen to
+watch when this gate next moves.
 
-Phase 4 Task 9 measured `http://localhost:3000/admin/galleries` against the same matrix, with
-the same five runs, the same production build and the same 1440x900 desktop emulation, and
-did not add the URL to `lighthouserc.admin.json` — for the reason the section above gives.
+### `/admin/media` AND `/admin/galleries` ARE IN THE CONFIG AND RED, WHICH IS THE POINT
 
-| `/admin/galleries` as collected | script transfer | image requests | image transfer | LCP median  | CLS   |
-| ------------------------------- | --------------- | -------------- | -------------- | ----------- | ----- |
-| as built                        | 142,824         | 9              | 194,346        | **4,162ms** | 0.000 |
+`docs/deviations.md` §73 and §80 each measured one of these screens over the gate and then left
+its URL OUT of `lighthouserc.admin.json`, so that `npm run test:perf` would stay green for the
+tasks that followed. Phase 4 Task 15c reverses both, on the repository owner's ruling: **the
+gate does not move and no URL comes out.** A budget nobody measures is worse than a budget
+that is red, because only one of the two is visible — and an exit criterion phrased "every
+collected screen" is discharged by omission, which is the shape of green this branch has spent
+five reviews removing.
 
-All five runs: 4,215.7 / 4,152.2 / 4,000.8 / 4,173.1 / 4,162.0. The script-size and CLS
-assertions passed; LCP is over by 1,077ms.
+So `npm run test:perf` is **RED on this branch**, on two assertions, and both are LCP:
 
-**Read the two tables together, because they do not say the same thing.** `/admin/media`
-carries 1.26MB of thumbnails and spends 2,553ms of its LCP in _Load Delay_ — its number is
-bytes. This screen carries 194KB, a seventh as much, and is still over: its LCP element is
-the selected-frame panel's preview and its phases are TTFB 456ms, Load Delay 709ms, Load Time
-92ms and **Render Delay 2,905ms**. Seventy per cent of the number is main-thread work after
-the bytes have arrived. So the two image-bearing admin screens miss the same gate for
-different reasons, and a fix aimed at either one alone would move only one of them.
-`docs/deviations.md` §80 carries the decision; the eager-loading experiment §73 measured
-worse was NOT repeated, because this screen's own phase breakdown says discovery is not its
-constraint either.
+```text
+1 result(s) for http://localhost:3000/admin/media :
+  ×  largest-contentful-paint failure for maxNumericValue assertion
+        expected: <=3085
+           found: 4180.2
+      all values: 3563.158 3560.962 4185.55 4180.2 4188.63
+
+1 result(s) for http://localhost:3000/admin/galleries :
+  ×  largest-contentful-paint failure for maxNumericValue assertion
+        expected: <=3085
+           found: 3762.112
+      all values: 3558.532 4148.686 3761.916 3762.112 4143.928
+```
+
+**`/admin/media`'s LCP element, read out of the run rather than guessed:** a grid tile,
+`<img src="/api/media/file/bergen-hero-128-400x400.png" loading="lazy">`, painted at a bounding
+rect of **214×214 CSS px** from a 400×400 source. Its phases are TTFB 462ms, Load Delay
+1,624ms, Load Time 197ms, Render Delay 1,906ms. `bootup-time` scores 1 at 0.2s and
+`mainthread-work-breakdown` 1 at 0.4s, so the main thread is not what this screen is spending.
+
+**`/admin/galleries`' LCP element is the selected-frame panel's preview**,
+`<img src="/api/media/file/bergen-hero-128-1200x900.png">` — the uncropped `frame` derivative —
+painted at **252×150 CSS px**. Phases TTFB 453ms, Load Delay 1,534ms, Load Time 178ms, Render
+Delay 1,599ms. **This corrects what §80 and this document said about this screen.** Both read
+"Render Delay 2,905ms … seventy per cent of the number is main-thread work", and the run that
+is actually in the config says otherwise: `render-blocking-resources` scores 1 with no items,
+`bootup-time` scores **1 at 0.1s**, `mainthread-work-breakdown` scores **1 at 0.3s** of which
+132.8ms is script evaluation, and total blocking time is 16ms. There is no 2.9 seconds of main
+thread on this screen to remove. What Lighthouse does report is `uses-responsive-images` at
+**score 0, "Est savings of 165 KiB", and the single item it names is the LCP element itself**:
+66,055 bytes of which it calls 63,792 wasted.
+
+**WHAT THE TWO SCREENS DO AND DO NOT SHARE.** Both are over on image bytes and neither is over
+on script or main thread — so §80's "the two image-bearing admin screens miss the same gate for
+different reasons" is withdrawn; the reasons are the same one. What differs is the remedy, and
+`docs/adr/0013-gallery-image-budget.md`'s own arithmetic — a CSS size times the device pixel
+ratio of a real display — is what separates them:
+
+- **The Media grid's tile is correctly served and a smaller rung would be wrong.** 214 CSS px
+  at ADR 0013's own DPR 1.75 is **375 device pixels**, and `thumb` is 400: twenty-five pixels
+  of headroom, not three and a half times too many. The "about three and a half times the
+  pixels it draws" this document carried is the arithmetic at **DPR 1**, which is the ratio the
+  GATE is measured at and not the one an author's display has. A rung sized to that number
+  would serve a soft tile to every author on a retina screen in order to pass a measurement —
+  which is ADR 0013 Option 3 run backwards. The honest form of the fix is a `srcset` offering
+  both rungs, and it is not Task 15c's.
+- **The Galleries panel preview is genuinely oversized at every ratio.** 252 CSS px at DPR 1.75
+  is 441 device pixels against 1200 served — 2.7× the width and 7.4× the pixels — and the panel
+  is widest at the mobile breakpoint, where `.columns` collapses to one track; even there
+  nothing needs more than about 700. The rung that would serve it is an **uncropped** one
+  (`readGalleriesScreen.ts`'s `PREVIEW_TIERS` may not name a cropped tier —
+  `apps/web/lib/media/derivativeGeometry.test.ts` holds that), and the ladder's smallest
+  uncropped rung today is `frame` at 1400.
+
+**WHAT THAT RUNG WOULD BUY, AND WHY IT DOES NOT CLOSE THE GATE.** A 700px uncropped rung would
+take the preview from 66,055 bytes to roughly a third of that, so about 41KB off a screen that
+is **677ms over** at 4.30ms per KB — around 176ms. The eight grid tiles are 136 CSS px (238
+device pixels at DPR 1.75) drawn from the same 400px `thumb`, and a rung for those saves
+perhaps another 48KB, or 206ms. Both together leave `/admin/galleries` at roughly 3,380ms,
+still over. For `/admin/media` the required saving is 1,095ms, which at the 4ms/KB marginal
+rate is more image bytes than the screen's seventy tiles could be reduced BY. **Neither screen
+can be brought under 3,085ms by a derivative rung**, and the measurement that says so most
+plainly is the floor: eleven screens that draw nothing all land at 2,926ms, and the gate is
+159ms above it.
+
+**So the decision this needs is the one `docs/deviations.md` §73 named at the start and nobody
+has taken: whether an admin screen that draws photographs is measured against the diary's
+number.** 3,085ms is ADR 0008's, derived from ten CI medians of `/p/1` — a reading surface with
+one photograph above the fold. The admin's Media library is seventy. Task 15c did not take that
+decision and did not move the gate; it made the shortfall visible on every run instead.
+
+**The eager-loading experiment was NOT repeated.** §73 measured it 732ms worse, and both
+screens' phase breakdowns say discovery is not the constraint.
 
 ### `/admin/publish` IS MEASURED, PASSES EVERY ASSERTION, AND IS NOW IN THE CONFIG
 
@@ -620,9 +709,9 @@ same five runs, the same production build and the same 1440x900 desktop emulatio
 copying `lighthouserc.admin.json` to a scratch file with one URL in it, because that config was
 not the task's to edit, and then, on the review's ruling, **by adding the URL to
 `lighthouserc.admin.json` itself**. A measurement in a document that no command re-runs is a
-number with no owner: it rots silently as the screen changes. It is the eighth URL in that
-config and the fourth admin SCREEN in it, beside `/admin/journeys`, `/admin/book` and
-`/admin/cover`.
+number with no owner: it rots silently as the screen changes. It was the eighth URL in that
+config when Task 11 added it, and the fourth admin SCREEN in it, beside `/admin/journeys`,
+`/admin/book` and `/admin/cover`; Task 15c took the same config to fourteen.
 
 | `/admin/publish`             | final URL        | `http-status-code` | script transfer | script requests | LCP median  | CLS | TBT  |
 | ---------------------------- | ---------------- | ------------------ | --------------- | --------------- | ----------- | --- | ---- |
@@ -630,17 +719,20 @@ config and the fourth admin SCREEN in it, beside `/admin/journeys`, `/admin/book
 
 All five LCP runs of the configured gate: 2,925.3 / 2,927.4 / 2,928.8 / 2,927.8 / 2,928.3. The
 scratch run that measured this screen before the URL was added read 2,927ms on the same build,
-so the two agree inside one run's own spread. **Every assertion passed**, on all eight URLs,
-and the final URL is the requested one — which is what says the collector's cookie was honoured
-rather than that the sign-in screen was measured under this screen's name.
+so the two agree inside one run's own spread. **Every assertion passed**, on all eight URLs that
+configuration held at the time, and the final URL is the requested one — which is what says the
+collector's cookie was honoured rather than that the sign-in screen was measured under this
+screen's name.
 
 **It is the first admin screen since `/admin/journeys` to fit inside the LCP gate**, and the
-reason is the one both sections above give from the other side: it carries **no photographs**.
-`/admin/media` misses by 1,495ms on 1.26MB of thumbnails and `/admin/galleries` by 1,077ms on
-main-thread work behind a preview; this screen's heaviest element is a Caveat headline. At
-2,927ms against 3,085 it has **158ms of margin** — statistically the same as `/admin`'s 2,777ms
-and `/admin/journeys`' 2,930ms, and the same 20ms of total blocking time every admin route
-reports.
+reason is the one the section above gives from the other side: it carries **no photographs**.
+This screen's heaviest element is a Caveat headline. At 2,927ms against 3,085 it has **158ms of
+margin** — statistically the same as `/admin`'s 2,777ms and `/admin/journeys`' 2,930ms, and the
+same 20ms of total blocking time every admin route reports. The margins by which the two
+image-bearing screens miss, and the cause they turn out to share, are Task 15c's section above;
+the "main-thread work behind a preview" this paragraph used to name as `/admin/galleries`'
+cause is withdrawn there against that screen's own `bootup-time` and
+`mainthread-work-breakdown`.
 
 **What the seventh client entry cost, measured rather than argued:** 139,967 bytes against
 `/admin`'s 137,986 and one more script request — **1,981 bytes** for `PublishSelection.tsx`,
@@ -654,10 +746,10 @@ Every URL **in `lighthouserc.admin.json`** is JUDGED and not merely collected, w
 once a manual `lhci assert --includePassedAssertions` reading of the saved runs and is now
 `scripts/lighthouseJudged.test.js` — landed from the Task 3 review, run in the pre-commit
 gate, and the thing to read when a future task adds a URL to this config. `/admin/journeys`
-is matched by the `.*/admin/.*` matrix entry. **`/admin/media` is the one section above that
-this sentence does not cover, and deliberately:** it is measured and NOT in the config, which
-is that section's whole subject — so there is no collected run of it to judge, and the
-numbers there are this document's record rather than a gate's.
+is matched by the `.*/admin/.*` matrix entry, and so are the six URLs Task 15c added — which
+that case is what confirmed, rather than the pattern being read and assumed to match.
+**There is no longer a screen this sentence does not cover:** the two it used to exempt are in
+the config and judged by it, and red, which is the section above.
 
 **`/admin/sign-in/code` is collected with no cookie**, so what it measures is the
 no-challenge placeholder rather than the pane a signing-in reader sees. Said rather than left
@@ -683,11 +775,35 @@ intermittently is one people re-run rather than read, and this one guards the de
 staged pre-strip originals — the copies that still carry GPS.
 
 **INP has no Lighthouse lab equivalent** — it is a field metric — so `CLAUDE.md` §6's
-≤200ms is not asserted by any of the three configs, here or on the diary. What the lab can
-say is total blocking time, which measured **20ms** on all three admin routes. Stated here
-rather than left to be assumed from a green run.
+≤200ms is **not asserted by any of the three configs**, here or on the diary, and is therefore
+**UNRESOLVED** rather than met (`CLAUDE.md` §7.1). A green `npm run test:perf` says nothing
+about it. What the lab can say is total blocking time, which across Task 15c's fourteen admin
+screens measured **11-22ms**, and 12-140ms across the diary's four URLs. Stated here rather
+than left to be assumed from a green run.
 
-**The two diary configs, last measured at Phase 1's final review** — one
+**The two diary configs were re-measured by Task 15c**, because Phase 4 Task 7 changed
+`readBookBundle` and a budget nobody re-ran after a change to the module that assembles the
+page is a budget describing the old page. Both passed every assertion, on this Windows host
+rather than in the container the table below was taken in:
+
+| Route (config)             | Metric | Median of 5 | Gate    | Margin   |
+| -------------------------- | ------ | ----------- | ------- | -------- |
+| `/p/1` book (`.book.json`) | LCP    | 2,927.2ms   | 3085    | 157.8ms  |
+| `/p/1` book                | script | 142,946 B   | 184,320 | 41,374 B |
+| `/p/1` mobile (`.json`)    | LCP    | 2,926.9ms   | 3085    | 158.1ms  |
+| `/p/1` mobile              | script | 144,797 B   | 184,320 | 39,523 B |
+| `/gallery/patagonia`       | LCP    | 3,531.0ms   | 4000    | 469.0ms  |
+| `/gallery/patagonia`       | script | 141,780 B   | 184,320 | 42,540 B |
+| `/gallery/patagonia`       | image  | 642,138 B   | 680,000 | 37,862 B |
+
+CLS measured 0.0000 on all twenty of those runs and `http-status-code` scored 1 on every one.
+`/cms` measured 4,716.0ms of LCP and 647,063 script bytes, neither of them gated, and its final
+URL is `/cms/login` — Payload's own redirect, which only the status and CLS assertions see.
+**The gallery's image budget is the tightest thing on the diary**: 642,138 against 680,000 is
+37,862 bytes of margin, exactly the figure ADR 0013 derived the limit from, so that budget has
+not drifted and has no room in it either.
+
+**The two diary configs, as measured at Phase 1's final review** — one
 `npm run test:perf` inside `mcr.microsoft.com/playwright:v1.62.1-noble`, each config
 building the app itself first. Both green then, and both green now; the paragraph below the
 next table records the one time between those two points that `lighthouserc.book.json` was

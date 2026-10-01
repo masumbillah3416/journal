@@ -4,12 +4,18 @@
       "url": [
         "http://localhost:3000/admin/sign-in",
         "http://localhost:3000/admin/sign-in/code",
+        "http://localhost:3000/admin/sign-in/done",
         "http://localhost:3000/admin/reset",
         "http://localhost:3000/admin",
         "http://localhost:3000/admin/journeys",
+        "http://localhost:3000/admin/media",
+        "http://localhost:3000/admin/galleries",
         "http://localhost:3000/admin/book",
         "http://localhost:3000/admin/cover",
-        "http://localhost:3000/admin/publish"
+        "http://localhost:3000/admin/publish",
+        "http://localhost:3000/admin/settings",
+        "http://localhost:3000/admin/trash",
+        "http://localhost:3000/admin/account"
       ],
       "numberOfRuns": 5,
       "startServerCommand": "npm run build -w apps/web && npm run start -w apps/web -- --port 3000",

@@ -3244,7 +3244,28 @@ that shows a write error and gives this one a shape to copy.
 **Recorded as:** this entry, `UPLOAD_REFUSALS` and `refusalSentence` in `Dropzone.tsx`,
 `UploadProgress.refusal`'s TSDoc in `UploadCard.tsx`, and the sweep's MEDIA-002.
 
-## 73 · The Media screen is not in the Lighthouse config, because a grid of photographs does not fit the LCP budget
+## 73 · The Media screen is in the Lighthouse config and over the LCP budget, because a grid of photographs does not fit it
+
+**REVERSED BY PHASE 4 TASK 15c, AND THE SHORTFALL IS NOT.** `/admin/media` is now the seventh
+URL in `lighthouserc.admin.json` and `npm run test:perf` is red on it. What follows below is
+Task 8's reasoning for leaving it out, kept because its measurements are the argument; what is
+no longer true is the "Why the URL is out rather than in and red" paragraph, on the repository
+owner's ruling that the gate does not move and no URL comes out. Re-measured by Task 15c in the
+config: **LCP median 4,180.2ms** over five runs of 3,563.2 / 3,561.0 / 4,185.5 / 4,180.2 /
+4,188.6, 143,035 script bytes against 327,680, 1,260,054 image bytes over 70 requests, CLS
+0.0000.
+
+**AND ONE OF THE TWO REVERSAL CONDITIONS BELOW IS WITHDRAWN.** Task 15c read the LCP element
+out of the run: a grid tile painted at a bounding rect of **214×214 CSS px** from the 400×400
+`thumb`. By `docs/adr/0013-gallery-image-budget.md`'s own arithmetic — a CSS size times a real
+display's device pixel ratio — 214 at DPR 1.75 is **375 device pixels**, so `thumb` at 400 is
+the correct rung for this tile and a smaller one would serve a soft tile to every author on a
+retina screen in order to pass a gate measured at DPR 1. "About three and a half times the
+pixels it draws" is the arithmetic at DPR 1 only. The honest form of that fix is a `srcset`
+offering both rungs; the second reversal condition — a budget that distinguishes an admin
+screen drawing photographs from one drawing a table — is the one `docs/testing.md`'s Task 15c
+section argues is now the decision this needs. See that section for the floor the whole admin
+shares (2,926ms across eleven screens that draw nothing) and what 159ms of headroom buys.
 
 **What changed:** `CLAUDE.md` §6 makes LCP ≤ 3,085ms a hard gate for every admin screen, and
 `lighthouserc.admin.json` is where a screen is judged. `/admin/media` was added to it, measured,
@@ -3413,7 +3434,29 @@ security-relevant side, because all three public callers override access control
 **Recorded as:** this entry, that module's header (exclusion 1), and two cases in
 `apps/web/lib/galleryFrames.test.ts` — one for each side of the switch.
 
-## 80 · The Galleries screen is not in the Lighthouse config either, and its overage is a different one
+## 80 · The Galleries screen is in the Lighthouse config and over the LCP budget, and its overage is the same one after all
+
+**REVERSED BY PHASE 4 TASK 15c, AND SO IS THIS ENTRY'S DIAGNOSIS.** `/admin/galleries` is now
+the eighth URL in `lighthouserc.admin.json` and `npm run test:perf` is red on it. Re-measured
+in the config: **LCP median 3,762.1ms** over five runs of 3,558.5 / 4,148.7 / 3,761.9 / 3,762.1
+/ 4,143.9, 142,827 script bytes against 327,680, 194,346 image bytes over 9 requests, CLS
+0.0000.
+
+**THE "SEVENTY PER CENT OF THE NUMBER IS MAIN-THREAD WORK" BELOW IS WITHDRAWN.** On the run
+that is in the config, `bootup-time` scores **1 at 0.1s**, `mainthread-work-breakdown` scores
+**1 at 0.3s**, `render-blocking-resources` scores 1 with no items, and total blocking time is
+16ms — there is no 2.9 seconds of main thread on this screen to remove. What Lighthouse reports
+instead is `uses-responsive-images` at **score 0**, and the single item it names is the LCP
+element: the selected-frame panel's preview, served from the Bergen hero's 1200×900 `frame`
+derivative and painted at **252×150 CSS px**, 66,055 bytes of which 63,792 are called wasted. So
+this screen and `/admin/media` miss the gate for the SAME reason — photographs — and this
+entry's "a different one" is wrong. What differs is only which rung is at fault: the Media
+grid's `thumb` is correctly sized for a real display (entry 73) and this preview is oversized
+at every ratio, 252 CSS px at DPR 1.75 being 441 device pixels against 1200 served. The
+smallest **uncropped** rung the ladder offers is `frame` at 1400, and
+`apps/web/lib/media/derivativeGeometry.test.ts` is what forbids this preview reaching for a
+cropped one. `docs/testing.md`'s Task 15c section carries what such a rung would buy (about
+176ms of a required 677ms) and why neither screen can be brought under by derivative work.
 
 **What changed:** `CLAUDE.md` §6 makes LCP ≤ 3,085ms a hard gate for every admin screen, and
 `lighthouserc.admin.json` is where a screen is judged. `/admin/galleries` was measured against
