@@ -606,7 +606,7 @@ a screen puts on top of it**, and what it is spent on here is photographs:
 
 | screen             | image bytes | ms over the 2,926ms floor | ms per KB of image |
 | ------------------ | ----------- | ------------------------- | ------------------ |
-| `/admin/cover`     | 19,632      | +78                       | 3.99               |
+| `/admin/cover`     | 19,632      | +78                       | 3.96               |
 | `/admin/galleries` | 194,346     | +836                      | 4.30               |
 | `/admin/media`     | 1,260,054   | +1,254                    | 1.00               |
 
