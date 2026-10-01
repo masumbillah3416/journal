@@ -37,6 +37,24 @@
  * and `http-status-code` fails a gate for a screen that was deleted on purpose.
  * So the second case reads the configuration's own URLs back against the walk.
  *
+ * ═══ WHAT IT DOES NOT GUARD, MEASURED BY THE TASK 15c REVIEWER ═══
+ *
+ * **It compares `pathname` and nothing else.** Rewrite all fourteen URLs to
+ * `https://example.invalid/admin/…` and set `numberOfRuns: 1`, and this file
+ * stays green — as do `lighthouseJudged`, `lighthouseSession`,
+ * `lighthouseAnnotations` and `apps/web/lib/docs/configCitations`. The ORIGIN
+ * and the RUN COUNT are unpinned by every guard in this repository, and
+ * `docs/testing.md`'s long-standing sentence "All three configs collect
+ * `numberOfRuns: 5`" is two thirds unread: `configCitations.test.ts` pins that
+ * field for `lighthouserc.json` and for neither of the others. What the pair of this file and
+ * `lighthouseJudged.test.js` closes is "a screen collected by nobody" and "a
+ * URL judged by nothing" — emptying the `assertMatrix` reddens the latter.
+ *
+ * Written down rather than fixed because this file's subject is the URL SET,
+ * and widening it to the collect settings is a different guard with its own
+ * mutations to watch. A one-sided boundary nobody has written down is the
+ * species this repository keeps finding; one that is written down is a task.
+ *
  * Depends on: node:fs, node:path, node:url, vitest.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs'

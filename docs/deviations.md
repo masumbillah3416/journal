@@ -3246,8 +3246,8 @@ that shows a write error and gives this one a shape to copy.
 
 ## 73 · The Media screen is in the Lighthouse config and over the LCP budget, because a grid of photographs does not fit it
 
-**REVERSED BY PHASE 4 TASK 15c, AND THE SHORTFALL IS NOT.** `/admin/media` is now the seventh
-URL in `lighthouserc.admin.json` and `npm run test:perf` is red on it. What follows below is
+**REVERSED BY PHASE 4 TASK 15c, AND THE SHORTFALL IS NOT.** `/admin/media` is now collected by
+`lighthouserc.admin.json` and `npm run test:perf` is red on it. What follows below is
 Task 8's reasoning for leaving it out, kept because its measurements are the argument; what is
 no longer true is the "Why the URL is out rather than in and red" paragraph, on the repository
 owner's ruling that the gate does not move and no URL comes out. Re-measured by Task 15c in the
@@ -3268,8 +3268,17 @@ and its LCP median from 4,180.2ms to **3,579.6ms**, which is 601ms of a required
 **Even the whole of that fix does not reach the gate.** The second reversal condition — a
 budget that distinguishes an admin screen drawing photographs from one drawing a table — is the
 one `docs/testing.md`'s Task 15c section argues is now the decision this needs. See that
-section for the floor the whole admin shares (2,926ms across eleven screens that draw nothing)
-and what 159ms of headroom buys.
+section for the floor the whole admin shares (2,926ms across eleven screens that draw nothing).
+
+**TWO FIGURES IN THE BODY BELOW ARE WITHDRAWN AS WELL, and they are withdrawn rather than
+re-stated.** Task 8's "roughly 1.3ms of simulated LCP per kilobyte" and the "155ms buys about
+120KB, which is six or seven thumbnails" that rests on it are no longer in `docs/testing.md` —
+Task 15c deleted that sentence — so the citation below points at a document that says something
+else. What replaced it is **not** a different exchange rate: the three image-bearing screens
+measured in one run put the rate anywhere between 1.0 and 4.3ms per KB, and Task 15c's own
+galleries probe removed 66,695 bytes and made the LCP **worse by 80ms**. **There is no
+established bytes-to-milliseconds rate for this gate, at any value.** What is measured is the
+159ms of headroom and what the two probes actually delivered.
 
 **What changed:** `CLAUDE.md` §6 makes LCP ≤ 3,085ms a hard gate for every admin screen, and
 `lighthouserc.admin.json` is where a screen is judged. `/admin/media` was added to it, measured,
@@ -3441,7 +3450,7 @@ security-relevant side, because all three public callers override access control
 ## 80 · The Galleries screen is in the Lighthouse config and over the LCP budget, and its overage is the same one after all
 
 **REVERSED BY PHASE 4 TASK 15c, AND SO IS THIS ENTRY'S DIAGNOSIS.** `/admin/galleries` is now
-the eighth URL in `lighthouserc.admin.json` and `npm run test:perf` is red on it. Re-measured
+collected by `lighthouserc.admin.json` and `npm run test:perf` is red on it. Re-measured
 in the config: **LCP median 3,762.1ms** over five runs of 3,558.5 / 4,148.7 / 3,761.9 / 3,762.1
 / 4,143.9, 142,827 script bytes against 327,680, 194,346 image bytes over 9 requests, CLS
 0.0000.
@@ -3452,7 +3461,10 @@ that is in the config, `bootup-time` scores **1 at 0.1s**, `mainthread-work-brea
 16ms — there is no 2.9 seconds of main thread on this screen to remove. What Lighthouse reports
 instead is `uses-responsive-images` at **score 0**, and the single item it names is the LCP
 element: the selected-frame panel's preview, served from the Bergen hero's 1200×900 `frame`
-derivative and painted at **252×150 CSS px**, 66,055 bytes of which 63,792 are called wasted. So
+derivative and painted at **252×150 CSS px**, 66,055 bytes of which 63,792 are called wasted.
+**That audit names nine items, not one** — the preview is 38% of its 165 KiB headline and the
+other eight are the grid's 400×400 `thumb` tiles, which the run measures at 152×152 CSS px and
+which are therefore oversized at a real display's ratio too (152 × 1.75 = 266 against 400). So
 this screen and `/admin/media` miss the gate for the SAME reason — photographs — and this
 entry's "a different one" is wrong. What differs is only which rung is at fault: the Media
 grid's `thumb` is correctly sized for a real display (entry 73) and this preview is oversized
@@ -3463,8 +3475,20 @@ cropped one. **What such a rung would buy was then measured rather than estimate
 nothing:** with the preview temporarily drawn from `thumb` — smaller than any correct uncropped
 rung could be — this screen's image weight fell from 194,346 to 127,651 bytes and its LCP
 median moved from 3,762.1ms to **3,841.8ms**, the wrong way and inside its own spread, because
-the LCP element simply became a grid tile. `docs/testing.md`'s Task 15c section carries that
-probe and the equivalent one for `/admin/media`, which bought 601ms of a required 1,095ms.
+the LCP element simply became a grid tile. The substitution was in fact a BETTER best case than
+any rung: the `thumb` it reached for was already being fetched by the grid, so the preview's
+marginal cost in the probe was **zero**. `docs/testing.md`'s Task 15c section carries that probe
+and the equivalent one for `/admin/media`, which bought 601ms of a required 1,095ms.
+
+**AND THIS ENTRY'S ONLY STATED REVERSAL CONDITION GOES WITH THE DIAGNOSIS.** "What would
+reverse it: less script before the first paint", below, is the withdrawn main-thread reading
+wearing a different sentence — on all five runs in the config `bootup-time` scores 1 at 0.1s
+and `mainthread-work-breakdown` 1 at 0.3s, so there is no script before the first paint left to
+remove. Read top to bottom without this paragraph, the entry would send a future task down a
+route this segment measured as empty. **The real reversal conditions are the two entry 73
+names:** a smaller uncropped rung for the preview — worth 63,792 of the `uses-responsive-images`
+audit's 168,630 wasted bytes, and measured above at nothing against a 677ms shortfall — and the
+budget decision about admin screens that draw photographs, which is the owner's.
 
 **What changed:** `CLAUDE.md` §6 makes LCP ≤ 3,085ms a hard gate for every admin screen, and
 `lighthouserc.admin.json` is where a screen is judged. `/admin/galleries` was measured against

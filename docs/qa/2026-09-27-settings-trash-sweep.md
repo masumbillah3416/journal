@@ -125,6 +125,12 @@ are pasted above; what was lost is one step of `git bisect` resolution, not the 
 - **Lighthouse.** Neither screen is in `lighthouserc.admin.json`, which carries eight URLs and is
   not this task's to edit. Same state as the Galleries screen (`docs/deviations.md` §80), and
   recorded rather than measured.
+  **SUPERSEDED BY PHASE 4 TASK 15c**, which collects both screens and twelve others — fourteen
+  URLs — and measured them: `/admin/settings` 137,907 script bytes and LCP 2,925.5ms,
+  `/admin/trash` 137,907 and 2,926.6ms, both inside the gate. The sentence above stays as the
+  sweeper wrote it because this document records build `404ebfe`, where it was true; this line
+  is here so a reader looking up the config's state does not take a dated record for the
+  current one.
 - **The 500 in production mode.** SET-003 was observed against `npm run dev`; a production build
   answers the same status with a generic error page rather than the overlay. The fix removes the
   route to it either way.

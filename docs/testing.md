@@ -591,30 +591,53 @@ survived into the run rather than that the sign-in pane was measured fourteen ti
 `http-status-code` scored 1 on all seventy runs and CLS measured 0.0000 on all seventy.
 
 **THE SCRIPT BUDGET IS NOT THE CONSTRAINT AND HAS NEVER BEEN CLOSE.** The heaviest screen in
-the admin is `/admin/media` at **143,035 bytes against 327,680 — 43.6%**, and the lightest four
+the admin is `/admin/media` at **143,035 bytes against 327,680 — 43.7%**, and the lightest four
 share one number, 137,907 in six requests, because `/admin/settings`, `/admin/trash`,
-`/admin/account` and `/admin/sign-in/done` carry **no `'use client'` module at all**: the whole
-spread across fourteen screens is 5,128 bytes, which is the fourteen client islands this phase
-shipped. Eleven screens were predicted free before they were collected, and a prediction is not
-a number — these are the numbers.
+`/admin/account` and `/admin/sign-in/done` carry **no `'use client'` module at all**. The whole
+spread across fourteen screens is **5,128 bytes**, which is the gap between the heaviest screen
+and those four — not the cost of the fourteen islands this phase shipped, which no screen
+carries all of. Subtracting 137,907 from each screen gives what its own islands cost: 5,128 for
+`/admin/media`'s two, 4,920 for `/admin/galleries`' one, 4,015 for `/admin/book`'s two, 2,168
+for `/admin/journeys`' two, 1,981 for `/admin/publish`' one, 1,453 for `/admin`'s one. Eleven
+screens were predicted free before they were collected, and a prediction is not a number — these
+are the numbers.
 
 **LCP IS THE CONSTRAINT, AND THE SHAPE OF IT IS A FLOOR PLUS THE PHOTOGRAPHS.** Eleven of the
 fourteen screens draw no image and measure between **2,924.5ms and 2,927.5ms** — a 3ms spread
 across eleven different screens, which is ADR 0008's framework floor and five font faces, not
-anything a screen did. Against the 3,085ms gate that floor leaves **about 159ms for everything
-a screen puts on top of it**, and what it is spent on here is photographs:
+anything a screen did. **Every one of those eleven has an LCP element that is TEXT**, with Load
+Delay 0 and Load Time 0, and a Render Delay of 2,473.7–2,475.4ms on top of a 451–452ms TTFB. So
+the floor is not a measurement of markup; it is the framework, the stylesheet and five font
+faces, and it is the same on every screen that draws nothing.
 
-| screen             | image bytes | ms over the 2,926ms floor | ms per KB of image |
-| ------------------ | ----------- | ------------------------- | ------------------ |
-| `/admin/cover`     | 19,632      | +78                       | 3.96               |
-| `/admin/galleries` | 194,346     | +836                      | 4.30               |
-| `/admin/media`     | 1,260,054   | +1,254                    | 1.00               |
+Against the 3,085ms gate that floor leaves **about 159ms for everything a screen puts on top of
+it**. **That subtraction is the solid number in this section.** What 159ms buys in BYTES is
+not, and the three screens that draw images are why:
 
-At the margin — which is where the gate is — an image costs about **4ms per kilobyte**, and the
-rate falls to 1.00 only once the screen is a megabyte past caring. **159ms of headroom is
-therefore about 40KB of photographs for a whole screen.** `/admin/cover` draws ONE 140px
-portrait and spends half of it: at 3,003.8ms it has **81ms of margin**, and it is the screen to
-watch when this gate next moves.
+| screen             | image bytes | LCP element          | image on the LCP path?                    | ms over the 2,926ms floor |
+| ------------------ | ----------- | -------------------- | ----------------------------------------- | ------------------------- |
+| `/admin/cover`     | 19,632      | a `<div>`, 326×120   | **no** — Load Delay 0, Load Time 0        | +77.8, all Render Delay   |
+| `/admin/galleries` | 194,346     | the preview, 252×150 | yes — Load Delay 1,534ms, Load Time 178ms | +836                      |
+| `/admin/media`     | 1,260,054   | a grid tile, 214×214 | yes — Load Delay 1,421ms, Load Time 190ms | +1,254                    |
+
+**`/admin/cover`'s photograph is not on its LCP path at all.** Its largest element is a `<div>`
+in all five runs, with both load phases at zero; its 77.8ms over the floor is 77.8ms of extra
+Render Delay (2,551.6–2,553.4ms against the floor's 2,473.7–2,475.4ms), which may well be the
+portrait's decode but is a different mechanism from the other two rows, where the LCP element
+IS the image and the overage is load. So that row bounds what an image costs; it does not
+measure it.
+
+**The bytes-to-milliseconds exchange rate is therefore NOT established, and this document is
+not going to print one.** The two rows that do put an image on the LCP path disagree by more
+than four times — 4.3ms per KB against 1.0 — over a sample of two; and the probe below
+**falsifies even the higher figure**: taking 66,695 image bytes off `/admin/galleries` should
+have been worth about 287ms at 4.3ms/KB and delivered **+80ms**, the wrong way. Anyone sizing a
+fix from a rate here will get the wrong answer. The two numbers that ARE measured are the
+159ms of headroom, and what the two probes below actually delivered.
+
+`/admin/cover` is still the screen to watch when this gate next moves: at 3,003.8ms it has
+**81ms of margin**, the least of the twelve that pass. What would make it go red, on the
+measurement above, is render delay rather than another kilobyte.
 
 ### `/admin/media` AND `/admin/galleries` ARE IN THE CONFIG AND RED, WHICH IS THE POINT
 
@@ -644,21 +667,41 @@ So `npm run test:perf` is **RED on this branch**, on two assertions, and both ar
 
 **`/admin/media`'s LCP element, read out of the run rather than guessed:** a grid tile,
 `<img src="/api/media/file/bergen-hero-128-400x400.png" loading="lazy">`, painted at a bounding
-rect of **214×214 CSS px** from a 400×400 source. Its phases are TTFB 462ms, Load Delay
-1,624ms, Load Time 197ms, Render Delay 1,906ms. `bootup-time` scores 1 at 0.2s and
-`mainthread-work-breakdown` 1 at 0.4s, so the main thread is not what this screen is spending.
+rect of **214×214 CSS px** from a 400×400 source — the same element, the same snippet and the
+same rect in all five runs. **The median run's** phases are TTFB 461ms, Load Delay 1,421ms,
+Load Time 190ms, Render Delay 2,109ms; **across the five** TTFB holds at 461–463ms while Load
+Delay ranges 1,421–2,245ms and Render Delay is bimodal at 1,108–1,113ms or 1,906–2,109ms, so no
+single phase figure describes this screen and the range is given instead of one.
+`bootup-time` scores 1 at 0.2s and `mainthread-work-breakdown` 1 at 0.4s in all five, so the
+main thread is not what this screen is spending.
 
 **`/admin/galleries`' LCP element is the selected-frame panel's preview**,
 `<img src="/api/media/file/bergen-hero-128-1200x900.png">` — the uncropped `frame` derivative —
-painted at **252×150 CSS px**. Phases TTFB 453ms, Load Delay 1,534ms, Load Time 178ms, Render
-Delay 1,599ms. **This corrects what §80 and this document said about this screen.** Both read
-"Render Delay 2,905ms … seventy per cent of the number is main-thread work", and the run that
-is actually in the config says otherwise: `render-blocking-resources` scores 1 with no items,
-`bootup-time` scores **1 at 0.1s**, `mainthread-work-breakdown` scores **1 at 0.3s** of which
-132.8ms is script evaluation, and total blocking time is 16ms. There is no 2.9 seconds of main
-thread on this screen to remove. What Lighthouse does report is `uses-responsive-images` at
-**score 0, "Est savings of 165 KiB", and the single item it names is the LCP element itself**:
-66,055 bytes of which it calls 63,792 wasted.
+painted at **252×150 CSS px** — again the same element and rect in all five runs. The median
+run's phases are TTFB 452ms, Load Delay 1,534ms, Load Time 178ms, Render Delay 1,599ms.
+
+**This corrects what §80 and this document said about this screen.** Both read "Render Delay
+2,905ms … seventy per cent of the number is main-thread work", and the runs that are actually
+in the config say otherwise — in **all five**: `render-blocking-resources` scores 1 with no
+items, `bootup-time` scores **1 at 0.1s**, `mainthread-work-breakdown` scores **1 at 0.3s** of
+which script evaluation is 123.5–132.8ms, and total blocking time is 16ms. There is no 2.9
+seconds of main thread on this screen to remove.
+
+What Lighthouse does report is `uses-responsive-images` at **score 0, "Est savings of 165 KiB"**
+— and **it names nine items, not one**, identically in all five runs. The LCP element is the
+largest of them at 66,055 bytes with 63,792 called wasted, which is **38% of the 165 KiB**; the
+other eight are the grid's own 400×400 `thumb` tiles, 12,428–17,347 wasted bytes each,
+168,630 bytes wasted in total. Said precisely because the headline is what a reader would size a
+follow-up rung from, and the **preview** rung is worth 62 KiB rather than 165 KiB.
+
+**AND THE OTHER EIGHT ARE NOT THE DPR-1 ARTEFACT THE MEDIA PARAGRAPH ABOVE DESCRIBES** — which
+was checked rather than assumed, and the two screens' tiles turn out to differ. This grid's
+tiles are measured at **152×152 CSS px** in the run (the source comments say 136; the run says
+152), and 152 at ADR 0013's DPR 1.75 is **266 device pixels against the 400px `thumb`** — 1.5×
+the width and 2.3× the pixels, oversized at a real display's ratio and not only at the gate's.
+The Media grid's 214 CSS px needs 375 and is correctly served. So Lighthouse is right about
+both halves of this screen and right about neither half of that one, and a reader must not
+carry the Media refutation across.
 
 **WHAT THE TWO SCREENS DO AND DO NOT SHARE.** Both are over on image bytes and neither is over
 on script or main thread — so §80's "the two image-bearing admin screens miss the same gate for
@@ -687,9 +730,15 @@ rung means an `imageSizes` entry, a migration and `npm run media:rederive` over 
 Task 15c measured the two best cases first, through `scripts/run-lighthouse.mjs` on a scratch
 configuration — the same session minting, checking and revocation `npm run test:perf` performs
 — with two temporary patches that were never committed. `SelectedFrame.tsx` drew the preview
-from `thumb` (400×400, ~13KB in place of 66KB — **better** than a correct uncropped rung could
-manage, since an uncropped one cannot be that small), and `MediaGrid.tsx` drew a tile image on
-every third tile.
+from `thumbSrc`, and `MediaGrid.tsx` drew a tile image on every third tile.
+
+**The galleries patch is a better best case than any rung could be, and the reason is worth
+stating exactly.** It did not substitute a small file for a large one: the `thumb` it reached
+for is the Bergen hero's 400×400 derivative, which **the grid on that screen was already
+fetching** — so the probe removed the preview's 66,695 transfer bytes and added nothing at all. Its image
+total fell by exactly that (194,346 − 66,695 = 127,651, to the byte) and its request count by
+exactly one. **The preview's marginal cost in the probe was zero**, which no uncropped rung can
+match, so what follows is a ceiling on the fix rather than an estimate of it.
 
 | screen             | image bytes             | LCP median              | still over by |
 | ------------------ | ----------------------- | ----------------------- | ------------- |
