@@ -605,10 +605,11 @@ are the numbers.
 **LCP IS THE CONSTRAINT, AND THE SHAPE OF IT IS A FLOOR PLUS THE PHOTOGRAPHS.** Eleven of the
 fourteen screens draw no image and measure between **2,924.5ms and 2,927.5ms** — a 3ms spread
 across eleven different screens, which is ADR 0008's framework floor and five font faces, not
-anything a screen did. **Every one of those eleven has an LCP element that is TEXT**, with Load
-Delay 0 and Load Time 0, and a Render Delay of 2,473.7–2,475.4ms on top of a 451–452ms TTFB. So
-the floor is not a measurement of markup; it is the framework, the stylesheet and five font
-faces, and it is the same on every screen that draws nothing.
+anything a screen did. **On all fifty-five of those runs the LCP element is NOT A LOADED
+RESOURCE** — it is a `<p>`, an `<h1>`, an `<h2>` or a `<div>`, and **Load Delay and Load Time
+are 0 in every one of them** — leaving a Render Delay of 2,471.8–2,479.8ms on top of a
+451.3–452.8ms TTFB. So the floor is not a measurement of markup; it is the framework, the
+stylesheet and five font faces, and it is the same on every screen that draws nothing.
 
 Against the 3,085ms gate that floor leaves **about 159ms for everything a screen puts on top of
 it**. **That subtraction is the solid number in this section.** What 159ms buys in BYTES is
@@ -622,7 +623,7 @@ not, and the three screens that draw images are why:
 
 **`/admin/cover`'s photograph is not on its LCP path at all.** Its largest element is a `<div>`
 in all five runs, with both load phases at zero; its 77.8ms over the floor is 77.8ms of extra
-Render Delay (2,551.6–2,553.4ms against the floor's 2,473.7–2,475.4ms), which may well be the
+Render Delay (2,551.6–2,553.4ms against the floor's 2,471.8–2,479.8ms), which may well be the
 portrait's decode but is a different mechanism from the other two rows, where the LCP element
 IS the image and the overage is load. So that row bounds what an image costs; it does not
 measure it.
