@@ -682,16 +682,34 @@ ratio of a real display — is what separates them:
   `apps/web/lib/media/derivativeGeometry.test.ts` holds that), and the ladder's smallest
   uncropped rung today is `frame` at 1400.
 
-**WHAT THAT RUNG WOULD BUY, AND WHY IT DOES NOT CLOSE THE GATE.** A 700px uncropped rung would
-take the preview from 66,055 bytes to roughly a third of that, so about 41KB off a screen that
-is **677ms over** at 4.30ms per KB — around 176ms. The eight grid tiles are 136 CSS px (238
-device pixels at DPR 1.75) drawn from the same 400px `thumb`, and a rung for those saves
-perhaps another 48KB, or 206ms. Both together leave `/admin/galleries` at roughly 3,380ms,
-still over. For `/admin/media` the required saving is 1,095ms, which at the 4ms/KB marginal
-rate is more image bytes than the screen's seventy tiles could be reduced BY. **Neither screen
-can be brought under 3,085ms by a derivative rung**, and the measurement that says so most
-plainly is the floor: eleven screens that draw nothing all land at 2,926ms, and the gate is
-159ms above it.
+**WHAT A SMALLER RUNG WOULD BUY WAS MEASURED, NOT ESTIMATED, AND IT IS NOT ENOUGH.** Building a
+rung means an `imageSizes` entry, a migration and `npm run media:rederive` over the library, so
+Task 15c measured the two best cases first, through `scripts/run-lighthouse.mjs` on a scratch
+configuration — the same session minting, checking and revocation `npm run test:perf` performs
+— with two temporary patches that were never committed. `SelectedFrame.tsx` drew the preview
+from `thumb` (400×400, ~13KB in place of 66KB — **better** than a correct uncropped rung could
+manage, since an uncropped one cannot be that small), and `MediaGrid.tsx` drew a tile image on
+every third tile.
+
+| screen             | image bytes             | LCP median              | still over by |
+| ------------------ | ----------------------- | ----------------------- | ------------- |
+| `/admin/galleries` | 194,346 → **127,651**   | 3,762.1 → **3,841.8ms** | 757ms         |
+| `/admin/media`     | 1,260,054 → **427,468** | 4,180.2 → **3,579.6ms** | 495ms         |
+
+**Taking a third of the image weight off `/admin/galleries` bought nothing at all** — the
+number moved 80ms the WRONG way, inside the 3,558–4,149ms spread the unpatched screen already
+shows. The reason is in the probe's own LCP element: with the preview small, **the LCP element
+became a grid tile** — a 400×400 `thumb` painted at 152×152 — and `uses-responsive-images` still
+scored 0, now naming 101 KiB. A screen covered in photographs does not get faster when you
+shrink the largest one; the title passes to the next one.
+
+**Taking two thirds off `/admin/media` bought 601ms of a required 1,095ms.** Its LCP element is
+still a tile, still 214×214, with phases TTFB 632ms, Load Delay 2,072ms, Load Time 778ms,
+Render Delay 97ms.
+
+So **neither screen can be brought under 3,085ms by a derivative rung**, and the measurement
+that says so most plainly is the floor: eleven screens that draw nothing all land at 2,926ms,
+and the gate is 159ms above it.
 
 **So the decision this needs is the one `docs/deviations.md` §73 named at the start and nobody
 has taken: whether an admin screen that draws photographs is measured against the diary's

@@ -3262,10 +3262,14 @@ display's device pixel ratio — 214 at DPR 1.75 is **375 device pixels**, so `t
 the correct rung for this tile and a smaller one would serve a soft tile to every author on a
 retina screen in order to pass a gate measured at DPR 1. "About three and a half times the
 pixels it draws" is the arithmetic at DPR 1 only. The honest form of that fix is a `srcset`
-offering both rungs; the second reversal condition — a budget that distinguishes an admin
-screen drawing photographs from one drawing a table — is the one `docs/testing.md`'s Task 15c
-section argues is now the decision this needs. See that section for the floor the whole admin
-shares (2,926ms across eleven screens that draw nothing) and what 159ms of headroom buys.
+offering both rungs — and Task 15c measured its ceiling before deciding: with two thirds of the
+tile images temporarily removed, the screen's image weight fell from 1,260,054 to 427,468 bytes
+and its LCP median from 4,180.2ms to **3,579.6ms**, which is 601ms of a required 1,095ms.
+**Even the whole of that fix does not reach the gate.** The second reversal condition — a
+budget that distinguishes an admin screen drawing photographs from one drawing a table — is the
+one `docs/testing.md`'s Task 15c section argues is now the decision this needs. See that
+section for the floor the whole admin shares (2,926ms across eleven screens that draw nothing)
+and what 159ms of headroom buys.
 
 **What changed:** `CLAUDE.md` §6 makes LCP ≤ 3,085ms a hard gate for every admin screen, and
 `lighthouserc.admin.json` is where a screen is judged. `/admin/media` was added to it, measured,
@@ -3455,8 +3459,12 @@ grid's `thumb` is correctly sized for a real display (entry 73) and this preview
 at every ratio, 252 CSS px at DPR 1.75 being 441 device pixels against 1200 served. The
 smallest **uncropped** rung the ladder offers is `frame` at 1400, and
 `apps/web/lib/media/derivativeGeometry.test.ts` is what forbids this preview reaching for a
-cropped one. `docs/testing.md`'s Task 15c section carries what such a rung would buy (about
-176ms of a required 677ms) and why neither screen can be brought under by derivative work.
+cropped one. **What such a rung would buy was then measured rather than estimated, and it is
+nothing:** with the preview temporarily drawn from `thumb` — smaller than any correct uncropped
+rung could be — this screen's image weight fell from 194,346 to 127,651 bytes and its LCP
+median moved from 3,762.1ms to **3,841.8ms**, the wrong way and inside its own spread, because
+the LCP element simply became a grid tile. `docs/testing.md`'s Task 15c section carries that
+probe and the equivalent one for `/admin/media`, which bought 601ms of a required 1,095ms.
 
 **What changed:** `CLAUDE.md` §6 makes LCP ≤ 3,085ms a hard gate for every admin screen, and
 `lighthouserc.admin.json` is where a screen is judged. `/admin/galleries` was measured against
