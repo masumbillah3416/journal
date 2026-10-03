@@ -271,8 +271,17 @@ const MINTING_CALL = 'aSignedInSession('
 /** A first argument that is a template literal opening with a label segment. */
 const A_LITERAL_LABEL = /^`([A-Za-z0-9-]+)\./u
 
-/** A block comment, which is where a spec's `@example` lines write calls nobody makes. */
-const BLOCK_COMMENT = /\/\*[\s\S]*?\*\//gu
+/**
+ * A comment of either kind, which is prose ABOUT code and not code.
+ *
+ * BOTH KINDS, SINCE REVIEW ROUND 1 (F7). Block comments were stripped from the
+ * start, because a spec's `@example` line writes a call nobody makes. Line
+ * comments were not, and {@link SWALLOWS} read the cleanup's raw text — so the
+ * word "try" in an ordinary sentence produced a failure describing a
+ * `try`/`catch` that was not in the file. `shellShipsNoClientJs.test.ts` and
+ * `visualBaselines.test.ts` already strip both; this now matches them.
+ */
+const COMMENT = /\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu
 
 /** A swallowing construct: a deletion inside one is a deletion this guard cannot vouch for. */
 const SWALLOWS = /\b(?:try|catch)\b/u
@@ -451,18 +460,33 @@ const firstArgumentsOf = (source: string, call: string): readonly string[] => {
  * @returns The labels minted, the labels a live cleanup removes, and whatever
  *   this guard could not account for.
  */
-const fixtureLabelsOf = (
-  spec: string,
-): {
+const fixtureLabelsOf = (spec: string): FixtureLabels =>
+  fixtureLabelsIn(readFileSync(path.join(REPO_ROOT, 'e2e', spec), 'utf8'))
+
+/** What one spec mints, what its cleanup spends, and what this guard refused. */
+interface FixtureLabels {
   readonly minted: readonly string[]
   readonly removed: readonly string[]
   readonly cannotRead: readonly string[]
-} => {
-  const source = readFileSync(path.join(REPO_ROOT, 'e2e', spec), 'utf8')
-  // BLOCK COMMENTS FIRST, because a spec's `@example` line writes a call nobody
-  // makes; counting one as a call site would refuse a file over its own
-  // documentation.
-  const code = source.replaceAll(BLOCK_COMMENT, '')
+}
+
+/**
+ * The same reading, over source handed in rather than read off disk.
+ *
+ * SEPARATE FROM {@link fixtureLabelsOf} SO THE REFUSALS HAVE CASES. Review
+ * round 1 (F2) deleted each `cannotRead.push` below and all eight cases stayed
+ * green: the refusals are asserted only as `toEqual([])` over two real specs
+ * that never produce one, which is bookkeeping nothing exercises. The two
+ * fixtures below give them the shape {@link labelsDeclaredIn} already has.
+ * @param source - A spec's whole text.
+ * @returns The labels minted, the labels a live cleanup removes, and whatever
+ *   this guard could not account for.
+ */
+const fixtureLabelsIn = (source: string): FixtureLabels => {
+  // COMMENTS FIRST, and then NOTHING reads `source` again: a spec's `@example`
+  // line writes a call nobody makes, a commented-out removal deletes nothing,
+  // and the word "try" in a sentence is not a `try` (see {@link COMMENT}).
+  const code = source.replaceAll(COMMENT, '')
   const cannotRead: string[] = []
   const minted = firstArgumentsOf(code, MINTING_CALL).flatMap((argument) => {
     const label = A_LITERAL_LABEL.exec(argument)?.[1]
@@ -474,7 +498,7 @@ const fixtureLabelsOf = (
     }
     return [label]
   })
-  const cleanup = cleanupBlockOf(source)
+  const cleanup = cleanupBlockOf(code)
   if (SWALLOWS.test(cleanup)) {
     cannotRead.push(
       'the cleanup block swallows: a removeSignedInFixture inside a try/catch cannot be told from one that deleted nothing, and nothing static can tell them apart',
@@ -494,7 +518,7 @@ const fixtureLabelsOf = (
   // it did: the first version of this line shipped an unescaped pattern that
   // threw `Lone quantifier brackets` at run time.
   const spendsTheList = variable !== '' && (loop?.[3] ?? '').includes('removeSignedInFixture(`${' + variable + '}')
-  const listed = spendsTheList ? labelsDeclaredIn(source, loop?.[2] ?? '') : []
+  const listed = spendsTheList ? labelsDeclaredIn(code, loop?.[2] ?? '') : []
   // `null` only when a loop names a list this guard could not parse — which is
   // a fact about the guard and is reported as one. A spec with no loop at all
   // reads fine and simply spends nothing.
@@ -535,6 +559,92 @@ test('refuses a list it cannot read, instead of quietly deciding there is a leak
   // names the guard rather than blaming the file it was pointed at.
   expect(labelsDeclaredIn(A_LIST_THIS_GUARD_CANNOT_READ, 'LABELS')).toBeNull()
   expect(labelsDeclaredIn(A_PLAIN_LIST, 'SOME_OTHER_NAME')).toBeNull()
+})
+
+/**
+ * Four specs this guard has never read, which is the only place its refusals
+ * can be watched firing.
+ *
+ * The two real specs below produce no refusal — that is the point of them — so
+ * `toEqual([])` over those two is a claim about `a11y.spec.ts` and
+ * `visual.spec.ts` and not about the guard. These four are the claim about the
+ * guard, in the shape {@link labelsDeclaredIn}'s own cases use: a source
+ * written here, read by the same function, compared to a literal answer.
+ */
+const A_SPEC_THAT_READS_CLEANLY = `const LABELS: readonly string[] = ['one']
+
+test('mints one account', async () => {
+  await aSignedInSession(\`one.\${fixtureLabel(testInfo)}\`)
+})
+
+test.afterAll(async () => {
+  for (const label of LABELS) {
+    await removeSignedInFixture(\`\${label}.\${RUN}\`)
+  }
+})
+`
+
+const A_SPEC_THAT_MINTS_THROUGH_A_WRAPPER = `const LABELS: readonly string[] = ['one']
+const mint = (label: string) => aSignedInSession(label)
+
+test('mints one account', async () => {
+  await aSignedInSession(\`one.\${fixtureLabel(testInfo)}\`)
+  await mint(\`two.\${fixtureLabel(testInfo)}\`)
+})
+
+test.afterAll(async () => {
+  for (const label of LABELS) {
+    await removeSignedInFixture(\`\${label}.\${RUN}\`)
+  }
+})
+`
+
+const A_SPEC_WHOSE_CLEANUP_SWALLOWS = A_SPEC_THAT_READS_CLEANLY.replace(
+  '  for (const label of LABELS) {',
+  '  try {\n  for (const label of LABELS) {',
+)
+
+const A_SPEC_WHOSE_CLEANUP_ONLY_TALKS_ABOUT_TRYING = A_SPEC_THAT_READS_CLEANLY.replace(
+  '  for (const label of LABELS) {',
+  '  // We try each label in turn, and a failure here is a failure of the run.\n  for (const label of LABELS) {',
+)
+
+/** The refusal {@link fixtureLabelsIn} raises for a call site it cannot attribute. */
+const A_LABEL_THIS_GUARD_CANNOT_READ =
+  'a call to aSignedInSession whose label this guard cannot read: aSignedInSession(label) — hand it a `label.` template literal at the call site, or teach this guard the shape'
+
+/** The refusal it raises for a cleanup that has arranged not to find out. */
+const A_CLEANUP_THAT_SWALLOWS =
+  'the cleanup block swallows: a removeSignedInFixture inside a try/catch cannot be told from one that deleted nothing, and nothing static can tell them apart'
+
+test('refuses a minting call whose label it cannot read, instead of reading the spec as clean', () => {
+  // THE INVERSION, EXERCISED. The old pattern matched the LITERAL at the call
+  // site, so a wrapper minted accounts nobody counted and nothing said so; this
+  // one finds every call site and refuses the ones it cannot attribute. Both
+  // halves are here, because a guard that refuses everything would pass the
+  // second assertion on its own.
+  const clean = fixtureLabelsIn(A_SPEC_THAT_READS_CLEANLY)
+  expect(clean.cannotRead).toEqual([])
+  expect(clean.minted).toEqual(['one'])
+
+  const wrapped = fixtureLabelsIn(A_SPEC_THAT_MINTS_THROUGH_A_WRAPPER)
+  expect(wrapped.cannotRead).toEqual([A_LABEL_THIS_GUARD_CANNOT_READ])
+  // `two` IS NOT HERE, AND THAT IS THE POINT. It is minted — through `mint` —
+  // and this guard cannot attribute it, so it is refused rather than counted.
+  // The refusal is the whole mechanism: the old pattern returned exactly this
+  // list and said nothing, which is how eleven accounts a run leaked in silence.
+  expect(wrapped.minted, 'the literal call sites are still read; only the wrapper is refused').toEqual(['one'])
+})
+
+test('refuses a cleanup that swallows, and does not invent one out of a comment', () => {
+  expect(fixtureLabelsIn(A_SPEC_WHOSE_CLEANUP_SWALLOWS).cannotRead).toEqual([A_CLEANUP_THAT_SWALLOWS])
+  // A SENTENCE IS NOT A `try`. Review round 1 (F7): the swallow test read the
+  // cleanup's raw text, so the word "try" in an ordinary comment produced a
+  // failure describing a `try`/`catch` that was not in the file, and the next
+  // person to write one would have gone looking for it. Comments are stripped
+  // first now, as `shellShipsNoClientJs.test.ts` and `visualBaselines.test.ts`
+  // already do.
+  expect(fixtureLabelsIn(A_SPEC_WHOSE_CLEANUP_ONLY_TALKS_ABOUT_TRYING).cannotRead).toEqual([])
 })
 
 test('deletes every fixture account e2e/a11y.spec.ts creates, so a run leaves no accounts behind', () => {
