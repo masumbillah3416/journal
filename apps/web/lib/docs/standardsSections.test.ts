@@ -39,11 +39,12 @@
  *     sentinel — which is why this file is NOT excluded from that corpus, and
  *     must not become excluded.
  *
- * Depends on: vitest, node:fs, node:path, ./markdownCorpus.
+ * Depends on: vitest, node:fs, node:path, ./citations, ./markdownCorpus.
  */
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { sectionCitations } from './citations'
 import { REPOSITORY_ROOT, repositoryFiles } from './markdownCorpus'
 
 /** The document whose sections are under test. */
@@ -53,14 +54,25 @@ const CLAUDE_MD = path.join(REPOSITORY_ROOT, 'CLAUDE.md')
 const STANDARDS_DIRECTORY = 'docs/standards'
 
 /**
- * A `CLAUDE.md §N` citation, in every spelling this repository writes.
+ * The document whose citations this file resolves, as a citation spells it.
  *
- * The file name is optionally backticked and optionally possessive
- * (``CLAUDE.md`` §6, `CLAUDE.md §2.1's`), and `§§` appears where two sections
- * are cited together. Measured over the tree rather than assumed: a narrower
- * pattern missed 133 of the 748 citations, all of them backticked.
+ * ═══ WHY THE PATTERN IS NOT HERE ANY MORE ═══
+ *
+ * It was one, written here and measured over the tree rather than assumed: a
+ * narrower version missed 133 of the 748 citations, all of them backticked.
+ * `sectionCitations.test.ts` then grew a pattern for every OTHER document and
+ * routed this family here, and review round 1 found the two disagreeing — that
+ * one accepts a curly possessive and this one did not, so a citation written
+ * with one would have been routed away by the router and refused by the
+ * delegate, seen by neither. Zero occurrences in the tree, which is luck and
+ * not a property.
+ *
+ * A routing is only as good as its two ends agreeing, so there is now one
+ * pattern: {@link sectionCitations}, in `apps/web/lib/docs/citations.ts`,
+ * filtered to this basename. The agreement is structural instead of asserted,
+ * and the two floors below still catch an extraction that stopped matching.
  */
-const CITATION = /CLAUDE\.md`?(?:'s)?[ \t]*§+[ \t]*(\d+(?:\.\d+)*)/gu
+const CITED_AS = 'CLAUDE.md'
 
 /** A numbered heading: `## 7 · Data handling`, `### 7.1 Repository content…`. */
 const NUMBERED_HEADING = /^(#{2,4})[ \t]+(\d+(?:\.\d+)*)(?:[ \t]+·)?[ \t]+\S/u
@@ -303,7 +315,9 @@ const citations = (): readonly { readonly section: string; readonly where: strin
       return []
     }
     if (text.includes('\0')) return []
-    return [...text.matchAll(CITATION)].map((match) => ({ section: match[1] ?? '', where: file }))
+    return sectionCitations(text)
+      .filter(({ document }) => document.slice(document.lastIndexOf('/') + 1) === CITED_AS)
+      .map(({ section }) => ({ section, where: file }))
   })
 
 describe('the sections of CLAUDE.md and the reference files behind them', () => {
