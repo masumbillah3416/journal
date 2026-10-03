@@ -77,7 +77,7 @@ import { ADMIN_NAV, activeNavId } from '@travel-diary/domain/admin/navigation'
 import { userId } from '@travel-diary/domain/ids'
 import { contrastRatio } from '@travel-diary/domain/contrast'
 import { pagePath } from '@travel-diary/domain/pageAddress'
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import sharp from 'sharp'
 import { adminScope, type AdminScope } from '../apps/web/lib/admin/adminScope'
 import { writeJourneyPlace } from '../apps/web/lib/admin/bookMutations'
@@ -1977,6 +1977,134 @@ test('refuses a reply-to that is not an address in the field, not with a 500', a
       valid: (node as HTMLInputElement).checkValidity(),
     })),
   ).toEqual({ typeMismatch: true, valid: false })
+})
+
+/**
+ * ═══ docs/deviations.md §104: EVERY ADMIN FORM RENDERS ITS REFUSAL ═══
+ *
+ * FOUR SCREENS, AND THE LIST WAS MEASURED RATHER THAN COPIED. §104 named five
+ * actions; three of them (`saveCover`, `saveBookSettings`, `setSlotFocalPoint`)
+ * take their values from a swatch, a range slider or a clamped click and no
+ * sequence of keystrokes reaches their refusal. These four are the ones a
+ * browser measured answering `500`: `/admin/cover`, `/admin/settings` —
+ * which §104 recorded as CLOSED by `type="email"`, and `a@b` is an address
+ * every browser accepts and `z.email()` does not — `/admin/journeys`, where
+ * `required` passes a box holding three spaces, and `/admin/journeys/<id>`,
+ * whose gallery address is free text against a slug pattern.
+ *
+ * EACH CASE READS THREE THINGS, because a refusal that only stops the 500 is
+ * half the defect: no response at or above 400, the message on the screen, and
+ * the values still in the boxes. The last is what SET-003 reported losing.
+ */
+/**
+ * Fails the test for any response the browser was given at or above 400.
+ * @param page - The page under test.
+ * @returns The list, which is read after the submit.
+ */
+const failedResponses = (page: Page): string[] => {
+  const failures: string[] = []
+  page.on('response', (response) => {
+    if (response.status() >= 400) failures.push(`${String(response.status())} ${response.url()}`)
+  })
+  return failures
+}
+
+test('tells the author why the About card was refused, and keeps what they typed', async ({ page }) => {
+  // §104's first row, on the screen it is actually on. The reply-to here is a
+  // plain `type="text"` box, so nothing in the browser stands between
+  // `not-an-address` and `ABOUT`'s `z.email()`.
+  const failures = failedResponses(page)
+  await page.goto('/admin/cover')
+  await expect(page.locator('[data-about-card]')).toBeVisible()
+
+  const paragraph = page.locator('[data-paragraph="0"]')
+  const typed = 'A paragraph the author must not lose to a refusal.'
+  await paragraph.fill(typed)
+  await page.locator('[data-reply-to]').fill('not-an-address')
+  await page.locator('[data-save-about]').click()
+
+  await expect(page.locator('[data-form-refusal]')).toBeVisible()
+  await expect(page.locator('[data-refused-field="replyTo"]')).toContainText('email')
+  expect(failures, 'the refusal was answered with an error response').toEqual([])
+  await expect(page.locator('[data-reply-to]')).toHaveValue('not-an-address')
+  await expect(paragraph).toHaveValue(typed)
+})
+
+test('tells the author why the Site card was refused, and keeps what they typed', async ({ page }) => {
+  // `a@b` is why this case exists rather than `not-an-address`: the field is
+  // `type="email"`, which §104 recorded as closing this instance, and the
+  // browser calls `a@b` valid. Measured here, in the browser, rather than
+  // argued from the HTML specification.
+  const failures = failedResponses(page)
+  await page.goto('/admin/settings')
+  await expect(page.locator('[data-settings-site]')).toBeVisible()
+
+  const name = page.locator('[data-site-field="name"] input')
+  const replyTo = page.locator('[data-site-field="replyTo"] input')
+  await name.fill('A site name the author must not lose')
+  await replyTo.fill('a@b')
+  expect(await replyTo.evaluate((node) => (node as HTMLInputElement).checkValidity())).toBe(true)
+  await page.locator('[data-save-site]').click()
+
+  await expect(page.locator('[data-form-refusal]')).toBeVisible()
+  await expect(page.locator('[data-refused-field="replyTo"]')).toContainText('email')
+  expect(failures, 'the refusal was answered with an error response').toEqual([])
+  await expect(name).toHaveValue('A site name the author must not lose')
+  await expect(replyTo).toHaveValue('a@b')
+})
+
+test('tells the author why a new journey was refused, and keeps what they typed', async ({ page }) => {
+  // THREE SPACES, NOT AN EMPTY BOX. All three fields are `required`, so the
+  // browser refuses an empty one — and `required` is satisfied by whitespace,
+  // which `NEW_JOURNEY.trim().min(1)` is not.
+  const failures = failedResponses(page)
+  await page.goto('/admin/journeys')
+  await page.locator('[data-create-open]').click()
+
+  const where = page.locator('[data-create-panel] input[name="name"]')
+  await where.fill('   ')
+  await page.locator('[data-create-panel] input[name="place"]').fill('Norway')
+  await page.locator('[data-create-panel] input[name="dates"]').fill('1 - 2 May 2026')
+  await page.locator('[data-create-panel] button[type="submit"]').click()
+
+  await expect(page.locator('[data-form-refusal]')).toBeVisible()
+  await expect(page.locator('[data-refused-field="name"]')).toBeVisible()
+  expect(failures, 'the refusal was answered with an error response').toEqual([])
+  await expect(page.locator('[data-create-panel] input[name="place"]')).toHaveValue('Norway')
+  await expect(where).toHaveValue('   ')
+})
+
+test('tells the author why the Notes pane was refused, and writes nothing', async ({ page }) => {
+  // THE ACTION §104 DOES NOT NAME, and the one with the most typed values
+  // behind it. `saveNotes` posts the whole pane — location, dates, the note,
+  // the highlights, the tally, the sign-off, the stamp and the gallery
+  // address — and the address is free text judged against a slug pattern.
+  //
+  // IT ALSO ASSERTS THROUGH THE READER (standing orders §18): a refusal must
+  // write nothing, and a resolved promise from this ORM is not evidence.
+  const payload = await getPayload()
+  const before = await payload.findByID({ collection: 'journeys', id: editorFixture.journey, depth: 0 })
+  const failures = failedResponses(page)
+  const notes = editorFixture.pages[0]
+  await page.goto(`/admin/journeys/${String(editorFixture.journey)}?page=${String(notes ?? 0)}`)
+  await expect(page.locator('[data-notes-pane]')).toBeVisible()
+
+  const location = page.locator('[data-notes-pane] input[name="location"]')
+  await location.fill('Bergen in the rain')
+  await page.locator('[data-notes-pane] input[name="slug"]').fill('Not A Slug!')
+  await page.locator('[data-save-notes]').click()
+
+  await expect(page.locator('[data-form-refusal]')).toBeVisible()
+  await expect(page.locator('[data-refused-field="slug"]')).toBeVisible()
+  expect(failures, 'the refusal was answered with an error response').toEqual([])
+  await expect(location).toHaveValue('Bergen in the rain')
+
+  const after = await payload.findByID({ collection: 'journeys', id: editorFixture.journey, depth: 0 })
+  expect({ slug: after.slug, name: after.name, note: after.note }).toEqual({
+    slug: before.slug,
+    name: before.name,
+    note: before.note,
+  })
 })
 
 test.describe('the account screen (SCREENS.md §2.11)', () => {

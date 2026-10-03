@@ -32,6 +32,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ABOUT_PARAGRAPHS } from '../../../lib/admin/coverMutations'
+import type { FormRefusal } from '../../../lib/admin/formRefusal'
 import type { AboutCardContent } from '../../../lib/admin/readCoverScreen'
 import { AboutCard } from './AboutCard'
 
@@ -53,15 +54,16 @@ const SEEDED: AboutCardContent = {
 /**
  * Renders the card and hands back the host element.
  * @param overrides - Content to override on the fixture.
+ * @param refusal - The refusal to draw it under, if the save was refused.
  * @returns The host element.
  */
-const renderCard = (overrides: Partial<AboutCardContent> = {}): HTMLElement => {
+const renderCard = (overrides: Partial<AboutCardContent> = {}, refusal: FormRefusal | null = null): HTMLElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
   roots.push(root)
   act(() => {
-    root.render(<AboutCard about={{ ...SEEDED, ...overrides }} save={vi.fn()} />)
+    root.render(<AboutCard about={{ ...SEEDED, ...overrides }} save={vi.fn()} refusal={refusal} />)
   })
   return host
 }
@@ -117,7 +119,10 @@ describe('AboutCard', () => {
     const host = renderCard()
     const names = [...host.querySelectorAll('[name]')].map((field) => field.getAttribute('name'))
 
-    expect(new Set(names)).toEqual(new Set(['portrait', 'paragraph', 'kit', 'replyTo']))
+    // `refusalKeeps` is in the body too, and deliberately: it is the card's
+    // allowlist for docs/deviations.md §104, and `ABOUT` strips it the way Zod
+    // strips every key an object schema does not declare.
+    expect(new Set(names)).toEqual(new Set(['portrait', 'paragraph', 'kit', 'replyTo', 'refusalKeeps']))
   })
 
   it('draws the portrait’s derivative when there is one', () => {
@@ -161,5 +166,52 @@ describe('AboutCard', () => {
     const field = renderCard().querySelector<HTMLInputElement>('[data-reply-to]')
 
     expect(field?.value).toBe(SEEDED.replyTo)
+  })
+})
+
+describe('AboutCard, after a refused save (docs/deviations.md §104)', () => {
+  it('names every field it will take back, and no other', () => {
+    expect(
+      [...renderCard().querySelectorAll('input[type="hidden"][name="refusalKeeps"]')].map((input) =>
+        input.getAttribute('value'),
+      ),
+    ).toEqual(['paragraph', 'kit', 'replyTo'])
+  })
+
+  it('redraws the paragraphs, the kit and the reply-to that were typed', () => {
+    const host = renderCard(
+      {},
+      {
+        refused: [{ field: 'replyTo', message: 'Invalid email address' }],
+        kept: {
+          paragraph: ['Typed one', 'Typed two'],
+          kit: ['A typed kit line', ''],
+          replyTo: ['not-an-address'],
+        },
+      },
+    )
+
+    expect(
+      [...host.querySelectorAll<HTMLTextAreaElement>('textarea[name="paragraph"]')].map((box) => box.value),
+    ).toEqual(['Typed one', 'Typed two'])
+    // The trailing empty box is the card's own "add a line" affordance, so the
+    // one the author posted empty is not drawn twice.
+    expect([...host.querySelectorAll<HTMLInputElement>('input[name="kit"]')].map((box) => box.value)).toEqual([
+      'A typed kit line',
+      '',
+    ])
+    expect(host.querySelector<HTMLInputElement>('[data-reply-to]')?.value).toBe('not-an-address')
+  })
+
+  it('draws no kit line at all when the author had cleared every one of them', () => {
+    // WHY `keptValues` AND NOT `keptValue`. An author who emptied the list
+    // posted nothing under `kit`, and a `?? stored` fallback would hand them
+    // back the three lines they had just deleted.
+    const host = renderCard(
+      {},
+      { refused: [{ field: 'replyTo', message: 'Invalid email address' }], kept: { kit: [] } },
+    )
+
+    expect([...host.querySelectorAll<HTMLInputElement>('input[name="kit"]')].map((box) => box.value)).toEqual([''])
   })
 })

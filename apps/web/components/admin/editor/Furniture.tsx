@@ -28,7 +28,10 @@
  * checked, so the form would post no `accent` at all and the save would be
  * refused on a field the author never touched. {@link swatchesFor} adds the
  * stored colour as a sixth swatch instead, so the value survives a save the
- * author made about something else. `lib/admin/notesMutations.ts`'s parse takes
+ * author made about something else. IT IS ASKED ABOUT THE ACCENT THAT WILL BE
+ * DRAWN, not the one the journey holds: after a refused save that is the one
+ * the author posted, and reading the stored one there would leave the same
+ * block with no radio checked for exactly the reason this paragraph exists. `lib/admin/notesMutations.ts`'s parse takes
  * any six-digit hex colour for the same reason, stated from the other end.
  *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. Fields and two lookups.
@@ -37,10 +40,12 @@
  * are checked, always, because a form that posts neither is a save the parse
  * refuses.
  * Depends on: react, `WEATHER_GLYPHS`/`WeatherGlyph`
- * (@travel-diary/domain/bookBundle), ./editor.module.css.
+ * (@travel-diary/domain/bookBundle), `FormRefusal`/`keptValue`
+ * (../../../lib/admin/formRefusal), ./editor.module.css.
  */
 import { WEATHER_GLYPHS, type WeatherGlyph } from '@travel-diary/domain/bookBundle'
 import type React from 'react'
+import { keptValue, type FormRefusal } from '../../../lib/admin/formRefusal'
 import styles from './editor.module.css'
 
 /** What SCREENS.md §2.3's Page furniture block needs to draw itself. */
@@ -57,6 +62,14 @@ export interface FurnitureProps {
   readonly accent: string
   /** The gallery address's last segment. */
   readonly slug: string
+  /**
+   * This render's refusal, so a refused save redraws what was typed.
+   *
+   * THE PANE'S, NOT THIS BLOCK'S. These fields are part of `NotesPane.tsx`'s
+   * single form (see this module's header), so the refusal that reaches them
+   * is the one `saveNotes` left behind.
+   */
+  readonly refusal: FormRefusal | null
 }
 
 /**
@@ -149,7 +162,8 @@ const swatchesFor = (accent: string): readonly (readonly [string, string])[] =>
  * @returns The sign-off, the three weather cards, the stamp, the swatches and
  *   the gallery address.
  * @example
- * <Furniture signoff="…" weatherGlyph="sun" stampCountry="NIPPON" stampValue="120" accent="#3d817e" slug="tokyo" />
+ * <Furniture signoff="…" weatherGlyph="sun" stampCountry="NIPPON" stampValue="120" accent="#3d817e" slug="tokyo"
+ *   refusal={null} />
  */
 export const Furniture = ({
   signoff,
@@ -158,6 +172,7 @@ export const Furniture = ({
   stampValue,
   accent,
   slug,
+  refusal,
 }: FurnitureProps): React.JSX.Element => (
   <section data-furniture className={styles.furniture}>
     <div className={styles.sectionHead}>
@@ -167,7 +182,12 @@ export const Furniture = ({
 
     <label className={styles.field}>
       <span className={styles.eyebrow}>Sign-off — bottom right, in your hand</span>
-      <input type="text" name="signoff" defaultValue={signoff} className={styles.signoffInput} />
+      <input
+        type="text"
+        name="signoff"
+        defaultValue={keptValue(refusal, 'signoff', signoff)}
+        className={styles.signoffInput}
+      />
     </label>
 
     <div className={styles.furnitureGrid}>
@@ -180,7 +200,7 @@ export const Furniture = ({
                 type="radio"
                 name="weatherGlyph"
                 value={glyph}
-                defaultChecked={glyph === weatherGlyph}
+                defaultChecked={glyph === keptValue(refusal, 'weatherGlyph', weatherGlyph)}
                 className={styles.choice}
               />
               <span className={styles.glyphMark}>{GLYPH_MARKS[glyph]}</span>
@@ -208,7 +228,7 @@ export const Furniture = ({
             <input
               type="text"
               name="stampCountry"
-              defaultValue={stampCountry}
+              defaultValue={keptValue(refusal, 'stampCountry', stampCountry)}
               placeholder="NIPPON"
               aria-label="Postage stamp country"
               className={styles.stampCountryInput}
@@ -216,7 +236,7 @@ export const Furniture = ({
             <input
               type="text"
               name="stampValue"
-              defaultValue={stampValue}
+              defaultValue={keptValue(refusal, 'stampValue', stampValue)}
               placeholder="120"
               aria-label="Postage stamp value"
               className={styles.stampValueInput}
@@ -230,7 +250,7 @@ export const Furniture = ({
       <div>
         <p className={styles.eyebrow}>Accent — bookmark tab and stamp</p>
         <div className={styles.swatches}>
-          {swatchesFor(accent).map(([colour, name]) => (
+          {swatchesFor(keptValue(refusal, 'accent', accent)).map(([colour, name]) => (
             <label
               key={colour}
               data-accent={colour}
@@ -242,7 +262,7 @@ export const Furniture = ({
                 type="radio"
                 name="accent"
                 value={colour}
-                defaultChecked={colour === accent}
+                defaultChecked={colour === keptValue(refusal, 'accent', accent)}
                 className={styles.choice}
               />
               <span className={styles.swatchName}>{name}</span>
@@ -258,7 +278,7 @@ export const Furniture = ({
           <input
             type="text"
             name="slug"
-            defaultValue={slug}
+            defaultValue={keptValue(refusal, 'slug', slug)}
             aria-label="Gallery address"
             className={styles.addressInput}
           />

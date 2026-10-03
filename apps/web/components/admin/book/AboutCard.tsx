@@ -30,16 +30,28 @@
  * paragraphs are treated differently, which `coverMutations.ts`'s header sets
  * out in full.
  *
+ * ═══ A REFUSED SAVE REDRAWS WHAT WAS TYPED (docs/deviations.md §104) ═══
+ *
+ * This is §104's first row and the one a browser measured first: the reply-to
+ * is a plain text box against `z.email()`, so `not-an-address` answered HTTP
+ * 500 and took the paragraphs and the kit with it. The card names its own
+ * fields in {@link KEPT_FIELDS_NAME}, and the three repeated ones are read
+ * back with `keptValues` rather than `keptValue` — an author who cleared every
+ * kit line posted none, and `?? stored` would hand them the old list back.
+ *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. Fields in a form.
  *
  * INVARIANT — the card always renders exactly `ABOUT_PARAGRAPHS` paragraph
  * boxes, because the parse refuses a body with any other count. The padding is
  * `readCoverScreen.ts`'s, so a global holding one paragraph still posts two.
  * Depends on: react, `ABOUT_PARAGRAPHS` (../../../lib/admin/coverMutations),
- * `AboutCardContent` (../../../lib/admin/readCoverScreen), ./book.module.css.
+ * `FormRefusal`/`KEPT_FIELDS_NAME`/`keptValue`/`keptValues`
+ * (../../../lib/admin/formRefusal), `AboutCardContent`
+ * (../../../lib/admin/readCoverScreen), ./book.module.css.
  */
 import type React from 'react'
 import { ABOUT_PARAGRAPHS } from '../../../lib/admin/coverMutations'
+import { KEPT_FIELDS_NAME, keptValue, keptValues, type FormRefusal } from '../../../lib/admin/formRefusal'
 import type { AboutCardContent } from '../../../lib/admin/readCoverScreen'
 import styles from './book.module.css'
 
@@ -49,7 +61,27 @@ export interface AboutCardProps {
   readonly about: AboutCardContent
   /** Writes it. Handed the card's whole form body. */
   readonly save: (form: FormData) => Promise<void>
+  /** This render's refusal, so a refused save redraws what was typed. */
+  readonly refusal: FormRefusal | null
 }
+
+/** The fields a refusal may hand back — the card's own three typed names. */
+const KEPT = ['paragraph', 'kit', 'replyTo'] as const
+
+/**
+ * The kit lines to draw: what was typed when the save was refused, otherwise
+ * what the global holds.
+ *
+ * ITS OWN FUNCTION BECAUSE THE TRAILING BOX COUNTS FROM IT. The card draws one
+ * input more than there are lines, and the `aria-label` that calls the last one
+ * "Add a kit line" has to be keyed to the same list — a refused save that added
+ * a line has one more.
+ * @param refusal - This render's refusal, or `null`.
+ * @param stored - The lines the global holds.
+ * @returns The lines to draw, without the trailing empty one.
+ */
+const keptKit = (refusal: FormRefusal | null, stored: readonly string[]): readonly string[] =>
+  keptValues(refusal, 'kit', stored).filter((line, index, lines) => line !== '' || index < lines.length - 1)
 
 /** What each paragraph box is called. `Travel Diary Admin.dc.html`'s own two labels. */
 const PARAGRAPH_LABELS = ['Opening paragraph', 'Second paragraph'] as const
@@ -72,10 +104,16 @@ const paragraphLabel = (index: number): string => PARAGRAPH_LABELS[index] ?? `Pa
  * @param props - See {@link AboutCardProps}.
  * @returns The card, as one form.
  * @example
- * <AboutCard about={view.about} save={saveAbout} />
+ * <AboutCard about={view.about} save={saveAbout} refusal={refusal} />
  */
-export const AboutCard = ({ about, save }: AboutCardProps): React.JSX.Element => (
+export const AboutCard = ({ about, save, refusal }: AboutCardProps): React.JSX.Element => (
   <form data-about-card action={save} className={styles.card}>
+    {/* The allowlist of values a refusal may hand back — see
+        `lib/admin/formRefusal.ts`. The portrait is deliberately absent: it is a
+        `<select>` over the library, and a refusal redraws the library. */}
+    {KEPT.map((name) => (
+      <input key={`keep-${name}`} type="hidden" name={KEPT_FIELDS_NAME} value={name} />
+    ))}
     <h2 className={styles.cardTitleRuled}>About page</h2>
 
     <div className={styles.aboutInner}>
@@ -125,7 +163,7 @@ export const AboutCard = ({ about, save }: AboutCardProps): React.JSX.Element =>
               rows={3}
               name="paragraph"
               data-paragraph={index}
-              defaultValue={about.paragraphs[index] ?? ''}
+              defaultValue={keptValues(refusal, 'paragraph', about.paragraphs)[index] ?? ''}
               className={styles.paragraph}
             />
           </label>
@@ -135,7 +173,7 @@ export const AboutCard = ({ about, save }: AboutCardProps): React.JSX.Element =>
           <p className={styles.eyebrow}>Kit</p>
           <div className={styles.kit}>
             {/* ONE INPUT MORE THAN THERE ARE LINES — see this module's header. */}
-            {[...about.kit, ''].map((line, index) => (
+            {[...keptKit(refusal, about.kit), ''].map((line, index) => (
               <span key={`kit-${String(index)}`} className={styles.kitRow}>
                 <span aria-hidden="true" className={styles.grip}>
                   ::
@@ -145,7 +183,9 @@ export const AboutCard = ({ about, save }: AboutCardProps): React.JSX.Element =>
                   name="kit"
                   data-kit-line={index}
                   defaultValue={line}
-                  aria-label={index === about.kit.length ? 'Add a kit line' : `Kit line ${String(index + 1)}`}
+                  aria-label={
+                    index === keptKit(refusal, about.kit).length ? 'Add a kit line' : `Kit line ${String(index + 1)}`
+                  }
                   className={styles.kitInput}
                 />
               </span>
@@ -155,7 +195,13 @@ export const AboutCard = ({ about, save }: AboutCardProps): React.JSX.Element =>
 
         <label className={styles.field}>
           <span className={styles.eyebrow}>Reply-to address</span>
-          <input type="text" name="replyTo" data-reply-to defaultValue={about.replyTo} className={styles.replyTo} />
+          <input
+            type="text"
+            name="replyTo"
+            data-reply-to
+            defaultValue={keptValue(refusal, 'replyTo', about.replyTo)}
+            className={styles.replyTo}
+          />
         </label>
       </div>
     </div>

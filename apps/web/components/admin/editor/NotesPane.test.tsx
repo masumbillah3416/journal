@@ -25,6 +25,7 @@ import { journeyId, slotKey, type JourneyId, type SlotKey } from '@travel-diary/
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { FormRefusal } from '../../../lib/admin/formRefusal'
 import { readNotes, type JourneyNotes } from '../../../lib/admin/notesMutations'
 import type { EditorSlot } from '../../../lib/admin/readJourneyEditor'
 import { NotesPane } from './NotesPane'
@@ -119,9 +120,15 @@ const TOKYO_SLOTS: readonly EditorSlot[] = [
 /**
  * Renders the pane and hands back its form element.
  * @param notes - Fields to override on the Tokyo fixture.
+ * @param slots - The page's cells.
+ * @param refusal - The refusal to draw the pane under, if the save was refused.
  * @returns The rendered `<form>`.
  */
-const renderPane = (notes: Partial<JourneyNotes> = {}, slots: readonly EditorSlot[] = TOKYO_SLOTS): HTMLFormElement => {
+const renderPane = (
+  notes: Partial<JourneyNotes> = {},
+  slots: readonly EditorSlot[] = TOKYO_SLOTS,
+  refusal: FormRefusal | null = null,
+): HTMLFormElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
@@ -139,6 +146,7 @@ const renderPane = (notes: Partial<JourneyNotes> = {}, slots: readonly EditorSlo
         setFocal={noAction}
         setText={noAction}
         clear={noAction}
+        refusal={refusal}
       />,
     )
   })
@@ -282,5 +290,81 @@ describe('NotesPane', () => {
     })
 
     expect(unnamed).toEqual([])
+  })
+})
+
+describe('NotesPane, after a refused save (docs/deviations.md §104)', () => {
+  /** A refusal of the gallery address, carrying the whole pane. */
+  const REFUSED: FormRefusal = {
+    refused: [{ field: 'slug', message: 'not a gallery address' }],
+    kept: {
+      location: ['Bergen in the rain'],
+      dates: ['1 - 2 May 2026'],
+      weather: ['WET 9C'],
+      mood: ['PATIENT'],
+      highlightText: ['A typed highlight', 'A second typed one'],
+      note: ['A note the author must not lose.'],
+      tallyKey: ['Days', 'Soaked', 'Rolls', 'Coffees'],
+      tallyValue: ['2', '2', '1', '9'],
+      slug: ['Not A Slug!'],
+    },
+  }
+
+  it('names every field it will take back, and the journey is not one of them', () => {
+    // THE JOURNEY IS THE PANE'S ADDRESS, not a typed value. A refusal that
+    // handed it back would let a crafted body choose which journey the next
+    // render drew.
+    const named = [...renderPane().querySelectorAll('input[type="hidden"][name="refusalKeeps"]')].map((input) =>
+      input.getAttribute('value'),
+    )
+
+    expect(named).not.toContain('journey')
+    expect(named).toEqual([
+      'location',
+      'dates',
+      'weather',
+      'mood',
+      'highlightText',
+      'note',
+      'tallyKey',
+      'tallyValue',
+      'signoff',
+      'weatherGlyph',
+      'stampCountry',
+      'stampValue',
+      'accent',
+      'slug',
+    ])
+  })
+
+  it('redraws the four header boxes and the note with what was typed', () => {
+    const form = renderPane({}, TOKYO_SLOTS, REFUSED)
+    const valueOf = (name: string): string | undefined =>
+      form.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${name}"]`)?.value
+
+    expect([valueOf('location'), valueOf('dates'), valueOf('weather'), valueOf('mood'), valueOf('note')]).toEqual([
+      'Bergen in the rain',
+      '1 - 2 May 2026',
+      'WET 9C',
+      'PATIENT',
+      'A note the author must not lose.',
+    ])
+  })
+
+  it('redraws the highlights and the tally by position, which is how they are read', () => {
+    // `notesMutations.ts` zips `highlightId` with `highlightText` by position,
+    // so a refusal that put them back in another order would file one row's
+    // text under another row's id on the next save.
+    const form = renderPane({}, TOKYO_SLOTS, REFUSED)
+
+    expect([...form.querySelectorAll<HTMLInputElement>('input[name="highlightText"]')].map((box) => box.value)).toEqual(
+      ['A typed highlight', 'A second typed one'],
+    )
+    expect([...form.querySelectorAll<HTMLInputElement>('input[name="tallyValue"]')].map((box) => box.value)).toEqual([
+      '2',
+      '2',
+      '1',
+      '9',
+    ])
   })
 })

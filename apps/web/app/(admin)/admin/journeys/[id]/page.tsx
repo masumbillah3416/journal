@@ -91,6 +91,7 @@ import { PageRail } from '../../../../../components/admin/editor/PageRail'
 import styles from '../../../../../components/admin/editor/editor.module.css'
 import { AdminShell } from '../../../../../components/admin/shell/AdminShell'
 import { adminScope } from '../../../../../lib/admin/adminScope'
+import { refusalForThisRender } from '../../../../../lib/admin/formRefusalFlash'
 import { env } from '../../../../../lib/env'
 import { readJourneyEditor } from '../../../../../lib/admin/readJourneyEditor'
 import { readNavCounts } from '../../../../../lib/admin/readNavCounts'
@@ -225,6 +226,7 @@ const JourneyEditorPage = async ({ params, searchParams }: JourneyEditorPageProp
             setFocal={setSlotFocalPoint}
             setText={setSlotText}
             clear={clearSlot}
+            refusal={await refusalForThisRender()}
           />
         ) : (
           <FramesPane

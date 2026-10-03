@@ -59,6 +59,17 @@
  * also means none of them submits this pane by accident, which an unadorned
  * `<button>` inside a form would.
  *
+ * ═══ A REFUSED SAVE REDRAWS THE WHOLE PANE (docs/deviations.md §104) ═══
+ *
+ * This is the action §104 does not name and the one with the most typed values
+ * behind it: `saveNotes` posts the location, the dates, the two badges, four
+ * highlights, the note, four tally cells, the furniture and the gallery
+ * address in one body. The address is free text against a slug pattern, and a
+ * browser measured `Not A Slug!` answering HTTP 500 with every box emptied.
+ * The repeated fields are read back by POSITION, which is how they are zipped
+ * on the way in (`notesMutations.ts`) — and with no fallback list, so a
+ * refusal cannot silently pair one row's text with another row's id.
+ *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. One form, three lists and two
  * child components.
  *
@@ -67,17 +78,44 @@
  * guarantees to be `TALLY_ROWS`. The parse refuses any other count, so a change
  * to either side fails rather than silently storing a short ticket.
  * Depends on: react, `JourneyId`/`SlotKey` (@travel-diary/domain/ids),
- * `JourneyNotes` (../../../lib/admin/notesMutations), `EditorSlot`
+ * `FormRefusal`/`KEPT_FIELDS_NAME`/`keptValue`/`keptValues`
+ * (../../../lib/admin/formRefusal), `JourneyNotes`
+ * (../../../lib/admin/notesMutations), `EditorSlot`
  * (../../../lib/admin/readJourneyEditor), ./Furniture, ./SlotPanel,
  * ./editor.module.css.
  */
 import type { JourneyId, SlotKey } from '@travel-diary/domain/ids'
 import type React from 'react'
+import { KEPT_FIELDS_NAME, keptValue, keptValues, type FormRefusal } from '../../../lib/admin/formRefusal'
 import type { JourneyNotes } from '../../../lib/admin/notesMutations'
 import type { EditorSlot } from '../../../lib/admin/readJourneyEditor'
 import { Furniture } from './Furniture'
 import { SlotPanel } from './SlotPanel'
 import styles from './editor.module.css'
+
+/**
+ * The fields a refusal may hand back.
+ *
+ * THE WHOLE PANE, INCLUDING THE TWO CHOICES. A radio posts one value and
+ * `Furniture` draws it with `defaultChecked`, so an accent or a glyph the
+ * author had just changed is lost with the rest unless it travels too.
+ */
+const KEPT = [
+  'location',
+  'dates',
+  'weather',
+  'mood',
+  'highlightText',
+  'note',
+  'tallyKey',
+  'tallyValue',
+  'signoff',
+  'weatherGlyph',
+  'stampCountry',
+  'stampValue',
+  'accent',
+  'slug',
+] as const
 
 /** What SCREENS.md §2.3's Notes pane needs to draw itself and to save. */
 export interface NotesPaneProps {
@@ -101,6 +139,8 @@ export interface NotesPaneProps {
   readonly setText: (form: FormData) => Promise<void>
   /** Empties a cell, keeping it. */
   readonly clear: (form: FormData) => Promise<void>
+  /** This render's refusal, so a refused save redraws what was typed. */
+  readonly refusal: FormRefusal | null
 }
 
 /**
@@ -139,7 +179,7 @@ const Grip = ({
  * @param props - See {@link NotesPaneProps}.
  * @returns The pane, as one form.
  * @example
- * <NotesPane journey={view.id} title="Notes" notes={view.notes} save={saveNotes} />
+ * <NotesPane journey={view.id} title="Notes" notes={view.notes} save={saveNotes} refusal={refusal} />
  */
 export const NotesPane = ({
   journey,
@@ -152,9 +192,17 @@ export const NotesPane = ({
   setFocal,
   setText,
   clear,
+  refusal,
 }: NotesPaneProps): React.JSX.Element => (
   <form data-editing-pane data-notes-pane className={styles.pane} action={save}>
     <input type="hidden" name="journey" value={journey} />
+    {/* The allowlist of values a refusal may hand back — see
+        `lib/admin/formRefusal.ts`. The journey is not among them: it is this
+        pane's address, and a refused save must redraw the journey it was
+        opened on rather than the one a body claimed. */}
+    {KEPT.map((name) => (
+      <input key={`keep-${name}`} type="hidden" name={KEPT_FIELDS_NAME} value={name} />
+    ))}
 
     <div className={styles.paneHeader}>
       <div>
@@ -169,19 +217,39 @@ export const NotesPane = ({
     <div className={styles.fieldGrid}>
       <label className={styles.field}>
         <span className={styles.eyebrow}>Location</span>
-        <input type="text" name="location" defaultValue={notes.name} className={styles.locationInput} />
+        <input
+          type="text"
+          name="location"
+          defaultValue={keptValue(refusal, 'location', notes.name)}
+          className={styles.locationInput}
+        />
       </label>
       <label className={styles.field}>
         <span className={styles.eyebrow}>Dates</span>
-        <input type="text" name="dates" defaultValue={notes.dates} className={styles.datesInput} />
+        <input
+          type="text"
+          name="dates"
+          defaultValue={keptValue(refusal, 'dates', notes.dates)}
+          className={styles.datesInput}
+        />
       </label>
       <label className={styles.field}>
         <span className={styles.eyebrow}>Weather</span>
-        <input type="text" name="weather" defaultValue={notes.weather} className={styles.badgeInput} />
+        <input
+          type="text"
+          name="weather"
+          defaultValue={keptValue(refusal, 'weather', notes.weather)}
+          className={styles.badgeInput}
+        />
       </label>
       <label className={styles.field}>
         <span className={styles.eyebrow}>Mood</span>
-        <input type="text" name="mood" defaultValue={notes.mood} className={styles.badgeInput} />
+        <input
+          type="text"
+          name="mood"
+          defaultValue={keptValue(refusal, 'mood', notes.mood)}
+          className={styles.badgeInput}
+        />
       </label>
     </div>
 
@@ -203,7 +271,7 @@ export const NotesPane = ({
               <input
                 type="text"
                 name="highlightText"
-                defaultValue={row.text}
+                defaultValue={keptValues(refusal, 'highlightText', [])[index] ?? row.text}
                 aria-label={`Highlight ${String(index + 1)}`}
                 className={styles.highlightInput}
               />
@@ -226,7 +294,13 @@ export const NotesPane = ({
         </button>
 
         <p className={styles.eyebrowSpaced}>The note</p>
-        <textarea name="note" rows={4} defaultValue={notes.note} aria-label="The note" className={styles.noteInput} />
+        <textarea
+          name="note"
+          rows={4}
+          defaultValue={keptValue(refusal, 'note', notes.note)}
+          aria-label="The note"
+          className={styles.noteInput}
+        />
 
         <p className={styles.eyebrowSpaced}>Tally</p>
         <div className={styles.tally}>
@@ -241,14 +315,14 @@ export const NotesPane = ({
               <input
                 type="text"
                 name="tallyKey"
-                defaultValue={cell.key}
+                defaultValue={keptValues(refusal, 'tallyKey', [])[index] ?? cell.key}
                 aria-label={`Tally ${String(index + 1)} name`}
                 className={styles.tallyKeyInput}
               />
               <input
                 type="text"
                 name="tallyValue"
-                defaultValue={cell.value}
+                defaultValue={keptValues(refusal, 'tallyValue', [])[index] ?? cell.value}
                 aria-label={`Tally ${String(index + 1)} value`}
                 className={styles.tallyValueInput}
               />
@@ -265,6 +339,7 @@ export const NotesPane = ({
           stampValue={notes.stampValue}
           accent={notes.accent}
           slug={notes.slug}
+          refusal={refusal}
         />
       </div>
 

@@ -9,6 +9,18 @@
  * asked at that width and one pixel above it, so neither number is written in
  * this file.
  *
+ * ═══ IT STANDS `next/headers` IN, BECAUSE THE SHELL READS A COOKIE ═══
+ *
+ * Since docs/deviations.md §104 the shell draws the refusal of the post this
+ * render followed, and that arrives in a request-scoped cookie
+ * (`lib/admin/formRefusalFlash.ts`). `cookies()` throws outside a request, so
+ * the module is stood in for — the BOUNDARY, not one of our own modules
+ * (CLAUDE.md §2.3) — and {@link storedRefusal} is what each case sets.
+ *
+ * THE COMPONENT IS AWAITED RATHER THAN RENDERED AS AN ELEMENT. It is an async
+ * Server Component, which `createRoot` cannot render: `await AdminShell(props)`
+ * produces the tree the server would have sent, and that is what jsdom gets.
+ *
  * Depends on: node:fs, node:path, node:url, react, react-dom/client, vitest
  * (jsdom), ./AdminShell, `@travel-diary/domain/admin/breakpoints`,
  * `@travel-diary/domain/admin/navigation`.
@@ -20,9 +32,20 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NavCounts } from '../../../lib/admin/readNavCounts'
 import { AdminShell } from './AdminShell'
+
+/** What the stood-in cookie jar answers with, set per case. */
+let storedRefusal: string | undefined
+
+vi.mock('next/headers', () => ({
+  cookies: (): Promise<{ get: (name: string) => { value: string } | undefined }> =>
+    Promise.resolve({
+      get: (name: string) =>
+        name === 'td-form-refusal' && storedRefusal !== undefined ? { value: storedRefusal } : undefined,
+    }),
+}))
 
 const roots: Root[] = []
 
@@ -106,27 +129,29 @@ const unmarkedLayoutBlocks = (): readonly string[] =>
  * @param screen - The entry the screen says it is.
  * @returns The host element the shell was rendered into.
  */
-const renderShell = (screen: NavEntry): HTMLElement => {
+const renderShell = async (screen: NavEntry): Promise<HTMLElement> => {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
   roots.push(root)
+  const tree = await AdminShell({
+    screen,
+    crumb: 'The back room',
+    counts: COUNTS,
+    lastPublished: '12 March',
+    siteName: 'A Travel Diary',
+    accountName: 'keeper@example.test',
+    children: <p data-screen-content>the screen’s own content</p>,
+  })
   act(() => {
-    root.render(
-      <AdminShell
-        screen={screen}
-        crumb="The back room"
-        counts={COUNTS}
-        lastPublished="12 March"
-        siteName="A Travel Diary"
-        accountName="keeper@example.test"
-      >
-        <p data-screen-content>the screen’s own content</p>
-      </AdminShell>,
-    )
+    root.render(tree)
   })
   return host
 }
+
+beforeEach(() => {
+  storedRefusal = undefined
+})
 
 afterEach(() => {
   act(() => {
@@ -136,21 +161,21 @@ afterEach(() => {
 })
 
 describe('AdminShell', () => {
-  it('draws the screen’s own content inside the frame, not beside it', () => {
-    const host = renderShell(JOURNEYS)
+  it('draws the screen’s own content inside the frame, not beside it', async () => {
+    const host = await renderShell(JOURNEYS)
 
     const content = host.querySelector('[data-screen-content]')
     expect(content).not.toBeNull()
     expect(content?.closest('main')).not.toBeNull()
   })
 
-  it('names the box the screen is drawn in, so a picture of the shell can leave the screen out', () => {
+  it('names the box the screen is drawn in, so a picture of the shell can leave the screen out', async () => {
     // `e2e/visual.spec.ts`'s `admin-shell` case masks this box, which is what
     // makes that baseline a picture of the FRAME rather than a second copy of
     // whichever screen it was taken on. Without a name of its own the mask
     // would have to be spelled as a position (`main > div`), and a baseline
     // keyed on a position is one refactor away from photographing the header.
-    const host = renderShell(JOURNEYS)
+    const host = await renderShell(JOURNEYS)
 
     const box = host.querySelector('[data-admin-content]')
     expect(box).not.toBeNull()
@@ -158,28 +183,28 @@ describe('AdminShell', () => {
     expect(box?.querySelector('h1')).toBeNull()
   })
 
-  it('lights the rail button for the screen it was given, without being told the address twice', () => {
-    const current = renderShell(JOURNEYS).querySelector('a[aria-current="page"]')
+  it('lights the rail button for the screen it was given, without being told the address twice', async () => {
+    const current = (await renderShell(JOURNEYS)).querySelector('a[aria-current="page"]')
 
     expect(current?.getAttribute('data-nav-id')).toBe(JOURNEYS.id)
   })
 
-  it('titles the screen with its entry’s label, and gives the page exactly one level-one heading', () => {
-    const host = renderShell(JOURNEYS)
+  it('titles the screen with its entry’s label, and gives the page exactly one level-one heading', async () => {
+    const host = await renderShell(JOURNEYS)
 
     expect(host.querySelectorAll('h1')).toHaveLength(1)
     expect(host.querySelector('h1')?.textContent).toBe(JOURNEYS.label)
   })
 
-  it('hands the rail the counts it was given rather than a number of its own', () => {
-    const host = renderShell(JOURNEYS)
+  it('hands the rail the counts it was given rather than a number of its own', async () => {
+    const host = await renderShell(JOURNEYS)
 
     expect(host.querySelector('a[data-nav-id="media"] [data-nav-count]')?.textContent).toBe(String(COUNTS.media))
     expect(host.querySelector('a[data-nav-id="trash"] [data-nav-count]')?.textContent).toBe(String(COUNTS.trashed))
   })
 
-  it('draws no control of its own in the header, because the shell has nothing to save or preview', () => {
-    const host = renderShell(JOURNEYS)
+  it('draws no control of its own in the header, because the shell has nothing to save or preview', async () => {
+    const host = await renderShell(JOURNEYS)
 
     expect(host.querySelector('[data-control="saved"]')).toBeNull()
     expect(host.querySelector('[data-control="preview-draft"]')).toBeNull()
@@ -211,5 +236,32 @@ describe('AdminShell', () => {
       { mode: 'mid', at: 'mid', justAbove: 'wide' },
       { mode: 'narrow', at: 'narrow', justAbove: 'mid' },
     ])
+  })
+})
+
+describe('AdminShell, when the post this render followed was refused', () => {
+  it('draws the refusal inside the content box, so every screen gets it for free', async () => {
+    storedRefusal = JSON.stringify({
+      refused: [{ field: 'replyTo', message: 'that is not an email address' }],
+      kept: {},
+    })
+
+    const host = await renderShell(JOURNEYS)
+
+    expect(host.querySelector('[data-admin-content] [data-form-refusal]')).not.toBeNull()
+    expect(host.querySelector('[data-refused-field="replyTo"]')?.textContent).toContain('that is not an email address')
+  })
+
+  it('draws nothing at all when there was no refusal, so no baseline moves', async () => {
+    expect((await renderShell(JOURNEYS)).querySelector('[data-form-refusal]')).toBeNull()
+  })
+
+  it('draws nothing for a carrier value that is not a refusal', async () => {
+    // A `td-form-refusal` header is something a hand-built request can send,
+    // and what it says is printed on an admin screen. A malformed one must
+    // draw nothing rather than throw inside the render.
+    storedRefusal = 'not json at all'
+
+    expect((await renderShell(JOURNEYS)).querySelector('[data-form-refusal]')).toBeNull()
   })
 })

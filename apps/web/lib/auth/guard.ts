@@ -172,6 +172,9 @@ import type { Result } from '@travel-diary/domain/result'
 import { err } from '@travel-diary/domain/result'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { z } from 'zod'
+import { refusalFrom } from '../admin/formRefusal'
+import { handOffRefusal } from '../admin/formRefusalFlash'
 import { SIGN_IN_PATH as ADMIN_SIGN_IN_PATH } from './adminPaths'
 import { getPayload } from '../payload'
 import { clearedSessionCookie, readBrowserSession } from './browserSession'
@@ -342,6 +345,36 @@ export const requireAdminSession = async (): Promise<AuthenticatedSession> => {
  * this factory holds and read its own; taking it as an argument means the value
  * the guard produced is the only one in scope.
  *
+ * ═══ AND A FORM'S ZOD REFUSAL IS ANSWERED HERE, NOT WITH A 500 ═══
+ *
+ * `docs/deviations.md` §104: every admin form parses its body with Zod, and
+ * until this branch nothing stood between the author and the throw — a
+ * reply-to of `not-an-address` answered `500`, drew Next's error overlay and
+ * lost everything typed. Four screens were measured doing it.
+ *
+ * IT IS HERE RATHER THAN IN EACH ACTION for the reason the factory exists at
+ * all: an action built from it has nothing to remember, and
+ * `eslint-rules/guarded-server-actions.js` already requires every Server
+ * Action to be built from it. A `try`/`catch` per action would be the
+ * twenty-sixth place to forget one.
+ *
+ * ONLY A `ZodError`, AND ONLY FROM A FORM. Anything else is re-thrown, so a
+ * Payload failure still reaches the error boundary it always did. And the
+ * branch is taken only when the action was dispatched from a `<form
+ * action={…}>` — which is what a `FormData` first argument means — because
+ * those are the calls with no caller to hand a rejection to. An action a
+ * client island calls with its own arguments keeps its rejection, which is the
+ * island's to handle.
+ *
+ * WHICH IS WHY `undefined` IS AN HONEST ANSWER THERE. A form action has no
+ * reader: Next discards what one returns unless a client is holding it with
+ * `useActionState`, and this repository has none
+ * (`shellShipsNoClientJs.test.ts`). The INVARIANT the cast rests on is that
+ * every `FormData` action in this repository is declared `Promise<void>`;
+ * `guard.integration.test.ts`'s `keeps a value-returning action's refusal as a
+ * rejection` pins the other side, so an action that takes typed arguments and
+ * returns something still throws.
+ *
  * @param action - What to run once the request is known to be somebody's. It
  *   receives the authenticated account first, then whatever the form sent.
  * @returns A function of the shape a `'use server'` module exports.
@@ -358,5 +391,17 @@ export const guardedAction =
   ) =>
   async (...args: Args): Promise<Result> => {
     const session = await requireAdminSession()
-    return action(session, ...args)
+    const posted = args[0]
+    if (!(posted instanceof FormData)) return action(session, ...args)
+
+    try {
+      return await action(session, ...args)
+    } catch (thrown) {
+      if (!(thrown instanceof z.ZodError)) throw thrown
+
+      await handOffRefusal(refusalFrom(thrown, posted))
+      // See this function's header: a form action is declared `Promise<void>`,
+      // so there is nothing for this to be wrong about.
+      return undefined as unknown as Result
+    }
   }

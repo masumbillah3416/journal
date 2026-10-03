@@ -219,8 +219,11 @@ const NOTES = z
   .object({
     journey: ROW_ID,
     op: OP.optional(),
-    location: z.string().trim().min(1),
-    dates: z.string().trim().min(1),
+    // Both carry a sentence an author can read: since `docs/deviations.md`
+    // §104 a refusal is drawn on the pane, and neither box is `required`, so
+    // clearing one is a refusal a keystroke reaches.
+    location: z.string().trim().min(1, 'the location cannot be blank'),
+    dates: z.string().trim().min(1, 'the dates cannot be blank'),
     weather: z.string().trim(),
     mood: z.string().trim(),
     weatherGlyph: z.enum(WEATHER_GLYPHS),

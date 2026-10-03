@@ -18,6 +18,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { FormRefusal } from '../../../lib/admin/formRefusal'
 import { CreatePanel, CREATE_PANEL_NOTE, CREATE_PANEL_PROMISE } from './CreatePanel'
 
 const roots: Root[] = []
@@ -27,15 +28,20 @@ const noAction = (): Promise<void> => Promise.resolve()
 
 /**
  * Renders the panel and hands back the host element.
+ * @param refusal - The refusal to draw it under, if the last create was refused.
  * @returns The host element.
  */
-const renderPanel = (): HTMLElement => {
+const renderPanel = (refusal: FormRefusal | null = null): HTMLElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
   roots.push(root)
   act(() => {
-    root.render(<CreatePanel create={noAction}>{null}</CreatePanel>)
+    root.render(
+      <CreatePanel create={noAction} refusal={refusal}>
+        {null}
+      </CreatePanel>,
+    )
   })
   return host
 }
@@ -80,7 +86,7 @@ describe('CreatePanel', () => {
     const host = renderPanel()
     press(host, '[data-create-open]')
 
-    const fields = [...host.querySelectorAll<HTMLInputElement>('[data-create-panel] input[name]')]
+    const fields = [...host.querySelectorAll<HTMLInputElement>('[data-create-panel] input[name]:not([type="hidden"])')]
     expect(fields.map((field) => field.name)).toEqual(['name', 'place', 'dates'])
     // Required at the boundary AND in the browser: Zod refuses an empty field
     // in the action, and this is what stops the round trip that finds out.
@@ -117,6 +123,7 @@ describe('CreatePanel', () => {
             sent.push(form)
             return Promise.resolve()
           }}
+          refusal={null}
         >
           {null}
         </CreatePanel>,
@@ -138,10 +145,45 @@ describe('CreatePanel', () => {
     })
 
     expect(sent).toHaveLength(1)
-    expect([...(sent[0] ?? new FormData()).entries()]).toEqual([
+    // `refusalKeeps` is dropped here: it is the panel's own allowlist for
+    // docs/deviations.md §104, and `NEW_JOURNEY` strips it the way Zod strips
+    // every key an object schema does not declare.
+    expect([...(sent[0] ?? new FormData()).entries()].filter(([name]) => name !== 'refusalKeeps')).toEqual([
       ['name', 'Kyoto'],
       ['place', 'Japan'],
       ['dates', '28 Oct – 6 Nov 2026'],
     ])
+  })
+})
+
+describe('CreatePanel, after a refused create (docs/deviations.md §104)', () => {
+  /** A refusal of a name that was three spaces, carrying all three values. */
+  const REFUSED: FormRefusal = {
+    refused: [{ field: 'name', message: 'where it went cannot be blank' }],
+    kept: { name: ['   '], place: ['Norway'], dates: ['1 - 2 May 2026'] },
+  }
+
+  it('names every field it will take back, and no other', () => {
+    expect(
+      [...renderPanel(REFUSED).querySelectorAll('input[type="hidden"][name="refusalKeeps"]')].map((input) =>
+        input.getAttribute('value'),
+      ),
+    ).toEqual(['name', 'place', 'dates'])
+  })
+
+  it('opens itself, because a round trip is a fresh mount', () => {
+    // The panel's `open` is client state, and the refusal arrives on a new
+    // render of the page. Without this the author is told what was wrong
+    // about a form they can no longer see.
+    expect(renderPanel(REFUSED).querySelector('[data-create-panel]')).not.toBeNull()
+    expect(renderPanel().querySelector('[data-create-panel]')).toBeNull()
+  })
+
+  it('redraws all three boxes with what was typed', () => {
+    const host = renderPanel(REFUSED)
+    const valueOf = (name: string): string | undefined =>
+      host.querySelector<HTMLInputElement>(`[data-create-panel] input[name="${name}"]`)?.value
+
+    expect([valueOf('name'), valueOf('place'), valueOf('dates')]).toEqual(['   ', 'Norway', '1 - 2 May 2026'])
   })
 })

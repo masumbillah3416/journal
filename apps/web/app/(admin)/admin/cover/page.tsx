@@ -46,6 +46,7 @@ import styles from '../../../../components/admin/book/book.module.css'
 import { CoverPreview } from '../../../../components/admin/book/CoverPreview'
 import { AdminShell } from '../../../../components/admin/shell/AdminShell'
 import { adminScope } from '../../../../lib/admin/adminScope'
+import { refusalForThisRender } from '../../../../lib/admin/formRefusalFlash'
 import { readCoverScreen } from '../../../../lib/admin/readCoverScreen'
 import { readNavCounts } from '../../../../lib/admin/readNavCounts'
 import { requireAdminSession } from '../../../../lib/auth/guard'
@@ -105,7 +106,7 @@ const CoverPage = async (): Promise<React.JSX.Element> => {
       <section data-admin-cover className={styles.screen}>
         <div data-cover-columns className={styles.columnsCover}>
           <CoverPreview cover={view.cover} save={saveCover} />
-          <AboutCard about={view.about} save={saveAbout} />
+          <AboutCard about={view.about} save={saveAbout} refusal={await refusalForThisRender()} />
         </div>
       </section>
     </AdminShell>

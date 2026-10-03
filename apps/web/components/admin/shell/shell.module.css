@@ -401,3 +401,44 @@
     padding-right: 0;
   }
 }
+
+/* ── The refusal notice (docs/deviations.md §104) ──────────────────────────
+ *
+ * Drawn only when the post that produced this render was refused, so nothing
+ * here is in any committed baseline. Measured against the 7% accent wash this
+ * box is drawn on: `--td-accent` 5.15:1, `--td-ink-body` 8.36:1, both above
+ * WCAG's 4.5:1 for body text.
+ */
+.refusal {
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  border-left: 3px solid var(--td-accent);
+  border-radius: var(--td-radius-control);
+  background: rgb(163 68 52 / 7%);
+}
+
+.refusalTitle {
+  margin: 0;
+  font-family: var(--td-font-caveat);
+  font-size: 22px;
+  line-height: 1.1;
+  color: var(--td-accent);
+}
+
+.refusalList {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+
+.refusalItem {
+  font-family: var(--td-font-courier);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--td-ink-body);
+}
+
+.refusalField {
+  font-weight: 700;
+  color: var(--td-accent);
+}

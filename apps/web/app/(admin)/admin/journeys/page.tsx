@@ -60,6 +60,7 @@ import { JourneyTable, journeysSummary } from '../../../../components/admin/jour
 import { AdminShell } from '../../../../components/admin/shell/AdminShell'
 import styles from '../../../../components/admin/journeys/journeys.module.css'
 import { adminScope } from '../../../../lib/admin/adminScope'
+import { refusalForThisRender } from '../../../../lib/admin/formRefusalFlash'
 import { journeysQuery, readJourneysScreen } from '../../../../lib/admin/readJourneysScreen'
 import { readNavCounts } from '../../../../lib/admin/readNavCounts'
 import { requireAdminSession } from '../../../../lib/auth/guard'
@@ -125,7 +126,7 @@ const JourneysPage = async ({ searchParams }: JourneysPageProps): Promise<React.
       accountName={scope.user.email}
     >
       <section data-admin-journeys className={styles.screen}>
-        <CreatePanel create={createJourney}>
+        <CreatePanel create={createJourney} refusal={await refusalForThisRender()}>
           <JourneyControls search={query.search} filter={query.filter} />
         </CreatePanel>
 

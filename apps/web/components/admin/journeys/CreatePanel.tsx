@@ -25,17 +25,31 @@
  * which is what a browser sends, and `createJourney` parses it with Zod at that
  * boundary (CLAUDE.md §3.1).
  *
+ * ═══ IT OPENS ITSELF WHEN THE LAST CREATE WAS REFUSED ═══
+ *
+ * `docs/deviations.md` §104. All three boxes are `required`, which a box
+ * holding three spaces satisfies and `NEW_JOURNEY`'s `trim().min(1)` does not
+ * — measured answering HTTP 500. The refusal now reaches the screen, and the
+ * panel has to be OPEN for the author to see their values back in it: the
+ * boolean starts `true` when this render carries a refusal, because a round
+ * trip is a fresh mount and the state the author left is gone.
+ *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. One boolean and a form.
  *
  * INVARIANT — {@link CREATE_PANEL_PROMISE} is a promise about what
  * `createJourney` DOES. The action creates the journey as a draft; changing one
  * without the other makes the screen lie, which is why the string is exported
  * and asserted rather than typed inline.
- * Depends on: react, ./journeys.module.css.
+ * Depends on: react, `FormRefusal`/`KEPT_FIELDS_NAME`/`keptValue`
+ * (../../../lib/admin/formRefusal), ./journeys.module.css.
  */
 import type React from 'react'
 import { useState } from 'react'
+import { KEPT_FIELDS_NAME, keptValue, type FormRefusal } from '../../../lib/admin/formRefusal'
 import styles from './journeys.module.css'
+
+/** The fields a refusal may hand back — the panel's own three. */
+const KEPT = ['name', 'place', 'dates'] as const
 
 /**
  * The aside beside "A new journey", transcribed from SCREENS.md §2.2's panel.
@@ -69,6 +83,8 @@ export interface CreatePanelProps {
   readonly children: React.ReactNode
   /** The Server Action that creates the journey. */
   readonly create: (form: FormData) => Promise<void>
+  /** This render's refusal, which opens the panel and refills its boxes. */
+  readonly refusal: FormRefusal | null
 }
 
 /**
@@ -77,10 +93,10 @@ export interface CreatePanelProps {
  * @param props - See {@link CreatePanelProps}.
  * @returns The controls row, and the panel beneath it once it is open.
  * @example
- * <CreatePanel create={createJourney}><SearchAndChips /></CreatePanel>
+ * <CreatePanel create={createJourney} refusal={refusal}><SearchAndChips /></CreatePanel>
  */
-export const CreatePanel = ({ children, create }: CreatePanelProps): React.JSX.Element => {
-  const [open, setOpen] = useState(false)
+export const CreatePanel = ({ children, create, refusal }: CreatePanelProps): React.JSX.Element => {
+  const [open, setOpen] = useState(refusal !== null)
 
   return (
     <>
@@ -111,6 +127,12 @@ export const CreatePanel = ({ children, create }: CreatePanelProps): React.JSX.E
           </div>
 
           <form action={create}>
+            {/* The allowlist of values a refusal may hand back — see
+                `lib/admin/formRefusal.ts`. */}
+            {KEPT.map((name) => (
+              <input key={`keep-${name}`} type="hidden" name={KEPT_FIELDS_NAME} value={name} />
+            ))}
+
             <div className={styles.createFields}>
               <label>
                 <span className={styles.fieldLabel}>Where</span>
@@ -118,13 +140,21 @@ export const CreatePanel = ({ children, create }: CreatePanelProps): React.JSX.E
                   type="text"
                   name="name"
                   required
+                  defaultValue={keptValue(refusal, 'name', '')}
                   placeholder="Kyoto"
                   className={[styles.fieldInput, styles.fieldInputWritten].join(' ')}
                 />
               </label>
               <label>
                 <span className={styles.fieldLabel}>Country</span>
-                <input type="text" name="place" required placeholder="Japan" className={styles.fieldInput} />
+                <input
+                  type="text"
+                  name="place"
+                  required
+                  defaultValue={keptValue(refusal, 'place', '')}
+                  placeholder="Japan"
+                  className={styles.fieldInput}
+                />
               </label>
               <label>
                 <span className={styles.fieldLabel}>Dates</span>
@@ -132,6 +162,7 @@ export const CreatePanel = ({ children, create }: CreatePanelProps): React.JSX.E
                   type="text"
                   name="dates"
                   required
+                  defaultValue={keptValue(refusal, 'dates', '')}
                   placeholder="28 Oct – 6 Nov 2026"
                   className={[styles.fieldInput, styles.fieldInputData].join(' ')}
                 />

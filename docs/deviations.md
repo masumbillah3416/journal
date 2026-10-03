@@ -4522,7 +4522,7 @@ copy is a deviation whoever reads §2.9 next needs to find. `readSettingsScreen.
 "Export everything" section, and the cases in `MaterialCard.test.tsx` that assert each
 inert control is drawn inert.
 
-## 104 · No admin form renders a refusal, so a Zod error is a 500 — owner: Task 15
+## 104 · CLOSED — a Zod refusal was a 500; it is now drawn on the screen — owner: Task 15
 
 **What the sweep found.** `docs/qa/2026-09-27-settings-trash-sweep.md`, SET-003: typing
 `not-an-address` into §2.9's Reply-to and pressing Save answered **HTTP 500**, showed Next's error
@@ -4531,68 +4531,79 @@ overlay, and lost all four typed values. Measured, verbatim, off the sweep's own
 `{"code":"custom","path":["replyTo"],"message":"that is not an email address"}`.
 
 **The parse is not the defect.** CLAUDE.md §3.1 asks for validation at every trust boundary and
-the parse is doing exactly that. What is missing is anything between the author and it.
+the parse is doing exactly that. What was missing is anything between the author and it.
 
-**It is a class, not an instance.** Every guarded form in this admin parses with Zod and none of
-them renders the refusal:
+**THE INVENTORY THIS ENTRY FIRST GAVE WAS WRONG IN BOTH DIRECTIONS, and Task 15d measured the
+real one in a browser.** It named five actions. Four actions were measured answering `500` for a
+sequence of keystrokes, and only two of them are among that five:
 
-- `saveAbout` refuses a reply-to that is not an address (`docs/api.md`'s own row says so) —
-  `/admin/cover`, `SCREENS.md` §2.7
-- `saveCover` refuses a cloth that is not a six-digit hex — the same screen
-- `createJourney` refuses an empty name, place or dates — `/admin/journeys`, §2.2
-- `setSlotFocalPoint` refuses a percentage outside 0–100 — `/admin/journeys/<id>`, §2.3
-- `saveBookSettings` refuses a slider value outside its declared range — `/admin/book`, §2.6
+| Action          | What a keystroke reaches                                        | Screen                       | Measured                                |
+| --------------- | --------------------------------------------------------------- | ---------------------------- | --------------------------------------- |
+| `saveAbout`     | a reply-to that is not an address, in a `type="text"` box       | `/admin/cover`, §2.7         | `POST 500 /admin/cover`                 |
+| `saveSite`      | `a@b` — an address the browser accepts and `z.email()` does not | `/admin/settings`, §2.9      | `POST 500 /admin/settings`              |
+| `createJourney` | a box holding three spaces, which satisfies `required`          | `/admin/journeys`, §2.2      | `POST 500 /admin/journeys`              |
+| `saveNotes`     | a gallery address that is not a slug                            | `/admin/journeys/<id>`, §2.3 | `POST 500 /admin/journeys/276?page=533` |
 
-Each posts a form with no client JavaScript, so each turns a refusal into an unhandled Server
-Action and a 500.
+**`/admin/settings` WAS RECORDED HERE AS CLOSED, AND IT WAS NOT.** The paragraph this replaces
+said giving Reply-to `type="email"` closed §2.9's instance because "every browser enforces that
+natively". It does — against HTML's own email grammar, which admits a domain with no dot.
+`z.email()` requires one. `a@b` was measured with `checkValidity() === true` in Chromium and
+`false` from the schema, and the save answered `500`. The field keeps `type="email"`, which is
+still worth having; it is no longer described as the guard.
 
-**What was fixed here, and what was not.** §2.9's instance is closed by giving Reply-to
-`type="email"`: every browser enforces that natively, with no JavaScript, so the refusal happens
-in the field. That works because the constraint happens to be one HTML has. **It does not
-generalise** — HTML has no `pattern` for "a six-digit hex that names a cloth we offer", and a
-client that posts the form directly reaches the 500 either way.
+**AND THREE OF THE FIVE WERE NEVER REACHABLE BY TYPING**, which is why "fix the class" had to
+start from the tree rather than from this list: `saveCover`'s cloth comes from four swatches,
+`saveBookSettings`'s two numbers come from `<input type="range">` bounded by the same constants
+the schema is, and `setSlotFocalPoint`'s percentages are clamped by `focalPointFrom` before the
+hidden field is written. `saveNotes`, which this entry did not name at all, is the action with
+the most typed values behind it.
 
-**A sixth screen, and it is the lowest priority within the same class.** `/admin/account`
-(`SCREENS.md` §2.11, Phase 4 Task 14) parses four bodies with Zod — `readOtpToggle`,
-`readNotificationToggle`, `readSessionRow` and `readPasswordChange`
-(`apps/web/lib/admin/accountMutations.ts`) — and each still throws a `ZodError` into an unhandled
-Server Action. It is listed last on purpose: **every value those four read comes from a hidden
-input or a `<select>` that this screen itself wrote**, so unlike the five above there is no
-sequence of keystrokes that reaches them — only a hand-built `POST`. That screen's own PASSWORD
-refusal is NOT an instance: it is a `Result`, and the action redirects to
-`?password=…` and the card draws the line, which is exactly the server round trip this entry
-prefers. It is the worked example of the shape, and the reason it is named here is so that
-whoever closes the five can see one already built.
+**What was done.** `guardedAction` — the one factory every Server Action in this repository is
+built from, which `eslint-rules/guarded-server-actions.js` enforces — now catches a `ZodError`
+from an action dispatched by a form, hands it to the render that follows, and resolves. It is
+there rather than in each action for the reason the factory exists: an action has nothing to
+remember. Three measurements shaped it, all taken in Chromium against this app:
 
-**Why this is recorded rather than fixed across the admin.** A defect report is not permission to
-reach into five other screens: the fix needs an error state §2.2, §2.3, §2.6 and §2.7 do not
-draw, a decision about whether that state is a client island or a server round trip, and a failing
-case on each screen.
+- **A cookie set inside a Server Action is readable by the page AND by a component above it, in
+  the same request**, with JavaScript on and off. With `maxAge: 0` the browser stores nothing, so
+  the refusal is one-shot by construction — there is no expiry to tune, no nonce, no query
+  parameter, and no later screen can draw a stale one. `apps/web/lib/admin/formRefusalFlash.ts`.
+- **`redirect()` from a Server Action answers `303` with JavaScript off and `200` with a
+  client-side navigation with it on.** `guard.ts`'s `307`-and-re-post warning is about a `POST`
+  ROUTE HANDLER and does not apply here, so the redirect this entry originally preferred would
+  have worked. It was not taken because the typed values have to survive, and a query carrying
+  two paragraphs of About prose is a URL in the author's history and a `414` waiting for a long
+  enough entry.
+- **React resets a form after its action completes**, so the typed values are lost whatever the
+  action does. They are carried back explicitly, as the form's `defaultValue`s.
 
-**OWNER: TASK 15, and the first version of this entry said "the screen it is on", which named
-nobody.** All five screens were built by Tasks 6, 7, 10 and 12, and all four are closed, so an
-entry addressed to them is a phase-wide defect assigned to no one — the Task 13 review said so
-(F7), and §98 is the shape that works: a number.
+**WHICH VALUES TRAVEL IS THE FORM'S OWN ALLOWLIST**, named in a hidden `refusalKeeps` field. A
+Server Action's body is whatever was posted to it, and `changePassword`'s body is two passwords;
+a denylist would have to recognise every secret anybody ever adds to a form. Nothing a card did
+not name is kept.
 
-**AND THE DECISION IS MADE HERE RATHER THAN LEFT AS A FORK**, so its owner inherits one job
-instead of two. This is ONE decision applied five times, not five decisions, and the preferred
-shape is **the server round trip**: the action re-renders the card with what was typed and why it
-was refused. It ships no JavaScript, which is the property all five of these screens currently
-have and which `lib/admin/shellShipsNoClientJs.test.ts` holds them to; a client island would give
-each of them an entry in that allowlist for an error state. Take the other shape only if a
-measurement says the round trip loses something.
+**The message is drawn by the shell, once.** `AdminShell` reads the refusal and renders
+`RefusalNotice` inside `data-admin-content`, so a screen added later gets it without remembering
+to — which is the difference between closing a class and closing four instances. A screen that
+was not refused renders no extra node, so no committed visual baseline moves.
 
-**What would reverse it:** a refusal that reaches the screen, in the shape named above. Either
-candidate closes all five at once.
+**WHAT IS NOT CLOSED, NAMED EXACTLY.** An action a client island calls with its own arguments
+keeps its refusal as a REJECTION rather than drawing it: `saveCover`, `saveBookSettings`,
+`requestUploadSlots`, `finaliseUpload` and the Galleries screen's five. That is deliberate —
+there is a caller holding the promise, and handing it `undefined` would be a worse failure than a
+rejection — and `guard.integration.test.ts`'s `keeps a value-returning action’s refusal as a
+rejection` is the case that keeps the line where it is. **No sequence of keystrokes reaches any
+of their refusals**, which is the measurement above; a hand-built `POST` to one still answers
+`500`, and that was not measured. §2.11's four parses (`readOtpToggle`, `readNotificationToggle`,
+`readSessionRow`, `readPasswordChange`) are `FormData` actions, so they are covered by the
+mechanism — their values are not carried back, because the card names none.
 
-**And why it has a number at all.** A finding recorded only in a dated sweep file has no carrier:
-nothing reads `docs/qa/2026-09-27-settings-trash-sweep.md` again. The numbered entries are what a
-task inherits.
+**What would reverse it:** a form that answers `500` for a refusal a keystroke can reach.
 
-**Recorded as:** this entry, SET-003 in the sweep report, and the case
-`refuses a reply-to that is not an address in the field, not with a 500` (`e2e/admin.spec.ts`),
-which guards the one instance that is closed. §2.11's four parses are named above rather than in
-a task report, because a report is not a carrier a later task inherits.
+**Recorded as:** this entry, `apps/web/lib/admin/formRefusal.ts` and `formRefusalFlash.ts`'s
+headers, the `SUPERSEDED BY` line on SET-003 in the sweep report, and four cases in
+`e2e/admin.spec.ts` — `tells the author why the About card was refused, and keeps what they
+typed`, and its three neighbours for the Site card, a new journey and the Notes pane.
 
 ## 105 · The thirty-day window is advisory: nothing sweeps the trash
 

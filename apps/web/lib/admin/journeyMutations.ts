@@ -110,11 +110,24 @@ export interface NewJourney {
   readonly dates: string
 }
 
-/** What the create panel's three inputs must amount to. */
+/**
+ * What the create panel's three inputs must amount to.
+ *
+ * EACH REFUSAL CARRIES A SENTENCE AN AUTHOR CAN READ, because since
+ * `docs/deviations.md` §104 it is drawn on the screen rather than thrown. Zod's
+ * own wording for `min(1)` is "Too small: expected string to have >=1
+ * characters", which names the schema's constraint and not the author's
+ * mistake.
+ *
+ * AND IT IS REACHABLE, which is why these three are not left to the browser:
+ * all three boxes are `required`, and `required` is satisfied by a box holding
+ * three spaces while `trim().min(1)` is not. A browser measured that answering
+ * HTTP 500.
+ */
 const NEW_JOURNEY = z.object({
-  name: z.string().trim().min(1),
-  place: z.string().trim().min(1),
-  dates: z.string().trim().min(1),
+  name: z.string().trim().min(1, 'where the journey went cannot be blank'),
+  place: z.string().trim().min(1, 'the country cannot be blank'),
+  dates: z.string().trim().min(1, 'the dates cannot be blank'),
 })
 
 /**

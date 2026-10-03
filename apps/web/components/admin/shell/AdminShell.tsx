@@ -15,16 +15,28 @@
  * file, because `lib/auth/adminGuardRegistration.test.ts` credits no file for
  * what another one contains.
  *
+ * IT IS ASYNC BECAUSE IT READS THIS RENDER'S REFUSAL, and that is the one
+ * thing it reads for itself rather than being handed. `docs/deviations.md`
+ * §104's mechanism puts a refused post's messages in a request-scoped cookie
+ * (`lib/admin/formRefusal.ts`), and the shell is where they are drawn because
+ * every admin screen is inside one — so no screen added later has to remember
+ * to draw them, which is the whole difference between closing a class and
+ * closing five instances. A screen that was not refused renders no extra node,
+ * so no committed baseline moves.
+ *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. It is composition — a frame
  * with a `children` hole in it.
  * Depends on: react, `NavEntry` (@travel-diary/domain/admin/navigation),
- * `NavCounts` (../../../lib/admin/readNavCounts), ./NavRail, ./ScreenHeader,
- * ./shell.module.css.
+ * `NavCounts` (../../../lib/admin/readNavCounts), `refusalForThisRender`
+ * (../../../lib/admin/formRefusalFlash), ./NavRail, ./RefusalNotice,
+ * ./ScreenHeader, ./shell.module.css.
  */
 import type { NavEntry } from '@travel-diary/domain/admin/navigation'
 import type React from 'react'
+import { refusalForThisRender } from '../../../lib/admin/formRefusalFlash'
 import type { NavCounts } from '../../../lib/admin/readNavCounts'
 import { NavRail } from './NavRail'
+import { RefusalNotice } from './RefusalNotice'
 import { ScreenHeader } from './ScreenHeader'
 import styles from './shell.module.css'
 
@@ -56,12 +68,12 @@ export interface AdminShellProps {
  * Renders the shell around one screen.
  *
  * @param props - See {@link AdminShellProps}.
- * @returns The rail, the header and the screen's content.
+ * @returns The rail, the header, any refusal and the screen's content.
  * @example
  * <AdminShell screen={entry} crumb="The back room" counts={counts} lastPublished={null}
  *   siteName={name} accountName={email}><PanelHome /></AdminShell>
  */
-export const AdminShell = ({
+export const AdminShell = async ({
   screen,
   crumb,
   counts,
@@ -69,7 +81,7 @@ export const AdminShell = ({
   siteName,
   accountName,
   children,
-}: AdminShellProps): React.JSX.Element => (
+}: AdminShellProps): Promise<React.JSX.Element> => (
   <div className={styles.shell}>
     <NavRail
       pathname={screen.href}
@@ -89,6 +101,7 @@ export const AdminShell = ({
           what stops that baseline being a second copy of whichever screen it
           was taken on — and stops any screen's content moving it. */}
       <div data-admin-content className={styles.content}>
+        <RefusalNotice refusal={await refusalForThisRender()} />
         {children}
       </div>
     </main>

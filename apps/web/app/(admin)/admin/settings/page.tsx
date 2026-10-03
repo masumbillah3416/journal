@@ -55,6 +55,7 @@ import { SiteCard } from '../../../../components/admin/settings/SiteCard'
 import styles from '../../../../components/admin/settings/settings.module.css'
 import { AdminShell } from '../../../../components/admin/shell/AdminShell'
 import { adminScope } from '../../../../lib/admin/adminScope'
+import { refusalForThisRender } from '../../../../lib/admin/formRefusalFlash'
 import { readNavCounts } from '../../../../lib/admin/readNavCounts'
 import { readSettingsScreen } from '../../../../lib/admin/readSettingsScreen'
 import { requireAdminSession } from '../../../../lib/auth/guard'
@@ -121,7 +122,7 @@ const SettingsPage = async (): Promise<React.JSX.Element> => {
       <div data-admin-settings className={styles.screen}>
         <div className={styles.columns}>
           <div className={styles.column}>
-            <SiteCard site={view.site} save={saveSite} />
+            <SiteCard site={view.site} save={saveSite} refusal={await refusalForThisRender()} />
             <MaterialCard storage={view.storage} exportHref={EXPORT_PATH} />
           </div>
           <div className={styles.column}>

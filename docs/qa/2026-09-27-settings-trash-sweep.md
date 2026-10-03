@@ -83,6 +83,15 @@ not have.
   `refuses a reply-to that is not an address in the field, not with a 500`
   (`e2e/admin.spec.ts`). Watched failing: `the save reached the server and was refused there`.
 
+  **SUPERSEDED BY PHASE 4 TASK 15d**, which measured that `type="email"` does not close this.
+  HTML's own email grammar admits a domain with no dot and `z.email()` does not, so `a@b` is
+  `checkValidity() === true` in Chromium and refused by the schema — and the save answered
+  `500` again, on this screen, in this browser. The field keeps `type="email"`; the refusal now
+  reaches the screen instead, with the four typed values still in the boxes
+  (`docs/deviations.md` §104). The paragraph above stays as the sweeper's fixer wrote it because
+  this document records build `404ebfe`; this line is here so a reader does not take it for the
+  current state.
+
 **All three cases landed in one commit rather than three, and that is worth recording.** A
 scripted extraction meant to hold two of them back failed silently — `ValueError: substring not
 found` scrolled past inside a command whose later half succeeded — so `4fab53f` carries three

@@ -57,6 +57,8 @@
 import { SESSION_COOKIE_NAME } from '@travel-diary/domain/auth/session'
 import type { SessionId, UserId } from '@travel-diary/domain/ids'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
+import { readRefusal } from '../admin/formRefusalFlash'
 import { getTestPayload } from '../testPayload'
 import { newBrowserSession } from './browserSession'
 import { SIGN_IN_PATH, authenticateAdminRequest, guardedAction } from './guard'
@@ -76,6 +78,8 @@ const framework = vi.hoisted(() => ({
   cookieHeader: null as string | null,
   /** Every path `redirect()` was called with, in order. */
   redirectedTo: [] as string[],
+  /** Every cookie the request wrote, in order — docs/deviations.md §104's carrier. */
+  cookiesWritten: [] as { name: string; value: string }[],
 }))
 
 /** What the stand-in `redirect()` throws, so a caller cannot mistake it for a return. */
@@ -85,6 +89,17 @@ vi.mock('next/headers', () => ({
   headers: () =>
     Promise.resolve({
       get: (name: string) => (name.toLowerCase() === 'cookie' ? framework.cookieHeader : null),
+    }),
+  // The factory writes a refused form's messages here (docs/deviations.md
+  // §104). Recorded rather than discarded: what the action DID with a refusal
+  // is the behaviour, and a stand-in that swallowed it would let the branch
+  // below pass while handing the screen nothing.
+  cookies: () =>
+    Promise.resolve({
+      set: (name: string, value: string) => {
+        framework.cookiesWritten.push({ name, value })
+      },
+      get: () => undefined,
     }),
 }))
 
@@ -345,6 +360,7 @@ describe('the factory every Server Action is built from', () => {
   beforeEach(() => {
     framework.cookieHeader = null
     framework.redirectedTo = []
+    framework.cookiesWritten = []
   })
 
   it('never reaches the action when the request carries no live session', async () => {
@@ -405,5 +421,105 @@ describe('the factory every Server Action is built from', () => {
 
     await expect(publishJourney()).rejects.toThrow(REDIRECT_THROWN)
     expect(framework.redirectedTo).toEqual([SIGN_IN_PATH])
+  })
+})
+
+describe("a form's Zod refusal, which used to be a 500 (docs/deviations.md §104)", () => {
+  /** A body that names two of its fields as values it wants back. */
+  const aFormBody = (): FormData => {
+    const form = new FormData()
+    form.append('replyTo', 'a@b')
+    form.append('name', 'What the author had just typed')
+    form.append('secret', 'a value nothing asked to keep')
+    form.append('refusalKeeps', 'replyTo')
+    form.append('refusalKeeps', 'name')
+    return form
+  }
+
+  /** A schema whose refusal is the one these cases drive. */
+  const ADDRESS = z.object({ replyTo: z.email() })
+
+  /**
+   * Signs a fixture account in, so the guard admits the calls below.
+   * @returns Nothing; it sets the stand-in request's cookie header.
+   */
+  const signedIn = async (): Promise<void> => {
+    const user = await anAccount()
+    const started = await sessions.startSession({
+      user,
+      previous: null,
+      keepSignedIn: false,
+      device: null,
+      location: null,
+    })
+    if (!started.ok) throw new Error('the fixture session was not issued')
+    framework.cookieHeader = cookieHeaderFor(started.value.session)
+  }
+
+  beforeEach(() => {
+    framework.cookieHeader = null
+    framework.redirectedTo = []
+    framework.cookiesWritten = []
+  })
+
+  it('answers the form instead of throwing, so the screen is not a 500', async () => {
+    await signedIn()
+    const saveSite = guardedAction((_session, form: FormData): Promise<void> => {
+      ADDRESS.parse(Object.fromEntries(form))
+      return Promise.resolve()
+    })
+
+    await expect(saveSite(aFormBody())).resolves.toBeUndefined()
+  })
+
+  it('hands the render the message and the values the form asked to keep', async () => {
+    await signedIn()
+    const saveSite = guardedAction((_session, form: FormData): Promise<void> => {
+      ADDRESS.parse(Object.fromEntries(form))
+      return Promise.resolve()
+    })
+
+    await saveSite(aFormBody())
+
+    expect(framework.cookiesWritten.map((written) => written.name)).toEqual(['td-form-refusal'])
+    const handed = readRefusal(framework.cookiesWritten[0]?.value ?? '')
+    expect(handed?.refused.map((one) => one.field)).toEqual(['replyTo'])
+    expect(handed?.kept).toEqual({ replyTo: ['a@b'], name: ['What the author had just typed'] })
+  })
+
+  it('keeps a value-returning action’s refusal as a rejection', async () => {
+    // THE INVARIANT THE `undefined` RESTS ON, from the other side. An action a
+    // client island calls with its own arguments has a caller holding the
+    // promise, and swallowing its refusal would hand that caller `undefined`
+    // where it expects a value.
+    await signedIn()
+    const finaliseUpload = guardedAction((_session, request: { readonly key: string }) =>
+      Promise.resolve(z.object({ key: z.uuid() }).parse(request)),
+    )
+
+    await expect(finaliseUpload({ key: 'not-a-uuid' })).rejects.toThrow(z.ZodError)
+    expect(framework.cookiesWritten, 'a refusal nobody can draw was written anyway').toEqual([])
+  })
+
+  it('lets every other failure through, so a database error still reaches the boundary', async () => {
+    await signedIn()
+    const saveSite = guardedAction((_session, _form: FormData) => Promise.reject(new Error('Failed query')))
+
+    await expect(saveSite(new FormData())).rejects.toThrow('Failed query')
+    expect(framework.cookiesWritten).toEqual([])
+  })
+
+  it('refuses an unauthenticated form before the parse, not after it', async () => {
+    // The catch is INSIDE the guard, not around it: a form posted without a
+    // session must still be sent to the sign-in screen rather than quietly
+    // answered with a refusal.
+    const saveSite = guardedAction((_session, form: FormData): Promise<void> => {
+      ADDRESS.parse(Object.fromEntries(form))
+      return Promise.resolve()
+    })
+
+    await expect(saveSite(aFormBody())).rejects.toThrow(REDIRECT_THROWN)
+    expect(framework.redirectedTo).toEqual([SIGN_IN_PATH])
+    expect(framework.cookiesWritten).toEqual([])
   })
 })

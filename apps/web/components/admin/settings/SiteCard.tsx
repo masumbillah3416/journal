@@ -14,11 +14,19 @@
  * description is what a search result prints, the reply-to is the one the
  * About page carries. `docs/deviations.md` §103 records the copy.
  *
+ * IT REDRAWS WHAT WAS TYPED WHEN THE SAVE WAS REFUSED (docs/deviations.md
+ * §104). `type="email"` is not the whole guard it was recorded as being —
+ * `a@b` is an address every browser calls valid and `z.email()` does not, and
+ * a browser measured this card answering 500 for it. The four names are posted
+ * in {@link KEPT_FIELDS_NAME} so the refused render can put them back.
+ *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. Fields in a form.
- * Depends on: react, `SiteIdentity` (../../../lib/admin/readSettingsScreen),
- * ./settings.module.css.
+ * Depends on: react, `FormRefusal`/`KEPT_FIELDS_NAME`/`keptValue`
+ * (../../../lib/admin/formRefusal), `SiteIdentity`
+ * (../../../lib/admin/readSettingsScreen), ./settings.module.css.
  */
 import type React from 'react'
+import { KEPT_FIELDS_NAME, keptValue, type FormRefusal } from '../../../lib/admin/formRefusal'
 import type { SiteIdentity } from '../../../lib/admin/readSettingsScreen'
 import styles from './settings.module.css'
 
@@ -28,6 +36,8 @@ export interface SiteCardProps {
   readonly site: SiteIdentity
   /** Writes them. Handed the card's whole form body. */
   readonly save: (form: FormData) => Promise<void>
+  /** This render's refusal, so a refused save redraws what was typed. */
+  readonly refusal: FormRefusal | null
 }
 
 /** One field of the card: its column, its label and the hint beneath it. */
@@ -48,7 +58,12 @@ interface SiteField {
    * CLAUDE.md §3.1's rule and stays the real guard — but a Server Action that
    * throws answers 500 and loses the four typed values, and §2.9 draws no
    * error state to put a message in. Every browser enforces `type="email"`
-   * natively, with no JavaScript, so the refusal happens in the field.
+   * natively, with no JavaScript, so the obvious refusals happen in the field.
+   *
+   * IT IS NOT THE WHOLE GUARD, which §104 recorded it as being: HTML's own
+   * email grammar admits `a@b`, `z.email()` requires a dotted domain, and a
+   * browser measured the gap answering 500. The refusal now reaches the
+   * screen — see this module's header.
    */
   readonly type?: 'email'
 }
@@ -82,10 +97,17 @@ const FIELDS: readonly SiteField[] = [
  * @param props - See {@link SiteCardProps}.
  * @returns The card, as one form.
  * @example
- * <SiteCard site={view.site} save={saveSiteFields} />
+ * <SiteCard site={view.site} save={saveSiteFields} refusal={refusal} />
  */
-export const SiteCard = ({ site, save }: SiteCardProps): React.JSX.Element => (
+export const SiteCard = ({ site, save, refusal }: SiteCardProps): React.JSX.Element => (
   <form data-settings-site action={save} className={styles.card}>
+    {/* The allowlist of values a refusal may hand back — see
+        `lib/admin/formRefusal.ts`. One hidden field per name, written off the
+        same table the boxes are, so the two cannot drift. */}
+    {FIELDS.map((field) => (
+      <input key={`keep-${field.name}`} type="hidden" name={KEPT_FIELDS_NAME} value={field.name} />
+    ))}
+
     <div className={styles.cardHead}>
       <h2 className={styles.cardTitle}>The site</h2>
     </div>
@@ -95,12 +117,17 @@ export const SiteCard = ({ site, save }: SiteCardProps): React.JSX.Element => (
         <label key={field.name} data-site-field={field.name} className={styles.field}>
           <span className={styles.eyebrow}>{field.label}</span>
           {field.long === true ? (
-            <textarea name={field.name} rows={3} defaultValue={site[field.name]} className={styles.textarea} />
+            <textarea
+              name={field.name}
+              rows={3}
+              defaultValue={keptValue(refusal, field.name, site[field.name])}
+              className={styles.textarea}
+            />
           ) : (
             <input
               type={field.type ?? 'text'}
               name={field.name}
-              defaultValue={site[field.name]}
+              defaultValue={keptValue(refusal, field.name, site[field.name])}
               className={styles.input}
             />
           )}

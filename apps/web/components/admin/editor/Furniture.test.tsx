@@ -23,6 +23,7 @@ import { WEATHER_GLYPHS, type WeatherGlyph } from '@travel-diary/domain/bookBund
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { FormRefusal } from '../../../lib/admin/formRefusal'
 import { Furniture } from './Furniture'
 
 const roots: Root[] = []
@@ -40,15 +41,16 @@ const TOKYO = {
 /**
  * Renders the furniture block and hands back the host element.
  * @param overrides - Fields to override on the Tokyo fixture.
+ * @param refusal - The refusal to draw them under, if the save was refused.
  * @returns The host element.
  */
-const renderFurniture = (overrides: Partial<typeof TOKYO> = {}): HTMLElement => {
+const renderFurniture = (overrides: Partial<typeof TOKYO> = {}, refusal: FormRefusal | null = null): HTMLElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const root = createRoot(host)
   roots.push(root)
   act(() => {
-    root.render(<Furniture {...TOKYO} {...overrides} />)
+    root.render(<Furniture {...TOKYO} {...overrides} refusal={refusal} />)
   })
   return host
 }
@@ -157,5 +159,43 @@ describe('Furniture', () => {
 
     expect(one(host, '[data-furniture]').textContent).toContain('/gallery/')
     expect((one(host, 'input[name="slug"]') as HTMLInputElement).value).toBe('tokyo')
+  })
+})
+
+describe('Furniture, after a refused save (docs/deviations.md §104)', () => {
+  /** A refusal of the gallery address, carrying the whole block. */
+  const REFUSED: FormRefusal = {
+    refused: [{ field: 'slug', message: 'not a gallery address' }],
+    kept: {
+      signoff: ['a typed sign-off'],
+      weatherGlyph: ['wind'],
+      stampCountry: ['NORGE'],
+      stampValue: ['42'],
+      accent: ['#8c2f28'],
+      slug: ['Not A Slug!'],
+    },
+  }
+
+  it('redraws the four typed boxes with what was typed', () => {
+    const host = renderFurniture({}, REFUSED)
+    const valueOf = (name: string): string | undefined =>
+      host.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.value
+
+    expect([valueOf('signoff'), valueOf('stampCountry'), valueOf('stampValue'), valueOf('slug')]).toEqual([
+      'a typed sign-off',
+      'NORGE',
+      '42',
+      'Not A Slug!',
+    ])
+  })
+
+  it('keeps the glyph and the accent the author had just chosen, not the stored ones', () => {
+    // A RADIO IS A TYPED VALUE TOO. `defaultChecked` off the stored row would
+    // quietly undo a choice made in the same visit as the refused one.
+    const host = renderFurniture({}, REFUSED)
+    const checked = (name: string): string | undefined =>
+      [...host.querySelectorAll<HTMLInputElement>(`input[name="${name}"]`)].find((radio) => radio.checked)?.value
+
+    expect([checked('weatherGlyph'), checked('accent')]).toEqual(['wind', '#8c2f28'])
   })
 })
