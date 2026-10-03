@@ -2256,7 +2256,7 @@ Found` and a refused write. **The editing pane surfaces none of them** -
 None. Task 14 built the last of them (`/gallery/<slug>` and its download handler, both
 documented above); everything remaining is a later phase's, listed below.
 
-## Planned server actions (later phases)
+## Planned server actions — none; this section is the record of what was planned and what got built
 
 **NOTHING IN PHASE 2 IS PLANNED ANY MORE, AND THREE PARAGRAPHS HERE SAID OTHERWISE FOR
 THE REST OF THE PHASE.** Task 10 mounted `POST /admin/sign-in/password`,
@@ -2271,17 +2271,24 @@ deleted rather than annotated: a plan that has happened is not a plan.
 **The presigned-upload action is no longer planned — it is built**, by Phase 3 Task 7,
 and it has its own full row above (`requestUploadSlots`), as does the receiver its URLs
 point at. **Nor is the create-media-row action** — Phase 3 Task 8 built it as
-`finaliseUpload`, with its own full row above. What is still planned: the full set of
-admin mutations across every admin screen (Phase 4). They are named here only so the shape
-of what is coming is visible; each gets a full row in the commit that adds it.
+`finaliseUpload`, with its own full row above.
+
+**AND NEITHER IS PHASE 4'S SET, WHICH IS THE WHOLE OF WHAT WAS LEFT.** This paragraph read
+"What is still planned: the full set of admin mutations across every admin screen (Phase 4) … each gets a full row in the commit that adds it" for the length of Phase 4, while the
+commits of that phase added **1,269 lines to this file giving all 42 of those actions their
+rows**. Ten `'use server'` modules, 42 exported actions, every one documented above and
+counted by `apps/web/lib/auth/adminGuardRegistration.test.ts` rather than by this sentence.
+**Nothing on this page is planned any more.** The section keeps its heading and its body
+because the record of what was planned and what replaced it is worth more than an empty
+section — and because this is the second time it has had to be written: the paragraph above
+is the same correction for Phase 2, and it ends "a plan that has happened is not a plan".
 
 The reason the upload does not pass through an action at all still stands and is worth
 repeating where a reader meets it: Vercel's serverless functions cap request bodies at
 ~4.5MB (design spec §9.1), so a 25MB photograph cannot go through one. The action hands
 out a URL; the bytes go somewhere else.
 
-**HOW A PHASE 4 ACTION WILL BE WRITTEN, because that is now decided rather than open.**
-Every one of them is built from `guardedAction()` (`apps/web/lib/auth/guard.ts`), which
+**HOW A PHASE 4 ACTION IS WRITTEN.** Every one of the 42 is built from `guardedAction()` (`apps/web/lib/auth/guard.ts`), which
 calls `requireAdminSession()` and then the action, passing it the session:
 
 ```ts
@@ -2323,7 +2330,7 @@ initialiser at module load: `const attached = Object.assign(module.exports, { �
 admitted where the same call as a bare statement was refused, and the sixth whole-branch
 review committed it. And `guardedAction` itself now has a test that EXECUTES it
 (`apps/web/lib/auth/guard.integration.test.ts`), because until round 9 the only thing over
-the factory every action on this page will be built from was two substring assertions.
+the factory every action on this page is built from was two substring assertions.
 
 **An action that forgets fails `npm run verify` — and `verify` rather than `lint` is the
 accurate word.** Several of the ways an action can escape the rule itself are caught by

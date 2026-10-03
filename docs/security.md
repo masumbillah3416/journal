@@ -1670,7 +1670,8 @@ made by code that has already authenticated the request itself
 by a rule written for an anonymous HTTP caller. **For Phase 4 it is a trap.** A server
 action that calls `payload.update()` on behalf of a request gets no access check from
 Payload unless it passes `overrideAccess: false` and a `user`, and `docs/api.md`'s "Planned
-server actions" section says Phase 4's mutations are server actions. Phase 4 must decide
+server actions" section — now the record of a plan that has happened — said Phase 4's
+mutations would be server actions. All 42 of them are. Phase 4 must decide
 this once, for every admin screen, rather than per call site.
 
 **AND PHASE 4 TASK 2 DID, WHICH IS WHY THE PRODUCTION SET NOW HOLDS TWO PATHS THAT PASS
