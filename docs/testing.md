@@ -1026,6 +1026,19 @@ include of their own. `apps/web/lib/docs/markdownCorpus.ts` is the one thing the
 the repository's Markdown, listed by `git ls-files` rather than by a directory walk, since
 a walk needs a skip list and a skip list is an enumeration that drifts.
 
+**This list is an enumeration where an inversion was needed, and that is a known open hole.**
+Nothing requires a guard in `apps/web/lib/docs/` to have a subsection here, so the subsections
+below are maintained by whoever remembers — and in Phase 4 Task 15e nobody did: a ninth guard
+shipped and §10 was not extended until the review caught it (review round 1, F6). The closure is
+the shape §10.7 already uses against `vitest.config.ts` — read the population off the filesystem
+rather than listing it: a case over `apps/web/lib/docs/*.test.ts` that fails naming any file with
+no `### 10.N · \`<file>\``heading of its own. It is **not built**.
+The cost is that it has to know which`.test.ts`files in that directory are guards rather than
+unit tests of a helper —`markdownCorpus` has no subsection and should not — so it needs either
+a convention or an exemption list with reasons, and that is more than the round that found it
+could carry. **What would reverse this:** a third guard shipping into that directory without an
+entry, which is the second recurrence and the point at which remembering has been disproved.
+
 ### 10.1 · `fencedProse.test.ts` — no prose is trapped in a code fence
 
 Lexes every tracked Markdown file with `marked`, the same lexer a Markdown viewer runs, and
