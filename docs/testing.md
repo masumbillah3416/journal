@@ -35,7 +35,7 @@ Enforced by TWO configs, because no single Vitest run can execute everything:
   | `apps/web/lib/**`, server actions  | 95%   | 95%      | 95%       |
   | `apps/web/app/**`                  | 95%   | 95%      | 95%       |
   | `apps/web/components/**`           | 90%   | 90%      | 90%       |
-  | `apps/web/scripts/placeholder.ts`  | 100%  | 87.5%    | 100%      |
+  | `apps/web/scripts/placeholder.ts`  | 100%  | 100%     | 100%      |
   | `apps/web/scripts/run-seed.ts`     | 100%  | 100%     | 100%      |
   | `apps/web/scripts/run-rederive.ts` | 100%  | 100%     | 100%      |
 
@@ -49,9 +49,17 @@ Enforced by TWO configs, because no single Vitest run can execute everything:
   pass's own `coverage/lcov.info` with the same `picomatch` call Vitest's
   `resolveThresholds` makes, and it held exactly the `apps/web/scripts/` files now named in
   the rows above, each at the number it measures rather than one rounded up to meet it.
-  `placeholder.ts` sits at 87.5 branches because one `/* c8 ignore next -- … */` hint in it
-  spans three comment lines, so "next" names the comment's own second line rather than the
-  guard beneath it, and the branch is counted; `run-seed.ts` and `run-rederive.ts` are wholly ignored
+  **`placeholder.ts`'s branch row read 87.5 for two phases, and this table was the only
+  place that number was written down.** The cause was one `/* c8 ignore next -- … */` hint
+  whose reason wrapped onto a second comment line, so `next` named the comment's own second
+  line rather than the guard beneath it and the branch stayed counted. Phase 4 Task 15a's
+  `5a88ad8` moved the reason off the directive's lines; `vitest.config.ts` has gated the file
+  at **100/100/100** ever since, and the run behind this document measures 100/100/100/100.
+  The row above says 100 now — it said 87.5 until the Phase 4 whole-branch review read it
+  against the config, because **nothing reads this table**: `coverageThresholds.test.ts`
+  holds the two configs to `docs/deviations.md` §46, which is scoped to sub-95 INTEGRATION
+  gates, so a stale unit row here is outside every guard this phase built.
+  `run-seed.ts` and `run-rederive.ts` are wholly ignored
   behind their own start/stop pairs, and 100 states that the suppression must stay total. A
   further file landing in `apps/web/scripts/` would be gated by none of these entries, and
   `apps/web/lib/docs/coverageThresholds.test.ts` refuses it: that check re-runs the
