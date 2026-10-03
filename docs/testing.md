@@ -12,8 +12,9 @@ was working on. The suite numbers are frozen the way `CLAUDE.md`'s sections are 
 tree cites `docs/testing.md` §1, §3, §4, §6, §7, §7.0, §7.1, §9, §10.2 and §10.3 — so those
 headings stayed where they were and only the bodies moved. **§10's subsection numbers are
 the exception and are not frozen:** the documentation guards gained entries of their own in
-the same work, so the old §10.5 (how to run them) is §10.9 now, and §10.5 to §10.8 name
-four guards that did not exist before. The §10.x numbers cited from outside this file are
+the same work, so the old §10.5 (how to run them) is §10.10 now, and §10.5 to §10.8 name
+four guards that did not exist before; §10.9 arrived later still, with Phase 4 Task 15e,
+and pushed "how to run them" down by one again. The §10.x numbers cited from outside this file are
 §10.2 and §10.3, and neither has moved. Which numbers are cited is the fact a renumbering
 has to respect; how many places cite each is not, and a count of those places would be one
 more thing to keep true.
