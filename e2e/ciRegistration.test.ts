@@ -300,6 +300,23 @@ const REMOVED_LABEL = /removeSignedInFixture\(`([A-Za-z0-9-]+)\./gu
  * reviews. Twelve and fifteen when this was written; raising them is the
  * ordinary cost of adding a case, and LOWERING one is the decision this exists
  * to make visible.
+ *
+ * ═══ WHAT IT DOES NOT GUARANTEE, BECAUSE IT GUARDS A COUNT ═══
+ *
+ * Fix round 1 wrote that a label "cannot move out of a scanned spec unless
+ * somebody lowers a number somebody reviews". False, and false in the sentence
+ * written to replace a sentence that was too wide (re-review, ND-2). Move
+ * `a11ytrash` to an imported minter, drop it from the cleanup list, and add one
+ * new literal label in the SAME edit: the count is twelve again, both
+ * directions still agree, ten cases pass, and the spec leaks `a11ytrash` on
+ * every run. A swap defeats a floor; only a pure migration is caught.
+ *
+ * Closing it means asserting the SET rather than the size — the minted labels
+ * against a list declared here, the shape {@link labelsDeclaredIn}'s own cases
+ * use. That is a third copy of twenty-seven strings already written twice, and
+ * every new case would then edit three files; it is recorded in
+ * `docs/deviations.md` §108 with that cost rather than built, so the next task
+ * decides it with the price in front of them.
  */
 const A11Y_MINTS_AT_LEAST_THIS_MANY_LABELS = 12
 
@@ -467,9 +484,13 @@ const firstArgumentsOf = (source: string, call: string): readonly string[] => {
  * not merely a cost of the declined resolver, and `docs/deviations.md` §108 now
  * says so in those words.
  *
- * What bounds it is {@link A11Y_MINTS_AT_LEAST_THIS_MANY_LABELS} and its pair:
- * labels cannot MIGRATE out of a scanned spec without the floor noticing. A
- * label that was never in one can still be added, and nothing here sees it.
+ * {@link A11Y_MINTS_AT_LEAST_THIS_MANY_LABELS} and its pair bound it, and the
+ * bound is narrower than fix round 1 claimed: it is a floor on the COUNT, not
+ * on the identity of the labels, so it notices a label leaving only while
+ * nothing arrives to fill the gap. Two labels this guard cannot see today: one
+ * that was never in a scanned spec, and one swapped out in the same edit that
+ * adds another (re-review, ND-2 — probed green at ten cases, on a spec that
+ * leaks). What would close both is in `docs/deviations.md` §108.
  *
  * WHY REFUSAL RATHER THAN RESOLVING THE CALL GRAPH, which is what §108
  * imagined. A resolver would have to answer for a wrapper's wrapper, a wrapper

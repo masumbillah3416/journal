@@ -4898,14 +4898,27 @@ cleanup is keyed to a label a spec still names.
    `e2e/support/` leaves no `aSignedInSession` text in the spec at all — nothing to refuse, and a
    label minted that way and never deleted leaves every case green. That was listed above only as
    one of four things a resolver would owe an answer for; it is also a hole of the refusal, and it
-   is one import away. It is bounded, not closed: each scanned spec now carries a floor on the
-   labels it mints (twelve for `e2e/a11y.spec.ts`, fifteen for `e2e/visual.spec.ts`), so today's
-   labels cannot move out of a scanned file unless somebody lowers a number in review. A label
-   that was never in one can still be added through an import, and nothing says so. The cheap
-   closure, if it is ever wanted, is to scan `e2e/support/**` for `aSignedInSession` call sites
-   too and refuse any whose argument is not a literal; that needs no call graph. It is not taken
-   here because nothing under `e2e/support/` mints today, and a mechanism with no case against it
-   is the species this round was spent removing.
+   is one import away. It is **bounded, and the bound is a count rather than a set**: each scanned
+   spec carries a floor on how many labels it mints (twelve for `e2e/a11y.spec.ts`, fifteen for
+   `e2e/visual.spec.ts`), which catches a label leaving only while nothing arrives to take its
+   place. Fix round 1 wrote that as "labels cannot move out of a scanned file unless somebody
+   lowers a number in review", and that is wider than the code: move one label to an imported
+   minter and add one new literal label in the same edit and the guard is green at ten cases on a
+   spec that leaks (re-review, ND-2 — probed). Commit `f8ec1cb`'s body carries the same overstated
+   sentence and cannot be rewritten; this paragraph is its correction.
+
+   **Two shapes remain unseen, then, not one.** A label that was never in a scanned spec, added
+   through an import; and a label swapped out in the same edit that adds another.
+
+   **What would close them, and what each costs.** For the imported wrapper: scan `e2e/support/**`
+   for `aSignedInSession` call sites too and refuse any whose argument is not a literal, which
+   needs no call graph. Nothing under `e2e/support/` mints today — `adminSession.ts` holds the
+   function's own `export const`, two `@example` call sites and a `{@link}`, and the guard strips
+   comments before it reads, so the two examples would not be mistaken for call sites — so the
+   scan would ship with nothing to catch, which is the species fix round 1 was spent removing. For
+   the swap: assert the minted SET against a list declared in the guard rather than its size. That
+   is a third copy of twenty-seven label strings already written twice, and every new browser case
+   would then edit three files. Both are declined here with those costs stated, not forgotten.
 
 2. **The swallowed deletion is split, and only the half a static check can reach is built.** A
    cleanup whose `removeSignedInFixture` sits inside a `try`/`catch` is refused rather than
