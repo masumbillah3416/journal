@@ -4324,10 +4324,32 @@ backticked case name from a backticked path, a backticked field and a backticked
 before it can fail closed, and `pathCitations.test.ts` already owns three of those four kinds.
 
 **Scope for Task 15**, added to the one above: make a backticked run in `docs/security.md` that
-is not a path, not an identifier and not a `§N` resolve to a declared case name, with the same
-two-sided exemption list; or state, in that file's header, that prose citations are out of scope
-and why. The stale citation itself is fixed (fix round 2) — this entry is about the guard, not
-the string.
+is not a path, not an identifier and not a section number resolve to a declared case name, with
+the same two-sided exemption list; or state, in that file's header, that prose citations are out
+of scope and why. The stale citation itself is fixed (fix round 2) — this entry is about the
+guard, not the string.
+
+**CLOSED (Phase 4 Task 15e), in the first of those two shapes.**
+`apps/web/lib/auth/securityCitations.test.ts` reads backticked runs as well as quoted ones, and
+tells the four kinds apart in the order this entry asked for. A path, an identifier and a section
+number are refused by the rules `apps/web/lib/docs/citations.ts` already owns — so there is no
+fourth copy of any of them, which is the drift that module was extracted to prevent. What is left
+is separated from code by the one property a case name has and a token does not: **it is a
+sentence.** Four words or more, and the threshold is measured rather than chosen. At four, 42 of
+the document's 604 distinct backticked runs are judged: 15 real citations and 27 pieces of SQL,
+shell, build output and source, each listed with a reason and asserted in both directions. At
+six the list would fall to 10 entries and the unchecked share would rise from 3 of 3,985 declared
+case names to 68 — trading a list that maintains itself for silence, which is the trade this
+guard exists to refuse.
+
+**Watched failing on the defect that produced this entry.** Restoring the pre-Task-13 spelling of
+the renamed case into this document's prose turns the new case red naming the exact run, while
+the case that existed before it stays green on the same mutation. That is the only evidence that
+the widening is the thing doing the work rather than a sentence about it.
+
+**What would reopen it:** a case name of three words or fewer, cited in backticks, which this
+rule reads as a token. The case `leave a blind spot too small to hide a renamed case in` holds
+that share under one in a hundred of all declared case names, so it cannot grow quietly.
 
 ## 99 · `SCREENS.md` §2.9's storage bar has no rule for a library over its quota, so this one scales
 

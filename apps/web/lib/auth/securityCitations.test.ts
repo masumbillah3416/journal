@@ -44,6 +44,36 @@
  * quoted run that is neither a declared case name nor a listed fragment fails,
  * which is the fail-closed direction.
  *
+ * ═══ AND BACKTICKS, WHICH IS HOW THE PROSE SPELLS THEM ═══
+ *
+ * The same hole, one layer out, and found the same way. The table is quoted;
+ * the PROSE around it writes a case name in backticks, and `QUOTED_RUN` sees
+ * neither a curly nor a straight run there, so those citations were checked by
+ * nothing at all. Phase 4 Task 13's fix round renamed an `e2e` case and left
+ * this document's prose citing the old name in backticks; every gate stayed
+ * green, including this one, and a human found it (`docs/deviations.md` §98).
+ *
+ * Widening it is not one more alternative in the pattern, because a backticked
+ * run in this document is usually a path, an identifier, a field, a section
+ * number or a fragment of SQL — in the very paragraph that defect lived in,
+ * three backticked runs name real cases and a fourth names `e2e/routing.spec.ts`.
+ * So the four kinds are told apart before anything is required to resolve, and
+ * three of the four are told apart by rules this repository already owns:
+ * {@link isPathCitation}, {@link isIdentifierCitation} and
+ * {@link isSectionCitation} in `apps/web/lib/docs/citations.ts`, which is where
+ * `pathCitations.test.ts` keeps them so that a second copy cannot drift.
+ *
+ * What is left — a backticked run that is none of those three — is separated
+ * from code by the one property a test case has and a token does not: **it is a
+ * sentence.** {@link A_CASE_NAME_IS_AT_LEAST_THIS_MANY_WORDS} is the whole of
+ * that rule, and it is measured rather than chosen; the constant's own comment
+ * carries both sides and the blind spot it leaves. Everything at or above it
+ * must be a declared case name or be listed in
+ * {@link BACKTICKED_RUNS_THAT_ARE_NOT_CASE_NAMES} with a reason, both
+ * directions asserted, exactly as the quoted half works. A run this file has
+ * never seen fails; that is the fail-closed direction, and it is the direction
+ * the rename walked through.
+ *
  * ═══ WHY IT IS A UNIT TEST AND NEEDS NO DATABASE ═══
  *
  * It reads two things off disk and compares strings: the document, and every
@@ -51,6 +81,15 @@
  * Postgres, no browser — so it runs in the Docker-free `unit` project and
  * therefore inside `npm run verify`, which is the pre-commit gate. A guard that
  * only runs in CI catches this one commit later than it can.
+ *
+ * ═══ WHAT IT STILL CANNOT SEE, MEASURED ═══
+ *
+ * A case name shorter than {@link A_CASE_NAME_IS_AT_LEAST_THIS_MANY_WORDS},
+ * cited in backticks, reads as a token and is not checked. Three of this
+ * repository's declared case names were that short when this was written, and
+ * the case below holds that share under
+ * {@link A_BLIND_SPOT_THIS_LARGE_IS_NO_LONGER_A_BLIND_SPOT} — so the hole
+ * cannot grow quietly, which is the only thing that would make it matter.
  *
  * ═══ HOW IT AVOIDS BEING VACUOUS ═══
  *
@@ -93,6 +132,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { backtickedRuns, isIdentifierCitation, isPathCitation, isSectionCitation } from '../docs/citations'
 
 /** The repository root, from this file's own location. */
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..')
@@ -148,6 +188,45 @@ const AT_LEAST_THIS_MANY_CITATIONS = 90
  * There were 1,848 when this was written.
  */
 const AT_LEAST_THIS_MANY_DECLARATIONS = 500
+
+/**
+ * How many words a backticked run must carry before it is read as a quoted case
+ * name rather than as a token of code.
+ *
+ * ═══ BOTH SIDES, MEASURED OVER THIS DOCUMENT AND THIS REPOSITORY ═══
+ *
+ * Driven rather than chosen, and every number below is a reading taken when
+ * this was written rather than a property anything holds to. Over the 604
+ * distinct backticked runs in
+ * `docs/security.md`, after the path, identifier and section rules have taken
+ * their share, the threshold decides how much of the remainder has to resolve:
+ *
+ *   - at **four** words, 42 runs are judged — the 15 real case-name citations
+ *     and 27 pieces of code, SQL, shell and build output, which are listed
+ *     below. Three of the repository's 3,985 declared case names are shorter
+ *     than four words, so the blind spot is those three.
+ *   - at **six**, the list falls to 10 entries and the blind spot rises to 68
+ *     names, more than twenty times larger.
+ *
+ * Four, because the exemption list is asserted in both directions and cannot
+ * rot, while the blind spot is asserted by nothing except
+ * {@link A_BLIND_SPOT_THIS_LARGE_IS_NO_LONGER_A_BLIND_SPOT}. Trading a list
+ * that maintains itself for silence is the trade this guard exists to refuse.
+ */
+const A_CASE_NAME_IS_AT_LEAST_THIS_MANY_WORDS = 4
+
+/**
+ * The largest share of declared case names that may be too short for the rule
+ * above before the rule stops being worth its name.
+ *
+ * It was 3 in 3,985 when this was written. A ceiling rather than that number,
+ * for the reason every floor here is a floor: a count pinned exactly is a count
+ * its next author edits instead of reading.
+ */
+const A_BLIND_SPOT_THIS_LARGE_IS_NO_LONGER_A_BLIND_SPOT = 0.01
+
+/** A floor on the backticked runs judged, so an extraction that stopped matching fails here. */
+const AT_LEAST_THIS_MANY_BACKTICKED_CANDIDATES = 30
 
 /**
  * A string shaped exactly like a case name and deliberately not one, so the
@@ -225,6 +304,73 @@ const QUOTED_PROSE: readonly string[] = [
 ]
 
 /**
+ * The backticked runs in `docs/security.md` that read as sentences and are not
+ * case names: SQL, shell, build output, a dependency's message, a result value,
+ * a line of source, and two pieces of the admin's own copy.
+ *
+ * THE SAME TWO DIRECTIONS AS {@link QUOTED_PROSE}, for the same reason. Every
+ * entry must still appear in the document, so an exemption cannot outlive the
+ * sentence it was written for; and none may be a declared case name, so the
+ * list cannot quietly excuse a real citation. A run that is neither is the
+ * failing case.
+ */
+const BACKTICKED_RUNS_THAT_ARE_NOT_CASE_NAMES: readonly { readonly run: string; readonly why: string }[] = [
+  // SQL, written out so a reader can see the predicate rather than trust it.
+  { run: 'UPDATE ... WHERE consumed_at IS NULL', why: 'the consume statement, quoted as SQL' },
+  {
+    run: 'UPDATE ... SET attempts = attempts + 1 WHERE attempts < MAX_ATTEMPTS AND consumed_at IS NULL AND created_at > <floor>',
+    why: 'the attempt statement, quoted as SQL so the atomicity argument can be read',
+  },
+  // Configuration and call shapes, quoted so the option being discussed is exact.
+  { run: 'N: 16384, r: 8, p: 1', why: "scrypt's cost parameters, quoted as the numbers they are" },
+  { run: 'graphQL: { disableMutations: true }', why: "Payload's own option, quoted from the config" },
+  { run: 'lockTime: 15 * 60_000', why: "Payload's lockout option, quoted with its arithmetic" },
+  { run: 'module.exports = { … }', why: 'the CommonJS shape an ESLint rule file must have' },
+  {
+    run: '{ hidden: { not_equals: true } }',
+    why: "a Payload `where` clause, quoted from the collection's access rule",
+  },
+  { run: '{ user, overrideAccess: false }', why: 'the options object every narrowed Payload call passes' },
+  { run: "{ ok: false, error: 'svg-rejected' }", why: "the processor's own refusal value" },
+  { run: '{ orientation: 1 }', why: 'the metadata sharp writes back, quoted from the re-encode' },
+  {
+    run: 'const scope = await adminScope(session)',
+    why: 'a line of source, quoted to show where the scope comes from',
+  },
+  {
+    run: 'await payload.update({ collection, id, ...scope, data })',
+    why: 'the line that spreads it, quoted beside the one above',
+  },
+  // Shell and build output, which is a transcript rather than a sentence.
+  { run: 'CI=1 next build && next start', why: 'the command the production-mode CSP measurement was taken under' },
+  { run: 'npx playwright install firefox webkit', why: 'the command a reader needs to run the cross-browser check' },
+  { run: 'tsc -p apps/web --noEmit', why: 'the type-check command, named as one of the verify gates' },
+  { run: '○ /robots.txt (Static) prerendered as static content', why: "a line of `next build`'s own output" },
+  {
+    run: 'eval() is not supported in this environment... React requires eval() in development mode',
+    why: "React's own error text, quoted so the production-only CSP rule can be justified",
+  },
+  {
+    run: 'root=é:svg ns=http://www.w3.org/2000/svg svgRects=1 scriptRan=true',
+    why: 'what the namespace probe printed, quoted as a reading',
+  },
+  // Bytes, read off a file with a hex editor.
+  { run: 'c2 a0 c2 a0', why: 'the bytes of two non-breaking spaces, read off a probe file' },
+  { run: 'e3 80 80 71', why: 'the bytes of an ideographic space, read the same way' },
+  { run: '0b 0c 0b 0c', why: 'the bytes of a vertical tab and a form feed, read the same way' },
+  { run: 'c2 c2 c2 c2', why: 'a run of lone continuation bytes, read the same way' },
+  { run: '69 87 04 00', why: 'the bytes of an EXIF IFD pointer tag, read off a re-encoded JPEG' },
+  { run: '03 90 02 00', why: 'the bytes of the DateTimeOriginal tag, read the same way' },
+  // The admin's and the diary's own copy, quoted so a reader recognises the screen.
+  { run: 'password the whole book', why: "the Settings screen's own label for the site-wide gate" },
+  { run: '0 of 3 tried', why: "the code step's attempts counter, quoted as the screen draws it" },
+  {
+    run: '"Send a new code", disabled false',
+    why: 'a reading taken off the resend button, quoted as the measurement it is',
+  },
+]
+
+/**
  * Notation removed before comparing: the backslash TypeScript needs before an
  * apostrophe inside a single-quoted literal, and the curly apostrophe this
  * codebase's prose prefers. Words, spacing, case and every other mark are left
@@ -287,6 +433,40 @@ const collapsed = (document: string): string => document.replace(/\s+/gu, ' ')
 const quotedRuns = (document: string): readonly string[] =>
   [...collapsed(document).matchAll(QUOTED_RUN)].map((match) => match[1] ?? match[2] ?? '')
 
+/**
+ * Whether a backticked run is this document quoting a test case.
+ *
+ * THE THREE REFUSALS COME FIRST AND ARE NOT THIS FILE'S RULES.
+ * `pathCitations.test.ts` owns what a backticked path and a backticked
+ * identifier are, and `sectionCitations.test.ts` owns what a `<document> §N`
+ * is; each is resolved by its own guard, and a copy of any of them here would
+ * be a fourth place for the same rule to drift. What is left is separated from
+ * code by length alone — see
+ * {@link A_CASE_NAME_IS_AT_LEAST_THIS_MANY_WORDS}.
+ * @param run - The text between the backticks.
+ * @returns Whether it must resolve to a declared case name.
+ * @example
+ * isCaseNameQuotation('e2e/routing.spec.ts') // false — a path
+ */
+const isCaseNameQuotation = (run: string): boolean =>
+  !isPathCitation(run) &&
+  !isIdentifierCitation(run) &&
+  !isSectionCitation(run) &&
+  run.split(' ').length >= A_CASE_NAME_IS_AT_LEAST_THIS_MANY_WORDS
+
+/**
+ * Every backticked run in the document that reads as a quoted case name.
+ *
+ * Collapsed first, for the reason {@link collapsed} gives: a citation in
+ * wrapped prose spans lines, and a Markdown renderer joins them.
+ * @param document - The document's whole text.
+ * @returns The runs, in order, duplicates included.
+ */
+const backtickedCaseNameQuotations = (document: string): readonly string[] =>
+  backtickedRuns(collapsed(document))
+    .map(({ run }) => run)
+    .filter(isCaseNameQuotation)
+
 describe('the case names docs/security.md quotes', () => {
   it('are all real declarations, spelled exactly as the document spells them', () => {
     const document = readFileSync(SECURITY_DOC, 'utf8')
@@ -320,6 +500,76 @@ describe('the case names docs/security.md quotes', () => {
     expect(actuallyCases).toEqual([])
   })
 
+  it('are all real declarations when the prose writes them in backticks, too', () => {
+    // THE HOLE `QUOTED_RUN` LEFT, AND THE ONE A RENAME WALKED THROUGH. Task 13
+    // renamed an `e2e` case and left this document's prose citing the old name
+    // in backticks; every gate stayed green, including this file
+    // (`docs/deviations.md` §98). Backticks are how the prose spells a case
+    // name, so the prose was the half nothing read.
+    const document = readFileSync(SECURITY_DOC, 'utf8')
+    const declared = declaredCaseNames()
+    const excused = new Set(BACKTICKED_RUNS_THAT_ARE_NOT_CASE_NAMES.map((entry) => entry.run))
+
+    const candidates = backtickedCaseNameQuotations(document)
+    expect(
+      candidates.length,
+      'no backticked runs were judged, so a green result here would mean nothing',
+    ).toBeGreaterThanOrEqual(AT_LEAST_THIS_MANY_BACKTICKED_CANDIDATES)
+    expect(declared.size).toBeGreaterThanOrEqual(AT_LEAST_THIS_MANY_DECLARATIONS)
+
+    const unfindable = [
+      ...new Set(candidates.filter((run) => !excused.has(run) && !declared.has(withOneSpellingOfApostrophe(run)))),
+    ]
+
+    expect(
+      unfindable,
+      'this document quotes these in backticks and no test declares them; either a case was renamed under the sentence, or the run is code this file has not been told about',
+    ).toEqual([])
+  })
+
+  it('are separated from backticked code by a list nothing can outgrow unnoticed', () => {
+    // Both directions, exactly as the quoted half: an exemption that outlives
+    // its sentence is a hole with a comment over it, and one that starts naming
+    // a real case waves a live citation through.
+    const document = collapsed(readFileSync(SECURITY_DOC, 'utf8'))
+    const declared = declaredCaseNames()
+
+    const stale = BACKTICKED_RUNS_THAT_ARE_NOT_CASE_NAMES.filter((entry) => !document.includes(entry.run)).map(
+      (entry) => entry.run,
+    )
+    const actuallyCases = BACKTICKED_RUNS_THAT_ARE_NOT_CASE_NAMES.filter((entry) =>
+      declared.has(withOneSpellingOfApostrophe(entry.run)),
+    ).map((entry) => entry.run)
+    const unjudged = BACKTICKED_RUNS_THAT_ARE_NOT_CASE_NAMES.filter((entry) => !isCaseNameQuotation(entry.run)).map(
+      (entry) => entry.run,
+    )
+
+    expect(stale, 'these exemptions are no longer written in docs/security.md').toEqual([])
+    expect(actuallyCases, 'these exemptions now name a real case, so they excuse nothing and must be deleted').toEqual(
+      [],
+    )
+    // An entry the classifier would never reach excuses nothing and hides that
+    // the classifier moved — which is how a list outlives the loop that spends
+    // it (`docs/deviations.md` §108's own species).
+    expect(unjudged, 'these exemptions are not even candidates, so the rule above has changed under them').toEqual([])
+    expect(BACKTICKED_RUNS_THAT_ARE_NOT_CASE_NAMES.filter((entry) => entry.why.length < 20)).toEqual([])
+  })
+
+  it('leave a blind spot too small to hide a renamed case in', () => {
+    // WHAT THE LENGTH RULE COSTS, MEASURED ON EVERY RUN RATHER THAN ASSERTED
+    // ONCE. A case name shorter than the threshold, cited in backticks, reads
+    // as a token and is not checked. That is tolerable while almost no case
+    // name is that short, and this is the thing that stops being true quietly.
+    const declared = declaredCaseNames()
+    const short = [...declared].filter((name) => name.split(/\s+/u).length < A_CASE_NAME_IS_AT_LEAST_THIS_MANY_WORDS)
+
+    expect(declared.size).toBeGreaterThanOrEqual(AT_LEAST_THIS_MANY_DECLARATIONS)
+    expect(
+      short.length / declared.size,
+      `${String(short.length)} declared case names are shorter than ${String(A_CASE_NAME_IS_AT_LEAST_THIS_MANY_WORDS)} words, which is more than this guard can leave unread: ${short.slice(0, 10).join(' | ')}`,
+    ).toBeLessThan(A_BLIND_SPOT_THIS_LARGE_IS_NO_LONGER_A_BLIND_SPOT)
+  })
+
   it('are checked by a search that can actually answer no', () => {
     // Without this, an extraction that accidentally matched everything — an
     // empty needle, a normalisation that ate the string — would report every
@@ -328,5 +578,16 @@ describe('the case names docs/security.md quotes', () => {
 
     expect(declared.has(NOT_A_CASE_NAME_ANYWHERE)).toBe(false)
     expect(declared.has(A_CASE_NAME_THAT_MUST_BE_FOUND)).toBe(true)
+    // And the backticked classifier, in all four directions it claims to tell
+    // apart — the fourth being the one the entry says matters, a path.
+    expect(isCaseNameQuotation('e2e/routing.spec.ts')).toBe(false)
+    // An identifier this repository really declares, rather than one
+    // `pathCitations.test.ts` excuses: writing an EXCUSED symbol here would
+    // make its exemption resolve, and that file's own list would go red
+    // because this file quoted it.
+    expect(isCaseNameQuotation('overrideAccess')).toBe(false)
+    expect(isCaseNameQuotation('SCREENS.md §2.11')).toBe(false)
+    expect(isCaseNameQuotation('depth: 0')).toBe(false)
+    expect(isCaseNameQuotation(A_CASE_NAME_THAT_MUST_BE_FOUND)).toBe(true)
   })
 })
