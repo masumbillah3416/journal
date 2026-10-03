@@ -4593,17 +4593,20 @@ keeps its refusal as a REJECTION rather than drawing it: `saveCover`, `saveBookS
 there is a caller holding the promise, and handing it `undefined` would be a worse failure than a
 rejection — and `guard.integration.test.ts`'s `keeps a value-returning action’s refusal as a
 rejection` is the case that keeps the line where it is. **No sequence of keystrokes reaches any
-of their refusals**, which is the measurement above; a hand-built `POST` to one still answers
-`500`, and that was not measured. §2.11's four parses (`readOtpToggle`, `readNotificationToggle`,
+of their refusals** — read off the controls and the schemas rather than measured in a browser:
+four swatches, two range sliders bounded by the schema's own constants, a clamped click, and
+`CAPTION`/`TEXT`/`contentsNote`, which are bare `z.string()` and refuse no typed text at all. A
+hand-built `POST` to one still answers `500`, and that was not measured either. §2.11's four parses (`readOtpToggle`, `readNotificationToggle`,
 `readSessionRow`, `readPasswordChange`) are `FormData` actions, so they are covered by the
 mechanism — their values are not carried back, because the card names none.
 
 **What would reverse it:** a form that answers `500` for a refusal a keystroke can reach.
 
 **Recorded as:** this entry, `apps/web/lib/admin/formRefusal.ts` and `formRefusalFlash.ts`'s
-headers, the `SUPERSEDED BY` line on SET-003 in the sweep report, and four cases in
-`e2e/admin.spec.ts` — `tells the author why the About card was refused, and keeps what they
-typed`, and its three neighbours for the Site card, a new journey and the Notes pane.
+headers, the `SUPERSEDED BY` line on SET-003 in the sweep report, and the `tells the author why
+…` cases in `e2e/admin.spec.ts` — one per screen in the table above, each asserting no response
+at or above 400, the message on the screen and the values still in the boxes — beside `leaves no
+refusal behind on the next screen, or on the way back`, which is the carrier's own property.
 
 ## 105 · The thirty-day window is advisory: nothing sweeps the trash
 

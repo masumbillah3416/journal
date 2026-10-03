@@ -590,6 +590,23 @@ survived into the run rather than that the sign-in pane was measured fourteen ti
 
 `http-status-code` scored 1 on all seventy runs and CLS measured 0.0000 on all seventy.
 
+**ONE NUMBER IN THAT TABLE MOVED IN PHASE 4 TASK 15d, and it is the script column for
+`/admin/journeys`: 140,075 → 140,198, a hundred and twenty-three bytes.** `CreatePanel.tsx` is a
+client island and it now imports two things from `lib/admin/formRefusal.ts` — a string constant
+and a lookup — so that the panel can reopen itself with the author's typing in it when a create is
+refused (`docs/deviations.md` §104). **Every other screen's script column is byte-identical**,
+which is the measurement that says the rest of §104's mechanism ships no JavaScript: the refusal
+notice and the four cards that redraw what was typed are server components.
+
+**THE LCP COLUMN IS NOT RE-READ FROM THAT RUN, AND SAYING WHY MATTERS MORE THAN THE NUMBERS.**
+15d's own run put `/admin/media` at 4,427.8ms and `/admin/galleries` at 3,999.7ms against the
+4,180.2 and 3,762.1 above — **+248ms and +238ms on two screens whose script and image columns did
+not move by a single byte, and which no commit in 15d touches.** That is this host under load,
+not the code, and it sets the noise floor for any comparison across the two runs. Against it,
+`/admin/cover`'s 3,003.8 → 3,005.6ms is not a reading at all. What 15d's run does establish is
+the thing the gate asks: **the same two screens are red and no third one is**, and
+`/admin/cover`, the screen with the least margin, passed at a 3,010.9ms worst of five.
+
 **THE SCRIPT BUDGET IS NOT THE CONSTRAINT AND HAS NEVER BEEN CLOSE.** The heaviest screen in
 the admin is `/admin/media` at **143,035 bytes against 327,680 — 43.7%**, and the lightest four
 share one number, 137,907 in six requests, because `/admin/settings`, `/admin/trash`,

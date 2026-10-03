@@ -108,17 +108,20 @@ const keptFieldsOf = (form: FormData): readonly string[] =>
  * @example
  * refusalFrom(error, form) // { refused: [{ field: 'replyTo', … }], kept: { … } }
  */
-export const refusalFrom = (error: z.ZodError, form: FormData): FormRefusal => {
-  const kept: Record<string, readonly string[]> = {}
-  for (const name of keptFieldsOf(form)) {
-    kept[name] = form.getAll(name).flatMap((value) => (typeof value === 'string' ? [value] : []))
-  }
-
-  return {
-    refused: error.issues.map((issue) => ({ field: issue.path.join('.'), message: issue.message })),
-    kept,
-  }
-}
+export const refusalFrom = (error: z.ZodError, form: FormData): FormRefusal => ({
+  refused: error.issues.map((issue) => ({ field: issue.path.join('.'), message: issue.message })),
+  // `Object.fromEntries` RATHER THAN ASSIGNING INTO A LITERAL, because the keys
+  // are the posted body's. `kept[name] = …` with a `name` of `__proto__` calls
+  // the inherited setter and changes the object's prototype instead of storing
+  // anything; `fromEntries` defines an own property for every key, including
+  // that one.
+  kept: Object.fromEntries(
+    keptFieldsOf(form).map((name) => [
+      name,
+      form.getAll(name).flatMap((value) => (typeof value === 'string' ? [value] : [])),
+    ]),
+  ),
+})
 
 /**
  * What the author typed in one field, or what the database holds.

@@ -187,6 +187,29 @@ describe('refusalFrom', () => {
     expect(refusalOf(readSiteForm, form).kept['portrait']).toEqual([])
   })
 
+  it('stores a field called __proto__ as a field, not as a prototype', () => {
+    // `kept[name] = …` with the posted body's keys calls the inherited
+    // `__proto__` setter for that one name, which changes the object instead of
+    // storing anything. The whole map is built with `Object.fromEntries`, which
+    // defines an own property for every key.
+    const refusal = refusalOf(
+      readSiteForm,
+      aBody(
+        [
+          ['name', ''],
+          ['domain', ''],
+          ['description', ''],
+          ['replyTo', 'a@b'],
+          ['__proto__', 'nothing to see'],
+        ],
+        ['__proto__'],
+      ),
+    )
+
+    expect(Object.getPrototypeOf(refusal.kept)).toBe(Object.prototype)
+    expect(Object.getOwnPropertyNames(refusal.kept)).toEqual(['__proto__'])
+  })
+
   it('names a refusal of the whole body with the empty field', () => {
     // A body-level `refine` has an empty path. The notice draws it as "the
     // form" rather than inventing a field name for it.
