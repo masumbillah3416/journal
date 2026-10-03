@@ -1315,7 +1315,43 @@ cases has to use a date inside it. A report with no backticked run in it turns t
 non-vacuity case red; a selection that stops comparing dates turns the selection case red;
 and the ceiling constant set to one or three fails the case that derives it.
 
-### 10.9 · How to run them
+### 10.9 · `sectionCitations.test.ts` — every `<document> §N` resolves to a section that document declares
+
+§10.2 is fail-closed on a backticked path and a backticked identifier. A **section number**
+was checked by nothing except §10.5, which resolves the `CLAUDE.md` family and only that
+family — and a wrong section number is worse than a path that resolves nowhere, because it
+reads as confirmed. `docs/deviations.md` §98 is the entry; Phase 4 Task 12 found one by hand
+with every gate green.
+
+**The rule, which is also where the count comes from.** A section citation is a reference
+that NAMES ITS DOCUMENT: a `.md` file name, optionally backticked, optionally possessive,
+immediately followed by the mark and a dotted number. A line wrap between the two is still
+immediate — comment continuation included — because that is how most of them are written in
+module headers. A bare `§6` and a document named by a phrase ("design spec §8.2") are
+declined, and counted by subtraction on every run so the uncovered share is a number rather
+than a sentence.
+
+**What a number resolves against** is the named document's own numbered headings AND the
+numbered items beneath them, read off the document rather than configured per document:
+three documents here put a section's parts in a list and are cited that way (`CLAUDE.md`
+§0.9, `SCREENS.md` §3.2, `docs/deviations.md` §13.4). A document is found by full path or
+by basename, the way §10.2 finds a file.
+
+**The `CLAUDE.md` family is routed to §10.5, not re-resolved here**, because that guard
+already resolves it against the `docs/standards/` split it also guards. Since review round 1
+both read the SAME pattern out of `apps/web/lib/docs/citations.ts`, so the routing cannot
+hand a spelling to a guard that does not accept it. The routing is held open at both ends by
+two floors: one on the citations this guard resolves and one on the family it passes on, so
+the exclusion can neither widen into everything nor collapse into nothing.
+
+Its first run was red on three citations that were really wrong, in two files, and nothing
+had ever questioned them. It is proved able to fail rather than assumed to be: deleting the
+numbered-item rule turns more than a hundred citations unresolvable; a resolver that answers
+yes to every number, or that treats any line carrying a digit as a heading, reddens the
+sentinel case; and the parser is exercised against a document written in the case itself,
+including a wrapped citation and the paragraph break that must NOT be read as one.
+
+### 10.10 · How to run them
 
 ```
 npx vitest run --project unit apps/web/lib/docs        # all of them

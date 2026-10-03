@@ -614,3 +614,24 @@ a bogus citation typed with STRAIGHT quotes                      -> unfindable (
 a citation that exists only in a module header comment           -> unfindable (resolved before)
 the sentence one prose exemption covers, deleted                 -> stale exemption
 ```
+
+**And the PROSE around the table, since Phase 4 Task 15e.** Everything above is about the
+quoted citations. The prose writes a case name in **backticks**, which neither quote
+character matches, so those citations were read by nothing at all — and Task 13 renamed an
+`e2e` case and left this document's prose citing the old name, with every gate green
+(`docs/deviations.md` §98). Backticked runs are now judged too, by one rule: a run of **four
+words or more** must be a declared case name or appear in an exemption list with a reason,
+asserted in both directions exactly as the quoted half is. Four is measured, not chosen — at
+four, 42 of the document's 604 distinct backticked runs are judged, 15 real citations and 27
+pieces of code; at six the list falls to 10 and the unread share rises from 3 of 3,985
+declared case names to 68.
+
+Length is the whole rule and the only rule. A path, an identifier and a `<document> §N` are
+separated from a case name because they are SHORT — all 564 of them in this document are one
+word — and the guard carries a case that measures exactly that on every run rather than a
+refusal that could never fire. That case is the correction of review round 1's F1, which
+found three such refusals in front of the length rule doing nothing at all.
+
+What the rule leaves unread is measured too: a declared case name shorter than four words,
+cited in backticks, reads as a token. Three of 3,985 are that short, and a case fails if that
+share ever passes one percent.
