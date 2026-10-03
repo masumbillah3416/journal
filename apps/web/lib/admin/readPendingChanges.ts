@@ -404,7 +404,7 @@ const EDITION_WHEN = new Intl.DateTimeFormat('en-GB', {
  * @returns At most {@link EDITIONS_SHOWN} editions, newest first. **The first
  *   of EACH `parent` is the live one**, not the first of the list — a reader is
  *   served each journey's own newest published version, so a book of ten
- *   journeys has ten live editions in this list. {@link Edition.isLive} is the
+ *   journeys has ten live editions in this list. {@link Edition.live} is the
  *   field that says which; nothing downstream may infer it from position. An
  *   empty diary has none.
  * @throws From Payload, when the read is refused by the access rules.

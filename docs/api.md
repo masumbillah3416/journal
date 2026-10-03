@@ -34,10 +34,11 @@ Task 7 and completed in Task 13; and `/gallery/<slug>` with its download handler
 Task 8 the `finaliseUpload` action that turns what it staged into a row — see "The admin's request policy" below, which applies
 to every row in the "Admin routes" section and is stated once rather than in each. `/p/<n>` was completed in Task 13 — which gave it a real `404` in place of its clamp, per-page
 metadata and a canonical link, and settled in
-`docs/adr/0010-static-generation-and-the-content-window.md` why it stays dynamic. Both sets are documented in full below. Everything still unbuilt is
-listed further down as **planned**, using only what the design spec (§8) already
-specifies, so each phase has a contract to build against rather than inventing one
-mid-phase.
+`docs/adr/0010-static-generation-and-the-content-window.md` why it stays dynamic. Both sets are documented in full below, and **nothing is
+listed as planned any more** — the last section of this file is the record of what
+was planned and what replaced it, not a list. While there were planned entries they
+used only what the design spec (§8) already specifies, so each phase had a contract
+to build against rather than inventing one mid-phase.
 
 ## Payload-owned routes (live today)
 
@@ -2254,7 +2255,8 @@ Found` and a refused write. **The editing pane surfaces none of them** -
 ## Planned routes (Phase 1)
 
 None. Task 14 built the last of them (`/gallery/<slug>` and its download handler, both
-documented above); everything remaining is a later phase's, listed below.
+documented above), and nothing is listed below either — see the next section, which is
+a record rather than a list.
 
 ## Planned server actions — none; this section is the record of what was planned and what got built
 
@@ -2275,9 +2277,12 @@ point at. **Nor is the create-media-row action** — Phase 3 Task 8 built it as
 
 **AND NEITHER IS PHASE 4'S SET, WHICH IS THE WHOLE OF WHAT WAS LEFT.** This paragraph read
 "What is still planned: the full set of admin mutations across every admin screen (Phase 4) … each gets a full row in the commit that adds it" for the length of Phase 4, while the
-commits of that phase added **1,269 lines to this file giving all 42 of those actions their
-rows**. Ten `'use server'` modules, 42 exported actions, every one documented above and
-counted by `apps/web/lib/auth/adminGuardRegistration.test.ts` rather than by this sentence.
+commits of that phase gave every one of those actions a row above. **This file grew by 1,269
+lines over `9e093bc..9c462fe`, measured on 2026-10-04** — a whole-file figure for a range
+that moves, which is why it carries both. The action modules and their exports are not
+counted here, for the reason §Status gives at the top of this file:
+`apps/web/lib/auth/adminGuardRegistration.test.ts` walks git's own listing for `'use server'`
+and is what knows how many there are.
 **Nothing on this page is planned any more.** The section keeps its heading and its body
 because the record of what was planned and what replaced it is worth more than an empty
 section — and because this is the second time it has had to be written: the paragraph above

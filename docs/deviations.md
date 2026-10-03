@@ -5612,9 +5612,11 @@ hole it describes. That is orientation by §1.4's own test.
 **AND THE POPULATION IS NOT FIXED, WHICH IS THE PART NOBODY HAD NOTICED.** The one hit left
 arrived during this very round: `app/(admin)/layout.tsx:31` says "Until Phase 2 Task 11's
 fix round this file imported `../(diary)/fonts`", and that file entered the branch-changed
-set because `e1e6bfc` corrected a screen count in its header three commits ago. **Editing a
-file for any reason enlists its header into the population**, so a branch-scoped zero is
-true only of the moment it was taken.
+set because `e1e6bfc` corrected a screen count in its header. The line itself is older than
+the branch — blob-identical at the base `9e093bc`, written 2026-09-07 — so nothing was
+added; **the SET grew. The population grows by files edited for the first time on the
+branch**, so a branch-scoped zero is true only of the moment it was taken, and the
+denominator moves with it: **318 files before that commit, 319 after.**
 
 **It is kept, deliberately, and is the declared exemption rather than an oversight.** "Phase
 2 Task 11's fix round" is a plain task reference, which the Phase 4 header strip scoped out
@@ -5626,6 +5628,22 @@ positive of the predicate, exactly as the three `MEDIUM-2` spellings were false 
 branch-changed code files at this commit: **one hit, in one file, declared and kept.** A
 count in prose is a floor or it is deleted; this one is a floor with its exemption named.
 
+**WHAT THIS FIGURE COUNTS AND WHAT IT DELIBERATELY DOES NOT**, so the next reader does not
+have to re-derive the scope from the number:
+
+- **Module headers only** — the leading block comment, which is what `CLAUDE.md` §1.4
+  governs. Around fifteen attributions to a Task 9 or Task 10 review file survive in **body**
+  comments and in field-level TSDoc, `Edition.live`'s own "(review F1)" among them. Out of
+  scope on purpose: §1.4 is about the header being an orientation rather than a history, and
+  a body comment sitting beside the branch it explains is not that.
+- **Branch-changed files only** — §4b has the repository-wide floor.
+- **The widened family list only.** A wider probe flags four more narrative references in
+  headers — `notesMutations.ts:20`, `pageMutations.integration.test.ts:11`,
+  `slotMutations.integration.test.ts:24` and `scripts/lighthouseCollects.test.js:40`, each of
+  the "Phase 4 Task 4 paid two review rounds to learn that" shape. Those are plain task
+  references explaining a current property, which the Phase 4 strip scoped out deliberately
+  and which two reviews have judged correct to keep.
+
 ### 4b · "0 do now" is branch-scoped, and the sentence invites a repository-wide reading
 
 The claim is correctly qualified — "of 318 **branch-changed** code files … **in a module
@@ -5634,11 +5652,23 @@ header**" — and both qualifiers carry weight. But it sits under a heading abou
 markers and think the sentence false.
 
 Measured, so the scope is a number: over **622 tracked code files**, under the same eleven
-families, **32 module headers still carry a marker at HEAD, and every one of them is outside
-the 318** — `apps/web/collections/sessions.ts`, `resetPath.ts`, `otpService.ts`,
-`guarded-server-actions.js` and 28 others, all Phase 1 to 3 files this branch never touched.
-**They are not this phase's and were deliberately not stripped**: §1.4 is about orientation,
-and rewriting the headers of files a branch did not otherwise touch is churn.
+families, **32 module headers still carry a marker at HEAD** — `apps/web/collections/sessions.ts`,
+`resetPath.ts`, `otpService.ts`, `guarded-server-actions.js` and 28 others.
+
+**That 32 is a FLOOR, not a count.** It was taken with the narrow family list §4a has since
+shown to be narrower than its population, so a widened scan would find at least the
+`MEDIUM-N` spellings in Phase 1–3 headers too. The predicate is the one §4a names; a reader
+who widens it will get a larger number, which is what calling it a floor means.
+
+**Thirty-one of the thirty-two are outside the branch-changed set, and ONE IS INSIDE** —
+`app/(admin)/layout.tsx`, which §4a declares and keeps. An earlier draft of this paragraph
+said every one of them was outside "the 318". That was true when it was written and stopped
+being true three commits later, for exactly the reason §4a gives: the set grew to 319 when a
+commit of this round edited that file. **Two numbers for one population in adjacent
+paragraphs is the defect this entry exists to record, committed inside the entry.**
+
+**The thirty-one are not this phase's and were deliberately not stripped**: §1.4 is about
+orientation, and rewriting the headers of files a branch did not otherwise touch is churn.
 
 ### 5 · "90 of 90" copy strings and "68 of 69" CSS values
 
@@ -5695,10 +5725,17 @@ invented. **Cost:** one new test file of maybe sixty lines, plus the two compani
 demands, plus a decision about what a module with no `revalidatePath` at all should be
 required to declare.
 
-**What is NOT at risk.** The behaviour is correct and is covered elsewhere: both modules'
-writes go through `journeyMutations.ts` and `pageMutations.ts`, which have integration
-suites, and `e2e/admin.spec.ts` drives the create, duplicate, archive and trash paths in a
-browser. What is missing is the pinned TABLE of which addresses each write invalidates —
+**What is NOT at risk.** The behaviour is correct and is covered elsewhere.
+`journeys/actions.ts` writes through `journeyMutations.ts`; `journeys/[id]/actions.ts`
+writes through **`notesMutations.ts`, `pageMutations.ts` and `slotMutations.ts`** — four
+modules, each with its own integration suite.
+
+**And the browser coverage is thinner than a first draft of this entry said, which matters
+because a residual is only worth the trust it earns.** `e2e/admin.spec.ts` drives **create
+alone** — `creates a journey through the panel and shows it as a Draft`. "Duplicate" appears
+nowhere in that spec, and the strip's Archive and "Move to trash" are reached only as
+**label assertions** on the `⋯` strip, `toContainText('Move to trash')`, not as presses. So
+three of the four writes on this screen are driven in a browser by nothing. What is missing is the pinned TABLE of which addresses each write invalidates —
 so a future edit that drops a `revalidatePath` or adds a write without one fails nothing.
 
 **What would reverse it:** the inversion above, with the two companions it demands.
@@ -5755,12 +5792,12 @@ the Phase 4 whole-branch review that is about the checks rather than about the c
 Four of that review's findings share one shape. **Each sits in the one place its guard family
 does not reach:**
 
-| finding                                                             | where it sat      | the guard that did not reach it                                                                            |
-| ------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------- |
-| `docs/api.md`'s "Planned server actions" claiming Phase 4 is future | a prose section   | no citation guard parses a section's TENSE                                                                 |
-| `docs/testing.md`'s `placeholder.ts` row stuck at 87.5%             | a table           | `coverageThresholds.test.ts` holds the CONFIGS, not this table (§46 scopes it to sub-95 integration gates) |
-| "ten screens" in `docs/architecture.md`                             | a third document  | the count is correct in five other files, so no global rule can be written                                 |
-| the surviving `MEDIUM-2` header attributions                        | a marker spelling | the predicate enumerated eleven families and the population had more (§119 §4a)                            |
+| finding                                                             | where it sat      | the guard that did not reach it                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/api.md`'s "Planned server actions" claiming Phase 4 is future | a prose section   | no citation guard parses a section's TENSE                                                                                                                                                                                                         |
+| `docs/testing.md`'s `placeholder.ts` row stuck at 87.5%             | a table           | `coverageThresholds.test.ts` holds the CONFIGS, not this table (§46 scopes it to sub-95 integration gates)                                                                                                                                         |
+| "ten screens" in `docs/architecture.md`                             | a third document  | the same words are correct in **six** other files — `guard.ts`, `adminGuardRegistration.test.ts`, `adminPaths.ts`, `vitest.config.ts:1017`, `adr/0017` and `adr/0018`, all meaning screens that carry mutations — so no global rule can be written |
+| the surviving `MEDIUM-2` header attributions                        | a marker spelling | the predicate enumerated eleven families and the population had more (§119 §4a)                                                                                                                                                                    |
 
 And §120 and §121 are the same shape one step further out: a module pattern applied forward
 and never back-filled, and a file that falls between two guards' selectors.
@@ -5771,6 +5808,19 @@ Lighthouse URL. **What is left is all at their edges**, and the edges are where 
 phase's budget should go rather than on more checks of the same kind: a guard that reads a
 declaration will not read a tense, a guard over a config will not read the table describing
 it, and a predicate is only ever as wide as the population somebody imagined.
+
+**A SEVENTH INSTANCE, PRODUCED BY THE FIX FOR THE FIRST, which belongs here rather than in
+another fix.** `docs/api.md`'s own Status section says "a count is not written here, because
+one written in prose has been stale by the next task every time it was". The rewrite that
+retired the "Planned server actions" section wrote three counts into that same document — a
+line total, a module count and an action count — in the course of correcting a stale claim.
+Two of the three now defer to the mechanism that knows them
+(`adminGuardRegistration.test.ts` walks git's own listing for the server-action directive),
+and the line total carries
+its range and the day it was taken, because a whole-file diff over a moving range means
+nothing without both. **The rest is recorded rather than chased**: the remedy for a count is
+either a floor or a deletion, and which one a given sentence wants is a judgement a later
+reader is better placed to make than a closing round is.
 
 **No owner, because this is not a task.** It is the reading to take into whatever phase comes
 next.

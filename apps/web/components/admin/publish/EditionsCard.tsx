@@ -49,7 +49,7 @@ import styles from './publish.module.css'
 export interface EditionsCardProps {
   /**
    * The editions, newest first. **The live one is the first of each `parent`**,
-   * not the first of the list — read {@link Edition.isLive} rather than the
+   * not the first of the list — read {@link Edition.live} rather than the
    * index. This card drew nine of ten journeys' current editions as restorable
    * history the one time it was inferred from position; the header above says
    * so at more length.
