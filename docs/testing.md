@@ -971,6 +971,58 @@ of the thirty is 2,941ms and the fastest 2,924ms — which is the framework floo
 measured (2,023.2ms for one styled heading with no application code) plus three panes that
 fetch nothing.
 
+### THE PHASE 4 CLOSE-DAY MEASUREMENT — all fourteen admin URLs, one run, three gates separated
+
+`npm run test:perf` on the day Phase 4 merges, against a production build on this host.
+`lighthouserc.json` PASS, `lighthouserc.book.json` PASS, `lighthouserc.admin.json` **FAIL —
+on two LCP assertions and nothing else.** Five runs per URL, seventy runs in all; the
+figures below are read back out of that run's own reports rather than out of whatever was
+newest in the directory, which is the mistake `lhci`'s accumulating output invites.
+
+| URL                   | script transfer | CLS    | LCP median    |
+| --------------------- | --------------- | ------ | ------------- |
+| `/admin`              | 139,360         | 0.0000 | 2,929.2ms     |
+| `/admin/account`      | 137,907         | 0.0000 | 2,925.7ms     |
+| `/admin/book`         | 141,922         | 0.0000 | 2,930.8ms     |
+| `/admin/cover`        | 140,873         | 0.0000 | 3,001.9ms     |
+| `/admin/galleries`    | 142,827         | 0.0000 | **4,138.9ms** |
+| `/admin/journeys`     | 140,198         | 0.0000 | 2,928.6ms     |
+| `/admin/media`        | 143,035         | 0.0000 | **4,182.6ms** |
+| `/admin/publish`      | 139,888         | 0.0000 | 2,927.6ms     |
+| `/admin/reset`        | 140,527         | 0.0000 | 2,926.6ms     |
+| `/admin/settings`     | 137,907         | 0.0000 | 2,924.8ms     |
+| `/admin/sign-in`      | 140,684         | 0.0000 | 2,929.3ms     |
+| `/admin/sign-in/code` | 141,445         | 0.0000 | 2,924.7ms     |
+| `/admin/sign-in/done` | 137,907         | 0.0000 | 2,927.0ms     |
+| `/admin/trash`        | 137,907         | 0.0000 | 2,925.8ms     |
+
+**Two of the three admin gates are discharged and the third is not**, which is why they are
+printed in three columns rather than summed into a verdict. The worst script transfer on any
+admin URL is **143,035 bytes against the 327,680 gate** — 44% of budget at the heaviest
+screen. CLS is **0.0000 on all fourteen** against 0.1.
+
+**LCP: twelve of fourteen inside, between 2,924.7 and 3,001.9ms; two over.** The ten
+individual readings of those two, from this same run:
+
+```text
+/admin/media      4182.62  4177.065  4185.505  4177.56  4185.825
+/admin/galleries  4137.014 4139.924  4138.882  4145.15  4010.41
+```
+
+**Not one is under 3,085ms.** That is the form the shortfall has to be stated in, because a
+median cannot carry the argument here — these two are the only admin screens whose five runs
+disagree with each other, so a couple of hundred milliseconds between two medians of five
+sits inside the instrument. What sits outside it is that neither screen has produced a single
+run under the gate: not in these ten, and not in the ten the derivative-rung probes above
+recorded, whose best readings were 3,775ms and 3,560ms — still 690ms and 475ms over.
+
+The floor says the rest, and it is in the table: **twelve admin screens that draw nothing
+land between 2,924.7 and 3,001.9ms**, so the framework alone spends about 95% of the gate
+before a screen puts anything on top of it.
+
+**The gate was not moved and no URL came out of the collector.** The decision this needs is
+`docs/deviations.md` §73's and §80's, it is the owner's, and nobody has taken it.
+
 #### 7.1 · The record
 
 Every round that produced the numbers above: what was measured, on which machine, what moved and what did not.
