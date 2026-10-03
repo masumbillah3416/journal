@@ -5661,3 +5661,116 @@ that was wrong, which is the species it was describing.
 
 **Recorded as:** this entry, §116 (whose first draft item 1 corrects), `docs/testing.md` §5.1
 (item 5), and `e2e/visual.spec.ts`'s Overview comment (item 1).
+
+## 120 · Two of the ten admin action modules have no revalidation registration test, and the fix is an inversion rather than two more files — owner: unassigned
+
+**What is missing.** Eight of the ten `app/(admin)/**/actions.ts` modules have a companion
+`…RevalidationRegistration.test.ts` under `apps/web/lib/admin/` — seven files, because
+`bookRevalidationRegistration.test.ts` covers `book/actions.ts` and `cover/actions.ts`
+together. **Two have none**: `app/(admin)/admin/journeys/actions.ts` and
+`app/(admin)/admin/journeys/[id]/actions.ts`.
+
+Measured with `grep -oE 'revalidatePath\('` over each module: **4 call sites** in
+`journeys/actions.ts`, all of them `revalidatePath(JOURNEYS_PATH)`, and **2** in
+`journeys/[id]/actions.ts` — one `JOURNEYS_PATH` and one `editorPath(journey)`. (A
+`grep -c revalidatePath`, which counts lines rather than calls, gives 7 and 5; the extra
+lines are the import and the header's own prose. The call-site count is the one that says
+how much is ungated.)
+
+**Chronology explains it completely, and that is why it is a residual rather than a
+defect.** Both modules landed 2026-09-19. The registration-test pattern was invented
+2026-09-20, for the screen being built that day, and applied forward from there. Nothing was
+back-filled, and the standing orders' "every server-action module gets a revalidation
+registration test" was written after both existed. `journeys/actions.ts`'s own header states
+the rationale for the guard it lacks — "`revalidatePath` AFTER EVERY ONE. The screen is a
+Server Component reading…" — which is the sentence a registration test exists to hold to.
+
+**THE FIX IS NOT TWO MORE HAND-WRITTEN FILES.** Eight companions written by hand is how a
+ninth comes to be forgotten; the shape this repository uses for exactly this is the
+inversion — something that enumerates the action modules off git and **requires** each to
+have a companion, failing closed on a module it does not recognise, the way
+`adminGuardRegistration.test.ts` requires a guard and `lighthouseCollects.test.js` requires
+a collected URL. That check would have reported these two on the day the pattern was
+invented. **Cost:** one new test file of maybe sixty lines, plus the two companions it then
+demands, plus a decision about what a module with no `revalidatePath` at all should be
+required to declare.
+
+**What is NOT at risk.** The behaviour is correct and is covered elsewhere: both modules'
+writes go through `journeyMutations.ts` and `pageMutations.ts`, which have integration
+suites, and `e2e/admin.spec.ts` drives the create, duplicate, archive and trash paths in a
+browser. What is missing is the pinned TABLE of which addresses each write invalidates —
+so a future edit that drops a `revalidatePath` or adds a write without one fails nothing.
+
+**What would reverse it:** the inversion above, with the two companions it demands.
+
+**Owner: unassigned.** The ledger never discusses it, so it is unsettled rather than settled
+wrongly — which is the distinction worth preserving.
+
+**Recorded as:** this entry and §122, which names the pattern both residuals share.
+
+## 121 · The sweep coverage index is out of reach of every documentation guard — owner: unassigned
+
+**What is unguarded.** `docs/qa/2026-09-18-phase-4-sweep-coverage.md` is the index that maps
+Phase 4's twelve sweep reports to `SCREENS.md`'s eleven screens — **exit criterion 3's own
+evidence** — and nothing reads it:
+
+- `apps/web/lib/docs/pathCitations.test.ts` excludes `docs/qa/**` by design. Its header
+  argues the exclusion at length and is right: a sweep report is a dated record, and
+  requiring its citations to resolve would either fail honestly over history or train its
+  authors to edit the record.
+- `apps/web/lib/docs/newestSweep.test.ts` closes exactly that hole for the newest report —
+  but it selects **by the date in the filename**, deliberately, because `mtime` cannot
+  survive a checkout. This file is dated `2026-09-18`, so the newest is always some sweep,
+  never the index.
+
+So the youngest and most citation-dense file in that directory is the one file in it that
+nothing parses.
+
+**Hand-checked at the Phase 4 close, since nothing else will:** all **twelve** report paths
+it cites resolve. The only unresolved backticked run in it is `docs/qa/2026-09-*.md`, which
+is a **glob** in the shell-exemption paragraph rather than a path — and a glob is a shape any
+check over this file would have to be taught, which is part of the cost below.
+
+**Cost of closing it:** `newestSweep.test.ts` already owns the rules (it shares
+`apps/web/lib/docs/citations.ts` with `pathCitations.test.ts` rather than copying them), so
+the change is a second selector — "the newest report, **and** any file in `docs/qa/` that is
+not a dated sweep report" — plus a decision about globs, plus the risk the exclusion was
+written to avoid: this index names twelve files, and if any is ever renamed the index must
+be edited rather than left as a record. That last point is why it is not simply folded into
+the living corpus.
+
+**What would reverse it:** that second selector, or moving the index out of `docs/qa/` to a
+home the living-documentation corpus already covers — which would be the cheaper fix and
+costs one `git mv` plus every citation of it.
+
+**Owner: unassigned.**
+
+**Recorded as:** this entry and §122.
+
+## 122 · The pattern behind four of the Phase 4 closing findings: everything left is at a guard's edge
+
+Written for the owner rather than for an implementer, because it is the only conclusion of
+the Phase 4 whole-branch review that is about the checks rather than about the code.
+
+Four of that review's findings share one shape. **Each sits in the one place its guard family
+does not reach:**
+
+| finding                                                             | where it sat      | the guard that did not reach it                                                                            |
+| ------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| `docs/api.md`'s "Planned server actions" claiming Phase 4 is future | a prose section   | no citation guard parses a section's TENSE                                                                 |
+| `docs/testing.md`'s `placeholder.ts` row stuck at 87.5%             | a table           | `coverageThresholds.test.ts` holds the CONFIGS, not this table (§46 scopes it to sub-95 integration gates) |
+| "ten screens" in `docs/architecture.md`                             | a third document  | the count is correct in five other files, so no global rule can be written                                 |
+| the surviving `MEDIUM-2` header attributions                        | a marker spelling | the predicate enumerated eleven families and the population had more (§119 §4a)                            |
+
+And §120 and §121 are the same shape one step further out: a module pattern applied forward
+and never back-filled, and a file that falls between two guards' selectors.
+
+**The checks this phase built are good** — they found three genuinely wrong citations on
+their first run, caught a planted dead path by file and line, and reddened on a dropped
+Lighthouse URL. **What is left is all at their edges**, and the edges are where the next
+phase's budget should go rather than on more checks of the same kind: a guard that reads a
+declaration will not read a tense, a guard over a config will not read the table describing
+it, and a predicate is only ever as wide as the population somebody imagined.
+
+**No owner, because this is not a task.** It is the reading to take into whatever phase comes
+next.
