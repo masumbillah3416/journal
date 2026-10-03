@@ -401,8 +401,12 @@ const EDITION_WHEN = new Intl.DateTimeFormat('en-GB', {
  * version query can select `version: { … }` for no extra query, spent here.
  * @param payload - The Local API instance.
  * @param scope - The hoisted {@link AdminScope}.
- * @returns At most {@link EDITIONS_SHOWN} editions, newest first. The first is
- *   the live one; an empty diary has none.
+ * @returns At most {@link EDITIONS_SHOWN} editions, newest first. **The first
+ *   of EACH `parent` is the live one**, not the first of the list — a reader is
+ *   served each journey's own newest published version, so a book of ten
+ *   journeys has ten live editions in this list. {@link Edition.isLive} is the
+ *   field that says which; nothing downstream may infer it from position. An
+ *   empty diary has none.
  * @throws From Payload, when the read is refused by the access rules.
  * @example
  * const editions = await readEditions(await getPayload(), scope)

@@ -47,7 +47,13 @@ import styles from './publish.module.css'
 
 /** What SCREENS.md §2.8's Editions card needs to draw itself. */
 export interface EditionsCardProps {
-  /** The editions, newest first; the first is the live one. */
+  /**
+   * The editions, newest first. **The live one is the first of each `parent`**,
+   * not the first of the list — read {@link Edition.isLive} rather than the
+   * index. This card drew nine of ten journeys' current editions as restorable
+   * history the one time it was inferred from position; the header above says
+   * so at more length.
+   */
   readonly editions: readonly Edition[]
   /** Puts an older edition back. Reads `edition` off the body. */
   readonly restore: (form: FormData) => Promise<void>
