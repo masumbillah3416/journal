@@ -18,6 +18,13 @@
  * `FILE_PATH` drifting away from the first, so that a report's citations are
  * checked by rules the documentation's are not.
  *
+ * A THIRD ASKER SINCE PHASE 4 TASK 15e: `sectionCitations.test.ts` resolves
+ * `<document> §N`, and `securityCitations.test.ts` has to ask whether a
+ * backticked run is a path, an identifier or a `§N` before it may treat it as a
+ * quoted test-case name. Both reach for {@link sectionCitations}, and the
+ * second reaches for the two predicates above, which is the same argument a
+ * second caller made: a copy of either rule is a rule that drifts.
+ *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. Predicates over a backticked
  * run, an extraction, and lookups against what git lists.
  *
@@ -213,4 +220,135 @@ export const sourceCorpus = (excluding: readonly string[]): string => {
       /* c8 ignore stop */
     })
     .join('\n')
+}
+
+/**
+ * A `<document> §N` citation: the document named, the section number, and
+ * nothing in between.
+ *
+ * ═══ WHAT THIS PATTERN DELIBERATELY DOES NOT MATCH ═══
+ *
+ * A bare `§N`. More than a fifth of this repository's section references are
+ * written that way — "§6's LCP gate", "see §104" — and which document they mean
+ * comes from the paragraph around them, not from the text. A resolver that
+ * guessed would resolve most of them to the wrong document, which is the exact
+ * failure `docs/deviations.md` §98 exists to stop. They are out of scope and
+ * counted rather than silently dropped, so the share that IS resolvable is a
+ * number a reader can see.
+ *
+ * It also does not match a document named by a word rather than a file —
+ * "design spec §8.2" — for the same reason.
+ *
+ * The spellings it does carry are the ones this tree actually writes, measured
+ * rather than guessed: the file name optionally backticked, optionally
+ * possessive in either apostrophe, and `§§` where two sections are cited
+ * together (of which only the first number is resolved).
+ */
+const SECTION_CITATION = /(?<![\w/.-])`?((?:[\w@.-]+\/)*[\w.-]+\.md)`?(?:'s|’s)?[ \t]*§+[ \t]*(\d+(?:\.\d+)*)/gu
+
+/** The same, anchored, for asking whether a whole backticked run is one. */
+const WHOLE_SECTION_CITATION = new RegExp(`^${SECTION_CITATION.source}$`, 'u')
+
+/** A numbered heading at any level: `## 7 · Data handling`, `## 2.1 Overview`. */
+const NUMBERED_HEADING = /^#{1,6}[ \t]+(\d+(?:\.\d+)*)(?:[ \t]+·)?[ \t]+\S/u
+
+/**
+ * A numbered item inside a section, in the two spellings this tree's documents
+ * use: an ordinary ordered-list item (`1. TDD: …`, which is what `CLAUDE.md`
+ * §0.1 and `docs/deviations.md` §13.4 name) and a bolded one
+ * (`**1 · Password**`, which is what `SCREENS.md` §3.1 names).
+ */
+const NUMBERED_ITEM = /^(?:(\d+)\.[ \t]+\S|\*\*(\d+)[ \t]+·[ \t]+\S)/u
+
+/** A Markdown fence, opening or closing. */
+const FENCE = /^[ \t]*(?:```|~~~)/u
+
+/** One `<document> §N` citation, and where it was written. */
+export interface SectionCitation {
+  /** The document the citation names, exactly as it is spelled. */
+  readonly document: string
+  /** The section number, dots included. */
+  readonly section: string
+  /** Which 1-based line of the file carried it. */
+  readonly line: number
+}
+
+/**
+ * Every `<document> §N` citation in a file's text.
+ *
+ * @param text - The file's whole text.
+ * @returns One entry per citation, in order, duplicates included — a citation
+ *   written twice is wrong twice.
+ * @example
+ * sectionCitations('see `SCREENS.md` §2.1') // [{ document: 'SCREENS.md', section: '2.1', line: 1 }]
+ */
+export const sectionCitations = (text: string): readonly SectionCitation[] =>
+  text.split('\n').flatMap((line, index) =>
+    [...line.matchAll(SECTION_CITATION)].map((match) => ({
+      /* c8 ignore next 2 -- both groups always participate in a match; the fallbacks satisfy noUncheckedIndexedAccess rather than any input. */
+      document: match[1] ?? '',
+      section: match[2] ?? '',
+      line: index + 1,
+    })),
+  )
+
+/**
+ * Whether a backticked run is, in its entirety, a `<document> §N` citation.
+ *
+ * `securityCitations.test.ts` asks this so that `` `docs/deviations.md §98` ``
+ * is not mistaken for a quoted test-case name.
+ * @param run - The text between the backticks.
+ * @returns Whether the whole run is one citation and nothing else.
+ * @example
+ * isSectionCitation('SCREENS.md §2.11') // true
+ */
+export const isSectionCitation = (run: string): boolean => WHOLE_SECTION_CITATION.test(run)
+
+/**
+ * Every section number a document declares — its numbered headings, and the
+ * numbered items each of those headings carries.
+ *
+ * ═══ WHY THE ITEMS COUNT AND ARE NOT A LOOPHOLE ═══
+ *
+ * Three documents put a section's parts in a numbered list rather than in
+ * sub-headings, and all three are cited that way: `CLAUDE.md` §0.9 is the ninth
+ * rule of §0's list, `SCREENS.md` §3.2 is the second bolded item of `# 3 ·
+ * Sign-in`, and `docs/deviations.md` §13.4 is the fourth item of §13. Reading
+ * headings alone refuses 149 citations in this tree that any reader resolves in
+ * one scroll, and a guard that refuses valid input is a guard people route
+ * around.
+ *
+ * Fenced blocks are skipped, so a `1.` inside an example is not a section.
+ * @param text - The document's whole text.
+ * @returns Every number a `§N` citation of this document may name.
+ * @example
+ * declaredSectionNumbers('# 3 · Sign-in\n\n**1 · Password**\n') // Set { '3', '3.1' }
+ */
+export const declaredSectionNumbers = (text: string): ReadonlySet<string> => {
+  const declared = new Set<string>()
+  let section: string | undefined
+  let fenced = false
+  for (const line of text.split('\n')) {
+    if (FENCE.test(line)) {
+      fenced = !fenced
+      continue
+    }
+    if (fenced) continue
+    const heading = NUMBERED_HEADING.exec(line)
+    if (heading) {
+      section = heading[1] ?? ''
+      declared.add(section)
+      continue
+    }
+    if (line.startsWith('#')) {
+      // An unnumbered heading ends the numbered section it follows, so a list
+      // under `## Threat model` cannot lend its numbers to the section above.
+      section = undefined
+      continue
+    }
+    if (section === undefined) continue
+    const item = NUMBERED_ITEM.exec(line)
+    if (item) declared.add(`${section}.${item[1] ?? item[2] ?? ''}`)
+  }
+  return declared
 }

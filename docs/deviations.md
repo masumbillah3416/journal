@@ -1137,7 +1137,7 @@ configuration granted was granted to "signed in".
 The rule is per-user ownership rather than the flat `() => false` that §28 gave `jobs`,
 `otpChallenges` and `signInAttempts`, and the difference is deliberate: those three are
 reached only through their own server-side adapters, while the Account screen
-(`SCREENS.md` §4, Phase 4) legitimately lists a reader's own sessions and revokes them
+(`SCREENS.md` §2.11, Phase 4) legitimately lists a reader's own sessions and revokes them
 one at a time. A blanket refusal here would have been "secure" and would also have made
 Revoke impossible, which is the outcome `SECURITY.md` explicitly names as the thing to
 avoid — "Back the account screen's session list with real `sessions` rows, or Revoke and
@@ -2369,7 +2369,7 @@ configuration granted was granted to "signed in".
 three of `sessions`'s: the design has **one author**, accounts arrive through
 `npm run db:seed`, and an account cannot meaningfully delete itself from the screen it is
 signed in on. `read` and `update` are narrowed rather than refused because the Account
-screen (`SCREENS.md` §4) reads and writes the caller's own row — a flat refusal would be
+screen (`SCREENS.md` §2.11) reads and writes the caller's own row — a flat refusal would be
 "secure" and would also make that screen impossible, which is the outcome §29 names as the
 thing to avoid.
 
@@ -4207,7 +4207,7 @@ the `AdminShell` `counts` prop documentation, `docs/api.md`'s `GET /admin` row, 
 waiting" — which asserts the PROPERTY rather than the fix, so it stays green the day the chrome
 can afford the real count.
 
-## 98 · Two kinds of citation resolve to nothing and nothing says so — owner: Task 15
+## 98 · CLOSED — two kinds of citation resolved to nothing and nothing said so
 
 **What changed:** nothing, and that is what this entry is for.
 `apps/web/lib/docs/pathCitations.test.ts` checks two kinds of citation: a backticked **path**
@@ -4256,8 +4256,38 @@ owed visual baselines (§86) and the container run that settles them. The scope:
 resolves to a heading in that document, with the same two-sided exemption list the path and
 identifier checks already use.
 
-**What would reverse this:** that guard landing, at which point this entry becomes a note about
-which round found the gap.
+**CLOSED (Phase 4 Task 15e), and the guard is what defines the count.**
+`apps/web/lib/docs/sectionCitations.test.ts` resolves a section citation against the document it
+names. Its rule, which is the decision this entry deliberately refused to pre-empt: **a section
+citation is a reference that names its own document** — a `.md` file name, optionally backticked,
+optionally possessive, immediately followed by the mark and a dotted number, with nothing in
+between. Immediacy is the whole of it, because a bare mark means nothing without a document and
+guessing at the surrounding paragraph's subject would resolve most references against the WRONG
+document, which is the defect this entry is about.
+
+**The number that fell out of that rule, rather than one chosen before it:** more than 1,900
+citations, across every document this tree cites by name, resolved here; more than 1,300 more
+name `CLAUDE.md` and are routed to
+`standardsSections.test.ts`, which already resolves that family against the `docs/standards/`
+split it also guards, so no second resolver for it exists. More than 1,900 references name no
+document at all — a bare mark, or "design spec §8.2" — and are out of scope; they are counted on every run by
+the case `are a minority of the section references this tree writes, and the rest are named
+rather than hidden`, so the share this guard does not cover is a number rather than a feeling.
+A section number resolves against the named document's own numbered headings **and** the numbered
+items beneath them, because three documents here put a section's parts in a list and are cited
+that way (`CLAUDE.md` §0.9, `SCREENS.md` §3.2, this file's §13.4); headings alone would refuse 149
+citations that any reader resolves in one scroll, and a guard that refuses valid input is a guard
+people route around.
+
+**What it found on its first run, which is the argument for it.** Three references that resolve
+to nothing, none of which any gate had ever questioned. Twice in this file, a fourth section of
+`SCREENS.md`, which has three — the Account screen it means is `SCREENS.md` §2.11. And in
+`apps/web/lib/admin/galleryMutations.ts`, a subsection 1.1 of THIS document, which has no
+subsections at all — it means `CLAUDE.md` §1.1, the documentation rule. All three are corrected
+in the commit that added the guard, which is the only way a guard's first run can be read.
+
+**What would reopen it:** a reference written with its document in the paragraph rather than
+beside the mark, which this rule cannot resolve and counts instead.
 
 **Recorded as:** this entry, and Phase 4 Task 12's report, which names it as a residual rather
 than closing it.

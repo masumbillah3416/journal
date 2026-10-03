@@ -53,7 +53,7 @@
  * themselves, by `../galleryFrames`'s own rule, and both directions are
  * compared.
  *
- * `docs/deviations.md` §1.1's rule about prose applies to this header: the
+ * `CLAUDE.md` §1.1's rule about prose applies to this header: the
  * sentence above it was true of the intent and false of the code, which is the
  * species this paragraph now exists to record.
  *
