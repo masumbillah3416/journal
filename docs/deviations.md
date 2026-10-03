@@ -4261,7 +4261,10 @@ identifier checks already use.
 names. Its rule, which is the decision this entry deliberately refused to pre-empt: **a section
 citation is a reference that names its own document** — a `.md` file name, optionally backticked,
 optionally possessive, immediately followed by the mark and a dotted number, with nothing in
-between. Immediacy is the whole of it, because a bare mark means nothing without a document and
+between. A LINE WRAP BETWEEN THE TWO IS STILL IMMEDIATE, comment continuation included, and
+review round 1 is why that sentence is here: the first version of the guard could not see those,
+68 of them, every one in a module header or a comment, which is the place this guard's own
+argument says a frozen number is most easily forgotten. Immediacy is the whole of it, because a bare mark means nothing without a document and
 guessing at the surrounding paragraph's subject would resolve most references against the WRONG
 document, which is the defect this entry is about.
 

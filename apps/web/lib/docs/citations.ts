@@ -243,8 +243,20 @@ export const sourceCorpus = (excluding: readonly string[]): string => {
  * rather than guessed: the file name optionally backticked, optionally
  * possessive in either apostrophe, and `§§` where two sections are cited
  * together (of which only the first number is resolved).
+ *
+ * ═══ AND ONE A LINE WRAP SPLITS, WHICH IS THE COMMON SHAPE ═══
+ *
+ * A citation whose document ends a line and whose mark opens the next was
+ * invisible to the first version of this pattern, and it is not a rarity: 68
+ * of them when this was measured, and every one of them in a module header or
+ * a comment, which is the place this directory's guards say a frozen number is
+ * most easily forgotten. So the separator admits ONE newline with a
+ * comment-continuation lead — ` * `, `// `, `> ` or nothing — and one only: two
+ * newlines are a paragraph break, and a document at the end of one paragraph
+ * has nothing to do with a mark at the start of the next.
  */
-const SECTION_CITATION = /(?<![\w/.-])`?((?:[\w@.-]+\/)*[\w.-]+\.md)`?(?:'s|’s)?[ \t]*§+[ \t]*(\d+(?:\.\d+)*)/gu
+const SECTION_CITATION =
+  /(?<![\w/.-])`?((?:[\w@.-]+\/)*[\w.-]+\.md)`?(?:'s|’s)?(?:[ \t]*|[ \t]*\r?\n[ \t]*(?:\*|\/\/|>)?[ \t]*)§+[ \t]*(\d+(?:\.\d+)*)/gu
 
 /** The same, anchored, for asking whether a whole backticked run is one. */
 const WHOLE_SECTION_CITATION = new RegExp(`^${SECTION_CITATION.source}$`, 'u')
@@ -276,21 +288,31 @@ export interface SectionCitation {
 /**
  * Every `<document> §N` citation in a file's text.
  *
+ * OVER THE WHOLE TEXT, NOT LINE BY LINE, which is what lets a wrapped citation
+ * be seen at all — see {@link SECTION_CITATION}'s second half. The line is then
+ * counted from the match's own offset rather than handed down by a `split`, and
+ * it is the line the DOCUMENT sits on, because that is where a reader fixing the
+ * citation has to type. The cursor only ever moves forward, since `matchAll`
+ * yields in order.
  * @param text - The file's whole text.
  * @returns One entry per citation, in order, duplicates included — a citation
  *   written twice is wrong twice.
  * @example
  * sectionCitations('see `SCREENS.md` §2.1') // [{ document: 'SCREENS.md', section: '2.1', line: 1 }]
  */
-export const sectionCitations = (text: string): readonly SectionCitation[] =>
-  text.split('\n').flatMap((line, index) =>
-    [...line.matchAll(SECTION_CITATION)].map((match) => ({
-      /* c8 ignore next 2 -- both groups always participate in a match; the fallbacks satisfy noUncheckedIndexedAccess rather than any input. */
-      document: match[1] ?? '',
-      section: match[2] ?? '',
-      line: index + 1,
-    })),
-  )
+export const sectionCitations = (text: string): readonly SectionCitation[] => {
+  const found: SectionCitation[] = []
+  let line = 1
+  let counted = 0
+  for (const match of text.matchAll(SECTION_CITATION)) {
+    const at = match.index
+    for (let index = counted; index < at; index += 1) if (text[index] === '\n') line += 1
+    counted = at
+    /* c8 ignore next 2 -- both groups always participate in a match; the fallbacks satisfy noUncheckedIndexedAccess rather than any input. */
+    found.push({ document: match[1] ?? '', section: match[2] ?? '', line })
+  }
+  return found
+}
 
 /**
  * Whether a backticked run is, in its entirety, a `<document> §N` citation.

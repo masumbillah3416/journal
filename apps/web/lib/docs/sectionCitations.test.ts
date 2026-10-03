@@ -28,13 +28,20 @@
  *
  * Immediacy is the whole of the rule, and it is what makes the citation
  * resolvable at all: `§N` means nothing without a document, and this tree
- * writes the document next to the number or not at all. What that leaves out is
- * stated rather than assumed away, and {@link UNQUALIFIED_SECTION_REFERENCES}
- * counts it on every run so the uncovered share is a number and not a feeling:
- * a bare `§6`, whose document comes from the paragraph around it, and a
- * document named by a phrase ("design spec §8.2") rather than by a file.
- * Guessing at either would resolve most of them against the wrong document,
- * which is the defect this file exists to catch.
+ * writes the document next to the number or not at all. **A line wrap between
+ * the two is still immediate** and is read as one citation, comment
+ * continuation included — 68 of them when that was measured, every one in a
+ * module header or a comment, and they were invisible to the first version of
+ * this guard (review round 1, F4). A blank line is not: that is a paragraph
+ * break.
+ *
+ * What the rule leaves out is stated rather than assumed away, and
+ * {@link SECTION_MARK} counts it by subtraction on every run, so the uncovered
+ * share is a number and not a feeling. Exactly two shapes: a bare `§6`, whose
+ * document comes from the paragraph around it, and a document named by a
+ * phrase ("design spec §8.2") rather than by a file. Guessing at either would
+ * resolve most of them against the wrong document, which is the defect this
+ * file exists to catch.
  *
  * **Over everything git lists**, not over the living documentation alone: most
  * of these citations are in module headers, where a frozen number is easiest to
@@ -308,6 +315,23 @@ describe('the section numbers this repository cites', () => {
     // ours, and neither is a bare mark; both are counted by the case above
     // rather than resolved against a document nobody named.
     expect(sectionCitations('the SCREENS.md spec §8.2, and §4 below')).toEqual([])
+
+    // ═══ THE WRAPPED SHAPE, WHICH IS 68 OF THEM AND ALL IN COMMENTS ═══
+    //
+    // A citation whose document ends a line and whose mark opens the next, over
+    // each comment lead-in this tree writes. The line reported is the
+    // DOCUMENT's, not the mark's, because that is the line a reader has to
+    // edit. A blank line between the two is a paragraph break and is NOT one
+    // citation — that is the over-match this shape risks, so it is pinned here
+    // rather than hoped for.
+    expect(sectionCitations('a\nsee `SCREENS.md`\n * §2.11 for it')).toEqual([
+      { document: 'SCREENS.md', section: '2.11', line: 2 },
+    ])
+    expect(sectionCitations('see SCREENS.md\n    // §1.3')).toEqual([
+      { document: 'SCREENS.md', section: '1.3', line: 1 },
+    ])
+    expect(sectionCitations('see SCREENS.md\n>    §1.3')).toEqual([{ document: 'SCREENS.md', section: '1.3', line: 1 }])
+    expect(sectionCitations('see SCREENS.md\n\n§1.3 says')).toEqual([])
   })
 
   it('are resolved by a search that can actually answer no', () => {
