@@ -336,9 +336,14 @@ export const isSectionCitation = (run: string): boolean => WHOLE_SECTION_CITATIO
  * sub-headings, and all three are cited that way: `CLAUDE.md` §0.9 is the ninth
  * rule of §0's list, `SCREENS.md` §3.2 is the second bolded item of `# 3 ·
  * Sign-in`, and `docs/deviations.md` §13.4 is the fourth item of §13. Reading
- * headings alone refuses 149 citations in this tree that any reader resolves in
- * one scroll, and a guard that refuses valid input is a guard people route
- * around.
+ * headings alone refuses more than a hundred citations in this tree that any
+ * reader resolves in one scroll, and a guard that refuses valid input is a
+ * guard people route around.
+ *
+ * A FLOOR, BECAUSE THE EXACT NUMBER MOVES AND IT MOVED UNDER THE FIRST DRAFT OF
+ * THIS SENTENCE: it said 149, which was already 162 the day it shipped (review
+ * round 1, F5). The number is not the argument, and `CLAUDE.md` §0 says what to
+ * do with one in prose.
  *
  * Fenced blocks are skipped, so a `1.` inside an example is not a section.
  * @param text - The document's whole text.

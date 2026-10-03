@@ -4278,15 +4278,17 @@ the case `are a minority of the section references this tree writes, and the res
 rather than hidden`, so the share this guard does not cover is a number rather than a feeling.
 A section number resolves against the named document's own numbered headings **and** the numbered
 items beneath them, because three documents here put a section's parts in a list and are cited
-that way (`CLAUDE.md` §0.9, `SCREENS.md` §3.2, this file's §13.4); headings alone would refuse 149
-citations that any reader resolves in one scroll, and a guard that refuses valid input is a guard
-people route around.
+that way (`CLAUDE.md` §0.9, `SCREENS.md` §3.2, this file's §13.4); headings alone would refuse
+more than a hundred citations that any reader resolves in one scroll, and a guard that refuses
+valid input is a guard people route around. (A floor. The first draft of this sentence said 149
+and the guard measured 162 the day it shipped — a count in prose is a floor or it is deleted, and
+this entry is where that rule is written down.)
 
 **What it found on its first run, which is the argument for it.** Three references that resolve
 to nothing, none of which any gate had ever questioned. Twice in this file, a fourth section of
 `SCREENS.md`, which has three — the Account screen it means is `SCREENS.md` §2.11. And in
-`apps/web/lib/admin/galleryMutations.ts`, a subsection 1.1 of THIS document, which has no
-subsections at all — it means `CLAUDE.md` §1.1, the documentation rule. All three are corrected
+`apps/web/lib/admin/galleryMutations.ts`, a subsection 1.1 of THIS document, whose §1 declares no
+numbered items for a `1.N` to name — it means `CLAUDE.md` §1.1, the documentation rule. All three are corrected
 in the commit that added the guard, which is the only way a guard's first run can be read.
 
 **What would reopen it:** a reference written with its document in the paragraph rather than
