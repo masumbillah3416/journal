@@ -2053,6 +2053,28 @@ test('tells the author why the Site card was refused, and keeps what they typed'
   await expect(replyTo).toHaveValue('a@b')
 })
 
+test('leaves no refusal behind on the next screen, or on the way back', async ({ page }) => {
+  // THE PROPERTY THE CARRIER WAS CHOSEN FOR, measured where it can actually
+  // fail. `maxAge: 0` means the browser stores nothing, so the refusal cannot
+  // ride along to the next request — but Next's client router also caches a
+  // route's payload, and a cached payload of the REFUSED render would redraw
+  // the message on a screen the author has come back to.
+  await page.goto('/admin/settings')
+  await page.locator('[data-site-field="replyTo"] input').fill('a@b')
+  await page.locator('[data-save-site]').click()
+  await expect(page.locator('[data-form-refusal]')).toBeVisible()
+
+  await page.locator('a[data-nav-id="journeys"]').click()
+  await expect(page.locator('[data-journeys-screen], [data-create-open]').first()).toBeVisible()
+  await expect(page.locator('[data-form-refusal]')).toHaveCount(0)
+
+  await page.locator('a[data-nav-id="settings"]').click()
+  await expect(page.locator('[data-settings-site]')).toBeVisible()
+  await expect(page.locator('[data-form-refusal]')).toHaveCount(0)
+  // And the box holds the global's own value again, not what was refused.
+  await expect(page.locator('[data-site-field="replyTo"] input')).not.toHaveValue('a@b')
+})
+
 test('tells the author why a new journey was refused, and keeps what they typed', async ({ page }) => {
   // THREE SPACES, NOT AN EMPTY BOX. All three fields are `required`, so the
   // browser refuses an empty one — and `required` is satisfied by whitespace,
