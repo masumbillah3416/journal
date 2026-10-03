@@ -623,15 +623,18 @@ character matches, so those citations were read by nothing at all — and Task 1
 words or more** must be a declared case name or appear in an exemption list with a reason,
 asserted in both directions exactly as the quoted half is. Four is measured, not chosen — at
 four, 42 of the document's 604 distinct backticked runs are judged, 15 real citations and 27
-pieces of code; at six the list falls to 10 and the unread share rises from 3 of 3,985
-declared case names to 68.
+pieces of code; at six the list falls to 10 and the unread share rises from 3 of 3,985 declared
+case names to 68 (the constant's own comment in
+`apps/web/lib/auth/securityCitations.test.ts` carries those two as a reading taken when it was
+written, and so does this: 3 of 3,988 and 68 on 2026-10-03).
 
 Length is the whole rule and the only rule. A path, an identifier and a `<document> §N` are
-separated from a case name because they are SHORT — all 564 of them in this document are one
-word — and the guard carries a case that measures exactly that on every run rather than a
+separated from a case name because they are SHORT — all of them in this document are one word,
+564 of them when that was read — and the guard carries a case that measures exactly that on every run rather than a
 refusal that could never fire. That case is the correction of review round 1's F1, which
 found three such refusals in front of the length rule doing nothing at all.
 
 What the rule leaves unread is measured too: a declared case name shorter than four words,
-cited in backticks, reads as a token. Three of 3,985 are that short, and a case fails if that
-share ever passes one percent.
+cited in backticks, reads as a token. What the case actually asserts is a CEILING — that share
+may never pass one percent — rather than any particular count, which is why the count moves
+without the standard going stale: three in 3,988 as this was last read.
