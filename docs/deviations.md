@@ -5586,7 +5586,47 @@ earlier numbers instead of replacing them with a third.
 
 What is beyond doubt under every variant: **2 → 0**, and 0 at HEAD.
 
-### 4 · "0 do now" is branch-scoped, and the sentence invites a repository-wide reading
+### 4a · "0 do now" was not 0, and the predicate was narrower than its population
+
+**The claim was false in its own terms, and this is the third time the same sentence has
+been wrong — which is the finding.** `5ea1e7b`'s criterion 8 and the first draft of item 4
+below said 0 markers survive inside the branch-changed set. The eleven families they
+enumerate cover `(F#)`, `(H#)` and `(L#)` but **not `MEDIUM-N` / `HIGH-N` / `LOW-N`, and not a
+review file named as a path** — the spelling Task 9's review used throughout. Measured with those
+added:
+
+|                                                      | files | hits |
+| ---------------------------------------------------- | ----- | ---- |
+| the eleven families, as enumerated                   | 1     | 1    |
+| widened with `MEDIUM-N` and the review-file spelling | 3     | 4    |
+
+The three attributions the widening found — `bookMutations.ts:35`,
+`galleryMutations.ts:30` and `:52`, all spelling a review finding as `(MEDIUM-2, …)` beside
+the name of a review file under the gitignored `.superpowers/` — **have been
+stripped**, on the same rule as the other 33: the attribution goes, the fact stays.
+`galleryMutations.ts`'s "THE FIRST VERSION OF THIS CHECK TESTED ONE DIRECTION" paragraph is
+KEPT in full, because it explains why the read is of the journey's own frames rather than a
+`{ id: { in: ids } }` lookup, and a future edit that "simplified" it back would reopen the
+hole it describes. That is orientation by §1.4's own test.
+
+**AND THE POPULATION IS NOT FIXED, WHICH IS THE PART NOBODY HAD NOTICED.** The one hit left
+arrived during this very round: `app/(admin)/layout.tsx:31` says "Until Phase 2 Task 11's
+fix round this file imported `../(diary)/fonts`", and that file entered the branch-changed
+set because `e1e6bfc` corrected a screen count in its header three commits ago. **Editing a
+file for any reason enlists its header into the population**, so a branch-scoped zero is
+true only of the moment it was taken.
+
+**It is kept, deliberately, and is the declared exemption rather than an oversight.** "Phase
+2 Task 11's fix round" is a plain task reference, which the Phase 4 header strip scoped out
+on purpose (its report's §5.2), and the sentence explains why this layout imports
+`./fonts.ts` rather than the diary group's and what the alternative cost. It is a false
+positive of the predicate, exactly as the three `MEDIUM-2` spellings were false negatives.
+
+**So the honest figure is not a zero.** Under the widened predicate, over the 319
+branch-changed code files at this commit: **one hit, in one file, declared and kept.** A
+count in prose is a floor or it is deleted; this one is a floor with its exemption named.
+
+### 4b · "0 do now" is branch-scoped, and the sentence invites a repository-wide reading
 
 The claim is correctly qualified — "of 318 **branch-changed** code files … **in a module
 header**" — and both qualifiers carry weight. But it sits under a heading about `CLAUDE.md`

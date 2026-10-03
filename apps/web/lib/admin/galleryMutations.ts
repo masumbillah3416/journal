@@ -27,7 +27,7 @@
  * that cannot be a single `where`-scoped `update`. {@link setFrameOrder} reads
  * the column first and writes only the rows whose position actually changed —
  * after a drag of one tile that is the span between where it left and where it
- * landed, not the whole gallery. The read is TWO queries since MEDIUM-2 — the
+ * landed, not the whole gallery. The read is TWO queries — the
  * journey's pages, for the scrap its gallery rule excludes, and its frames —
  * over one journey's rows rather than the library's, and the writes are
  * bounded by the number of frames in ONE journey (design spec §12: ~100), not
@@ -48,8 +48,8 @@
  * said in this paragraph that it tested both. `current.docs.length !==
  * ids.length` against a `{ id: { in: ids } }` read catches a stranger and a
  * repeat — and a SUBSET finds exactly as many rows as it names, so a partial
- * arrangement was accepted and left two frames sharing `order: 0`
- * (MEDIUM-2, task-9-review.md). The read is now of the journey's frames
+ * arrangement was accepted and left two frames sharing `order: 0`.
+ * The read is now of the journey's frames
  * themselves, by `../galleryFrames`'s own rule, and both directions are
  * compared.
  *

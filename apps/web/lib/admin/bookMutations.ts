@@ -31,8 +31,8 @@
  *
  * ═══ AN ORDER THAT IS NOT A BIJECTION REFUSES THE WHOLE WRITE ═══
  *
- * Standing orders, species 6, and `galleryMutations.ts`'s `setFrameOrder`
- * finding one screen along (MEDIUM-2, task-9-review.md). A list that does not
+ * Standing orders, species 6, and the same check in `galleryMutations.ts`'s
+ * `setFrameOrder` one screen along. A list that does not
  * name the book's journeys ONE FOR ONE is not an arrangement of the book — it
  * is a request to renumber half of it, or somebody else's row, or the same
  * journey twice. A subset finds exactly as many rows as it names, so the check
