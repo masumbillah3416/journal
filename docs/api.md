@@ -241,7 +241,7 @@ for a different reason — see its row.
 - **Input:** `segments` — the admin screen path (`collections/journeys`, an id, `login`,
   …) — plus that screen's query string.
 - **Output:** Payload's generated admin UI. `routes.admin` is `/cms`, not `/admin`, so
-  it never collides with the bespoke panel Phase 4 builds at `/admin`.
+  it never collides with the bespoke panel Phase 4 built at `/admin`.
 - **Errors:** Payload's own 404 view for an unmatched segment; the login screen (rather
   than an error) for an unauthenticated visitor.
 - **Auth requirement:** signed in, enforced by Payload's admin views; every operation
@@ -259,8 +259,16 @@ for a different reason — see its row.
 - **Where it is exposed:** this is the one route `admin.disable` does gate —
   `payload.config.ts` sets it to `process.env.NODE_ENV === 'production'`, so the panel
   is development-only. That flag is deprecated upstream; the durable form of the same
-  guarantee is deleting this route directory in production, which is Phase 4's job once
-  the bespoke panel replaces it.
+  guarantee is deleting this route directory in production.
+
+  **PHASE 4 CONSIDERED DELETING IT AND DID NOT**, which is a decision rather than an
+  oversight, and is recorded here so it is still owed rather than quietly dropped. The
+  bespoke panel now replaces it, so the precondition this row named is met. What stopped
+  it is that the deletion is a deployment concern and not a screen: `admin.disable`
+  already gates the route in production, `apps/web/collections/sealedUserAuth.ts` means
+  nothing can sign into it anywhere, and removing the directory would delete the surface
+  every `/cms` case in this repository measures — leaving the seal asserted by nothing.
+  **Owner: whichever change provisions the production deploy.**
 
 ## Diary routes (live today)
 
@@ -2171,6 +2179,77 @@ Found` and a refused write. **The editing pane surfaces none of them** -
   the alternative that was not taken — and it is the only write in this phase that makes
   §2.9's "Space used" go down, which is why it alone invalidates `/admin/settings`.
   `apps/web/lib/admin/trashRevalidationRegistration.test.ts` holds both tables.
+
+### `publishChanges(form)` · `revertOneChange(id)` · `restoreOneEdition(form)`
+
+- **Path:** `apps/web/app/(admin)/admin/publish/actions.ts`. Every decision is
+  `apps/web/lib/admin/publishSelection.ts`'s; this module is the guard, the wiring and the
+  cache hints.
+- **Input:** `publishChanges` takes SCREENS.md §2.8's publish form — one `change` field per
+  ticked row. `restoreOneEdition` takes the Editions card's own form, carrying one `edition`
+  field. `revertOneChange` takes **a bound argument, not a form field**: Revert sits inside
+  the publish form, so it is a `<button formAction>`, and React uses that button's own `name`
+  and `value` to carry the action id — a row id written into `name="revert"` is overwritten
+  with `$ACTION_ID_…` before the browser sends anything. The `FormData` React appends is
+  deliberately not read.
+- **Output:** nothing. The screen asks for the page again rather than being told.
+- **Errors:** a `ZodError` from `readSelection` or `readEdition` for a reference that is not
+  a row id; an `Error` from `publishSelection.ts` for a change or edition that is not the
+  account's to move. `docs/deviations.md` §104's redirect shape is not used here — this
+  screen answers 500, and §104 names it among the ones that do.
+- **Auth requirement:** **signed in.** All three are built from `guardedAction`.
+- **Notes:** `publishChanges` holds **the only computed revalidation in this repository**:
+  `affectedPaths` returns one diary address per page the publish made stale, and each is
+  passed to `revalidatePath` alongside the four admin screens that count what is waiting.
+  `revertOneChange` names **no diary address at all**, deliberately — a revert puts a row
+  back to the version readers are already looking at, so nothing served is stale.
+  `restoreOneEdition` names the computed set as well, which is measured rather than assumed:
+  `restoreVersion` makes the restored version the latest, so a draft that was pending on that
+  row stops being pending and the waiting count moves.
+  `apps/web/lib/admin/publishRevalidationRegistration.test.ts` holds the table, and
+  `publishSelection.integration.test.ts` measures which paths against the book's own pages.
+
+### `saveProfile(form)` · `saveNotifications(form)` · `setOtpRequired(form)` · `changePassword(form)` · `revokeOneSession(form)` · `signOutEverywhere()`
+
+- **Path:** `apps/web/app/(admin)/admin/account/actions.ts`. Every decision is
+  `apps/web/lib/admin/accountMutations.ts`'s or `apps/web/lib/auth/sessions.ts`'s; this
+  module is the guard, the wiring and the cache hints.
+- **Input:** `saveProfile` takes SCREENS.md §2.11's profile card whole. `saveNotifications`
+  and `setOtpRequired` each take one toggle's own form — the column and the value it is
+  switching to. `changePassword` takes the two password boxes. `revokeOneSession` takes the
+  row's id. `signOutEverywhere` takes nothing.
+- **Output:** nothing. `changePassword` redirects either way, to this screen's own address
+  with `notice=changed` or `notice=<refusal>`.
+- **Errors:** a `ZodError` from each reader for a body this screen does not produce.
+  `changePassword`'s refusal is the one that does **not** become a 500: it travels by
+  redirect and the card prints it, which `docs/deviations.md` §104 names as the preferred
+  shape. `revokeOneSession`'s refusal is deliberately **not** surfaced — `err('unknown')`
+  means the row is already revoked or is not this account's, and in both cases the honest
+  thing to draw is the list as it now stands. The only route to that refusal is a hand-built
+  POST, and telling its author which row ids exist is not something this screen owes them.
+- **Auth requirement:** **signed in.** All six are built from `guardedAction`.
+  `revokeOneSession` and `signOutEverywhere` are additionally scoped by the account's own
+  row id, and the scoping is **in the SQL rather than in the collection**: both go through
+  `payload.db.pool.query`, where the `sessions` collection's `ownSessionsOnly` access rule
+  does not run, so `user_id = $2` in the UPDATE's own `WHERE` is the whole of what stops a
+  typed integer revoking somebody else's session.
+- **Notes:** four of the six invalidate **this screen and nothing else**.
+  `revokeOneSession` and `signOutEverywhere` also invalidate the admin layout with the
+  `layout` type, because the rail prints the account's address in its profile block and
+  because revoking this request's own row means the next navigation must be redirected by the
+  guard. `setOtpRequired` invalidates only this screen even though `/admin/sign-in`'s footer
+  also states whether the code step is on: that line is drawn for the lowest-id account, per
+  request, on a route this repository does not cache — the moment `/admin/sign-in` becomes
+  cacheable it belongs in that list, and
+  `apps/web/lib/admin/accountRevalidationRegistration.test.ts` holds the table and the
+  reasoning.
+
+  **An empty password is the Payload semantic this screen is shaped around.** Measured
+  rather than assumed: `payload.update({ password: '' })` RESOLVES, writes nothing, and
+  leaves the old password signing in, while `login('')` throws. So the refusal is decided
+  before the write and read back through the reader the application itself uses, never
+  inferred from the absence of a throw. `apps/web/lib/admin/accountMutations.integration.test.ts`
+  is where both halves are pinned.
 
 ## Planned routes (Phase 1)
 

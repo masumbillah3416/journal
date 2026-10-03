@@ -39,8 +39,9 @@ the repo root itself rather than trusting the working directory, so one file bac
 This is an npm-workspaces monorepo:
 
 - `apps/*` — deployable applications. `apps/web` is the Next.js app hosting Payload CMS
-  (its own admin UI at `/cms`; the bespoke admin panel from the design lands at `/admin`
-  in a later phase).
+  (its own admin UI at `/cms`; the bespoke admin panel from the design is at `/admin`, and
+  is what an author actually uses — `/cms` is development-only and nothing can sign into
+  it).
 - `packages/*` — shared libraries. `packages/domain` holds pure domain logic with no
   dependency on any app, and no dependency on I/O.
 

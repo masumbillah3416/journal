@@ -5120,3 +5120,78 @@ branch's visual check is red for a reason that is written down.
 
 **Recorded as:** this entry. §107 and §108 hold the fixture-row debris that is one of the two
 candidates above; §110 and §111 are the other two baseline entries and neither explains this one.
+
+## 113 · §2.2's 44px cover square can never be filled from inside the admin — owner: whoever takes the choice below
+
+**What changed:** nothing, which is the point. `SCREENS.md` §2.2 draws each journey row with a
+"44px cover thumb (`rotate(−1.5deg)`)". `apps/web/lib/admin/readJourneysScreen.ts`'s
+`coversByJourney` fills it from `media.isCover`, taking the `thumb` derivative of the row where
+that flag is true. **No production code path sets that flag.** §2.5's "Use as gallery cover" is a
+reorder rather than a write, which is §75's own decision; the only other mention of the column in
+production source is the `media` collection's `afterChange` hook, which **clears** it on
+siblings. So the square renders at 45×45 with the rotation applied and nothing inside it, for
+every journey an author can create.
+
+**Measured** by `docs/qa/2026-10-03-journeys-sweep.md`'s JOU-001, on the development database:
+10 of 10 rows draw an empty square with computed `background-image: none` and no `<img>`;
+`select count(*) from media where is_cover = true` is **0** against 143 media rows, of which
+**143** carry a `thumb` derivative. So the column is not showing an empty library. It is showing
+a datum the admin cannot produce.
+
+**It also corrects half a sentence in §75**, which reads "`apps/web/lib/admin/readJourneysScreen.ts`
+reads that column for §2.2's 44px cover square and keeps it". The column is kept and the read is
+real; what §75 does not say is that once §2.5 stopped writing it, nothing started, so what the
+read returns is `null` forever. That is not a reason to reverse §75 — position is still the right
+answer for the gallery's own cover — but it is the consequence §75 left unstated, and it is
+stated here rather than edited into a closed entry.
+
+**Not fixed in Phase 4, deliberately.** `CLAUDE.md` §10 forbids patching a defect straight from a
+sweep, and both candidate fixes are new behaviour rather than a repair, which Task 15f's brief
+places out of scope:
+
+- **Point §2.2's square at `coverFrame`** — the positional answer §2.5 already uses, so there is
+  one definition of "the cover" instead of two. It costs `readJourneysScreen` a read of each
+  journey's first frame in the order the gallery sorts by, which is an ordering it does not
+  currently compute.
+- **Give the admin a control that writes `media.isCover`** — cheaper to build and worse, because
+  it mints the second answer §75 refused: a flag an author sets, that the first tile can then
+  contradict.
+
+**The cost of leaving it:** one column of §2.2 is decorative. Nothing is lost, nothing is
+mis-stated on screen, and the author simply cannot tell two journeys apart by their photograph in
+the list.
+
+**What would reverse it:** taking the first of the two options above, with
+`readJourneysScreen.integration.test.ts` extended to pin a journey whose first frame by gallery
+order is NOT the row that would have carried the flag — the fixture that can tell the two
+definitions apart, which the current one cannot because it holds only one candidate.
+
+**Recorded as:** this entry, `docs/qa/2026-10-03-journeys-sweep.md`'s JOU-001, and
+`docs/qa/2026-09-18-phase-4-sweep-coverage.md`, which is where a reader meets the sweep.
+
+## 114 · One control on `/admin/journeys` wears the handoff's focus ring and the rest wear Chromium's
+
+**What changed:** nothing. `SCREENS.md` §2 gives the panel one focus treatment —
+`outline: 2px solid rgba(163,68,52,.45); outline-offset: 1px` — and states it in the **Inputs**
+paragraph. Measured over 30 real `Tab` stops on `/admin/journeys`
+(`docs/qa/2026-10-03-journeys-sweep.md`, JOU-002): the search box has exactly that ring; the five
+status chips, each row's Edit and Gallery links, each row's ⋯ and New journey all draw Chromium's
+default `rgb(16, 16, 16) auto 1px`.
+
+**Rationale for leaving it.** The handoff scopes that rule to inputs, so this is consistency
+drift and not a violation of a line anybody wrote. Nobody is blocked: the default ring is visible
+against this screen's parchment, and axe reports zero violations at 1440, 900 and 412 and again
+with a row strip and the create panel open. Widening the rule to every focusable control in the
+panel is a change to eleven screens' worth of chrome, measured on one, which is not something a
+closing task may decide on its own authority.
+
+**How it was measured, because the obvious way is wrong.** A programmatic `element.focus()` does
+not raise `:focus-visible`, so reading `getComputedStyle(…).outline` after one measures the UA
+default whatever the stylesheet says. The readings above come from pressing `Tab` and reading
+`document.activeElement` at each stop.
+
+**What would reverse it:** a decision that the panel's focus ring is global rather than an input
+rule, taken across all eleven screens at once, with the visual baselines regenerated in the pinned
+Linux container because a focus ring is not in any of them today.
+
+**Recorded as:** this entry and `docs/qa/2026-10-03-journeys-sweep.md`'s JOU-002.

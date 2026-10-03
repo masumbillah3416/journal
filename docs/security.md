@@ -780,7 +780,16 @@ is served from the app's own origin today: `MEDIA_ORIGIN` is validated by `apps/
 and read by nothing, and `.env.example` points it at `http://localhost:3000` — the origin that
 also serves `/admin` and `/cms`. `SECURITY.md`’s prohibition on serving uploads from the admin’s
 origin is therefore live, not closed. It cannot be closed from inside this repository: it is a
-bucket, a custom domain and a CSP on that domain, and the deploy that creates them is Phase 3's.
+bucket, a custom domain and a CSP on that domain, and the deploy that creates them is the
+deployment's rather than any phase's.
+
+**PHASE 4 CONSIDERED IT AND LEFT IT OPEN, which is a decision and not an oversight.** The
+panel this phase built is exactly the surface `SECURITY.md` is protecting here — a bypass
+that could script against `/admin` is the thing a separate media origin denies — so the row
+was re-read when `/admin` landed. It was not taken because there is no second origin to
+point at until R2 is provisioned: `MEDIA_ORIGIN` is read by nothing and the local adapter
+serves from disk, so a code change here would be untestable on this machine and unexercised
+in CI. **Owner: the deployment**, which is where the bucket, the domain and the CSP are.
 What this repository already does is the half that is code — the gallery's download goes through
 our own handler rather than a bucket URL (the row below) rather than exposing bucket URLs to
 enumerate. It is not mitigated by SVG rejection, which is Phase 3's along with the rest of the
