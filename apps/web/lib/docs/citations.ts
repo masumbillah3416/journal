@@ -363,6 +363,7 @@ export const declaredSectionNumbers = (text: string): ReadonlySet<string> => {
     if (fenced) continue
     const heading = NUMBERED_HEADING.exec(line)
     if (heading) {
+      /* c8 ignore next -- the pattern's one group always participates in a match; the fallback satisfies `noUncheckedIndexedAccess` rather than a case. */
       section = heading[1] ?? ''
       declared.add(section)
       continue
@@ -375,6 +376,7 @@ export const declaredSectionNumbers = (text: string): ReadonlySet<string> => {
     }
     if (section === undefined) continue
     const item = NUMBERED_ITEM.exec(line)
+    /* c8 ignore next 2 -- exactly one of the pattern's two alternatives participates in a match, so the second fallback is the type's requirement rather than a case. */
     if (item) declared.add(`${section}.${item[1] ?? item[2] ?? ''}`)
   }
   return declared
