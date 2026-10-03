@@ -84,7 +84,8 @@ not have.
   (`e2e/admin.spec.ts`). Watched failing: `the save reached the server and was refused there`.
 
   **SUPERSEDED BY PHASE 4 TASK 15d**, which measured that `type="email"` does not close this.
-  HTML's own email grammar admits a domain with no dot and `z.email()` does not, so `a@b` is
+  HTML's own email grammar is wider than `z.email()`'s in more than one direction — `a@b`,
+  `a@b.c` and `a@bc` all pass it and all three are refused by the schema — so `a@b` is
   `checkValidity() === true` in Chromium and refused by the schema — and the save answered
   `500` again, on this screen, in this browser. The field keeps `type="email"`; the refusal now
   reaches the screen instead, with the four typed values still in the boxes

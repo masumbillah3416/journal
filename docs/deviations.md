@@ -4569,9 +4569,11 @@ sequence of keystrokes, and only two of them are among that five:
 
 **`/admin/settings` WAS RECORDED HERE AS CLOSED, AND IT WAS NOT.** The paragraph this replaces
 said giving Reply-to `type="email"` closed §2.9's instance because "every browser enforces that
-natively". It does — against HTML's own email grammar, which admits a domain with no dot.
-`z.email()` requires one. `a@b` was measured with `checkValidity() === true` in Chromium and
-`false` from the schema, and the save answered `500`. The field keeps `type="email"`, which is
+natively". It does — against HTML's own email grammar, which is wider than `z.email()`'s in more
+than one direction: `a@b` (no dot), `a@b.c` and `a@bc` are all `checkValidity() === true` and all
+three are refused by the schema, which wants a dotted domain with a last label of two characters
+or more. `a@b` was measured both ways — in Chromium and against the schema — and the save
+answered `500`. The field keeps `type="email"`, which is
 still worth having; it is no longer described as the guard.
 
 **AND THREE OF THE FIVE WERE NEVER REACHABLE BY TYPING**, which is why "fix the class" had to
@@ -4608,7 +4610,10 @@ not name is kept.
 **The message is drawn by the shell, once.** `AdminShell` reads the refusal and renders
 `RefusalNotice` inside `data-admin-content`, so a screen added later gets it without remembering
 to — which is the difference between closing a class and closing four instances. A screen that
-was not refused renders no extra node, so no committed visual baseline moves.
+was not refused draws NOTHING here, because `RefusalNotice` answers `null`; the four cards that
+redraw what was typed do add their hidden `refusalKeeps` inputs on every render, and those are
+nodes with no box. That is why the eleven committed admin baselines compare equal — measured,
+not argued: `100 passed` in the container run.
 
 **WHAT IS NOT CLOSED, NAMED EXACTLY.** An action a client island calls with its own arguments
 keeps its refusal as a REJECTION rather than drawing it: `saveCover`, `saveBookSettings`,
@@ -4619,11 +4624,26 @@ rejection` is the case that keeps the line where it is. **No sequence of keystro
 of their refusals** — read off the controls and the schemas rather than measured in a browser:
 four swatches, two range sliders bounded by the schema's own constants, a clamped click, and
 `CAPTION`/`TEXT`/`contentsNote`, which are bare `z.string()` and refuse no typed text at all. A
-hand-built `POST` to one still answers `500`, and that was not measured either. §2.11's four parses (`readOtpToggle`, `readNotificationToggle`,
-`readSessionRow`, `readPasswordChange`) are `FormData` actions, so they are covered by the
-mechanism — their values are not carried back, because the card names none.
+hand-built `POST` to one would still answer `500`, which is **inferred, not measured for these
+actions**: what was measured is that a Server Action which throws answers `POST 500` at all (on a
+throwaway route, with JavaScript on and off) and that these actions still reject
+(`guard.integration.test.ts`). Nobody has driven a crafted body at `saveCover` and read the
+status.
+
+**§2.11's five `FormData` parses are covered** — `readProfileForm`, `readOtpToggle`,
+`readNotificationToggle`, `readPasswordChange` and `readSessionRow`. None of them refuses
+anything typed (`PROFILE_FORM` is three trimmed strings with defaults, `readPasswordChange` two
+bare `z.string()`s), and none of their values travels back, because none of those cards names a
+field.
 
 **What would reverse it:** a form that answers `500` for a refusal a keystroke can reach.
+
+**AND THAT IS NARROWER THAN THE TASK'S OWN WORDING, deliberately.** The brief said "a refusal a
+human can cause". One refusal a human can cause is not a keystroke and is not closed:
+`MEDIA_IDS.max(MAX_BULK_MEDIA)` at 500 rows on `/admin/media` (`mediaMutations.ts`), an island
+action that still rejects. There is no select-all control in `components/admin/media`, so
+reaching it means 501 individual tile presses — which is why the criterion above is written in
+keystrokes. If a select-all is ever added, that refusal moves into this entry's scope.
 
 **Recorded as:** this entry, `apps/web/lib/admin/formRefusal.ts` and `formRefusalFlash.ts`'s
 headers, the `SUPERSEDED BY` line on SET-003 in the sweep report, and the `tells the author why
@@ -4908,3 +4928,43 @@ a spec that mutates shared state cannot share an invocation with one that photog
 
 **Recorded as:** this entry, the assertion and comment in `e2e/visual.spec.ts`'s Trash case, and
 §86's note on what the Trash baseline holds.
+
+## 112 · `admin-account-mobile` is 19px taller than the screen renders, and no code changed in between — owner: Phase 4 Task 15e
+
+**What is red.** `npm run test:visual:container` on `feat/phase-4-admin`: **100 passed, 1 failed,
+16 skipped**. The failure is the Account screen at the `mobile` project, and it is a size
+mismatch rather than a pixel diff, so no threshold is involved:
+
+```text
+Expected an image 390px by 2342px, received 390px by 2323px.
+```
+
+**It is not Phase 4 Task 15d's, and that was established two ways.** The same container service
+was run against this branch's parent `e7640ef` and produced the identical failure, with the same
+two numbers and the same 100/1/16 — so the branch did not move it. And
+`git log e37421f..e7640ef -- apps/web` is **empty**: no application code changed between the
+commit that wrote `admin-account-mobile-linux.png` and this branch's parent. Nothing 15d did
+could shorten a screen either — `RefusalNotice` answers `null` when there is nothing to draw, and
+a hidden input has no box — and if the shell had grown, all eleven admin baselines would be red
+rather than one.
+
+**WHICH IS WHY "THE IMAGE IS STALE" CANNOT BE THE WHOLE ANSWER, and this entry exists rather than
+a regenerated file.** §110's staleness had a cause anybody could read: the markup had changed and
+the picture had not. Here the markup did not change, so a 19px difference between what was
+photographed and what renders points at the DATA. `/admin/account`'s longest card is the session
+list, and §107 and §108 already record that admin screens in the developer's own `diary` database
+carry rows that fixtures left behind. A screen whose height depends on how many sessions a
+fixture account holds is a screen whose baseline depends on when it was taken.
+
+**What was NOT done, deliberately.** The image was not regenerated. Regenerating somebody else's
+baseline to clear a red is the churn `docker-compose.yml`'s `visual-update` service warns about in
+its own comment, and here it would also destroy the evidence: the next person would inherit a
+green run and no record that the screen's height is row-dependent.
+
+**What would reverse it:** a diagnosis of the 19px — which rows the Account screen was
+photographed with and which it renders with now — and then either a mask, a fixture that pins the
+list, or a regenerated baseline taken with the list in a state somebody chose. Until then the
+branch's visual check is red for a reason that is written down.
+
+**Recorded as:** this entry, and §107/§108, which hold the fixture-row debris this most likely
+depends on.

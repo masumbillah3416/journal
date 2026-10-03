@@ -602,14 +602,27 @@ refused (`docs/deviations.md` §104). **Every other screen's script column is by
 which is the measurement that says the rest of §104's mechanism ships no JavaScript: the refusal
 notice and the four cards that redraw what was typed are server components.
 
-**THE LCP COLUMN IS NOT RE-READ FROM THAT RUN, AND SAYING WHY MATTERS MORE THAN THE NUMBERS.**
-15d's own run put `/admin/media` at 4,427.8ms and `/admin/galleries` at 3,999.7ms against the
-4,180.2 and 3,762.1 above — **+248ms and +238ms on two screens whose script and image columns did
-not move by a single byte, and which no commit in 15d touches.** That is this host under load,
-not the code, and it sets the noise floor for any comparison across the two runs. Against it,
-`/admin/cover`'s 3,003.8 → 3,005.6ms is not a reading at all. What 15d's run does establish is
-the thing the gate asks: **the same two screens are red and no third one is**, and
-`/admin/cover`, the screen with the least margin, passed at a 3,010.9ms worst of five.
+**THE LCP COLUMN IS NOT RE-READ FROM THAT RUN, AND THERE ARE TWO POPULATIONS IN IT, NOT ONE.**
+A fix round's first version of this paragraph read one noise floor off the two worst screens and
+stated it for all fourteen. That is the wrong shape: a 240ms floor would license dismissing a real
+200ms regression on any of the other twelve. Both runs' 140 stored reports, re-read per URL:
+
+- **The eleven screens that load no image drifted 1.3ms to 5.7ms** between the two runs, and their
+  within-run spread in 15c was 1.9ms to 8.5ms. They are reproducible on this host to single-digit
+  milliseconds, with one outlier worth naming rather than smoothing: `/admin/sign-in` spread
+  **61.4ms** inside 15d's own five runs, all of it a slow first pass.
+- **The two screens that fetch photographs are not reproducible at that resolution at all.**
+  `/admin/media` drifted +247.6ms and `/admin/galleries` +237.6ms — and their WITHIN-run spread
+  was already larger than that drift in 15c alone (627.7ms and 590.2ms across five runs of one
+  URL). Their medians are worth comparing only in hundreds of milliseconds.
+- `/admin/cover` is in neither group cleanly: it loads one 19,632-byte image that
+  `docs/testing.md`'s own LCP-element table says is **not on its LCP path**. It drifted **+1.7ms**,
+  which is at the bottom of the image-free band.
+
+So `/admin/cover`'s 3,003.8 → 3,005.6ms is not a reading, and the narrower figure is what says so
+— not the wide one. What 15d's run does establish is the thing the gate asks: **the same two
+screens are red and no third one is**, and `/admin/cover`, the screen with the least margin,
+passed at a **3,010.9ms worst of five** against 3,085.
 
 **THE SCRIPT BUDGET IS NOT THE CONSTRAINT AND HAS NEVER BEEN CLOSE.** The heaviest screen in
 the admin is `/admin/media` at **143,035 bytes against 327,680 — 43.7%**, and the lightest four
