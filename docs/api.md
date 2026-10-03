@@ -1644,21 +1644,27 @@ follow: false }`.
 
 ## Server actions (live today)
 
-**A `ZodError` FROM AN ACTION THAT TAKES `FormData` IS DRAWN, NOT THROWN** (Phase 4 Task 15d,
-`docs/deviations.md` §104). Every `Errors:` line below that names a `ZodError` still describes
-what the parse refuses, and that is unchanged; what changed is where the refusal goes. For an
-action whose first argument is a `FormData` — which is every action a `<form action={…}>`
-dispatches — `guardedAction` catches it, hands the messages and the posted values the form
-asked to keep to the render that follows, and the action resolves with `undefined`. The screen
-redraws with the message and the author's typing still in the boxes, and answers `200`. It used
-to answer `500`, which four screens were measured doing.
+**A `ZodError` FROM AN ACTION WHOSE FIRST ARGUMENT IS A `FormData` IS DRAWN, NOT THROWN**
+(Phase 4 Task 15d, `docs/deviations.md` §104). Every `Errors:` line below that names a `ZodError`
+still describes what the parse refuses, and that is unchanged; what changed is where the refusal
+goes. `guardedAction` catches it, hands the messages and the posted values the form asked to keep
+to the render that follows, and the action resolves with `undefined`. The screen redraws with the
+message and the author's typing still in the boxes, and answers `200`. It used to answer `500`,
+which four screens were measured doing.
 
-**For an action a client island calls with its own arguments the refusal is still a rejection**,
-because there is a caller holding the promise: `requestUploadSlots`, `finaliseUpload`,
-`saveCover`, `saveBookSettings` and the Galleries screen's five are in that group, and
+**THE TEST IS `FormData`-NESS, NOT FORM-DISPATCH-NESS**, and this paragraph said the second until
+a review measured the tree. Every `<form action={…}>` sends a `FormData`, so all of those are
+caught — and so are `setSlotMedia`, `setSlotFocalPoint`, `setSlotText` and `clearSlot`, which
+`SlotPanel.tsx` builds a `FormData` for and calls from an island. They are caught, and the island
+`void`s the promise, so it reads neither a rejection nor a resolved `undefined`; a refusal drawn
+on the screen is better than one that answers 500, so this is acceptable rather than accidental.
+
+**An action called with typed arguments keeps its refusal as a rejection**, because there is a
+caller holding the promise: `requestUploadSlots`, `finaliseUpload`, `saveCover`,
+`saveBookSettings` and the Galleries screen's five are in that group, and
 `guard.integration.test.ts`'s `keeps a value-returning action’s refusal as a rejection` is what
-holds the line between the two. Nothing but a `ZodError` is caught either way — a refused
-Payload write still reaches the error boundary it always did.
+holds the line between the two. Nothing but a `ZodError` is caught either way — a refused Payload
+write still reaches the error boundary it always did.
 
 ### `requestUploadSlots(request: UploadSlotRequest): Promise<UploadSlotResponse>`
 

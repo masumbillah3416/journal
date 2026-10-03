@@ -147,6 +147,7 @@
  *
  * Depends on: node:fs, node:path, node:url, vitest.
  */
+import { execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -362,5 +363,81 @@ describe('the declared client islands', () => {
     // and the media screen two; a further island has to change those
     // sentences, and this is what makes it.
     expect(ISLANDS).toHaveLength(8)
+  })
+})
+
+/**
+ * The hooks that give a client a Server Action's return value.
+ *
+ * A CALL, NOT A MENTION. Two module headers name `useActionState` in prose
+ * precisely because nothing uses it, and a check that matched the name would
+ * be satisfied by the sentence claiming the opposite \u2014 standing orders \u00a717, a
+ * guard that names a thing is not a guard that the thing happens.
+ */
+const FORM_STATE_HOOKS = /\buse(?:Action|Form)State\s*\(/u
+
+/** The separator `git ls-files -z` writes between paths. */
+const NUL = String.fromCharCode(0)
+
+/** The repository root \u2014 `apps/web/lib/admin` -> the workspace above `apps/`. */
+const REPOSITORY_ROOT = path.resolve(APP, '../..')
+
+/**
+ * This file's own path, repository-relative.
+ *
+ * Excluded from the walk below because the pattern's source text lives here,
+ * and a check that matched itself could never go green.
+ */
+const THIS_FILE = 'apps/web/lib/admin/shellShipsNoClientJs.test.ts'
+
+/**
+ * Every file the repository holds, tracked or newly written.
+ *
+ * `git ls-files` rather than a directory walk, for
+ * `adminGuardRegistration.test.ts`'s reason: a hand-rolled walk needs a skip
+ * list, and a skip list is the enumeration this check exists to avoid.
+ * @returns One repository-relative path per source file.
+ * @throws If `git` lists nothing, rather than passing having read nothing.
+ */
+const sourceFiles = (): readonly string[] => {
+  const listed = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
+    cwd: REPOSITORY_ROOT,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  const files = listed
+    .split(NUL)
+    .filter((file) => file.length > 0 && /\.(?:tsx?|jsx?|mjs)$/u.test(file) && file !== THIS_FILE)
+  if (files.length === 0) throw new Error('git listed no source files, so this case has read nothing')
+  return files
+}
+
+describe('what a Server Action may answer', () => {
+  /**
+   * WHY THIS LIVES HERE AND WHAT IT HOLDS UP.
+   *
+   * `docs/deviations.md` \u00a7104's mechanism lets `guardedAction` answer
+   * `undefined` for a `FormData` action whose body Zod refused. That is only
+   * honest while nothing reads what a form action returns \u2014 and the one way a
+   * client can read it is `useActionState`/`useFormState`.
+   *
+   * It was cited to the cases above for a fix round, and they cannot see it:
+   * they judge which MODULES carry `'use client'`, so a hook added inside one
+   * of the eight declared islands leaves every one of them green. This is the
+   * fact itself, asked of every file the repository holds.
+   */
+  it('holds no form action\u2019s return value, because the factory may answer undefined', () => {
+    const readers = sourceFiles().filter((file) =>
+      FORM_STATE_HOOKS.test(readFileSync(path.join(REPOSITORY_ROOT, file), 'utf8')),
+    )
+
+    expect(
+      readers,
+      'these read a Server Action\u2019s return value, which docs/deviations.md \u00a7104 may answer undefined',
+    ).toEqual([])
+  })
+
+  it('reads real files, so the case above cannot pass by listing nothing', () => {
+    expect(sourceFiles().length).toBeGreaterThan(100)
   })
 })

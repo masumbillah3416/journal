@@ -20,6 +20,16 @@
  * THERE IS THEREFORE NOTHING TO CLEAR, which is the property a 30-second
  * expiry or a nonce in the query would both have had to buy back.
  *
+ * AND THERE IS NO SIZE CAP, DELIBERATELY. The kept allowlists include a
+ * `<textarea>` or two behind an unbounded `z.string()` (`note`, `paragraph`),
+ * so the value written here has no ceiling — and needs none, because the only
+ * reader is the render of this same request, which reads the request-scoped
+ * store rather than the browser's jar. A `Set-Cookie` too large for a browser
+ * to keep costs nothing, since nothing ever reads it back; a cap would cost
+ * the author the prose they had just written, which is the thing §104 exists
+ * to stop losing. One sample carried 12,000 characters intact, and that is a
+ * sample rather than a limit.
+ *
  * PATTERNS (CLAUDE.md §3.3). Repository, narrowly: one named thing is written
  * and read through two functions, and the storage it uses is not the caller's
  * business.

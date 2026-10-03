@@ -1953,7 +1953,15 @@ test('refuses a reply-to that is not an address in the field, not with a 500', a
   // the screen answered 500 with all four typed values gone.
   //
   // THE ASSERTION IS THE BEHAVIOUR: the form does not submit, and the field
-  // says why. `type="email"` is how it is fixed today.
+  // says why. `type="email"` is what refuses THIS value in the field.
+  //
+  // IT IS NOT THE GUARD, which is what this comment used to say and what
+  // `docs/deviations.md` §104 recorded until Phase 4 Task 15d measured
+  // otherwise: HTML's own email grammar admits `a@b` and `a@b.c`, `z.email()`
+  // refuses both, and the save answered 500 for them on this screen. The case
+  // below still guards the `not-an-address` instance and is worth keeping;
+  // what stands behind the whole class is §104's refusal notice, which
+  // `tells the author why the Site card was refused` drives with `a@b`.
   const failures: string[] = []
   page.on('response', (response) => {
     if (response.status() >= 400) failures.push(`${String(response.status())} ${response.url()}`)
@@ -2054,18 +2062,43 @@ test('tells the author why the Site card was refused, and keeps what they typed'
 })
 
 test('leaves no refusal behind on the next screen, or on the way back', async ({ page }) => {
-  // THE PROPERTY THE CARRIER WAS CHOSEN FOR, measured where it can actually
-  // fail. `maxAge: 0` means the browser stores nothing, so the refusal cannot
-  // ride along to the next request — but Next's client router also caches a
-  // route's payload, and a cached payload of the REFUSED render would redraw
-  // the message on a screen the author has come back to.
+  // WHAT THIS MEASURES, AND WHAT IT DOES NOT. `maxAge: 0` means the browser
+  // stores nothing, so a refusal cannot ride along to the next REQUEST. The
+  // separate question is whether it could come back without a request at all,
+  // out of Next's client router cache — and **that question is unreachable in
+  // this admin**, because nothing here performs a client-side route
+  // navigation: the rail is a plain `<a href>` (`NavRail.tsx`), there is no
+  // `next/link` under `components/admin` or `app/(admin)`, and the only
+  // `next/navigation` uses are `useRouter().refresh()` in two islands.
+  //
+  // An earlier version of this case claimed to cover the router cache and did
+  // not. Rather than delete the claim and leave the reader guessing, the
+  // navigation KIND is now an assertion: both rail presses must be `document`
+  // requests. So this case says out loud that it measures two full page loads
+  // — and it goes red the day the rail becomes a `Link`, which is the day the
+  // router-cache question becomes askable and this case has to be rewritten.
+  //
+  // THE ROUTER-CACHE HALF WAS MEASURED ONCE, OUT OF TREE, by making the rail a
+  // `next/link` and running this case: the assertion below went red with
+  // `Array []` (a soft navigation issues no document request) — and every
+  // assertion ABOVE it passed, so the refusal did not come back on either
+  // screen under a client-side navigation either. That configuration is not
+  // what ships, so what is asserted here is what ships.
+  const navigations: string[] = []
+  page.on('request', (request) => {
+    if (request.isNavigationRequest() && request.url().includes('/admin/')) {
+      navigations.push(`${request.method()} ${request.resourceType()} ${new URL(request.url()).pathname}`)
+    }
+  })
+
   await page.goto('/admin/settings')
   await page.locator('[data-site-field="replyTo"] input').fill('a@b')
   await page.locator('[data-save-site]').click()
   await expect(page.locator('[data-form-refusal]')).toBeVisible()
 
+  navigations.length = 0
   await page.locator('a[data-nav-id="journeys"]').click()
-  await expect(page.locator('[data-journeys-screen], [data-create-open]').first()).toBeVisible()
+  await expect(page.locator('[data-create-open]')).toBeVisible()
   await expect(page.locator('[data-form-refusal]')).toHaveCount(0)
 
   await page.locator('a[data-nav-id="settings"]').click()
@@ -2073,6 +2106,11 @@ test('leaves no refusal behind on the next screen, or on the way back', async ({
   await expect(page.locator('[data-form-refusal]')).toHaveCount(0)
   // And the box holds the global's own value again, not what was refused.
   await expect(page.locator('[data-site-field="replyTo"] input')).not.toHaveValue('a@b')
+
+  expect(navigations, 'the rail no longer does a full page load, so this case measures something else now').toEqual([
+    'GET document /admin/journeys',
+    'GET document /admin/settings',
+  ])
 })
 
 test('tells the author why a new journey was refused, and keeps what they typed', async ({ page }) => {

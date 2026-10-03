@@ -112,9 +112,16 @@ export const refusalFrom = (error: z.ZodError, form: FormData): FormRefusal => (
   refused: error.issues.map((issue) => ({ field: issue.path.join('.'), message: issue.message })),
   // `Object.fromEntries` RATHER THAN ASSIGNING INTO A LITERAL, because the keys
   // are the posted body's. `kept[name] = …` with a `name` of `__proto__` calls
-  // the inherited setter and changes the object's prototype instead of storing
-  // anything; `fromEntries` defines an own property for every key, including
-  // that one.
+  // the inherited setter and changes this object's prototype instead of
+  // storing anything; `fromEntries` defines an own property for every key,
+  // that one included.
+  //
+  // IT DOES NOT FOLLOW THAT A FIELD CALLED `__proto__` WORKS, and the
+  // difference was measured rather than assumed: the key survives
+  // `JSON.stringify` and is then dropped by the carrier's own `z.record`
+  // parse, so `keptValue(refusal, '__proto__', stored)` falls through to the
+  // stored value. What this line buys is that the map is a plain object on the
+  // way out — not that the name round-trips.
   kept: Object.fromEntries(
     keptFieldsOf(form).map((name) => [
       name,

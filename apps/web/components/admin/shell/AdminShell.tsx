@@ -21,8 +21,11 @@
  * (`lib/admin/formRefusal.ts`), and the shell is where they are drawn because
  * every admin screen is inside one — so no screen added later has to remember
  * to draw them, which is the whole difference between closing a class and
- * closing five instances. A screen that was not refused renders no extra node,
- * so no committed baseline moves.
+ * closing five instances. A screen that was not refused draws NOTHING here —
+ * `RefusalNotice` answers `null` — so no committed baseline moves. (The four
+ * cards that redraw what was typed do render their hidden `refusalKeeps`
+ * inputs on every render; those are nodes with no box, which is why the
+ * baselines compare equal rather than because nothing is added.)
  *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. It is composition — a frame
  * with a `children` hole in it.

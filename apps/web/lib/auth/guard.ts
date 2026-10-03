@@ -254,6 +254,12 @@ export type GuardedHandler = (request: Request, session: AuthenticatedSession) =
  * with a `GET`. The dead identifier is cleared on the way out, so the browser
  * stops presenting a value that can no longer work.
  *
+ * THAT IS ABOUT A ROUTE HANDLER AND NOT ABOUT A SERVER ACTION, which is the
+ * distinction the next reader needs: `redirect()` from a SERVER ACTION was
+ * measured in Chromium against this app answering `303` with JavaScript off
+ * and `200` with a client-side navigation with it on (`docs/deviations.md`
+ * §104). Do not reason from this paragraph to an action.
+ *
  * @param handler - What to run once the request is known to be somebody's.
  * @returns A handler of the shape a Next.js route exports.
  * @example
@@ -292,7 +298,8 @@ export const guarded =
  *
  * For a Server Component. A route handler should call
  * {@link authenticateAdminRequest} instead and answer with its own response —
- * `redirect()` from a `POST` handler would answer `307` and re-post.
+ * `redirect()` from a `POST` handler would answer `307` and re-post. (From a
+ * SERVER ACTION it does not: measured `303`/`200` — see {@link guarded}.)
  *
  * @returns The authenticated account.
  * @throws The error `next/navigation`'s `redirect()` raises, for every
@@ -358,22 +365,37 @@ export const requireAdminSession = async (): Promise<AuthenticatedSession> => {
  * Action to be built from it. A `try`/`catch` per action would be the
  * twenty-sixth place to forget one.
  *
- * ONLY A `ZodError`, AND ONLY FROM A FORM. Anything else is re-thrown, so a
- * Payload failure still reaches the error boundary it always did. And the
- * branch is taken only when the action was dispatched from a `<form
- * action={…}>` — which is what a `FormData` first argument means — because
- * those are the calls with no caller to hand a rejection to. An action a
- * client island calls with its own arguments keeps its rejection, which is the
- * island's to handle.
+ * ONLY A `ZodError`, AND ONLY WHEN THE FIRST ARGUMENT IS A `FormData`.
+ * Anything else is re-thrown, so a Payload failure still reaches the error
+ * boundary it always did.
  *
- * WHICH IS WHY `undefined` IS AN HONEST ANSWER THERE. A form action has no
- * reader: Next discards what one returns unless a client is holding it with
- * `useActionState`, and this repository has none
- * (`shellShipsNoClientJs.test.ts`). The INVARIANT the cast rests on is that
- * every `FormData` action in this repository is declared `Promise<void>`;
+ * THE TEST IS `FormData`-NESS, NOT FORM-DISPATCH-NESS, and the difference is
+ * written here because this paragraph said the second for a fix round and the
+ * tree does not agree with it. A `<form action={…}>` always sends a
+ * `FormData`, so every one of those is caught — but so are the four slot
+ * actions (`setSlotMedia`, `setSlotFocalPoint`, `setSlotText`, `clearSlot`),
+ * which `SlotPanel.tsx` builds a `FormData` for and calls itself, from an
+ * island. They are caught, and that is acceptable rather than accidental: the
+ * island `void`s the promise, so it reads neither a rejection nor a resolved
+ * `undefined`, and a refusal that reaches the screen as a notice is strictly
+ * better than one that reaches it as a 500. What is NOT caught is an action
+ * called with typed arguments — those have a caller holding the promise, and
+ * handing it `undefined` would be a worse failure than a rejection.
+ *
+ * WHICH IS WHY `undefined` IS AN HONEST ANSWER THERE. A `FormData` action has
+ * no reader: Next discards what one returns unless a client is holding it with
+ * `useActionState` or `useFormState`, and no file in this repository calls
+ * either — `shellShipsNoClientJs.test.ts`'s `holds no form action's return
+ * value, because the factory may answer undefined` walks git's own listing and
+ * fails the day one does. (That file's OTHER cases do not cover this: they
+ * judge which modules carry `'use client'`, and a hook added INSIDE a declared
+ * island leaves every one of them green.) The INVARIANT the cast rests on is
+ * that every `FormData` action in this repository is declared `Promise<void>`;
  * `guard.integration.test.ts`'s `keeps a value-returning action's refusal as a
- * rejection` pins the other side, so an action that takes typed arguments and
- * returns something still throws.
+ * rejection` pins the other side of the branch, so an action that takes typed
+ * arguments and returns something still throws — but nothing fails if someone
+ * adds a `FormData` action that returns a value, and that gap is named rather
+ * than guarded.
  *
  * @param action - What to run once the request is known to be somebody's. It
  *   receives the authenticated account first, then whatever the form sent.

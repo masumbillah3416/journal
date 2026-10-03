@@ -30,6 +30,18 @@
  * the database; without it the row the author just archived is still on their
  * screen, which is the silent-failure species this branch keeps finding.
  *
+ * ═══ `@throws {z.ZodError}` BELOW IS WHAT THE PARSE REFUSES, NOT WHAT A
+ *     CALLER SEES ═══
+ *
+ * Since `docs/deviations.md` §104 a `ZodError` from an action whose first
+ * argument is a `FormData` — which is every export here — does not escape:
+ * `guardedAction` catches it, hands the message and the values the form asked
+ * to keep to the render that follows, and the action resolves. Each
+ * `@throws {z.ZodError}` line still names exactly what the schema refuses,
+ * which is the useful half; what it no longer describes is a rejection the
+ * caller has to handle. Said once here rather than edited into every line,
+ * because a sentence repeated once per export goes stale once per export.
+ *
  * Depends on: `revalidatePath` (next/cache), `guardedAction`
  * (../../../../lib/auth/guard), `adminScope` and the mutations
  * (../../../../lib/admin/…), `getPayload` (../../../../lib/payload).

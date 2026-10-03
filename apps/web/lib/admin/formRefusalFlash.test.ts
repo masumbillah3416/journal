@@ -86,6 +86,19 @@ describe('readRefusal', () => {
   it('answers null for a refusal whose messages are not strings', () => {
     expect(readRefusal('{"refused":[{"field":"a","message":3}],"kept":{}}')).toBeNull()
   })
+
+  it('brings back no field called __proto__, so nothing a cookie names can reach a render', () => {
+    // THE TRUST BOUNDARY, FROM THE READ SIDE. `refusalFrom` builds its map
+    // with `Object.fromEntries` so that key is an own property rather than a
+    // prototype assignment; this is the other half, and it was measured:
+    // the key survives `JSON.stringify` and the parse drops it, so a
+    // hand-built `td-form-refusal` naming it hands a render nothing.
+    const taken = readRefusal('{"refused":[],"kept":{"__proto__":["injected"],"name":["kept"]}}')
+
+    expect(taken).not.toBeNull()
+    expect(Object.getOwnPropertyNames(taken?.kept ?? {})).toEqual(['name'])
+    expect(Object.getPrototypeOf(taken?.kept ?? {})).toBe(Object.prototype)
+  })
 })
 
 describe('refusalForThisRender', () => {
