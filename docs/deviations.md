@@ -5119,12 +5119,35 @@ state and also the thing a first draft of it got wrong by leaning on one:
   row — which makes this the weaker candidate, not the stronger one. §107 and §108 record leftover
   ACCOUNTS rather than extra sessions on a new one, so they are adjacent rather than the cause.
 
+- **The same class as §116, which is the candidate this entry did not have when it was
+  written, and it is the one the arithmetic fits.** `SessionsCard.tsx`'s
+  `[data-session-where]` is masked — the comment above it says why, "this line ends in
+  `lastSeenAt` … so it is always today's date" — and **a mask does not stop a reflow**. That
+  line is `{place} · {when}` in 15px EB Garamond inside a `flex-wrap` row at 390px, so its
+  LENGTH still decides whether it takes one line or two: `28 September 2026` is three
+  characters longer than `4 October 2026`. **15px of Garamond at this file's line height is
+  about 19.5px, and the difference is 19px** — 2,342px expected against 2,323px received,
+  the screen SHORTER now, which is the direction a date that stopped wrapping would move it.
+  The mask was added so the pixels would not drift and it cannot stop the box from changing
+  size.
+
+  **This is a candidate with arithmetic, not a diagnosis.** What would confirm it: read
+  `.sessionWhere`'s rendered box in the container at 390px with a long date and with a short
+  one, and show the row's height differs by the 19px. That needs a browser, which is why it
+  is written here rather than claimed.
+
 Whoever closes this should measure which before changing anything.
 
 **What was NOT done, deliberately.** The image was not regenerated. Regenerating somebody else's
 baseline to clear a red is the churn `docker-compose.yml`'s `visual-update` service warns about in
 its own comment, and here it would also destroy the evidence: the next person would inherit a
 green run and no record that the screen's height is row-dependent.
+
+**IT WAS VERY NEARLY REGENERATED ANYWAY, BY A COMMAND AIMED AT THREE OTHER FILES.** §116's fix
+deleted the three `admin-overview-*` images and ran `npm run test:visual:container:update`, whose
+`--update-snapshots=changed` rewrote **this** baseline too — "is re-generated, writing actual" —
+and reported 101 passed. It was caught by `git status` and restored from `HEAD`, byte-identical.
+`docs/deviations.md` §118 is that trap; this entry is what it would have cost.
 
 **What would reverse it:** a diagnosis of the 19px — which of the two candidates above it is,
 read off a diff of the two images rather than argued — and then either a mask, a fixture that pins
@@ -5264,7 +5287,17 @@ already use.
 
 **Recorded as:** this entry and `docs/testing/04-end-to-end.md`'s run block.
 
-## 116 · The three `admin-overview-*` baselines photograph unmasked dates, so they are green only against a database written on the day they were taken
+## 116 · PARTLY CLOSED — the Overview baselines photographed unmasked dates: two went red, and the third stayed green while showing a date the screen no longer drew
+
+**Closed here:** the three dated regions are masked and the three images regenerated in the
+pinned container. **Not closed here:** the cause, which is that the visual suite runs against
+the developer's own mutable `diary`. Both halves are below, and the second is measured rather
+than gestured at — a baseline that is **not** the Overview's is demonstrably green and wrong
+today.
+
+**The title of this entry used to say the three baselines "are green only against a database
+written on the day they were taken", which understated it.** Two of the three were not green.
+The one that was green is the problem.
 
 **What is red.** `npm run test:visual:container` on this branch, run after a local
 `npm run test:e2e`: **3 failed, 16 skipped, 98 passed**. One of the three is
@@ -5318,22 +5351,143 @@ same three images go stale again the next time anything writes a journey — inc
 next `npm run test:e2e`. It would convert a visible failure into an invisible one, which is
 the trade §110 and §111 were written to refuse.
 
-**What would close it, with the cost of each:**
-
-- **Mask the dated regions** — the "Lately" timestamps, the publish line and the rail
-  footer. Cheapest, and it keeps the layout under test while dropping the datum. The cost
-  is that the masked area is then photographed by nothing, and standing order §21 measured
-  that `--update-snapshots=changed` does **not** reliably regenerate an image whose only
-  change is inside a new mask: the affected files have to be deleted and the run allowed to
-  write them fresh, and one of them opened and looked at.
-- **Pin the data** — a fixture that sets `updatedAt` on the rows this screen reads, so the
-  picture is of a known day. Stronger, because the dates stay under test; more expensive,
-  because `updated_at` is Payload-owned and writing it means going round the ORM, and
-  because the fixture then has to be torn down in a developer's own database.
-
 Nothing here is a defect of the admin: the screen draws the right dates. It is a defect of
 the baseline, and it was found by running the two local suites in one sitting, which
 nothing on this branch had done before.
 
-**Recorded as:** this entry, and §115, which is the other half of "the local suites
-interfere with each other and CI does not see it".
+### What was done — the mask, and what a mask cannot do
+
+`e2e/visual.spec.ts`'s Overview case now masks `[data-lately-when]`,
+`[data-book-published]` and `[data-last-published]` as well as `[data-profile-name]`, and
+says in the case itself why. The three images were **deleted** and regenerated in
+`mcr.microsoft.com/playwright:v1.62.1-noble`, because standing order §21 measured that
+`--update-snapshots=changed` does not reliably regenerate an image whose only change is
+inside a new mask — and one of them was opened and looked at.
+
+**THE MASK CLOSES THE HALF THAT WAS WORSE, AND NOT THE OTHER ONE.** It closes the
+sub-threshold false green: a date stamp inside a masked region cannot move a pixel, so
+`desktop` can no longer pass while picturing a date the screen does not draw. It does
+**not** close the reflow. A mask paints over the screenshot after layout; it does not change
+the layout. `.latelyWhen` is an 82px cell at 10px Courier with `0.1em` of tracking, so
+`27 Sept 2026` wraps to two lines in it and `3 Oct 2026` does not — **six rows, nine pixels
+each, which is exactly the 54px between 1,262px and 1,208px**. A future date whose rendered
+length crosses that cell's width moves the picture again, mask or no mask.
+
+### The cause is not the Overview's, and the proof is a baseline that is green
+
+Both remedies this entry first named treated the Overview alone. `docker-compose.yml`'s
+`x-visual` block sets `DATABASE_URL: postgres://diary:diary@postgres:5432/diary` — **the
+developer's own database**, the one `npm run dev`, `npm run db:seed` and a local
+`npm run test:e2e` all write. So every baseline is a photograph of mutable data, and any
+screen drawing a date or a count is one write away from the same failure.
+
+**Measured, not argued.** `admin-journeys-desktop-linux.png` was opened and read: its
+`Edited` column carries **ten `27 Sept 2026`**, unmasked, and the rail's two nav counts
+(`10`, `143`) beside them. The screen draws `3 Oct 2026` in all ten cells today. **That case
+passed** in the same container run that reddened the Overview — the dates are Courier 10px in
+a wide cell that does not wrap at 1440px, so there is no size change and the pixel diff is
+under `maxDiffPixelRatio: 0.01`. It is the §21 species again, in a second screen, and it is
+untouched by this entry's fix.
+
+**What actually closes the class: pin the data the visual suite runs against.** A database of
+its own, seeded with rows whose `updatedAt` is a chosen constant rather than the moment the
+seed ran. The cost, stated so the next person prices it rather than discovers it: a compose
+service and a second `DATABASE_URL`; a seed variant that writes timestamps **outside
+Payload**, since `updated_at` is ORM-owned; a migration path for `docker/initdb`; and a
+**full regeneration of all 58 admin baselines**, which is the part that makes it a change of
+its own rather than a rider — it would absorb whatever other drift is sitting in those images
+and destroy §112's evidence along with it.
+
+**Owner: unassigned.** Not Phase 4's: the panel is built, and this is a property of the test
+harness that predates the admin screens. **It is inherited by whoever next regenerates a
+baseline**, because that is the moment the choice between "pin it" and "photograph today"
+has to be made, and by the change that provisions CI's own database.
+
+**Recorded as:** this entry, §115 (the other half of "the local suites interfere with each
+other and CI does not see it"), §112 (the same class in its reflow half — see its own third
+candidate), and `e2e/visual.spec.ts`'s Overview case, which carries the argument where
+somebody regenerating will read it.
+
+## 117 · SCREENS.md §2.3's ticked pool tile is an outer ring and the editor draws it inset — appearance UNRESOLVED
+
+**What differs, and it is two literals rather than a judgement.** `SCREENS.md` §2.3 gives the
+ticked journey-pool tile `0 0 0 2px #a34434` — an OUTER ring, outside the tile's box.
+`apps/web/components/admin/editor/editor.module.css`'s `.tileTicked` draws
+`inset 0 0 0 2px var(--td-accent)`. Both are readable from source with certainty; neither
+needs a browser.
+
+**Whether it is VISIBLE is UNRESOLVED and does need one.** The tile is `overflow: hidden`
+inside a `max-height: 432px` scroller with a gap between tiles, so an outer ring would be
+clipped at the scroll edges and nowhere else — which would make the difference invisible on
+most tiles and visible on a few, or invisible everywhere. An inset ring also eats 2px of the
+photograph where an outer one would not. **Nobody has measured which**, and this entry
+refuses to guess at the appearance of something nobody has looked at.
+
+**Why it is here rather than in a commit message.** It was found by the Phase 4 closing
+segment's `SCREENS.md` §2.1–§2.11 re-diff, on a screen that segment did not sweep, and
+reported rather than filed on the grounds that the reading came off a stylesheet. Half right:
+the _appearance_ needs a browser, the _divergence_ does not, and a divergence from the
+handoff is exactly what `CLAUDE.md` §1.1's `// HANDOFF-DEVIATION:` marker is for. Six months
+from now the only trace of a commit body is in `git log`.
+
+**What would close it:** a measurement in the pinned container at the three widths §2.3
+names, of a ticked tile at a scroll edge and of one in the middle. Then either the ring moves
+outside, or this entry records the clipping as the reason it stays inset. **Either answer
+costs less than the argument about which it is.**
+
+**Recorded as:** this entry and the `// HANDOFF-DEVIATION:` comment at `.tileTicked` in
+`apps/web/components/admin/editor/editor.module.css`, which is where somebody changing that
+rule will meet it.
+
+## 118 · `npm run test:visual:container:update` silently regenerates a baseline that is red for a reason somebody wrote down
+
+**What happened, in this repository, while closing Phase 4.** Three `admin-overview-*`
+baselines were deleted deliberately so the container would write them fresh with a new mask
+(§116, and standing order §21's reason for deleting rather than trusting `changed`). The
+update service's own command is
+
+```text
+npx playwright test e2e/layout.spec.ts e2e/visual.spec.ts --update-snapshots=changed
+```
+
+and `changed` means **every** snapshot the comparison calls changed, not only the ones that
+are missing. The run's own output says so in as many words:
+
+```text
+A snapshot doesn't exist at /work/e2e/visual.spec.ts-snapshots/admin-overview-mobile-linux.png, writing actual.
+/work/e2e/visual.spec.ts-snapshots/admin-account-mobile-linux.png is re-generated, writing actual.
+```
+
+The second line is **§112's baseline** — the one that entry says in bold was deliberately NOT
+regenerated, because regenerating it would "destroy the evidence: the next person would
+inherit a green run and no record that the screen's height is row-dependent". One command
+meant to write three files wrote four, and the fourth was the one piece of evidence on this
+branch that nobody was allowed to touch. The run reported **101 passed** and exit 0.
+
+**It was caught by `git status` and reverted** — `git checkout HEAD -- <that file>`, confirmed
+byte-identical to `HEAD` afterwards. Nothing was lost, and that is luck rather than process:
+the only thing between a silent overwrite and a committed one was looking at which files the
+command had touched.
+
+**This is standing order §21 from the other side.** §21 measured that `changed` will NOT
+regenerate an image whose only change is sub-threshold, so a mask has to be applied by
+deletion. This is the complement: `changed` WILL regenerate an image whose change is
+**supra**-threshold, including one that is red on purpose. The command cannot tell a red you
+are fixing from a red you are keeping, because nothing tells it.
+
+**What to do until it is closed:** after any `:update` run, `git status --porcelain -- e2e/`
+and check that the only modified images are the ones you deleted. Restore anything else from
+`HEAD` before committing.
+
+**What would close it:** a `--update-snapshots=missing` variant for the case where the files
+were deleted on purpose — Playwright supports it, and it writes only what is absent, which is
+exactly the deletion workflow §21 prescribes. That is a one-word change to
+`docker-compose.yml`'s `visual-update` command and a line in its comment, and it is not made
+here only because a closing segment is the wrong place to change a tool every future
+regeneration runs through without anybody having used the new one once.
+
+**Owner: unassigned**, and inherited by the next change that regenerates a baseline — the same
+change §116 names, for the same reason.
+
+**Recorded as:** this entry, §112 (whose evidence it nearly took), §116 (the regeneration it
+happened during) and standing order §21, whose measurement it completes.

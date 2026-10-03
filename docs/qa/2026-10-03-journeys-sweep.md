@@ -169,3 +169,24 @@ defects behaved as `SCREENS.md` §2.2 describes.
 - **The 1180 / 900 / 860 / 780 table rungs from the skill's Admin hotspot list.** Those are
   §2.3's editor rungs, not §2.2's; this screen's are 720 / 800 / 880 / 1000 and all four were
   walked from both sides.
+
+---
+
+## Correction, 2026-10-04 — the submission count in the header is wrong
+
+The line above the Defects section says the sweep drove "two refused form submissions", and
+the database-safety paragraph rests on the same two. **It is at least seven.** The first
+driver pass made two (all three fields whitespace, then one blank field), and the withdrawal
+probe described at "Checked and found sound" made five more — T1 through T5, three distinct
+field combinations across two page loads. The sentence counted one pass and not the probe
+that was run to re-measure it.
+
+The sentence is named here rather than rewritten, which is how this repository corrects a
+dated record: a sweep report is a walk on a day, and editing the walk loses the fact that the
+count was taken wrong.
+
+**The safety argument is unaffected and does not rest on the count.** Every one of the seven
+was refused by Zod before any write, and the evidence is not the number of submissions but
+the before/after dump: all ten `journeys` rows byte-identical across every column, and the
+counts `journeys` 10 / `_journeys_v` 690 / `pages` 30 / `media` 143 unchanged. What later
+moved that data was `npm run test:e2e`, not this sweep — `docs/deviations.md` §116.

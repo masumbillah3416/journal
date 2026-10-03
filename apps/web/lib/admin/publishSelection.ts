@@ -57,7 +57,7 @@
  *
  * ═══ THE EDITION ID IS THE ONE POSTED IDENTIFIER THAT IS NOT INVERTED ═══
  *
- * Said out loud because the asymmetry reads as an omission (review F7). A
+ * Said out loud because the asymmetry reads as an omission. A
  * change id is parsed by `parsedChangeId` before it reaches Payload: it names
  * a COLLECTION as well as a row, so an unparsed one would be a caller
  * choosing which table to write. An edition id names no collection — this

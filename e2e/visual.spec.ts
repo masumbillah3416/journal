@@ -663,11 +663,39 @@ test('matches the baseline screenshot of the Overview', async ({ page, context, 
 
   // The rail's address is masked for the reason the ten cases below give: it
   // ends in `fixtureLabel`'s worker index, which Playwright hands out
-  // differently from one run to the next. This screen's three images are being
-  // taken for the first time here, so they are taken without it.
+  // differently from one run to the next.
+  //
+  // ═══ AND THREE DATED REGIONS, BECAUSE THIS SCREEN PHOTOGRAPHS MUTABLE DATA ═══
+  //
+  // `docs/deviations.md` §116. `readOverview.ts` builds the "Lately" card from
+  // `journeys.updatedAt` and `pages.updatedAt`, "The book, live" prints the live
+  // edition's publish date, and the rail prints `Last published`. All three move
+  // whenever anything writes a journey — including a local `npm run test:e2e`,
+  // which runs against the developer's own `diary`. Unmasked, they put a daily
+  // expiry on this screen's three baselines, exactly as `[data-session-where]`
+  // would on `admin-account`.
+  //
+  // WHAT THE MASK CLOSES, AND WHAT IT DOES NOT. It closes the half that is
+  // worse: at `desktop` the changed date stamps are a few thousand pixels
+  // against `maxDiffPixelRatio: 0.01`'s 12,960 of licence, so the picture went
+  // on passing while showing a date the screen no longer drew — standing order
+  // §21's sub-threshold false green, inside the gate written to catch it.
+  //
+  // It does NOT close the reflow, and that is said here so nobody reads a green
+  // run as the end of it. A mask paints over the screenshot; it does not change
+  // the layout. `.latelyWhen` is an 82px cell at 10px Courier, so
+  // `27 Sept 2026` wraps to two lines in it and `3 Oct 2026` does not — six
+  // rows, nine pixels each, which is the 54px that turned `mid` and `mobile`
+  // red (1,262px expected against 1,208px received). Only pinning the data the
+  // visual suite runs against closes that, and §116 names it with its cost.
   await expect(page).toHaveScreenshot('admin-overview.png', {
     fullPage: true,
-    mask: [page.locator('[data-profile-name]')],
+    mask: [
+      page.locator('[data-profile-name]'),
+      page.locator('[data-lately-when]'),
+      page.locator('[data-book-published]'),
+      page.locator('[data-last-published]'),
+    ],
   })
 })
 

@@ -118,6 +118,12 @@ services:
   # `changed` writes a baseline only when the diff EXCEEDS `maxDiffPixelRatio`, plus any
   # that are missing entirely, so a new screen's baselines still land and unrelated ones
   # cannot be churned.
+  # ⚠ `--update-snapshots=changed` REGENERATES EVERY BASELINE THE COMPARISON CALLS
+  # CHANGED, not only the ones that are missing — including one that is red on
+  # purpose. It took `admin-account-mobile-linux.png` (docs/deviations.md §112)
+  # during §116's fix and reported 101 passed. After any run of this service:
+  # `git status --porcelain -- e2e/` and restore anything you did not delete.
+  # docs/deviations.md §118.
   visual-update:
     <<: *visual
     command:

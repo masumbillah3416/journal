@@ -32,8 +32,8 @@
  *
  * THE FLAG IS PER JOURNEY, and this card believes it. It was computed over the
  * whole listing once, which drew nine of ten journeys' CURRENT editions as
- * restorable history with a title promising a change (review F1); the card was
- * right and the flag was lying. `readEditions` marks the first row of each
+ * restorable history with a title promising a change; the card was right and
+ * the flag was lying. `readEditions` marks the first row of each
  * `parent` now, and `restoreEdition` refuses the same row, so a crafted `POST`
  * meets the refusal this control only draws.
  *
