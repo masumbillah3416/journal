@@ -4336,11 +4336,24 @@ guard, not the string.
 
 **CLOSED (Phase 4 Task 15e), in the first of those two shapes.**
 `apps/web/lib/auth/securityCitations.test.ts` reads backticked runs as well as quoted ones, and
-tells the four kinds apart in the order this entry asked for. A path, an identifier and a section
-number are refused by the rules `apps/web/lib/docs/citations.ts` already owns — so there is no
-fourth copy of any of them, which is the drift that module was extracted to prevent. What is left
-is separated from code by the one property a case name has and a token does not: **it is a
-sentence.** Four words or more, and the threshold is measured rather than chosen. At four, 42 of
+separates a backticked case name from a backticked path, field and identifier by the one property
+a case name has and a token does not: **it is a sentence.** Four words or more, and the threshold
+is measured rather than chosen.
+
+LENGTH IS THE WHOLE RULE, AND THE FIRST VERSION OF THIS PARAGRAPH SAID OTHERWISE. It shipped
+claiming the guard "tells the four kinds apart… a path, an identifier and a section number are
+refused by the rules `apps/web/lib/docs/citations.ts` already owns", and the guard did call those
+three rules — but review round 1 (F1) deleted all three calls and every case in the file stayed
+green, including the one written to prove the discrimination. They are anchored single-token
+patterns and a three-token one, so nothing four words long can reach them: the composition was a
+sentence about four rules doing a job one rule was already doing alone. The three calls are gone
+(fix round 1), and the premise under them — that every backticked run those rules call code is
+shorter than the threshold; 564 of them, one word each — is now measured on the document on every
+run by `are told apart from backticked code by length, which nothing in this document outgrows`,
+which reddens on 254 runs when the threshold is dropped to one. Commit `6a20756`'s body carries
+the same overstated claim and cannot be rewritten; this paragraph is its correction.
+
+At four, 42 of
 the document's 604 distinct backticked runs are judged: 15 real citations and 27 pieces of SQL,
 shell, build output and source, each listed with a reason and asserted in both directions. At
 six the list would fall to 10 entries and the unchecked share would rise from 3 of 3,985 declared

@@ -57,17 +57,36 @@
  * run in this document is usually a path, an identifier, a field, a section
  * number or a fragment of SQL — in the very paragraph that defect lived in,
  * three backticked runs name real cases and a fourth names `e2e/routing.spec.ts`.
- * So the four kinds are told apart before anything is required to resolve, and
- * three of the four are told apart by rules this repository already owns:
- * {@link isPathCitation}, {@link isIdentifierCitation} and
- * {@link isSectionCitation} in `apps/web/lib/docs/citations.ts`, which is where
- * `pathCitations.test.ts` keeps them so that a second copy cannot drift.
+ * So a case name is separated from code by the one property a test case has and
+ * a token does not: **it is a sentence.**
+ * {@link A_CASE_NAME_IS_AT_LEAST_THIS_MANY_WORDS} is the WHOLE of that rule —
+ * length, and nothing else.
  *
- * What is left — a backticked run that is none of those three — is separated
- * from code by the one property a test case has and a token does not: **it is a
- * sentence.** {@link A_CASE_NAME_IS_AT_LEAST_THIS_MANY_WORDS} is the whole of
- * that rule, and it is measured rather than chosen; the constant's own comment
- * carries both sides and the blind spot it leaves. Everything at or above it
+ * ═══ AND LENGTH ALONE, BECAUSE THE OTHER THREE RULES COULD NEVER FIRE ═══
+ *
+ * This file shipped with three refusals in front of the length rule —
+ * {@link isPathCitation}, {@link isIdentifierCitation} and
+ * {@link isSectionCitation} from `apps/web/lib/docs/citations.ts` — and a
+ * sentence saying the four kinds were told apart by rules this repository
+ * already owns. Review round 1 (F1) ran the one mutation that settles it:
+ * deleting all three left every case in this file green, because the first two
+ * are anchored single-token patterns and the third spans three tokens at most,
+ * so NO run that reaches the floor can be refused by any of them. They were
+ * unreachable by construction, and the sentence described a composition rather
+ * than an effect — `CLAUDE.md` §0's first species, in the file written to catch
+ * it.
+ *
+ * They are gone. What stands in their place is the premise that made them
+ * pointless, measured on the real document on every run by
+ * `are told apart from backticked code by length, which nothing in this
+ * document outgrows`: all 564 backticked runs those three rules call code are
+ * SHORTER than the floor — one word each, as it happens, because this document
+ * backticks the file name and leaves the mark outside. So the case reddens if
+ * the floor is lowered to one, or if those rules ever start describing
+ * something a space can fit inside; it named all 254 distinct runs when that
+ * was watched. The refusals could not have reddened on anything.
+ *
+ * Everything at or above the floor
  * must be a declared case name or be listed in
  * {@link BACKTICKED_RUNS_THAT_ARE_NOT_CASE_NAMES} with a reason, both
  * directions asserted, exactly as the quoted half works. A run this file has
@@ -227,6 +246,17 @@ const A_BLIND_SPOT_THIS_LARGE_IS_NO_LONGER_A_BLIND_SPOT = 0.01
 
 /** A floor on the backticked runs judged, so an extraction that stopped matching fails here. */
 const AT_LEAST_THIS_MANY_BACKTICKED_CANDIDATES = 30
+
+/**
+ * A floor on the backticked runs that `apps/web/lib/docs/citations.ts` calls a
+ * path, an identifier or a `<document> §N`, so that the case measuring their
+ * length is measuring something.
+ *
+ * 564 of them when this was measured. A floor, not the count: this document
+ * gains and loses backticked paths with every edit, and a number pinned exactly
+ * is a number its next author edits instead of reading.
+ */
+const AT_LEAST_THIS_MANY_BACKTICKED_CODE_RUNS = 400
 
 /**
  * A string shaped exactly like a case name and deliberately not one, so the
@@ -436,23 +466,21 @@ const quotedRuns = (document: string): readonly string[] =>
 /**
  * Whether a backticked run is this document quoting a test case.
  *
- * THE THREE REFUSALS COME FIRST AND ARE NOT THIS FILE'S RULES.
- * `pathCitations.test.ts` owns what a backticked path and a backticked
- * identifier are, and `sectionCitations.test.ts` owns what a `<document> §N`
- * is; each is resolved by its own guard, and a copy of any of them here would
- * be a fourth place for the same rule to drift. What is left is separated from
- * code by length alone — see
- * {@link A_CASE_NAME_IS_AT_LEAST_THIS_MANY_WORDS}.
+ * LENGTH ALONE, WHICH IS A STRONGER RULE THAN THE FOUR-WAY TEST IT REPLACED.
+ * A path, an identifier and a `<document> §N` are told apart from a case name
+ * because they are SHORT: `pathCitations.test.ts`'s two patterns are anchored
+ * single tokens and a section citation spans three at most, so none of them can
+ * describe anything that reaches
+ * {@link A_CASE_NAME_IS_AT_LEAST_THIS_MANY_WORDS}. Naming them here as well
+ * read as a discrimination and performed none (review round 1, F1); the
+ * property that makes the omission safe is measured instead, by the case this
+ * file's header names.
  * @param run - The text between the backticks.
  * @returns Whether it must resolve to a declared case name.
  * @example
- * isCaseNameQuotation('e2e/routing.spec.ts') // false — a path
+ * isCaseNameQuotation('e2e/routing.spec.ts') // false — one word, so a token
  */
-const isCaseNameQuotation = (run: string): boolean =>
-  !isPathCitation(run) &&
-  !isIdentifierCitation(run) &&
-  !isSectionCitation(run) &&
-  run.split(' ').length >= A_CASE_NAME_IS_AT_LEAST_THIS_MANY_WORDS
+const isCaseNameQuotation = (run: string): boolean => run.split(' ').length >= A_CASE_NAME_IS_AT_LEAST_THIS_MANY_WORDS
 
 /**
  * Every backticked run in the document that reads as a quoted case name.
@@ -570,6 +598,28 @@ describe('the case names docs/security.md quotes', () => {
     ).toBeLessThan(A_BLIND_SPOT_THIS_LARGE_IS_NO_LONGER_A_BLIND_SPOT)
   })
 
+  it('are told apart from backticked code by length, which nothing in this document outgrows', () => {
+    // THE PREMISE THAT LETS {@link isCaseNameQuotation} BE ONE LINE, MEASURED
+    // RATHER THAN REASONED ABOUT. Until review round 1 this file also refused a
+    // path, an identifier and a `<document> §N` by name. Deleting all three left
+    // every case here green — they cannot fire above the floor — so what looked
+    // like a four-way discrimination was the length rule wearing three extra
+    // coats. The refusals are gone; this is the property they were standing in
+    // for, and unlike them it can fail.
+    const document = readFileSync(SECURITY_DOC, 'utf8')
+    const runs = backtickedRuns(collapsed(document)).map(({ run }) => run)
+    const code = runs.filter((run) => isPathCitation(run) || isIdentifierCitation(run) || isSectionCitation(run))
+
+    expect(
+      code.length,
+      'no backticked run in this document is a path, an identifier or a section citation, so this case is measuring nothing',
+    ).toBeGreaterThanOrEqual(AT_LEAST_THIS_MANY_BACKTICKED_CODE_RUNS)
+    expect(
+      [...new Set(code.filter((run) => run.split(' ').length >= A_CASE_NAME_IS_AT_LEAST_THIS_MANY_WORDS))],
+      'these are code by the rules apps/web/lib/docs/citations.ts owns AND long enough to be judged as case names, so length no longer separates the two and this guard needs a refusal in front of it again',
+    ).toEqual([])
+  })
+
   it('are checked by a search that can actually answer no', () => {
     // Without this, an extraction that accidentally matched everything — an
     // empty needle, a normalisation that ate the string — would report every
@@ -578,8 +628,10 @@ describe('the case names docs/security.md quotes', () => {
 
     expect(declared.has(NOT_A_CASE_NAME_ANYWHERE)).toBe(false)
     expect(declared.has(A_CASE_NAME_THAT_MUST_BE_FOUND)).toBe(true)
-    // And the backticked classifier, in all four directions it claims to tell
-    // apart — the fourth being the one the entry says matters, a path.
+    // And the backticked classifier on the four shapes `docs/deviations.md` §98
+    // names, which it refuses for ONE reason — they are short. Round 1 read
+    // these four lines as proof of a four-way discrimination; they never were,
+    // and the case above is where that property now lives.
     expect(isCaseNameQuotation('e2e/routing.spec.ts')).toBe(false)
     // An identifier this repository really declares, rather than one
     // `pathCitations.test.ts` excuses: writing an EXCUSED symbol here would
