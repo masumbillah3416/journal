@@ -68,7 +68,7 @@ import styles from './signIn.module.css'
 
 /**
  * Where "Open the admin panel" leads: the bespoke admin's own root, which
- * Phase 4 builds the ten screens of. Phase ruling F41 settled the address.
+ * Phase 4 builds the eleven screens of. Phase ruling F41 settled the address.
  *
  * IT WAS A 404 FOR THE WHOLE OF PHASE 2, and this is the note that stops that
  * happening again to the next address a pane points at. Nothing was mounted at

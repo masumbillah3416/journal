@@ -11,7 +11,7 @@ establishes the workspace and the domain package, later phases fill in `apps/web
 apps/
   web/                    Next 16 App Router + Payload 3 in-process
     app/(diary)/          public book, galleries          → static + ISR
-    app/(admin)/admin/    the bespoke panel: sign-in, then the ten screens
+    app/(admin)/admin/    the bespoke panel: sign-in, then the eleven screens
     app/(payload)/cms/    Payload's stock admin — dev only, disabled in production
     lib/                  repositories, server actions, adapters, auth/
   transcoder/             Node + sharp + ffmpeg worker, queue consumer  → DEFERRED (ADR 0004)

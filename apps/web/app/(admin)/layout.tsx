@@ -18,8 +18,8 @@
  * set a cookie it could never read back.
  *
  * IT CARRIES THE DOCUMENT AND THE STYLESHEET AND NOTHING ELSE. There is no
- * admin chrome here yet - the nav rail, the header and the ten screens behind
- * them are Phase 4 - and inventing one now would be an abstraction with a
+ * admin chrome here yet - the nav rail, the header and the eleven screens
+ * behind them are Phase 4 - and inventing one now would be an abstraction with a
  * single caller (CLAUDE.md §4).
  *
  * All three `next/font/local` variable classes are applied to `<html>` so
