@@ -726,6 +726,14 @@ applying the guard in its own file`. **`npm run lint` exited 0 under that mutati
   `playwright.config.ts`'s `webServer` boots the real app: `npm run dev` locally
   (reused if already running), `npm run build && npm run start` in CI.
 
+  **A LOCAL RUN IS RED ON THREE CASES AND CI IS GREEN, AND THE DIFFERENCE IS THAT WORD
+  "locally".** Against `next dev`, `e2e/smoke.spec.ts`'s `loads /cms without console errors or
+page errors` fails at all three projects on one console error from Next's own navigation
+  instrumentation under HMR. Against a production build of the same commit, the same three
+  cases pass and the whole suite is green. `docs/deviations.md` §115 carries both runs.
+  **And a local run writes to the developer's own `diary`**, which moves what
+  `npm run test:visual:container` photographs on the Overview — §116.
+
   **WHICH PATH TO USE WHEN, which ruling F58 required this document to say and which it
   did not say for the rest of the phase.** `npm run test:e2e` on the host runs at ONE
   worker (`playwright.config.ts`, ruling F39): the dev server compiles a route on first

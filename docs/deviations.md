@@ -4844,7 +4844,14 @@ case extended to name it — both done in Phase 4 Task 15.
 **Recorded as:** this entry, `e2e/a11y.spec.ts`'s `A11Y_FIXTURE_LABELS`, and the
 `ciRegistration.test.ts` case named above.
 
-## 108 · What the fixture-leak guard cannot see, and the debris that predates it — owner: Task 15
+## 108 · PARTLY CLOSED — what the fixture-leak guard cannot see, and the debris that predates it
+
+**State at the Phase 4 merge.** Task 15e closed two of the three holes — the wrapper, by
+REFUSAL rather than by call-graph resolution, and the debris — and declined the third in
+writing below, at its stated price. This heading read "owner: Task 15" until the phase
+closed; Task 15 is finished, so the remaining hole has no owner, and naming one that no
+longer exists is worse than naming none. **It is inherited by the next change that adds a
+minting helper under `e2e/support/`**, which is the only edit that can make it bite.
 
 **What the guard is.** `e2e/ciRegistration.test.ts`'s case `deletes every fixture account
 e2e/a11y.spec.ts creates, so a run leaves no accounts behind`. It reads a spec's SOURCE and pairs
@@ -5070,7 +5077,7 @@ a spec that mutates shared state cannot share an invocation with one that photog
 **Recorded as:** this entry, the assertion and comment in `e2e/visual.spec.ts`'s Trash case, and
 §86's note on what the Trash baseline holds.
 
-## 112 · `admin-account-mobile` is 19px taller than the screen renders, and no APPLICATION code changed in between — owner: Phase 4 Task 15e
+## 112 · `admin-account-mobile` is 19px taller than the screen renders, and no APPLICATION code changed in between — open at the Phase 4 merge, unowned
 
 **What is red.** `npm run test:visual:container` on `feat/phase-4-admin`: **100 passed, 1 failed,
 16 skipped**. The failure is the Account screen at the `mobile` project, and it is a size
@@ -5079,6 +5086,12 @@ mismatch rather than a pixel diff, so no threshold is involved:
 ```text
 Expected an image 390px by 2342px, received 390px by 2323px.
 ```
+
+**RE-CONFIRMED AT THE PHASE 4 CLOSE, unchanged.** `npm run test:visual:container` at `c233b03`
+in the same pinned image: the same case, the same two numbers, 390x2342 against 390x2323. The
+image was NOT regenerated then and was not regenerated now — the brief for that close said so in
+as many words, and a guess is what this entry exists to refuse. The run's other two failures are
+the Overview at `mid` and `mobile`, which are §116's and a different cause entirely.
 
 **It is not Phase 4 Task 15d's, and that was established two ways.** The same container service
 was run against this branch's parent `e7640ef` and produced the identical failure, with the same
@@ -5195,3 +5208,132 @@ rule, taken across all eleven screens at once, with the visual baselines regener
 Linux container because a focus ring is not in any of them today.
 
 **Recorded as:** this entry and `docs/qa/2026-10-03-journeys-sweep.md`'s JOU-002.
+
+## 115 · `npm run test:e2e` is red on three cases on this host and green in CI, and the difference is `next dev`
+
+**What is red.** Run against a local `npm run dev` server, `npm run test:e2e` fails
+`e2e/smoke.spec.ts`'s `loads /cms without console errors or page errors` at all three
+projects — `desktop`, `mid` and `mobile` — each with one console error and nothing else:
+
+```text
+Failed to execute 'measure' on 'Performance': '​Page' cannot have a negative time stamp.
+```
+
+The mark's name begins with a zero-width space, which is how Next.js spells its own internal
+performance marks. The run was **3 failed, 187 skipped, 629 passed** in 24.6 minutes.
+
+**IT IS THE DEV SERVER, AND THAT IS MEASURED RATHER THAN ARGUED.**
+`playwright.config.ts`'s `webServer` runs `npm run dev` for a local run and
+`npm run build && npm run start` under `CI`, and `reuseExistingServer` means a developer's
+own `next dev` is what a local run drives. On the same commit, with the dev server stopped
+and `npm run build -w apps/web && npm run start -w apps/web -- --port 3000` serving port
+3000 instead:
+
+| run                                                        | result                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------ |
+| `npx playwright test e2e/smoke.spec.ts` against `next dev` | **3 failed**, 3 skipped, 18 passed                     |
+| the same command against the production build              | **0 failed**, 3 skipped, 21 passed                     |
+| `npm run test:e2e` against the production build            | **0 failed**, 187 skipped, **632 passed**, 6.0 minutes |
+
+Three reproductions of the red and two of the green, on one commit, with one variable moved.
+
+**Nothing of this repository's is on that path.** `/cms` is Payload's own generated admin
+UI; the error comes from Next's navigation instrumentation under HMR. The branch could not
+have caused it either: the only commits between `45f3644` and this one change comment text
+and Markdown, and `git diff` over `apps/web`, `packages` and `e2e` with comment and blank
+lines removed is empty.
+
+**Why it is recorded and not fixed.** The case is right and should not be loosened — it is
+the one thing standing between a silent hydration error on `/cms` and nobody noticing, and
+`docs/deviations.md` §42 is the entry that explains why `/cms` is still mounted at all.
+Suppressing one message by text would be an enumeration of the errors somebody has already
+seen, which is the species this repository has watched fail six times. The honest shape is
+either a dev-mode exemption **the case itself declares and names** — which is new behaviour,
+and this is the task that builds nothing — or nothing, with the asymmetry written down here
+so a developer meeting three reds knows in one read that CI is green and why.
+
+**The cost:** a developer running `npm run test:e2e` locally sees three failures that are
+not defects, and has to know to disbelieve them. That is a real cost and it is why this
+entry exists rather than a shrug.
+
+**What would reverse it:** an upstream fix in Next's dev-mode instrumentation, or a
+dev-mode exemption in `e2e/smoke.spec.ts` that declares itself — one that fails if the
+message it excuses ever stops appearing in dev, so the exemption cannot outlive its reason.
+The second is the shape `apps/web/lib/docs/pathCitations.test.ts`'s two exemption lists
+already use.
+
+**Recorded as:** this entry and `docs/testing/04-end-to-end.md`'s run block.
+
+## 116 · The three `admin-overview-*` baselines photograph unmasked dates, so they are green only against a database written on the day they were taken
+
+**What is red.** `npm run test:visual:container` on this branch, run after a local
+`npm run test:e2e`: **3 failed, 16 skipped, 98 passed**. One of the three is
+`docs/deviations.md` §112's Account screen, unchanged. The other two are the Overview at
+`mid` and at `mobile`:
+
+```text
+Expected an image 1000px by 1262px, received 1000px by 1208px.
+23615 pixels (ratio 0.02 of all image pixels) are different.
+```
+
+**It is a date, and the diff image says so without being argued with.** Playwright writes one
+for a failing comparison, under `test-results/`, which is gitignored — so it is described here
+rather than cited as a path. Every differing region in it is dated text and nothing else: six rows of §2.1's
+"Lately" card, the "Published … " line in "The book, live", and the rail footer's "Last
+published …". The stat grid (10 / 30 / 143 / 0), "Waiting to go out" and "Needs a look" are
+pixel-identical.
+
+**Where the date comes from.** `apps/web/lib/admin/readOverview.ts` builds `lately` from
+`journeys.updatedAt` and `pages.updatedAt`, newest first, capped at `LATELY_SHOWN`. The
+case at `e2e/visual.spec.ts:635` masks `[data-profile-name]` and nothing else, so those
+timestamps are in the picture. Opening
+`e2e/visual.spec.ts-snapshots/admin-overview-desktop-linux.png` and reading it: **`27 Sept
+2026` appears eight times, unmasked.**
+
+**What moved the data, measured against a dump taken before any of it.** A dump of all ten
+`journeys` rows and the four row counts, taken at the start of this task and diffed after:
+
+|                                | before                | after                 |
+| ------------------------------ | --------------------- | --------------------- |
+| every journey's `updated_at`   | `2026-09-27T00:46:3x` | `2026-10-03T18:52:18` |
+| `_journeys_v` rows             | 690                   | 810                   |
+| `journeys` / `pages` / `media` | 10 / 30 / 143         | 10 / 30 / 143         |
+
+The window is a local `npm run test:e2e`. `playwright.config.ts`'s `webServer` runs against
+`DATABASE_URL`, which locally is the developer's own `diary`, and the suite publishes and
+rewrites journeys as part of what it proves. **No row was added or removed; ten timestamps
+moved**, and the Overview photographs exactly those.
+
+**THE DESKTOP IMAGE IS WRONG TOO AND THE SUITE DEFENDS IT**, which is the half worth more
+than the two reds. `mid` and `mobile` fail on SIZE — a shorter card, because `3 Oct 2026`
+wraps differently from `27 Sept 2026` at those widths — and a size mismatch bypasses the
+threshold. At `desktop` the content fits in 900px either way, so only
+`maxDiffPixelRatio: 0.01` applies, the changed pixels are the eight date stamps, and the
+case **passes while its picture shows a date the screen no longer draws.** That is standing
+order §21's species exactly: a picture wrong by less than the threshold, defended by the
+suite that is supposed to catch it.
+
+**Not regenerated, deliberately.** Regenerating bakes in whatever today's date is and the
+same three images go stale again the next time anything writes a journey — including the
+next `npm run test:e2e`. It would convert a visible failure into an invisible one, which is
+the trade §110 and §111 were written to refuse.
+
+**What would close it, with the cost of each:**
+
+- **Mask the dated regions** — the "Lately" timestamps, the publish line and the rail
+  footer. Cheapest, and it keeps the layout under test while dropping the datum. The cost
+  is that the masked area is then photographed by nothing, and standing order §21 measured
+  that `--update-snapshots=changed` does **not** reliably regenerate an image whose only
+  change is inside a new mask: the affected files have to be deleted and the run allowed to
+  write them fresh, and one of them opened and looked at.
+- **Pin the data** — a fixture that sets `updatedAt` on the rows this screen reads, so the
+  picture is of a known day. Stronger, because the dates stay under test; more expensive,
+  because `updated_at` is Payload-owned and writing it means going round the ORM, and
+  because the fixture then has to be torn down in a developer's own database.
+
+Nothing here is a defect of the admin: the screen draws the right dates. It is a defect of
+the baseline, and it was found by running the two local suites in one sitting, which
+nothing on this branch had done before.
+
+**Recorded as:** this entry, and §115, which is the other half of "the local suites
+interfere with each other and CI does not see it".
