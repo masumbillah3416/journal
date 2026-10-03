@@ -367,6 +367,40 @@ enough to stay here whole.
 
 **Detail:** `docs/testing/05-visual-regression.md`
 
+#### 5.1 · The Phase 4 specification re-diff — SCREENS.md §2 against the tree
+
+A picture catches drift from the last picture. It does not catch a screen that never
+matched the handoff, so the Phase 4 close read `SCREENS.md` §2.1–§2.11 against the source
+mechanically. Recorded here, with its predicates, because a figure nobody can re-derive is
+not a measurement — and because the one thing it found is easier to lose than to re-find.
+
+**Copy strings — 90 of 90 resolve.** Every run of §2 between straight or curly double
+quotes, 2–120 characters, deduplicated, matched against the text of every `.ts`/`.tsx`/
+`.css` file git lists under `apps/web` and `packages`: verbatim, or with
+`{placeholder}`-delimited fragments of four characters or more. 85 verbatim, 3 through
+placeholders. Two are pure placeholder plus a unit and the predicate cannot judge them —
+`"{n} ms"` and `"{n} px"`, §2.6's slider readouts, which
+`apps/web/components/admin/book/BookSettings.test.tsx` asserts as `'1250 ms'` and
+`'260 px'`.
+
+**CSS values — 68 of 69 resolve.** Every backticked run of §2 beginning with a colour, a
+number, a unit or a CSS function, matched over the same corpus after normalising whitespace
+and `rgba(r,g,b,a)` to `rgb(r g b / a%)`. 62 matched by the predicate; 7 were read by hand,
+six of them present behind a design token or a spelling difference.
+
+**The sixty-ninth does not resolve, and it is `docs/deviations.md` §117**: §2.3 gives the
+ticked journey-pool tile `0 0 0 2px #a34434`, an OUTER ring, and
+`apps/web/components/admin/editor/editor.module.css`'s `.tileTicked` draws
+`inset 0 0 0 2px var(--td-accent)`. The divergence is two literals and is certain; whether
+it is visible needs a browser and is UNRESOLVED. **A careless reading of this audit counted
+it as resolving** — the normalised search finds `0 0 0 2px` elsewhere in the same
+stylesheet — which is the failure mode of a "is this string present anywhere" predicate and
+the reason the predicate is written down beside the number.
+
+**What this audit is not.** It compares strings and values, not layout: a correct colour on
+the wrong element passes it. The pictures are what judge arrangement, and §116 and §118
+record what those pictures can and cannot be trusted to judge.
+
 ### 6 · Accessibility
 
 - **Tool:** axe-core in Playwright (`@axe-core/playwright`, `e2e/a11y.spec.ts`), via the
