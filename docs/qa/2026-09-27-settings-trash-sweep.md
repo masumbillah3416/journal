@@ -138,8 +138,13 @@ are pasted above; what was lost is one step of `git bisect` resolution, not the 
   URLs — and measured them: `/admin/settings` 137,907 script bytes and LCP 2,925.5ms,
   `/admin/trash` 137,907 and 2,926.6ms, both inside the gate. The sentence above stays as the
   sweeper wrote it because this document records build `404ebfe`, where it was true; this line
-  is here so a reader looking up the config's state does not take a dated record for the
-  current one.
+  is here so a reader looking up the config's state does not take a dated record for the current
+  one. **This bold labelled form, added by a later task, is new** — the nearest thing to it,
+  `docs/qa/2026-09-08-flip-address-lag-defect.md`'s "Those numbers are superseded by run 1", is
+  the same idea but is inline prose by the sweep's own author about its own earlier run. A
+  sweep's findings are a record and must not be rewritten; a sweep's statement about the state
+  of a configuration file is something a reader will act on, and the two need telling apart on
+  sight. If a later task disagrees, the thing to change is this form, not the sentence above it.
 - **The 500 in production mode.** SET-003 was observed against `npm run dev`; a production build
   answers the same status with a generic error page rather than the overlay. The fix removes the
   route to it either way.

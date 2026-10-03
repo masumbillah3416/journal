@@ -3274,11 +3274,13 @@ section for the floor the whole admin shares (2,926ms across eleven screens that
 re-stated.** Task 8's "roughly 1.3ms of simulated LCP per kilobyte" and the "155ms buys about
 120KB, which is six or seven thumbnails" that rests on it are no longer in `docs/testing.md` —
 Task 15c deleted that sentence — so the citation below points at a document that says something
-else. What replaced it is **not** a different exchange rate: the three image-bearing screens
-measured in one run put the rate anywhere between 1.0 and 4.3ms per KB, and Task 15c's own
-galleries probe removed 66,695 bytes and made the LCP **worse by 80ms**. **There is no
-established bytes-to-milliseconds rate for this gate, at any value.** What is measured is the
-159ms of headroom and what the two probes actually delivered.
+else. What replaced it is **not** a different exchange rate. Of the three screens that draw an
+image, only **two** put one on the LCP path — `/admin/cover`'s largest element is a `<div>` with
+both load phases at zero — and those two put the rate anywhere between 1.0 and 4.3ms per KB.
+Task 15c's galleries probe then removed 66,695 bytes and the screen did not come under the gate
+in any of its five runs. **There is no established bytes-to-milliseconds rate for this gate, at
+any value.** What is measured is the 159ms of headroom and what the two probes actually
+delivered.
 
 **What changed:** `CLAUDE.md` §6 makes LCP ≤ 3,085ms a hard gate for every admin screen, and
 `lighthouserc.admin.json` is where a screen is judged. `/admin/media` was added to it, measured,
@@ -3459,12 +3461,12 @@ in the config: **LCP median 3,762.1ms** over five runs of 3,558.5 / 4,148.7 / 3,
 that is in the config, `bootup-time` scores **1 at 0.1s**, `mainthread-work-breakdown` scores
 **1 at 0.3s**, `render-blocking-resources` scores 1 with no items, and total blocking time is
 16ms — there is no 2.9 seconds of main thread on this screen to remove. What Lighthouse reports
-instead is `uses-responsive-images` at **score 0**, and the single item it names is the LCP
-element: the selected-frame panel's preview, served from the Bergen hero's 1200×900 `frame`
-derivative and painted at **252×150 CSS px**, 66,055 bytes of which 63,792 are called wasted.
-**That audit names nine items, not one** — the preview is 38% of its 165 KiB headline and the
-other eight are the grid's 400×400 `thumb` tiles, which the run measures at 152×152 CSS px and
-which are therefore oversized at a real display's ratio too (152 × 1.75 = 266 against 400). So
+instead is `uses-responsive-images` at **score 0, naming nine items** that sum to 168,630 wasted
+bytes — its "165 KiB" headline. The largest is the LCP element: the selected-frame panel's
+preview, served from the Bergen hero's 1200×900 `frame` derivative and painted at **252×150 CSS
+px**, 66,055 bytes of which 63,792 are called wasted — **38% of the headline, not all of it**.
+The other eight are the grid's 400×400 `thumb` tiles, which the run measures at 152×152 CSS px
+and which are therefore oversized at a real display's ratio too (152 × 1.75 = 266 against 400). So
 this screen and `/admin/media` miss the gate for the SAME reason — photographs — and this
 entry's "a different one" is wrong. What differs is only which rung is at fault: the Media
 grid's `thumb` is correctly sized for a real display (entry 73) and this preview is oversized
@@ -3473,9 +3475,12 @@ smallest **uncropped** rung the ladder offers is `frame` at 1400, and
 `apps/web/lib/media/derivativeGeometry.test.ts` is what forbids this preview reaching for a
 cropped one. **What such a rung would buy was then measured rather than estimated, and it is
 nothing:** with the preview temporarily drawn from `thumb` — smaller than any correct uncropped
-rung could be — this screen's image weight fell from 194,346 to 127,651 bytes and its LCP
-median moved from 3,762.1ms to **3,841.8ms**, the wrong way and inside its own spread, because
-the LCP element simply became a grid tile. The substitution was in fact a BETTER best case than
+rung could be — this screen's image weight fell from 194,346 to 127,651 bytes and **not one of
+its five runs came under the gate**, the lowest reading 3,775ms against 3,085. Its median moved
+from 3,762.1ms to 3,841.8ms, which is **not** a reading in either direction: this screen's own
+five runs span 416–590ms, so an 80ms difference between two medians is inside the instrument.
+What is outside the instrument is the 690ms the best probe run still had to find. The LCP
+element simply became a grid tile. The substitution was in fact a BETTER best case than
 any rung: the `thumb` it reached for was already being fetched by the grid, so the preview's
 marginal cost in the probe was **zero**. `docs/testing.md`'s Task 15c section carries that probe
 and the equivalent one for `/admin/media`, which bought 601ms of a required 1,095ms.
@@ -3485,10 +3490,28 @@ reverse it: less script before the first paint", below, is the withdrawn main-th
 wearing a different sentence — on all five runs in the config `bootup-time` scores 1 at 0.1s
 and `mainthread-work-breakdown` 1 at 0.3s, so there is no script before the first paint left to
 remove. Read top to bottom without this paragraph, the entry would send a future task down a
-route this segment measured as empty. **The real reversal conditions are the two entry 73
-names:** a smaller uncropped rung for the preview — worth 63,792 of the `uses-responsive-images`
-audit's 168,630 wasted bytes, and measured above at nothing against a 677ms shortfall — and the
-budget decision about admin screens that draw photographs, which is the owner's.
+route this segment measured as empty.
+
+**WHAT REPLACES IT IS THIS SCREEN'S OWN, AND NOT ENTRY 73'S.** Entry 73 names two conditions, a
+rung smaller than `thumb` for the **Media** tile — which its own header then withdraws, because
+214 CSS px at DPR 1.75 needs 375 device pixels and `thumb` is 400 — and the budget decision.
+**Neither is a rung for this screen's preview, and this entry said they were.** Only the second
+carries across: the budget decision about admin screens that draw photographs is the owner's and
+applies to both screens.
+
+This screen's own conditions, from its own measurements, are:
+
+- **A smaller uncropped rung for the 150px preview**, which is 63,792 of the
+  `uses-responsive-images` audit's 168,630 wasted bytes. **Stated as a defect to fix and NOT as
+  a way out of the gate**: the probe above substituted something smaller than any correct
+  uncropped rung could be and left the screen 690ms over at its best run. It is worth doing and
+  it does not reverse this entry.
+- **A smaller square rung for the eight grid tiles**, which are the audit's other eight items.
+  Those are drawn at 152×152 CSS px, so at DPR 1.75 they need 266 device pixels against the
+  400px `thumb` — oversized at a real display's ratio, unlike the Media grid's. This is the one
+  condition that is this screen's alone and that entry 73's withdrawal does not reach.
+
+Neither rung has been measured as sufficient and the probe is evidence that the first is not.
 
 **What changed:** `CLAUDE.md` §6 makes LCP ≤ 3,085ms a hard gate for every admin screen, and
 `lighthouserc.admin.json` is where a screen is judged. `/admin/galleries` was measured against

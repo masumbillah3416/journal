@@ -568,6 +568,10 @@ the fold. Read the LCP column first when this gate goes red.
 
 One `npm run test:perf` on this Windows host, production `next build` + `next start`, five runs
 per URL, medians, 1440x900 desktop emulation at DPR 1, against the developer `diary` database.
+**Every figure in this section is from the run of 2026-10-01**, and saying so is not ceremony:
+`lhci`'s `upload.outputDir` ACCUMULATES, so `lhci-reports/admin/` already holds a later run's
+seventy reports beside these seventy. A recomputation that reads the directory without filtering
+on the timestamp in each filename averages two runs and reproduces none.
 **The final URL is the requested one in every row**, which is what says the collector's session
 survived into the run rather than that the sign-in pane was measured fourteen times.
 
@@ -613,9 +617,12 @@ share one number, 137,907 in six requests, because `/admin/settings`, `/admin/tr
 `/admin/account` and `/admin/sign-in/done` carry **no `'use client'` module at all**. The whole
 spread across fourteen screens is **5,128 bytes**, which is the gap between the heaviest screen
 and those four — not the cost of the fourteen islands this phase shipped, which no screen
-carries all of. Subtracting 137,907 from each screen gives what its own islands cost: 5,128 for
-`/admin/media`'s two, 4,920 for `/admin/galleries`' one, 4,015 for `/admin/book`'s two, 2,168
-for `/admin/journeys`' two, 1,981 for `/admin/publish`' one, 1,453 for `/admin`'s one. Eleven
+carries all of. Subtracting 137,907 from each of the **ten** screens with a nonzero remainder
+gives what that screen's own islands cost: 5,128 for `/admin/media`, 4,920 for
+`/admin/galleries`, 4,015 for `/admin/book`, 3,538 for `/admin/sign-in/code`, 2,966 for
+`/admin/cover`, 2,777 for `/admin/sign-in`, 2,620 for `/admin/reset`, 2,168 for
+`/admin/journeys`, 1,981 for `/admin/publish` and 1,453 for `/admin`. The other four are the
+137,907 floor itself. Eleven
 screens were predicted free before they were collected, and a prediction is not a number — these
 are the numbers.
 
@@ -649,13 +656,20 @@ measure it.
 not going to print one.** The two rows that do put an image on the LCP path disagree by more
 than four times — 4.3ms per KB against 1.0 — over a sample of two; and the probe below
 **falsifies even the higher figure**: taking 66,695 image bytes off `/admin/galleries` should
-have been worth about 287ms at 4.3ms/KB and delivered **+80ms**, the wrong way. Anyone sizing a
-fix from a rate here will get the wrong answer. The two numbers that ARE measured are the
-159ms of headroom, and what the two probes below actually delivered.
+have been worth about 287ms at 4.3ms/KB, and not one of the five runs that followed came under
+the gate — the best of them still 690ms over. Anyone sizing a fix from a rate here will get the
+wrong answer. The two numbers that ARE measured are the 159ms of headroom, and what the two
+probes below actually delivered.
 
 `/admin/cover` is still the screen to watch when this gate next moves: at 3,003.8ms it has
-**81ms of margin**, the least of the twelve that pass. What would make it go red, on the
-measurement above, is render delay rather than another kilobyte.
+**81ms of margin**, the least of the twelve that pass. **What would make it go red is not
+established, and the two candidates are not exclusive.** What is measured is that its 77.8ms
+over the floor is Render Delay; what is NOT measured is whether the portrait's bytes feed that
+delay, and if the cause is decode then they do. `/admin/book`'s LCP element is also a `<div>`
+and it sits on the floor at 2,927.5ms, so being a `<div>` costs nothing by itself — the only
+thing that distinguishes cover from the eleven floor screens is that it draws an image. Treat
+both a heavier portrait and more render work as able to spend the 81ms until something
+separates them.
 
 ### `/admin/media` AND `/admin/galleries` ARE IN THE CONFIG AND RED, WHICH IS THE POINT
 
@@ -758,16 +772,24 @@ total fell by exactly that (194,346 − 66,695 = 127,651, to the byte) and its r
 exactly one. **The preview's marginal cost in the probe was zero**, which no uncropped rung can
 match, so what follows is a ceiling on the fix rather than an estimate of it.
 
-| screen             | image bytes             | LCP median              | still over by |
-| ------------------ | ----------------------- | ----------------------- | ------------- |
-| `/admin/galleries` | 194,346 → **127,651**   | 3,762.1 → **3,841.8ms** | 757ms         |
-| `/admin/media`     | 1,260,054 → **427,468** | 4,180.2 → **3,579.6ms** | 495ms         |
+| screen             | image bytes             | LCP median              | best of the five runs | that run is still over by |
+| ------------------ | ----------------------- | ----------------------- | --------------------- | ------------------------- |
+| `/admin/galleries` | 194,346 → **127,651**   | 3,762.1 → **3,841.8ms** | **3,775ms**           | 690ms                     |
+| `/admin/media`     | 1,260,054 → **427,468** | 4,180.2 → **3,579.6ms** | **3,560ms**           | 475ms                     |
 
-**Taking a third of the image weight off `/admin/galleries` bought nothing at all** — the
-number moved 80ms the WRONG way, inside the 3,558–4,149ms spread the unpatched screen already
-shows. The reason is in the probe's own LCP element: with the preview small, **the LCP element
-became a grid tile** — a 400×400 `thumb` painted at 152×152 — and `uses-responsive-images` still
-scored 0, now naming 101 KiB. A screen covered in photographs does not get faster when you
+**THE BEST-RUN COLUMN IS THERE BECAUSE THE MEDIAN COLUMN CANNOT CARRY THIS ARGUMENT.** These
+two screens are the only ones in the admin whose five runs disagree with each other: unpatched,
+`/admin/galleries` spans 3,558–4,149ms and `/admin/media` 3,561–4,189ms, so a difference of a
+couple of hundred milliseconds between two medians of five is inside the instrument and is not a
+reading. **What is outside it is that neither probe produced a single run under 3,085ms, in ten
+tries**, and that the best of them were still 690ms and 475ms over. Every conclusion below rests
+on that and not on the medians moving.
+
+**So taking a third of the image weight off `/admin/galleries` bought no measurable
+improvement** — its median moved 80ms, which this screen's own spread makes unreadable in either
+direction. The reason is in the probe's own LCP element: with the preview small, **the LCP
+element became a grid tile** — a 400×400 `thumb` painted at 152×152 — and `uses-responsive-images`
+still scored 0, now naming 101 KiB. A screen covered in photographs does not get faster when you
 shrink the largest one; the title passes to the next one.
 
 **Taking two thirds off `/admin/media` bought 601ms of a required 1,095ms.** Its LCP element is
