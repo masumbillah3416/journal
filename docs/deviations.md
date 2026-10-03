@@ -4875,9 +4875,9 @@ cleanup is keyed to a label a spec still names.
 1. **The wrapper hole is closed by REFUSAL rather than by resolution.** The guard now finds EVERY
    call site of `aSignedInSession` — whatever its argument, by balancing parentheses rather than
    by matching a literal — and a call whose label it cannot read is no longer skipped: it lands
-   in `cannotRead`, and the case fails naming THIS GUARD rather than the spec. A wrapper is
-   caught by that with no rule of its own, because a wrapper's body is itself a call site whose
-   argument is a parameter. Measured: a wrapper minting a thirteenth label into
+   in `cannotRead`, and the case fails naming THIS GUARD rather than the spec. A wrapper
+   **declared in the spec** is caught by that with no rule of its own, because a wrapper's body
+   is itself a call site whose argument is a parameter. Measured: a wrapper minting a thirteenth label into
    `e2e/a11y.spec.ts` left the old pattern reporting the same twelve labels it reported before
    the wrapper existed — green, on a spec that leaks — and turns the new guard red. Resolving the
    call graph is **declined**, with its cost stated rather than implied: a resolver would owe an
@@ -4885,6 +4885,20 @@ cleanup is keyed to a label a spec still names.
    `.map` and a default argument, and the paragraph above says a guard that half-resolves a call
    graph is a guard whose limits nobody can state. A refusal has one limit, and the failure
    message is it: hand the label at the call site, or teach the guard the shape.
+
+   **WHAT THE REFUSAL STILL DOES NOT CLOSE, named here rather than left inside the resolver's
+   cost (review round 1, F3).** The guard reads ONE FILE per spec, so a wrapper imported from
+   `e2e/support/` leaves no `aSignedInSession` text in the spec at all — nothing to refuse, and a
+   label minted that way and never deleted leaves every case green. That was listed above only as
+   one of four things a resolver would owe an answer for; it is also a hole of the refusal, and it
+   is one import away. It is bounded, not closed: each scanned spec now carries a floor on the
+   labels it mints (twelve for `e2e/a11y.spec.ts`, fifteen for `e2e/visual.spec.ts`), so today's
+   labels cannot move out of a scanned file unless somebody lowers a number in review. A label
+   that was never in one can still be added through an import, and nothing says so. The cheap
+   closure, if it is ever wanted, is to scan `e2e/support/**` for `aSignedInSession` call sites
+   too and refuse any whose argument is not a literal; that needs no call graph. It is not taken
+   here because nothing under `e2e/support/` mints today, and a mechanism with no case against it
+   is the species this round was spent removing.
 
 2. **The swallowed deletion is split, and only the half a static check can reach is built.** A
    cleanup whose `removeSignedInFixture` sits inside a `try`/`catch` is refused rather than
@@ -4899,7 +4913,9 @@ cleanup is keyed to a label a spec still names.
 **What would reverse it:** for the deletion's remaining half, an after-the-run assertion against
 `diary` from a harness that owns its own database; for the debris, one sweep that deletes every
 row under the fixture domain, run when no browser suite is in flight. `npm run db:seed` also
-resets that database. The wrapper half needs no reversal: it is closed.
+resets that database. The wrapper half is closed **for a wrapper declared in the spec**, which is
+the one this entry's own example wrote; the imported wrapper above is its remaining hole, and what
+would close it is the `e2e/support/**` scan named there.
 
 **Recorded as:** this entry, and the paragraph at
 `e2e/ciRegistration.test.ts`'s own case naming what it refuses and what it still cannot see.

@@ -803,6 +803,14 @@ test('matches the baseline screenshot of the sign-in screen', async ({ page }) =
  * cannot read is REFUSED rather than skipped — so a helper that minted would
  * turn this file red instead of leaking an account silently. Minting at the
  * call site keeps every label readable.
+ *
+ * THAT HOLDS BECAUSE THIS HELPER IS DECLARED HERE, which is the half the
+ * sentence above left out until review round 1 (F3). The guard reads this ONE
+ * FILE: a minting helper imported from `e2e/support/` would leave no
+ * `aSignedInSession` call site in this spec at all, so there would be nothing
+ * for it to refuse and the leak would be silent again. Minting at the call
+ * site is what keeps the claim true; importing a minter is what would break it
+ * without anything going red.
  * @param context - The case's browser context.
  * @param baseURL - Playwright's own, for the cookie's URL.
  * @param session - What `aSignedInSession` returned at the call site.

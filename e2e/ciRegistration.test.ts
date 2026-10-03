@@ -289,6 +289,23 @@ const SWALLOWS = /\b(?:try|catch)\b/u
 /** One label a cleanup removes by name. */
 const REMOVED_LABEL = /removeSignedInFixture\(`([A-Za-z0-9-]+)\./gu
 
+/**
+ * How many distinct labels each scanned spec mints, as a floor.
+ *
+ * `toBeGreaterThan(1)` until review round 1 (F3), which is a floor that eleven
+ * of thirteen labels can walk under: move a case's minting into a helper
+ * imported from `e2e/support/` and trim the cleanup list to match, and both
+ * directions agree about the labels that are left while the spec quietly stops
+ * being read. At the measured count, that edit has to lower a number somebody
+ * reviews. Twelve and fifteen when this was written; raising them is the
+ * ordinary cost of adding a case, and LOWERING one is the decision this exists
+ * to make visible.
+ */
+const A11Y_MINTS_AT_LEAST_THIS_MANY_LABELS = 12
+
+/** The same floor for `e2e/visual.spec.ts`. */
+const VISUAL_MINTS_AT_LEAST_THIS_MANY_LABELS = 15
+
 /** One entry of a declared label list. */
 const LISTED_LABEL = /'([A-Za-z0-9-]+)'/gu
 
@@ -435,9 +452,24 @@ const firstArgumentsOf = (source: string, call: string): readonly string[] => {
  * `eslint-rules/guarded-server-actions.js` uses): **every** call site of
  * `aSignedInSession` is found, and one whose first argument is not a literal
  * label is not skipped — it is reported as something this guard cannot read,
- * which the cases below turn into a failure naming THIS FILE. A wrapper is
- * caught by that automatically: its own body contains
- * `aSignedInSession(label)`, an argument that is not a literal.
+ * which the cases below turn into a failure naming THIS FILE. A wrapper
+ * DECLARED IN THE SPEC is caught by that with no rule of its own: its own body
+ * contains `aSignedInSession(label)`, an argument that is not a literal.
+ *
+ * ═══ AND A WRAPPER THAT IS NOT IN THE SPEC IS NOT CAUGHT AT ALL ═══
+ *
+ * The sentence above said "a wrapper" without the qualifier until review round
+ * 1 (F3), and the qualifier is the whole of what this guard can see.
+ * {@link fixtureLabelsOf} reads ONE FILE. A spec that imports its wrapper from
+ * `e2e/support/` carries no `aSignedInSession(` text at all, so there is nothing
+ * to refuse: a label minted that way, and never deleted, leaves every case here
+ * green — measured, one import away. That is a remaining hole of the REFUSAL,
+ * not merely a cost of the declined resolver, and `docs/deviations.md` §108 now
+ * says so in those words.
+ *
+ * What bounds it is {@link A11Y_MINTS_AT_LEAST_THIS_MANY_LABELS} and its pair:
+ * labels cannot MIGRATE out of a scanned spec without the floor noticing. A
+ * label that was never in one can still be added, and nothing here sees it.
  *
  * WHY REFUSAL RATHER THAN RESOLVING THE CALL GRAPH, which is what §108
  * imagined. A resolver would have to answer for a wrapper's wrapper, a wrapper
@@ -662,17 +694,24 @@ test('deletes every fixture account e2e/a11y.spec.ts creates, so a run leaves no
   // It reads source, and `docs/deviations.md` §108 named two holes that left.
   // Neither is silent any more, and neither is resolved either — both now make
   // the guard REFUSE, which is this file's own `null`-is-not-`[]` doctrine
-  // applied to the minting side. A label minted through a wrapper
-  // (`mint(label) => aSignedInSession(label)`) used to be invisible; the call
-  // site is now found whatever its argument, and an argument this guard cannot
-  // read lands in `cannotRead` above. A `removeSignedInFixture` inside a
-  // swallowing `try/catch` used to count as a deletion; the cleanup block is
-  // now refused instead.
+  // applied to the minting side. A label minted through a wrapper DECLARED IN
+  // THIS SPEC (`mint(label) => aSignedInSession(label)`) used to be invisible;
+  // the call site is now found whatever its argument, and an argument this
+  // guard cannot read lands in `cannotRead` above. A `removeSignedInFixture`
+  // inside a swallowing `try/catch` used to count as a deletion; the cleanup
+  // block is now refused instead.
   //
-  // WHAT REMAINS, STATED RATHER THAN IMPLIED: this still cannot tell a deletion
-  // that RAN from one that DELETED ANYTHING. Nothing static can — only an
-  // assertion against a live `diary` after a real run — and §108 records that
-  // as declined with its cost rather than left as a hole with a comment on it.
+  // WHAT REMAINS, STATED RATHER THAN IMPLIED: two things, not one.
+  //
+  // This still cannot tell a deletion that RAN from one that DELETED ANYTHING.
+  // Nothing static can — only an assertion against a live `diary` after a real
+  // run — and §108 records that as declined with its cost rather than left as a
+  // hole with a comment on it.
+  //
+  // And it reads ONE FILE, so a wrapper IMPORTED from `e2e/support/` leaves no
+  // call site here to refuse (review round 1, F3). The floor above is what
+  // stops today's labels moving out that way unseen; a label that was never
+  // here can still be added through an import, and this guard will not say so.
   //
   // BOTH DIRECTIONS, since Phase 4 Task 15. A label minted and never removed
   // leaks an account; a label removed and never minted is a no-op delete that
@@ -688,8 +727,8 @@ test('deletes every fixture account e2e/a11y.spec.ts creates, so a run leaves no
   ).toEqual([])
   expect(
     minted.length,
-    'no aSignedInSession labels found — the extraction, not the spec, is what broke',
-  ).toBeGreaterThan(1)
+    'fewer labels than e2e/a11y.spec.ts is known to mint: either the extraction broke, or a case now mints through something this guard cannot see',
+  ).toBeGreaterThanOrEqual(A11Y_MINTS_AT_LEAST_THIS_MANY_LABELS)
   expect(
     minted.filter((label) => !removed.includes(label)),
     'these labels create an account that nothing deletes when the suite finishes',
@@ -723,8 +762,8 @@ test('deletes every fixture account e2e/visual.spec.ts creates, so a run leaves 
   ).toEqual([])
   expect(
     minted.length,
-    'no aSignedInSession labels found — the extraction, not the spec, is what broke',
-  ).toBeGreaterThan(1)
+    'fewer labels than e2e/visual.spec.ts is known to mint: either the extraction broke, or a case now mints through something this guard cannot see',
+  ).toBeGreaterThanOrEqual(VISUAL_MINTS_AT_LEAST_THIS_MANY_LABELS)
   expect(
     minted.filter((label) => !removed.includes(label)),
     'these labels create an account that nothing deletes when the suite finishes',
