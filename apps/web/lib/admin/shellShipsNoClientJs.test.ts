@@ -367,14 +367,36 @@ describe('the declared client islands', () => {
 })
 
 /**
- * The hooks that give a client a Server Action's return value.
+ * Comments, removed before the patterns below are asked anything.
  *
- * A CALL, NOT A MENTION. Two module headers name `useActionState` in prose
- * precisely because nothing uses it, and a check that matched the name would
- * be satisfied by the sentence claiming the opposite \u2014 standing orders \u00a717, a
- * guard that names a thing is not a guard that the thing happens.
+ * TWO MODULE HEADERS NAME THESE HOOKS IN PROSE precisely because nothing uses
+ * them, so a check run over raw text has to tell a sentence from a call. The
+ * first version of this did it by requiring a `(` straight after the name,
+ * which a re-review measured as wrong in both directions: it MISSED
+ * `useActionState<number>(\u2026)`, the commonest TypeScript spelling, and it
+ * REPORTED the prose `useActionState (the hook)`. Stripping comments first
+ * removes the question instead of narrowing it.
+ *
+ * WHAT IT COSTS: a hook inside commented-out code is not reported, which is
+ * correct \u2014 commented code does not run \u2014 and a `//` inside a string literal
+ * truncates the rest of that line, which could in principle hide a call
+ * written after a URL on one line. Neither has an instance in this tree.
  */
-const FORM_STATE_HOOKS = /\buse(?:Action|Form)State\s*\(/u
+const COMMENTS = /\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu
+
+/**
+ * The two ways a file gets at a Server Action's return value.
+ *
+ * BOTH ARMS, BECAUSE EITHER ALONE HAS A HOLE. The call arm admits `<` as well
+ * as `(` so the generic spelling is caught; the import arm catches a hook
+ * brought in under another name (`import { useActionState as u }`), which no
+ * call-site pattern can see. Measured against both, plus `useFormState`, plus
+ * a namespace member call.
+ */
+const FORM_STATE_HOOKS = [
+  /\buse(?:Action|Form)State\s*[<(]/u,
+  /import[^;]*\buse(?:Action|Form)State\b[^;]*from\s*['"]react(?:-dom)?['"]/u,
+]
 
 /** The separator `git ls-files -z` writes between paths. */
 const NUL = String.fromCharCode(0)
@@ -427,9 +449,10 @@ describe('what a Server Action may answer', () => {
    * fact itself, asked of every file the repository holds.
    */
   it('holds no form action\u2019s return value, because the factory may answer undefined', () => {
-    const readers = sourceFiles().filter((file) =>
-      FORM_STATE_HOOKS.test(readFileSync(path.join(REPOSITORY_ROOT, file), 'utf8')),
-    )
+    const readers = sourceFiles().filter((file) => {
+      const code = readFileSync(path.join(REPOSITORY_ROOT, file), 'utf8').replace(COMMENTS, ' ')
+      return FORM_STATE_HOOKS.some((pattern) => pattern.test(code))
+    })
 
     expect(
       readers,
@@ -437,7 +460,15 @@ describe('what a Server Action may answer', () => {
     ).toEqual([])
   })
 
-  it('reads real files, so the case above cannot pass by listing nothing', () => {
-    expect(sourceFiles().length).toBeGreaterThan(100)
+  it('reads the islands themselves, not merely a hundred files from somewhere', () => {
+    // A FLOOR TIED TO WHERE THE RISK IS. A count alone passes on this
+    // repository's non-`apps/web` files with every admin module filtered out,
+    // so it guards "git returned something" rather than "git returned the
+    // eight places a hook could be added". These are those eight.
+    const listed = new Set(sourceFiles())
+
+    expect(
+      ISLANDS.map((island) => `apps/web/${island.file.split(path.sep).join('/')}`).filter((file) => !listed.has(file)),
+    ).toEqual([])
   })
 })

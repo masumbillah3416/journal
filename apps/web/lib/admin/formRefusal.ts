@@ -9,10 +9,17 @@
  *
  * ═══ THE CARRIER IS A COOKIE THAT THE BROWSER IS TOLD TO DISCARD ═══
  *
- * A Server Action cannot hand a value to the render that follows it: these
- * screens hold no client state (`shellShipsNoClientJs.test.ts`), so there is no
- * `useActionState` to receive a returned refusal. What a Server Action CAN do
- * is write a cookie, and three things about that were measured in Chromium
+ * A Server Action cannot hand a value to the render that follows it. These
+ * screens are not free of client state — eight declared islands hold some, and
+ * `CreatePanel.tsx` holds a boolean this very mechanism sets — but no file in
+ * this repository calls `useActionState` or `useFormState`, which are the only
+ * way a client receives what an action returned. That is asserted rather than
+ * asserted-about: `shellShipsNoClientJs.test.ts`'s `holds no form action's
+ * return value, because the factory may answer undefined` walks git's own
+ * listing for it. (Its other cases judge which MODULES carry `'use client'`
+ * and cannot see a hook added inside a declared island; this header said they
+ * could for a fix round, and they cannot.) What a Server Action CAN do is
+ * write a cookie, and three things about that were measured in Chromium
  * against this app rather than assumed:
  *
  *   1 · A cookie set inside the action is readable by the render that follows

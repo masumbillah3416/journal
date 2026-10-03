@@ -607,10 +607,12 @@ A fix round's first version of this paragraph read one noise floor off the two w
 stated it for all fourteen. That is the wrong shape: a 240ms floor would license dismissing a real
 200ms regression on any of the other twelve. Both runs' 140 stored reports, re-read per URL:
 
-- **The eleven screens that load no image drifted 1.3ms to 5.7ms** between the two runs, and their
-  within-run spread in 15c was 1.9ms to 8.5ms. They are reproducible on this host to single-digit
-  milliseconds, with one outlier worth naming rather than smoothing: `/admin/sign-in` spread
-  **61.4ms** inside 15d's own five runs, all of it a slow first pass.
+- **The eleven screens that load no image drifted 1.3ms to 5.7ms** between the two runs. Their
+  within-run spread **in 15c** was 1.9ms to 8.5ms; **in 15d it was not**, and both exceptions are
+  named rather than smoothed: `/admin/sign-in` spread **61.4ms** (2,990.0 then 2,932.5, 2,928.6,
+  2,933.3, 2,928.8 — one slow first pass) and `/admin` spread **20.0ms**. So "single-digit
+  milliseconds" is 15c's property, and what survives in both runs is the MEDIAN, which is what the
+  drift column reads.
 - **The two screens that fetch photographs are not reproducible at that resolution at all.**
   `/admin/media` drifted +247.6ms and `/admin/galleries` +237.6ms — and their WITHIN-run spread
   was already larger than that drift in 15c alone (627.7ms and 590.2ms across five runs of one

@@ -24,11 +24,18 @@
  * `<textarea>` or two behind an unbounded `z.string()` (`note`, `paragraph`),
  * so the value written here has no ceiling — and needs none, because the only
  * reader is the render of this same request, which reads the request-scoped
- * store rather than the browser's jar. A `Set-Cookie` too large for a browser
+ * store rather than the browser's jar. A `Set-Cookie` too large for a BROWSER
  * to keep costs nothing, since nothing ever reads it back; a cap would cost
  * the author the prose they had just written, which is the thing §104 exists
  * to stop losing. One sample carried 12,000 characters intact, and that is a
  * sample rather than a limit.
+ *
+ * WHAT IS NOT ESTABLISHED, said rather than implied: what a REVERSE PROXY in
+ * front of `next start` would do with an oversized response header. Nothing is
+ * deployed in front of this today and nothing was measured; a proxy with a
+ * header cap could turn a long refusal into a `502`, which would be a worse
+ * failure than the `500` this mechanism replaced. If one is ever put in front,
+ * measure it before trusting this paragraph.
  *
  * PATTERNS (CLAUDE.md §3.3). Repository, narrowly: one named thing is written
  * and read through two functions, and the storage it uses is not the caller's

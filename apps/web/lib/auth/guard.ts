@@ -372,15 +372,18 @@ export const requireAdminSession = async (): Promise<AuthenticatedSession> => {
  * THE TEST IS `FormData`-NESS, NOT FORM-DISPATCH-NESS, and the difference is
  * written here because this paragraph said the second for a fix round and the
  * tree does not agree with it. A `<form action={…}>` always sends a
- * `FormData`, so every one of those is caught — but so are the four slot
- * actions (`setSlotMedia`, `setSlotFocalPoint`, `setSlotText`, `clearSlot`),
+ * `FormData`, so every one of those is caught — but so are **three** actions
+ * that no form dispatches: `setSlotFocalPoint`, `setSlotText` and `clearSlot`,
  * which `SlotPanel.tsx` builds a `FormData` for and calls itself, from an
- * island. They are caught, and that is acceptable rather than accidental: the
- * island `void`s the promise, so it reads neither a rejection nor a resolved
- * `undefined`, and a refusal that reaches the screen as a notice is strictly
- * better than one that reaches it as a 500. What is NOT caught is an action
- * called with typed arguments — those have a caller holding the promise, and
- * handing it `undefined` would be a worse failure than a rejection.
+ * island. (`setSlotMedia` is NOT one of them, and a fix round's correction
+ * said it was: it is the journey pool's ordinary `<form action={place}>` —
+ * `JourneyPool.tsx`, wired at `journeys/[id]/page.tsx`.) The three are caught,
+ * and that is acceptable rather than accidental: the island `void`s the
+ * promise, so it reads neither a rejection nor a resolved `undefined`, and a
+ * refusal that reaches the screen as a notice is strictly better than one that
+ * reaches it as a 500. What is NOT caught is an action called with typed
+ * arguments — those have a caller holding the promise, and handing it
+ * `undefined` would be a worse failure than a rejection.
  *
  * WHICH IS WHY `undefined` IS AN HONEST ANSWER THERE. A `FormData` action has
  * no reader: Next discards what one returns unless a client is holding it with

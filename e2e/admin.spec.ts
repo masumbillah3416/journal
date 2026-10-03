@@ -2065,11 +2065,17 @@ test('leaves no refusal behind on the next screen, or on the way back', async ({
   // WHAT THIS MEASURES, AND WHAT IT DOES NOT. `maxAge: 0` means the browser
   // stores nothing, so a refusal cannot ride along to the next REQUEST. The
   // separate question is whether it could come back without a request at all,
-  // out of Next's client router cache — and **that question is unreachable in
-  // this admin**, because nothing here performs a client-side route
-  // navigation: the rail is a plain `<a href>` (`NavRail.tsx`), there is no
-  // `next/link` under `components/admin` or `app/(admin)`, and the only
-  // `next/navigation` uses are `useRouter().refresh()` in two islands.
+  // out of Next's client router cache.
+  //
+  // THIS CASE DOES NOT REACH THAT QUESTION, and an earlier version of this
+  // comment said the admin could not reach it at all, which is false. There is
+  // no `next/link` under `components/admin` or `app/(admin)`, so RAIL
+  // navigation is a document load — but `account/actions.ts`'s
+  // `changePassword` calls `redirect()` from a Server Action, which §104's own
+  // work measured as a client-side navigation when JavaScript is on, and
+  // `FrameGrid.tsx` and `Dropzone.tsx` call `useRouter().refresh()`, which is
+  // itself a router-cache operation. So the question is reachable elsewhere in
+  // the admin; it is this case's navigation that is not a soft one.
   //
   // An earlier version of this case claimed to cover the router cache and did
   // not. Rather than delete the claim and leave the reader guessing, the
@@ -2082,8 +2088,11 @@ test('leaves no refusal behind on the next screen, or on the way back', async ({
   // `next/link` and running this case: the assertion below went red with
   // `Array []` (a soft navigation issues no document request) — and every
   // assertion ABOVE it passed, so the refusal did not come back on either
-  // screen under a client-side navigation either. That configuration is not
-  // what ships, so what is asserted here is what ships.
+  // screen under a client-side navigation either. **That was on `next dev`**,
+  // which is what `playwright.config.ts` starts locally; CI runs a production
+  // build, where prefetching and router-cache lifetimes differ. So it is one
+  // reading on one build mode, not a property. That configuration is not what
+  // ships either, so what is asserted below is what ships.
   const navigations: string[] = []
   page.on('request', (request) => {
     if (request.isNavigationRequest() && request.url().includes('/admin/')) {

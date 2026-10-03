@@ -1654,10 +1654,12 @@ which four screens were measured doing.
 
 **THE TEST IS `FormData`-NESS, NOT FORM-DISPATCH-NESS**, and this paragraph said the second until
 a review measured the tree. Every `<form action={…}>` sends a `FormData`, so all of those are
-caught — and so are `setSlotMedia`, `setSlotFocalPoint`, `setSlotText` and `clearSlot`, which
-`SlotPanel.tsx` builds a `FormData` for and calls from an island. They are caught, and the island
-`void`s the promise, so it reads neither a rejection nor a resolved `undefined`; a refusal drawn
-on the screen is better than one that answers 500, so this is acceptable rather than accidental.
+caught — and so are **three** actions no form dispatches: `setSlotFocalPoint`, `setSlotText` and
+`clearSlot`, which `SlotPanel.tsx` builds a `FormData` for and calls from an island. (A fix round
+wrote `setSlotMedia` into that list and it does not belong there: it is the journey pool's
+ordinary `<form action={place}>`.) The three are caught, and the island `void`s the promise, so it
+reads neither a rejection nor a resolved `undefined`; a refusal drawn on the screen is better than
+one that answers 500, so this is acceptable rather than accidental.
 
 **An action called with typed arguments keeps its refusal as a rejection**, because there is a
 caller holding the promise: `requestUploadSlots`, `finaliseUpload`, `saveCover`,

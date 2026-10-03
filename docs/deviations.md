@@ -4585,7 +4585,8 @@ the most typed values behind it.
 
 **What was done.** `guardedAction` — the one factory every Server Action in this repository is
 built from, which `eslint-rules/guarded-server-actions.js` enforces — now catches a `ZodError`
-from an action dispatched by a form, hands it to the render that follows, and resolves. It is
+from an action **whose first argument is a `FormData`**, hands it to the render that follows, and
+resolves. It is
 there rather than in each action for the reason the factory exists: an action has nothing to
 remember. Three measurements shaped it, all taken in Chromium against this app:
 
@@ -4615,12 +4616,20 @@ redraw what was typed do add their hidden `refusalKeeps` inputs on every render,
 nodes with no box. That is why the eleven committed admin baselines compare equal — measured,
 not argued: `100 passed` in the container run.
 
-**WHAT IS NOT CLOSED, NAMED EXACTLY.** An action a client island calls with its own arguments
-keeps its refusal as a REJECTION rather than drawing it: `saveCover`, `saveBookSettings`,
-`requestUploadSlots`, `finaliseUpload` and the Galleries screen's five. That is deliberate —
-there is a caller holding the promise, and handing it `undefined` would be a worse failure than a
-rejection — and `guard.integration.test.ts`'s `keeps a value-returning action’s refusal as a
-rejection` is the case that keeps the line where it is. **No sequence of keystrokes reaches any
+**THE TEST IS `FormData`-NESS, NOT FORM-DISPATCH-NESS**, and this entry said the second for two
+fix rounds. Every `<form action={…}>` sends a `FormData`, so all of those are caught — and so are
+**three** actions no form dispatches: `setSlotFocalPoint`, `setSlotText` and `clearSlot`, which
+`SlotPanel.tsx` builds a `FormData` for and calls from an island. They are caught, and the island
+`void`s the promise, so it reads neither a rejection nor a resolved `undefined`; a notice beats a
+500, so this is acceptable rather than accidental. (`setSlotMedia` is **not** among them, and the
+first correction of this sentence said it was: it is the journey pool's ordinary
+`<form action={place}>` — `JourneyPool.tsx`, wired at `journeys/[id]/page.tsx`.)
+
+**WHAT IS NOT CLOSED, NAMED EXACTLY.** An action called with TYPED ARGUMENTS keeps its refusal as
+a REJECTION rather than drawing it, because there is a caller holding the promise: `saveCover`,
+`saveBookSettings`, `requestUploadSlots`, `finaliseUpload` and the Galleries screen's five. Handing one `undefined` would be a
+worse failure than a rejection, and `guard.integration.test.ts`'s `keeps a value-returning
+action’s refusal as a rejection` is the case that keeps the line where it is. **No sequence of keystrokes reaches any
 of their refusals** — read off the controls and the schemas rather than measured in a browser:
 four swatches, two range sliders bounded by the schema's own constants, a clamped click, and
 `CAPTION`/`TEXT`/`contentsNote`, which are bare `z.string()` and refuse no typed text at all. A
@@ -4929,7 +4938,7 @@ a spec that mutates shared state cannot share an invocation with one that photog
 **Recorded as:** this entry, the assertion and comment in `e2e/visual.spec.ts`'s Trash case, and
 §86's note on what the Trash baseline holds.
 
-## 112 · `admin-account-mobile` is 19px taller than the screen renders, and no code changed in between — owner: Phase 4 Task 15e
+## 112 · `admin-account-mobile` is 19px taller than the screen renders, and no APPLICATION code changed in between — owner: Phase 4 Task 15e
 
 **What is red.** `npm run test:visual:container` on `feat/phase-4-admin`: **100 passed, 1 failed,
 16 skipped**. The failure is the Account screen at the `mobile` project, and it is a size
@@ -4943,28 +4952,39 @@ Expected an image 390px by 2342px, received 390px by 2323px.
 was run against this branch's parent `e7640ef` and produced the identical failure, with the same
 two numbers and the same 100/1/16 — so the branch did not move it. And
 `git log e37421f..e7640ef -- apps/web` is **empty**: no application code changed between the
-commit that wrote `admin-account-mobile-linux.png` and this branch's parent. Nothing 15d did
+commit that wrote `admin-account-mobile-linux.png` and this branch's parent. **`apps/web` is what
+that command checks and all that it checks** — `e2e/visual.spec.ts` and `docker-compose.yml` did
+change in that range, in comments and in the Trash case's row-count assertion, neither of which
+the Account case passes through. Nothing 15d did
 could shorten a screen either — `RefusalNotice` answers `null` when there is nothing to draw, and
 a hidden input has no box — and if the shell had grown, all eleven admin baselines would be red
 rather than one.
 
 **WHICH IS WHY "THE IMAGE IS STALE" CANNOT BE THE WHOLE ANSWER, and this entry exists rather than
 a regenerated file.** §110's staleness had a cause anybody could read: the markup had changed and
-the picture had not. Here the markup did not change, so a 19px difference between what was
-photographed and what renders points at the DATA. `/admin/account`'s longest card is the session
-list, and §107 and §108 already record that admin screens in the developer's own `diary` database
-carry rows that fixtures left behind. A screen whose height depends on how many sessions a
-fixture account holds is a screen whose baseline depends on when it was taken.
+the picture had not. Here the markup did not change, so a 19px difference is between two renders
+of the same markup. **THIS ENTRY NAMES CANDIDATES AND DIAGNOSES NOTHING**, which is the honest
+state and also the thing a first draft of it got wrong by leaning on one:
+
+- **The environment.** The container image, the font set it rasterises with, and how a line wraps
+  at 390px. 19px is about one line of a wrapped label at this screen's type sizes, and a wrap is
+  the cheapest way for a page to change height without its markup changing.
+- **The data.** `/admin/account`'s longest card is the session list. But the visual case mints a
+  FRESH account per run (`aSignedInSession` in `e2e/visual.spec.ts`), so that list should hold one
+  row — which makes this the weaker candidate, not the stronger one. §107 and §108 record leftover
+  ACCOUNTS rather than extra sessions on a new one, so they are adjacent rather than the cause.
+
+Whoever closes this should measure which before changing anything.
 
 **What was NOT done, deliberately.** The image was not regenerated. Regenerating somebody else's
 baseline to clear a red is the churn `docker-compose.yml`'s `visual-update` service warns about in
 its own comment, and here it would also destroy the evidence: the next person would inherit a
 green run and no record that the screen's height is row-dependent.
 
-**What would reverse it:** a diagnosis of the 19px — which rows the Account screen was
-photographed with and which it renders with now — and then either a mask, a fixture that pins the
-list, or a regenerated baseline taken with the list in a state somebody chose. Until then the
+**What would reverse it:** a diagnosis of the 19px — which of the two candidates above it is,
+read off a diff of the two images rather than argued — and then either a mask, a fixture that pins
+what varies, or a regenerated baseline taken in a state somebody chose. Until then the
 branch's visual check is red for a reason that is written down.
 
-**Recorded as:** this entry, and §107/§108, which hold the fixture-row debris this most likely
-depends on.
+**Recorded as:** this entry. §107 and §108 hold the fixture-row debris that is one of the two
+candidates above; §110 and §111 are the other two baseline entries and neither explains this one.
