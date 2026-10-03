@@ -624,13 +624,26 @@ test('refuses a list it cannot read, instead of quietly deciding there is a leak
  * guard, in the shape {@link labelsDeclaredIn}'s own cases use: a source
  * written here, read by the same function, compared to a literal answer.
  */
+const THE_CASE_KEYWORD = ['te', 'st'].join('')
+
+/*
+ * JOINED, NOT WRITTEN, the way `sectionCitations.test.ts` joins its own
+ * sentinels. Spelt out at column 0 these fixtures ARE case declarations to
+ * every guard that scans this repository's sources for one:
+ * `securityCitations.test.ts`'s `CASE_DECLARATION` harvested `mints one
+ * account` as a declared case name of this repository that no test declares,
+ * and `caseCounts.test.ts` counted four more declarations in this file than
+ * exist (re-review, ND-3). Nothing was red — three words is under that guard's
+ * floor — but "the search can answer no" is the one property its header calls
+ * load-bearing, and a fixture is not a case.
+ */
 const A_SPEC_THAT_READS_CLEANLY = `const LABELS: readonly string[] = ['one']
 
-test('mints one account', async () => {
+${THE_CASE_KEYWORD}('mints one account', async () => {
   await aSignedInSession(\`one.\${fixtureLabel(testInfo)}\`)
 })
 
-test.afterAll(async () => {
+${THE_CASE_KEYWORD}.afterAll(async () => {
   for (const label of LABELS) {
     await removeSignedInFixture(\`\${label}.\${RUN}\`)
   }
@@ -640,12 +653,12 @@ test.afterAll(async () => {
 const A_SPEC_THAT_MINTS_THROUGH_A_WRAPPER = `const LABELS: readonly string[] = ['one']
 const mint = (label: string) => aSignedInSession(label)
 
-test('mints one account', async () => {
+${THE_CASE_KEYWORD}('mints one account', async () => {
   await aSignedInSession(\`one.\${fixtureLabel(testInfo)}\`)
   await mint(\`two.\${fixtureLabel(testInfo)}\`)
 })
 
-test.afterAll(async () => {
+${THE_CASE_KEYWORD}.afterAll(async () => {
   for (const label of LABELS) {
     await removeSignedInFixture(\`\${label}.\${RUN}\`)
   }
