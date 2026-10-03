@@ -4828,7 +4828,7 @@ real accounts in the developer's own `diary` database (`docs/deviations.md` §10
 
 **Two things it cannot see, both found by review rather than by use.**
 
-1. **A label minted through a wrapper is invisible.** `MINTED_LABEL` matches
+1. **A label minted through a wrapper is invisible.** The minting pattern matched
    `aSignedInSession(\`label.`at the call site, so`const mint = (label: string) => aSignedInSession(label)` mints accounts this guard never
    counts, and they leak in silence. It is a real hole on the _minted_ side and predates the
    guard's round-1 rewrite.
@@ -4852,13 +4852,39 @@ cleanup loop and which no rerun has reused. The rest — `sweep`, `sweeps`, `pro
 sweep and review probes whose specs are long deleted. Nothing will ever clean them, because a
 cleanup is keyed to a label a spec still names.
 
-**What would reverse it:** for the two holes, a guard that resolves through a wrapper and an
-after-the-run assertion against `diary`; for the debris, one sweep that deletes every row under
-the fixture domain, run when no browser suite is in flight. `npm run db:seed` also resets that
-database.
+**What was decided, Phase 4 Task 15e, for both holes rather than for one.**
+
+1. **The wrapper hole is closed by REFUSAL rather than by resolution.** The guard now finds EVERY
+   call site of `aSignedInSession` — whatever its argument, by balancing parentheses rather than
+   by matching a literal — and a call whose label it cannot read is no longer skipped: it lands
+   in `cannotRead`, and the case fails naming THIS GUARD rather than the spec. A wrapper is
+   caught by that with no rule of its own, because a wrapper's body is itself a call site whose
+   argument is a parameter. Measured: a wrapper minting a thirteenth label into
+   `e2e/a11y.spec.ts` left the old pattern reporting the same twelve labels it reported before
+   the wrapper existed — green, on a spec that leaks — and turns the new guard red. Resolving the
+   call graph is **declined**, with its cost stated rather than implied: a resolver would owe an
+   answer for a wrapper's wrapper, a wrapper imported from `e2e/support/`, a label built in a
+   `.map` and a default argument, and the paragraph above says a guard that half-resolves a call
+   graph is a guard whose limits nobody can state. A refusal has one limit, and the failure
+   message is it: hand the label at the call site, or teach the guard the shape.
+
+2. **The swallowed deletion is split, and only the half a static check can reach is built.** A
+   cleanup whose `removeSignedInFixture` sits inside a `try`/`catch` is refused rather than
+   counted — that is the arrangement not to find out, and it IS readable in source. Measured the
+   same way: wrapping that call turns the guard red naming the cleanup. Whether the call DELETED
+   ANYTHING stays unanswerable here and is **declined**, with its cost: those rows are in the
+   developer's own `diary`, not in `diary_test`, so an after-the-run assertion would either write
+   to a developer's real database on every `npm run verify:full` or need a fourth database
+   provisioned for it. The alternative that costs nothing is the one §107 used — count the rows
+   under the fixture domain before and after a run — and `npm run db:seed` resets that database.
+
+**What would reverse it:** for the deletion's remaining half, an after-the-run assertion against
+`diary` from a harness that owns its own database; for the debris, one sweep that deletes every
+row under the fixture domain, run when no browser suite is in flight. `npm run db:seed` also
+resets that database. The wrapper half needs no reversal: it is closed.
 
 **Recorded as:** this entry, and the paragraph at
-`e2e/ciRegistration.test.ts`'s own case naming both limits.
+`e2e/ciRegistration.test.ts`'s own case naming what it refuses and what it still cannot see.
 
 ## 109 · `MEDIA_PIPELINE=worker` is left refused, and the owed pass is named rather than scheduled
 

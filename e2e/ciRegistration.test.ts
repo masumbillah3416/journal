@@ -265,8 +265,17 @@ const CLEANUP_BLOCK = /test\.afterAll\(async[\s\S]*?\n\}\)/u
 /** A `for (const x of LIST) { … }` inside a cleanup, with its body. */
 const CLEANUP_LOOP = /for \(const (\w+) of (\w+)\) \{([\s\S]*?)\n {2,6}\}/u
 
-/** One label a spec mints. */
-const MINTED_LABEL = /aSignedInSession\(`([A-Za-z0-9-]+)\./gu
+/** The call that mints a fixture account, named as its call site is written. */
+const MINTING_CALL = 'aSignedInSession('
+
+/** A first argument that is a template literal opening with a label segment. */
+const A_LITERAL_LABEL = /^`([A-Za-z0-9-]+)\./u
+
+/** A block comment, which is where a spec's `@example` lines write calls nobody makes. */
+const BLOCK_COMMENT = /\/\*[\s\S]*?\*\//gu
+
+/** A swallowing construct: a deletion inside one is a deletion this guard cannot vouch for. */
+const SWALLOWS = /\b(?:try|catch)\b/u
 
 /** One label a cleanup removes by name. */
 const REMOVED_LABEL = /removeSignedInFixture\(`([A-Za-z0-9-]+)\./gu
@@ -346,6 +355,44 @@ const labelsDeclaredIn = (source: string, name: string): readonly string[] | nul
 }
 
 /**
+ * The text of the first argument of every call to a named function.
+ *
+ * READ BY BALANCING RATHER THAN BY A PATTERN, because the argument this guard
+ * cares about is a template literal — backticks, `$`, braces and a nested call
+ * of its own — and a regular expression that stopped at the first `)` would
+ * read `` `visual.${fixtureLabel(testInfo` `` and call it a label.
+ * @param source - The file's text.
+ * @param call - The callee and its opening parenthesis, e.g. `foo(`.
+ * @returns One entry per call site, in order, trimmed.
+ * @example
+ * firstArgumentsOf('mint(`a.b`, 2)', 'mint(') // ['`a.b`']
+ */
+const firstArgumentsOf = (source: string, call: string): readonly string[] => {
+  const found: string[] = []
+  for (let at = source.indexOf(call); at >= 0; at = source.indexOf(call, at + call.length)) {
+    const from = at + call.length
+    let depth = 1
+    let end = source.length
+    for (let index = from; index < source.length; index += 1) {
+      const character = source[index]
+      if (character === '(') depth += 1
+      else if (character === ')') {
+        depth -= 1
+        if (depth === 0) {
+          end = index
+          break
+        }
+      } else if (depth === 1 && character === ',') {
+        end = index
+        break
+      }
+    }
+    found.push(source.slice(from, end).trim())
+  }
+  return found
+}
+
+/**
  * Every label a spec hands `aSignedInSession`, and every label its cleanup
  * actually spends.
  *
@@ -365,15 +412,74 @@ const labelsDeclaredIn = (source: string, name: string): readonly string[] | nul
  * And the list is extracted from that loop's own named declaration rather than
  * from anything two-space indented — the old pattern would have been satisfied
  * by any unrelated string array in the file.
+ *
+ * ═══ THE MINTING SIDE REFUSES WHAT IT CANNOT ATTRIBUTE (PHASE 4 TASK 15e) ═══
+ *
+ * `docs/deviations.md` §108's first hole: the pattern this replaced matched
+ * `` aSignedInSession(`label. `` AT THE CALL SITE, so
+ * `const mint = (label: string) => aSignedInSession(label)` minted accounts the
+ * guard never counted, and they leaked **in silence**. Silence is the whole of
+ * the defect — a label nobody counts is a row that accumulates on every run
+ * with nothing saying so.
+ *
+ * So the scan is inverted (CLAUDE.md §0's sixth species, and the shape
+ * `eslint-rules/guarded-server-actions.js` uses): **every** call site of
+ * `aSignedInSession` is found, and one whose first argument is not a literal
+ * label is not skipped — it is reported as something this guard cannot read,
+ * which the cases below turn into a failure naming THIS FILE. A wrapper is
+ * caught by that automatically: its own body contains
+ * `aSignedInSession(label)`, an argument that is not a literal.
+ *
+ * WHY REFUSAL RATHER THAN RESOLVING THE CALL GRAPH, which is what §108
+ * imagined. A resolver would have to answer for a wrapper's wrapper, a wrapper
+ * imported from `./support/`, a label built by a `.map`, and a default
+ * argument; §108's own paragraph says a guard that half-resolves a call graph
+ * is a guard whose limits nobody can state. A refusal has one limit and it is
+ * stated in the failure message: hand the label at the call site, or teach this
+ * guard the shape. Nothing in this repository mints through a wrapper today, so
+ * the refusal costs nothing and the silence is gone.
+ *
+ * ═══ AND A SWALLOWED DELETION IS NOT A DELETION ═══
+ *
+ * §108's second hole, in the half a static check can reach. It can never see
+ * whether `removeSignedInFixture` WORKED — only an assertion against a live
+ * database after a real run can — but it can see a cleanup that has arranged
+ * not to find out, and a `try`/`catch` around the deletion is exactly that
+ * arrangement. {@link SWALLOWS} makes the cleanup unreadable rather than
+ * counting its labels as spent.
  * @param spec - The spec file's name under `e2e/`.
- * @returns The labels minted, and the labels a live cleanup removes.
+ * @returns The labels minted, the labels a live cleanup removes, and whatever
+ *   this guard could not account for.
  */
 const fixtureLabelsOf = (
   spec: string,
-): { readonly minted: readonly string[]; readonly removed: readonly string[]; readonly readable: boolean } => {
+): {
+  readonly minted: readonly string[]
+  readonly removed: readonly string[]
+  readonly cannotRead: readonly string[]
+} => {
   const source = readFileSync(path.join(REPO_ROOT, 'e2e', spec), 'utf8')
-  const minted = [...source.matchAll(MINTED_LABEL)].map((found) => found[1] ?? '')
+  // BLOCK COMMENTS FIRST, because a spec's `@example` line writes a call nobody
+  // makes; counting one as a call site would refuse a file over its own
+  // documentation.
+  const code = source.replaceAll(BLOCK_COMMENT, '')
+  const cannotRead: string[] = []
+  const minted = firstArgumentsOf(code, MINTING_CALL).flatMap((argument) => {
+    const label = A_LITERAL_LABEL.exec(argument)?.[1]
+    if (label === undefined) {
+      cannotRead.push(
+        `a call to aSignedInSession whose label this guard cannot read: ${MINTING_CALL}${argument}) — hand it a \`label.\` template literal at the call site, or teach this guard the shape`,
+      )
+      return []
+    }
+    return [label]
+  })
   const cleanup = cleanupBlockOf(source)
+  if (SWALLOWS.test(cleanup)) {
+    cannotRead.push(
+      'the cleanup block swallows: a removeSignedInFixture inside a try/catch cannot be told from one that deleted nothing, and nothing static can tell them apart',
+    )
+  }
 
   // Named one at a time, in the cleanup itself.
   const named = [...cleanup.matchAll(REMOVED_LABEL)].map((found) => found[1] ?? '')
@@ -389,14 +495,17 @@ const fixtureLabelsOf = (
   // threw `Lone quantifier brackets` at run time.
   const spendsTheList = variable !== '' && (loop?.[3] ?? '').includes('removeSignedInFixture(`${' + variable + '}')
   const listed = spendsTheList ? labelsDeclaredIn(source, loop?.[2] ?? '') : []
+  // `null` only when a loop names a list this guard could not parse — which is
+  // a fact about the guard and is reported as one. A spec with no loop at all
+  // reads fine and simply spends nothing.
+  if (listed === null) {
+    cannotRead.push(`a label list this guard cannot parse: ${loop?.[2] ?? ''} — see labelsDeclaredIn`)
+  }
 
   return {
     minted: [...new Set(minted)].sort(),
     removed: [...new Set([...named, ...(listed ?? [])])].sort(),
-    // `null` only when a loop names a list this guard could not parse — which
-    // is a fact about the guard and is reported as one. A spec with no loop at
-    // all is readable and simply spends nothing.
-    readable: listed !== null || !spendsTheList,
+    cannotRead,
   }
 }
 
@@ -440,14 +549,20 @@ test('deletes every fixture account e2e/a11y.spec.ts creates, so a run leaves no
   //
   // ═══ WHAT THIS GUARD CANNOT SEE, WRITTEN HERE RATHER THAN DISCOVERED ═══
   //
-  // It reads source. So a label minted through a WRAPPER
-  // (`mint(label) => aSignedInSession(label)`) is invisible to `MINTED_LABEL`
-  // and leaks silently, and a `removeSignedInFixture` wrapped in a swallowing
-  // `try/catch` counts as a deletion while deleting nothing. The second is
-  // inherent to a static check — only a live database assertion after a real
-  // run can tell a cleanup that ran from one that worked — and both are
-  // `docs/deviations.md` §108 with an owner, so that the next person to trust
-  // this file inherits its limits rather than finding them.
+  // It reads source, and `docs/deviations.md` §108 named two holes that left.
+  // Neither is silent any more, and neither is resolved either — both now make
+  // the guard REFUSE, which is this file's own `null`-is-not-`[]` doctrine
+  // applied to the minting side. A label minted through a wrapper
+  // (`mint(label) => aSignedInSession(label)`) used to be invisible; the call
+  // site is now found whatever its argument, and an argument this guard cannot
+  // read lands in `cannotRead` above. A `removeSignedInFixture` inside a
+  // swallowing `try/catch` used to count as a deletion; the cleanup block is
+  // now refused instead.
+  //
+  // WHAT REMAINS, STATED RATHER THAN IMPLIED: this still cannot tell a deletion
+  // that RAN from one that DELETED ANYTHING. Nothing static can — only an
+  // assertion against a live `diary` after a real run — and §108 records that
+  // as declined with its cost rather than left as a hole with a comment on it.
   //
   // BOTH DIRECTIONS, since Phase 4 Task 15. A label minted and never removed
   // leaks an account; a label removed and never minted is a no-op delete that
@@ -455,12 +570,12 @@ test('deletes every fixture account e2e/a11y.spec.ts creates, so a run leaves no
   // renamed case quietly stops being cleaned up. The lists are hand-maintained
   // — fifteen entries in `visual.spec.ts` — so the second direction is what
   // stops one going stale without a word.
-  const { minted, removed, readable } = fixtureLabelsOf('a11y.spec.ts')
+  const { minted, removed, cannotRead } = fixtureLabelsOf('a11y.spec.ts')
 
   expect(
-    readable,
-    'THIS GUARD cannot read that spec’s label list — see labelsDeclaredIn. Nothing is claimed here about whether the spec leaks; the guard has to be taught the shape first',
-  ).toBe(true)
+    cannotRead,
+    'THIS GUARD could not account for these, so nothing is claimed here about whether the spec leaks; the guard has to be taught the shape first',
+  ).toEqual([])
   expect(
     minted.length,
     'no aSignedInSession labels found — the extraction, not the spec, is what broke',
@@ -484,16 +599,18 @@ test('deletes every fixture account e2e/visual.spec.ts creates, so a run leaves 
   // cleanup can only be exercised inside the pinned container. Task 15's
   // baseline run is that exercise, which is why the fix lands with it.
   //
-  // THE LIMITS ARE THE CASE ABOVE'S, unchanged: this reads source, so a label
-  // minted through a wrapper is invisible and a swallowed `removeSignedInFixture`
-  // counts as a deletion (`docs/deviations.md` §108). The first of those two is
-  // why `signedInAs` in that spec takes a session rather than a label.
-  const { minted, removed, readable } = fixtureLabelsOf('visual.spec.ts')
+  // THE LIMITS ARE THE CASE ABOVE'S, unchanged: this reads source, so it can say
+  // a deletion is written and never that it deleted anything
+  // (`docs/deviations.md` §108). `signedInAs` in that spec takes a session
+  // rather than a label for exactly that reason, and the minting call it is
+  // handed is a literal at the call site, which is what this guard now requires
+  // of every one of them.
+  const { minted, removed, cannotRead } = fixtureLabelsOf('visual.spec.ts')
 
   expect(
-    readable,
-    'THIS GUARD cannot read that spec’s label list — see labelsDeclaredIn. Nothing is claimed here about whether the spec leaks; the guard has to be taught the shape first',
-  ).toBe(true)
+    cannotRead,
+    'THIS GUARD could not account for these, so nothing is claimed here about whether the spec leaks; the guard has to be taught the shape first',
+  ).toEqual([])
   expect(
     minted.length,
     'no aSignedInSession labels found — the extraction, not the spec, is what broke',

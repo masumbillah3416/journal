@@ -797,10 +797,12 @@ test('matches the baseline screenshot of the sign-in screen', async ({ page }) =
  *
  * IT TAKES THE SESSION, NOT THE LABEL, AND THAT IS NOT A STYLE CHOICE. A
  * helper that minted the session itself would be the WRAPPER
- * `e2e/ciRegistration.test.ts` names as the hole in its own leak check
- * (`docs/deviations.md` §108): its `MINTED_LABEL` reads a literal off the call
- * site, so a label minted inside a helper is invisible to it and leaks an
- * account silently. Minting at the call site keeps every label readable.
+ * `e2e/ciRegistration.test.ts`'s leak check cannot attribute a label to
+ * (`docs/deviations.md` §108): that guard reads a literal off every
+ * `aSignedInSession` call site, and since Phase 4 Task 15e a call site it
+ * cannot read is REFUSED rather than skipped — so a helper that minted would
+ * turn this file red instead of leaking an account silently. Minting at the
+ * call site keeps every label readable.
  * @param context - The case's browser context.
  * @param baseURL - Playwright's own, for the cookie's URL.
  * @param session - What `aSignedInSession` returned at the call site.
