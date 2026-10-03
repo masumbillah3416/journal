@@ -247,10 +247,17 @@ export const sourceCorpus = (excluding: readonly string[]): string => {
  * ═══ AND ONE A LINE WRAP SPLITS, WHICH IS THE COMMON SHAPE ═══
  *
  * A citation whose document ends a line and whose mark opens the next was
- * invisible to the first version of this pattern, and it is not a rarity: 68
- * of them when this was measured, and every one of them in a module header or
- * a comment, which is the place this directory's guards say a frozen number is
- * most easily forgotten. So the separator admits ONE newline with a
+ * invisible to the first version of this pattern, and it is not a rarity: more
+ * than seventy of them — 76 occurrences over 45 document/section pairs when
+ * this was measured, 2026-10-03 — of which most, but NOT all, are in a module
+ * header or a comment. 54 are, which is the place this directory's guards say a
+ * frozen number is most easily forgotten; the other 22 are ordinary Markdown
+ * paragraphs in `docs/api.md`, `docs/data-model.md` and the ADRs, where the
+ * wrap is just where the line ended. The first draft of this sentence said 68
+ * and "every one of them", and both were readings nobody re-took (re-review,
+ * ND-1) — a floor and two populations now, because the pattern has to be right
+ * about the shape and not about the census. So the separator admits ONE newline
+ * with a
  * comment-continuation lead — ` * `, `// `, `> ` or nothing — and one only: two
  * newlines are a paragraph break, and a document at the end of one paragraph
  * has nothing to do with a mark at the start of the next.

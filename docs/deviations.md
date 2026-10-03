@@ -4263,10 +4263,17 @@ citation is a reference that names its own document** — a `.md` file name, opt
 optionally possessive, immediately followed by the mark and a dotted number, with nothing in
 between. A LINE WRAP BETWEEN THE TWO IS STILL IMMEDIATE, comment continuation included, and
 review round 1 is why that sentence is here: the first version of the guard could not see those,
-68 of them, every one in a module header or a comment, which is the place this guard's own
-argument says a frozen number is most easily forgotten. Immediacy is the whole of it, because a bare mark means nothing without a document and
-guessing at the surrounding paragraph's subject would resolve most references against the WRONG
-document, which is the defect this entry is about.
+more than seventy of them — 76 over 45 document/section pairs when measured on 2026-10-03. Most
+sit in a module header or a comment, which is the place this guard's own argument says a frozen
+number is most easily forgotten, and 22 are ordinary Markdown paragraphs where the wrap is simply
+where the line ended. (Fix round 1 wrote "68 of them, every one in a module header or a comment"
+in five places and commit `5a50931` repeats it in a subject that also calls the shape "most of
+them"; wrapped citations are fewer than three in every hundred this guard extracts. Both were
+readings nobody re-took — re-review ND-1 and ND-8 — and the first of them is F5's own species,
+shipped inside the entry that states the rule about counts in prose. The commits cannot be
+rewritten; this paragraph is their correction.) Immediacy is the whole of it, because a bare mark
+means nothing without a document and guessing at the surrounding paragraph's subject would
+resolve most references against the WRONG document, which is the defect this entry is about.
 
 **The number that fell out of that rule, rather than one chosen before it:** more than 1,900
 citations, across every document this tree cites by name, resolved here; more than 1,300 more

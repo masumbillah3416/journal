@@ -30,10 +30,12 @@
  * resolvable at all: `§N` means nothing without a document, and this tree
  * writes the document next to the number or not at all. **A line wrap between
  * the two is still immediate** and is read as one citation, comment
- * continuation included — 68 of them when that was measured, every one in a
- * module header or a comment, and they were invisible to the first version of
- * this guard (review round 1, F4). A blank line is not: that is a paragraph
- * break.
+ * continuation included — more than seventy of them, 76 when that was measured
+ * on 2026-10-03, and they were invisible to the first version of this guard
+ * (review round 1, F4). Most are in a module header or a comment and 22 are
+ * ordinary Markdown paragraphs; the first draft of this sentence said 68 and
+ * "every one", and neither was re-measured (re-review, ND-1). A blank line is
+ * not immediate: that is a paragraph break.
  *
  * What the rule leaves out is stated rather than assumed away, and
  * {@link SECTION_MARK} counts it by subtraction on every run, so the uncovered
@@ -316,11 +318,13 @@ describe('the section numbers this repository cites', () => {
     // rather than resolved against a document nobody named.
     expect(sectionCitations('the SCREENS.md spec §8.2, and §4 below')).toEqual([])
 
-    // ═══ THE WRAPPED SHAPE, WHICH IS 68 OF THEM AND ALL IN COMMENTS ═══
+    // ═══ THE WRAPPED SHAPE, WHICH IS MORE THAN SEVENTY OF THEM ═══
     //
     // A citation whose document ends a line and whose mark opens the next, over
-    // each comment lead-in this tree writes. The line reported is the
-    // DOCUMENT's, not the mark's, because that is the line a reader has to
+    // each comment lead-in this tree writes AND over none — 21 of the 76 carry
+    // no lead at all, nearly every one of them a Markdown paragraph, which is
+    // why the empty alternative below is a case and not an accident. The line
+    // reported is the DOCUMENT's, not the mark's, because that is the line a reader has to
     // edit. A blank line between the two is a paragraph break and is NOT one
     // citation — that is the over-match this shape risks, so it is pinned here
     // rather than hoped for.
@@ -331,6 +335,11 @@ describe('the section numbers this repository cites', () => {
       { document: 'SCREENS.md', section: '1.3', line: 1 },
     ])
     expect(sectionCitations('see SCREENS.md\n>    §1.3')).toEqual([{ document: 'SCREENS.md', section: '1.3', line: 1 }])
+    // NO LEAD AT ALL, which is the majority shape in Markdown prose and had no
+    // case of its own until the re-review counted the populations (ND-1).
+    expect(sectionCitations('see `SCREENS.md`\n§1.3 says')).toEqual([
+      { document: 'SCREENS.md', section: '1.3', line: 1 },
+    ])
     expect(sectionCitations('see SCREENS.md\n\n§1.3 says')).toEqual([])
   })
 
