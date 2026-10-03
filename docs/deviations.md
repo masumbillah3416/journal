@@ -5124,17 +5124,28 @@ state and also the thing a first draft of it got wrong by leaning on one:
   `[data-session-where]` is masked — the comment above it says why, "this line ends in
   `lastSeenAt` … so it is always today's date" — and **a mask does not stop a reflow**. That
   line is `{place} · {when}` in 15px EB Garamond inside a `flex-wrap` row at 390px, so its
-  LENGTH still decides whether it takes one line or two: `28 September 2026` is three
-  characters longer than `4 October 2026`. **15px of Garamond at this file's line height is
-  about 19.5px, and the difference is 19px** — 2,342px expected against 2,323px received,
-  the screen SHORTER now, which is the direction a date that stopped wrapping would move it.
-  The mask was added so the pixels would not drift and it cannot stop the box from changing
-  size.
+  LENGTH still decides whether it takes one line or two. The mask was added so the pixels
+  would not drift and it cannot stop the box from changing size.
 
-  **This is a candidate with arithmetic, not a diagnosis.** What would confirm it: read
-  `.sessionWhere`'s rendered box in the container at 390px with a long date and with a short
-  one, and show the row's height differs by the 19px. That needs a browser, which is why it
-  is written here rather than claimed.
+  **MEASURED OFF THE COMMITTED BASELINE, which is better evidence than the arithmetic this
+  bullet first carried.** The masked `[data-session-where]` region in
+  `admin-account-mobile-linux.png` is **x 65–274, y 2049–2086 — 210 x 38px**. 38px is two
+  19px lines; one line is 19px; the failure is 2,342 against 2,323. The box is ALREADY
+  wrapping to two lines in the baseline, and losing that wrap is exactly the 19px.
+
+  **The dates are shorter than this bullet first said, and that strengthens it.**
+  `readAccountScreen.ts:106` formats with `month: 'short'` in `en-GB`, so the screen draws
+  `28 Sept 2026` (12 characters) and `4 Oct 2026` (10) — a **two**-character difference, not
+  the three first claimed, and not the long month names first quoted. Two characters of 15px
+  Garamond out of a ~210px box is enough to drop a wrap that is already marginal, and the
+  38px box says it was marginal. The first draft also appealed to "this file's line height";
+  `account.module.css` sets `line-height` only at `:94` and `:231`, neither on
+  `.sessionWhere`. **The 19px comes from the image, not from the stylesheet.**
+
+  **This is a candidate measured on one side, not a diagnosis.** What would confirm it:
+  render `.sessionWhere` in the container at 390px with a long date and with a short one and
+  show the row's height differing by the 19px. That needs a browser, which is why it is
+  written here rather than claimed.
 
 Whoever closes this should measure which before changing anything.
 
@@ -5149,13 +5160,14 @@ deleted the three `admin-overview-*` images and ran `npm run test:visual:contain
 and reported 101 passed. It was caught by `git status` and restored from `HEAD`, byte-identical.
 `docs/deviations.md` §118 is that trap; this entry is what it would have cost.
 
-**What would reverse it:** a diagnosis of the 19px — which of the two candidates above it is,
+**What would reverse it:** a diagnosis of the 19px — which of the three candidates above it is,
 read off a diff of the two images rather than argued — and then either a mask, a fixture that pins
 what varies, or a regenerated baseline taken in a state somebody chose. Until then the
 branch's visual check is red for a reason that is written down.
 
-**Recorded as:** this entry. §107 and §108 hold the fixture-row debris that is one of the two
-candidates above; §110 and §111 are the other two baseline entries and neither explains this one.
+**Recorded as:** this entry. §107 and §108 hold the fixture-row debris that is the second of
+the three candidates above, and §116 and §118 are the third; §110 and §111 are the other two
+baseline entries and neither explains this one.
 
 ## 113 · §2.2's 44px cover square can never be filled from inside the admin — owner: whoever takes the choice below
 
@@ -5366,7 +5378,36 @@ inside a new mask — and one of them was opened and looked at.
 
 **THE MASK CLOSES THE HALF THAT WAS WORSE, AND NOT THE OTHER ONE.** It closes the
 sub-threshold false green: a date stamp inside a masked region cannot move a pixel, so
-`desktop` can no longer pass while picturing a date the screen does not draw. It does
+`desktop` can no longer pass while picturing a date the screen does not draw.
+
+**AND THE DESKTOP PASS WAS NOT WHAT THIS ENTRY FIRST SAID IT WAS, WHICH MAKES IT WORSE AND
+MORE USEFUL.** The first version of this paragraph — and the case comment, and `8398c9f`'s
+body — said "the content fits in 900px either way, so the changed pixels are the eight date
+stamps". The page height is indeed under 900px either way, and that is the only part of the
+sentence that survives. **The CARD reflows.** `overview.module.css:548` is
+`@container td-overview (min-width: 1120px) { .lately { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) } }`,
+so at 1440px the six rows sit in two columns of three and the same nine pixels a row shorten
+the card by **3 x 9 = 27px**. Measured off the two committed images at `x = 700`, the Lately
+card runs `y 553..786` in `6dc9f96`'s baseline and `y 553..759` in this one: **234px against
+207px, 27px exactly.**
+
+Comparing those two images with pixelmatch's own YIQ metric at Playwright's default
+`threshold: 0.2` (`maxDelta = 35215 x 0.2² = 1408.6`), **excluding every masked pixel**:
+
+```text
+differing pixels outside the masks : 5,982   (ratio 0.0046)
+licence at 1440x900, ratio 0.01    : 12,960
+all of them between y = 650 and y = 763 — the Lately card and nothing else
+```
+
+**The reflow alone is 46% of the licence, before a single date stamp is counted**, and the
+headroom was of order three thousand pixels rather than the nine thousand "eight date stamps"
+implies. The pass was real, and the reason is better worth knowing than the one first
+written: the card vacated a 27px band, and card-cream `255,253,246` against page-beige
+`244,237,220` is a pixelmatch delta of **136 against a 1,408.6 threshold**, so the band it
+vacated cost almost nothing. **A 27px layout shift can sit under this gate when the colours
+either side of it are close** — which is a far more alarming property of a visual gate than
+eight date stamps, and it is the lesson this entry exists to teach. It does
 **not** close the reflow. A mask paints over the screenshot after layout; it does not change
 the layout. `.latelyWhen` is an 82px cell at 10px Courier with `0.1em` of tracking, so
 `27 Sept 2026` wraps to two lines in it and `3 Oct 2026` does not — **six rows, nine pixels
@@ -5416,9 +5457,13 @@ ticked journey-pool tile `0 0 0 2px #a34434` — an OUTER ring, outside the tile
 `inset 0 0 0 2px var(--td-accent)`. Both are readable from source with certainty; neither
 needs a browser.
 
-**Whether it is VISIBLE is UNRESOLVED and does need one.** The tile is `overflow: hidden`
-inside a `max-height: 432px` scroller with a gap between tiles, so an outer ring would be
-clipped at the scroll edges and nowhere else — which would make the difference invisible on
+**Whether it is VISIBLE is UNRESOLVED and does need one.** The clipping premise is the
+`.poolGrid` scroller — `overflow-y: auto; max-height: 432px` at `editor.module.css:432-433` —
+and NOT the tile's own `overflow: hidden` at `:446`, which clips the tile's CONTENT and can
+never clip a shadow drawn outside the tile's own border box. The first draft of this entry
+cited the tile, and that premise is inert. The `8px` grid gap at `:437` is why a neighbouring
+tile would not clip the ring either. So an outer ring would be clipped at the scroller's edges
+and nowhere else — which would make the difference invisible on
 most tiles and visible on a few, or invisible everywhere. An inset ring also eats 2px of the
 photograph where an outer one would not. **Nobody has measured which**, and this entry
 refuses to guess at the appearance of something nobody has looked at.
@@ -5447,7 +5492,7 @@ baselines were deleted deliberately so the container would write them fresh with
 update service's own command is
 
 ```text
-npx playwright test e2e/layout.spec.ts e2e/visual.spec.ts --update-snapshots=changed
+sh -c 'npm ci --no-audit --no-fund && npx playwright test e2e/layout.spec.ts e2e/visual.spec.ts --update-snapshots=changed'
 ```
 
 and `changed` means **every** snapshot the comparison calls changed, not only the ones that
@@ -5491,3 +5536,88 @@ change §116 names, for the same reason.
 
 **Recorded as:** this entry, §112 (whose evidence it nearly took), §116 (the regeneration it
 happened during) and standing order §21, whose measurement it completes.
+
+## 119 · Six figures in the Phase 4 closing commit bodies do not reproduce, and this is their correction
+
+**Why an entry rather than an edit.** `5ea1e7b` is the closing commit and `8398c9f` is the
+commit that fixed §116; neither body can be rewritten. §98 set the precedent — it records in
+its own words that `6a20756`'s body overstates and that a later paragraph is the correction —
+and `5ea1e7b` cites that precedent for its own supersession of `6dc9f96`. This is the same
+move one level on, and it is listed rather than left for a reader to trip over, because the
+closing body is the most-read prose in the phase and five of these six are counts.
+
+### 1 · The desktop false green's cause, in `8398c9f`'s body and in §116's first draft
+
+Both said the pass happened because "the content fits in 900px either way" and "the changed
+pixels are the eight date stamps". The page height is under 900px either way and that half
+stands. **The card reflows.** `@container td-overview (min-width: 1120px)` puts `.lately` in
+two columns at 1440px, so the Lately card is **234px in `6dc9f96`'s baseline and 207px in
+`8398c9f`'s — 27px shorter**, measured at `x = 700` off the two committed images. Outside the
+masks, **5,982 pixels differ, 46% of the 12,960 licence**, all between `y = 650` and
+`y = 763`. §116 now carries the measurement and the better lesson it supports: a 27px layout
+shift can sit under this gate because card-cream and page-beige are 136 apart on pixelmatch's
+scale against a 1,408.6 threshold.
+
+### 2 · "one fewer than when `6dc9f96` was written and two fewer than it reported"
+
+`5ea1e7b`'s criterion 4. `6dc9f96`'s own gate block reads
+`npm run test:visual:container  exit 1 — 98 passed, 3 failed, 16 skipped` and its criterion 4
+says "fails on three images". There were three reds, and three were reported. **One red is
+two fewer than both**; the sentence invents a distinction between the two numbers and gets
+one of them wrong, in the paragraph whose subject is a miscounted gate.
+
+### 3 · "35 of 318 … 2 after … 0 now"
+
+`5ea1e7b`'s criterion 8, which states its own predicate: the leading block comment of each
+branch-changed code file, matched against eleven named marker families. **Run exactly that
+predicate, the answer is 30, not 35** — `1a17c28~1` 30, `1a17c28` 2, HEAD 0. The 35 came from
+a wider family list than the one the sentence enumerates, which is the same species as the
+sentence it was correcting.
+
+The denominator needs its extensions stated: `git diff --name-only --diff-filter=d
+9e093bc..HEAD` gives **315** over `.ts`/`.tsx`/`.js` and **318** once `.mjs` is included,
+which is what was run.
+
+**And the number this replaced was not wrong, it was a different measurement.** `1a17c28`
+**touched 34 files** — that is where "34" came from: a count of the commit's own diff, not of
+a probe. The reproducible shape is: _`1a17c28` touched 34 headers; a probe over these eleven
+families sees 30 of them carrying a marker before, 2 after, and 0 now._ That explains both
+earlier numbers instead of replacing them with a third.
+
+What is beyond doubt under every variant: **2 → 0**, and 0 at HEAD.
+
+### 4 · "0 do now" is branch-scoped, and the sentence invites a repository-wide reading
+
+The claim is correctly qualified — "of 318 **branch-changed** code files … **in a module
+header**" — and both qualifiers carry weight. But it sits under a heading about `CLAUDE.md`
+§1.4, which is a repository-wide standard, and a reader who greps the repository will find
+markers and think the sentence false.
+
+Measured, so the scope is a number: over **622 tracked code files**, under the same eleven
+families, **32 module headers still carry a marker at HEAD, and every one of them is outside
+the 318** — `apps/web/collections/sessions.ts`, `resetPath.ts`, `otpService.ts`,
+`guarded-server-actions.js` and 28 others, all Phase 1 to 3 files this branch never touched.
+**They are not this phase's and were deliberately not stripped**: §1.4 is about orientation,
+and rewriting the headers of files a branch did not otherwise touch is churn.
+
+### 5 · "90 of 90" copy strings and "68 of 69" CSS values
+
+`5ea1e7b`'s criterion 1 and the first draft of `docs/testing.md` §5.1. Both figures are a
+count of `## 2.1 Overview` **to the end of the file**, which swallows §3 Sign-in — the audit
+covered more than it claimed, and the label is what was wrong. Over §2.1 to the line before
+`# 3 · Sign-in`: **67 copy strings, 67 of 67 resolving**, and **53 CSS values, 52 of 53**.
+§5.1 now states the boundary, the three alternative boundaries and what each gives.
+
+### 6 · "A `\b` immediately before `\(` can never match"
+
+`8398c9f`'s body and the 15g report. **False as an absolute**: `/\b\(/.test('foo(bar)')` is
+`true`, because the `o` before the `(` is a word character. The rule holds only when the
+preceding character is itself a non-word character, which in prose it is — a space. And
+`/\b, F\d+/.test('an omission, F7')` is **`true`**, so `, F#` — one of the three shapes named
+as invisible — was never blocked by the old probe at all. **The diagnosis and the conclusion
+stand**: the probe does return `false` on both survivor headers, and 0 markers survive at
+HEAD under a correct predicate. The stated rule was over-general in a paragraph about a probe
+that was wrong, which is the species it was describing.
+
+**Recorded as:** this entry, §116 (whose first draft item 1 corrects), `docs/testing.md` §5.1
+(item 5), and `e2e/visual.spec.ts`'s Overview comment (item 1).

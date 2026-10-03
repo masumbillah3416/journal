@@ -174,12 +174,19 @@ defects behaved as `SCREENS.md` §2.2 describes.
 
 ## Correction, 2026-10-04 — the submission count in the header is wrong
 
-The line above the Defects section says the sweep drove "two refused form submissions", and
-the database-safety paragraph rests on the same two. **It is at least seven.** The first
-driver pass made two (all three fields whitespace, then one blank field), and the withdrawal
-probe described at "Checked and found sound" made five more — T1 through T5, three distinct
-field combinations across two page loads. The sentence counted one pass and not the probe
-that was run to re-measure it.
+The count appears in **three** places, not the two this correction first named: the line
+above the Defects section ("two refused form submissions"), the database-safety paragraph
+that rests on the same two ("The two form submissions below were both refused by Zod"), and
+the `## Clean` section ("the create panel open and cancelled, and two refused submissions").
+All three are wrong.
+
+**It is seven.** The first driver pass made two — all three fields whitespace, then one blank
+field. The withdrawal probe described under "Checked and found sound" made five more, in
+three distinct field combinations, and the report's own words for it are "five attempts and
+readings at 300ms, 1,000ms and 3,000ms". The sentence counted one pass and not the probe that
+was run to re-measure it. (This correction's first draft labelled those five "T1 through T5"
+and said they spanned "two page loads"; the report uses neither phrase, and it says the
+notice was "correctly replaced on each subsequent submission **without a reload**".)
 
 The sentence is named here rather than rewritten, which is how this repository corrects a
 dated record: a sweep report is a walk on a day, and editing the walk loses the fact that the
@@ -188,5 +195,11 @@ count was taken wrong.
 **The safety argument is unaffected and does not rest on the count.** Every one of the seven
 was refused by Zod before any write, and the evidence is not the number of submissions but
 the before/after dump: all ten `journeys` rows byte-identical across every column, and the
-counts `journeys` 10 / `_journeys_v` 690 / `pages` 30 / `media` 143 unchanged. What later
+counts `journeys` 10 / `_journeys_v` 690 / `pages` 30 / `media` 143 unchanged.
+
+**Which seven the dump covers, since the correction should not create a new vagueness while
+closing one.** The dump was taken before the first driver pass and diffed after the last, and
+the withdrawal probe ran inside that window — it was a sixth driver pass against the same
+server and the same database, before the diff. So the dump evidences all seven, not two of
+them. What later
 moved that data was `npm run test:e2e`, not this sweep — `docs/deviations.md` §116.

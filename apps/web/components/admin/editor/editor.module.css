@@ -467,10 +467,11 @@
 
 /* HANDOFF-DEVIATION (docs/deviations.md §117): SCREENS.md §2.3 gives the ticked
  * pool tile `0 0 0 2px #a34434` — an OUTER ring. This draws it `inset`. Whether
- * that is visible is UNRESOLVED and needs a browser: the tile is
- * `overflow: hidden` inside a `max-height: 432px` scroller, so an outer ring may
- * be clipped at the scroll edges and nowhere else. The divergence itself is two
- * literals and is certain. */
+ * that is visible is UNRESOLVED and needs a browser: the clipper would be
+ * `.poolGrid`'s `overflow-y: auto; max-height: 432px` above, NOT this element's
+ * own `overflow: hidden`, which cannot clip a shadow outside its own border box
+ * — so an outer ring may be clipped at the scroller's edges and nowhere else.
+ * The divergence itself is two literals and is certain. */
 .tileTicked {
   box-shadow: inset 0 0 0 2px var(--td-accent);
 }

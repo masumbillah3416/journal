@@ -374,28 +374,36 @@ matched the handoff, so the Phase 4 close read `SCREENS.md` §2.1–§2.11 again
 mechanically. Recorded here, with its predicates, because a figure nobody can re-derive is
 not a measurement — and because the one thing it found is easier to lose than to re-find.
 
-**Copy strings — 90 of 90 resolve.** Every run of §2 between straight or curly double
-quotes, 2–120 characters, deduplicated, matched against the text of every `.ts`/`.tsx`/
-`.css` file git lists under `apps/web` and `packages`: verbatim, or with
-`{placeholder}`-delimited fragments of four characters or more. 85 verbatim, 3 through
-placeholders. Two are pure placeholder plus a unit and the predicate cannot judge them —
-`"{n} ms"` and `"{n} px"`, §2.6's slider readouts, which
+**THE CORPUS IS `## 2.1 Overview` TO THE LINE BEFORE `# 3 · Sign-in`**, and saying so is
+not pedantry: the first run of this audit sliced from `## 2.1` and never stopped, which
+swallowed §3 Sign-in's strings and inflated every figure. Measured at each boundary —
+`# 2 · Admin` to before `# 3` gives 72 distinct quoted runs, `## 2.1` to before `# 3` gives
+**67**, and `## 2.1` to end of file gives 90. The figures below are the 67 corpus.
+
+**Copy strings — 67 of 67 resolve.** Every run of §2.1–§2.11 between straight or curly
+double quotes, 2–120 characters, deduplicated, matched against the text of every `.ts`/
+`.tsx`/`.css` file git lists under `apps/web` and `packages`: verbatim, or with
+`{placeholder}`-delimited fragments of four characters or more. 65 matched by the predicate.
+Two are pure placeholder plus a unit and the predicate cannot judge them — `"{n} ms"` and
+`"{n} px"`, §2.6's slider readouts, which
 `apps/web/components/admin/book/BookSettings.test.tsx` asserts as `'1250 ms'` and
 `'260 px'`.
 
-**CSS values — 68 of 69 resolve.** Every backticked run of §2 beginning with a colour, a
-number, a unit or a CSS function, matched over the same corpus after normalising whitespace
-and `rgba(r,g,b,a)` to `rgb(r g b / a%)`. 62 matched by the predicate; 7 were read by hand,
-six of them present behind a design token or a spelling difference.
+**CSS values — 52 of 53 resolve.** Every backticked run of §2.1–§2.11 beginning with a
+colour, a number, a unit or a CSS function, matched over the same corpus after normalising
+whitespace and `rgba(r,g,b,a)` to `rgb(r g b / a%)`. 47 matched by the predicate; 6 were read
+by hand and all six are present behind a design token or a spelling difference.
 
-**The sixty-ninth does not resolve, and it is `docs/deviations.md` §117**: §2.3 gives the
+**The fifty-third does not resolve, and it is `docs/deviations.md` §117**: §2.3 gives the
 ticked journey-pool tile `0 0 0 2px #a34434`, an OUTER ring, and
 `apps/web/components/admin/editor/editor.module.css`'s `.tileTicked` draws
 `inset 0 0 0 2px var(--td-accent)`. The divergence is two literals and is certain; whether
-it is visible needs a browser and is UNRESOLVED. **A careless reading of this audit counted
-it as resolving** — the normalised search finds `0 0 0 2px` elsewhere in the same
-stylesheet — which is the failure mode of a "is this string present anywhere" predicate and
-the reason the predicate is written down beside the number.
+it is visible needs a browser and is UNRESOLVED. **A careless reading of this audit counted it as
+resolving**, and the predicate now returns a flat false positive for it: the
+`// HANDOFF-DEVIATION:` comment §117 asked for quotes `0 0 0 2px #a34434` verbatim, so a
+"is this string present anywhere" search finds the handoff's value **in the very comment
+that records the divergence from it**. That is the failure mode of this kind of predicate in
+its purest form, and the reason the predicate is written down beside the number.
 
 **What this audit is not.** It compares strings and values, not layout: a correct colour on
 the wrong element passes it. The pictures are what judge arrangement, and §116 and §118
@@ -1401,6 +1409,10 @@ ignore, and the two generated files belong in an exclude with their reason besid
 was not done at the Phase 4 close**: it is a change to the gate, and a closing commit is the
 wrong place to move a gate. It is recorded here instead so the next change to either config
 inherits a decision rather than a silence.
+
+**Owner: unassigned, and inherited by the next change to either `vitest.config.ts` or
+`vitest.integration.config.ts`** — the shape `docs/deviations.md` §116, §117 and §118 all
+use, and named here because an audit with no owner is a note rather than a decision.
 
 ### 10.8 · `newestSweep.test.ts` — the newest `docs/qa/` report’s citations resolve
 

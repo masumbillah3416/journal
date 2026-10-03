@@ -676,10 +676,17 @@ test('matches the baseline screenshot of the Overview', async ({ page, context, 
   // would on `admin-account`.
   //
   // WHAT THE MASK CLOSES, AND WHAT IT DOES NOT. It closes the half that is
-  // worse: at `desktop` the changed date stamps are a few thousand pixels
-  // against `maxDiffPixelRatio: 0.01`'s 12,960 of licence, so the picture went
-  // on passing while showing a date the screen no longer drew — standing order
-  // §21's sub-threshold false green, inside the gate written to catch it.
+  // worse: at `desktop` the picture went on passing while showing a date the
+  // screen no longer drew — standing order §21's sub-threshold false green,
+  // inside the gate written to catch it. And it was NOT the date stamps that
+  // ate the licence, which is the part worth knowing:
+  // `@container td-overview (min-width: 1120px)` puts `.lately` in two columns
+  // at 1440px, so the card itself reflowed 27px shorter (234px to 207px,
+  // measured off the two committed images). 5,982 pixels differ outside the
+  // masks against 12,960 of licence — 46% — and they pass because card-cream
+  // and page-beige are 136 apart on pixelmatch's scale against a 1,408.6
+  // threshold. A 27px shift can hide under this gate when the colours either
+  // side of it are close.
   //
   // It does NOT close the reflow, and that is said here so nobody reads a green
   // run as the end of it. A mask paints over the screenshot; it does not change
