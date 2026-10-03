@@ -29,8 +29,8 @@
  * IT IS A TABLE TO A SCREEN READER, not only to a sighted one. The design uses
  * divs and so does this, so the markup is §2.2's — but a run of unlabelled text
  * per row is not, and axe is green either way because axe judges the markup
- * that is there rather than the markup that is missing (review round 1, finding
- * 8). The ARIA roles change no pixel: the card is a `table`, the header is a
+ * that is there rather than the markup that is missing. The ARIA roles change
+ * no pixel: the card is a `table`, the header is a
  * `row` of `columnheader`s, and each journey is a `rowgroup` holding its row
  * and — when it is open — its strip, which is `RowActions`' half of the same
  * structure.

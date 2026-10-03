@@ -131,9 +131,9 @@
  * The directory list is read off disk rather than written down, and RECURSIVELY,
  * so a component a later task adds to the shell — in a subdirectory of it too,
  * which is ordinary housekeeping once eleven screens have grown their parts —
- * is inside the claim from the commit that adds it. It was not recursive until
- * the second fix round, and a module in `shell/nested/` escaped the guard while
- * every suite stayed green.
+ * is inside the claim from the commit that adds it. Reading one level only
+ * lets a module in `shell/nested/` escape the guard while every suite stays
+ * green, which is why the read is recursive.
  *
  * THE DIRECTIVE IS EXPECTED ON LINE 1, which is a convention rather than a
  * guarantee and is therefore said out loud. `'use client'` is a directive

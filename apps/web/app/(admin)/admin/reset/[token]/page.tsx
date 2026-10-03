@@ -5,9 +5,9 @@
  * ═══ THIS IS THE ADDRESS THE RESET EMAIL HAS BEEN NAMING SINCE TASK 5 ═══
  *
  * `apps/web/lib/auth/passwordReset.ts` builds its link from `RESET_PATH`, and
- * until phase ruling F47 nothing was mounted here: the token was minted,
- * mailed and provably consumable, and the address it named answered 404 with
- * every mechanism behind it green. `apps/web/lib/auth/resetPath.test.ts` now
+ * for a while nothing was mounted here: the token was minted, mailed and
+ * provably consumable, and the address it named answered 404 with every
+ * mechanism behind it green. `apps/web/lib/auth/resetPath.test.ts` now
  * asserts a route file exists at both halves of that address, so the gap
  * cannot reopen quietly.
  *
@@ -29,7 +29,7 @@
  * heading, message or log (CLAUDE.md §7). The screen it draws for a token that
  * cannot be spent says so without echoing it.
  *
- * ═══ IT DOES NOT ANSWER FOR ITS SIBLINGS (RULING F56) ═══
+ * ═══ IT DOES NOT ANSWER FOR ITS SIBLINGS ═══
  *
  * `[token]` matches ANY single segment under `/admin/reset`, including the
  * addresses this surface's own forms post to. Mounting it turned

@@ -9,8 +9,8 @@
  *
  * Uses `getTestPayload()` (`../lib/testPayload`), not `getPayload()`
  * directly: every integration test file connects to an isolated `diary_test`
- * database, never the developer's own dev database (Task 10/11 review round
- * 1, finding 2) - see that module's header for why and how.
+ * database, never the developer's own dev database - see that module's header
+ * for why and how.
  *
  * Every photo slot's `stripedPlaceholder` SVG is rasterised to a real PNG
  * upload (see seed.ts's own header for why), which makes the *first* call to
@@ -42,9 +42,8 @@
  * safe precisely because it runs against the isolated `diary_test` database,
  * never a real developer's own data.
  *
- * Cover, Contents and About are not `pages` rows (Task 10/11 review round 1,
- * finding 1 - see seed.ts's own header, "CORRECTION", and
- * docs/deviations.md §5), so this file asserts thirty stored `pages` rows
+ * Cover, Contents and About are not `pages` rows (see seed.ts's own header,
+ * "CORRECTION", and docs/deviations.md §5), so this file asserts thirty stored `pages` rows
  * and the two globals' content, not "thirty-three pages". The handoff's
  * 33-page reading sequence - Cover + Contents + thirty journey pages + About
  * - is a derived view `bookBundle` assembles in Phase 1 from those thirty

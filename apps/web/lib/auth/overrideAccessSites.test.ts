@@ -42,17 +42,16 @@
  *
  * ═══ AND TWO MORE SENTENCES, BECAUSE THE FIRST CORRECTION LEFT ITS OWN ═══
  *
- * Fix round 1 of Phase 4 Task 2 found that the commit which grew the set to two
- * paths appended a correct paragraph to `docs/security.md` and left THREE
- * singular assertions standing four paragraphs above it. Every case here was
+ * The commit which grew the set to two paths appended a correct paragraph to
+ * `docs/security.md` and left THREE singular assertions standing four
+ * paragraphs above it. Every case here was
  * green, because each asks only whether a document contains a path — a document
  * could name both sites and, in the same section, tell a reader there is one.
  * {@link SINGULAR_CLAIMS} refuses that, on the same argument as
  * {@link NOWHERE_CLAIM}, and with the same honesty about being a floor.
  *
- * The same round disputed which LINE of `setNewPassword.ts` carries the option,
- * and neither the review nor the documents could settle it without opening the
- * file — so {@link lineCitations} settles it: every `<site>:<line>` pointer
+ * Which LINE of `setNewPassword.ts` carries the option is not settleable from
+ * the documents without opening the file — so {@link lineCitations} settles it: every `<site>:<line>` pointer
  * either document writes must land on a line that actually carries the option.
  * A line number in prose is a claim about bytes.
  *

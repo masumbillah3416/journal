@@ -42,8 +42,7 @@
  * and the alternative is only half available: the fourth query could select
  * `version: { name, place, dates }` for no extra query, but the `where` cannot
  * follow without a fifth, so the search would stay blind while the rows changed
- * under it. Written down whole in `docs/deviations.md` §54 (fix round 2,
- * finding 3).
+ * under it. Written down whole in `docs/deviations.md` §54.
  *
  * ═══ THE CHIPS FILTER IN MEMORY, AND THAT IS NOT LAZINESS ═══
  *

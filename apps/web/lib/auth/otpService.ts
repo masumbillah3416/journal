@@ -82,14 +82,14 @@
  * ever created here, so a table that sweeps up to fifty per insert drains
  * faster than it fills, with no scheduler that has to be up.
  *
- * THE SWEEP KEYS ON `created_at`, AND THIS COMMENT USED TO SAY OTHERWISE.
- * Phase 2 ruling F14 kept the `expiresAt` column on the ground that it "earns
- * its place as a purge index (`DELETE WHERE expiresAt < now`, one indexed
- * query)", and this header and `apps/web/collections/otpChallenges.ts` both
- * stated that purge as though it existed. It did not: no such query was ever
- * written, the column carries no index, and the table grew without bound —
- * blocker B4 of Phase 2's final review. The ruling was also wrong on the
- * merits, which is worth more than the correction: a challenge is unusable
+ * THE SWEEP KEYS ON `created_at`, AND A PURGE ON `expiresAt` WOULD BE WRONG.
+ * The `expiresAt` column was once kept on the ground that it "earns its place
+ * as a purge index (`DELETE WHERE expiresAt < now`, one indexed query)", and
+ * this header and `apps/web/collections/otpChallenges.ts` both stated that
+ * purge as though it existed. It did not: no such query was ever written, the
+ * column carries no index, and the table grew without bound. That ground was
+ * also wrong on the merits, which is worth more than the correction: a
+ * challenge is unusable
  * after EXPIRY_MS (five minutes) but is still COUNTED by the hourly ceiling
  * for RESEND_WINDOW_MS (one hour), so a purge keyed on `expires_at` would
  * delete rows the mailbomb cap is still counting.  `created_at` is the column

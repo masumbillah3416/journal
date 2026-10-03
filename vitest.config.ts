@@ -10,7 +10,7 @@
  *     Its `include` also reaches the `e2e` directory's `.test.ts` files (NOT
  *     its `.spec.ts` ones, which are Playwright's), for the one file there
  *     that is a file read rather than a browser test — see that glob's own
- *     comment and ruling F57.
+ *     comment.
  *   - unit-dom: React component tests, matched by `*.test.tsx`, in a jsdom
  *     environment. A SEPARATE project rather than a wider glob on `unit`
  *     because the environment differs: `unit`'s files are pure and run in

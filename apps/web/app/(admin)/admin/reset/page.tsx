@@ -35,12 +35,11 @@
  * page cannot answer a `POST` at its own address, and until that lands this
  * screen's own form posts to a 404 (docs/deviations.md §39).
  *
- * THAT 404 IS NOT FREE, AND IT IS NOT THE PASSWORD STEP'S KIND. This header
- * claimed until ruling F56 that the form posted to a 404 "exactly as the
- * password step's does". It did not: `POST /admin/sign-in/password` 404s
- * because nothing is mounted anywhere near it, while `/admin/reset/request`
- * sits under the `[token]` route beside this file, which matches ANY single
- * segment — so it answered 200 with "That link has expired". What restores the
+ * THAT 404 IS NOT FREE, AND IT IS NOT THE PASSWORD STEP'S KIND.
+ * `POST /admin/sign-in/password` 404s because nothing is mounted anywhere near
+ * it, while `/admin/reset/request` sits under the `[token]` route beside this
+ * file, which matches ANY single segment — so left alone it answers 200 with
+ * "That link has expired". What restores the
  * 404 is `lib/auth/resetPath.ts`'s `RESERVED_RESET_SEGMENTS`, read by
  * `readNewPasswordScreen`. Measured, both verbs, against the running app:
  * `GET` and `POST` of `/admin/reset/request` each answer 404, and

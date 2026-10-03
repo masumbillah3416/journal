@@ -9,9 +9,8 @@
  * surface before: the CSS Module actually resolving to class names, the guard
  * admitting the request, and `readNavCounts` reaching Postgres.
  *
- * WHAT IT DOES NOT ADD, because this header claimed it did and a review
- * measured otherwise: it does NOT catch a `'use client'` added under the
- * shell. All five cases below pass with `NavRail.tsx` carrying the directive —
+ * WHAT IT DOES NOT ADD, measured rather than assumed: it does NOT catch a
+ * `'use client'` added under the shell. All five cases below pass with `NavRail.tsx` carrying the directive —
  * the route renders identically, and the 320KB gate has 189KB of headroom to
  * absorb the cost. That property is
  * `apps/web/lib/admin/shellShipsNoClientJs.test.ts`'s, which reads the
@@ -24,7 +23,7 @@
  *
  * IT ALSO WALKS THE ONE WIDTH NO PROJECT CONFIGURES. Both admin screens have a
  * middle shape that none of `desktop`, `mid` or `mobile` renders, and the
- * editor's middle rung shipped 16px wrong for a fix round because of it. The
+ * editor's middle rung once shipped 16px wrong because of it. The
  * `test.describe` block near the end resizes to 1200 rather than adding a fourth
  * project — see its own comment for what that would have cost in baselines, and
  * why a photograph is the wrong instrument for a threshold.

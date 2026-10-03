@@ -30,9 +30,9 @@
  * §2.11: "sign-in email; Current / New password in two columns above 900px;
  * the 'One-time code at sign-in' toggle whose hint switches …; then Save
  * changes." Because the toggle is a `<form>` of its own, a Save button INSIDE
- * the password form can only be drawn above it — which is what this card did
- * until review round 1 (F2), leaving an author reading top to bottom with a
- * Save sitting directly above a control it does not write. {@link PASSWORD_FORM}
+ * the password form can only be drawn above it, leaving an author reading top
+ * to bottom with a Save sitting directly above a control it does not write.
+ * {@link PASSWORD_FORM}
  * and `<button form="…">` put the three controls in the handoff's order with no
  * client JavaScript and no nested `<form>`, which HTML does not allow.
  *

@@ -14,10 +14,9 @@
  * phases has stopped being true.
  *
  * IT SAID IT CANNOT BE: THAT THE MIDDLEWARE RUNS IN NEXT.JS'S EDGE RUNTIME,
- * where Postgres, `pg` and `node:crypto` do not exist. Phase 4 Task 13's first
- * fix round measured that false on Next 16.3.3 and moved the middleware to the
- * Node runtime for one header (`docs/deviations.md` §101). It COULD read a
- * `sessions` row from there now.
+ * where Postgres, `pg` and `node:crypto` do not exist. That was measured false
+ * on Next 16.3.3, and the middleware runs in the Node runtime for one header
+ * (`docs/deviations.md` §101). It COULD read a `sessions` row from there now.
  *
  * IT STILL SHOULD NOT, and this is the reason that does hold: the question is
  * where the authority over who a request is should SIT, and two authorities
@@ -43,36 +42,27 @@
  * ═══ WHAT STANDS BETWEEN PHASE 4 AND A FORGOTTEN GUARD IS TWO MECHANISMS,
  *     AND ONLY ONE IS A CHECK ═══
  *
- * This heading said "WHAT MAKES IT UNFORGETTABLE". Nothing here makes anything
- * unforgettable — one mechanism removes the opportunity to forget for the
- * shape it covers, and the other is a check, which is a thing that can be
- * defeated and has been nine times.
- *
- * This header said "a test, not a layer" for four rounds after that stopped
- * being true, and said the test credits a file for REFERENCING this module —
- * which is the version fix round 1 deleted, and which
- * `adminGuardRegistration.test.ts`'s own case "reads a guard APPLICATION
- * rather than a mention of one" now asserts is NOT enough. Both halves were
- * wrong. What is actually here:
+ * Nothing here makes anything unforgettable — one mechanism removes the
+ * opportunity to forget for the shape it covers, and the other is a check,
+ * which is a thing that can be defeated and has been. A mention of this module
+ * is not a guard either: `adminGuardRegistration.test.ts`'s own case "reads a
+ * guard APPLICATION rather than a mention of one" is what holds that line.
  *
  *   1 · THE GATE REFUSES AN UNGUARDED SERVER ACTION. Said in the indicative,
- *   because every stronger form of this sentence has been false. It said one
- *   CANNOT BE WRITTEN, and the fifth whole-branch review wrote one and
- *   committed it. Round 8 replaced that with "not a shape this repository's
- *   gate admits" and added "every shape that reaches a commit without it is
- *   enumerated", and the sixth review falsified both: it committed
- *   `const attached = Object.assign(module.exports, { deleteJourney })`
- *   (`523bd51`, since reset), and showed that deleting a row from the
- *   enumeration was something nothing noticed. An absolute about a control is
+ *   because every stronger form of this sentence has been falsified by someone
+ *   writing the shape it ruled out and committing it — "one CANNOT BE WRITTEN",
+ *   then "not a shape this repository's gate admits", then "every shape that
+ *   reaches a commit without it is enumerated". An absolute about a control is
  *   a claim no mechanism keeps, so what is written here is what the mechanism
  *   DOES and what its test NAMES.
  *
  *   `guardedAction` (below) takes the action, calls `requireAdminSession()`,
  *   and calls the action with the session it got, so an action built from it
  *   has no opportunity to forget — and `guard.integration.test.ts`'s "the
- *   factory every Server Action is built from" executes that, rather than
- *   matching two substrings over this file's text, which is all that stood
- *   over it until round 9. `eslint-rules/guarded-server-actions.js` reports
+ *   factory every Server Action is built from" EXECUTES that, rather than
+ *   matching two substrings over this file's text — which was all that stood
+ *   over it once, while the body could be gutted underneath them.
+ *   `eslint-rules/guarded-server-actions.js` reports
  *   every value export of a `'use server'` module that is not such a call,
  *   every re-export from one, every top-level statement in one that evaluates
  *   anything at load bar a literal, a function expression or that same call,
@@ -96,46 +86,28 @@
  *   a call and not a mention. It follows nothing a file imports: a check that
  *   has to look elsewhere for its subject is one a neighbour can satisfy.
  *
- * Thirty-three shapes have been written to disk and run against the real gate;
- * thirty-two fail `npm run verify`. The fourth whole-branch review then wrote
- * fourteen more and THREE got through, two of them closed in the rule by round
- * 7 — including the one that mattered, a DIFFERENT export of this file aliased
- * to `guardedAction`, which the rule admitted because it compared the imported
- * FILE and never the imported NAME. Round 7 wrote eleven more, six of them new,
- * and closed a fourth. The fifth review wrote sixteen, eleven of them its own,
- * and defeated the guard four more ways — a bare disable directive and one with
- * the rule's id on the next line, both of which COMMITTED, and four wrappers
- * around `module.exports` that walked past a rule refusing one node shape. All
- * four are closed in round 8, together with a fifth found while attacking that
- * fix.
- *
- * THE SIXTH REVIEW WROTE EIGHT, ALL ITS OWN, AND FIVE GOT THROUGH — and the
- * two that matter are why rule 4 was rewritten again. Round 8 had inverted it
- * into an allowlist of statement KINDS, which admitted the very call it
- * refused as a bare statement once the call was bound to a name; that reached
- * a real commit. It also gutted `guardedAction`'s body while keeping the two
- * substrings that were the only thing standing over it, and deleted a row
- * from the enumeration below without anything noticing. Round 9 closed all
- * three: rule 4 asks what a statement EVALUATES, `guard.integration.test.ts`
- * executes the factory, and each enumerated row now carries what the suite
- * lints to show it is still true. A `processor` block, the fifth, has a key of
- * its own in `adminGuardRegistration.test.ts`.
+ * THIS RULE HAS BEEN ATTACKED REPEATEDLY AND HAS LOST, which is why four of
+ * its clauses read the way they do: rule 4 asks what a statement EVALUATES
+ * rather than what KIND it is, because an allowlist of kinds admitted the very
+ * call it refused once the call was bound to a name; the import check compares
+ * the imported NAME and not only the file, because a DIFFERENT export of this
+ * file aliased to `guardedAction` was admitted when it compared only the file;
+ * disable directives are refused on their own line and on the next one; and a
+ * wrapper around `module.exports` is refused by shape rather than by node kind.
  *
  * WHAT THE RULE DOES NOT REPORT IS ENUMERATED WHERE IT CAN BE ASSERTED, and no
  * number is written here: `SHAPES_THAT_GET_THROUGH` in
  * `adminGuardRegistration.test.ts` holds each one with its measurement and
  * whether it can be committed, and a case there fails if this file stops
- * pointing at that array or starts restating it. Seven sites restated a count
- * of two while the fifth review measured four, and that sentence had been
- * wrong in four earlier rounds too (ruling F76).
+ * pointing at that array or starts restating it. Restating it is how several
+ * documents came to agree on a figure none of them had taken.
  *
- * THIS MODULE'S EXPORT SURFACE IS LOAD-BEARING, and that is what round 7's
- * defeat means for Phase 4. The rule now requires the imported name to be
- * `guardedAction`, so adding an export here no longer opens a hole — but a
- * Phase 4 wrapper (`guardedRouteAction`, `guardedFormAction`) must COMPOSE
- * `guardedAction` rather than be added to any list of permitted names. The rule
- * deliberately has no such list: it can compare a name and resolve a file, and
- * it cannot tell whether the function behind a name authenticates.
+ * THIS MODULE'S EXPORT SURFACE IS LOAD-BEARING. Because the rule requires the
+ * imported name to be `guardedAction`, adding an export here does not open a
+ * hole — but a Phase 4 wrapper (`guardedRouteAction`, `guardedFormAction`) must
+ * COMPOSE `guardedAction` rather than be added to any list of permitted names.
+ * The rule deliberately has no such list: it can compare a name and resolve a
+ * file, and it cannot tell whether the function behind a name authenticates.
  *
  * ═══ THE COOKIE IS `Path=/admin`, SO NOTHING UNDER `/api` CAN USE IT ═══
  *

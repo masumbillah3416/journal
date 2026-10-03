@@ -49,9 +49,9 @@
  * The same hole, one layer out, and found the same way. The table is quoted;
  * the PROSE around it writes a case name in backticks, and `QUOTED_RUN` sees
  * neither a curly nor a straight run there, so those citations were checked by
- * nothing at all. Phase 4 Task 13's fix round renamed an `e2e` case and left
- * this document's prose citing the old name in backticks; every gate stayed
- * green, including this one, and a human found it (`docs/deviations.md` §98).
+ * nothing at all. An `e2e` case was renamed and this document's prose went on
+ * citing the old name in backticks; every gate stayed green, including this
+ * one, and a human found it (`docs/deviations.md` §98).
  *
  * Widening it is not one more alternative in the pattern, because a backticked
  * run in this document is usually a path, an identifier, a field, a section
@@ -68,8 +68,8 @@
  * {@link isPathCitation}, {@link isIdentifierCitation} and
  * {@link isSectionCitation} from `apps/web/lib/docs/citations.ts` — and a
  * sentence saying the four kinds were told apart by rules this repository
- * already owns. Review round 1 (F1) ran the one mutation that settles it:
- * deleting all three left every case in this file green, because the first two
+ * already owns. One mutation settles it: deleting all three leaves every case
+ * in this file green, because the first two
  * are anchored single-token patterns and the third spans three tokens at most,
  * so NO run that reaches the floor can be refused by any of them. They were
  * unreachable by construction, and the sentence described a composition rather

@@ -49,10 +49,9 @@
  *     ONE `payload.create` whose `data` already carries `state: 'ready'`, and
  *     nothing after it writes state; a refusal creates no row. So a crashed
  *     `inline` request leaves a `ready` row or no row — never a `processing`
- *     one. This bullet claimed the opposite until the whole-branch review
- *     disbelieved it (F2): the sentence survived from the plan, which
- *     described a `create` and a SEPARATE state write, and Task 8 collapsed
- *     the two into one. The collection's `'processing'` default
+ *     one. The plan described a `create` and a SEPARATE state write, and Task
+ *     8 collapsed the two into one, so a sentence promising a `processing` row
+ *     here would describe code that does not exist. The collection's `'processing'` default
  *     (`apps/web/collections/media.ts`) is real and asserted rather than
  *     assumed — `handOffToWorker` below leans on it instead of naming the
  *     value — but `worker` is the only mode that reaches it.
@@ -71,10 +70,8 @@
  * which is what those three readers use instead, since they override access.
  * Two controls, deliberately independent: the second holds if somebody deletes
  * the first. This sentence named only the collection rule, which covers one of
- * those doors (Task 8 fix review, N1). This paragraph
- * called it "a deployment precondition, recorded here" and recorded it in four
- * documents; documentation was not the control, which is Task 8 review
- * finding 1.
+ * those doors. Calling it "a deployment precondition, recorded here" and
+ * recording it in four documents is not a control; documentation never is.
  *
  * The `worker` BRANCH below stays exactly as it is. The mode is real — both
  * adapters run one contract suite, `mediaProcessorFor` and

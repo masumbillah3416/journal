@@ -3,8 +3,7 @@
  * actually named by the command that runs it.
  *
  * TWO SUBJECTS, ONE MECHANISM. The first is spec registration (below); the
- * second, added by the Phase 1 final review, is the pair of Lighthouse
- * configurations. Both are the same defect shape: a list of things to run,
+ * second is the pair of Lighthouse configurations. Both are the same defect shape: a list of things to run,
  * held in a file that is not the thing itself, which drifts silently because
  * nothing green ever goes red when an entry is dropped.
  *
@@ -58,8 +57,7 @@
  *
  * IT NAMES THEM AS ARGUMENTS TO `scripts/run-lighthouse.mjs` RATHER THAN AS A
  * `&&` CHAIN, and the case below is why the runner does not discover them for
- * itself. The chain was replaced in Task 11's fix round because `&&`
- * short-circuits: with the book gate red, the admin gate — third in the
+ * itself. A chain is wrong because `&&` short-circuits: with the book gate red, the admin gate — third in the
  * chain — never ran at all, so a budget this repository had just started
  * measuring went unmeasured with nothing saying so. The runner runs every
  * config and exits non-zero if any failed. A runner that GLOBBED the configs
@@ -67,10 +65,9 @@
  * the shape of vacuous test this phase has found fifteen of; so the names stay
  * in `package.json`, where this case can read them.
  *
- * ═══ WHY IT IS A VITEST TEST IN THE `e2e` DIRECTORY (RULING F57) ═══
+ * ═══ WHY IT IS A VITEST TEST IN THE `e2e` DIRECTORY ═══
  *
- * It was a Playwright spec until the Task 9 review, and being one is why it
- * had never fired. A spec runs in the CI browser job or in a full
+ * It was a Playwright spec once, and being one is why it had never fired. A spec runs in the CI browser job or in a full
  * `npm run test:e2e` - never in `npm run verify`, the gate Husky runs before
  * every commit - so it could only report the drift AFTER a full CI run, which
  * is exactly how `e2e/codeStep.spec.ts` gated nothing for two commits: the

@@ -32,7 +32,7 @@
  * was the smaller half. The larger half is that the rewrite was written into
  * the main row and the journey left the public book, and the fix is
  * {@link writeJourneyFlag} below — read its header before changing either flag
- * write (fix round 2, finding 1).
+ * write.
  *
  * PATTERNS (CLAUDE.md §3.3): Repository — the collection's shape stops here,
  * and the screen's actions speak in journeys and row ids. DTO for

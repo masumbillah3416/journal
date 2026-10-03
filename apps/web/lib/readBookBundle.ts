@@ -67,16 +67,14 @@
  * is never consulted, matching the slot schema's `defaultValue: 50` (a slot
  * always carries a definite value).
  *
- * A `pages` row is matched to its {@link BookPage} by `kind` + `order`
- * (Task 6 review, finding 1), never by `title`: `title` is free text an
+ * A `pages` row is matched to its {@link BookPage} by `kind` + `order`,
+ * never by `title`: `title` is free text an
  * editor can rename at any time, `kind` is a fixed enum and `order` is the
  * field DATA_MODEL.md built for sequencing, so a rename can never silently
  * drop a page's photos the way matching on `title` could.
  *
- * `Journey.startsOn` (widened onto the domain type by this task, per Task 5
- * review's carry-forward) DEGRADES rather than throws when a published,
- * non-deleted journey is missing it (Task 6 review, finding 2, reversing
- * this module's original throw-on-missing behaviour): `journeys.startsOn`
+ * `Journey.startsOn` DEGRADES rather than throws when a published,
+ * non-deleted journey is missing it: `journeys.startsOn`
  * is not `required: true` in the schema, so a blank field is an ordinary
  * editorial state, not a corrupted row, and this function renders a
  * statically-generated public page - throwing would turn one editor's blank

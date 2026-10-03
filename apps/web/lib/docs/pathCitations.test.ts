@@ -8,13 +8,13 @@
  * listed `packages/ui` as a package of this workspace for the whole of two
  * phases; it has never existed, and a contributor adding a shared primitive
  * either creates a third package nobody decided on or concludes the workspace
- * is broken (final review 9, F9-6). `docs/deviations.md` attributed `RESET_PATH`
+ * is broken. `docs/deviations.md` attributed `RESET_PATH`
  * to the module that IMPORTS it rather than the one that declares it, which is
  * how a reader fails to find a constant and re-declares it locally — the exact
- * duplication `resetPath.test.ts` exists to refuse (F9-11).
+ * duplication `resetPath.test.ts` exists to refuse.
  *
- * The ninth reviewer resolved these by script and reported the result green,
- * which is the whole argument for adopting it: **a check that was run once by
+ * Both were first resolved by a one-off script that reported green, which is
+ * the whole argument for adopting it as a test: **a check that was run once by
  * hand and never again is a check the next document defeats.** Run over the
  * same surface it ran over, this file was green on its first execution. Run
  * over `docs/**` more widely, it was not — see WHAT IS EXCLUDED below.
@@ -86,7 +86,8 @@
  *     real symbol that someone later adds.
  *
  * An unlisted citation that does not resolve is the failing case. That is the
- * direction that matters: silence is what F9-6 lived in.
+ * direction that matters: silence is what the `packages/ui` citation lived in
+ * for two phases.
  *
  * PATTERNS (CLAUDE.md §3.3): none of the seven. Two extractions and two set
  * comparisons.

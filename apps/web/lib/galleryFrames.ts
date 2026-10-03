@@ -44,8 +44,8 @@
  *      nothing has stripped - under `MEDIA_PIPELINE=worker` that is exactly
  *      what they are, and `failed` is the same worker's other answer.
  *      `inline` reaches neither: it creates the row once at `'ready'` and a
- *      refusal creates no row, so the crashed-`inline` case this paragraph
- *      used to name does not exist (whole-branch review F2). What the clause
+ *      refusal creates no row, so there is no crashed-`inline` case. What the
+ *      clause
  *      withholds is what the day `worker` boots will write.
  *      That rule gates `/api/media/file/<name>` and nothing else: these three
  *      callers override access, so without the clause here a `processing` row
@@ -53,8 +53,8 @@
  *      by `/gallery/<slug>/download/<id>` - our own handler, which SECURITY.md
  *      requires precisely so that bytes go through our decisions. The
  *      collection rule was called "the control that holds if somebody deletes
- *      the env refusal" while covering one of the four public doors (Task 8
- *      fix review, N1). `null` is admitted, exactly as the collection admits
+ *      the env refusal" while covering one of the four public doors.
+ *      `null` is admitted, exactly as the collection admits
  *      it: `docs/deviations.md` §48's migration deliberately did not backfill,
  *      so a null state means "written before the column existed" and every
  *      such row predates any pipeline.

@@ -29,8 +29,8 @@
  * The "Careful now" paragraph tells the author what pressing the most
  * destructive control on this screen does, so it is a promise rather than
  * copy. Its last third was FALSE when this card was written — a closed book
- * still served every photograph through Payload's own routes — and the first
- * fix round closed that at `apps/web/collections/media.ts`'s `read` rule.
+ * still served every photograph through Payload's own routes. It is closed at
+ * `apps/web/collections/media.ts`'s `read` rule.
  * `apps/web/lib/bookGateRegistration.test.ts` counts the surfaces and
  * `e2e/bookGate.spec.ts` asks a running server for each; the hint under the
  * fourth toggle (`readSettingsScreen.ts`'s `READER_COPY`) makes the same

@@ -11,8 +11,8 @@
  *
  * Uses `getTestPayload()` (`./testPayload`), not `getPayload()` directly:
  * every integration test file connects to the isolated `diary_test`
- * database, never the developer's own dev database (Task 10/11 review round
- * 1, finding 2 - see that module's header). `beforeAll` seeds via
+ * database, never the developer's own dev database (see that module's
+ * header). `beforeAll` seeds via
  * `../scripts/seed`'s `seed()` directly, rather than assuming a previous
  * test file already ran it - `seed()` is idempotent (its own header), so
  * calling it here is safe regardless of run order and does not depend on
@@ -23,14 +23,13 @@
  * convention, so they cannot collide with the ten real seeded slugs, and are
  * deleted in `afterAll`/`afterEach`.
  *
- * Task 6 review, fix round 1 adds coverage for four findings: page-to-slot
- * matching by `kind`+`order` rather than free-text `title` (finding 1); a
+ * Four behaviours here are easy to lose and each has its own block:
+ * page-to-slot matching by `kind`+`order` rather than free-text `title`; a
  * missing `startsOn` degrading rather than throwing, with a structured log
- * line proving the degrade is visible (finding 2); four schema-defaulted
- * fields (`hiddenFromBookmarks`, `furniture.accent`, `journeyOrderMode`,
- * slot `focalX`/`focalY`) falling back correctly when explicitly `null`,
- * not just `undefined` (finding 3); and a draft journey's exclusion, which
- * was previously correct but unproven (finding 4).
+ * line proving the degrade is visible; four schema-defaulted fields
+ * (`hiddenFromBookmarks`, `furniture.accent`, `journeyOrderMode`, slot
+ * `focalX`/`focalY`) falling back correctly when explicitly `null`, not just
+ * `undefined`; and a draft journey's exclusion.
  *
  * Task 11 (the About page, SCREENS.md §1.6) adds the `about` global's own
  * cases: its content carried through verbatim, its portrait resolved to a

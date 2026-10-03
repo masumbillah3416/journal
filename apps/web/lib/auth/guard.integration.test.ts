@@ -28,15 +28,14 @@
  *
  * ═══ AND THE FACTORY EVERY PHASE 4 ACTION IS BUILT FROM ═══
  *
- * The sixth whole-branch review's most valuable finding: nothing in this
- * repository EXECUTED `guardedAction`. It had no caller, it sat inside a
- * `c8 ignore` region, and the only thing standing over its body was two
- * `toContain` substring assertions in `adminGuardRegistration.test.ts` — so
- * the reviewer replaced the body with a `process.env`-keyed path that skipped
- * `requireAdminSession()` entirely, kept both pinned substrings, and got
- * `eslint`, `tsc` and prettier clean with **1,348 unit tests passing**. The
- * mechanism an ESLint rule, a factory, four documents and an ADR exist to
- * funnel every future mutation through was asserted by string matching.
+ * Nothing in this repository EXECUTED `guardedAction`. It had no caller, it sat
+ * inside a `c8 ignore` region, and the only thing standing over its body was
+ * two `toContain` substring assertions in `adminGuardRegistration.test.ts` — so
+ * a body with a `process.env`-keyed path that skips `requireAdminSession()`
+ * entirely keeps both pinned substrings and goes `eslint`, `tsc` and prettier
+ * clean with the whole unit suite passing. The mechanism an ESLint rule, a
+ * factory, four documents and an ADR exist to funnel every future mutation
+ * through was asserted by string matching.
  *
  * So the last block here executes it, and asserts the two things Phase 4 will
  * rely on twenty times over: an UNAUTHENTICATED call never reaches the action,

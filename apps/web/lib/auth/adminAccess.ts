@@ -12,9 +12,9 @@
  * the path every admin request takes.
  *
  * THIS SAID THE MIDDLEWARE RUNS IN THE EDGE RUNTIME, WHERE THOSE THREE CANNOT
- * BE IMPORTED AT ALL, AND THAT IS NO LONGER TRUE. Phase 4 Task 13's first fix
- * round measured it false on Next 16.3.3 and moved the middleware to the Node
- * runtime for one header (`docs/deviations.md` §101). The shape below does not
+ * BE IMPORTED AT ALL, AND THAT IS NO LONGER TRUE. It was measured false on
+ * Next 16.3.3, and the middleware runs in the Node runtime for one header
+ * (`docs/deviations.md` §101). The shape below does not
  * change and is still right — three pure decisions are cheaper to take and
  * easier to prove than three that reach a database — but it is a CHOICE now
  * rather than a wall, and a reason that has stopped being true is worse than
@@ -92,7 +92,7 @@
  * relative URL on the page.
  *
  * ═══ `Referrer-Policy` IS `same-origin`, AND `no-referrer` WAS A BLOCKING
- * DEFECT (FIX ROUND 1) ═══
+ * DEFECT ═══
  *
  * This header used to be `no-referrer`, for a reason that is still true:
  * `/admin/reset/<token>` carries a live reset token IN THE ADDRESS, and an

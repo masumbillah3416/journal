@@ -36,15 +36,13 @@
  * This repository used to say, in source and in documents, that the middleware
  * "runs in Next.js's Edge runtime, where `pg` and Payload do not exist" —
  * where, and how many, is the grep below and not a sentence here. On Next
- * 16.3.3 it is false: `config.runtime = 'nodejs'` is honoured, and the Task 13
- * review measured it — `require('pg')` connected and read the `site` row from
- * inside this file. `docs/deviations.md` §101 carries the measurement.
+ * 16.3.3 it is false: `config.runtime = 'nodejs'` is honoured, and it was
+ * measured — `require('pg')` connected and read the `site` row from inside
+ * this file. `docs/deviations.md` §101 carries the measurement.
  *
- * NO COUNT IS GIVEN HERE, deliberately, and this paragraph has now been wrong
- * twice for giving one. It said FOUR places, which was what the first fix
- * round corrected rather than what existed; the re-review found a fifth in
- * this file. It then said the phrase survived in only two named exceptions,
- * and the re-review ran that grep and found two more. A figure beside a
+ * NO COUNT IS GIVEN HERE, deliberately, and this paragraph has been wrong
+ * twice for giving one — once naming four places when there were five, once
+ * naming two surviving exceptions when there were four. A figure beside a
  * correction is a claim about thoroughness that nobody checked (CLAUDE.md
  * §0) — and so, it turns out, is a prose description of a search.
  *
@@ -53,7 +51,7 @@
  *     git grep -in 'edge runtime'
  *
  * `-i` because `docs/architecture.md` spelled it `EDGE runtime` in an ASCII
- * box and a case-sensitive grep walked past it for a round. `git grep` with no
+ * box and a case-sensitive grep walks past it. `git grep` with no
  * path because `vitest.config.ts` carried a copy and sits outside `apps/`,
  * `docs/`, `e2e/` and `packages/`, which is every root the last search named.
  * Both of those are how the previous version of this paragraph came to be

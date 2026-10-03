@@ -31,11 +31,10 @@
  * writes the document next to the number or not at all. **A line wrap between
  * the two is still immediate** and is read as one citation, comment
  * continuation included — more than seventy of them, 76 when that was measured
- * on 2026-10-03, and they were invisible to the first version of this guard
- * (review round 1, F4). Most are in a module header or a comment and 22 are
- * ordinary Markdown paragraphs; the first draft of this sentence said 68 and
- * "every one", and neither was re-measured (re-review, ND-1). A blank line is
- * not immediate: that is a paragraph break.
+ * on 2026-10-03, and a guard that reads a line at a time cannot see any of
+ * them. Most are in a module header or a comment and 22 are ordinary Markdown
+ * paragraphs — both numbers measured, because an unmeasured "every one" here
+ * was wrong. A blank line is not immediate: that is a paragraph break.
  *
  * What the rule leaves out is stated rather than assumed away, and
  * {@link SECTION_MARK} counts it by subtraction on every run, so the uncovered

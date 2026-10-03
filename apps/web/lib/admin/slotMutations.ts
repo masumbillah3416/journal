@@ -34,8 +34,7 @@
  * `live.journey`, in the shape the cell gate already has; it is not taken
  * because no control can reach the state and CLAUDE.md §4 refuses the
  * abstraction. Written down so the editor's "a state no control on this screen
- * can create" is read as being about the CONTROL rather than about the action
- * (Task 7 review, L3).
+ * can create" is read as being about the CONTROL rather than about the action.
  *
  * ═══ THE CELL IS CHECKED TWICE, AND THE TWO CHECKS ARE DIFFERENT QUESTIONS ═══
  *

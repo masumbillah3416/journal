@@ -194,8 +194,7 @@
  * `media` appeared in no baseline — which is what `admin-journeys-rungs` is
  * for: one case, `desktop` only, that resizes to 1200 wide and photographs the
  * ~902px table where those three rungs are in and `dates` is not. It is the
- * one case here that sets its own viewport, and it says why (review round 1,
- * finding 4).
+ * one case here that sets its own viewport, and it says why.
  *
  * WHAT THESE FOUR DO NOT COVER, and it is written here because a baseline
  * invites the assumption that it does: the geometry `SCREENS.md` states in
@@ -209,8 +208,7 @@
  * ═══
  *
  * A container run logs two to four of these, and they were asserted on by
- * nothing and explained by nothing until Task 10's second fix round went and
- * looked:
+ * nothing and explained by nothing until somebody went and looked:
  *
  *     [WebServer] ⨯ Error: The destination stream closed early.
  *

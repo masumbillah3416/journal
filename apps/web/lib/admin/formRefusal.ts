@@ -17,8 +17,7 @@
  * asserted-about: `shellShipsNoClientJs.test.ts`'s `holds no form action's
  * return value, because the factory may answer undefined` walks git's own
  * listing for it. (Its other cases judge which MODULES carry `'use client'`
- * and cannot see a hook added inside a declared island; this header said they
- * could for a fix round, and they cannot.) What a Server Action CAN do is
+ * and cannot see a hook added inside a declared island.) What a Server Action CAN do is
  * write a cookie, and three things about that were measured in Chromium
  * against this app rather than assumed:
  *

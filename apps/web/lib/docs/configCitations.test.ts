@@ -6,24 +6,24 @@
  * ═══ WHY THIS EXISTS ═══
  *
  * A budget written in two places drifts, and the copy a reader trusts is the
- * one in prose. Three findings of the ninth whole-branch review are the same
- * defect wearing three hats:
+ * one in prose. Three measured instances are the same defect wearing three
+ * hats:
  *
  *   - `docs/testing.md` said `npm run test:visual:container:update` passes
  *     `--update-snapshots=all` "not the `changed` default". It passes `changed`;
  *     `all` is the OTHER script. A reader regenerates baselines believing every
- *     one was rewritten and ships a stale baseline that can never fail again
- *     (F9-2) — the exact silent-green failure the `-win32.png` refusal exists
- *     to prevent.
+ *     one was rewritten and ships a stale baseline that can never fail again —
+ *     the exact silent-green failure the `-win32.png` refusal exists to
+ *     prevent.
  *   - The same document enumerated five of the `unit` project's seven include
  *     globs, omitting the one collecting `apps/web/collections/**` entirely. An
  *     auditor checking CLAUDE.md §2.1's "no file is in neither config's
- *     include" against that list audits a smaller set than the real one (F9-8).
+ *     include" against that list audits a smaller set than the real one.
  *   - It said in bold and in the present tense that `npm run test:perf` runs TWO
- *     Lighthouse configurations. It has run three since Task 11 (F9-9).
+ *     Lighthouse configurations. It has run three since Task 11.
  *
  * THE THIRD OF THOSE WAS CORRECTED IN ONE FILE AND LEFT STANDING IN ANOTHER,
- * which is F9-9's own species repeating: `.github/workflows/ci.yml`'s comment
+ * which is the same species repeating: `.github/workflows/ci.yml`'s comment
  * above the Lighthouse step still said "runs TWO lhci configurations and both
  * are gates" and named two of the three, and went on saying it for
  * seventy-three commits after the number was fixed in `docs/testing.md`. So

@@ -22,15 +22,14 @@
  * which must answer to a reader who has no session. So the thing
  * that stands in for that layer is this test, and it fails on the commit that
  * forgets rather than on the day somebody notices. Not "makes forgetting
- * impossible", which is what this said for six rounds: it is a check, checks
- * have been defeated here nine times, and what it does is written in the
- * indicative below with each defeat that shaped it named.
+ * impossible": it is a check, checks here have been defeated repeatedly, and
+ * what it does is written in the indicative below with each defeat that shaped
+ * it named.
  *
- * ═══ IT HAS NOW CREDITED THE WRONG THING FIVE TIMES, SO IT IS BUILT
+ * ═══ IT HAS CREDITED THE WRONG THING FIVE TIMES, SO IT IS BUILT
  *     DIFFERENTLY ═══
  *
- * Four of the five were caught in the phase that wrote it, and the fifth was a
- * set of three found by the whole-branch review:
+ * The five, because each one is why a rule below reads as it does:
  *
  *   1. It matched the guard's NAME anywhere in the file, so the `import` line
  *      and the header comment satisfied it.
@@ -40,7 +39,7 @@
  *   3. It stopped following `guard.ts` — and still credited a route for ANY
  *      module it imported, so a guarded route re-exporting any handler from
  *      `signInEndpoints.ts` passed, because that module holds several and one
- *      of them called the guard. Ruling F61 removed the following entirely.
+ *      of them called the guard. Following an import was removed entirely.
  *   4. It read only `page.tsx` and `route.ts`, under a HARD-CODED
  *      `app/(admin)/admin`. So a Server Action in an `actions.ts` was never
  *      read at all — and `docs/api.md` says Phase 4's mutations will be server
@@ -50,7 +49,7 @@
  *      route under a second route group (`app/(panel)/admin/…`, which Next
  *      serves at the same address) was invisible to the walk.
  *
- * PATCHING THOSE THREE WOULD HAVE MADE A SIXTH INEVITABLE. Every version so
+ * PATCHING THOSE WOULD HAVE MADE A SIXTH INEVITABLE. Every version so
  * far has been an ENUMERATION — of file names, of directories, of the shapes
  * an author might use — and an enumeration is wrong the moment somebody uses a
  * shape nobody listed. This one is built the other way round, in four rules:
@@ -67,8 +66,8 @@
  *   a `.mdx` page, an extension nobody here has seen — none of them passes
  *   unseen; the suite stops and somebody decides.
  *
- *   **C · Server Actions are NOT this file's business, and that is round 5's
- *   correction.** They were, for one round: this file walked three named
+ *   **C · Server Actions are NOT this file's business.** They were once: this
+ *   file walked three named
  *   directories for a `'use server'` prologue and split each module's text at
  *   `/^export\s+(?:const|(?:async\s+)?function)/` to check its exports. It was
  *   defeated five times in five attempts — by a module in a fourth directory
@@ -76,8 +75,7 @@
  *   `export { name }`, by `export default name`, and by a single space before
  *   the word `export`. Meanwhile three documents had been rewritten to promise
  *   "every export of every `'use server'` module in `apps/web`", which the scan
- *   never did: B3's species again, with the claim growing while the code stood
- *   still.
+ *   never did — the claim growing while the code stood still.
  *
  *   The fix is not a tenth pattern. "Every export of every module" is not a
  *   sentence text matching can express, so it is written where the exports are
@@ -85,11 +83,10 @@
  *   over the AST, running on every file `npm run lint` visits. The shape it
  *   admits leaves an action nothing to forget — `guardedAction()`
  *   (`apps/web/lib/auth/guard.ts`) calls the guard and then the action, and
- *   `guard.integration.test.ts` executes that rather than matching two
- *   substrings over `guard.ts`'s text, which is all that stood over it until
- *   round 9. "Cannot be got wrong" is what this sentence used to say, and it
- *   is the species of claim six whole-branch reviews have each falsified: what
- *   the rule does NOT report is enumerated by
+ *   `guard.integration.test.ts` EXECUTES that rather than matching two
+ *   substrings over `guard.ts`'s text, which is all that stood over it once.
+ *   Not "cannot be got wrong" — that is the species of claim every review of
+ *   this file has falsified. What the rule does NOT report is enumerated by
  *   {@link SHAPES_THAT_GET_THROUGH} below rather than denied here. What THIS
  *   file keeps is the questions about that arrangement which are not about a
  *   syntax tree: is the rule still switched on, has anybody switched it off

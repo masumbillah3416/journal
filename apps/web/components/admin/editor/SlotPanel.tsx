@@ -37,7 +37,7 @@
  * defects `DATA_MODEL.md` attributes to exactly that.
  *
  * It is a PENDING EDIT over the server's own values, not a cache of them, and
- * the difference is the whole of Task 7 review M1. Each entry carries the value
+ * the difference is load-bearing. Each entry carries the value
  * it was made over (`against`) plus the photograph it was made ON (`media`),
  * and is DELETED the moment the server's answer for that cell has moved —
  * because two of this screen's own writes move it:
@@ -60,8 +60,7 @@
  * unconditionally, and the pool enables every tile once a cell is targeted — so
  * an author who crops a cell and then ticks the SAME photograph puts the
  * server's answer back to the pair the dropped edit was made over, and the
- * dropped crop revives (Task 7 fix review, F1). A rule that is re-satisfiable
- * is not a rule.
+ * dropped crop revives. A rule that is re-satisfiable is not a rule.
  *
  * So invalidation is an EVENT: {@link SlotPanel}'s effect deletes every entry
  * the current props have moved past, and a deleted entry cannot come back. The
@@ -86,8 +85,8 @@
  * // HANDOFF-DEVIATION: §2.3's focal point is "click anywhere on a slot" and
  * the element that takes the click is a `<button>`, so a keyboard can activate
  * it — and an activation carries no pointer position, which §2.3's own formula
- * reads as a drag that left the box and clamps to the top-left corner. It was
- * writing that (Task 7 review, H1). So the activation is refused on
+ * reads as a drag that left the box and clamps to the top-left corner — and it
+ * wrote that corner. So the activation is refused on
  * `MouseEvent.detail` and the arrows aim instead, one percentage point per
  * press, through the same clamp.
  *

@@ -16,8 +16,9 @@
  *
  * ITS COPY IS A SECURITY CLAIM, AND IT IS CHECKED. "not the photographs behind
  * them" was FALSE when this file was written: a closed book still served every
- * photograph through Payload's own REST, GraphQL and file routes, which the
- * first fix round closed at `apps/web/collections/media.ts`'s `read` rule.
+ * photograph through Payload's own REST, GraphQL and file routes. It is closed
+ * at `apps/web/collections/media.ts`'s `read` rule, which is the one predicate
+ * all three pass through.
  * `apps/web/lib/bookGateRegistration.test.ts` is what now counts the surfaces,
  * and `e2e/bookGate.spec.ts` asks a running server for each of them. Do not
  * widen this sentence without widening that file first.

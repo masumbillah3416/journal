@@ -9,14 +9,12 @@
  * real Payload) and how it is drawn from `components/admin/CodeStep.tsx`
  * (jsdom, plus `e2e/codeStep.spec.ts` in a real browser).
  *
- * ═══ THE PENDING CHALLENGE IS WIRED, AS OF FIX ROUND 1 ═══
+ * ═══ THE PENDING CHALLENGE IS WIRED ═══
  *
  * The three things §3.2 prints that only a stored challenge can answer — the
  * masked address a code went to, the instant it was issued, and how many
  * guesses have been spent — come from `lib/auth/readCodeScreen.ts`, which
- * reads the challenge bound to the identifier in the cookie. For three tasks
- * they were a fixed bullet run, `Date.now()` at render, and a hard-coded zero
- * (`docs/deviations.md` §33).
+ * reads the challenge bound to the identifier in the cookie.
  *
  * A BROWSER HOLDING NO LIVE CHALLENGE STILL GETS THE SCREEN, drawn with a
  * placeholder that echoes nothing. Refusing instead would make this route an
@@ -34,9 +32,8 @@
  * would force it in any case.
  *
  * WHAT THIS ROUTE DOES NOT DO. It answers `GET` only. The two `POST`s the
- * pane makes go to `CODE_STEP_ENDPOINT` and `RESEND_ENDPOINT`, sibling routes
- * mounted in Task 10 and its fix round — a Next.js page cannot answer a `POST`
- * at its own address.
+ * pane makes go to `CODE_STEP_ENDPOINT` and `RESEND_ENDPOINT`, sibling routes —
+ * a Next.js page cannot answer a `POST` at its own address.
  * Depends on: `codeStepNotice` (@travel-diary/domain/auth/codeScreen),
  * `readSignInScreen` (../../../../../lib/auth/readSignInScreen),
  * `readCodeScreen` (../../../../../lib/auth/readCodeScreen),

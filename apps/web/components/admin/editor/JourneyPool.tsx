@@ -49,8 +49,7 @@
  * no tile-level display at all: the eyebrow counts it ("{n} of {total} in the
  * book") and nothing here says WHICH n.
  *
- * **THE COUNT IS LIVE.** This header said "nothing writes `inBook` yet" until
- * Phase 4 Task 8's fix round; §2.4's `Add to book`
+ * **THE COUNT IS LIVE.** §2.4's `Add to book`
  * (`lib/admin/mediaMutations.ts`'s `addMediaToBook`) is the column's writer, so
  * the eyebrow above this pool moves when an author works on the Media screen.
  * A second per-tile mark HERE is still not built, and deliberately: §2.3 allots
