@@ -5,6 +5,7 @@ import * as migration_20260905_230601_add_sign_in_attempts from './20260905_2306
 import * as migration_20260906_004937_add_session_expiry from './20260906_004937_add_session_expiry'
 import * as migration_20260910_171154_add_media_state from './20260910_171154_add_media_state'
 import * as migration_20260913_201520_add_media_grid_tier from './20260913_201520_add_media_grid_tier'
+import * as migration_20261004_085050_add_reader_password from './20261004_085050_add_reader_password'
 
 export const migrations = [
   {
@@ -41,5 +42,10 @@ export const migrations = [
     up: migration_20260913_201520_add_media_grid_tier.up,
     down: migration_20260913_201520_add_media_grid_tier.down,
     name: '20260913_201520_add_media_grid_tier',
+  },
+  {
+    up: migration_20261004_085050_add_reader_password.up,
+    down: migration_20261004_085050_add_reader_password.down,
+    name: '20261004_085050_add_reader_password',
   },
 ]

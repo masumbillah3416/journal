@@ -45,6 +45,7 @@ import * as addSignInAttempts from '../migrations/20260905_230601_add_sign_in_at
 import * as addSessionExpiry from '../migrations/20260906_004937_add_session_expiry'
 import * as addMediaState from '../migrations/20260910_171154_add_media_state'
 import * as addMediaGridTier from '../migrations/20260913_201520_add_media_grid_tier'
+import * as addReaderPassword from '../migrations/20261004_085050_add_reader_password'
 
 describe('migrations barrel', () => {
   it('lists every migration, in order, wired to the right module', () => {
@@ -75,6 +76,11 @@ describe('migrations barrel', () => {
         up: addMediaGridTier.up,
         down: addMediaGridTier.down,
         name: '20260913_201520_add_media_grid_tier',
+      },
+      {
+        up: addReaderPassword.up,
+        down: addReaderPassword.down,
+        name: '20261004_085050_add_reader_password',
       },
     ])
   })

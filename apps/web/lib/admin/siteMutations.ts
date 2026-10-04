@@ -47,8 +47,10 @@
  * Depends on: zod, `payload` (types), `readerSettingNames`
  * (./readSettingsScreen), `AdminScope` (./adminScope).
  */
+import { readerPasswordProblem } from '@travel-diary/domain/readerPassword'
 import type { Payload } from 'payload'
 import { z } from 'zod'
+import { hashReaderPassword } from '../readerPassword'
 import type { AdminScope } from './adminScope'
 import { readerSettingNames } from './readSettingsScreen'
 
@@ -165,7 +167,64 @@ export const saveSite = async (payload: Payload, scope: AdminScope, input: SiteF
  * await setReaderSetting(payload, scope, readReaderToggle(form))
  */
 export const setReaderSetting = async (payload: Payload, scope: AdminScope, input: ReaderToggleForm): Promise<void> => {
+  // CLOSING THE BOOK WITH NO PASSWORD STORED IS §100's DEFECT EXACTLY: a door
+  // with no key, which admits nobody - not the author's readers, not the
+  // author. Refused here rather than in the action because this module is
+  // where the other writes' rules live, and raised as a `ZodError` because
+  // that is the one thing `guardedAction` turns into a message on the screen
+  // (`apps/web/lib/auth/guard.ts`); a bespoke refusal would need a second
+  // mechanism to render it.
+  //
+  // ONLY ON THE WAY IN. Opening the book locks nobody out, so it needs no
+  // password and is not read for one.
+  if (input.setting === 'passwordProtect' && input.on) {
+    const site = await payload.findGlobal({ slug: 'site', depth: 0, select: { readerPasswordHash: true } })
+    if (typeof site.readerPasswordHash !== 'string' || site.readerPasswordHash === '') {
+      throw new z.ZodError([
+        { code: 'custom', path: ['passwordProtect'], message: 'set a reader password before closing the book', input },
+      ])
+    }
+  }
+
   await payload.updateGlobal({ slug: 'site', ...scope, depth: 0, data: { [input.setting]: input.on } })
+}
+
+/**
+ * Stores a new shared reader password, hashed.
+ *
+ * SAVING RETIRES EVERY READER COOKIE, because the cookie is derived from this
+ * column and {@link hashReaderPassword} redraws the salt here. That is the
+ * only way to evict readers and it is deliberate: saving the same password
+ * again is how an author throws everyone out.
+ *
+ * @param payload - The Local API instance.
+ * @param scope - The hoisted {@link AdminScope}.
+ * @param plain - Exactly what the author typed, untrimmed.
+ * @throws {z.ZodError} When `plain` is empty, whitespace or past the cap —
+ *   the shape `guardedAction` renders on the screen.
+ * @throws From Payload, when the write is refused by the access rules.
+ * @example
+ * await setReaderPassword(payload, scope, 'tokyo 2019')
+ */
+export const setReaderPassword = async (payload: Payload, scope: AdminScope, plain: string): Promise<void> => {
+  const problem = readerPasswordProblem(plain)
+  if (problem !== null) {
+    throw new z.ZodError([
+      {
+        code: 'custom',
+        path: ['readerPassword'],
+        message: problem === 'empty' ? 'type the password readers will use' : 'that password is too long',
+        input: plain,
+      },
+    ])
+  }
+
+  await payload.updateGlobal({
+    slug: 'site',
+    ...scope,
+    depth: 0,
+    data: { readerPasswordHash: await hashReaderPassword(plain) },
+  })
 }
 
 /**
@@ -173,10 +232,16 @@ export const setReaderSetting = async (payload: Payload, scope: AdminScope, inpu
  *
  * ONE COLUMN, AND IT IS THE ONE THE FOURTH TOGGLE WRITES. `SCREENS.md` §2.9
  * draws a ringed "Take the book offline" beneath an explanation, and this data
- * model has exactly one thing that takes a book offline: `passwordProtect`,
- * which `apps/web/lib/bookAccess.ts` turns into a 401 at every public address.
- * A second column would be a second idea of what offline means, and
- * `DATA_MODEL.md` declares none. `docs/deviations.md` §102 records it.
+ * model has exactly one column behind it: `passwordProtect`. A second column
+ * would be a second idea of what closing means, and `DATA_MODEL.md` declares
+ * none. `docs/deviations.md` §102 records it.
+ *
+ * WHAT IT MEANS CHANGED, AND THE WORD "OFFLINE" NO LONGER FITS. Before a
+ * reader password existed, this column admitted nobody at all — §100's door
+ * with no key — so "offline" was accurate. Now it means **readers must type
+ * the password**. An author who wants a true blackout sets a password nobody
+ * knows; the screen's copy says so. Adding a `site.offline` column meaning
+ * "no reader, password or not" is what would reverse that.
  *
  * IT IS ONE-WAY, which is what the "Careful now" framing means: the toggle
  * above it is how the book is opened again, and the screen says so.
@@ -187,5 +252,10 @@ export const setReaderSetting = async (payload: Payload, scope: AdminScope, inpu
  * await takeBookOffline(payload, scope)
  */
 export const takeBookOffline = async (payload: Payload, scope: AdminScope): Promise<void> => {
-  await payload.updateGlobal({ slug: 'site', ...scope, depth: 0, data: { passwordProtect: true } })
+  // THE SAME REFUSAL AS `setReaderSetting`, AND IT HAS TO BE SEPARATE. This
+  // writes the column itself rather than going through that function, so a
+  // guard written only there would leave the button as a second way to close
+  // the book with no password stored - a one-sided boundary, with the open
+  // side being the control whose own copy says "Careful now".
+  await setReaderSetting(payload, scope, { setting: 'passwordProtect', on: true })
 }

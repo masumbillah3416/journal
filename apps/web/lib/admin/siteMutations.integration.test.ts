@@ -24,7 +24,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getTestPayload } from '../testPayload'
 import { adminScope, type AdminScope } from './adminScope'
 import { OFFLINE_SETTING, readSettingsScreen, readerSettingNames } from './readSettingsScreen'
-import { readReaderToggle, readSiteForm, saveSite, setReaderSetting, takeBookOffline } from './siteMutations'
+import { z } from 'zod'
+import { readerPasswordMatches } from '../readerPassword'
+import {
+  readReaderToggle,
+  readSiteForm,
+  saveSite,
+  setReaderPassword,
+  setReaderSetting,
+  takeBookOffline,
+} from './siteMutations'
 
 /** What every row this file writes carries, so cleanup can find them all. */
 const MARKER = 'test-site-mutations'
@@ -213,13 +222,106 @@ describe('the Settings screen’s writes', () => {
     })
   })
 
+  describe('setReaderPassword', () => {
+    it('stores the password hashed, never the password', async () => {
+      await setReaderPassword(payload, scope, 'tokyo 2019')
+
+      const site = await payload.findGlobal({ slug: 'site', depth: 0 })
+      expect(site.readerPasswordHash).not.toContain('tokyo')
+      expect(site.readerPasswordHash).toMatch(/^scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}$/u)
+    })
+
+    it('stores one the reader can actually be checked against, which the shape alone does not prove', async () => {
+      await setReaderPassword(payload, scope, 'tokyo 2019')
+
+      const site = await payload.findGlobal({ slug: 'site', depth: 0 })
+      expect(await readerPasswordMatches('tokyo 2019', String(site.readerPasswordHash))).toBe(true)
+    })
+
+    it('refuses an empty one, so the column cannot hold a password nobody can type', async () => {
+      await expect(setReaderPassword(payload, scope, '   ')).rejects.toThrow(z.ZodError)
+    })
+  })
+
+  describe('closing the book needs a password first', () => {
+    it('refuses to close the book when none is set, which would lock everyone out', async () => {
+      await payload.updateGlobal({
+        slug: 'site',
+        ...scope,
+        depth: 0,
+        data: { readerPasswordHash: null, passwordProtect: false },
+      })
+
+      await expect(setReaderSetting(payload, scope, { setting: 'passwordProtect', on: true })).rejects.toThrow(
+        z.ZodError,
+      )
+
+      // ASKED OF THE GLOBAL, NOT OF THE THROW. A refusal that raises while
+      // writing the column anyway reads exactly like a guard that bites, and
+      // this repository has shipped that defect before.
+      const site = await payload.findGlobal({ slug: 'site', depth: 0 })
+      expect(site.passwordProtect).toBe(false)
+    })
+
+    it('closes it once a password is set, so the refusal is not simply a wall', async () => {
+      await setReaderPassword(payload, scope, 'tokyo 2019')
+
+      await setReaderSetting(payload, scope, { setting: 'passwordProtect', on: true })
+
+      const site = await payload.findGlobal({ slug: 'site', depth: 0 })
+      expect(site.passwordProtect).toBe(true)
+    })
+
+    it('still opens the book with no password set, because opening one locks nobody out', async () => {
+      await payload.updateGlobal({
+        slug: 'site',
+        ...scope,
+        depth: 0,
+        data: { readerPasswordHash: null, passwordProtect: true },
+      })
+
+      await setReaderSetting(payload, scope, { setting: 'passwordProtect', on: false })
+
+      const site = await payload.findGlobal({ slug: 'site', depth: 0 })
+      expect(site.passwordProtect).toBe(false)
+    })
+
+    it('leaves the other four toggles alone, which the new read must not have broken', async () => {
+      await payload.updateGlobal({ slug: 'site', ...scope, depth: 0, data: { allowShare: true } })
+
+      await setReaderSetting(payload, scope, { setting: 'allowShare', on: false })
+
+      const site = await payload.findGlobal({ slug: 'site', depth: 0 })
+      expect(site.allowShare).toBe(false)
+    })
+  })
+
   describe('takeBookOffline', () => {
     it('closes the book, which is the one thing this data model has that takes it offline', async () => {
+      await setReaderPassword(payload, scope, 'tokyo 2019')
       await setReaderSetting(payload, scope, { setting: OFFLINE_SETTING, on: false })
 
       await takeBookOffline(payload, scope)
 
       expect((await readSettingsScreen(payload, scope)).bookIsOffline).toBe(true)
+    })
+
+    // THE SECOND DOOR. The button writes `passwordProtect` itself rather than
+    // going through `setReaderSetting`, so the refusal added there does not
+    // reach it - and a guard on one of two doors is the defect this
+    // repository names a one-sided boundary.
+    it('refuses when no password is set, because the button is the other way into the same column', async () => {
+      await payload.updateGlobal({
+        slug: 'site',
+        ...scope,
+        depth: 0,
+        data: { readerPasswordHash: null, passwordProtect: false },
+      })
+
+      await expect(takeBookOffline(payload, scope)).rejects.toThrow(z.ZodError)
+
+      const site = await payload.findGlobal({ slug: 'site', depth: 0 })
+      expect(site.passwordProtect).toBe(false)
     })
 
     it('writes nothing else, so “Careful now” is careful about one column', async () => {
@@ -231,8 +333,13 @@ describe('the Settings screen’s writes', () => {
         slug: 'site',
         ...scope,
         depth: 0,
+        // THE HASH IS PART OF THE ARRANGE, not a leftover. The case above
+        // clears it to prove the refusal, and closing the book now needs one -
+        // so a `takeBookOffline` here without it would refuse, and this case
+        // would fail for a reason that is not what it is about.
         data: { ...allOff, name: `${MARKER} untouched` },
       })
+      await setReaderPassword(payload, scope, 'tokyo 2019')
 
       await takeBookOffline(payload, scope)
 

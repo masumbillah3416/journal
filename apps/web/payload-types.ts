@@ -825,6 +825,7 @@ export interface Site {
   allowShare?: boolean | null;
   indexGalleries?: boolean | null;
   passwordProtect?: boolean | null;
+  readerPasswordHash?: string | null;
   touchPageTurn?: boolean | null;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -888,6 +889,7 @@ export interface SiteSelect<T extends boolean = true> {
   allowShare?: T;
   indexGalleries?: T;
   passwordProtect?: T;
+  readerPasswordHash?: T;
   touchPageTurn?: T;
   updatedAt?: T;
   createdAt?: T;

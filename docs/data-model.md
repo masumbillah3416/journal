@@ -357,7 +357,19 @@ attempt, so the table stays bounded without a scheduler.
 - **`about`** — `portrait` (upload), `portraitCaption`, `paragraphs` (array of textarea),
   `kit` (array of text), `replyTo`.
 - **`site`** — `name`, `domain`, `description`, `replyTo`, `analyticsId`,
-  `allowDownloads`, `allowShare`, `indexGalleries`, `passwordProtect`, `touchPageTurn`.
+  `allowDownloads`, `allowShare`, `indexGalleries`, `passwordProtect`, `touchPageTurn`,
+  `readerPasswordHash`.
+
+`site.readerPasswordHash` is **write-only, hashed, and never rendered**. It holds
+`scrypt$<salt hex>$<key hex>`, written only by `setReaderPassword`
+(`apps/web/lib/admin/siteMutations.ts`) and read only for a comparison by
+`apps/web/lib/readerPassword.ts`. The admin shows _whether_ a password is set, never what
+it is. Two things follow from the salt being redrawn on every write, and both are
+deliberate: there is no way to ask "is this the same password as before", and saving one —
+even the same one — retires every reader cookie already in the wild, because the cookie is
+derived from this column. That is the whole eviction mechanism; readers have no session
+rows to sweep. `passwordProtect` cannot be turned on while this column is empty, which is
+what stops `docs/deviations.md` §100's door with no key.
 
 All three carry the same access block — `read` and `update` are **signed in, or refused**,
 written out rather than inherited, and a global has no `create` or `delete` to write. The

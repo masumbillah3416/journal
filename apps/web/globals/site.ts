@@ -38,6 +38,16 @@ export const Site: GlobalConfig = {
     { name: 'allowShare', type: 'checkbox', defaultValue: true },
     { name: 'indexGalleries', type: 'checkbox', defaultValue: true },
     { name: 'passwordProtect', type: 'checkbox', defaultValue: false },
+    {
+      name: 'readerPasswordHash',
+      type: 'text',
+      // NEVER RENDERED AND NEVER READ BACK INTO A FORM. The admin shows
+      // WHETHER a password is set, not what it is. `setReaderPassword` in
+      // `apps/web/lib/admin/siteMutations.ts` is the only writer, and
+      // `apps/web/lib/readerPassword.ts` is the only thing that reads it for
+      // a comparison.
+      admin: { hidden: true },
+    },
     { name: 'touchPageTurn', type: 'checkbox', defaultValue: true },
   ],
 }
