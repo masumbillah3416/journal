@@ -872,6 +872,24 @@ export default defineConfig({
         'apps/web/app/(payload)/api/\\[...slug\\]/route.ts',
         'apps/web/app/(payload)/cms/\\[\\[...segments\\]\\]/page.tsx',
         'apps/web/app/(payload)/cms/\\[\\[...segments\\]\\]/not-found.tsx',
+        // THE UNLOCK PAGE, AND IT IS NOT HERE FOR THE BRACKET DEFECT - its
+        // path has no bracketed segment at all. It is here on the first count
+        // alone, re-verified by reading it: zero authored logic. One read of
+        // `readPublicAccess`, one redirect when the book is open, one
+        // `?wrong=1` comparison, and JSX. What a reader may DO with the form
+        // it draws is decided entirely in `unlock/enter/route.ts` below and in
+        // `lib/readerSession.ts`, both measured. Runtime behaviour:
+        // e2e/bookGate.spec.ts. A branch added to this file would be a branch
+        // nothing measures - add it to the route or to `lib/`, or delete this
+        // entry.
+        'apps/web/app/(diary)/unlock/page.tsx',
+        // THE LATCH, EXCLUDED HERE AND RE-GATED IN
+        // `vitest.integration.config.ts` AT 100/100/100 - the same
+        // exclude-and-regate treatment `lib/admin/adminScope.ts` gets, and for
+        // the same reason: its whole subject is a real `site` global, so this
+        // Docker-free pass can never execute it. NOT excluded from
+        // measurement, only from this pass.
+        'apps/web/app/(diary)/unlock/enter/route.ts',
       ],
       thresholds: {
         // THERE IS NO REPOSITORY-WIDE FLOOR, and its absence is a decision

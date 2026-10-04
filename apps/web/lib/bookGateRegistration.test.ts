@@ -115,8 +115,17 @@ const isRouteFile = (name: string): boolean => {
  */
 const PLANTED_METADATA_ROUTE = 'app/(diary)/zz-book-gate-registration-probe/sitemap.ts'
 
-/** The call that spends the gate. A call, never a mention. */
-const APPLIES_THE_GATE = /bookIsGated\(/u
+/**
+ * The call that spends the gate. A call, never a mention.
+ *
+ * IT IS `readerMustUnlock`, NOT `bookIsGated`, SINCE THE READER PASSWORD.
+ * `bookIsGated` answers only whether the book is closed; it does not ask
+ * whether THIS reader has typed the password, so a route spending it alone
+ * would refuse the readers the author let in. `readerMustUnlock` spends
+ * `bookIsGated` itself — see `apps/web/lib/readerSession.ts` — so requiring
+ * the outer call is strictly stronger than requiring the inner one.
+ */
+const APPLIES_THE_GATE = /readerMustUnlock\(/u
 
 /**
  * A route segment that contributes nothing to the address.
@@ -156,6 +165,14 @@ const PUBLIC_WITHOUT_THE_GATE: readonly { readonly file: string; readonly why: s
   {
     file: 'app/(payload)/api/graphql/route.ts',
     why: 'the second door onto those same rules. One predicate, not two routes',
+  },
+  {
+    file: 'app/(diary)/unlock/page.tsx',
+    why: 'the door itself. A closed book has to show SOMETHING to a reader who has not typed the password yet, and spending the gate here would redirect this page to itself. It reads one column to redirect an OPEN book away, names nothing about the diary, and serves no row',
+  },
+  {
+    file: 'app/(diary)/unlock/enter/route.ts',
+    why: 'the latch behind that door, and the only write a stranger may make. It is reachable without the gate by definition — it is where the password is checked — and it serves no row either: every path answers 303 to a page',
   },
   {
     file: 'app/(payload)/api/graphql-playground/route.ts',

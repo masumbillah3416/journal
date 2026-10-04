@@ -78,6 +78,15 @@ export interface PublicAccess {
   readonly passwordProtect: boolean
   /** SCREENS.md §2.9's "let search engines index galleries". */
   readonly indexGalleries: boolean
+  /**
+   * `site.readerPasswordHash`, or `null` when no password is set.
+   *
+   * CARRIED ON THE CRITICAL PATH DELIBERATELY. A closed book has to decide
+   * per request whether THIS reader has typed the password, and that needs
+   * the stored hash in the same read that answers whether it is closed at
+   * all. It is a hash, never a password, and nothing renders it.
+   */
+  readonly readerPasswordHash: string | null
 }
 
 /**
@@ -102,7 +111,7 @@ export const readPublicAccess = cache(async (): Promise<PublicAccess> => {
   const site = await payload.findGlobal({
     slug: 'site',
     depth: 0,
-    select: { passwordProtect: true, indexGalleries: true },
+    select: { passwordProtect: true, indexGalleries: true, readerPasswordHash: true },
   })
 
   return {
@@ -110,6 +119,7 @@ export const readPublicAccess = cache(async (): Promise<PublicAccess> => {
     // declared defaults require. See this module's header.
     passwordProtect: site.passwordProtect === true,
     indexGalleries: site.indexGalleries !== false,
+    readerPasswordHash: typeof site.readerPasswordHash === 'string' ? site.readerPasswordHash : null,
   }
 })
 

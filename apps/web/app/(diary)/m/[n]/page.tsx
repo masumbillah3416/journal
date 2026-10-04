@@ -53,7 +53,7 @@
  * `addressedPageMetadata` (@travel-diary/domain/pageMetadata),
  * `deriveRail`/`mobileHeading`/`pageLabel` (@travel-diary/domain/bookBundle),
  * `MobileDiary`/`MobilePage`/`SurfaceCorrection`
- * (../../../../components/mobile/), `bookIsGated`/`readPublicAccess`
+ * (../../../../components/mobile/), `readPublicAccess`/`readerMustUnlock`
  * (../../../../lib/bookAccess), `notFound`/`unauthorized` (next/navigation).
  */
 /* c8 ignore start -- Framework passthrough with no authored logic: await the
@@ -81,12 +81,14 @@ import { deriveRail, mobileHeading, pageLabel } from '@travel-diary/domain/bookB
 import { addressedPageIndex } from '@travel-diary/domain/pageAddress'
 import { addressedPageMetadata } from '@travel-diary/domain/pageMetadata'
 import type { Metadata } from 'next'
-import { notFound, unauthorized } from 'next/navigation'
+import { headers } from 'next/headers'
+import { notFound, redirect } from 'next/navigation'
 import type React from 'react'
 import { MobileDiary } from '../../../../components/mobile/MobileDiary'
 import { MobilePage } from '../../../../components/mobile/MobilePage'
 import { SurfaceCorrection } from '../../../../components/mobile/SurfaceCorrection'
-import { bookIsGated, readPublicAccess } from '../../../../lib/bookAccess'
+import { readPublicAccess } from '../../../../lib/bookAccess'
+import { readerMustUnlock, UNLOCK_PATH } from '../../../../lib/readerSession'
 import { readBookBundle } from '../../../../lib/readBookBundle'
 
 /** The route's own parameters. Next 15+ hands them over as promises. */
@@ -125,7 +127,12 @@ const MobileDiaryPage = async ({ params }: MobilePageProps): Promise<React.JSX.E
   // THE SAME GATE THE BOOK'S ENTRY APPLIES, AND IT HAS TO BE HERE TOO. These
   // are two route ENTRIES for one address (ADR 0012), so a gate on one of
   // them leaves the other serving the whole book to every phone.
-  if (bookIsGated(await readPublicAccess())) unauthorized()
+  // SENT TO THE DOOR, NOT REFUSED AT IT. The book is closed, so this reader
+  // is asked for the password rather than told 401 with nothing to type -
+  // docs/deviations.md §100 is the entry that records why there was nothing
+  // to ask for before. A reader who already typed it carries the cookie and
+  // never sees this.
+  if (readerMustUnlock(await readPublicAccess(), (await headers()).get('cookie'))) redirect(UNLOCK_PATH)
 
   const [{ n }, bundle] = await Promise.all([params, readBookBundle()])
   const totalPages = bundle.pages.length

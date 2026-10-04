@@ -46,7 +46,7 @@
  * a downloaded file is never a result to index.
  * Depends on: `returningPagePath` (@travel-diary/domain/pageAddress),
  * `readGalleryBundle` (../../../../lib/readGalleryBundle),
- * `bookIsGated`/`galleriesAreIndexable`/`readPublicAccess`
+ * `readerMustUnlock`/`galleriesAreIndexable`/`readPublicAccess`
  * (../../../../lib/bookAccess),
  * `GalleryHeader`/`Grid` (../../../../components/gallery/),
  * `notFound`/`unauthorized` (next/navigation).
@@ -69,11 +69,13 @@
  * e2e/a11y.spec.ts. */
 import { returningPagePath } from '@travel-diary/domain/pageAddress'
 import type { Metadata } from 'next'
-import { notFound, unauthorized } from 'next/navigation'
+import { headers } from 'next/headers'
+import { notFound, redirect } from 'next/navigation'
 import type React from 'react'
 import { GalleryHeader } from '../../../../components/gallery/GalleryHeader'
 import { Grid } from '../../../../components/gallery/Grid'
-import { bookIsGated, galleriesAreIndexable, readPublicAccess } from '../../../../lib/bookAccess'
+import { galleriesAreIndexable, readPublicAccess } from '../../../../lib/bookAccess'
+import { readerMustUnlock, UNLOCK_PATH } from '../../../../lib/readerSession'
 import { readGalleryBundle } from '../../../../lib/readGalleryBundle'
 import styles from '../../../../components/gallery/gallery.module.css'
 
@@ -122,7 +124,12 @@ export const generateMetadata = async ({ params }: GalleryPageProps): Promise<Me
 const GalleryPage = async ({ params, searchParams }: GalleryPageProps): Promise<React.JSX.Element> => {
   // THE WHOLE DIARY'S GATE, BEFORE THE GALLERY IS READ. See this module's
   // header: `passwordProtect` closes the galleries with the book.
-  if (bookIsGated(await readPublicAccess())) unauthorized()
+  // SENT TO THE DOOR, NOT REFUSED AT IT. The book is closed, so this reader
+  // is asked for the password rather than told 401 with nothing to type -
+  // docs/deviations.md §100 is the entry that records why there was nothing
+  // to ask for before. A reader who already typed it carries the cookie and
+  // never sees this.
+  if (readerMustUnlock(await readPublicAccess(), (await headers()).get('cookie'))) redirect(UNLOCK_PATH)
 
   const [{ slug }, { from }] = await Promise.all([params, searchParams])
   const bundle = await readGalleryBundle(slug)

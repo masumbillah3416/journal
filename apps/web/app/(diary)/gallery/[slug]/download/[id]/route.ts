@@ -57,7 +57,8 @@
  * exact path in vitest.config.ts's coverage exclude, which is the treatment
  * that actually holds here. Its runtime behaviour is covered in the browser
  * by e2e/gallery.spec.ts. */
-import { bookIsGated, readPublicAccess } from '../../../../../../lib/bookAccess'
+import { readPublicAccess } from '../../../../../../lib/bookAccess'
+import { readerMustUnlock } from '../../../../../../lib/readerSession'
 import { readGalleryDownload } from '../../../../../../lib/readGalleryDownload'
 
 /** The route's own parameters. Next 15+ hands them over as a promise. */
@@ -68,15 +69,18 @@ interface DownloadRouteContext {
 /**
  * Serves one gallery frame's derivative as an attachment.
  *
- * @param _request - The incoming request. Nothing is read from it: the whole
- *   input is the two path segments, and a download that varied by header
- *   could not be cached. The gated/ungated split is not a variation by header
- *   either - it is one site-wide setting, read from the database.
+ * @param request - The incoming request. ONE header is read from it, the
+ *   cookie, and only to ask whether this reader has typed the book's
+ *   password. Everything else about the response is the two path segments.
+ *   THIS IS WHY THE GATED RESPONSE IS `private, no-store`: the answer now
+ *   varies per reader, so a shared cache holding one reader's photograph
+ *   would be serving it to a stranger. Before a reader password existed the
+ *   gate was one site-wide setting and did not vary by header at all.
  * @param context - The route's own parameters.
  * @returns The derivative's bytes; 401 when the author has closed the whole
  *   book; 404 for every other refusal, all of them the same refusal.
  */
-export const GET = async (_request: Request, context: DownloadRouteContext): Promise<Response> => {
+export const GET = async (request: Request, context: DownloadRouteContext): Promise<Response> => {
   // THE SAME GATE THE PAGES ABOVE THIS ROUTE APPLY, AND IT BELONGS HERE TOO.
   // A closed book whose photographs are still served by id is "the content
   // fetchable", which is the sentence SECURITY.md's own requirement is
@@ -86,7 +90,12 @@ export const GET = async (_request: Request, context: DownloadRouteContext): Pro
   // A ROUTE HANDLER, SO IT ANSWERS RATHER THAN RAISES. `unauthorized()` is a
   // page interrupt and would render a React view into a response whose body
   // is meant to be a photograph.
-  if (bookIsGated(await readPublicAccess())) {
+  // THE FOURTH DOOR, AND THE ONE THAT DOES NOT REDIRECT. A reader who has
+  // typed the password carries the cookie and is let through here exactly as
+  // on a page; one who has not still gets 401 rather than a redirect, because
+  // this response's body is meant to be a photograph and a browser following
+  // a redirect here would save the unlock page as a file.
+  if (readerMustUnlock(await readPublicAccess(), request.headers.get('cookie'))) {
     return new Response(null, { status: 401, headers: { 'Cache-Control': 'private, no-store' } })
   }
 

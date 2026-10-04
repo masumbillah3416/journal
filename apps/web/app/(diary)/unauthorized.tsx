@@ -1,6 +1,23 @@
 /**
- * unauthorized.tsx — what the diary serves once the author has closed the
- * whole book.
+ * unauthorized.tsx — what the diary served once the author had closed the
+ * whole book, and what nothing in this route group reaches today.
+ *
+ * NOTHING RAISES `unauthorized()` IN `(diary)/` ANY MORE. A closed book now
+ * has a password to ask for, so the three page entries redirect to `/unlock`
+ * instead of refusing — `docs/deviations.md` §100 is the entry that records
+ * why there was nothing to ask for before. The gallery download route still
+ * answers 401, but it builds its own `Response` rather than raising, because
+ * its body is meant to be a photograph.
+ *
+ * THIS FILE IS THEREFORE UNREACHED, and is kept rather than deleted for one
+ * measured reason: it is Next's own convention for the route group, so the
+ * day any code here raises `unauthorized()` again it is this file that
+ * renders, with a 401 rather than a 200. Deleting it would also mean
+ * deciding about `experimental.authInterrupts` in `apps/web/next.config.ts`,
+ * which is a change to the build this task has no mandate for. Recorded as a
+ * residual rather than left to be discovered.
+ *
+ * What it says below describes the behaviour it used to serve.
  *
  * Next's own convention, the twin of `not-found.tsx`: this file renders,
  * under `(diary)/layout.tsx`, for any `unauthorized()` raised inside this
