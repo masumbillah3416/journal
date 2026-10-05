@@ -156,6 +156,90 @@ finishes rather than leaving the corpus half-converted. The gallery's image budg
 Like the seed, it writes to whatever `DATABASE_URL` names, and it does not delete the
 derivatives it replaces — see the media-store section below.
 
+## Before the first deploy — what is not ready, and in what order
+
+The section below this one lists the providers and the shape. This one lists
+what would stop a first deploy today, checked against the tree on 2026-10-05.
+
+### The blocker: there is no remote storage adapter
+
+**This cannot be deployed to Vercel as it stands without losing every
+photograph.** `apps/web/lib/adapters/local-storage.ts` is the only
+`StoragePort` implementation in the tree, and it is named directly at both of
+its call sites in `apps/web/app/(admin)/admin/media/actions.ts` —
+`createLocalStorage(MEDIA_DIR)`. It writes to the filesystem. A Vercel
+instance's filesystem is ephemeral and per-instance, so an upload survives
+until the next deploy and is invisible to every other instance meanwhile.
+
+`docs/adr/0001-hosting-and-cost.md` names Cloudflare R2 on its own domain as
+the design and gives the reason twice over — the cost trap and the security
+requirement are the same architecture. It was never built. `MEDIA_ORIGIN` is
+validated at boot by `apps/web/lib/env.ts` and **read by nothing**, which is
+what `docs/security.md`'s "Media served from a separate origin" row records as
+NOT DISCHARGED with the deployment named as its owner.
+
+Closing it is a task rather than a configuration change: an R2 adapter against
+the existing `apps/web/lib/ports/storage.ts`, which already has a contract
+suite the local adapter passes
+(`apps/web/lib/adapters/contract/storage-contract.ts`). Then `MEDIA_ORIGIN`
+becomes the bucket's domain and the admin builds its adapter from it rather
+than from `MEDIA_DIR`.
+
+### Three more gaps, none blocking and all real
+
+- **Nothing schedules the staged-upload sweep.** `npm run media:sweep-staged`
+  works; no `vercel.json` exists in this repository. A staged, never-finalised
+  upload is an un-stripped original still carrying its EXIF. See the sweep's
+  own section below, and `docs/adr/0024-the-staged-upload-sweep.md` for why it
+  is a command rather than a hook. **Schedule it as part of the first deploy.**
+- **`/cms` still ships.** `docs/api.md` records that its route directory should
+  be deleted in production. Payload's admin is disabled there by
+  `payload.config.ts` and nothing can sign into it, so this is tidiness rather
+  than exposure — but it is owed.
+- **The performance gate is red on two screens.** `/admin/media` and
+  `/admin/galleries` sit over the 3,085ms LCP budget, measured in
+  `docs/testing.md` §7 and recorded in `docs/deviations.md` §73 and §80. The
+  gate was deliberately not moved to fit them.
+
+### What the environment must carry
+
+Five variables, each validated at boot by `apps/web/lib/env.ts`, so a missing
+or malformed value fails the process at start rather than a request in flight.
+
+| Variable         | What it is                                                |
+| ---------------- | --------------------------------------------------------- |
+| `DATABASE_URL`   | the Postgres connection string                            |
+| `PAYLOAD_SECRET` | **at least 32 characters**; refused below that            |
+| `MEDIA_ORIGIN`   | where media is served from — read the blocker above first |
+| `ADMIN_ORIGIN`   | where the admin panel is served                           |
+| `MEDIA_PIPELINE` | `inline`; `worker` refuses to boot, see the next section  |
+
+### The order
+
+1. Provision, per the Deploy section below.
+2. Set the environment, per the table above.
+3. `npm run db:migrate` against the production database, **before** the first
+   deploy. `npm run db:migrate:down` is the other half.
+4. **Create the first account.** There is no seeded owner and nothing in
+   `apps/web/scripts/` creates one; mint it deliberately through the Local API.
+5. Schedule the sweep.
+6. Walk the diary and the panel. `docs/qa/` holds twelve sweep reports
+   describing what each screen should do.
+
+### After it is up
+
+**Closing the book needs a password first.** `site.passwordProtect` means
+_readers must type the password_, not _nobody may read_
+(`docs/deviations.md` §123). Both the toggle and the ringed button refuse while
+no password is set, which is what stops the state §100 records — a closed book
+that admitted nobody at all, including the author's readers.
+
+**The unlock endpoint is not rate-limited** (`docs/deviations.md` §124).
+`scrypt` is deliberately expensive and the endpoint is reachable by anybody, so
+a flood is CPU a stranger spends on the same process that renders the book. A
+platform-level rate limit in front of the deployment is the cheapest answer and
+is what reverses that entry.
+
 ## Deploy
 
 Per `docs/adr/0001-hosting-and-cost.md`:
