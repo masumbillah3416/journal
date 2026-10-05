@@ -215,8 +215,12 @@
 /* THE DISABLED ARM IS NOT OPTIONAL. A control rendered `disabled` with no
  * `:disabled` rule paints and behaves exactly like a live one - same ink, same
  * `cursor: pointer` - so a control that can do nothing invites a press
- * (docs/deviations.md §92, PUB-002). Both inert controls on these screens
- * are here. */
+ * (docs/deviations.md §92, PUB-002). All THREE inert controls on these
+ * screens are here — the count was two until the reader password gave the
+ * fourth toggle a state in which it cannot be pressed, and the switch below
+ * was marked `disabled` with no arm here for one commit. A browser measured
+ * `cursor: pointer` on it; `e2e/admin.spec.ts` now reads that value rather
+ * than asserting the attribute, because the attribute was already right. */
 .save:disabled,
 .danger:disabled {
   border-color: rgb(120 98 60 / 34%);
@@ -227,6 +231,18 @@
 .save:disabled:hover,
 .danger:disabled:hover {
   background: transparent;
+}
+
+/* THE SWITCH'S OWN ARM. `.save`/`.danger` above are bordered buttons; this is
+ * a track and a knob, so it mutes the track rather than the ink and loses the
+ * hover lift. `aria-disabled` is not used: the control is genuinely
+ * unpressable, and `disabled` is what stops a press reaching a form. */
+.switch:disabled {
+  cursor: not-allowed;
+}
+
+.switch:disabled .track {
+  opacity: 0.45;
 }
 
 /* ── Your material (§2.9) ──────────────────────────────────────────────── */

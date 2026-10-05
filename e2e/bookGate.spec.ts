@@ -410,4 +410,18 @@ test.describe('the settings a reader is served', () => {
       }
     })
   })
+
+  test('offers no lock on an open book, so /unlock cannot invite a password that admits nothing', async ({
+    request,
+  }) => {
+    // REVIEW FOCUS 5 OF THE PLAN, AND IT HAD NO TEST ANYWHERE. The redirect
+    // is written at `(diary)/unlock/page.tsx`, in a file excluded from the
+    // coverage pass - so until this case existed, the one line nothing
+    // measures was also the one line nothing exercised.
+    await withSetting({ passwordProtect: false }, async () => {
+      const open = await request.get('/unlock', { maxRedirects: 0 })
+
+      expect([open.status(), open.headers().location]).toEqual([307, '/'])
+    })
+  })
 })

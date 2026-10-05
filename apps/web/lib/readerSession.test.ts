@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 
 import { cookieValueFor } from './readerPassword'
@@ -81,5 +82,24 @@ describe('whether this request must be sent to the unlock page', () => {
 
   it('sends a stranger to unlock when the book is closed and the password was cleared', () => {
     expect(readerMustUnlock({ ...closed, readerPasswordHash: null }, `td-reader=${cookieValueFor(STORED)}`)).toBe(true)
+  })
+})
+
+describe('how the cookie is compared', () => {
+  // THE HOUSE RULE, AND IT IS STATED WHERE IT IS BROKEN RATHER THAN WHERE IT
+  // IS KEPT. `apps/web/lib/media/uploadToken.ts:13` says a signature is
+  // "compared with `timingSafeEqual` over equal-length buffers, never with
+  // `===`", and this module carries the same kind of value — an HMAC a
+  // stranger supplies and controls. The property cannot be observed from
+  // outside the function, so it is asserted against the source, which is the
+  // treatment `otpService.integration.test.ts` already gives its own
+  // comparison.
+  it('uses timingSafeEqual rather than ===, as every other HMAC comparison here does', async () => {
+    const source = await readFile(new URL('./readerSession.ts', import.meta.url), 'utf8')
+
+    expect(source).toContain('timingSafeEqual(')
+    expect(source, 'an HMAC compared with === leaks its prefix through timing').not.toMatch(
+      /=== cookieValueFor\(|cookieValueFor\([^)]*\) ===/u,
+    )
   })
 })

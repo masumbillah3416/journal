@@ -607,6 +607,18 @@ describes.
    computed and correct the day one of those routes is cached.
 3. On a request to a diary route, the server assembles one `BookBundle` from the
    relevant Payload rows and statically renders every page's content.
+   3a. A CLOSED BOOK HAS A DOOR BEFORE ALL OF THIS. When `site.passwordProtect` is on, the
+   three page entries and the gallery download route ask `readerMustUnlock`
+   (`apps/web/lib/readerSession.ts`) rather than drawing anything: the pages redirect a
+   stranger to **`/unlock`**, which asks for one shared reader password and ships no
+   client JavaScript, and **`POST /unlock/enter`** checks it and sets a cookie carrying
+   an HMAC of the stored hash. The download route still answers 401 rather than
+   redirecting, because its body is meant to be a photograph. Because the cookie is
+   derived from the hash and the salt is redrawn on every write, saving a password
+   retires every cookie already in the wild — there is no reader session table.
+   `docs/deviations.md` §100 records what a closed book meant before there was a
+   password, and §123 what one column can and cannot mean now.
+
 4. The client takes over only for scaling (`bookScale`) and flipping (`flipMachine`);
    it never re-fetches page content mid-session — real paths (`/p/<n>`, `/gallery/<slug>`)
    are written on every turn so deep links stay indexable and shareable.

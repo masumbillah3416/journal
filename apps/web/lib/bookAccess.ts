@@ -32,24 +32,30 @@
  * authorization boundary onto another runtime is not a thing to do because it
  * became possible.
  *
- * ═══ THE REFUSAL IS A 401, AND IT CARRIES NO `WWW-Authenticate` ═══
+ * ═══ THE REFUSAL IS A REDIRECT NOW, AND THIS SECTION IS ITS HISTORY ═══
  *
- * The route entries spend {@link bookIsGated} by calling `unauthorized()`
- * (`next/navigation`), which answers **HTTP 401** and renders
- * `app/(diary)/unauthorized.tsx`. It needs `experimental.authInterrupts` in
- * `apps/web/next.config.ts`, which is why that flag is there.
+ * The route entries no longer spend {@link bookIsGated} directly. They spend
+ * `readerMustUnlock` (`apps/web/lib/readerSession.ts`), which asks this
+ * module whether the book is closed AND whether the request carries the
+ * cookie a reader is handed for typing the password, and they REDIRECT a
+ * stranger to `/unlock`. The gallery download route still answers 401,
+ * because its body is meant to be a photograph and a browser following a
+ * redirect there would save the unlock page as a file.
  *
- * NO CHALLENGE HEADER, and that is a decision with two measurements behind
- * it rather than an omission. FIRST, a Next.js page component cannot set a
- * response header at all: `next/headers`' `headers()` is read-only,
- * `next/server` exports no header API to a page, and `metadata.robots`
- * emits a `<meta>` tag and no `X-Robots-Tag` (measured against this app on
- * Next 16.3.3). SECOND, and independently: `DATA_MODEL.md` stores no book
- * password anywhere and `SCREENS.md` §2.9 offers no field to set one, so a
- * `WWW-Authenticate: Basic` challenge would prompt a reader for a credential
- * that cannot exist and invite a brute force against nothing. `passwordProtect`
- * is therefore a CLOSED book rather than a passworded one, and the screen and
- * this module both say so. `docs/deviations.md` §100 carries it.
+ * WHAT THIS SECTION USED TO SAY, AND WHY IT IS WORTH KEEPING. It recorded two
+ * measurements behind sending no `WWW-Authenticate` challenge: a Next.js page
+ * component cannot set a response header at all (`next/headers`' `headers()`
+ * is read-only, `next/server` exports no header API to a page, and
+ * `metadata.robots` emits a `<meta>` tag and no `X-Robots-Tag` — measured
+ * against this app on Next 16.3.3); and, independently, `DATA_MODEL.md`
+ * stored no book password and `SCREENS.md` §2.9 offered no field to set one,
+ * so a Basic challenge would have prompted for a credential that could not
+ * exist. **The second measurement is no longer true.** A password exists, and
+ * the answer is a page that asks for it rather than a header that cannot be
+ * sent. The first still holds and is why the answer is a page.
+ *
+ * `docs/deviations.md` §100 carries that history and is now CLOSED; §123
+ * carries what one column can and cannot mean after the change.
  *
  * ═══ AN UNSET COLUMN IS THE DEFAULT THE COLLECTION DECLARES ═══
  *
@@ -90,9 +96,9 @@ export interface PublicAccess {
 }
 
 /**
- * The two public settings, read from the `site` global.
+ * The two public settings and the reader password's hash, from the `site` global.
  *
- * `depth: 0` and a two-column `select` (CLAUDE.md §7): this is on the
+ * `depth: 0` and a three-column `select` (CLAUDE.md §7): this is on the
  * critical path of every page of the book, so it does not pay for the
  * description, the analytics id or the reply-to address.
  *
@@ -104,7 +110,7 @@ export interface PublicAccess {
  *   this repository cannot draw either way.
  * @example
  * const access = await readPublicAccess()
- * if (bookIsGated(access)) unauthorized()
+ * if (readerMustUnlock(access, cookieHeader)) redirect(UNLOCK_PATH)
  */
 export const readPublicAccess = cache(async (): Promise<PublicAccess> => {
   const payload = await getPayload()
@@ -130,7 +136,7 @@ export const readPublicAccess = cache(async (): Promise<PublicAccess> => {
  * @returns `true` when the author has passworded the whole book, in which
  *   case the route entry answers 401 and draws nothing.
  * @example
- * if (bookIsGated(await readPublicAccess())) unauthorized()
+ * if (readerMustUnlock(await readPublicAccess(), cookieHeader)) redirect(UNLOCK_PATH)
  */
 export const bookIsGated = (access: Pick<PublicAccess, 'passwordProtect'>): boolean => access.passwordProtect
 

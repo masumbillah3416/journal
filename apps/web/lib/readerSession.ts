@@ -25,6 +25,8 @@
  * {@link cookieValueFor} derives. That is the whole mechanism; see
  * `apps/web/lib/readerPassword.ts`.
  */
+import { timingSafeEqual } from 'node:crypto'
+
 import { bookIsGated } from './bookAccess'
 import { cookieValueFor } from './readerPassword'
 
@@ -58,7 +60,20 @@ export const readerIsAdmitted = (cookieHeader: string | null, stored: string | n
   // is never the empty string. Said out loud because a browser sends
   // `td-reader=` for a cookie the author cleared, and "the name is present"
   // is not "the value is right".
-  return value !== '' && value === cookieValueFor(stored)
+  if (value === '') return false
+
+  // COMPARED AS BYTES OF EQUAL LENGTH, never with `===`. The house rule is
+  // `apps/web/lib/media/uploadToken.ts`'s: a signature a stranger supplies and
+  // controls is compared with `timingSafeEqual`, because `===` returns as soon
+  // as two bytes differ and so leaks how much of the HMAC was right. The
+  // length check comes first because `timingSafeEqual` THROWS on a mismatch,
+  // and a throw here is a 500 on every page of the book where a closed door
+  // belongs — a forged cookie is any length the forger likes.
+  const presented = Buffer.from(value, 'utf8')
+  const expected = Buffer.from(cookieValueFor(stored), 'utf8')
+  if (presented.length !== expected.length) return false
+
+  return timingSafeEqual(presented, expected)
 }
 
 /** What {@link readerMustUnlock} needs of `readPublicAccess`'s answer. */

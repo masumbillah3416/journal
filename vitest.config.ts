@@ -883,12 +883,19 @@ export default defineConfig({
         // nothing measures - add it to the route or to `lib/`, or delete this
         // entry.
         'apps/web/app/(diary)/unlock/page.tsx',
-        // THE LATCH, EXCLUDED HERE AND RE-GATED IN
-        // `vitest.integration.config.ts` AT 100/100/100 - the same
-        // exclude-and-regate treatment `lib/admin/adminScope.ts` gets, and for
-        // the same reason: its whole subject is a real `site` global, so this
-        // Docker-free pass can never execute it. NOT excluded from
-        // measurement, only from this pass.
+        // THE LATCH, ON THE SAME GROUND AS THE PAGE ABOVE AND NOT THE ONE
+        // THIS COMMENT FIRST CLAIMED. An earlier draft said it was "re-gated
+        // in `vitest.integration.config.ts` at 100/100/100". It is not, and
+        // was not by the time this shipped: the decision it used to hold moved
+        // to `lib/unlockAttempt.ts` — where `e2e/tsconfig.json` can reach it
+        // and this pass measures it at 100 — and the integration entry was
+        // removed with it. What is left here is the mapping: read the form,
+        // ask `attemptUnlock`, turn three outcomes into two redirects and a
+        // cookie. Zero decisions, re-verified by reading it. Runtime
+        // behaviour: `e2e/bookGate.spec.ts`'s three reader cases, which drive
+        // a real browser through this handler. A branch added here would be a
+        // branch nothing measures - add it to `lib/unlockAttempt.ts`, or
+        // delete this entry.
         'apps/web/app/(diary)/unlock/enter/route.ts',
       ],
       thresholds: {

@@ -4507,7 +4507,7 @@ author allows indexing, so the header is the setting` (`apps/web/middleware.test
 `sends X-Robots-Tag noindex on a gallery page for the same setting, because robots.txt does not
 unindex a known URL` (`e2e/bookGate.spec.ts`).
 
-## 102 · "Delete for good" takes the photographs, and "Take the book offline" is one column
+## 102 · AMENDED BY §123 — "Delete for good" takes the photographs, and "Take the book offline" is one column
 
 **What `SCREENS.md` §2.10 gives.** A row with "Put back (dark ring) and Delete for good (terracotta
 ring)", under a header that says "Kept for thirty days" and "nothing here is gone until you say
@@ -5830,8 +5830,17 @@ next.
 **What changed.** `site.readerPasswordHash` holds one shared password, hashed
 with `scrypt` and a per-write salt. A closed book now redirects a stranger to
 `/unlock` and asks for it, instead of answering 401 with nothing to type.
-`docs/deviations.md` §100 is the entry this closes; §56's Basic-challenge
+`docs/deviations.md` §100 is the entry this closes, and its Basic-challenge
 answer goes with it.
+
+**A MIS-CITATION CORRECTED HERE RATHER THAN SILENTLY.** The first draft of this
+paragraph credited that answer to **§56**, which is about a page added from the
+journey editor being a draft. The number came from a Phase 4 plan that
+_predicted_ the deviation would land at §56; it landed at §100. `§N` citations
+are guarded by `apps/web/lib/docs/sectionCitations.test.ts`, which resolves
+whether a section EXISTS — §56 does — so a citation that points at the wrong
+real section is a shape no guard here can catch. A reader following it is the
+check, and this time that reader was a reviewer.
 
 **ONE COLUMN STILL, AND THE WORD "OFFLINE" NO LONGER FITS IT.** §102 records
 that the "Take the book offline" button and the fourth toggle write the same

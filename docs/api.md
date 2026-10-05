@@ -420,6 +420,44 @@ for a different reason — see its row.
 - **Auth requirement:** none. It is the one address whose whole purpose is to be fetched
   by a stranger.
 
+### `GET /unlock`
+
+- **Path:** `apps/web/app/(diary)/unlock/page.tsx` — the one page a closed book shows a
+  stranger.
+- **Method:** `GET`.
+- **Input:** `?wrong=1` after a refused attempt, and nothing otherwise. One read of the
+  `site` global (`readPublicAccess`).
+- **Output:** `text/html`. One heading, one password field, one button reading "Read the
+  diary", and — only for `?wrong=1` — the line "That is not the password." It names
+  nothing about the diary: no title, no owner, no cover. **It ships no client
+  JavaScript**, so the flow works with scripting off entirely.
+- **Errors:** none a caller can observe. An OPEN book answers `307` to `/`, because a
+  page offering a lock that admits everybody would invite a reader to type something
+  that means nothing.
+- **Auth requirement:** none, and it cannot have one — it is where a reader without any
+  credential is sent. Classified in `bookGateRegistration.test.ts`'s
+  `PUBLIC_WITHOUT_THE_GATE` for that reason: a door cannot spend a gate that would
+  redirect it to itself.
+
+### `POST /unlock/enter`
+
+- **Path:** `apps/web/app/(diary)/unlock/enter/route.ts` — the latch behind that door,
+  and the only write a stranger may make. A route handler rather than a Server Action
+  because every Server Action in this repository must be built from `guardedAction`, and
+  `eslint-rules/guarded-server-actions.js` has no exemption list by design. It sits at
+  `/unlock/enter` because Next refuses a `page.tsx` and a `route.ts` in one segment.
+- **Method:** `POST`, as a plain HTML form body.
+- **Input:** one field, `password`. The decision is `lib/unlockAttempt.ts`'s
+  `attemptUnlock`; this handler holds none.
+- **Output:** `303` in every case. The right password redirects to `/` and sets
+  `td-reader`, `httpOnly`, `sameSite=lax`, `Path=/`, a year — carrying an HMAC **of the
+  stored hash**, never the hash. A wrong one redirects to `/unlock?wrong=1` and sets
+  nothing. An empty submission redirects to `/unlock` with no accusation and costs no
+  `scrypt`.
+- **Errors:** none a caller can observe.
+- **Auth requirement:** none, by definition. **Not rate-limited** —
+  `docs/deviations.md` §124 records that with its cost.
+
 ### `GET /gallery/<slug>`
 
 - **Method:** `GET`.

@@ -2206,6 +2206,14 @@ test.describe('the reader password, set from the screen that owns it', () => {
     // exactly like a live one, and invites a press it cannot answer. Measured
     // off the browser rather than asserted off a class name.
     expect(await close.evaluate((node) => getComputedStyle(node).cursor)).toBe('not-allowed')
+
+    // AND THE TOGGLE, WHICH IS THE CONTROL THIS TASK DISABLED. The button
+    // above already had a `:disabled` rule; the switch did not, so it was
+    // marked disabled and painted exactly like a live one - §92/PUB-002's
+    // defect, reintroduced by the commit that disabled it. Measured off the
+    // browser for the same reason: a class name asserts nothing about paint.
+    const toggle = page.locator('button[data-setting="passwordProtect"]')
+    expect(await toggle.evaluate((node) => getComputedStyle(node).cursor)).toBe('not-allowed')
   })
 
   test('saves a password, closes the book, and sends a stranger to the door', async ({ page, browser }) => {

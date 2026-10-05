@@ -252,10 +252,12 @@ export const setReaderPassword = async (payload: Payload, scope: AdminScope, pla
  * await takeBookOffline(payload, scope)
  */
 export const takeBookOffline = async (payload: Payload, scope: AdminScope): Promise<void> => {
-  // THE SAME REFUSAL AS `setReaderSetting`, AND IT HAS TO BE SEPARATE. This
-  // writes the column itself rather than going through that function, so a
-  // guard written only there would leave the button as a second way to close
-  // the book with no password stored - a one-sided boundary, with the open
-  // side being the control whose own copy says "Careful now".
+  // DELEGATED RATHER THAN DUPLICATED, AND THAT IS THE FIX. This used to write
+  // `passwordProtect` itself, so the refusal added to `setReaderSetting` did
+  // not reach it and the ringed button stayed a second way to close the book
+  // with no password stored - a one-sided boundary whose open side was the
+  // control whose own copy says "Careful now". Going through that function is
+  // what makes one refusal cover both doors; a copy of the check here would
+  // be a second place to forget it.
   await setReaderSetting(payload, scope, { setting: 'passwordProtect', on: true })
 }
