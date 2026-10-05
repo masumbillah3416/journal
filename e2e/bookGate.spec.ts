@@ -353,8 +353,10 @@ test.describe('the settings a reader is served', () => {
         await page.getByLabel('Password').fill(READER_PASSWORD)
         await page.getByRole('button', { name: 'Read the diary' }).click()
 
-        await page.goto(A_PAGE)
-        expect(new URL(page.url()).pathname).toBe(A_PAGE)
+        // WHERE THE BUTTON ACTUALLY LANDS THEM, rather than navigating there
+        // ourselves. The first version of this case went to `/p/1` by hand
+        // and so could not see that the latch was redirecting to a 404.
+        await expect(page).toHaveURL(new RegExp(`${A_PAGE}$`, 'u'))
 
         // AND THE PHOTOGRAPHS, which are a second door and were 401 above.
         const frame = /\/gallery\/tokyo\/download\/(\d+)/.exec(await (await context.request.get(A_GALLERY)).text())
@@ -421,7 +423,12 @@ test.describe('the settings a reader is served', () => {
     await withSetting({ passwordProtect: false }, async () => {
       const open = await request.get('/unlock', { maxRedirects: 0 })
 
-      expect([open.status(), open.headers().location]).toEqual([307, '/'])
+      // THE DESTINATION, NOT JUST THE REDIRECT. This app has NO root route -
+      // the diary opens at `/p/1` and `/` is a 404 - so a redirect to `/`
+      // would send a reader to a not-found page. Running the app is what
+      // found that; both e2e cases below navigate to `/p/1` themselves after
+      // unlocking, so the landing page was never looked at.
+      expect([open.status(), open.headers().location]).toEqual([307, A_PAGE])
     })
   })
 })

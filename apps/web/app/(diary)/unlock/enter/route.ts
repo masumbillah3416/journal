@@ -35,6 +35,7 @@
  * repository's existing limiter is shaped around sign-in attempts per
  * account, and a reader password has no account to count against.
  */
+import { pagePath } from '@travel-diary/domain/pageAddress'
 import { NextResponse } from 'next/server'
 
 import { readPublicAccess } from '../../../../lib/bookAccess'
@@ -46,6 +47,17 @@ const A_YEAR_IN_SECONDS = 60 * 60 * 24 * 365
 
 /** `303` turns the POST into a GET, so a refresh does not re-submit. */
 const SEE_OTHER = 303
+
+/**
+ * Where an admitted reader lands.
+ *
+ * NOT `/`. This application has no root route — the diary opens at `/p/1`
+ * and `/` is a 404 — so a redirect to `/` would hand a reader who just typed
+ * the right password a not-found page. Found by running the app; the e2e
+ * cases navigated to the book themselves after unlocking and so never looked
+ * at where the button put them.
+ */
+const THE_BOOK = pagePath(0)
 
 /**
  * Checks the typed password and, if it is right, remembers this browser.
@@ -69,7 +81,7 @@ export const POST = async (request: Request): Promise<NextResponse> => {
     return NextResponse.redirect(door, SEE_OTHER)
   }
 
-  const admitted = NextResponse.redirect(new URL('/', request.url), SEE_OTHER)
+  const admitted = NextResponse.redirect(new URL(THE_BOOK, request.url), SEE_OTHER)
   admitted.cookies.set(READER_COOKIE, outcome.cookieValue, {
     httpOnly: true,
     sameSite: 'lax',

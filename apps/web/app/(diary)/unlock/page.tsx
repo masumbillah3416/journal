@@ -23,6 +23,7 @@
  * page offering a lock that admits everybody would invite a reader to type
  * something that means nothing.
  */
+import { pagePath } from '@travel-diary/domain/pageAddress'
 import { redirect } from 'next/navigation'
 import type React from 'react'
 
@@ -38,7 +39,10 @@ interface UnlockPageProps {
 /** The lock screen: one line, one box, one button. */
 const UnlockPage = async ({ searchParams }: UnlockPageProps): Promise<React.JSX.Element> => {
   const { passwordProtect } = await readPublicAccess()
-  if (!passwordProtect) redirect('/')
+  // `pagePath(0)` RATHER THAN `/`. This application has no root route, so
+  // sending an open book's visitor to `/` would answer 404 — see the latch's
+  // own note.
+  if (!passwordProtect) redirect(pagePath(0))
 
   const wasWrong = (await searchParams).wrong === '1'
 
