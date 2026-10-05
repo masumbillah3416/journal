@@ -56,7 +56,7 @@
  * ./settings.module.css.
  */
 import type React from 'react'
-import type { ReaderToggle } from '../../../lib/admin/readSettingsScreen'
+import { OFFLINE_SETTING, type ReaderToggle } from '../../../lib/admin/readSettingsScreen'
 import styles from './settings.module.css'
 
 /** What SCREENS.md §2.9's Readers card needs to draw itself. */
@@ -65,6 +65,15 @@ export interface ReadersCardProps {
   readonly toggles: readonly ReaderToggle[]
   /** Whether the book is already closed, which decides the button's state. */
   readonly bookIsOffline: boolean
+  /**
+   * Whether a reader password is set — never what it is.
+   *
+   * It decides two things on this card: what the password field says above
+   * it, and whether the close toggle can be pressed at all.
+   */
+  readonly hasReaderPassword: boolean
+  /** Saves a new reader password. Handed the password field's form body. */
+  readonly savePassword: (form: FormData) => Promise<void>
   /** Writes one setting. Handed a toggle's form body. */
   readonly setSetting: (form: FormData) => Promise<void>
   /** Closes the whole book. Takes no fields. */
@@ -83,6 +92,8 @@ export interface ReadersCardProps {
 export const ReadersCard = ({
   toggles,
   bookIsOffline,
+  hasReaderPassword,
+  savePassword,
   setSetting,
   takeOffline,
 }: ReadersCardProps): React.JSX.Element => (
@@ -90,6 +101,39 @@ export const ReadersCard = ({
     <div className={styles.cardHead}>
       <h2 className={styles.cardTitle}>Readers</h2>
     </div>
+
+    {/*
+     * THE FIELD COMES BEFORE THE TOGGLE THAT NEEDS IT. Closing the book is
+     * refused without a password - by the screen here and by
+     * `setReaderSetting` underneath - so the thing to do first is drawn
+     * first. `docs/deviations.md` §100 is the entry about what closing the
+     * book used to mean.
+     */}
+    <form action={savePassword} className={styles.passwordForm} data-reader-password>
+      <label className={styles.toggleLabel} htmlFor="readerPassword">
+        Reader password
+      </label>
+      <p className={styles.hint}>
+        Everyone who reads the diary types this. Saving a new one signs out everyone who typed the old one.
+      </p>
+      <p className={styles.hint} data-reader-password-state>
+        {hasReaderPassword ? 'A password is set.' : 'No password yet.'}
+      </p>
+      {/* NEVER `value` OR `defaultValue`: the hash is all this screen is
+       * given, and a field that round-tripped a password would need one. */}
+      <input
+        className={styles.input}
+        id="readerPassword"
+        name="readerPassword"
+        type="password"
+        autoComplete="new-password"
+        maxLength={200}
+        required
+      />
+      <button type="submit" className={styles.save}>
+        Save password
+      </button>
+    </form>
 
     <ul className={styles.toggles}>
       {toggles.map((toggle) => (
@@ -108,6 +152,13 @@ export const ReadersCard = ({
               data-setting={toggle.setting}
               data-on={String(toggle.on)}
               aria-pressed={toggle.on}
+              // THE ONE TOGGLE THAT CAN BE REFUSED, AND IT SAYS SO BEFORE IT
+              // IS PRESSED. `setReaderSetting` throws when the book would be
+              // closed with no password stored, so a reader-password-less
+              // author would see a refusal either way - but a switch that can
+              // be flicked and then rejected is a worse screen than one that
+              // cannot be flicked yet. Only when turning it ON.
+              disabled={toggle.setting === OFFLINE_SETTING && !toggle.on && !hasReaderPassword}
               // THE NAME IS ON THE BUTTON, not in a hidden span: the switch
               // has no text of its own, and this repository has no
               // visually-hidden utility to invent one with. axe's

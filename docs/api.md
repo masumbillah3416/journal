@@ -2142,7 +2142,7 @@ Found` and a refused write. **The editing pane surfaces none of them** -
   `/admin/cover` alone: the `about` global is read by this screen and by `readBookBundle`, and
   the diary caches nothing.
 
-### `saveSite(form)` · `setReaderSetting(form)` · `takeBookOffline()`
+### `saveSite(form)` · `setReaderSetting(form)` · `saveReaderPassword(form)` · `takeBookOffline()`
 
 - **Path:** `apps/web/app/(admin)/admin/settings/actions.ts`. Every decision is
   `apps/web/lib/admin/siteMutations.ts`'s.
@@ -2150,7 +2150,15 @@ Found` and a refused write. **The editing pane surfaces none of them** -
   `description`, `replyTo`. `setReaderSetting` takes one toggle's form: `setting`, the
   column it writes, and `on`, the value it is switching TO (a checkbox that is off posts
   nothing at all, so a form built that way could only ever switch a setting on).
-  `takeBookOffline` takes nothing.
+  `saveReaderPassword` takes one field, `readerPassword`, and stores it hashed — the screen is
+  never handed the hash and the field is never pre-filled. `takeBookOffline` takes nothing, and
+  delegates to `setReaderSetting` rather than writing `passwordProtect` itself, so the refusal
+  below reaches both.
+
+  `setReaderSetting` and `takeBookOffline` **refuse** to close the book while no reader password
+  is stored, by throwing a `ZodError` the screen draws — a book closed with no password admits
+  nobody at all, which is the defect `docs/deviations.md` §100 records and §123 closes.
+
 - **Output:** nothing.
 - **Errors:** a `ZodError` from the parse. `replyTo` must be an address or empty, and
   `setting` must be a `checkbox` the `site` global declares — `name` and `analyticsId` are

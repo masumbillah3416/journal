@@ -4407,7 +4407,7 @@ re-argued.
 
 **Recorded as:** this entry, `storageBar.ts`'s header, and the case named above.
 
-## 100 · The closed book answers 401 and offers no password, because this data model holds none
+## 100 · CLOSED — the closed book answered 401 and offered no password, because this data model held none
 
 **What `SECURITY.md` asks for.** "The `password the whole book` setting must gate server-side. A
 client-side check leaves the content fetchable." It names a SETTING and a PLACE, and says nothing
@@ -5824,3 +5824,83 @@ reader is better placed to make than a closing round is.
 
 **No owner, because this is not a task.** It is the reading to take into whatever phase comes
 next.
+
+## 123 · The reader password, and what one column can and cannot mean
+
+**What changed.** `site.readerPasswordHash` holds one shared password, hashed
+with `scrypt` and a per-write salt. A closed book now redirects a stranger to
+`/unlock` and asks for it, instead of answering 401 with nothing to type.
+`docs/deviations.md` §100 is the entry this closes; §56's Basic-challenge
+answer goes with it.
+
+**ONE COLUMN STILL, AND THE WORD "OFFLINE" NO LONGER FITS IT.** §102 records
+that the "Take the book offline" button and the fourth toggle write the same
+`passwordProtect` column, because the data model held no second idea of what
+offline meant. A password creates one, and this entry **declines to add it**:
+`passwordProtect` now means _readers must type the password_, not _nobody may
+read_. The button and the toggle still write that one column and their copy
+says "closed" rather than "offline". An author who wants a true blackout sets
+a password nobody knows.
+
+**What would reverse it:** a `site.offline` column meaning "no reader,
+password or not" — at which point the button and the toggle stop being the
+same write.
+
+**Both controls refuse to close a book with no password set**, which is what
+stops this reintroducing §100's door with no key. The refusal is in
+`setReaderSetting`, `takeBookOffline` delegates to it rather than writing the
+column itself, and the Settings card disables the toggle before it can be
+pressed.
+
+**Recorded as:** this entry, `apps/web/lib/admin/siteMutations.ts`'s headers,
+and the cases `refuses to close the book when none is set, which would lock
+everyone out` and `refuses when no password is set, because the button is the
+other way into the same column`.
+
+## 124 · The unlock endpoint is not rate-limited, and `scrypt` is the cost
+
+**What this entry is.** `POST /unlock/enter` is reachable by anybody on the
+internet and spends a `scrypt` derivation on every submission that is not
+empty. That derivation is deliberately expensive — `apps/web/lib/auth/
+otpService.ts`'s header measures the same cost at about 30ms — so a flood of
+submissions is CPU a stranger chooses to spend. An empty submission costs
+nothing, and the 200-character cap bounds the cost of any one request, but
+nothing bounds the rate.
+
+**Why it is not built here.** This repository's limiter
+(`apps/web/lib/auth/rateLimit.ts`) counts sign-in attempts **per account**,
+against an `otpChallenges`-shaped row. A reader password has no account to
+count against: every reader shares one password and arrives with no identity
+at all. Limiting by IP is a different mechanism with its own storage, its own
+eviction and its own behaviour behind a proxy, and inventing it inside the
+task that adds the password would be the largest untested thing in that task.
+
+**What it costs if left.** A sustained flood degrades the whole site, not just
+the unlock page, because the work happens on the same process that renders
+the book.
+
+**What would reverse it:** an IP-keyed window with a runbook entry, or a
+platform-level rate limit in front of the deployment — at which point this
+entry names which.
+
+**Recorded as:** this entry and
+`apps/web/app/(diary)/unlock/enter/route.ts`'s header.
+
+## 125 · `(diary)/unauthorized.tsx` is reached by nothing
+
+**What changed.** Nothing in the `(diary)` route group raises `unauthorized()`
+any more. The three page entries redirect to `/unlock`, and the gallery
+download route builds its own 401 `Response` because its body is meant to be a
+photograph rather than a React view.
+
+**Why the file is kept.** It is Next's own convention for the route group, so
+the day any code here raises `unauthorized()` again it is this file that
+renders, with a 401 rather than a 200. Deleting it would also mean deciding
+about `experimental.authInterrupts` in `apps/web/next.config.ts`, which is a
+build change the task that made it unreachable had no mandate for.
+
+**What would reverse it:** either a route that raises `unauthorized()` again,
+or a decision to remove the flag — at which point the file goes with it.
+
+**Recorded as:** this entry and that file's own header, which says it is
+unreached rather than leaving a reader to find out.

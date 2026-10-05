@@ -37,6 +37,7 @@ import sharp from 'sharp'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getTestPayload } from '../testPayload'
 import { adminScope, type AdminScope } from './adminScope'
+import { setReaderPassword } from './siteMutations'
 import {
   OFFLINE_SETTING,
   READER_COPY,
@@ -314,5 +315,25 @@ describe('the Settings screen', () => {
     const second = await counted()
 
     expect([first, second]).toEqual([QUERIES_PER_READ, QUERIES_PER_READ])
+  })
+
+  describe('whether a reader password is set', () => {
+    it('says so without ever handing the screen the hash', async () => {
+      await setReaderPassword(payload, scope, 'tokyo 2019')
+
+      const view = await readSettingsScreen(payload, scope)
+
+      expect(view.hasReaderPassword).toBe(true)
+      // THE WHOLE POINT OF A BOOLEAN HERE. The screen is told THAT a password
+      // exists and never WHAT it is, so no render, no HTML and no view model
+      // can leak it.
+      expect(JSON.stringify(view)).not.toContain('scrypt$')
+    })
+
+    it('says so when there is none, which is the state that blocks closing the book', async () => {
+      await payload.updateGlobal({ slug: 'site', ...scope, depth: 0, data: { readerPasswordHash: null } })
+
+      expect((await readSettingsScreen(payload, scope)).hasReaderPassword).toBe(false)
+    })
   })
 })

@@ -46,7 +46,11 @@ const aSiteSettings = (overrides: Readonly<Record<string, boolean>> = {}): reado
  * @returns The host element.
  */
 const renderCard = (
-  options: { readonly toggles?: readonly ReaderToggle[]; readonly bookIsOffline?: boolean } = {},
+  options: {
+    readonly toggles?: readonly ReaderToggle[]
+    readonly bookIsOffline?: boolean
+    readonly hasReaderPassword?: boolean
+  } = {},
 ): HTMLElement => {
   const host = document.createElement('div')
   document.body.appendChild(host)
@@ -57,6 +61,8 @@ const renderCard = (
       <ReadersCard
         toggles={options.toggles ?? aSiteSettings()}
         bookIsOffline={options.bookIsOffline ?? false}
+        hasReaderPassword={options.hasReaderPassword ?? true}
+        savePassword={noWrite}
         setSetting={noWrite}
         takeOffline={noWrite}
       />,
@@ -64,6 +70,14 @@ const renderCard = (
   })
   return host
 }
+
+/**
+ * The toggles with the book OPEN, which is the state the close rule is about.
+ *
+ * @returns The default rows with `passwordProtect` off.
+ */
+const openBook = (): readonly ReaderToggle[] =>
+  aSiteSettings().map((toggle) => (toggle.setting === 'passwordProtect' ? { ...toggle, on: false } : toggle))
 
 afterEach(() => {
   act(() => {
@@ -106,10 +120,10 @@ describe('ReadersCard', () => {
   it('gives each toggle its own form, so one press writes one column', () => {
     const host = renderCard()
 
-    // ONE FORM PER TOGGLE PLUS THE "Careful now" ONE. A single form around the
-    // five would let a stale page overwrite four settings the author did not
-    // touch.
-    expect(host.querySelectorAll('form')).toHaveLength(declaredCheckboxes().length + 1)
+    // ONE FORM PER TOGGLE PLUS THE "Careful now" ONE AND THE PASSWORD ONE. A
+    // single form around the five would let a stale page overwrite four
+    // settings the author did not touch.
+    expect(host.querySelectorAll('form')).toHaveLength(declaredCheckboxes().length + 2)
   })
 
   it('names the column each form writes in a hidden field, so nothing is inferred from position', () => {
@@ -157,5 +171,48 @@ describe('ReadersCard', () => {
 
     expect(host.querySelector('h2')?.textContent).toBe('Readers')
     expect(host.textContent).toContain('Careful now')
+  })
+
+  describe('the reader password', () => {
+    it('says a password is set, and never renders the password itself', () => {
+      const host = renderCard({ hasReaderPassword: true })
+
+      expect(host.textContent).toContain('A password is set.')
+      expect(host.querySelector('input[name="readerPassword"]')?.getAttribute('value')).toBeNull()
+    })
+
+    it('says none is set, which is the state that blocks closing the book', () => {
+      const host = renderCard({ hasReaderPassword: false })
+
+      expect(host.textContent).toContain('No password yet.')
+    })
+
+    // REFUSED AT THE SCREEN AS WELL AS AT THE WRITE. `setReaderSetting` throws
+    // for this, so the author would see a refusal either way - but a checkbox
+    // that can be ticked and then rejected is a worse screen than one that
+    // says why it cannot be ticked yet.
+    it('disables the close toggle until a password exists', () => {
+      // THE BOOK MUST BE OPEN IN THE FIXTURE, because the rule is about
+      // CLOSING it. A toggle already on is a "turn off", which needs no
+      // password and must stay pressable - that is the next case.
+      const host = renderCard({ hasReaderPassword: false, toggles: openBook() })
+      const close = host.querySelector('button[data-setting="passwordProtect"]')
+
+      expect(close?.hasAttribute('disabled')).toBe(true)
+    })
+
+    it('leaves the close toggle usable once a password exists, so the guard is not simply a wall', () => {
+      const host = renderCard({ hasReaderPassword: true, toggles: openBook() })
+      const close = host.querySelector('button[data-setting="passwordProtect"]')
+
+      expect(close?.hasAttribute('disabled')).toBe(false)
+    })
+
+    it('leaves the other toggles alone when no password is set', () => {
+      const host = renderCard({ hasReaderPassword: false, toggles: openBook() })
+      const share = host.querySelector('button[data-setting="allowShare"]')
+
+      expect(share?.hasAttribute('disabled')).toBe(false)
+    })
   })
 })

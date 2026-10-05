@@ -46,6 +46,7 @@ import {
   readReaderToggle,
   readSiteForm,
   saveSite as writeSite,
+  setReaderPassword as writeReaderPassword,
   setReaderSetting as writeReaderSetting,
   takeBookOffline as writeBookOffline,
 } from '../../../../lib/admin/siteMutations'
@@ -123,6 +124,30 @@ export const setReaderSetting = guardedAction(async (session, form: FormData): P
   revalidatePath(GALLERY_PATTERN, 'page')
   revalidatePath(BOOK_PATTERN, 'page')
   revalidatePath(MOBILE_PATTERN, 'page')
+})
+
+/**
+ * Saves a new shared reader password, hashed.
+ *
+ * IT REVALIDATES THE SETTINGS SCREEN AND NOTHING ELSE. The password changes
+ * no public page's CONTENT — a closed book stays closed and an open one stays
+ * open — so the four public addresses the toggles invalidate are untouched.
+ * What it does change is every reader's cookie, and no cache entry holds one.
+ *
+ * @param session - The account the guard admitted, resolved to a scope.
+ * @param form - The field's own form body; only `readerPassword` is read.
+ * @returns Nothing.
+ * @throws {z.ZodError} When the field is empty or past the cap — drawn on the
+ *   screen by the refusal mechanism `docs/deviations.md` §104 records.
+ */
+export const saveReaderPassword = guardedAction(async (session, form: FormData): Promise<void> => {
+  const submitted = form.get('readerPassword')
+  await writeReaderPassword(
+    await getPayload(),
+    await adminScope(session),
+    typeof submitted === 'string' ? submitted : '',
+  )
+  revalidatePath(SETTINGS_PATH)
 })
 
 /**

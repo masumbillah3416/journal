@@ -123,6 +123,15 @@ export interface SettingsView {
    * left to do. Two readings of one column, never two columns.
    */
   readonly bookIsOffline: boolean
+  /**
+   * Whether a reader password is set — never what it is.
+   *
+   * A BOOLEAN, AND THAT IS THE WHOLE DESIGN. The screen has to say "a
+   * password is set" and has to disable the toggle when none is, and neither
+   * needs the hash. Carrying the hash into a view model would put it in a
+   * render, in HTML, and in anything that ever serialises this object.
+   */
+  readonly hasReaderPassword: boolean
 }
 
 /** The column "Take the book offline" and the fourth toggle both write. */
@@ -152,12 +161,19 @@ export const READER_COPY: Readonly<Record<string, { readonly label: string; read
     // `apps/web/lib/bookGateRegistration.test.ts` counts the surfaces and
     // `e2e/bookGate.spec.ts` asks a running server for each of them.
     //
-    // THE LABEL IS NOT SCREENS.md's. §2.9 words it "password the whole book";
-    // there is no password in this data model and none can be set from this
-    // screen, so the toggle says what the column does. `docs/deviations.md`
-    // §103 records the change with the Site card's three hints.
+    // THE HINT CHANGED WHEN THE READER PASSWORD LANDED, and the old one is
+    // worth keeping in view: it read "nothing is served to a reader at all".
+    // That was true of a book nobody could open, which is the defect
+    // `docs/deviations.md` §100 records. It is false now — a reader who types
+    // the password is served everything — and a stale security claim on a
+    // security control is worse than no claim.
+    //
+    // THE LABEL IS STILL NOT SCREENS.md's. §2.9 words it "password the whole
+    // book"; the toggle says what pressing it does, which is close the book
+    // rather than set anything. `docs/deviations.md` §103 records the change
+    // with the Site card's three hints.
     label: 'Close the whole book',
-    hint: 'nothing is served to a reader at all — not a page, not a gallery, not a photograph',
+    hint: 'readers must type the password below — set one first, or there is no way back in',
   },
   touchPageTurn: {
     label: 'Keep the page-turn on touch',
@@ -297,5 +313,6 @@ export const readSettingsScreen = async (payload: Payload, scope: AdminScope): P
       segments: storageSegments(used, STORAGE_QUOTA_BYTES),
     },
     bookIsOffline: flag(settings[OFFLINE_SETTING], declaredDefault(OFFLINE_SETTING)),
+    hasReaderPassword: typeof site.readerPasswordHash === 'string' && site.readerPasswordHash !== '',
   }
 }

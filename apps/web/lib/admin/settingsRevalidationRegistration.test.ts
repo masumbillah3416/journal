@@ -31,6 +31,10 @@
  *     `allowShare` and `touchPageTurn` are read by the diary's own pages. A
  *     cache hint that had to ask which setting changed would be a second place
  *     the mapping lives.
+ *   - `saveReaderPassword` writes `readerPasswordHash` alone. No public read
+ *     consults it except through the gate, which reads it per request rather
+ *     than from a cached page, so this action invalidates the screen it is on
+ *     and nothing else.
  *   - `takeBookOffline` writes the same column the fourth toggle writes
  *     (`docs/deviations.md` §102), so it names the same public addresses. The
  *     two lists are identical ON PURPOSE: a divergence would be a second
@@ -76,6 +80,13 @@ const SETTINGS_ACTIONS = 'app/(admin)/admin/settings/actions.ts'
  */
 const REVALIDATED: Readonly<Record<string, readonly string[]>> = {
   saveSite: ['/admin/settings', '/admin'],
+  // THE SETTINGS SCREEN AND NOTHING ELSE, and the shortness of this row is
+  // the claim. A new reader password changes no public page's CONTENT - a
+  // closed book stays closed, an open one stays open - so none of the four
+  // public addresses the toggles invalidate is touched. What it DOES change
+  // is every reader's cookie, by redrawing the salt the cookie is derived
+  // from, and no cache entry holds one of those.
+  saveReaderPassword: ['/admin/settings'],
   setReaderSetting: ['/admin/settings', '/robots.txt', '/gallery/[slug]', '/p/[n]', '/m/[n]'],
   takeBookOffline: ['/admin/settings', '/robots.txt', '/gallery/[slug]', '/p/[n]', '/m/[n]'],
 }

@@ -852,12 +852,32 @@ nothing can set is a gate nobody can test.
 disk: a public route that neither applies the gate nor is classified there fails by name, on the
 commit that adds it.
 
-1. **Four routes this repository wrote** spend `bookIsGated` in their own bodies, before anything
-   is read: `apps/web/app/(diary)/p/[n]/page.tsx`, `apps/web/app/(diary)/m/[n]/page.tsx` (two
+1. **Four routes this repository wrote** spend `readerMustUnlock` in their own bodies, before
+   anything is read: `apps/web/app/(diary)/p/[n]/page.tsx`, `apps/web/app/(diary)/m/[n]/page.tsx` (two
    route entries for one address since ADR 0012, so a gate on one of them would leave every phone
    served the whole book), `apps/web/app/(diary)/gallery/[slug]/page.tsx` and the download handler
    beneath it. `apps/web/lib/bookAccess.ts` reads the setting once per request — `depth: 0`, that
-   one field beside `indexGalleries`, wrapped in React's `cache`.
+   one field beside `indexGalleries` and the password hash, wrapped in React's `cache`.
+
+   **THE PREDICATE CHANGED WHEN THE READER PASSWORD LANDED.** It was `bookIsGated`, which answers
+   only whether the book is closed. `readerMustUnlock` asks that **and** whether this request
+   carries the cookie a reader is handed for typing the password, so a route spending the old
+   predicate alone would now refuse the very readers the author let in. `readerMustUnlock` spends
+   `bookIsGated` itself, so requiring the outer call is strictly stronger than requiring the
+   inner one, and `bookGateRegistration.test.ts` requires the outer one.
+
+   **THE THREE PAGE ENTRIES REDIRECT RATHER THAN REFUSE.** A closed book now has a password to ask
+   for, so a stranger is sent to `/unlock` instead of being told 401 with nothing to type —
+   `docs/deviations.md` §100 is the entry that records why there was nothing to ask for before,
+   and §123 records what one column can and cannot mean now. The download handler still answers
+   401, because its body is meant to be a photograph and a browser following a redirect there
+   would save the unlock page as a file.
+
+   **THE UNLOCK PAGE AND ITS LATCH ARE CLASSIFIED, NOT GATED.** `(diary)/unlock/page.tsx` and
+   `(diary)/unlock/enter/route.ts` are named in `bookGateRegistration.test.ts`'s
+   `PUBLIC_WITHOUT_THE_GATE` with their reasons: a door cannot spend a gate that would redirect it
+   to itself, and the latch is where the password is checked. Neither serves a row.
+
 2. **Three routes Payload wrote** cannot be edited here, and all three are callers of one
    predicate: `apps/web/collections/media.ts`'s `read` rule, which consults `passwordProtect` and
    answers `false` for a signed-out caller once the book is closed. REST, GraphQL and

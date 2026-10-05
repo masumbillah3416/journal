@@ -525,3 +525,41 @@
   gap: 8px;
   margin-left: auto;
 }
+
+/*
+ * The reader-password field, above the toggle that cannot be used without it.
+ * It borrows the card's own spacing rather than inventing a second rhythm.
+ */
+.passwordForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--td-hairline-border-max);
+}
+
+.passwordForm .input {
+  max-width: 320px;
+  padding: 8px 10px;
+  font-family: var(--td-font-garamond);
+  font-size: 15px;
+  color: var(--td-ink);
+  background: var(--td-cream);
+  border: none;
+  border-radius: var(--td-radius-control);
+  box-shadow: inset 0 0 0 1px var(--td-hairline-border-max);
+}
+
+.passwordForm .save {
+  align-self: flex-start;
+  padding: 7px 12px;
+  font-family: var(--td-font-courier);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--td-paper);
+  background: var(--td-accent);
+  border: none;
+  border-radius: var(--td-radius-control);
+  cursor: pointer;
+}

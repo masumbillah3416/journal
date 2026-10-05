@@ -60,7 +60,7 @@ import { readNavCounts } from '../../../../lib/admin/readNavCounts'
 import { readSettingsScreen } from '../../../../lib/admin/readSettingsScreen'
 import { requireAdminSession } from '../../../../lib/auth/guard'
 import { getPayload } from '../../../../lib/payload'
-import { saveSite, setReaderSetting, takeBookOffline } from './actions'
+import { saveReaderPassword, saveSite, setReaderSetting, takeBookOffline } from './actions'
 
 /**
  * The screen's title, and the one instruction it gives a crawler.
@@ -129,6 +129,8 @@ const SettingsPage = async (): Promise<React.JSX.Element> => {
             <ReadersCard
               toggles={view.readers}
               bookIsOffline={view.bookIsOffline}
+              hasReaderPassword={view.hasReaderPassword}
+              savePassword={saveReaderPassword}
               setSetting={setReaderSetting}
               takeOffline={takeBookOffline}
             />
