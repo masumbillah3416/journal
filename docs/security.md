@@ -902,12 +902,14 @@ three, and one predicate behind them is a better answer than a gate in front of 
 renders `apps/web/app/(diary)/unauthorized.tsx` and needs `experimental.authInterrupts` in
 `apps/web/next.config.ts`. It carries **no `WWW-Authenticate` challenge**, and that is a decision
 with a measurement behind it rather than an omission: a Next.js page component cannot set a
-response header at all, and this data model stores no book password for a challenge to ask for.
-`docs/deviations.md` §100 carries both, and the screen, the notice and the module all say
-closed rather than passworded, because that is what the setting does.
+response header at all. `docs/deviations.md` §100 carries that, and it is now **CLOSED**: this
+data model stores a reader password, so a closed book no longer refuses with nothing to type. The
+three page entries redirect a stranger to `/unlock` and ask for it; the download handler still
+answers 401, because its body is meant to be a photograph. §123 records what one column can and
+cannot mean now.
 
 **Which cases prove it.** In the browser, against a running server, by TOGGLING the setting and
-reading the response back — `refuses the book to a reader with no password once the whole book is
+reading the response back — `sends a reader with no password to the unlock page once the whole book is
 protected`, `serves the same address once the setting is off, so the gate is the setting and not
 the route`, `closes the galleries with the book, so the content is not left fetchable beside it`,
 `opens the galleries again with the book, so the gallery gate is the setting too`, `refuses a
@@ -915,7 +917,17 @@ photograph by its own address once the book is closed, because that is what leav
 `refuses the media index once the book is closed, because a list of every photograph is content`,
 `refuses the same index through GraphQL, which is a second door onto one rule`, `refuses the
 photograph’s own bytes, at the URL the book’s markup prints` and `serves that same photograph
-again once the book is open, so the refusal is the setting` — all in `e2e/bookGate.spec.ts`. The
+again once the book is open, so the refusal is the setting` — all in `e2e/bookGate.spec.ts`.
+
+**And the three that prove the password lets a reader back in**, which is the half §100's closure
+adds: `lets a reader who types the password read the book, and the photographs with it` drives a
+real browser through the form and then asks for a photograph that was 401 moments earlier;
+`refuses the wrong password and says so, rather than letting it through quietly` checks the book
+is still shut after the refusal, because the message alone would pass against a page that said no
+and admitted the reader anyway; and `refuses a cookie a reader made up, which is what the
+comparison is for` forges the cookie, which is the only one of the three that exercises the
+comparison at all — a wrong password sets no cookie, so neither of the others would notice a gate
+that admitted any non-empty one. The
 URL the last two ask for is HARVESTED from the open book's own markup rather than written into the
 fixture, so it is the address a reader actually holds. Several pairs differ in one global and
 nothing else, so a gate refusing everything fails as loudly as one refusing nothing: measured, by

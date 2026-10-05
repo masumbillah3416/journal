@@ -181,19 +181,33 @@ export const ReadersCard = ({
 
     <div className={styles.careful}>
       <p className={styles.eyebrow}>Careful now</p>
+      {/*
+       * THIS PARAGRAPH WAS A SECURITY CLAIM AND IT WENT STALE. It used to read
+       * "no page, no gallery and no photograph is served, and anyone who
+       * follows a link is told the diary is closed rather than shown any of
+       * it". That was true of a book nobody could open (`docs/deviations.md`
+       * §100). A reader who types the password is now served everything, and
+       * a stale claim on a control this dangerous is worse than no claim.
+       */}
       <p className={styles.body}>
-        Taking the book offline closes it to everybody at once: no page, no gallery and no photograph is served, and
-        anyone who follows a link is told the diary is closed rather than shown any of it. It is the same switch as
-        &ldquo;Close the whole book&rdquo; above, and that switch is how you open it again.
+        Closing the book shuts it to everybody who does not know the password: a reader who follows a link is asked for
+        it rather than shown any of the diary. It is the same switch as &ldquo;Close the whole book&rdquo; above, and
+        that switch is how you open it again. To shut it to everybody including your readers, save a password nobody
+        knows.
       </p>
       <form action={takeOffline}>
         <button
           type="submit"
           data-take-offline
-          disabled={bookIsOffline}
+          // THE SAME RULE AS THE TOGGLE ABOVE, and it has to be stated twice
+          // because this button is the other way into the same column.
+          // `takeBookOffline` delegates to `setReaderSetting` and so throws
+          // for this - but a dangerous button that can be pressed and then
+          // rejected is a worse screen than one that says why it cannot be.
+          disabled={bookIsOffline || !hasReaderPassword}
           className={[styles.save, styles.danger].join(' ')}
         >
-          {bookIsOffline ? 'The book is offline' : 'Take the book offline'}
+          {bookIsOffline ? 'The book is closed' : 'Close the book to readers'}
         </button>
       </form>
     </div>

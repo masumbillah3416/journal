@@ -2175,6 +2175,84 @@ test('tells the author why the Notes pane was refused, and writes nothing', asyn
   })
 })
 
+test.describe('the reader password, set from the screen that owns it', () => {
+  // SERIAL: both cases write `site`, and the second reads what the first left.
+  test.describe.configure({ mode: 'serial' })
+
+  test('refuses to close the book until a password is set, on the screen as well as at the write', async ({ page }) => {
+    const payload = await getPayload()
+    await payload.updateGlobal({
+      slug: 'site',
+      depth: 0,
+      data: { readerPasswordHash: null, passwordProtect: false },
+    })
+
+    await page.goto('/admin/settings')
+
+    // DISABLED, NOT MERELY REFUSED. `setReaderSetting` throws for this write
+    // either way; what this asserts is that the author is told before they
+    // press rather than after.
+    await expect(page.locator('button[data-setting="passwordProtect"]')).toBeDisabled()
+    await expect(page.locator('[data-reader-password-state]')).toHaveText('No password yet.')
+
+    // AND THE OTHER DOOR, WHICH IS THE DANGEROUS ONE. "Close the book to
+    // readers" writes the same column; disabling the toggle alone would leave
+    // the ringed button live.
+    const close = page.locator('[data-take-offline]')
+    await expect(close).toBeDisabled()
+
+    // PAINTED DISABLED, NOT MERELY MARKED IT. docs/deviations.md §92: a
+    // control rendered `disabled` with no `:disabled` rule paints and behaves
+    // exactly like a live one, and invites a press it cannot answer. Measured
+    // off the browser rather than asserted off a class name.
+    expect(await close.evaluate((node) => getComputedStyle(node).cursor)).toBe('not-allowed')
+  })
+
+  test('saves a password, closes the book, and sends a stranger to the door', async ({ page, browser }) => {
+    const payload = await getPayload()
+    const before = await payload.findGlobal({
+      slug: 'site',
+      depth: 0,
+      select: { passwordProtect: true, readerPasswordHash: true },
+    })
+
+    try {
+      await page.goto('/admin/settings')
+      await page.getByLabel('Reader password').fill('nineteen tarts no regrets')
+      await page.getByRole('button', { name: 'Save password' }).click()
+
+      await expect(page.locator('[data-reader-password-state]')).toHaveText('A password is set.')
+
+      // AND NOW IT CAN BE PRESSED, which is what makes the first case a rule
+      // rather than a wall.
+      const close = page.locator('button[data-setting="passwordProtect"]')
+      await expect(close).toBeEnabled()
+      await close.click()
+      await expect(close).toHaveAttribute('data-on', 'true')
+
+      // THE WHOLE POINT, ASKED OF A DIFFERENT BROWSER. The author's own
+      // session must not be what makes the book look closed.
+      const stranger = await browser.newContext()
+      try {
+        const reader = await stranger.newPage()
+        await reader.goto('/p/1')
+        await expect(reader).toHaveURL(/\/unlock$/u)
+      } finally {
+        await stranger.close()
+      }
+    } finally {
+      await payload.updateGlobal({
+        slug: 'site',
+        depth: 0,
+        data: {
+          passwordProtect: before.passwordProtect ?? false,
+          readerPasswordHash: before.readerPasswordHash ?? null,
+        },
+      })
+    }
+  })
+})
+
 test.describe('the account screen (SCREENS.md §2.11)', () => {
   /**
    * TWO BROWSERS, ONE ACCOUNT, and that is the whole shape of this block.

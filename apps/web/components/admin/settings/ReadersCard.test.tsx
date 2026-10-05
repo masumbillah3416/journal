@@ -148,12 +148,22 @@ describe('ReadersCard', () => {
     expect(row?.textContent).toContain(readerCopyFor('indexGalleries').hint)
   })
 
-  it('offers Take the book offline while the book is open', () => {
-    const host = renderCard({ bookIsOffline: false })
+  it('offers to close the book while it is open and a password exists', () => {
+    const host = renderCard({ bookIsOffline: false, hasReaderPassword: true })
     const button = host.querySelector<HTMLButtonElement>('[data-take-offline]')
 
     expect(button?.disabled).toBe(false)
-    expect(button?.textContent).toBe('Take the book offline')
+    expect(button?.textContent).toBe('Close the book to readers')
+  })
+
+  // THE SECOND DOOR, ON THE SCREEN AS WELL AS AT THE WRITE. This button is
+  // the other way into `passwordProtect`, so the rule that guards the toggle
+  // has to guard it too - and a dangerous button that can be pressed and then
+  // rejected is a worse screen than one that says why it cannot be.
+  it('refuses to close the book while no password is set, as the toggle above it does', () => {
+    const host = renderCard({ bookIsOffline: false, hasReaderPassword: false })
+
+    expect(host.querySelector<HTMLButtonElement>('[data-take-offline]')?.disabled).toBe(true)
   })
 
   it('has nothing left for that button to do once the book is closed, and says so', () => {
@@ -163,7 +173,7 @@ describe('ReadersCard', () => {
     const button = host.querySelector<HTMLButtonElement>('[data-take-offline]')
 
     expect(button?.disabled).toBe(true)
-    expect(button?.textContent).toBe('The book is offline')
+    expect(button?.textContent).toBe('The book is closed')
   })
 
   it('titles the card in §2.9’s own words, and keeps the Careful now eyebrow', () => {

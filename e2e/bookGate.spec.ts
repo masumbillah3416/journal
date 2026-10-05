@@ -61,12 +61,16 @@
  */
 import { expect, test } from '@playwright/test'
 import { getPayload } from '../apps/web/lib/payload'
+import { hashReaderPassword } from '../apps/web/lib/readerPassword'
 
 /** The page of the book every case here asks for. */
 const A_PAGE = '/p/1'
 
 /** A seeded journey with a published gallery. */
 const A_GALLERY = '/gallery/tokyo'
+
+/** The password the two reader cases type. Written and read in one run. */
+const READER_PASSWORD = 'nineteen tarts no regrets'
 
 /**
  * Payload's own bookkeeping on a global, which no write here authors.
@@ -102,14 +106,18 @@ const dumpSite = async (): Promise<string> => {
  * @param body - The assertion to run while it is set.
  */
 const withSetting = async (
-  settings: { readonly passwordProtect?: boolean; readonly indexGalleries?: boolean },
+  settings: {
+    readonly passwordProtect?: boolean
+    readonly indexGalleries?: boolean
+    readonly readerPasswordHash?: string | null
+  },
   body: () => Promise<void>,
 ): Promise<void> => {
   const payload = await getPayload()
   const before = await payload.findGlobal({
     slug: 'site',
     depth: 0,
-    select: { passwordProtect: true, indexGalleries: true },
+    select: { passwordProtect: true, indexGalleries: true, readerPasswordHash: true },
   })
   await payload.updateGlobal({ slug: 'site', depth: 0, data: settings })
   try {
@@ -120,7 +128,11 @@ const withSetting = async (
     await payload.updateGlobal({
       slug: 'site',
       depth: 0,
-      data: { passwordProtect: before.passwordProtect ?? false, indexGalleries: before.indexGalleries ?? true },
+      data: {
+        passwordProtect: before.passwordProtect ?? false,
+        indexGalleries: before.indexGalleries ?? true,
+        readerPasswordHash: before.readerPasswordHash ?? null,
+      },
     })
   }
 }
@@ -141,14 +153,20 @@ test.describe('the settings a reader is served', () => {
     expect(await dumpSite()).toBe(dumpedBefore)
   })
 
-  test('refuses the book to a reader with no password once the whole book is protected', async ({ request }) => {
+  test('sends a reader with no password to the unlock page once the whole book is protected', async ({ request }) => {
     await withSetting({ passwordProtect: true }, async () => {
-      // ONE STATUS, not a list of acceptable ones. `maxRedirects: 0` is what
-      // makes the status readable at all — a following request reports the
-      // landing page's 200 and says nothing about the gate.
+      // ONE STATUS AND ONE DESTINATION, not a list of acceptable ones.
+      // `maxRedirects: 0` is what makes either readable — a following request
+      // reports the landing page's 200 and says nothing about the gate.
+      //
+      // IT WAS 401 UNTIL THE READER PASSWORD LANDED. A closed book had
+      // nothing to ask for, so refusing was all it could do
+      // (`docs/deviations.md` §100). The redirect is the gate now, and the
+      // `location` is what makes this case about the gate rather than about
+      // any 307 the framework might emit.
       const gated = await request.get(A_PAGE, { maxRedirects: 0 })
 
-      expect(gated.status()).toBe(401)
+      expect([gated.status(), gated.headers().location]).toEqual([307, '/unlock'])
     })
   })
 
@@ -164,7 +182,9 @@ test.describe('the settings a reader is served', () => {
 
   test('closes the galleries with the book, so the content is not left fetchable beside it', async ({ request }) => {
     await withSetting({ passwordProtect: true }, async () => {
-      expect((await request.get(A_GALLERY, { maxRedirects: 0 })).status()).toBe(401)
+      const gated = await request.get(A_GALLERY, { maxRedirects: 0 })
+
+      expect([gated.status(), gated.headers().location]).toEqual([307, '/unlock'])
     })
   })
 
@@ -309,6 +329,85 @@ test.describe('the settings a reader is served', () => {
 
       expect(body).toContain('Allow: /')
       expect(body).not.toMatch(/^Disallow: \/(p)?$/m)
+    })
+  })
+
+  test('lets a reader who types the password read the book, and the photographs with it', async ({ browser }) => {
+    // THE CASE THE WHOLE FEATURE EXISTS FOR, and the only one that exercises
+    // the cookie round trip in a real browser: the hash is written by the
+    // production hasher, the form is submitted by a browser, the cookie is
+    // kept by that browser, and the two assertions below are asked of the
+    // same addresses the cases above find closed.
+    const hash = await hashReaderPassword(READER_PASSWORD)
+
+    await withSetting({ passwordProtect: true, readerPasswordHash: hash }, async () => {
+      const context = await browser.newContext()
+      try {
+        const page = await context.newPage()
+        await page.goto(A_PAGE)
+
+        // SENT TO THE DOOR FIRST. If this is not the unlock page, everything
+        // below is measuring something else.
+        await expect(page).toHaveURL(/\/unlock$/u)
+
+        await page.getByLabel('Password').fill(READER_PASSWORD)
+        await page.getByRole('button', { name: 'Read the diary' }).click()
+
+        await page.goto(A_PAGE)
+        expect(new URL(page.url()).pathname).toBe(A_PAGE)
+
+        // AND THE PHOTOGRAPHS, which are a second door and were 401 above.
+        const frame = /\/gallery\/tokyo\/download\/(\d+)/.exec(await (await context.request.get(A_GALLERY)).text())
+        expect(frame?.[0], 'the gallery draws no download link, so this half would prove nothing').toBeTruthy()
+        expect((await context.request.get(frame?.[0] ?? '', { maxRedirects: 0 })).status()).toBe(200)
+      } finally {
+        await context.close()
+      }
+    })
+  })
+
+  test('refuses the wrong password and says so, rather than letting it through quietly', async ({ browser }) => {
+    const hash = await hashReaderPassword(READER_PASSWORD)
+
+    await withSetting({ passwordProtect: true, readerPasswordHash: hash }, async () => {
+      const context = await browser.newContext()
+      try {
+        const page = await context.newPage()
+        await page.goto('/unlock')
+        await page.getByLabel('Password').fill('not the password')
+        await page.getByRole('button', { name: 'Read the diary' }).click()
+
+        await expect(page.getByText('That is not the password.')).toBeVisible()
+
+        // AND THE BOOK IS STILL SHUT. The message alone would pass against a
+        // page that said no and admitted the reader anyway.
+        await page.goto(A_PAGE)
+        await expect(page).toHaveURL(/\/unlock$/u)
+      } finally {
+        await context.close()
+      }
+    })
+  })
+
+  test('refuses a cookie a reader made up, which is what the comparison is for', async ({ browser, baseURL }) => {
+    // THE CASE THE TWO ABOVE CANNOT BE. A wrong password sets no cookie at
+    // all, so neither of them exercises the comparison between what a browser
+    // carries and what the stored hash derives - a gate that admitted ANY
+    // non-empty `td-reader` would pass both. This one forges the cookie.
+    const hash = await hashReaderPassword(READER_PASSWORD)
+
+    await withSetting({ passwordProtect: true, readerPasswordHash: hash }, async () => {
+      const context = await browser.newContext()
+      try {
+        await context.addCookies([{ name: 'td-reader', value: 'let-me-in', url: baseURL ?? '' }])
+        const page = await context.newPage()
+
+        await page.goto(A_PAGE)
+
+        await expect(page).toHaveURL(/\/unlock$/u)
+      } finally {
+        await context.close()
+      }
     })
   })
 })
